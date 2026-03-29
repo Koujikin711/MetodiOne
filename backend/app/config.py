@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
 
+    # Онлайн-запись: имена стадий воронки (как в seed pipeline_stages)
+    booking_queue_stage_name: str = "Квалифицирован"
+    booking_stage_after_book: str = "В работе"
+    booking_stage_completed: str = "Успешно реализован"
+    booking_stage_lost: str = "Потерян"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
