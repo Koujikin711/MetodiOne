@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -8,7 +8,7 @@ import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { apiFetch } from "@/lib/api";
 import type { BookingAppointment, BookingDirection, BookingSpecialist, Lead } from "@/lib/types";
 
-type Tab = "booking" | "dicts" | "journal";
+type Tab = "online" | "dicts" | "journal";
 
 const statusLabels: Record<string, string> = {
   booked: "Записан",
@@ -33,11 +33,11 @@ function formatDt(iso: string) {
 export function OnlineBookingPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>("grid");
+  const [tab, setTab] = useState<Tab>("online");
   const [filterDate, setFilterDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [journalDate, setJournalDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [specialistFilter, setSpecialistFilter] = useState<number | "">("");
   const [queueSearch, setQueueSearch] = useState("");
+  const formPanelRef = useRef<HTMLDivElement>(null);
 
   const [leadId, setLeadId] = useState<number | null>(null);
   const [patientName, setPatientName] = useState("");
@@ -76,18 +76,7 @@ export function OnlineBookingPage() {
       qs.set("date", filterDate);
       return apiFetch<BookingAppointment[]>(`/api/booking/appointments?${qs.toString()}`);
     },
-    enabled: tab === "grid",
-  });
-
-  const appointmentsQuery = useQuery({
-    queryKey: ["booking-appointments", filterDate, specialistFilter],
-    queryFn: () => {
-      const qs = new URLSearchParams();
-      if (filterDate) qs.set("date", filterDate);
-      if (specialistFilter !== "") qs.set("specialist_id", String(specialistFilter));
-      return apiFetch<BookingAppointment[]>(`/api/booking/appointments?${qs.toString()}`);
-    },
-    enabled: tab === "booking",
+    enabled: tab === "online",
   });
 
   const journalQuery = useQuery({
@@ -108,8 +97,11 @@ export function OnlineBookingPage() {
       }),
     onSuccess: () => {
       toast.success("Запись создана. Лид на канбане переведён в «В работе».");
+      setPatientName("");
+      setPatientPhone("");
+      setComment("");
+      setLeadId(null);
       void queryClient.invalidateQueries({ queryKey: ["booking-queue"] });
-      void queryClient.invalidateQueries({ queryKey: ["booking-appointments"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
@@ -127,7 +119,6 @@ export function OnlineBookingPage() {
       }),
     onSuccess: () => {
       toast.success("Статус обновлён. Этап лида на канбане синхронизирован.");
-      void queryClient.invalidateQueries({ queryKey: ["booking-appointments"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
@@ -226,16 +217,29 @@ export function OnlineBookingPage() {
     setPatientPhone(lead.phone ?? "");
     setResponsibleManagerId(lead.manager_id ? String(lead.manager_id) : "");
     toast.success(`Выбран лид #${lead.id} — данные подставлены в форму`);
+    window.setTimeout(() => {
+      formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 80);
   }
 
   function onCalendarAppointmentClick(a: BookingAppointment) {
     if (a.lead_id) {
       navigate(`/leads/${a.lead_id}`);
     } else {
-      toast.error(
-        "К этой записи не привязан лид в CRM. Откройте вкладку «Запись» и создайте запись из очереди.",
-      );
+      toast.error("К этой записи не привязан лид в CRM. Создайте новую запись из листа ожидания слева.");
     }
+  }
+
+  function handleSlotClick(payload: { specialistId: number; directionId: number; hour: number }) {
+    setDirectionId(payload.directionId);
+    setSpecialistId(payload.specialistId);
+    setStartAt(
+      `${filterDate}T${String(payload.hour).padStart(2, "0")}:00`,
+    );
+    toast.success(`Слот ${String(payload.hour).padStart(2, "0")}:00 — заполните форму справа`);
+    window.setTimeout(() => {
+      formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 80);
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -286,11 +290,11 @@ export function OnlineBookingPage() {
     <div className="relative mx-auto max-w-[1600px] space-y-8 pb-10">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-white">Онлайн запись</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-white">Онлайн-записи</h1>
           <p className="max-w-2xl text-base text-slate-400">
-            Сетка по специалистам: клик по записи с лидом открывает карточку клиента. Очередь — этап
-            «Квалифицирован». После записи лид переходит в «В работе»; при завершении приёма — в «Успешно
-            реализован», при отмене / неявке — в «Потерян».
+            Сетка по специалистам: клик по свободному часу открывает форму справа; клик по карточке записи с
+            лидом — карточка клиента. Лист ожидания — этап «Квалифицирован». После записи лид переходит в «В
+            работе»; при завершении приёма — «Успешно реализован», при отмене / неявке — «Потерян».
           </p>
           <Link
             to="/"
@@ -300,14 +304,13 @@ export function OnlineBookingPage() {
           </Link>
         </div>
         <div className="flex flex-wrap gap-2">
-          {tabBtn("grid", "Сетка")}
-          {tabBtn("booking", "Запись")}
+          {tabBtn("online", "Онлайн-записи")}
           {tabBtn("dicts", "Справочники")}
           {tabBtn("journal", "Журнал")}
         </div>
       </header>
 
-      {tab === "grid" && (
+      {tab === "online" && (
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
           <div className="min-w-0 flex-1 space-y-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -326,12 +329,13 @@ export function OnlineBookingPage() {
               specialists={specialistsActive}
               appointments={gridAppointmentsQuery.data ?? []}
               onAppointmentClick={onCalendarAppointmentClick}
+              onSlotClick={handleSlotClick}
             />
             {gridAppointmentsQuery.isLoading && (
               <p className="text-sm text-slate-400">Загрузка записей…</p>
             )}
           </div>
-          <aside className="w-full shrink-0 space-y-4 xl:w-[280px]">
+          <aside className="w-full shrink-0 space-y-4 xl:sticky xl:top-6 xl:max-h-[calc(100vh-4rem)] xl:w-[min(100%,400px)] xl:overflow-y-auto">
             <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
             <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm">
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -347,7 +351,7 @@ export function OnlineBookingPage() {
                 placeholder="Поиск…"
                 className="mb-3 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
               />
-              <div className="max-h-[min(50vh,360px)] space-y-2 overflow-y-auto pr-0.5">
+              <div className="max-h-[min(40vh,280px)] space-y-2 overflow-y-auto pr-0.5">
                 {queueQuery.isLoading && <p className="text-xs text-slate-400">Загрузка…</p>}
                 {filteredQueue.map((lead) => (
                   <div
@@ -363,13 +367,10 @@ export function OnlineBookingPage() {
                     <div className="mt-1 text-xs text-slate-400">{lead.phone ?? "—"}</div>
                     <button
                       type="button"
-                      onClick={() => {
-                        setTab("booking");
-                        pickFromQueue(lead);
-                      }}
+                      onClick={() => pickFromQueue(lead)}
                       className="mt-2 text-[11px] text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline"
                     >
-                      Подставить в форму записи →
+                      Подставить в форму →
                     </button>
                   </div>
                 ))}
@@ -378,198 +379,108 @@ export function OnlineBookingPage() {
                 )}
               </div>
             </section>
-          </aside>
-        </div>
-      )}
 
-      {tab === "booking" && (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 shadow-inner backdrop-blur-sm">
-            <h2 className="mb-3 text-lg font-semibold text-white">Ожидают записи</h2>
-            <p className="mb-3 text-xs text-slate-500">
-              Лиды на этапе «Квалифицирован» без активной записи. Клик — подставить в форму.
-            </p>
-            <input
-              value={queueSearch}
-              onChange={(e) => setQueueSearch(e.target.value)}
-              placeholder="Поиск по имени / телефону"
-              className="mb-3 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
-            />
-            <div className="max-h-[min(60vh,420px)] space-y-2 overflow-y-auto pr-1">
-              {queueQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
-              {queueQuery.isError && (
-                <p className="text-sm text-red-300">{(queueQuery.error as Error).message}</p>
-              )}
-              {filteredQueue.map((lead) => (
+            <section
+              ref={formPanelRef}
+              className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 shadow-inner backdrop-blur-sm ring-1 ring-purple-500/15"
+            >
+              <h2 className="mb-1 text-lg font-semibold text-white">Новая запись</h2>
+              <p className="mb-4 text-[11px] text-slate-500">
+                Кликните по слоту в сетке или подставьте лид из очереди.
+              </p>
+              <form onSubmit={onSubmit} className="space-y-3">
+                {leadId != null && (
+                  <p className="text-xs text-emerald-400/90">
+                    Привязан лид #{leadId} — после сохранения он перейдёт в «В работе».
+                  </p>
+                )}
+                <label className="block text-sm text-slate-300">
+                  Пациент / клиент
+                  <input
+                    required
+                    value={patientName}
+                    onChange={(e) => setPatientName(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  />
+                </label>
+                <label className="block text-sm text-slate-300">
+                  Телефон
+                  <input
+                    required
+                    value={patientPhone}
+                    onChange={(e) => setPatientPhone(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  />
+                </label>
+                <label className="block text-sm text-slate-300">
+                  Направление
+                  <select
+                    required
+                    value={directionId || ""}
+                    onChange={(e) => setDirectionId(Number(e.target.value))}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  >
+                    {directionsActive.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} ({d.duration_min} мин)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm text-slate-300">
+                  Специалист
+                  <select
+                    required
+                    value={specialistId || ""}
+                    onChange={(e) => setSpecialistId(Number(e.target.value))}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  >
+                    {specialistsForDirection.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm text-slate-300">
+                  Дата и время
+                  <input
+                    type="datetime-local"
+                    required
+                    value={startAt}
+                    onChange={(e) => setStartAt(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  />
+                </label>
+                <label className="block text-sm text-slate-300">
+                  ID ответственного менеджера (необязательно)
+                  <input
+                    type="number"
+                    min={1}
+                    value={responsibleManagerId}
+                    onChange={(e) => setResponsibleManagerId(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  />
+                </label>
+                <label className="block text-sm text-slate-300">
+                  Комментарий
+                  <textarea
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    rows={3}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  />
+                </label>
                 <button
-                  key={lead.id}
-                  type="button"
-                  onClick={() => pickFromQueue(lead)}
-                  className="w-full rounded-xl border border-slate-600/40 bg-slate-900/40 px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:border-purple-500/40 hover:bg-slate-800/60"
+                  type="submit"
+                  disabled={createMutation.isPending}
+                  className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 transition hover:opacity-95 disabled:opacity-50"
                 >
-                  <span className="font-medium text-white">{lead.name}</span>
-                  <span className="mt-1 block text-slate-400">{lead.phone ?? "—"}</span>
-                  <span className="mt-0.5 block text-[11px] text-slate-500">
-                    Лид #{lead.id}
-                    {lead.manager_id != null ? ` · менеджер ${lead.manager_id}` : ""}
-                  </span>
+                  {createMutation.isPending ? "Сохранение…" : "Записать"}
                 </button>
-              ))}
-              {!queueQuery.isLoading && filteredQueue.length === 0 && (
-                <p className="text-sm text-slate-500">Нет лидов в очереди</p>
-              )}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 shadow-inner backdrop-blur-sm lg:col-span-1">
-            <div className="mb-3 flex flex-wrap items-end gap-3">
-              <label className="text-sm text-slate-300">
-                Дата
-                <input
-                  type="date"
-                  value={filterDate}
-                  onChange={(e) => setFilterDate(e.target.value)}
-                  className="ml-2 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-white"
-                />
-              </label>
-              <label className="text-sm text-slate-300">
-                Специалист
-                <select
-                  value={specialistFilter === "" ? "" : specialistFilter}
-                  onChange={(e) =>
-                    setSpecialistFilter(e.target.value === "" ? "" : Number(e.target.value))
-                  }
-                  className="ml-2 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-white"
-                >
-                  <option value="">Все</option>
-                  {specialistsActive.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.full_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <h2 className="mb-3 text-lg font-semibold text-white">Записи на день</h2>
-            <div className="max-h-[min(60vh,420px)] space-y-2 overflow-y-auto pr-1">
-              {appointmentsQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
-              {(appointmentsQuery.data ?? []).map((a) => (
-                <div
-                  key={a.id}
-                  className="rounded-xl border border-slate-600/40 bg-slate-900/40 px-3 py-2 text-sm text-slate-200"
-                >
-                  <div className="font-medium text-white">
-                    {formatDt(a.start_at)} — {formatDt(a.end_at)}
-                  </div>
-                  <div className="mt-1">
-                    {a.patient_name} · {a.patient_phone}
-                  </div>
-                  <div className="mt-1 text-xs text-slate-400">
-                    {a.specialist_name} / {a.direction_name}
-                  </div>
-                  <div className="mt-1 text-xs text-purple-300">{statusLabels[a.status] ?? a.status}</div>
-                </div>
-              ))}
-              {!appointmentsQuery.isLoading && (appointmentsQuery.data ?? []).length === 0 && (
-                <p className="text-sm text-slate-500">На эту дату записей нет</p>
-              )}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 shadow-inner backdrop-blur-sm">
-            <h2 className="mb-4 text-lg font-semibold text-white">Создать запись</h2>
-            <form onSubmit={onSubmit} className="space-y-3">
-              {leadId != null && (
-                <p className="text-xs text-emerald-400/90">
-                  Привязан лид #{leadId} — после сохранения он перейдёт в «В работе».
-                </p>
-              )}
-              <label className="block text-sm text-slate-300">
-                Пациент / клиент
-                <input
-                  required
-                  value={patientName}
-                  onChange={(e) => setPatientName(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-                />
-              </label>
-              <label className="block text-sm text-slate-300">
-                Телефон
-                <input
-                  required
-                  value={patientPhone}
-                  onChange={(e) => setPatientPhone(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-                />
-              </label>
-              <label className="block text-sm text-slate-300">
-                Направление
-                <select
-                  required
-                  value={directionId || ""}
-                  onChange={(e) => setDirectionId(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-                >
-                  {directionsActive.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name} ({d.duration_min} мин)
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm text-slate-300">
-                Специалист
-                <select
-                  required
-                  value={specialistId || ""}
-                  onChange={(e) => setSpecialistId(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-                >
-                  {specialistsForDirection.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.full_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm text-slate-300">
-                Дата и время
-                <input
-                  type="datetime-local"
-                  required
-                  value={startAt}
-                  onChange={(e) => setStartAt(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-                />
-              </label>
-              <label className="block text-sm text-slate-300">
-                ID ответственного менеджера (необязательно)
-                <input
-                  type="number"
-                  min={1}
-                  value={responsibleManagerId}
-                  onChange={(e) => setResponsibleManagerId(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-                />
-              </label>
-              <label className="block text-sm text-slate-300">
-                Комментарий
-                <textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  rows={3}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={createMutation.isPending}
-                className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 transition hover:opacity-95 disabled:opacity-50"
-              >
-                {createMutation.isPending ? "Сохранение…" : "Записать"}
-              </button>
-            </form>
-          </section>
+              </form>
+            </section>
+          </aside>
         </div>
       )}
 
