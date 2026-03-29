@@ -7,6 +7,8 @@ const GRID_END_HOUR = 20;
 const WORK_START_HOUR = 9;
 const WORK_END_HOUR = 18;
 const PX_PER_HOUR = 48;
+/** Высота строки заголовка специалиста (синхрон с padding у колонки времени) */
+const SPEC_HEADER_PX = 40;
 
 const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => GRID_START_HOUR + i);
 
@@ -108,7 +110,7 @@ export function BookingCalendarGrid({
       <div className="flex min-w-max">
         <div
           className="sticky left-0 z-30 flex shrink-0 flex-col border-r border-slate-700/50 bg-slate-950/95 pr-2 backdrop-blur-sm"
-          style={{ width: 52, paddingTop: 44 }}
+          style={{ width: 52, paddingTop: SPEC_HEADER_PX }}
         >
           {hours.map((hh) => (
             <div
@@ -125,9 +127,12 @@ export function BookingCalendarGrid({
           <div
             key={spec.id}
             className="relative w-[min(100vw,240px)] shrink-0 border-r border-slate-700/40 last:border-r-0"
-            style={{ minHeight: gridHeightPx + 44 }}
+            style={{ minHeight: gridHeightPx + SPEC_HEADER_PX }}
           >
-            <div className="sticky top-0 z-20 border-b border-slate-700/50 bg-slate-900/90 px-2 py-2 backdrop-blur-sm">
+            <div
+              className="sticky top-0 z-20 border-b border-slate-700/50 bg-slate-900/90 px-2 py-1.5 backdrop-blur-sm"
+              style={{ minHeight: SPEC_HEADER_PX }}
+            >
               <p className="truncate text-sm font-semibold text-white">{spec.full_name}</p>
               <p className="truncate text-[11px] text-slate-500">{spec.direction_name ?? "—"}</p>
             </div>

@@ -287,8 +287,8 @@ export function OnlineBookingPage() {
   );
 
   return (
-    <div className="relative mx-auto max-w-[1600px] space-y-8 pb-10">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="relative mx-auto max-w-[1600px] space-y-4 pb-8">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight text-white">Онлайн-записи</h1>
           <p className="max-w-2xl text-base text-slate-400">
@@ -311,33 +311,34 @@ export function OnlineBookingPage() {
       </header>
 
       {tab === "online" && (
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
-          <div className="min-w-0 flex-1 space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="text-sm text-slate-300">
-                Дата
-                <input
-                  type="date"
-                  value={filterDate}
-                  onChange={(e) => setFilterDate(e.target.value)}
-                  className="ml-2 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-white"
-                />
-              </label>
-            </div>
-            <BookingCalendarGrid
-              dateYmd={filterDate}
-              specialists={specialistsActive}
-              appointments={gridAppointmentsQuery.data ?? []}
-              onAppointmentClick={onCalendarAppointmentClick}
-              onSlotClick={handleSlotClick}
-            />
-            {gridAppointmentsQuery.isLoading && (
-              <p className="text-sm text-slate-400">Загрузка записей…</p>
-            )}
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-sm text-slate-300">
+              Дата
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="ml-2 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-white"
+              />
+            </label>
           </div>
-          <aside className="w-full shrink-0 space-y-4 xl:sticky xl:top-6 xl:max-h-[calc(100vh-4rem)] xl:w-[min(100%,400px)] xl:overflow-y-auto">
-            <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
-            <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_min(100%,400px)] xl:items-start">
+            <div className="min-w-0">
+              <BookingCalendarGrid
+                dateYmd={filterDate}
+                specialists={specialistsActive}
+                appointments={gridAppointmentsQuery.data ?? []}
+                onAppointmentClick={onCalendarAppointmentClick}
+                onSlotClick={handleSlotClick}
+              />
+              {gridAppointmentsQuery.isLoading && (
+                <p className="mt-3 text-sm text-slate-400">Загрузка записей…</p>
+              )}
+            </div>
+            <aside className="flex w-full min-w-0 flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
+              <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
+              <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-white">Лист ожидания</h3>
                 <span className="text-xs text-slate-500">{filteredQueue.length}</span>
@@ -378,9 +379,9 @@ export function OnlineBookingPage() {
                   <p className="text-xs text-slate-500">Пусто</p>
                 )}
               </div>
-            </section>
+              </section>
 
-            <section
+              <section
               ref={formPanelRef}
               className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 shadow-inner backdrop-blur-sm ring-1 ring-purple-500/15"
             >
@@ -479,8 +480,9 @@ export function OnlineBookingPage() {
                   {createMutation.isPending ? "Сохранение…" : "Записать"}
                 </button>
               </form>
-            </section>
-          </aside>
+              </section>
+            </aside>
+          </div>
         </div>
       )}
 
