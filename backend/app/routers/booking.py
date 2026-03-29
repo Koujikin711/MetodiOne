@@ -199,6 +199,8 @@ async def list_appointments(
             BookingAppointmentRead(
                 id=a.id,
                 lead_id=a.lead_id,
+                specialist_id=a.specialist_id,
+                direction_id=a.direction_id,
                 patient_name=a.patient_name,
                 patient_phone=a.patient_phone,
                 start_at=a.start_at,
@@ -280,6 +282,8 @@ async def create_appointment(
     return BookingAppointmentRead(
         id=appt.id,
         lead_id=appt.lead_id,
+        specialist_id=appt.specialist_id,
+        direction_id=appt.direction_id,
         patient_name=appt.patient_name,
         patient_phone=appt.patient_phone,
         start_at=appt.start_at,
@@ -317,6 +321,8 @@ async def patch_appointment_status(
     return BookingAppointmentRead(
         id=a.id,
         lead_id=a.lead_id,
+        specialist_id=a.specialist_id,
+        direction_id=a.direction_id,
         patient_name=a.patient_name,
         patient_phone=a.patient_phone,
         start_at=a.start_at,
