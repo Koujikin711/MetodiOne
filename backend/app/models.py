@@ -1,0 +1,121 @@
+import enum
+from datetime import UTC, datetime
+from decimal import Decimal
+
+from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class UserRole(str, enum.Enum):
+    admin = "admin"
+    manager = "manager"
+
+
+class TaskStatus(str, enum.Enum):
+    pending = "pending"
+    in_progress = "in_progress"
+    done = "done"
+    cancelled = "cancelled"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255))
+    role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole, name="user_role"), default=UserRole.manager)
+
+    leads: Mapped[list["Lead"]] = relationship(
+        back_populates="manager",
+        foreign_keys=lambda: [Lead.manager_id],
+    )
+    tasks: Mapped[list["Task"]] = relationship(
+        back_populates="assignee",
+        foreign_keys=lambda: [Task.assigned_to],
+    )
+
+
+class PipelineStage(Base):
+    __tablename__ = "pipeline_stages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(120))
+    order: Mapped[int] = mapped_column(default=0)
+    color: Mapped[str] = mapped_column(String(32), default="#6366f1")
+
+    leads: Mapped[list["Lead"]] = relationship(back_populates="stage")
+    deals: Mapped[list["Deal"]] = relationship(back_populates="stage")
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+class Lead(Base):
+    __tablename__ = "leads"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255))
+    phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    status_id: Mapped[int] = mapped_column(ForeignKey("pipeline_stages.id", ondelete="RESTRICT"))
+    manager_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=_utc_now,
+        insert_default=_utc_now,
+    )
+
+    stage: Mapped["PipelineStage"] = relationship(back_populates="leads")
+    manager: Mapped["User | None"] = relationship(back_populates="leads", foreign_keys=[manager_id])
+    deals: Mapped[list["Deal"]] = relationship(back_populates="lead")
+    automation_tasks: Mapped[list["Task"]] = relationship(
+        back_populates="related_lead",
+        foreign_keys="Task.related_lead_id",
+    )
+
+
+class Deal(Base):
+    __tablename__ = "deals"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(255))
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    stage_id: Mapped[int] = mapped_column(ForeignKey("pipeline_stages.id", ondelete="RESTRICT"))
+    lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
+    probability: Mapped[int] = mapped_column(default=0)  # 0–100
+
+    stage: Mapped["PipelineStage"] = relationship(back_populates="deals")
+    lead: Mapped["Lead | None"] = relationship(back_populates="deals")
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(255))
+    deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[TaskStatus] = mapped_column(
+        SQLEnum(TaskStatus, name="task_status"),
+        default=TaskStatus.pending,
+    )
+    assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    related_lead_id: Mapped[int | None] = mapped_column(
+        ForeignKey("leads.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    assignee: Mapped["User | None"] = relationship(back_populates="tasks", foreign_keys=[assigned_to])
+    related_lead: Mapped["Lead | None"] = relationship(
+        back_populates="automation_tasks",
+        foreign_keys=[related_lead_id],
+    )
