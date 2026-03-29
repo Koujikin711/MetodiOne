@@ -55,11 +55,11 @@ export function MainLayout() {
               </GradientIconBox>
               <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">CRM</span>
             </NavLink>
-            <NavLink to="/booking" className={navLinkClass} title="Онлайн запись">
+            <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
               <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
                 <Calendar className="h-[18px] w-[18px]" />
               </GradientIconBox>
-              <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Запись</span>
+              <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Онлайн</span>
             </NavLink>
             <NavLink to="/tasks" className={navLinkClass} title="Задачи">
               <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">

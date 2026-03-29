@@ -55,11 +55,18 @@ function formatTimeRange(isoStart: string, isoEnd: string) {
   return `${fmt(a)} – ${fmt(b)}`;
 }
 
+export type SlotClickPayload = {
+  specialistId: number;
+  directionId: number;
+  hour: number;
+};
+
 type Props = {
   dateYmd: string;
   specialists: BookingSpecialist[];
   appointments: BookingAppointment[];
   onAppointmentClick: (a: BookingAppointment) => void;
+  onSlotClick?: (payload: SlotClickPayload) => void;
 };
 
 export function BookingCalendarGrid({
@@ -67,6 +74,7 @@ export function BookingCalendarGrid({
   specialists,
   appointments,
   onAppointmentClick,
+  onSlotClick,
 }: Props) {
   const totalHours = GRID_END_HOUR - GRID_START_HOUR;
   const gridHeightPx = totalHours * PX_PER_HOUR;
@@ -161,6 +169,27 @@ export function BookingCalendarGrid({
                 />
               ))}
 
+              {onSlotClick &&
+                hours.map((hh) => (
+                  <button
+                    key={`slot-${spec.id}-${hh}`}
+                    type="button"
+                    onClick={() =>
+                      onSlotClick({
+                        specialistId: spec.id,
+                        directionId: spec.direction_id,
+                        hour: hh,
+                      })
+                    }
+                    className="absolute inset-x-1 z-[5] cursor-pointer rounded-md border border-transparent transition-colors hover:border-purple-500/35 hover:bg-purple-500/10"
+                    style={{
+                      top: `${((hh - GRID_START_HOUR) / totalHours) * 100}%`,
+                      height: `${(1 / totalHours) * 100}%`,
+                    }}
+                    aria-label={`Свободный слот ${String(hh).padStart(2, "0")}:00, ${spec.full_name}`}
+                  />
+                ))}
+
               {(bySpec.get(spec.id) ?? []).map((a) => {
                 const { topPct, heightPct, visible } = layoutBlock(dateYmd, a.start_at, a.end_at);
                 if (!visible) return null;
@@ -171,7 +200,7 @@ export function BookingCalendarGrid({
                     type="button"
                     onClick={() => onAppointmentClick(a)}
                     className={[
-                      "absolute inset-x-1 z-10 overflow-hidden rounded-lg border px-2 py-1.5 text-left text-xs transition-transform hover:z-20 hover:scale-[1.02] hover:ring-2 hover:ring-purple-500/40",
+                      "absolute inset-x-1 z-20 overflow-hidden rounded-lg border px-2 py-1.5 text-left text-xs transition-transform hover:z-30 hover:scale-[1.02] hover:ring-2 hover:ring-purple-500/40",
                       cls,
                     ].join(" ")}
                     style={{
