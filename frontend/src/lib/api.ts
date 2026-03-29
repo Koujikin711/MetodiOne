@@ -5,7 +5,14 @@ const REQUEST_TIMEOUT_MS = 20_000;
 function resolveApiUrl(path: string): string {
   const raw = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
   const base = raw.replace(/\/$/, "");
-  if (!base) return path;
+  if (!base) {
+    if (import.meta.env.PROD) {
+      throw new Error(
+        "Не задан VITE_API_BASE_URL. В Vercel → Settings → Environment Variables укажите URL бэкенда Amvera (без / в конце) и сделайте Redeploy.",
+      );
+    }
+    return path;
+  }
   return path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
 }
 
