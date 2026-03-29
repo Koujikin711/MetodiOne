@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
+import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
+import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { apiFetch } from "@/lib/api";
 import type { BookingAppointment, BookingDirection, BookingSpecialist, Lead } from "@/lib/types";
 
@@ -30,7 +32,8 @@ function formatDt(iso: string) {
 
 export function OnlineBookingPage() {
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>("booking");
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<Tab>("grid");
   const [filterDate, setFilterDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [journalDate, setJournalDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [specialistFilter, setSpecialistFilter] = useState<number | "">("");
@@ -66,6 +69,16 @@ export function OnlineBookingPage() {
     queryFn: () => apiFetch<BookingSpecialist[]>("/api/booking/specialists"),
   });
 
+  const gridAppointmentsQuery = useQuery({
+    queryKey: ["booking-appointments-grid", filterDate],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      qs.set("date", filterDate);
+      return apiFetch<BookingAppointment[]>(`/api/booking/appointments?${qs.toString()}`);
+    },
+    enabled: tab === "grid",
+  });
+
   const appointmentsQuery = useQuery({
     queryKey: ["booking-appointments", filterDate, specialistFilter],
     queryFn: () => {
@@ -97,6 +110,7 @@ export function OnlineBookingPage() {
       toast.success("Запись создана. Лид на канбане переведён в «В работе».");
       void queryClient.invalidateQueries({ queryKey: ["booking-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics"] });
@@ -114,6 +128,7 @@ export function OnlineBookingPage() {
     onSuccess: () => {
       toast.success("Статус обновлён. Этап лида на канбане синхронизирован.");
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics"] });
@@ -213,6 +228,16 @@ export function OnlineBookingPage() {
     toast.success(`Выбран лид #${lead.id} — данные подставлены в форму`);
   }
 
+  function onCalendarAppointmentClick(a: BookingAppointment) {
+    if (a.lead_id) {
+      navigate(`/leads/${a.lead_id}`);
+    } else {
+      toast.error(
+        "К этой записи не привязан лид в CRM. Откройте вкладку «Запись» и создайте запись из очереди.",
+      );
+    }
+  }
+
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!directionId || !specialistId || !startAt) {
@@ -263,9 +288,9 @@ export function OnlineBookingPage() {
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight text-white">Онлайн запись</h1>
           <p className="max-w-2xl text-base text-slate-400">
-            Очередь из этапа «Квалифицирован», календарь и создание записи. После записи лид с канбана
-            автоматически переходит в «В работе»; при завершении приёма — в «Успешно реализован», при отмене /
-            неявке — в «Потерян».
+            Сетка по специалистам: клик по записи с лидом открывает карточку клиента. Очередь — этап
+            «Квалифицирован». После записи лид переходит в «В работе»; при завершении приёма — в «Успешно
+            реализован», при отмене / неявке — в «Потерян».
           </p>
           <Link
             to="/"
@@ -275,11 +300,87 @@ export function OnlineBookingPage() {
           </Link>
         </div>
         <div className="flex flex-wrap gap-2">
+          {tabBtn("grid", "Сетка")}
           {tabBtn("booking", "Запись")}
           {tabBtn("dicts", "Справочники")}
           {tabBtn("journal", "Журнал")}
         </div>
       </header>
+
+      {tab === "grid" && (
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
+          <div className="min-w-0 flex-1 space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="text-sm text-slate-300">
+                Дата
+                <input
+                  type="date"
+                  value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)}
+                  className="ml-2 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-white"
+                />
+              </label>
+            </div>
+            <BookingCalendarGrid
+              dateYmd={filterDate}
+              specialists={specialistsActive}
+              appointments={gridAppointmentsQuery.data ?? []}
+              onAppointmentClick={onCalendarAppointmentClick}
+            />
+            {gridAppointmentsQuery.isLoading && (
+              <p className="text-sm text-slate-400">Загрузка записей…</p>
+            )}
+          </div>
+          <aside className="w-full shrink-0 space-y-4 xl:w-[280px]">
+            <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
+            <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-white">Лист ожидания</h3>
+                <span className="text-xs text-slate-500">{filteredQueue.length}</span>
+              </div>
+              <p className="mb-3 text-[11px] text-slate-500">
+                «Квалифицирован», без активной записи. Карточка — по имени.
+              </p>
+              <input
+                value={queueSearch}
+                onChange={(e) => setQueueSearch(e.target.value)}
+                placeholder="Поиск…"
+                className="mb-3 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+              />
+              <div className="max-h-[min(50vh,360px)] space-y-2 overflow-y-auto pr-0.5">
+                {queueQuery.isLoading && <p className="text-xs text-slate-400">Загрузка…</p>}
+                {filteredQueue.map((lead) => (
+                  <div
+                    key={lead.id}
+                    className="rounded-xl border border-slate-600/40 bg-slate-900/50 px-3 py-2 text-sm"
+                  >
+                    <Link
+                      to={`/leads/${lead.id}`}
+                      className="font-medium text-purple-200 hover:text-white hover:underline"
+                    >
+                      {lead.name}
+                    </Link>
+                    <div className="mt-1 text-xs text-slate-400">{lead.phone ?? "—"}</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTab("booking");
+                        pickFromQueue(lead);
+                      }}
+                      className="mt-2 text-[11px] text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline"
+                    >
+                      Подставить в форму записи →
+                    </button>
+                  </div>
+                ))}
+                {!queueQuery.isLoading && filteredQueue.length === 0 && (
+                  <p className="text-xs text-slate-500">Пусто</p>
+                )}
+              </div>
+            </section>
+          </aside>
+        </div>
+      )}
 
       {tab === "booking" && (
         <div className="grid gap-6 lg:grid-cols-3">

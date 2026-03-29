@@ -38,6 +38,8 @@ class BookingSpecialistCreate(BaseModel):
 class BookingAppointmentRead(BaseModel):
     id: int
     lead_id: int | None
+    specialist_id: int
+    direction_id: int
     patient_name: str
     patient_phone: str
     start_at: datetime

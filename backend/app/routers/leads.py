@@ -61,6 +61,19 @@ async def list_leads(
     return [_lead_to_read(lead) for lead in leads]
 
 
+@router.get("/{lead_id}", response_model=LeadRead)
+async def get_lead(
+    lead_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: CurrentUser,
+) -> LeadRead:
+    lead = await db.get(Lead, lead_id)
+    if lead is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await db.refresh(lead, ["stage"])
+    return _lead_to_read(lead)
+
+
 @router.patch("/{lead_id}/status", response_model=LeadStatusPatchResponse)
 async def update_lead_status(
     lead_id: int,
