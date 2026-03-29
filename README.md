@@ -24,6 +24,14 @@ git push -u origin main
 
 В панели задайте переменные из `backend/.env.example`: `DATABASE_URL` (PostgreSQL Amvera), `SECRET_KEY`, `CORS_ORIGINS` (URL вашего фронта).
 
+## Vercel (фронт)
+
+Репозиторий — монорепо: в корне **`vercel.json`** — сборка из **`frontend/`**, выход **`frontend/dist`**, SPA-роутинг на `index.html`.
+
+В **Project → Settings → Environment Variables** добавьте **`VITE_API_BASE_URL`** = публичный URL API (Amvera), **без** слэша в конце, например `https://xxx.amvera.app`. После изменения переменных сделайте **Redeploy**.
+
+В `CORS_ORIGINS` на бэкенде перечислите домены Vercel и свой домен (например `https://metodi-one.vercel.app`, `https://www.metodione.com`).
+
 ## Локально
 
 - БД: `docker compose up -d`
