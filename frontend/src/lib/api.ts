@@ -2,6 +2,13 @@ const TOKEN_KEY = "crm_access_token";
 
 const REQUEST_TIMEOUT_MS = 20_000;
 
+function resolveApiUrl(path: string): string {
+  const raw = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
+  const base = raw.replace(/\/$/, "");
+  if (!base) return path;
+  return path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
+}
+
 export function getStoredToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -25,7 +32,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
   let res: Response;
   try {
-    res = await fetch(path, { ...init, headers, signal: controller.signal });
+    res = await fetch(resolveApiUrl(path), { ...init, headers, signal: controller.signal });
   } catch (e: unknown) {
     const aborted =
       (e instanceof DOMException && e.name === "AbortError") ||
@@ -35,9 +42,11 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
         "Сервер не ответил за 20 с. Запустите API: в папке backend выполните python -m uvicorn app.main:app --reload --port 8000 (и поднимите БД или задайте SQLite: DATABASE_URL=sqlite+aiosqlite:///./crm.db).",
       );
     }
-    throw new Error(
-      "Нет связи с сервером. Убедитесь, что бэкенд слушает http://127.0.0.1:8000 и dev-сервер Vite запущен (прокси /api).",
-    );
+      throw new Error(
+        import.meta.env.VITE_API_BASE_URL
+          ? "Нет связи с API. Проверьте VITE_API_BASE_URL и доступность бэкенда."
+          : "Нет связи с сервером. Убедитесь, что бэкенд слушает http://127.0.0.1:8000 и dev-сервер Vite запущен (прокси /api).",
+      );
   } finally {
     window.clearTimeout(timeoutId);
   }
