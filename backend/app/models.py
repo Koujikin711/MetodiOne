@@ -81,6 +81,60 @@ class Lead(Base):
         back_populates="related_lead",
         foreign_keys="Task.related_lead_id",
     )
+    booking_appointments: Mapped[list["BookingAppointment"]] = relationship(
+        back_populates="lead",
+    )
+
+
+class BookingDirection(Base):
+    __tablename__ = "booking_directions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True)
+    duration_min: Mapped[int] = mapped_column(default=30)
+    is_active: Mapped[bool] = mapped_column(default=True)
+
+    specialists: Mapped[list["BookingSpecialist"]] = relationship(back_populates="direction")
+    appointments: Mapped[list["BookingAppointment"]] = relationship(back_populates="direction")
+
+
+class BookingSpecialist(Base):
+    __tablename__ = "booking_specialists"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    full_name: Mapped[str] = mapped_column(String(255))
+    direction_id: Mapped[int] = mapped_column(ForeignKey("booking_directions.id", ondelete="RESTRICT"))
+    phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    is_active: Mapped[bool] = mapped_column(default=True)
+
+    direction: Mapped["BookingDirection"] = relationship(back_populates="specialists")
+    appointments: Mapped[list["BookingAppointment"]] = relationship(back_populates="specialist")
+
+
+class BookingAppointment(Base):
+    __tablename__ = "booking_appointments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
+    patient_name: Mapped[str] = mapped_column(String(255))
+    patient_phone: Mapped[str] = mapped_column(String(64))
+    direction_id: Mapped[int] = mapped_column(ForeignKey("booking_directions.id", ondelete="RESTRICT"))
+    specialist_id: Mapped[int] = mapped_column(ForeignKey("booking_specialists.id", ondelete="RESTRICT"))
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(32), default="booked")
+    responsible_manager_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+    lead: Mapped["Lead | None"] = relationship(back_populates="booking_appointments")
+    direction: Mapped["BookingDirection"] = relationship(back_populates="appointments")
+    specialist: Mapped["BookingSpecialist"] = relationship(back_populates="appointments")
 
 
 class Deal(Base):

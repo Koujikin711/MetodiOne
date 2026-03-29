@@ -7,8 +7,8 @@ from sqlalchemy import select
 from app.config import settings
 from app.database import AsyncSessionLocal, engine
 from app.core.security import hash_password
-from app.models import Base, PipelineStage, User, UserRole
-from app.routers import analytics, auth, leads, stages, tasks
+from app.models import Base, BookingDirection, BookingSpecialist, PipelineStage, User, UserRole
+from app.routers import analytics, auth, booking, leads, stages, tasks
 
 
 async def seed_pipeline_stages() -> None:
@@ -46,12 +46,25 @@ async def seed_test_admin() -> None:
         await session.commit()
 
 
+async def seed_booking_defaults() -> None:
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(BookingDirection).limit(1))
+        if result.scalar_one_or_none() is not None:
+            return
+        d = BookingDirection(name="Консультация", duration_min=30, is_active=True)
+        session.add(d)
+        await session.flush()
+        session.add(BookingSpecialist(full_name="Ганчина", direction_id=d.id, phone=None, is_active=True))
+        await session.commit()
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await seed_pipeline_stages()
     await seed_test_admin()
+    await seed_booking_defaults()
     yield
     await engine.dispose()
 
@@ -71,6 +84,7 @@ app.include_router(leads.router, prefix="/api")
 app.include_router(stages.router, prefix="/api")
 app.include_router(tasks.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
+app.include_router(booking.router, prefix="/api")
 
 
 @app.get("/health")

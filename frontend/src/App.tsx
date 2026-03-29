@@ -6,6 +6,7 @@ import { MainLayout } from "@/layouts/MainLayout";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { CrmPage } from "@/pages/CrmPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { OnlineBookingPage } from "@/pages/OnlineBookingPage";
 import { TasksPage } from "@/pages/TasksPage";
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
             <Route path="/" element={<CrmPage />} />
+            <Route path="/booking" element={<OnlineBookingPage />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
           </Route>

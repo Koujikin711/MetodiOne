@@ -50,3 +50,33 @@ export interface AnalyticsSummary {
   deals_total_amount: string;
   conversion_percent: number;
 }
+
+export interface BookingDirection {
+  id: number;
+  name: string;
+  duration_min: number;
+  is_active: boolean;
+}
+
+export interface BookingSpecialist {
+  id: number;
+  full_name: string;
+  direction_id: number;
+  direction_name: string | null;
+  phone: string | null;
+  is_active: boolean;
+}
+
+export interface BookingAppointment {
+  id: number;
+  lead_id: number | null;
+  patient_name: string;
+  patient_phone: string;
+  start_at: string;
+  end_at: string;
+  status: string;
+  responsible_manager_id: number | null;
+  direction_name: string | null;
+  specialist_name: string | null;
+  comment: string | null;
+}
