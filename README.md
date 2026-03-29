@@ -20,9 +20,9 @@ git push -u origin main
 
 ## Amvera (бэкенд)
 
-В корне есть **Dockerfile**: собирает только `backend/`, старт `uvicorn` на порту **8000**.
+В корне **Dockerfile** (сборка только `backend/`) и **amvera.yaml** с `containerPort: 8000` — у Amvera по умолчанию ожидается порт 80, без этого маршрутизация к uvicorn не сработает.
 
-В панели Amvera задайте переменные окружения (см. `backend/.env.example`), в том числе `DATABASE_URL` на управляемый PostgreSQL Amvera и `CORS_ORIGINS` с URL фронтенда.
+В панели задайте переменные из `backend/.env.example`: `DATABASE_URL` (PostgreSQL Amvera), `SECRET_KEY`, `CORS_ORIGINS` (URL вашего фронта).
 
 ## Локально
 
