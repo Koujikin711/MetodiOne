@@ -20,6 +20,8 @@ class Settings(BaseSettings):
 
     # Public URL фронтенда (для invite ссылок)
     public_app_url: str = ""
+    # Публичный URL API (для автоподключения Green API webhook), напр. https://api.example.com
+    public_api_base_url: str = ""
 
     # SMTP (если хотите реальную отправку писем)
     smtp_host: str = ""

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 import secrets
@@ -7,8 +8,14 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, s
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.deps import CurrentUser
 from app.database import get_db
+from app.services.green_api_settings import (
+    green_api_base_from_config,
+    push_green_incoming_webhook,
+    resolve_public_api_base,
+)
 from datetime import UTC, datetime
 
 from app.models import (
@@ -51,7 +58,7 @@ def _token_from_authorization_header(raw: str | None) -> str | None:
     return s
 
 
-def _integration_read(row: Integration) -> IntegrationRead:
+def _integration_read(row: Integration, *, setup_note: str | None = None) -> IntegrationRead:
     cfg = row.config
     has_token = False
     safe_cfg: dict | None = None
@@ -73,6 +80,7 @@ def _integration_read(row: Integration) -> IntegrationRead:
         stage_id=row.stage_id,
         config=safe_cfg,
         has_api_token=has_token,
+        setup_note=setup_note,
     )
 
 
@@ -134,6 +142,7 @@ async def list_integrations(
 @router.post("", response_model=IntegrationRead, status_code=status.HTTP_201_CREATED)
 async def create_integration(
     body: IntegrationCreate,
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> IntegrationRead:
@@ -141,14 +150,23 @@ async def create_integration(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     provider = _provider_from_str(body.provider)
     await _assert_pipeline_stage(db, body.pipeline_id, body.stage_id)
-    cfg = body.config or {}
+    cfg = dict(body.config or {})
+    sec = (body.secret or "").strip() if body.secret else ""
     if provider == IntegrationProvider.green_api:
+        if not sec:
+            sec = secrets.token_urlsafe(24)
         instance_id = cfg.get("instance_id") or cfg.get("instanceId")
         api_token = cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance")
         if not instance_id or not api_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="For green_api set config.instance_id and config.api_token",
+                detail="Укажите idInstance и apiTokenInstance из личного кабинета Green API",
+            )
+    else:
+        if len(sec) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Webhook-секрет не короче 8 символов",
             )
 
     row = Integration(
@@ -157,12 +175,47 @@ async def create_integration(
         is_active=True,
         pipeline_id=body.pipeline_id,
         stage_id=body.stage_id,
-        secret=body.secret.strip(),
+        secret=sec,
         config=cfg,
     )
     db.add(row)
     await db.flush()
     await db.refresh(row)
+
+    if provider == IntegrationProvider.green_api:
+        instance_id = cfg.get("instance_id") or cfg.get("instanceId")
+        api_token = cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance")
+        pub = resolve_public_api_base(request, settings.public_api_base_url)
+        if not pub:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Не удалось определить адрес API для автоподключения WhatsApp. "
+                    "На сервере задайте public_api_base_url (например https://ваш-проект.amvera.io) "
+                    "или откройте CRM с того же домена, что и бэкенд."
+                ),
+            )
+        webhook_url = f"{pub}/api/integrations/webhook/{row.id}"
+        api_base = green_api_base_from_config(cfg)
+        ok, err = await asyncio.to_thread(
+            push_green_incoming_webhook,
+            instance_id=str(instance_id).strip(),
+            api_token_instance=str(api_token).strip(),
+            api_base=api_base,
+            webhook_url=webhook_url,
+            webhook_token=sec,
+        )
+        if not ok:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Green API не принял настройки (проверьте Instance ID, токен и адрес API в кабинете): {err}",
+            )
+        note = (
+            "WhatsApp подключён: входящие сообщения будут попадать в выбранную воронку. "
+            "Green API применяет настройки до 5 минут."
+        )
+        return _integration_read(row, setup_note=note)
+
     return _integration_read(row)
 
 
@@ -170,6 +223,7 @@ async def create_integration(
 async def patch_integration(
     integration_id: int,
     body: IntegrationUpdate,
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> IntegrationRead:
@@ -209,6 +263,41 @@ async def patch_integration(
 
     await db.flush()
     await db.refresh(row)
+
+    if row.provider == IntegrationProvider.green_api:
+        cfg = row.config or {}
+        instance_id = cfg.get("instance_id") or cfg.get("instanceId")
+        api_token = cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance")
+        if instance_id and api_token:
+            pub = resolve_public_api_base(request, settings.public_api_base_url)
+            if not pub:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "Не удалось определить адрес API. Задайте public_api_base_url на сервере "
+                        "(например https://ваш-проект.amvera.io)."
+                    ),
+                )
+            webhook_url = f"{pub}/api/integrations/webhook/{row.id}"
+            api_base = green_api_base_from_config(cfg)
+            ok, err = await asyncio.to_thread(
+                push_green_incoming_webhook,
+                instance_id=str(instance_id).strip(),
+                api_token_instance=str(api_token).strip(),
+                api_base=api_base,
+                webhook_url=webhook_url,
+                webhook_token=row.secret,
+            )
+            if not ok:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Green API не принял настройки: {err}",
+                )
+            return _integration_read(
+                row,
+                setup_note="Настройки WhatsApp отправлены в Green API (применение до 5 минут).",
+            )
+
     return _integration_read(row)
 
 

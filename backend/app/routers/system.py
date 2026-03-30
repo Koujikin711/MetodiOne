@@ -18,6 +18,7 @@ class SmtpConfigRead(BaseModel):
     from_email: str
     has_password: bool
     public_app_url: str
+    public_api_base_url: str
 
 
 class SmtpTestBody(BaseModel):
@@ -35,6 +36,7 @@ async def smtp_config(current_user: CurrentUser) -> SmtpConfigRead:
         from_email=settings.smtp_from,
         has_password=bool(settings.smtp_password),
         public_app_url=settings.public_app_url,
+        public_api_base_url=settings.public_api_base_url,
     )
 
 
