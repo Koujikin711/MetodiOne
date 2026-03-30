@@ -537,12 +537,52 @@ export function CrmPage() {
   });
 
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
+  const [editingIntegrationId, setEditingIntegrationId] = useState<number | null>(null);
   const [integrationName, setIntegrationName] = useState("");
   const [integrationProvider, setIntegrationProvider] = useState<"green_api" | "telegram">("green_api");
   const [integrationSecret, setIntegrationSecret] = useState("");
   const [integrationConfigText, setIntegrationConfigText] = useState("{}");
+  const [greenInstanceId, setGreenInstanceId] = useState("");
+  const [greenApiToken, setGreenApiToken] = useState("");
   const [integrationPipelineId, setIntegrationPipelineId] = useState<number | null>(null);
   const [integrationStageId, setIntegrationStageId] = useState<number | null>(null);
+
+  function resetIntegrationForm() {
+    setEditingIntegrationId(null);
+    setIntegrationName("");
+    setIntegrationProvider("green_api");
+    setIntegrationSecret("");
+    setIntegrationConfigText("{}");
+    setGreenInstanceId("");
+    setGreenApiToken("");
+    setIntegrationPipelineId(null);
+    setIntegrationStageId(null);
+  }
+
+  function beginEditIntegration(it: Integration) {
+    setIntegrationsOpen(true);
+    setEditingIntegrationId(it.id);
+    setIntegrationName(it.name);
+    setIntegrationProvider(it.provider === "telegram" ? "telegram" : "green_api");
+    setIntegrationPipelineId(it.pipeline_id);
+    setIntegrationStageId(it.stage_id);
+    setIntegrationSecret("");
+    if (it.provider === "telegram") {
+      setIntegrationConfigText(JSON.stringify(it.config ?? {}, null, 2));
+      setGreenInstanceId("");
+      setGreenApiToken("");
+    } else {
+      const c = it.config as Record<string, unknown> | null;
+      const iid =
+        typeof c?.instance_id === "string"
+          ? c.instance_id
+          : typeof c?.instanceId === "string"
+            ? c.instanceId
+            : "";
+      setGreenInstanceId(iid);
+      setGreenApiToken("");
+    }
+  }
 
   const integrationStagesQuery = useQuery({
     queryKey: ["stages", "integrations", integrationPipelineId],
@@ -579,14 +619,66 @@ export function CrmPage() {
 
   async function submitCreateIntegration() {
     if (!integrationName.trim()) return toast.error("Название обязательно");
-    if (!integrationSecret.trim()) return toast.error("Секрет обязателен");
     if (!integrationPipelineId || !integrationStageId) return toast.error("Выберите воронку и стадию");
-    let cfg: Record<string, unknown> | null = null;
-    try {
-      cfg = integrationConfigText.trim() ? (JSON.parse(integrationConfigText) as Record<string, unknown>) : null;
-    } catch {
-      toast.error("Config должен быть валидным JSON");
+
+    if (editingIntegrationId != null) {
+      const body: Record<string, unknown> = {
+        name: integrationName.trim(),
+        pipeline_id: integrationPipelineId,
+        stage_id: integrationStageId,
+      };
+      if (integrationSecret.trim()) body.secret = integrationSecret.trim();
+      if (integrationProvider === "green_api") {
+        if (!greenInstanceId.trim()) {
+          toast.error("Укажите GREEN API Instance ID");
+          return;
+        }
+        body.config = {
+          instance_id: greenInstanceId.trim(),
+          ...(greenApiToken.trim() ? { api_token: greenApiToken.trim() } : {}),
+        };
+      } else {
+        try {
+          if (integrationConfigText.trim()) {
+            body.config = JSON.parse(integrationConfigText) as Record<string, unknown>;
+          }
+        } catch {
+          toast.error("Config должен быть валидным JSON");
+          return;
+        }
+      }
+      try {
+        await apiFetch<Integration>(`/api/integrations/${editingIntegrationId}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+        toast.success("Интеграция обновлена");
+        resetIntegrationForm();
+        void queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Не удалось сохранить");
+      }
       return;
+    }
+
+    if (!integrationSecret.trim()) return toast.error("Секрет обязателен");
+    let cfg: Record<string, unknown> | null = null;
+    if (integrationProvider === "green_api") {
+      if (!greenInstanceId.trim() || !greenApiToken.trim()) {
+        toast.error("Для GREEN API заполните Instance ID и API Token");
+        return;
+      }
+      cfg = {
+        instance_id: greenInstanceId.trim(),
+        api_token: greenApiToken.trim(),
+      };
+    } else {
+      try {
+        cfg = integrationConfigText.trim() ? (JSON.parse(integrationConfigText) as Record<string, unknown>) : null;
+      } catch {
+        toast.error("Config должен быть валидным JSON");
+        return;
+      }
     }
     try {
       await apiFetch<Integration>("/api/integrations", {
@@ -601,9 +693,7 @@ export function CrmPage() {
         }),
       });
       toast.success("Интеграция создана");
-      setIntegrationName("");
-      setIntegrationSecret("");
-      setIntegrationConfigText("{}");
+      resetIntegrationForm();
       void queryClient.invalidateQueries({ queryKey: ["integrations"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Не удалось создать интеграцию");
@@ -858,7 +948,10 @@ export function CrmPage() {
           {currentRole === "admin" && (
             <button
               type="button"
-              onClick={() => setIntegrationsOpen(true)}
+              onClick={() => {
+              resetIntegrationForm();
+              setIntegrationsOpen(true);
+            }}
               className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
             >
               Интеграции
@@ -1094,7 +1187,10 @@ export function CrmPage() {
               <h2 className="text-lg font-semibold text-white">Интеграции</h2>
               <button
                 type="button"
-                onClick={() => setIntegrationsOpen(false)}
+                onClick={() => {
+                  resetIntegrationForm();
+                  setIntegrationsOpen(false);
+                }}
                 className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
               >
                 Закрыть
@@ -1103,7 +1199,9 @@ export function CrmPage() {
 
             <div className="mt-4 grid gap-6 lg:grid-cols-2">
               <section className="rounded-2xl border border-slate-700/50 bg-slate-950/30 p-4">
-                <div className="text-sm font-semibold text-white">Создать интеграцию</div>
+                <div className="text-sm font-semibold text-white">
+                  {editingIntegrationId != null ? "Редактировать интеграцию" : "Создать интеграцию"}
+                </div>
                 <div className="mt-3 grid gap-3">
                   <label className="text-sm text-slate-300">
                     Название
@@ -1118,8 +1216,9 @@ export function CrmPage() {
                     Провайдер
                     <select
                       value={integrationProvider}
+                      disabled={editingIntegrationId != null}
                       onChange={(e) => setIntegrationProvider(e.target.value as "green_api" | "telegram")}
-                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <option value="green_api">GREEN API (WhatsApp)</option>
                       <option value="telegram">Telegram Bot</option>
@@ -1163,6 +1262,9 @@ export function CrmPage() {
 
                   <label className="text-sm text-slate-300">
                     Webhook секрет (token)
+                    {editingIntegrationId != null && (
+                      <span className="ml-1 text-[11px] font-normal text-slate-500">— оставьте пустым, чтобы не менять</span>
+                    )}
                     <div className="mt-1 flex gap-2">
                       <input
                         value={integrationSecret}
@@ -1179,23 +1281,63 @@ export function CrmPage() {
                     </div>
                   </label>
 
-                  <label className="text-sm text-slate-300">
-                    Config (JSON)
-                    <textarea
-                      value={integrationConfigText}
-                      onChange={(e) => setIntegrationConfigText(e.target.value)}
-                      rows={5}
-                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 font-mono text-xs text-white"
-                    />
-                  </label>
+                  {integrationProvider === "green_api" ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="text-sm text-slate-300">
+                        GREEN API Instance ID
+                        <input
+                          value={greenInstanceId}
+                          onChange={(e) => setGreenInstanceId(e.target.value)}
+                          placeholder="Напр. 1101000000"
+                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                        />
+                      </label>
+                      <label className="text-sm text-slate-300">
+                        GREEN API Token
+                        <input
+                          type="password"
+                          autoComplete="off"
+                          value={greenApiToken}
+                          onChange={(e) => setGreenApiToken(e.target.value)}
+                          placeholder={
+                            editingIntegrationId != null
+                              ? "Оставьте пустым, чтобы не менять"
+                              : "apiTokenInstance..."
+                          }
+                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <label className="text-sm text-slate-300">
+                      Config (JSON)
+                      <textarea
+                        value={integrationConfigText}
+                        onChange={(e) => setIntegrationConfigText(e.target.value)}
+                        rows={5}
+                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 font-mono text-xs text-white"
+                      />
+                    </label>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => void submitCreateIntegration()}
-                    className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
-                  >
-                    Создать
-                  </button>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void submitCreateIntegration()}
+                      className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+                    >
+                      {editingIntegrationId != null ? "Сохранить" : "Создать"}
+                    </button>
+                    {editingIntegrationId != null && (
+                      <button
+                        type="button"
+                        onClick={() => resetIntegrationForm()}
+                        className="w-full rounded-xl border border-slate-700 py-2 text-sm text-slate-300 transition hover:bg-slate-800/40"
+                      >
+                        Отменить редактирование
+                      </button>
+                    )}
+                  </div>
                   <p className="text-[11px] text-slate-500">
                     После создания откройте интеграцию справа и возьмите webhook URL.
                   </p>
@@ -1220,8 +1362,20 @@ export function CrmPage() {
                       <div key={it.id} className="rounded-xl border border-slate-700/60 bg-slate-900/30 p-3">
                         <div className="flex items-center justify-between gap-2">
                           <div className="text-sm font-semibold text-slate-100">{it.name}</div>
-                          <span className="text-xs text-slate-400">{it.provider}</span>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className="text-xs text-slate-400">{it.provider}</span>
+                            <button
+                              type="button"
+                              onClick={() => beginEditIntegration(it)}
+                              className="rounded-lg border border-slate-600 px-2 py-0.5 text-[11px] text-slate-200 hover:bg-slate-800/50"
+                            >
+                              Изменить
+                            </button>
+                          </div>
                         </div>
+                        {it.provider === "green_api" && it.has_api_token && (
+                          <div className="mt-1 text-[11px] text-emerald-400/90">API token сохранён (не показывается в списке)</div>
+                        )}
                         <div className="mt-2 text-[11px] text-slate-400">
                           pipeline_id={it.pipeline_id}, stage_id={it.stage_id}, active={String(it.is_active)}
                         </div>
