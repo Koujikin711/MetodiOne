@@ -30,6 +30,7 @@ interface SmtpConfig {
   from_email: string;
   has_password: boolean;
   public_app_url: string;
+  public_api_base_url: string;
 }
 
 export function EmployeesPage() {
@@ -182,6 +183,10 @@ export function EmployeesPage() {
             <div>
               <span className="text-slate-500">PUBLIC_APP_URL:</span>{" "}
               {smtpQuery.data.public_app_url || "—"}
+            </div>
+            <div>
+              <span className="text-slate-500">PUBLIC_API_BASE_URL (WhatsApp):</span>{" "}
+              {smtpQuery.data.public_api_base_url || "— (берётся из запроса, иначе задайте в .env)"}
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               <input

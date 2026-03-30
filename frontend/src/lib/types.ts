@@ -36,6 +36,8 @@ export interface Integration {
   /** Без api_token; токен только на сервере */
   config: Record<string, unknown> | null;
   has_api_token?: boolean;
+  /** Подсказка после создания/сохранения (например автоподключение WhatsApp) */
+  setup_note?: string | null;
 }
 
 export interface ChatThread {

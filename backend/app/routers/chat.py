@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentUser
 from app.database import get_db
 from app.models import ChatMessage, ChatThread, Integration, IntegrationProvider, Lead, PipelineStage, UserPipelineAssignment, UserRole
+from app.services.green_api_settings import green_api_base_from_config
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -122,7 +123,8 @@ def _send_green_api(config: dict | None, chat_id: str, text: str) -> tuple[bool,
     api_token = cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance")
     if not instance_id or not api_token:
         return False, "Missing GREEN API config: instance_id/api_token", None
-    url = f"https://api.green-api.com/waInstance{instance_id}/sendMessage/{api_token}"
+    base = green_api_base_from_config(cfg)
+    url = f"{base}/waInstance{instance_id}/sendMessage/{api_token}"
     body = json.dumps({"chatId": chat_id, "message": text}).encode("utf-8")
     req = urlrequest.Request(url, data=body, method="POST", headers={"Content-Type": "application/json"})
     try:

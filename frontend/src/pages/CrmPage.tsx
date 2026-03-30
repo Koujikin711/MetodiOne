@@ -544,6 +544,8 @@ export function CrmPage() {
   const [integrationConfigText, setIntegrationConfigText] = useState("{}");
   const [greenInstanceId, setGreenInstanceId] = useState("");
   const [greenApiToken, setGreenApiToken] = useState("");
+  /** Как в кабинете Green API, напр. https://7103.api.greenapi.com — если пусто, сервер попробует api.green-api.com */
+  const [greenApiBaseUrl, setGreenApiBaseUrl] = useState("");
   const [integrationPipelineId, setIntegrationPipelineId] = useState<number | null>(null);
   const [integrationStageId, setIntegrationStageId] = useState<number | null>(null);
 
@@ -555,6 +557,7 @@ export function CrmPage() {
     setIntegrationConfigText("{}");
     setGreenInstanceId("");
     setGreenApiToken("");
+    setGreenApiBaseUrl("");
     setIntegrationPipelineId(null);
     setIntegrationStageId(null);
   }
@@ -571,16 +574,20 @@ export function CrmPage() {
       setIntegrationConfigText(JSON.stringify(it.config ?? {}, null, 2));
       setGreenInstanceId("");
       setGreenApiToken("");
+      setGreenApiBaseUrl("");
     } else {
       const c = it.config as Record<string, unknown> | null;
-      const iid =
-        typeof c?.instance_id === "string"
-          ? c.instance_id
-          : typeof c?.instanceId === "string"
-            ? c.instanceId
-            : "";
+      const rawId = c?.instance_id ?? c?.instanceId;
+      const iid = rawId != null && rawId !== "" ? String(rawId) : "";
       setGreenInstanceId(iid);
       setGreenApiToken("");
+      const ab =
+        typeof c?.api_base_url === "string"
+          ? c.api_base_url
+          : typeof c?.apiUrl === "string"
+            ? c.apiUrl
+            : "";
+      setGreenApiBaseUrl(ab);
     }
   }
 
@@ -627,15 +634,18 @@ export function CrmPage() {
         pipeline_id: integrationPipelineId,
         stage_id: integrationStageId,
       };
-      if (integrationSecret.trim()) body.secret = integrationSecret.trim();
+      if (integrationProvider !== "green_api" && integrationSecret.trim()) {
+        body.secret = integrationSecret.trim();
+      }
       if (integrationProvider === "green_api") {
         if (!greenInstanceId.trim()) {
-          toast.error("Укажите GREEN API Instance ID");
+          toast.error("Укажите idInstance из кабинета Green API");
           return;
         }
         body.config = {
           instance_id: greenInstanceId.trim(),
           ...(greenApiToken.trim() ? { api_token: greenApiToken.trim() } : {}),
+          ...(greenApiBaseUrl.trim() ? { api_base_url: greenApiBaseUrl.trim() } : {}),
         };
       } else {
         try {
@@ -648,11 +658,11 @@ export function CrmPage() {
         }
       }
       try {
-        await apiFetch<Integration>(`/api/integrations/${editingIntegrationId}`, {
+        const saved = await apiFetch<Integration>(`/api/integrations/${editingIntegrationId}`, {
           method: "PATCH",
           body: JSON.stringify(body),
         });
-        toast.success("Интеграция обновлена");
+        toast.success(saved.setup_note ?? "Интеграция обновлена");
         resetIntegrationForm();
         void queryClient.invalidateQueries({ queryKey: ["integrations"] });
       } catch (e) {
@@ -661,18 +671,19 @@ export function CrmPage() {
       return;
     }
 
-    if (!integrationSecret.trim()) return toast.error("Секрет обязателен");
     let cfg: Record<string, unknown> | null = null;
     if (integrationProvider === "green_api") {
       if (!greenInstanceId.trim() || !greenApiToken.trim()) {
-        toast.error("Для GREEN API заполните Instance ID и API Token");
+        toast.error("Скопируйте из кабинета Green API: idInstance и apiTokenInstance");
         return;
       }
       cfg = {
         instance_id: greenInstanceId.trim(),
         api_token: greenApiToken.trim(),
+        ...(greenApiBaseUrl.trim() ? { api_base_url: greenApiBaseUrl.trim() } : {}),
       };
     } else {
+      if (!integrationSecret.trim()) return toast.error("Для Telegram укажите webhook-секрет (или нажмите «Сгенерировать»)");
       try {
         cfg = integrationConfigText.trim() ? (JSON.parse(integrationConfigText) as Record<string, unknown>) : null;
       } catch {
@@ -680,19 +691,24 @@ export function CrmPage() {
         return;
       }
     }
+
+    const createPayload: Record<string, unknown> = {
+      name: integrationName.trim(),
+      provider: integrationProvider,
+      pipeline_id: integrationPipelineId,
+      stage_id: integrationStageId,
+      config: cfg,
+    };
+    if (integrationProvider !== "green_api") {
+      createPayload.secret = integrationSecret.trim();
+    }
+
     try {
-      await apiFetch<Integration>("/api/integrations", {
+      const created = await apiFetch<Integration>("/api/integrations", {
         method: "POST",
-        body: JSON.stringify({
-          name: integrationName.trim(),
-          provider: integrationProvider,
-          pipeline_id: integrationPipelineId,
-          stage_id: integrationStageId,
-          secret: integrationSecret.trim(),
-          config: cfg,
-        }),
+        body: JSON.stringify(createPayload),
       });
-      toast.success("Интеграция создана");
+      toast.success(created.setup_note ?? "Интеграция создана");
       resetIntegrationForm();
       void queryClient.invalidateQueries({ queryKey: ["integrations"] });
     } catch (e) {
@@ -1260,51 +1276,70 @@ export function CrmPage() {
                     </label>
                   </div>
 
-                  <label className="text-sm text-slate-300">
-                    Webhook секрет (token)
-                    {editingIntegrationId != null && (
-                      <span className="ml-1 text-[11px] font-normal text-slate-500">— оставьте пустым, чтобы не менять</span>
-                    )}
-                    <div className="mt-1 flex gap-2">
-                      <input
-                        value={integrationSecret}
-                        onChange={(e) => setIntegrationSecret(e.target.value)}
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void generateIntegrationSecret()}
-                        className="shrink-0 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800/40"
-                      >
-                        Сгенерировать
-                      </button>
-                    </div>
-                  </label>
+                  {integrationProvider === "telegram" && (
+                    <label className="text-sm text-slate-300">
+                      Webhook секрет (token)
+                      {editingIntegrationId != null && (
+                        <span className="ml-1 text-[11px] font-normal text-slate-500">— оставьте пустым, чтобы не менять</span>
+                      )}
+                      <div className="mt-1 flex gap-2">
+                        <input
+                          value={integrationSecret}
+                          onChange={(e) => setIntegrationSecret(e.target.value)}
+                          className="w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void generateIntegrationSecret()}
+                          className="shrink-0 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800/40"
+                        >
+                          Сгенерировать
+                        </button>
+                      </div>
+                    </label>
+                  )}
 
                   {integrationProvider === "green_api" ? (
-                    <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="grid gap-3">
+                      <p className="text-[11px] leading-relaxed text-slate-400">
+                        Скопируйте три значения из личного кабинета Green API (страница инстанса):{" "}
+                        <span className="text-slate-300">idInstance</span>,{" "}
+                        <span className="text-slate-300">apiTokenInstance</span>. При сохранении CRM сама настроит
+                        приём сообщений — вручную вставлять webhook в Green API не нужно.
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="text-sm text-slate-300">
+                          idInstance
+                          <input
+                            value={greenInstanceId}
+                            onChange={(e) => setGreenInstanceId(e.target.value)}
+                            placeholder="Напр. 7103507365"
+                            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          />
+                        </label>
+                        <label className="text-sm text-slate-300">
+                          apiTokenInstance
+                          <input
+                            type="password"
+                            autoComplete="off"
+                            value={greenApiToken}
+                            onChange={(e) => setGreenApiToken(e.target.value)}
+                            placeholder={
+                              editingIntegrationId != null
+                                ? "Оставьте пустым, чтобы не менять"
+                                : "Токен из кабинета"
+                            }
+                            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          />
+                        </label>
+                      </div>
                       <label className="text-sm text-slate-300">
-                        GREEN API Instance ID
+                        Адрес API (по желанию)
                         <input
-                          value={greenInstanceId}
-                          onChange={(e) => setGreenInstanceId(e.target.value)}
-                          placeholder="Напр. 1101000000"
-                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
-                        />
-                      </label>
-                      <label className="text-sm text-slate-300">
-                        GREEN API Token
-                        <input
-                          type="password"
-                          autoComplete="off"
-                          value={greenApiToken}
-                          onChange={(e) => setGreenApiToken(e.target.value)}
-                          placeholder={
-                            editingIntegrationId != null
-                              ? "Оставьте пустым, чтобы не менять"
-                              : "apiTokenInstance..."
-                          }
-                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          value={greenApiBaseUrl}
+                          onChange={(e) => setGreenApiBaseUrl(e.target.value)}
+                          placeholder="Если в кабинете другой URL — напр. https://7103.api.greenapi.com"
+                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
                         />
                       </label>
                     </div>
@@ -1338,13 +1373,17 @@ export function CrmPage() {
                       </button>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-500">
-                    В консоли Green API: <span className="font-mono text-slate-400">webhookUrl</span> — адрес без
-                    секрета (как справа) или с <span className="font-mono text-slate-400">?token=...</span>. Поле{" "}
-                    <span className="font-mono text-slate-400">Webhook URL Token</span> — тот же секрет, что «Webhook
-                    секрет» в CRM (Green API шлёт его в заголовке Authorization). Включите входящие уведомления (
-                    <span className="font-mono text-slate-400">incomingWebhook: yes</span>).
-                  </p>
+                  {integrationProvider === "green_api" ? (
+                    <p className="text-[11px] text-slate-500">
+                      Если появится ошибка про адрес API: на сервере задайте{" "}
+                      <span className="font-mono text-slate-400">public_api_base_url</span> (см. раздел SMTP на странице
+                      «Сотрудники») или сохраняйте интеграцию, будучи залогиненным с того же сайта, где открыт API.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">
+                      Для Telegram скопируйте webhook URL из списка справа и укажите секрет в настройках бота.
+                    </p>
+                  )}
                 </div>
               </section>
 
@@ -1376,30 +1415,34 @@ export function CrmPage() {
                             </button>
                           </div>
                         </div>
+                        {it.provider === "green_api" && (
+                          <div className="mt-2 text-[11px] leading-relaxed text-emerald-400/90">
+                            WhatsApp: при сохранении CRM сама настроила приём в Green API. Новые сообщения клиентов
+                            появляются как лиды в выбранной воронке (и в разделе «Чат»). Первое сообщение может
+                            задержаться до нескольких минут. После обновления CRM откройте «Изменить» и снова нажмите
+                            «Сохранить», чтобы переподключить вебхук.
+                          </div>
+                        )}
                         {it.provider === "green_api" && it.has_api_token && (
-                          <div className="mt-1 text-[11px] text-emerald-400/90">API token сохранён (не показывается в списке)</div>
+                          <div className="mt-1 text-[11px] text-slate-500">Токен API сохранён на сервере</div>
                         )}
                         <div className="mt-2 text-[11px] text-slate-400">
-                          pipeline_id={it.pipeline_id}, stage_id={it.stage_id}, active={String(it.is_active)}
+                          Воронка: pipeline {it.pipeline_id}, стадия {it.stage_id}, активна: {String(it.is_active)}
                         </div>
-                        <div className="mt-2 text-[11px] text-slate-300">
-                          Webhook (подставьте свой секрет в конец):
-                          <div className="mt-1 rounded-lg border border-slate-700 bg-slate-950/40 px-2 py-1 font-mono text-[11px] text-slate-200 break-all">
-                            {hookPath}?token=
-                            <span className="text-amber-200/90">&lt;webhook_секрет_из_CRM&gt;</span>
-                          </div>
-                          <div className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-100/95">
-                            Секрет из CRM должен совпадать с <strong>Webhook URL Token</strong> в Green API (или с
-                            параметром <span className="font-mono">?token=</span> в URL). Частая ошибка: заполнить только
-                            URL и забыть токен в консоли Green API. В логах Amvera ищите{" "}
-                            <span className="font-mono">POST .../integrations/webhook/</span>.
-                          </div>
-                          {!apiBase && (
-                            <div className="mt-1 text-[11px] text-amber-300/90">
-                              Задайте `VITE_API_BASE_URL`, чтобы URL был полный (на проде).
+                        {it.provider === "telegram" && (
+                          <div className="mt-2 text-[11px] text-slate-300">
+                            Webhook URL:
+                            <div className="mt-1 rounded-lg border border-slate-700 bg-slate-950/40 px-2 py-1 font-mono text-[11px] text-slate-200 break-all">
+                              {hookPath}?token=
+                              <span className="text-amber-200/90">&lt;ваш_секрет_из_формы&gt;</span>
                             </div>
-                          )}
-                        </div>
+                            {!apiBase && (
+                              <div className="mt-1 text-[11px] text-amber-300/90">
+                                Задайте `VITE_API_BASE_URL` для полного URL на проде.
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}

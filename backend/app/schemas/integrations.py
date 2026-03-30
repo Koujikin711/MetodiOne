@@ -11,6 +11,7 @@ class IntegrationRead(BaseModel):
     # api_token в config не отдаётся клиенту; см. has_api_token
     config: dict | None = None
     has_api_token: bool = False
+    setup_note: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -20,7 +21,8 @@ class IntegrationCreate(BaseModel):
     provider: str = Field(..., min_length=1, max_length=40)
     pipeline_id: int = Field(..., ge=1)
     stage_id: int = Field(..., ge=1)
-    secret: str = Field(..., min_length=8, max_length=128)
+    # Для green_api генерируется на сервере; для telegram и др. — обязателен
+    secret: str | None = Field(default=None, max_length=128)
     config: dict | None = None
 
 
