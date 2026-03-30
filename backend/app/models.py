@@ -40,6 +40,9 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
+    phone: Mapped[str | None] = mapped_column(String(32), unique=True, index=True, nullable=True)
+    full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    invite_token: Mapped[str | None] = mapped_column(String(96), unique=True, index=True, nullable=True)
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole, name="user_role"), default=UserRole.manager)
 
     leads: Mapped[list["Lead"]] = relationship(
@@ -50,6 +53,14 @@ class User(Base):
         back_populates="assignee",
         foreign_keys=lambda: [Task.assigned_to],
     )
+
+
+class UserPipelineAssignment(Base):
+    __tablename__ = "user_pipeline_assignments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    pipeline_id: Mapped[int] = mapped_column(ForeignKey("pipelines.id", ondelete="CASCADE"))
 
 
 class PipelineStage(Base):
@@ -109,6 +120,33 @@ class LeadSource(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(120), unique=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+
+
+class IntegrationProvider(str, enum.Enum):
+    green_api = "green_api"  # WhatsApp via GREEN API
+    telegram = "telegram"  # Telegram bot webhook
+    instagram = "instagram"  # Meta webhook (placeholder)
+
+
+class Integration(Base):
+    __tablename__ = "integrations"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(120))
+    provider: Mapped[IntegrationProvider] = mapped_column(
+        SQLEnum(IntegrationProvider, name="integration_provider"),
+    )
+    is_active: Mapped[bool] = mapped_column(default=True)
+
+    pipeline_id: Mapped[int] = mapped_column(ForeignKey("pipelines.id", ondelete="RESTRICT"))
+    stage_id: Mapped[int] = mapped_column(ForeignKey("pipeline_stages.id", ondelete="RESTRICT"))
+
+    # Секрет для webhook (передавать как query param ?token=... или header)
+    secret: Mapped[str] = mapped_column(String(128))
+    # Провайдер-специфичная конфигурация (instanceId, apiToken, botToken и т.п.)
+    config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
 
 
 class BookingDirection(Base):

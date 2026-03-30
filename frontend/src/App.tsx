@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { MainLayout } from "@/layouts/MainLayout";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { CrmPage } from "@/pages/CrmPage";
+import { EmployeesPage } from "@/pages/EmployeesPage";
 import { LeadDetailPage } from "@/pages/LeadDetailPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { OnlineBookingPage } from "@/pages/OnlineBookingPage";
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="/leads/:id" element={<LeadDetailPage />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/employees" element={<EmployeesPage />} />
           </Route>
         </Route>
       </Routes>

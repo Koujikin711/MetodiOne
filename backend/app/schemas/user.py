@@ -8,6 +8,8 @@ class UserCreate(BaseModel):
     email: RelaxedEmailStr
     password: str = Field(min_length=8, max_length=128)
     role: UserRole = UserRole.manager
+    phone: str | None = Field(default=None, max_length=32)
+    full_name: str | None = Field(default=None, max_length=255)
 
 
 class UserLogin(BaseModel):
@@ -19,6 +21,8 @@ class UserRead(BaseModel):
     id: int
     email: str
     role: UserRole
+    phone: str | None = None
+    full_name: str | None = None
 
     model_config = {"from_attributes": True}
 

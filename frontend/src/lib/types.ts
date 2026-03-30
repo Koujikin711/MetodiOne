@@ -26,6 +26,16 @@ export interface LeadSource {
   is_active: boolean;
 }
 
+export interface Integration {
+  id: number;
+  name: string;
+  provider: string;
+  is_active: boolean;
+  pipeline_id: number;
+  stage_id: number;
+  config: Record<string, unknown> | null;
+}
+
 export interface Lead {
   id: number;
   name: string;

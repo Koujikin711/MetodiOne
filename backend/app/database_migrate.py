@@ -8,6 +8,23 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url: str) -> None:
     if "sqlite" in database_url:
+        # integrations table (simple CREATE TABLE IF NOT EXISTS for existing DBs)
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS integrations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(120) NOT NULL,
+                    provider VARCHAR(40) NOT NULL,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    pipeline_id INTEGER NOT NULL,
+                    stage_id INTEGER NOT NULL,
+                    secret VARCHAR(128) NOT NULL,
+                    config TEXT,
+                    created_at DATETIME
+                )"""
+            )
+        )
+
         # pipeline_stages.pipeline_id (multi-pipeline UI)
         r = await conn.execute(text("PRAGMA table_info(pipeline_stages)"))
         cols = {row[1] for row in r.fetchall()}
@@ -45,6 +62,26 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
         lead_cols = {row[1] for row in r.fetchall()}
         if "refusal_reason" not in lead_cols:
             await conn.execute(text("ALTER TABLE leads ADD COLUMN refusal_reason TEXT"))
+
+        # users: phone, full_name, invite_token
+        r = await conn.execute(text("PRAGMA table_info(users)"))
+        user_cols = {row[1] for row in r.fetchall()}
+        if "phone" not in user_cols:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(32)"))
+        if "full_name" not in user_cols:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN full_name VARCHAR(255)"))
+        if "invite_token" not in user_cols:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN invite_token VARCHAR(96)"))
+
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS user_pipeline_assignments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    pipeline_id INTEGER NOT NULL
+                )"""
+            )
+        )
 
         r = await conn.execute(text("PRAGMA table_info(booking_specialists)"))
         cols = {row[1] for row in r.fetchall()}
@@ -88,6 +125,21 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
 
     if "postgresql" in database_url or "asyncpg" in database_url:
         await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS integrations (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(120) NOT NULL,
+                    provider VARCHAR(40) NOT NULL,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    pipeline_id INTEGER NOT NULL,
+                    stage_id INTEGER NOT NULL,
+                    secret VARCHAR(128) NOT NULL,
+                    config JSONB,
+                    created_at TIMESTAMPTZ
+                )"""
+            )
+        )
+        await conn.execute(
             text("ALTER TABLE pipeline_stages ADD COLUMN IF NOT EXISTS pipeline_id INTEGER"),
         )
         await conn.execute(
@@ -110,6 +162,18 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
         )
         await conn.execute(
             text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS refusal_reason TEXT"),
+        )
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(32)"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255)"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_token VARCHAR(96)"))
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS user_pipeline_assignments (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    pipeline_id INTEGER NOT NULL
+                )"""
+            )
         )
         await conn.execute(
             text(

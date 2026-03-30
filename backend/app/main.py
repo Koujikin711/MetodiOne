@@ -9,7 +9,7 @@ from app.database import AsyncSessionLocal, engine
 from app.database_migrate import ensure_booking_specialist_columns
 from app.core.security import hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, LeadSource, Pipeline, PipelineStage, User, UserRole
-from app.routers import analytics, auth, booking, deals, leads, pipelines, sources, stages, tasks, users
+from app.routers import analytics, auth, booking, deals, employees, integrations, leads, pipelines, sources, stages, tasks, users
 
 
 async def seed_pipelines_and_stages() -> None:
@@ -106,6 +106,8 @@ app.include_router(booking.router, prefix="/api")
 app.include_router(deals.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(sources.router, prefix="/api")
+app.include_router(integrations.router, prefix="/api")
+app.include_router(employees.router, prefix="/api")
 
 
 @app.get("/health")

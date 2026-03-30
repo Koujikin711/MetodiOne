@@ -16,7 +16,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
-import type { Lead, LeadSource, LeadStatusPatchResponse, Pipeline, PipelineStage, Task, UserRole } from "@/lib/types";
+import type {
+  Integration,
+  Lead,
+  LeadSource,
+  LeadStatusPatchResponse,
+  Pipeline,
+  PipelineStage,
+  Task,
+  UserRole,
+} from "@/lib/types";
 
 function stageDroppableId(stageId: number) {
   return `stage-${stageId}`;
@@ -521,6 +530,86 @@ export function CrmPage() {
     queryFn: () => apiFetch<LeadSource[]>("/api/sources"),
   });
 
+  const integrationsQuery = useQuery({
+    queryKey: ["integrations"],
+    queryFn: () => apiFetch<Integration[]>("/api/integrations"),
+    enabled: currentRole === "admin",
+  });
+
+  const [integrationsOpen, setIntegrationsOpen] = useState(false);
+  const [integrationName, setIntegrationName] = useState("");
+  const [integrationProvider, setIntegrationProvider] = useState<"green_api" | "telegram">("green_api");
+  const [integrationSecret, setIntegrationSecret] = useState("");
+  const [integrationConfigText, setIntegrationConfigText] = useState("{}");
+  const [integrationPipelineId, setIntegrationPipelineId] = useState<number | null>(null);
+  const [integrationStageId, setIntegrationStageId] = useState<number | null>(null);
+
+  const integrationStagesQuery = useQuery({
+    queryKey: ["stages", "integrations", integrationPipelineId],
+    queryFn: () =>
+      integrationPipelineId
+        ? apiFetch<PipelineStage[]>(`/api/stages?pipeline_id=${integrationPipelineId}`)
+        : apiFetch<PipelineStage[]>("/api/stages"),
+    enabled: integrationsOpen,
+  });
+
+  useEffect(() => {
+    if (!integrationsOpen) return;
+    if (integrationPipelineId != null) return;
+    const first = pipelinesQuery.data?.[0];
+    if (first) setIntegrationPipelineId(first.id);
+  }, [integrationsOpen, integrationPipelineId, pipelinesQuery.data]);
+
+  useEffect(() => {
+    if (!integrationsOpen) return;
+    const st = integrationStagesQuery.data;
+    if (!st || st.length === 0) return;
+    if (integrationStageId != null && st.some((x) => x.id === integrationStageId)) return;
+    setIntegrationStageId(st[0].id);
+  }, [integrationsOpen, integrationStagesQuery.data, integrationStageId]);
+
+  async function generateIntegrationSecret() {
+    try {
+      const r = await apiFetch<{ secret: string }>("/api/integrations/generate-secret", { method: "POST" });
+      setIntegrationSecret(r.secret);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось сгенерировать секрет");
+    }
+  }
+
+  async function submitCreateIntegration() {
+    if (!integrationName.trim()) return toast.error("Название обязательно");
+    if (!integrationSecret.trim()) return toast.error("Секрет обязателен");
+    if (!integrationPipelineId || !integrationStageId) return toast.error("Выберите воронку и стадию");
+    let cfg: Record<string, unknown> | null = null;
+    try {
+      cfg = integrationConfigText.trim() ? (JSON.parse(integrationConfigText) as Record<string, unknown>) : null;
+    } catch {
+      toast.error("Config должен быть валидным JSON");
+      return;
+    }
+    try {
+      await apiFetch<Integration>("/api/integrations", {
+        method: "POST",
+        body: JSON.stringify({
+          name: integrationName.trim(),
+          provider: integrationProvider,
+          pipeline_id: integrationPipelineId,
+          stage_id: integrationStageId,
+          secret: integrationSecret.trim(),
+          config: cfg,
+        }),
+      });
+      toast.success("Интеграция создана");
+      setIntegrationName("");
+      setIntegrationSecret("");
+      setIntegrationConfigText("{}");
+      void queryClient.invalidateQueries({ queryKey: ["integrations"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось создать интеграцию");
+    }
+  }
+
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
   const [leadName, setLeadName] = useState("");
   const [leadPhone, setLeadPhone] = useState("");
@@ -766,6 +855,15 @@ export function CrmPage() {
           >
             + Лид
           </button>
+          {currentRole === "admin" && (
+            <button
+              type="button"
+              onClick={() => setIntegrationsOpen(true)}
+              className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
+            >
+              Интеграции
+            </button>
+          )}
         </div>
         {pipelinesQuery.data && pipelinesQuery.data.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
@@ -984,6 +1082,165 @@ export function CrmPage() {
               >
                 Создать
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {integrationsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-white">Интеграции</h2>
+              <button
+                type="button"
+                onClick={() => setIntegrationsOpen(false)}
+                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+              >
+                Закрыть
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-6 lg:grid-cols-2">
+              <section className="rounded-2xl border border-slate-700/50 bg-slate-950/30 p-4">
+                <div className="text-sm font-semibold text-white">Создать интеграцию</div>
+                <div className="mt-3 grid gap-3">
+                  <label className="text-sm text-slate-300">
+                    Название
+                    <input
+                      value={integrationName}
+                      onChange={(e) => setIntegrationName(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                    />
+                  </label>
+
+                  <label className="text-sm text-slate-300">
+                    Провайдер
+                    <select
+                      value={integrationProvider}
+                      onChange={(e) => setIntegrationProvider(e.target.value as "green_api" | "telegram")}
+                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                    >
+                      <option value="green_api">GREEN API (WhatsApp)</option>
+                      <option value="telegram">Telegram Bot</option>
+                    </select>
+                  </label>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="text-sm text-slate-300">
+                      Воронка
+                      <select
+                        value={integrationPipelineId ?? ""}
+                        onChange={(e) => {
+                          const id = Number(e.target.value);
+                          setIntegrationPipelineId(Number.isFinite(id) ? id : null);
+                          setIntegrationStageId(null);
+                        }}
+                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                      >
+                        {(pipelinesQuery.data ?? []).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-sm text-slate-300">
+                      Стадия
+                      <select
+                        value={integrationStageId ?? ""}
+                        onChange={(e) => setIntegrationStageId(Number(e.target.value))}
+                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                      >
+                        {(integrationStagesQuery.data ?? []).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <label className="text-sm text-slate-300">
+                    Webhook секрет (token)
+                    <div className="mt-1 flex gap-2">
+                      <input
+                        value={integrationSecret}
+                        onChange={(e) => setIntegrationSecret(e.target.value)}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void generateIntegrationSecret()}
+                        className="shrink-0 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800/40"
+                      >
+                        Сгенерировать
+                      </button>
+                    </div>
+                  </label>
+
+                  <label className="text-sm text-slate-300">
+                    Config (JSON)
+                    <textarea
+                      value={integrationConfigText}
+                      onChange={(e) => setIntegrationConfigText(e.target.value)}
+                      rows={5}
+                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 font-mono text-xs text-white"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => void submitCreateIntegration()}
+                    className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+                  >
+                    Создать
+                  </button>
+                  <p className="text-[11px] text-slate-500">
+                    После создания откройте интеграцию справа и возьмите webhook URL.
+                  </p>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-700/50 bg-slate-950/30 p-4">
+                <div className="text-sm font-semibold text-white">Список</div>
+                <div className="mt-3 space-y-2">
+                  {(integrationsQuery.data ?? []).length === 0 && (
+                    <p className="text-sm text-slate-500">Интеграций пока нет</p>
+                  )}
+                  {(integrationsQuery.data ?? []).map((it) => {
+                    const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
+                    const base =
+                      apiBase && apiBase.endsWith("/") ? apiBase.slice(0, apiBase.length - 1) : apiBase;
+                    const hook =
+                      base
+                        ? `${base}/api/integrations/webhook/${it.id}?token=ВАШ_СЕКРЕТ`
+                        : `/api/integrations/webhook/${it.id}?token=...`;
+                    return (
+                      <div key={it.id} className="rounded-xl border border-slate-700/60 bg-slate-900/30 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-semibold text-slate-100">{it.name}</div>
+                          <span className="text-xs text-slate-400">{it.provider}</span>
+                        </div>
+                        <div className="mt-2 text-[11px] text-slate-400">
+                          pipeline_id={it.pipeline_id}, stage_id={it.stage_id}, active={String(it.is_active)}
+                        </div>
+                        <div className="mt-2 text-[11px] text-slate-300">
+                          Webhook:
+                          <div className="mt-1 rounded-lg border border-slate-700 bg-slate-950/40 px-2 py-1 font-mono text-[11px] text-slate-200">
+                            {hook}
+                          </div>
+                          {!apiBase && (
+                            <div className="mt-1 text-[11px] text-amber-300/90">
+                              Задайте `VITE_API_BASE_URL`, чтобы URL был полный (на проде).
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
             </div>
           </div>
         </div>

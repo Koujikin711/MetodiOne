@@ -18,6 +18,16 @@ class Settings(BaseSettings):
     # Часовой пояс для проверки графика специалистов и слотов записи
     booking_timezone: str = "Europe/Moscow"
 
+    # Public URL фронтенда (для invite ссылок)
+    public_app_url: str = ""
+
+    # SMTP (если хотите реальную отправку писем)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
