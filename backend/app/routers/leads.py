@@ -74,6 +74,7 @@ def _lead_to_read(lead: Lead) -> LeadRead:
         stage_name=lead.stage.name if lead.stage else None,
         manager_id=lead.manager_id,
         refusal_reason=lead.refusal_reason,
+        pipeline_id=lead.stage.pipeline_id if lead.stage else None,
     )
 
 
@@ -176,16 +177,17 @@ async def list_leads(
     out: list[LeadRead] = []
     for lead in leads:
         info = deal_info.get(lead.id)
+        base = _lead_to_read(lead)
         out.append(
-            LeadRead(
-                **_lead_to_read(lead).model_dump(),
-                pipeline_id=lead.stage.pipeline_id if lead.stage else None,
-                protocol_deal_id=(info["protocol_deal_id"] if info else None) or None,
-                protocol_requested=bool(info["protocol_requested"]) if info else False,
-                protocol_confirmed=bool(info["protocol_confirmed"]) if info else False,
-                protocol_file_attached=bool(info["protocol_file_attached"]) if info else False,
-                paid_extras_amount=(info["paid_extras_amount"] if info else Decimal("0")),
-            )
+            base.model_copy(
+                update={
+                    "protocol_deal_id": (info["protocol_deal_id"] if info else None) or None,
+                    "protocol_requested": bool(info["protocol_requested"]) if info else False,
+                    "protocol_confirmed": bool(info["protocol_confirmed"]) if info else False,
+                    "protocol_file_attached": bool(info["protocol_file_attached"]) if info else False,
+                    "paid_extras_amount": (info["paid_extras_amount"] if info else Decimal("0")),
+                },
+            ),
         )
     return out
 
@@ -250,14 +252,14 @@ async def get_lead(
             "paid_extras_amount": row[4],
         }
 
-    return LeadRead(
-        **_lead_to_read(lead).model_dump(),
-        pipeline_id=lead.stage.pipeline_id if lead.stage else None,
-        protocol_deal_id=(info["protocol_deal_id"] if info else None) or None,
-        protocol_requested=bool(info["protocol_requested"]) if info else False,
-        protocol_confirmed=bool(info["protocol_confirmed"]) if info else False,
-        protocol_file_attached=bool(info["protocol_file_attached"]) if info else False,
-        paid_extras_amount=(info["paid_extras_amount"] if info else Decimal("0")),
+    return _lead_to_read(lead).model_copy(
+        update={
+            "protocol_deal_id": (info["protocol_deal_id"] if info else None) or None,
+            "protocol_requested": bool(info["protocol_requested"]) if info else False,
+            "protocol_confirmed": bool(info["protocol_confirmed"]) if info else False,
+            "protocol_file_attached": bool(info["protocol_file_attached"]) if info else False,
+            "paid_extras_amount": (info["paid_extras_amount"] if info else Decimal("0")),
+        },
     )
 
 
