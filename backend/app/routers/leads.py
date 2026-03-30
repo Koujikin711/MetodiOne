@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.deps import CurrentUser
 from app.database import get_db
-from app.models import Deal, Lead, PipelineStage, Task, TaskStatus, User, UserRole
+from app.models import Deal, Lead, PipelineStage, Task, TaskStatus, User, UserPipelineAssignment, UserRole
 from app.schemas.lead import LeadCreate, LeadRead, LeadStatusPatchResponse, LeadStatusUpdate
 from app.services.automation import process_lead_automation
 from app.schemas.deal import DealRead, ExtraServiceAddBody, ProtocolConfirmBody
@@ -25,6 +25,13 @@ async def _stage_id_by_name(db: AsyncSession, name: str, pipeline_id: int | None
         q = q.where(PipelineStage.pipeline_id == pipeline_id)
     r = await db.execute(q)
     return r.scalar_one_or_none()
+
+
+async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
+    rows = await db.execute(
+        select(UserPipelineAssignment.pipeline_id).where(UserPipelineAssignment.user_id == user_id),
+    )
+    return {r[0] for r in rows.all()}
 
 
 async def _notify_by_roles(
@@ -79,6 +86,10 @@ async def create_lead(
     stage = await db.get(PipelineStage, body.status_id)
     if stage is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown status_id")
+    if current_user.role == UserRole.manager:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if stage.pipeline_id not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Stage is outside manager directions")
     lead = Lead(
         name=body.name,
         phone=body.phone,
@@ -97,13 +108,15 @@ async def create_lead(
 @router.get("", response_model=list[LeadRead])
 async def list_leads(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> list[LeadRead]:
-    result = await db.execute(
-        select(Lead)
-        .options(selectinload(Lead.stage))
-        .order_by(Lead.id.desc()),
-    )
+    q = select(Lead).options(selectinload(Lead.stage)).order_by(Lead.id.desc())
+    if current_user.role == UserRole.manager:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if not allowed:
+            return []
+        q = q.join(PipelineStage, PipelineStage.id == Lead.status_id).where(PipelineStage.pipeline_id.in_(allowed))
+    result = await db.execute(q)
     leads = result.scalars().unique().all()
     if not leads:
         return []
@@ -181,12 +194,16 @@ async def list_leads(
 async def get_lead(
     lead_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> LeadRead:
     lead = await db.get(Lead, lead_id)
     if lead is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
+    if current_user.role == UserRole.manager:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if (lead.stage.pipeline_id if lead.stage else None) not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")
     deals_info_rows = await db.execute(
         select(
             func.min(case((Deal.is_protocol.is_(True), Deal.id))).label("protocol_deal_id"),
@@ -261,6 +278,10 @@ async def update_lead_status(
     from_stage = await db.get(PipelineStage, lead.status_id)
     if from_stage is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current stage not found")
+    if current_user.role == UserRole.manager:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if from_stage.pipeline_id not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")
 
     if stage.pipeline_id != from_stage.pipeline_id:
         raise HTTPException(
@@ -496,6 +517,9 @@ async def add_extra_service_to_cart(
     if lead is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
+    allowed = await _manager_pipeline_ids(db, current_user.id)
+    if (lead.stage.pipeline_id if lead.stage else None) not in allowed:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")
 
     if lead.stage is None or lead.stage.name != "Доп. услуги":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Lead is not in stage 'Доп. услуги'")

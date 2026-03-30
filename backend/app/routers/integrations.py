@@ -8,7 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser
 from app.database import get_db
-from app.models import Integration, IntegrationProvider, Lead, LeadSource, Pipeline, PipelineStage, UserRole
+from datetime import UTC, datetime
+
+from app.models import (
+    ChatMessage,
+    ChatThread,
+    Integration,
+    IntegrationProvider,
+    Lead,
+    LeadSource,
+    Pipeline,
+    PipelineStage,
+    UserRole,
+)
 from app.schemas.integrations import IntegrationCreate, IntegrationRead, IntegrationUpdate
 from app.schemas.lead import LeadRead
 
@@ -212,6 +224,60 @@ async def _create_lead_from_integration(
     return lead
 
 
+async def _upsert_thread(
+    db: AsyncSession,
+    *,
+    lead: Lead,
+    provider: str,
+    external_chat_id: str | None,
+    title: str | None = None,
+) -> ChatThread:
+    q = select(ChatThread).where(
+        ChatThread.lead_id == lead.id,
+        ChatThread.provider == provider,
+    )
+    if external_chat_id:
+        q = q.where(ChatThread.external_chat_id == external_chat_id)
+    found = (await db.execute(q.limit(1))).scalars().first()
+    if found is not None:
+        found.updated_at = datetime.now(UTC)
+        if title and not found.title:
+            found.title = title
+        if external_chat_id and not found.external_chat_id:
+            found.external_chat_id = external_chat_id
+        await db.flush()
+        return found
+    t = ChatThread(
+        lead_id=lead.id,
+        pipeline_id=lead.stage.pipeline_id if lead.stage else None,
+        provider=provider,
+        external_chat_id=external_chat_id,
+        title=title,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    db.add(t)
+    await db.flush()
+    return t
+
+
+async def _add_incoming_message(db: AsyncSession, thread_id: int, text: str) -> None:
+    body = (text or "").strip()
+    if not body:
+        return
+    db.add(
+        ChatMessage(
+            thread_id=thread_id,
+            author_user_id=None,
+            direction="in",
+            text=body,
+            delivery_status="sent",
+            created_at=datetime.now(UTC),
+        )
+    )
+    await db.flush()
+
+
 @router.post("/webhook/{integration_id}", response_model=LeadRead)
 async def integration_webhook(
     integration_id: int,
@@ -254,6 +320,14 @@ async def integration_webhook(
             email=None,
             source_name=source_name,
         )
+        thread = await _upsert_thread(
+            db,
+            lead=lead,
+            provider=IntegrationProvider.telegram.value,
+            external_chat_id=str(chat.get("id") or ""),
+            title=name,
+        )
+        await _add_incoming_message(db, thread.id, text)
         # можно сохранить текст в refusal_reason/комментарий — пока не трогаем модель
         return _lead_read(lead)
 
@@ -279,6 +353,12 @@ async def integration_webhook(
                 or "WhatsApp lead"
             )
         source_name = "GREEN API"
+        text = (
+            message_data.get("extendedTextMessageData", {}).get("text")
+            or message_data.get("textMessageData", {}).get("textMessage")
+            or message_data.get("fileMessageData", {}).get("caption")
+            or ""
+        )
         lead = await _create_lead_from_integration(
             db,
             integ=integ,
@@ -287,6 +367,14 @@ async def integration_webhook(
             email=None,
             source_name=source_name,
         )
+        thread = await _upsert_thread(
+            db,
+            lead=lead,
+            provider=IntegrationProvider.green_api.value,
+            external_chat_id=chat_id if isinstance(chat_id, str) else None,
+            title=str(sender_name),
+        )
+        await _add_incoming_message(db, thread.id, text)
         return _lead_read(lead)
 
     # instagram placeholder

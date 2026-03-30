@@ -23,6 +23,15 @@ interface InviteResult {
   temp_password_debug: string | null;
 }
 
+interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  from_email: string;
+  has_password: boolean;
+  public_app_url: string;
+}
+
 export function EmployeesPage() {
   const qc = useQueryClient();
   const employeesQuery = useQuery({
@@ -32,6 +41,20 @@ export function EmployeesPage() {
   const pipelinesQuery = useQuery({
     queryKey: ["pipelines"],
     queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
+  });
+  const smtpQuery = useQuery({
+    queryKey: ["smtp-config"],
+    queryFn: () => apiFetch<SmtpConfig>("/api/system/smtp"),
+  });
+  const [smtpTestEmail, setSmtpTestEmail] = useState("");
+  const smtpTestMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<{ ok: true }>("/api/system/smtp/test", {
+        method: "POST",
+        body: JSON.stringify({ to_email: smtpTestEmail }),
+      }),
+    onSuccess: () => toast.success("Тестовое письмо отправлено"),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const [open, setOpen] = useState(false);
@@ -131,6 +154,54 @@ export function EmployeesPage() {
           <p className="text-sm text-slate-500">Сотрудников пока нет.</p>
         )}
       </div>
+
+      <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 shadow-inner backdrop-blur-sm">
+        <h2 className="text-lg font-semibold text-white">SMTP / Почта</h2>
+        {smtpQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка SMTP…</p>}
+        {smtpQuery.isError && (
+          <p className="mt-2 text-sm text-red-300">{(smtpQuery.error as Error).message}</p>
+        )}
+        {smtpQuery.data && (
+          <div className="mt-3 grid gap-2 text-sm text-slate-300">
+            <div>
+              <span className="text-slate-500">HOST:</span> {smtpQuery.data.host || "—"}
+            </div>
+            <div>
+              <span className="text-slate-500">PORT:</span> {smtpQuery.data.port}
+            </div>
+            <div>
+              <span className="text-slate-500">USER:</span> {smtpQuery.data.user || "—"}
+            </div>
+            <div>
+              <span className="text-slate-500">FROM:</span> {smtpQuery.data.from_email || "—"}
+            </div>
+            <div>
+              <span className="text-slate-500">PASSWORD:</span>{" "}
+              {smtpQuery.data.has_password ? "задан" : "не задан"}
+            </div>
+            <div>
+              <span className="text-slate-500">PUBLIC_APP_URL:</span>{" "}
+              {smtpQuery.data.public_app_url || "—"}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <input
+                value={smtpTestEmail}
+                onChange={(e) => setSmtpTestEmail(e.target.value)}
+                placeholder="email для теста"
+                className="min-w-[240px] flex-1 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+              />
+              <button
+                type="button"
+                onClick={() => smtpTestMutation.mutate()}
+                disabled={smtpTestMutation.isPending}
+                className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-100 hover:bg-slate-800/40 disabled:opacity-60"
+              >
+                {smtpTestMutation.isPending ? "Отправка…" : "Тестовое письмо"}
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">

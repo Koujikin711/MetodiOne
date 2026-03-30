@@ -36,6 +36,27 @@ export interface Integration {
   config: Record<string, unknown> | null;
 }
 
+export interface ChatThread {
+  id: number;
+  lead_id: number | null;
+  lead_name: string | null;
+  provider: string;
+  external_chat_id: string | null;
+  title: string | null;
+  pipeline_id: number | null;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  thread_id: number;
+  author_user_id: number | null;
+  direction: "in" | "out";
+  text: string;
+  delivery_status: string;
+  created_at: string;
+}
+
 export interface Lead {
   id: number;
   name: string;

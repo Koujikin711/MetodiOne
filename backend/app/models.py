@@ -149,6 +149,32 @@ class Integration(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
 
 
+class ChatThread(Base):
+    __tablename__ = "chat_threads"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
+    pipeline_id: Mapped[int | None] = mapped_column(ForeignKey("pipelines.id", ondelete="SET NULL"), nullable=True)
+    provider: Mapped[str] = mapped_column(String(40), default="green_api")
+    external_chat_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    thread_id: Mapped[int] = mapped_column(ForeignKey("chat_threads.id", ondelete="CASCADE"))
+    author_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    direction: Mapped[str] = mapped_column(String(8), default="in")  # in/out
+    text: Mapped[str] = mapped_column(Text)
+    provider_message_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    delivery_status: Mapped[str] = mapped_column(String(24), default="sent")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
 class BookingDirection(Base):
     __tablename__ = "booking_directions"
 
