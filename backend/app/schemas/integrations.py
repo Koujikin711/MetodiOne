@@ -8,7 +8,9 @@ class IntegrationRead(BaseModel):
     is_active: bool
     pipeline_id: int
     stage_id: int
+    # api_token в config не отдаётся клиенту; см. has_api_token
     config: dict | None = None
+    has_api_token: bool = False
 
     model_config = {"from_attributes": True}
 

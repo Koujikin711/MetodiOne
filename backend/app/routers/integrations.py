@@ -26,6 +26,44 @@ from app.schemas.lead import LeadRead
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
+_SECRET_CFG_KEYS = frozenset({"api_token", "apiToken", "apiTokenInstance"})
+
+
+def _integration_read(row: Integration) -> IntegrationRead:
+    cfg = row.config
+    has_token = False
+    safe_cfg: dict | None = None
+    if cfg and isinstance(cfg, dict):
+        t = cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance")
+        has_token = bool(t)
+        safe_cfg = {k: v for k, v in cfg.items() if k not in _SECRET_CFG_KEYS}
+        if not safe_cfg and not has_token:
+            safe_cfg = None
+        elif not safe_cfg:
+            safe_cfg = {}
+    pv = row.provider.value if hasattr(row.provider, "value") else str(row.provider)
+    return IntegrationRead(
+        id=row.id,
+        name=row.name,
+        provider=pv,
+        is_active=row.is_active,
+        pipeline_id=row.pipeline_id,
+        stage_id=row.stage_id,
+        config=safe_cfg,
+        has_api_token=has_token,
+    )
+
+
+def _merge_green_api_config(old: dict | None, new: dict | None) -> dict:
+    merged = dict(old or {})
+    if not new:
+        return merged
+    for k, v in new.items():
+        if k in _SECRET_CFG_KEYS and (v is None or str(v).strip() == ""):
+            continue
+        merged[k] = v
+    return merged
+
 
 def _lead_read(lead: Lead) -> LeadRead:
     return LeadRead(
@@ -68,7 +106,7 @@ async def list_integrations(
     if current_user.role != UserRole.admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     r = await db.execute(select(Integration).order_by(Integration.id.desc()))
-    return [IntegrationRead.model_validate(x) for x in r.scalars().all()]
+    return [_integration_read(x) for x in r.scalars().all()]
 
 
 @router.post("", response_model=IntegrationRead, status_code=status.HTTP_201_CREATED)
@@ -81,6 +119,15 @@ async def create_integration(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     provider = _provider_from_str(body.provider)
     await _assert_pipeline_stage(db, body.pipeline_id, body.stage_id)
+    cfg = body.config or {}
+    if provider == IntegrationProvider.green_api:
+        instance_id = cfg.get("instance_id") or cfg.get("instanceId")
+        api_token = cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance")
+        if not instance_id or not api_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="For green_api set config.instance_id and config.api_token",
+            )
 
     row = Integration(
         name=body.name.strip(),
@@ -89,12 +136,12 @@ async def create_integration(
         pipeline_id=body.pipeline_id,
         stage_id=body.stage_id,
         secret=body.secret.strip(),
-        config=body.config,
+        config=cfg,
     )
     db.add(row)
     await db.flush()
     await db.refresh(row)
-    return IntegrationRead.model_validate(row)
+    return _integration_read(row)
 
 
 @router.patch("/{integration_id}", response_model=IntegrationRead)
@@ -125,11 +172,22 @@ async def patch_integration(
     if body.secret is not None:
         row.secret = body.secret.strip()
     if body.config is not None:
-        row.config = body.config
+        if row.provider == IntegrationProvider.green_api:
+            merged = _merge_green_api_config(row.config, body.config)
+            instance_id = merged.get("instance_id") or merged.get("instanceId")
+            api_token = merged.get("api_token") or merged.get("apiToken") or merged.get("apiTokenInstance")
+            if not instance_id or not api_token:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="For green_api set config.instance_id and config.api_token (или оставьте токен пустым при смене только instance)",
+                )
+            row.config = merged
+        else:
+            row.config = body.config
 
     await db.flush()
     await db.refresh(row)
-    return IntegrationRead.model_validate(row)
+    return _integration_read(row)
 
 
 @router.post("/generate-secret")

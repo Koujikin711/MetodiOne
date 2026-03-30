@@ -33,7 +33,9 @@ export interface Integration {
   is_active: boolean;
   pipeline_id: number;
   stage_id: number;
+  /** Без api_token; токен только на сервере */
   config: Record<string, unknown> | null;
+  has_api_token?: boolean;
 }
 
 export interface ChatThread {
