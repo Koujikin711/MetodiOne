@@ -6,9 +6,10 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.database import AsyncSessionLocal, engine
+from app.database_migrate import ensure_booking_specialist_columns
 from app.core.security import hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, PipelineStage, User, UserRole
-from app.routers import analytics, auth, booking, leads, stages, tasks
+from app.routers import analytics, auth, booking, leads, stages, tasks, users
 
 
 async def seed_pipeline_stages() -> None:
@@ -62,6 +63,7 @@ async def seed_booking_defaults() -> None:
 async def lifespan(_: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await ensure_booking_specialist_columns(conn, settings.database_url)
     await seed_pipeline_stages()
     await seed_test_admin()
     await seed_booking_defaults()
@@ -85,6 +87,7 @@ app.include_router(stages.router, prefix="/api")
 app.include_router(tasks.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(booking.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
 
 
 @app.get("/health")

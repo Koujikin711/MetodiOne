@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
+import { SpecialistModal } from "@/components/SpecialistModal";
 import { apiFetch } from "@/lib/api";
 import type { BookingAppointment, BookingDirection, BookingSpecialist, Lead } from "@/lib/types";
 
@@ -53,6 +54,11 @@ export function OnlineBookingPage() {
   const [specName, setSpecName] = useState("");
   const [specDirId, setSpecDirId] = useState(0);
   const [specPhone, setSpecPhone] = useState("");
+  const [specSpecialization, setSpecSpecialization] = useState("");
+
+  const [specialistModalOpen, setSpecialistModalOpen] = useState(false);
+  const [specialistModalMode, setSpecialistModalMode] = useState<"add" | "edit">("add");
+  const [specialistModalTarget, setSpecialistModalTarget] = useState<BookingSpecialist | null>(null);
 
   const queueQuery = useQuery({
     queryKey: ["booking-queue"],
@@ -150,15 +156,74 @@ export function OnlineBookingPage() {
           full_name: specName.trim(),
           direction_id: specDirId,
           phone: specPhone.trim() || null,
+          specialization: specSpecialization.trim() || null,
         }),
       }),
     onSuccess: () => {
       toast.success("Специалист добавлен");
       setSpecName("");
       setSpecPhone("");
+      setSpecSpecialization("");
       void queryClient.invalidateQueries({ queryKey: ["booking-specialists"] });
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createSpecialistUserMutation = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      apiFetch<BookingSpecialist>("/api/users", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      toast.success("Специалист добавлен");
+      setSpecialistModalOpen(false);
+      setSpecialistModalTarget(null);
+      void queryClient.invalidateQueries({ queryKey: ["booking-specialists"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const patchSpecialistUserMutation = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      apiFetch<BookingSpecialist>(`/api/users/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      toast.success("Специалист обновлён");
+      setSpecialistModalOpen(false);
+      setSpecialistModalTarget(null);
+      void queryClient.invalidateQueries({ queryKey: ["booking-specialists"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteSpecialistUserMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/users/${id}`, {
+        method: "DELETE",
+      }),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["booking-specialists"] });
+      const previous = queryClient.getQueryData<BookingSpecialist[]>(["booking-specialists"]);
+      queryClient.setQueryData<BookingSpecialist[]>(["booking-specialists"], (old) =>
+        (old ?? []).filter((s) => s.id !== id),
+      );
+      return { previous };
+    },
+    onError: (e: Error, _id, ctx) => {
+      if (ctx?.previous) {
+        queryClient.setQueryData(["booking-specialists"], ctx.previous);
+      }
+      toast.error(e.message);
+    },
+    onSuccess: () => {
+      toast.success("Специалист скрыт из сетки");
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["booking-specialists"] });
+    },
   });
 
   const directionsActive = useMemo(
@@ -227,6 +292,49 @@ export function OnlineBookingPage() {
       navigate(`/leads/${a.lead_id}`);
     } else {
       toast.error("К этой записи не привязан лид в CRM. Создайте новую запись из листа ожидания слева.");
+    }
+  }
+
+  function openAddSpecialistModal() {
+    setSpecialistModalMode("add");
+    setSpecialistModalTarget(null);
+    setSpecialistModalOpen(true);
+  }
+
+  function openEditSpecialistModal(s: BookingSpecialist) {
+    setSpecialistModalMode("edit");
+    setSpecialistModalTarget(s);
+    setSpecialistModalOpen(true);
+  }
+
+  function handleSpecialistModalSubmit(values: {
+    full_name: string;
+    direction_id: number;
+    phone: string;
+    specialization: string;
+  }) {
+    const phone = values.phone.trim() || null;
+    const specialization = values.specialization.trim() || null;
+    if (specialistModalMode === "add") {
+      createSpecialistUserMutation.mutate({
+        full_name: values.full_name,
+        direction_id: values.direction_id,
+        phone,
+        specialization,
+        role: "specialist",
+      });
+      return;
+    }
+    if (specialistModalTarget) {
+      patchSpecialistUserMutation.mutate({
+        id: specialistModalTarget.id,
+        body: {
+          full_name: values.full_name,
+          direction_id: values.direction_id,
+          phone,
+          specialization,
+        },
+      });
     }
   }
 
@@ -331,6 +439,9 @@ export function OnlineBookingPage() {
                 appointments={gridAppointmentsQuery.data ?? []}
                 onAppointmentClick={onCalendarAppointmentClick}
                 onSlotClick={handleSlotClick}
+                onAddSpecialist={openAddSpecialistModal}
+                onEditSpecialist={openEditSpecialistModal}
+                onDeleteSpecialist={(s) => deleteSpecialistUserMutation.mutate(s.id)}
               />
               {gridAppointmentsQuery.isLoading && (
                 <p className="mt-3 text-sm text-slate-400">Загрузка записей…</p>
@@ -560,6 +671,12 @@ export function OnlineBookingPage() {
                 onChange={(e) => setSpecPhone(e.target.value)}
                 className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
               />
+              <input
+                placeholder="Специализация (необязательно)"
+                value={specSpecialization}
+                onChange={(e) => setSpecSpecialization(e.target.value)}
+                className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+              />
               <button
                 type="submit"
                 className="rounded-xl bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
@@ -571,12 +688,33 @@ export function OnlineBookingPage() {
               {(specialistsQuery.data ?? []).map((s) => (
                 <li key={s.id} className="rounded-lg border border-slate-700/50 px-3 py-2">
                   {s.full_name} — {s.direction_name ?? s.direction_id}
+                  {s.specialization ? (
+                    <span className="mt-0.5 block text-xs text-slate-500">{s.specialization}</span>
+                  ) : null}
+                  {!s.is_active && (
+                    <span className="ml-2 text-xs text-amber-500/90">(скрыт)</span>
+                  )}
                 </li>
               ))}
             </ul>
           </section>
         </div>
       )}
+
+      <SpecialistModal
+        open={specialistModalOpen}
+        mode={specialistModalMode}
+        initial={specialistModalTarget}
+        directions={directionsActive}
+        isSubmitting={
+          createSpecialistUserMutation.isPending || patchSpecialistUserMutation.isPending
+        }
+        onClose={() => {
+          setSpecialistModalOpen(false);
+          setSpecialistModalTarget(null);
+        }}
+        onSubmit={handleSpecialistModalSubmit}
+      />
 
       {tab === "journal" && (
         <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
