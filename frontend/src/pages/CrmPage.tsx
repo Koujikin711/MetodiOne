@@ -11,11 +11,12 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
+import { decodeRoleFromToken } from "@/lib/auth";
 import type {
   Integration,
   Lead,
@@ -52,27 +53,6 @@ function resolveTargetStageId(
     return leads.find((l) => l.id === lid)?.status_id ?? null;
   }
   return null;
-}
-
-function base64UrlToBase64(input: string): string {
-  return input.replace(/-/g, "+").replace(/_/g, "/");
-}
-
-function decodeRoleFromToken(token: string | null): UserRole | null {
-  if (!token) return null;
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const payloadB64 = base64UrlToBase64(parts[1]);
-    const padded = payloadB64.padEnd(payloadB64.length + (4 - (payloadB64.length % 4)) % 4, "=");
-    const json = atob(padded);
-    const payload = JSON.parse(json) as { role?: unknown };
-    const role = payload.role;
-    if (role === "admin" || role === "manager" || role === "expert") return role;
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 function LeadCardBody({ lead }: { lead: Lead }) {
@@ -832,6 +812,24 @@ export function CrmPage() {
     queryFn: () =>
       pipelineId ? apiFetch<PipelineStage[]>(`/api/stages?pipeline_id=${pipelineId}`) : apiFetch("/api/stages"),
   });
+
+  const patchPipelineMutation = useMutation({
+    mutationFn: async ({ id, mode }: { id: number; mode: string }) =>
+      apiFetch<Pipeline>(`/api/pipelines/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ lead_assignment_mode: mode }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const selectedPipelineForSettings = useMemo(
+    () => (pipelineId != null ? pipelinesQuery.data?.find((p) => p.id === pipelineId) : undefined),
+    [pipelinesQuery.data, pipelineId],
+  );
+
   const leadsQuery = useQuery({
     queryKey: ["leads"],
     queryFn: () => apiFetch<Lead[]>("/api/leads"),
@@ -995,6 +993,23 @@ export function CrmPage() {
                 </button>
               );
             })}
+          </div>
+        )}
+        {currentRole === "admin" && pipelineId != null && selectedPipelineForSettings && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-sm text-slate-400">Распределение новых лидов (интеграции, очередь записи):</span>
+            <select
+              value={selectedPipelineForSettings.lead_assignment_mode ?? "none"}
+              onChange={(e) => {
+                patchPipelineMutation.mutate({ id: pipelineId, mode: e.target.value });
+              }}
+              disabled={patchPipelineMutation.isPending}
+              className="rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
+            >
+              <option value="none">Без автораспределения</option>
+              <option value="round_robin">По очереди (равномерно)</option>
+              <option value="least_loaded">По минимальной загрузке</option>
+            </select>
           </div>
         )}
       </header>

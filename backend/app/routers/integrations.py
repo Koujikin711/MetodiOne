@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.deps import CurrentUser
 from app.database import get_db
+from app.services.green_incoming import parse_green_message_data
+from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.green_api_settings import (
     green_api_base_from_config,
     push_green_incoming_webhook,
@@ -390,6 +392,10 @@ async def _create_lead_from_integration(
     db.add(lead)
     await db.flush()
     await db.refresh(lead, ["stage"])
+    mid = await assign_manager_for_new_lead(db, pipeline_id=integ.pipeline_id)
+    if mid is not None:
+        lead.manager_id = mid
+        await db.flush()
     return lead
 
 
@@ -430,16 +436,31 @@ async def _upsert_thread(
     return t
 
 
-async def _add_incoming_message(db: AsyncSession, thread_id: int, text: str) -> None:
+async def _add_incoming_message(
+    db: AsyncSession,
+    thread_id: int,
+    text: str,
+    *,
+    message_type: str = "text",
+    media_url: str | None = None,
+    media_mime: str | None = None,
+    file_name: str | None = None,
+) -> None:
     body = (text or "").strip()
-    if not body:
+    if not body and not media_url:
         return
+    if not body:
+        body = " "
     db.add(
         ChatMessage(
             thread_id=thread_id,
             author_user_id=None,
             direction="in",
             text=body,
+            message_type=message_type,
+            media_url=media_url,
+            media_mime=media_mime,
+            file_name=file_name,
             delivery_status="sent",
             created_at=datetime.now(UTC),
         )
@@ -540,12 +561,7 @@ async def integration_webhook(
                 or "WhatsApp lead"
             )
         source_name = "GREEN API"
-        text = (
-            message_data.get("extendedTextMessageData", {}).get("text")
-            or message_data.get("textMessageData", {}).get("textMessage")
-            or message_data.get("fileMessageData", {}).get("caption")
-            or ""
-        )
+        text, mtype, murl, mmime, mfn = parse_green_message_data(message_data)
         lead = await _create_lead_from_integration(
             db,
             integ=integ,
@@ -561,7 +577,15 @@ async def integration_webhook(
             external_chat_id=chat_id if isinstance(chat_id, str) else None,
             title=str(sender_name),
         )
-        await _add_incoming_message(db, thread.id, text)
+        await _add_incoming_message(
+            db,
+            thread.id,
+            text,
+            message_type=mtype,
+            media_url=murl,
+            media_mime=mmime,
+            file_name=mfn,
+        )
         logger.info("integration webhook: ok lead_id=%s thread_id=%s", lead.id, thread.id)
         return _lead_read(lead)
 

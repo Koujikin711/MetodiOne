@@ -149,6 +149,32 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
                    WHERE NOT EXISTS (SELECT 1 FROM booking_specialists s WHERE s.sort_order > 0)""",
             ),
         )
+
+        r = await conn.execute(text("PRAGMA table_info(pipelines)"))
+        pipe_cols = {row[1] for row in r.fetchall()}
+        if pipe_cols and "lead_assignment_mode" not in pipe_cols:
+            await conn.execute(
+                text(
+                    "ALTER TABLE pipelines ADD COLUMN lead_assignment_mode VARCHAR(32) NOT NULL DEFAULT 'none'",
+                ),
+            )
+        if pipe_cols and "assignment_rr_counter" not in pipe_cols:
+            await conn.execute(
+                text("ALTER TABLE pipelines ADD COLUMN assignment_rr_counter INTEGER NOT NULL DEFAULT 0"),
+            )
+
+        r = await conn.execute(text("PRAGMA table_info(chat_messages)"))
+        cm_cols = {row[1] for row in r.fetchall()}
+        if cm_cols and "message_type" not in cm_cols:
+            await conn.execute(
+                text("ALTER TABLE chat_messages ADD COLUMN message_type VARCHAR(24) NOT NULL DEFAULT 'text'"),
+            )
+        if cm_cols and "media_url" not in cm_cols:
+            await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN media_url TEXT"))
+        if cm_cols and "media_mime" not in cm_cols:
+            await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN media_mime VARCHAR(128)"))
+        if cm_cols and "file_name" not in cm_cols:
+            await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN file_name VARCHAR(255)"))
         return
 
     if "postgresql" in database_url or "asyncpg" in database_url:
@@ -268,4 +294,22 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
                    WHERE work_weekdays IS NULL""",
             ),
         )
+        await conn.execute(
+            text(
+                "ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS lead_assignment_mode VARCHAR(32) NOT NULL DEFAULT 'none'",
+            ),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS assignment_rr_counter INTEGER NOT NULL DEFAULT 0",
+            ),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(24) NOT NULL DEFAULT 'text'",
+            ),
+        )
+        await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS media_url TEXT"))
+        await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS media_mime VARCHAR(128)"))
+        await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS file_name VARCHAR(255)"))
         return

@@ -33,6 +33,7 @@ from app.schemas.booking import (
 )
 from app.schemas.lead import LeadRead
 from app.services.automation import process_lead_automation
+from app.services.lead_assignment import assign_manager_for_new_lead
 
 router = APIRouter(prefix="/booking", tags=["booking"])
 
@@ -161,13 +162,21 @@ async def booking_queue_add(
             detail=f"Stage '{settings.booking_queue_stage_name}' not found",
         )
 
+    stage_row = await db.get(PipelineStage, q_sid)
+    pipeline_id = stage_row.pipeline_id if stage_row else None
+    manager_id = current_user.id
+    if pipeline_id is not None:
+        assigned = await assign_manager_for_new_lead(db, pipeline_id=pipeline_id)
+        if assigned is not None:
+            manager_id = assigned
+
     lead = Lead(
         name=body.name.strip(),
         phone=(body.phone or "").strip() or None,
         email=(body.email or "").strip() or None,
         source=(body.source or "").strip() or None,
         status_id=q_sid,
-        manager_id=current_user.id,
+        manager_id=manager_id,
     )
     db.add(lead)
     await db.flush()

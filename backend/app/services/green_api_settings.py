@@ -22,6 +22,23 @@ def green_api_base_from_config(cfg: dict | None) -> str:
     return DEFAULT_GREEN_HOST
 
 
+def green_media_base_from_config(cfg: dict | None) -> str:
+    """Хост для sendFileByUpload: обычно mediaUrl из кабинета или замена api→media."""
+    if not cfg:
+        return "https://media.green-api.com"
+    u = cfg.get("media_base_url") or cfg.get("mediaUrl")
+    if isinstance(u, str) and u.strip():
+        return u.strip().rstrip("/")
+    api = green_api_base_from_config(cfg)
+    if ".api." in api:
+        return api.replace(".api.", ".media.")
+    if "api.green-api.com" in api:
+        return api.replace("api.green-api.com", "media.green-api.com")
+    if "api.greenapi.com" in api:
+        return api.replace("api.greenapi.com", "media.greenapi.com")
+    return "https://media.green-api.com"
+
+
 def resolve_public_api_base(request: Any, env_base: str) -> str:
     """Публичный URL бэкенда для webhookUrl в Green API."""
     env = (env_base or "").strip().rstrip("/")

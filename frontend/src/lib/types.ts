@@ -18,6 +18,7 @@ export interface Pipeline {
   id: number;
   name: string;
   type: string | null;
+  lead_assignment_mode?: string;
 }
 
 export interface LeadSource {
@@ -57,6 +58,10 @@ export interface ChatMessage {
   author_user_id: number | null;
   direction: "in" | "out";
   text: string;
+  message_type?: string;
+  media_url?: string | null;
+  media_mime?: string | null;
+  file_name?: string | null;
   delivery_status: string;
   created_at: string;
 }

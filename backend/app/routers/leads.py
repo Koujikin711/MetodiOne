@@ -116,7 +116,10 @@ async def list_leads(
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if not allowed:
             return []
-        q = q.join(PipelineStage, PipelineStage.id == Lead.status_id).where(PipelineStage.pipeline_id.in_(allowed))
+        q = q.join(PipelineStage, PipelineStage.id == Lead.status_id).where(
+            PipelineStage.pipeline_id.in_(allowed),
+            Lead.manager_id == current_user.id,
+        )
     result = await db.execute(q)
     leads = result.scalars().unique().all()
     if not leads:
@@ -206,6 +209,8 @@ async def get_lead(
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if (lead.stage.pipeline_id if lead.stage else None) not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")
+        if lead.manager_id is not None and lead.manager_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is assigned to another manager")
     deals_info_rows = await db.execute(
         select(
             func.min(case((Deal.is_protocol.is_(True), Deal.id))).label("protocol_deal_id"),

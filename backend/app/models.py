@@ -30,6 +30,9 @@ class Pipeline(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True)
     type: Mapped[str] = mapped_column(String(64), default="sales")
+    # none | round_robin | least_loaded — кому назначать новых лидов из интеграций/очереди
+    lead_assignment_mode: Mapped[str] = mapped_column(String(32), default="none")
+    assignment_rr_counter: Mapped[int] = mapped_column(default=0)
 
     stages: Mapped[list["PipelineStage"]] = relationship(back_populates="pipeline")
 
@@ -170,6 +173,10 @@ class ChatMessage(Base):
     author_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     direction: Mapped[str] = mapped_column(String(8), default="in")  # in/out
     text: Mapped[str] = mapped_column(Text)
+    message_type: Mapped[str] = mapped_column(String(24), default="text")  # text|image|video|audio|document
+    media_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    media_mime: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     provider_message_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     delivery_status: Mapped[str] = mapped_column(String(24), default="sent")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)

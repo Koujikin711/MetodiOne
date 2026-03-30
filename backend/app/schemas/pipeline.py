@@ -11,8 +11,16 @@ class PipelineRead(BaseModel):
     id: int
     name: str
     type: str | None = None
+    lead_assignment_mode: str = "none"
 
     model_config = {"from_attributes": True}
+
+
+class PipelinePatch(BaseModel):
+    lead_assignment_mode: str | None = Field(
+        default=None,
+        description="none | round_robin | least_loaded",
+    )
 
 
 class PipelineCreate(BaseModel):
