@@ -516,6 +516,46 @@ export function CrmPage() {
     queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
   });
 
+  const [createPipelineOpen, setCreatePipelineOpen] = useState(false);
+  const [pipeName, setPipeName] = useState("");
+  const [pipeType, setPipeType] = useState("sales");
+  const [pipeStages, setPipeStages] = useState<Array<{ name: string; color: string }>>([
+    { name: "Новый", color: "#64748b" },
+  ]);
+
+  async function submitCreatePipeline() {
+    if (!pipeName.trim()) {
+      toast.error("Название воронки обязательно");
+      return;
+    }
+    if (pipeStages.length === 0 || pipeStages.some((s) => !s.name.trim())) {
+      toast.error("Добавьте хотя бы одну стадию и заполните названия");
+      return;
+    }
+    try {
+      await apiFetch<Pipeline>("/api/pipelines", {
+        method: "POST",
+        body: JSON.stringify({
+          name: pipeName.trim(),
+          type: pipeType.trim(),
+          stages: pipeStages.map((s, idx) => ({
+            name: s.name.trim(),
+            order: idx,
+            color: s.color || "#6366f1",
+          })),
+        }),
+      });
+      toast.success("Воронка создана");
+      setCreatePipelineOpen(false);
+      setPipeName("");
+      setPipeType("sales");
+      setPipeStages([{ name: "Новый", color: "#64748b" }]);
+      void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось создать воронку");
+    }
+  }
+
   const [pipelineId, setPipelineId] = useState<number | null>(null);
   useEffect(() => {
     if (pipelineId != null) return;
@@ -642,6 +682,15 @@ export function CrmPage() {
         <p className="text-base text-slate-400">
           Канбан воронки — перетаскивайте лиды между этапами
         </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCreatePipelineOpen(true)}
+            className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
+          >
+            + Создать воронку
+          </button>
+        </div>
         {pipelinesQuery.data && pipelinesQuery.data.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-slate-400">Воронка:</span>
@@ -666,6 +715,99 @@ export function CrmPage() {
           </div>
         )}
       </header>
+
+      {createPipelineOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-white">Создать воронку</h2>
+              <button
+                type="button"
+                onClick={() => setCreatePipelineOpen(false)}
+                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+              >
+                Закрыть
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <label className="text-sm text-slate-300">
+                Название
+                <input
+                  value={pipeName}
+                  onChange={(e) => setPipeName(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Тип (необязательно)
+                <input
+                  value={pipeType}
+                  onChange={(e) => setPipeType(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                />
+              </label>
+
+              <div className="mt-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-slate-200">Стадии</div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPipeStages((prev) => [...prev, { name: "", color: "#6366f1" }])
+                    }
+                    className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-200 hover:bg-slate-800/40"
+                  >
+                    + Стадия
+                  </button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {pipeStages.map((st, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        value={st.name}
+                        onChange={(e) =>
+                          setPipeStages((prev) =>
+                            prev.map((p, i) => (i === idx ? { ...p, name: e.target.value } : p)),
+                          )
+                        }
+                        placeholder={`Стадия ${idx + 1}`}
+                        className="flex-1 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                      />
+                      <input
+                        type="color"
+                        value={st.color}
+                        onChange={(e) =>
+                          setPipeStages((prev) =>
+                            prev.map((p, i) => (i === idx ? { ...p, color: e.target.value } : p)),
+                          )
+                        }
+                        className="h-10 w-12 rounded-lg border border-slate-700 bg-slate-950/40"
+                      />
+                      <button
+                        type="button"
+                        disabled={pipeStages.length <= 1}
+                        onClick={() => setPipeStages((prev) => prev.filter((_, i) => i !== idx))}
+                        className="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/40 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void submitCreatePipeline()}
+                className="mt-2 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+              >
+                Создать
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {(stagesQuery.isLoading || leadsQuery.isLoading) && (
         <p className="text-sm text-slate-400">Загрузка…</p>
