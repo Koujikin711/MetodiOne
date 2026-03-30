@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { GradientIconBox } from "@/components/GradientIconBox";
 import { LayoutDashboard } from "@/components/icons";
@@ -15,11 +15,25 @@ const btnPrimary =
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [email, setEmail] = useState("admin");
   const [password, setPassword] = useState("admin");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [role, setRole] = useState<UserRole>("manager");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const session = searchParams.get("session");
+    if (!session) return;
+    setSearchParams({}, { replace: true });
+    if (session === "expired") {
+      setError("Сессия истекла — войдите снова.");
+    } else {
+      setError(
+        "Токен не подходит этому серверу (часто после смены SECRET_KEY на хостинге или смены адреса API). Войдите заново.",
+      );
+    }
+  }, [searchParams, setSearchParams]);
 
   const mutation = useMutation({
     mutationFn: async () => {

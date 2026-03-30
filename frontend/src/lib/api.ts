@@ -85,6 +85,26 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
         : Array.isArray(detail)
           ? detail.map((x: { msg?: string }) => x.msg).filter(Boolean).join(", ")
           : res.statusText;
+
+    if (res.status === 401 && token) {
+      const authLost = [
+        "Invalid token",
+        "Token expired",
+        "Not authenticated",
+        "User not found",
+      ].includes(message);
+      if (authLost) {
+        setStoredToken(null);
+        const reason = message === "Token expired" ? "expired" : "invalid";
+        window.location.assign(`/login?session=${reason}`);
+        throw new Error(
+          message === "Token expired"
+            ? "Сессия истекла. Войдите снова."
+            : "Сессия недействительна (другой сервер или сброс ключа). Войдите снова.",
+        );
+      }
+    }
+
     throw new Error(message || `Запрос не выполнен (${res.status})`);
   }
   return data as T;
