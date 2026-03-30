@@ -1,5 +1,6 @@
-import secrets
+import logging
 import re
+import secrets
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
@@ -25,8 +26,18 @@ from app.schemas.integrations import IntegrationCreate, IntegrationRead, Integra
 from app.schemas.lead import LeadRead
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
+logger = logging.getLogger(__name__)
 
 _SECRET_CFG_KEYS = frozenset({"api_token", "apiToken", "apiTokenInstance"})
+
+
+def _webhook_token_matches(provided: str | None, expected: str) -> bool:
+    """compare_digest падает ValueError при разной длине строк — для вебхука это 400/500 вместо 403."""
+    if not provided or not expected:
+        return False
+    if len(provided) != len(expected):
+        return False
+    return secrets.compare_digest(provided, expected)
 
 
 def _integration_read(row: Integration) -> IntegrationRead:
@@ -346,13 +357,30 @@ async def integration_webhook(
 ) -> LeadRead:
     integ = await db.get(Integration, integration_id)
     if integ is None or not integ.is_active:
+        logger.warning("integration webhook: integration_id=%s not found or inactive", integration_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
 
     provided = token or x_webhook_token
-    if not provided or not secrets.compare_digest(provided, integ.secret):
+    if not _webhook_token_matches(provided, integ.secret):
+        logger.warning(
+            "integration webhook: integration_id=%s rejected (missing/wrong token, len_provided=%s)",
+            integration_id,
+            len(provided or ""),
+        )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bad token")
 
-    payload: Any = await request.json()
+    try:
+        payload: Any = await request.json()
+    except Exception:
+        logger.exception("integration webhook: integration_id=%s invalid JSON body", integration_id)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Expected JSON body")
+
+    logger.info(
+        "integration webhook: integration_id=%s provider=%s typeWebhook=%s",
+        integration_id,
+        integ.provider.value if hasattr(integ.provider, "value") else integ.provider,
+        payload.get("typeWebhook") if isinstance(payload, dict) else None,
+    )
 
     # MVP парсеры под провайдеры
     if integ.provider == IntegrationProvider.telegram:
@@ -386,7 +414,7 @@ async def integration_webhook(
             title=name,
         )
         await _add_incoming_message(db, thread.id, text)
-        # можно сохранить текст в refusal_reason/комментарий — пока не трогаем модель
+        logger.info("integration webhook: ok lead_id=%s thread_id=%s", lead.id, thread.id)
         return _lead_read(lead)
 
     if integ.provider == IntegrationProvider.green_api:
@@ -433,6 +461,7 @@ async def integration_webhook(
             title=str(sender_name),
         )
         await _add_incoming_message(db, thread.id, text)
+        logger.info("integration webhook: ok lead_id=%s thread_id=%s", lead.id, thread.id)
         return _lead_read(lead)
 
     # instagram placeholder
