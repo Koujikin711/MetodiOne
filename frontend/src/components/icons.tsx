@@ -119,3 +119,16 @@ export function Trash2(props: IconProps) {
     </svg>
   );
 }
+
+export function GripVertical(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <circle cx="9" cy="5" r="1" />
+      <circle cx="15" cy="5" r="1" />
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="9" cy="19" r="1" />
+      <circle cx="15" cy="19" r="1" />
+    </svg>
+  );
+}

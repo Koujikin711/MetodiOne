@@ -1,7 +1,12 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+# Сетка календаря 07:00–20:00 (совпадает с фронтом)
+BOOKING_GRID_START_HOUR = 7
+BOOKING_GRID_END_HOUR = 20
 
 
 class BookingDirectionRead(BaseModel):
@@ -26,6 +31,10 @@ class BookingSpecialistRead(BaseModel):
     phone: str | None
     specialization: str | None = None
     is_active: bool
+    sort_order: int = 0
+    work_start_hour: int = 9
+    work_end_hour: int = 18
+    work_weekdays: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4])
 
     model_config = {"from_attributes": True}
 
@@ -35,6 +44,28 @@ class BookingSpecialistCreate(BaseModel):
     direction_id: int = Field(..., ge=1)
     phone: str | None = Field(None, max_length=64)
     specialization: str | None = Field(None, max_length=255)
+    work_start_hour: int = Field(9, ge=BOOKING_GRID_START_HOUR, le=BOOKING_GRID_END_HOUR - 1)
+    work_end_hour: int = Field(18, ge=BOOKING_GRID_START_HOUR + 1, le=BOOKING_GRID_END_HOUR)
+    work_weekdays: list[int] = Field(
+        default_factory=lambda: [0, 1, 2, 3, 4],
+        description="0=Пн … 6=Вс (как datetime.weekday() в Python)",
+    )
+
+    @field_validator("work_weekdays")
+    @classmethod
+    def validate_weekdays(cls, v: list[int]) -> list[int]:
+        if not v:
+            raise ValueError("Укажите хотя бы один рабочий день")
+        for x in v:
+            if x < 0 or x > 6:
+                raise ValueError("День недели: целое от 0 (пн) до 6 (вс)")
+        return sorted(set(v))
+
+    @model_validator(mode="after")
+    def validate_hours(self) -> "BookingSpecialistCreate":
+        if self.work_start_hour >= self.work_end_hour:
+            raise ValueError("Конец приёма должен быть позже начала")
+        return self
 
 
 class BookingSpecialistUpdate(BaseModel):
@@ -42,6 +73,25 @@ class BookingSpecialistUpdate(BaseModel):
     direction_id: int | None = Field(None, ge=1)
     phone: str | None = Field(None, max_length=64)
     specialization: str | None = Field(None, max_length=255)
+    work_start_hour: int | None = Field(None, ge=BOOKING_GRID_START_HOUR, le=BOOKING_GRID_END_HOUR - 1)
+    work_end_hour: int | None = Field(None, ge=BOOKING_GRID_START_HOUR + 1, le=BOOKING_GRID_END_HOUR)
+    work_weekdays: list[int] | None = None
+
+    @field_validator("work_weekdays")
+    @classmethod
+    def validate_weekdays(cls, v: list[int] | None) -> list[int] | None:
+        if v is None:
+            return v
+        if not v:
+            raise ValueError("Укажите хотя бы один рабочий день")
+        for x in v:
+            if x < 0 or x > 6:
+                raise ValueError("День недели: целое от 0 (пн) до 6 (вс)")
+        return sorted(set(v))
+
+
+class SpecialistReorderBody(BaseModel):
+    ordered_ids: list[int] = Field(..., min_length=1)
 
 
 class BookingAppointmentRead(BaseModel):

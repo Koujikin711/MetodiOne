@@ -157,6 +157,9 @@ export function OnlineBookingPage() {
           direction_id: specDirId,
           phone: specPhone.trim() || null,
           specialization: specSpecialization.trim() || null,
+          work_start_hour: 9,
+          work_end_hour: 18,
+          work_weekdays: [0, 1, 2, 3, 4],
         }),
       }),
     onSuccess: () => {
@@ -231,10 +234,26 @@ export function OnlineBookingPage() {
     [directionsQuery.data],
   );
 
-  const specialistsActive = useMemo(
-    () => specialistsQuery.data?.filter((s) => s.is_active) ?? [],
-    [specialistsQuery.data],
-  );
+  const specialistsActive = useMemo(() => {
+    const list = specialistsQuery.data?.filter((s) => s.is_active) ?? [];
+    return [...list].sort((a, b) => {
+      const o = (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      return o !== 0 ? o : a.id - b.id;
+    });
+  }, [specialistsQuery.data]);
+
+  const reorderSpecialistsMutation = useMutation({
+    mutationFn: (ordered_ids: number[]) =>
+      apiFetch<void>("/api/booking/specialists/reorder", {
+        method: "POST",
+        body: JSON.stringify({ ordered_ids }),
+      }),
+    onSuccess: () => {
+      toast.success("Порядок колонок сохранён");
+      void queryClient.invalidateQueries({ queryKey: ["booking-specialists"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const specialistsForDirection = useMemo(() => {
     if (!directionId) return [];
@@ -312,6 +331,9 @@ export function OnlineBookingPage() {
     direction_id: number;
     phone: string;
     specialization: string;
+    work_start_hour: number;
+    work_end_hour: number;
+    work_weekdays: number[];
   }) {
     const phone = values.phone.trim() || null;
     const specialization = values.specialization.trim() || null;
@@ -322,6 +344,9 @@ export function OnlineBookingPage() {
         phone,
         specialization,
         role: "specialist",
+        work_start_hour: values.work_start_hour,
+        work_end_hour: values.work_end_hour,
+        work_weekdays: values.work_weekdays,
       });
       return;
     }
@@ -333,6 +358,9 @@ export function OnlineBookingPage() {
           direction_id: values.direction_id,
           phone,
           specialization,
+          work_start_hour: values.work_start_hour,
+          work_end_hour: values.work_end_hour,
+          work_weekdays: values.work_weekdays,
         },
       });
     }
@@ -442,6 +470,7 @@ export function OnlineBookingPage() {
                 onAddSpecialist={openAddSpecialistModal}
                 onEditSpecialist={openEditSpecialistModal}
                 onDeleteSpecialist={(s) => deleteSpecialistUserMutation.mutate(s.id)}
+                onReorderSpecialists={(orderedIds) => reorderSpecialistsMutation.mutate(orderedIds)}
               />
               {gridAppointmentsQuery.isLoading && (
                 <p className="mt-3 text-sm text-slate-400">Загрузка записей…</p>

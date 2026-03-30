@@ -2,6 +2,15 @@ import { useEffect, useState } from "react";
 
 import type { BookingDirection, BookingSpecialist } from "@/lib/types";
 
+const GRID_START = 7;
+const GRID_END = 20;
+const DEFAULT_WEEKDAYS = [0, 1, 2, 3, 4];
+
+const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
+const HOUR_OPTIONS_START = Array.from({ length: GRID_END - GRID_START - 1 }, (_, i) => GRID_START + i);
+const HOUR_OPTIONS_END = Array.from({ length: GRID_END - GRID_START }, (_, i) => GRID_START + 1 + i);
+
 type Props = {
   open: boolean;
   mode: "add" | "edit";
@@ -14,8 +23,16 @@ type Props = {
     direction_id: number;
     phone: string;
     specialization: string;
+    work_start_hour: number;
+    work_end_hour: number;
+    work_weekdays: number[];
   }) => void;
 };
+
+function normWeekdays(raw: number[] | undefined): number[] {
+  if (!raw?.length) return [...DEFAULT_WEEKDAYS];
+  return [...new Set(raw.filter((x) => x >= 0 && x <= 6))].sort((a, b) => a - b);
+}
 
 export function SpecialistModal({
   open,
@@ -30,6 +47,9 @@ export function SpecialistModal({
   const [directionId, setDirectionId] = useState(0);
   const [phone, setPhone] = useState("");
   const [specialization, setSpecialization] = useState("");
+  const [workStart, setWorkStart] = useState(9);
+  const [workEnd, setWorkEnd] = useState(18);
+  const [workWeekdays, setWorkWeekdays] = useState<number[]>([...DEFAULT_WEEKDAYS]);
 
   useEffect(() => {
     if (!open) return;
@@ -38,10 +58,16 @@ export function SpecialistModal({
       setDirectionId(initial.direction_id);
       setPhone(initial.phone ?? "");
       setSpecialization(initial.specialization ?? "");
+      setWorkStart(initial.work_start_hour ?? 9);
+      setWorkEnd(initial.work_end_hour ?? 18);
+      setWorkWeekdays(normWeekdays(initial.work_weekdays));
     } else {
       setFullName("");
       setPhone("");
       setSpecialization("");
+      setWorkStart(9);
+      setWorkEnd(18);
+      setWorkWeekdays([...DEFAULT_WEEKDAYS]);
       const first = directions[0];
       setDirectionId(first?.id ?? 0);
     }
@@ -56,16 +82,31 @@ export function SpecialistModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  function toggleWeekday(d: number) {
+    setWorkWeekdays((prev) => {
+      if (prev.includes(d)) {
+        const next = prev.filter((x) => x !== d);
+        return next.length ? next : prev;
+      }
+      return [...prev, d].sort((a, b) => a - b);
+    });
+  }
+
   if (!open) return null;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!fullName.trim() || !directionId) return;
+    if (workStart >= workEnd) return;
+    if (!workWeekdays.length) return;
     onSubmit({
       full_name: fullName.trim(),
       direction_id: directionId,
       phone: phone.trim(),
       specialization: specialization.trim(),
+      work_start_hour: workStart,
+      work_end_hour: workEnd,
+      work_weekdays: [...workWeekdays],
     });
   }
 
@@ -78,7 +119,7 @@ export function SpecialistModal({
       }}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+        className="max-h-[min(92vh,720px)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
         role="dialog"
         aria-labelledby="specialist-modal-title"
         onMouseDown={(e) => e.stopPropagation()}
@@ -87,7 +128,7 @@ export function SpecialistModal({
           {mode === "add" ? "Добавить специалиста" : "Редактировать специалиста"}
         </h2>
         <p className="mt-1 text-xs text-slate-500">
-          Карточка в сетке записи. Учётная запись CRM не создаётся.
+          Карточка в сетке записи. Учётная запись CRM не создаётся. График — в часовом поясе сервера (МСК).
         </p>
 
         {directions.length === 0 && (
@@ -138,6 +179,64 @@ export function SpecialistModal({
             />
           </label>
 
+          <div className="rounded-xl border border-slate-600/40 bg-slate-950/30 p-3">
+            <p className="text-sm font-medium text-slate-200">График приёма (сетка 07:00–20:00)</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Вне интервала и в выходные слоты недоступны для записи.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="text-xs text-slate-400">
+                Начало
+                <select
+                  value={workStart}
+                  onChange={(e) => setWorkStart(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-slate-600/50 bg-slate-900 px-2 py-1.5 text-sm text-white"
+                >
+                  {HOUR_OPTIONS_START.map((h) => (
+                    <option key={h} value={h}>
+                      {String(h).padStart(2, "0")}:00
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-slate-400">
+                Конец (не включая)
+                <select
+                  value={workEnd}
+                  onChange={(e) => setWorkEnd(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-slate-600/50 bg-slate-900 px-2 py-1.5 text-sm text-white"
+                >
+                  {HOUR_OPTIONS_END.map((h) => (
+                    <option key={h} value={h}>
+                      {String(h).padStart(2, "0")}:00
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {workStart >= workEnd && (
+              <p className="mt-2 text-xs text-red-400">Конец должен быть позже начала.</p>
+            )}
+            <p className="mt-3 text-xs text-slate-400">Рабочие дни</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {WEEKDAY_LABELS.map((label, d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => toggleWeekday(d)}
+                  className={[
+                    "rounded-lg border px-2.5 py-1 text-xs font-medium transition",
+                    workWeekdays.includes(d)
+                      ? "border-purple-500/50 bg-purple-500/20 text-purple-100"
+                      : "border-slate-600/60 bg-slate-900/80 text-slate-500 line-through opacity-70",
+                  ].join(" ")}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <label className="block text-sm text-slate-300">
             Специализация
             <input
@@ -168,7 +267,7 @@ export function SpecialistModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || directions.length === 0}
+              disabled={isSubmitting || directions.length === 0 || workStart >= workEnd || !workWeekdays.length}
               className="flex-1 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95 disabled:opacity-50"
             >
               {isSubmitting ? "Сохранение…" : mode === "add" ? "Добавить" : "Сохранить"}

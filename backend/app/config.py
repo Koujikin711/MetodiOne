@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     booking_stage_after_book: str = "В работе"
     booking_stage_completed: str = "Успешно реализован"
     booking_stage_lost: str = "Потерян"
+    # Часовой пояс для проверки графика специалистов и слотов записи
+    booking_timezone: str = "Europe/Moscow"
 
     @property
     def cors_origin_list(self) -> list[str]:

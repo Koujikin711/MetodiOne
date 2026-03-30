@@ -67,6 +67,11 @@ export interface BookingSpecialist {
   /** Может отсутствовать у кэша до обновления API */
   specialization?: string | null;
   is_active: boolean;
+  sort_order?: number;
+  work_start_hour?: number;
+  work_end_hour?: number;
+  /** 0=Пн … 6=Вс (как на бэкенде) */
+  work_weekdays?: number[];
 }
 
 export interface BookingAppointment {

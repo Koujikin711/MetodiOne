@@ -2,7 +2,7 @@ import enum
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import DateTime, ForeignKey, JSON, Numeric, String, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -107,6 +107,10 @@ class BookingSpecialist(Base):
     phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     specialization: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+    sort_order: Mapped[int] = mapped_column(default=0)
+    work_start_hour: Mapped[int] = mapped_column(default=9)
+    work_end_hour: Mapped[int] = mapped_column(default=18)
+    work_weekdays: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     direction: Mapped["BookingDirection"] = relationship(back_populates="specialists")
     appointments: Mapped[list["BookingAppointment"]] = relationship(back_populates="specialist")
