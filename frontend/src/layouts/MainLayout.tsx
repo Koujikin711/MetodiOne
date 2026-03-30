@@ -1,8 +1,9 @@
-import { BarChart3, Calendar, CheckSquare, LayoutDashboard, LogOut, MessageCircle, Users } from "@/components/icons";
+import { BarChart3, Calendar, CheckSquare, LayoutDashboard, LogOut, MessageCircle, UserRound, Users } from "@/components/icons";
 import { GradientIconBox } from "@/components/GradientIconBox";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
-import { setStoredToken } from "@/lib/api";
+import { getStoredToken, setStoredToken } from "@/lib/api";
+import { decodeRoleFromToken } from "@/lib/auth";
 
 const navLinkBase =
   "group flex flex-col items-center gap-2 rounded-2xl px-1 py-3 text-center transition-all duration-500";
@@ -18,6 +19,7 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 
 export function MainLayout() {
   const navigate = useNavigate();
+  const isManager = decodeRoleFromToken(getStoredToken()) === "manager";
 
   function logout() {
     setStoredToken(null);
@@ -49,42 +51,67 @@ export function MainLayout() {
             </div>
           </div>
           <nav className="flex flex-1 flex-col gap-2 px-1.5">
-            <NavLink to="/" end className={navLinkClass} title="CRM">
-              <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                <LayoutDashboard className="h-[18px] w-[18px]" />
-              </GradientIconBox>
-              <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">CRM</span>
-            </NavLink>
-            <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
-              <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                <Calendar className="h-[18px] w-[18px]" />
-              </GradientIconBox>
-              <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Онлайн</span>
-            </NavLink>
-            <NavLink to="/tasks" className={navLinkClass} title="Задачи">
-              <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                <CheckSquare className="h-[18px] w-[18px]" />
-              </GradientIconBox>
-              <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
-            </NavLink>
-            <NavLink to="/analytics" className={navLinkClass} title="Аналитика">
-              <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                <BarChart3 className="h-[18px] w-[18px]" />
-              </GradientIconBox>
-              <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Аналит.</span>
-            </NavLink>
-            <NavLink to="/employees" className={navLinkClass} title="Сотрудники">
-              <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                <Users className="h-[18px] w-[18px]" />
-              </GradientIconBox>
-              <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Сотр.</span>
-            </NavLink>
-            <NavLink to="/chat" className={navLinkClass} title="Чат">
-              <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                <MessageCircle className="h-[18px] w-[18px]" />
-              </GradientIconBox>
-              <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
-            </NavLink>
+            {isManager ? (
+              <>
+                <NavLink to="/chat" className={navLinkClass} title="Чат">
+                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <MessageCircle className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
+                </NavLink>
+                <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <Calendar className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Онлайн</span>
+                </NavLink>
+                <NavLink to="/my-leads" className={navLinkClass} title="Мои лиды">
+                  <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <UserRound className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Мои лиды</span>
+                </NavLink>
+              </>
+            ) : (
+              <>
+                <NavLink to="/" end className={navLinkClass} title="CRM">
+                  <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <LayoutDashboard className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">CRM</span>
+                </NavLink>
+                <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <Calendar className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Онлайн</span>
+                </NavLink>
+                <NavLink to="/tasks" className={navLinkClass} title="Задачи">
+                  <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <CheckSquare className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
+                </NavLink>
+                <NavLink to="/analytics" className={navLinkClass} title="Аналитика">
+                  <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <BarChart3 className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Аналит.</span>
+                </NavLink>
+                <NavLink to="/employees" className={navLinkClass} title="Сотрудники">
+                  <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <Users className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Сотр.</span>
+                </NavLink>
+                <NavLink to="/chat" className={navLinkClass} title="Чат">
+                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <MessageCircle className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
+                </NavLink>
+              </>
+            )}
           </nav>
           <div className="mt-auto border-t border-slate-700/40 px-1.5 pt-4">
             <button

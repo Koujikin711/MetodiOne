@@ -2,13 +2,14 @@ import { Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { HomeEntry, RequireNotManager } from "@/components/RoleRoutes";
 import { MainLayout } from "@/layouts/MainLayout";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { ChatPage } from "@/pages/ChatPage";
-import { CrmPage } from "@/pages/CrmPage";
 import { EmployeesPage } from "@/pages/EmployeesPage";
 import { LeadDetailPage } from "@/pages/LeadDetailPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { MyLeadsPage } from "@/pages/MyLeadsPage";
 import { OnlineBookingPage } from "@/pages/OnlineBookingPage";
 import { TasksPage } from "@/pages/TasksPage";
 
@@ -19,12 +20,34 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
-            <Route path="/" element={<CrmPage />} />
+            <Route path="/" element={<HomeEntry />} />
+            <Route path="/my-leads" element={<MyLeadsPage />} />
             <Route path="/booking" element={<OnlineBookingPage />} />
             <Route path="/leads/:id" element={<LeadDetailPage />} />
-            <Route path="/tasks" element={<TasksPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/employees" element={<EmployeesPage />} />
+            <Route
+              path="/tasks"
+              element={
+                <RequireNotManager>
+                  <TasksPage />
+                </RequireNotManager>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <RequireNotManager>
+                  <AnalyticsPage />
+                </RequireNotManager>
+              }
+            />
+            <Route
+              path="/employees"
+              element={
+                <RequireNotManager>
+                  <EmployeesPage />
+                </RequireNotManager>
+              }
+            />
             <Route path="/chat" element={<ChatPage />} />
           </Route>
         </Route>

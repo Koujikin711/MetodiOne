@@ -1,12 +1,65 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
-import { apiFetch } from "@/lib/api";
+import { apiFetch, resolveMediaUrl } from "@/lib/api";
 import type { ChatMessage, ChatThread } from "@/lib/types";
+
+function MessageBody({ m }: { m: ChatMessage }) {
+  const url = resolveMediaUrl(m.media_url);
+  const mt = m.message_type ?? "text";
+
+  if (mt === "image" && url) {
+    return (
+      <div className="space-y-2">
+        <a href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg">
+          <img src={url} alt="" className="max-h-64 w-full object-contain" />
+        </a>
+        {m.text && m.text !== "📷 Фото" && <div>{m.text}</div>}
+      </div>
+    );
+  }
+
+  if (mt === "video" && url) {
+    return (
+      <div className="space-y-2">
+        <video src={url} controls className="max-h-64 w-full rounded-lg" />
+        {m.text && m.text !== "🎬 Видео" && <div>{m.text}</div>}
+      </div>
+    );
+  }
+
+  if (mt === "audio" && url) {
+    return (
+      <div className="space-y-2">
+        <audio src={url} controls className="w-full max-w-sm" />
+        {m.text && !m.text.startsWith("🎵") && !m.text.startsWith("🎤") && <div>{m.text}</div>}
+      </div>
+    );
+  }
+
+  if ((mt === "document" || url) && url) {
+    return (
+      <div className="space-y-2">
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-indigo-300 underline underline-offset-2 hover:text-indigo-200"
+        >
+          {m.file_name || "Скачать файл"}
+        </a>
+        {m.text && <div>{m.text}</div>}
+      </div>
+    );
+  }
+
+  return <div>{m.text}</div>;
+}
 
 export function ChatPage() {
   const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const threadsQuery = useQuery({
     queryKey: ["chat-threads"],
     queryFn: () => apiFetch<ChatThread[]>("/api/chat/threads"),
@@ -14,6 +67,7 @@ export function ChatPage() {
   });
   const [threadId, setThreadId] = useState<number | null>(null);
   const [text, setText] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   const selectedThread = useMemo(
     () => (threadsQuery.data ?? []).find((t) => t.id === threadId) ?? null,
@@ -28,13 +82,27 @@ export function ChatPage() {
   });
 
   const sendMutation = useMutation({
-    mutationFn: () =>
-      apiFetch<ChatMessage>(`/api/chat/threads/${threadId}/messages`, {
+    mutationFn: async () => {
+      if (threadId == null) throw new Error("Нет диалога");
+      if (pendingFile) {
+        const fd = new FormData();
+        fd.append("file", pendingFile);
+        if (text.trim()) fd.append("text", text.trim());
+        return apiFetch<ChatMessage>(`/api/chat/threads/${threadId}/messages`, {
+          method: "POST",
+          body: fd,
+        });
+      }
+      if (!text.trim()) throw new Error("Пустое сообщение");
+      return apiFetch<ChatMessage>(`/api/chat/threads/${threadId}/messages`, {
         method: "POST",
         body: JSON.stringify({ text }),
-      }),
+      });
+    },
     onSuccess: () => {
       setText("");
+      setPendingFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       void qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
     },
@@ -46,7 +114,7 @@ export function ChatPage() {
       <header>
         <h1 className="text-3xl font-semibold tracking-tight text-white">Чат</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Переписка менеджеров с клиентами. Отправка в WhatsApp работает через GREEN API интеграцию.
+          Переписка с клиентами (WhatsApp через GREEN API): текст, фото, видео, голос, файлы.
         </p>
       </header>
 
@@ -93,7 +161,8 @@ export function ChatPage() {
                   {selectedThread.lead_name || selectedThread.title || `Диалог #${selectedThread.id}`}
                 </div>
                 <div className="text-xs text-slate-400">
-                  {selectedThread.provider} {selectedThread.external_chat_id ? `· ${selectedThread.external_chat_id}` : ""}
+                  {selectedThread.provider}{" "}
+                  {selectedThread.external_chat_id ? `· ${selectedThread.external_chat_id}` : ""}
                 </div>
               </div>
 
@@ -109,7 +178,7 @@ export function ChatPage() {
                         : "bg-slate-900/50 text-slate-200",
                     ].join(" ")}
                   >
-                    <div>{m.text}</div>
+                    <MessageBody m={m} />
                     <div className="mt-1 text-[10px] text-slate-400">{m.delivery_status}</div>
                   </div>
                 ))}
@@ -119,27 +188,47 @@ export function ChatPage() {
               </div>
 
               <form
-                className="mt-3 flex gap-2"
+                className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (!text.trim()) return;
+                  if (!text.trim() && !pendingFile) return;
                   sendMutation.mutate();
                 }}
               >
                 <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    setPendingFile(f ?? null);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="shrink-0 rounded-xl border border-slate-600 bg-slate-900/50 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800/80"
+                >
+                  Файл
+                </button>
+                <input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder="Сообщение клиенту..."
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                  placeholder={pendingFile ? "Подпись (необязательно)…" : "Сообщение клиенту…"}
+                  className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
                 />
                 <button
                   type="submit"
-                  disabled={sendMutation.isPending || !text.trim()}
-                  className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={sendMutation.isPending || (!text.trim() && !pendingFile)}
+                  className="shrink-0 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                 >
                   Отправить
                 </button>
               </form>
+              {pendingFile && (
+                <p className="mt-1 text-xs text-slate-400">Вложение: {pendingFile.name}</p>
+              )}
             </>
           )}
         </section>
@@ -147,4 +236,3 @@ export function ChatPage() {
     </div>
   );
 }
-

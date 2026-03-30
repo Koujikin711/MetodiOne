@@ -2,7 +2,7 @@ const TOKEN_KEY = "crm_access_token";
 
 const REQUEST_TIMEOUT_MS = 20_000;
 
-function resolveApiUrl(path: string): string {
+export function resolveApiUrl(path: string): string {
   const raw = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
   const base = raw.replace(/\/$/, "");
   if (!base) {
@@ -23,6 +23,14 @@ export function getStoredToken(): string | null {
 export function setStoredToken(token: string | null): void {
   if (token) localStorage.setItem(TOKEN_KEY, token);
   else localStorage.removeItem(TOKEN_KEY);
+}
+
+/** Абсолютный URL для медиа (полный https или путь от API). */
+export function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const u = url.trim();
+  if (/^https?:\/\//i.test(u)) return u;
+  return resolveApiUrl(u.startsWith("/") ? u : `/${u}`);
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
