@@ -7,7 +7,7 @@ import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { SpecialistModal } from "@/components/SpecialistModal";
 import { apiFetch } from "@/lib/api";
-import type { BookingAppointment, BookingDirection, BookingSpecialist, Lead } from "@/lib/types";
+import type { BookingAppointment, BookingDirection, BookingSpecialist, Lead, LeadSource } from "@/lib/types";
 
 type Tab = "online" | "dicts" | "journal";
 
@@ -49,6 +49,10 @@ export function OnlineBookingPage() {
   const [responsibleManagerId, setResponsibleManagerId] = useState("");
   const [comment, setComment] = useState("");
 
+  const [queueLeadName, setQueueLeadName] = useState("");
+  const [queueLeadPhone, setQueueLeadPhone] = useState("");
+  const [queueLeadSource, setQueueLeadSource] = useState("");
+
   const [dirName, setDirName] = useState("");
   const [dirDuration, setDirDuration] = useState(30);
   const [specName, setSpecName] = useState("");
@@ -73,6 +77,26 @@ export function OnlineBookingPage() {
   const specialistsQuery = useQuery({
     queryKey: ["booking-specialists"],
     queryFn: () => apiFetch<BookingSpecialist[]>("/api/booking/specialists"),
+  });
+
+  const sourcesQuery = useQuery({
+    queryKey: ["lead-sources"],
+    queryFn: () => apiFetch<LeadSource[]>("/api/sources"),
+  });
+
+  const [sourceName, setSourceName] = useState("");
+  const addSourceMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<LeadSource>("/api/sources", {
+        method: "POST",
+        body: JSON.stringify({ name: sourceName.trim(), is_active: true }),
+      }),
+    onSuccess: () => {
+      toast.success("Источник добавлен");
+      setSourceName("");
+      void queryClient.invalidateQueries({ queryKey: ["lead-sources"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const gridAppointmentsQuery = useQuery({
@@ -113,6 +137,23 @@ export function OnlineBookingPage() {
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics"] });
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const addToQueueMutation = useMutation({
+    mutationFn: (body: { name: string; phone?: string; source?: string }) =>
+      apiFetch<Lead>("/api/booking/queue", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      toast.success("Лид добавлен в лист ожидания");
+      setQueueLeadName("");
+      setQueueLeadPhone("");
+      setQueueLeadSource("");
+      void queryClient.invalidateQueries({ queryKey: ["booking-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -486,6 +527,58 @@ export function OnlineBookingPage() {
               <p className="mb-3 text-[11px] text-slate-500">
                 «Квалифицирован», без активной записи. Карточка — по имени.
               </p>
+              <form
+                className="mb-3 grid gap-2 rounded-xl border border-slate-700/40 bg-slate-900/30 p-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!queueLeadName.trim() || !queueLeadPhone.trim()) {
+                    toast.error("Введите имя и телефон");
+                    return;
+                  }
+                  addToQueueMutation.mutate({
+                    name: queueLeadName.trim(),
+                    phone: queueLeadPhone.trim(),
+                    source: queueLeadSource.trim() || undefined,
+                  });
+                }}
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+                  Добавить лид в очередь
+                </div>
+                <input
+                  value={queueLeadName}
+                  onChange={(e) => setQueueLeadName(e.target.value)}
+                  placeholder="Имя"
+                  className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+                />
+                <input
+                  value={queueLeadPhone}
+                  onChange={(e) => setQueueLeadPhone(e.target.value)}
+                  placeholder="Телефон"
+                  className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+                />
+                <select
+                  value={queueLeadSource}
+                  onChange={(e) => setQueueLeadSource(e.target.value)}
+                  className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white"
+                >
+                  <option value="">Источник (необязательно)</option>
+                  {(sourcesQuery.data ?? [])
+                    .filter((s) => s.is_active)
+                    .map((s) => (
+                      <option key={s.id} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="submit"
+                  disabled={addToQueueMutation.isPending}
+                  className="rounded-xl bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600 disabled:opacity-60"
+                >
+                  {addToQueueMutation.isPending ? "Добавление…" : "Добавить"}
+                </button>
+              </form>
               <input
                 value={queueSearch}
                 onChange={(e) => setQueueSearch(e.target.value)}
@@ -725,6 +818,40 @@ export function OnlineBookingPage() {
                   )}
                 </li>
               ))}
+            </ul>
+          </section>
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 md:col-span-2">
+            <h2 className="mb-4 text-lg font-semibold text-white">Источники</h2>
+            <form
+              className="mb-4 flex flex-wrap gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!sourceName.trim()) return;
+                addSourceMutation.mutate();
+              }}
+            >
+              <input
+                placeholder="Напр. Instagram / Рекомендация / Сайт"
+                value={sourceName}
+                onChange={(e) => setSourceName(e.target.value)}
+                className="min-w-[220px] flex-1 rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+              />
+              <button
+                type="submit"
+                className="rounded-xl bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
+              >
+                Добавить
+              </button>
+            </form>
+            <ul className="space-y-2 text-sm text-slate-300">
+              {(sourcesQuery.data ?? []).map((s) => (
+                <li key={s.id} className="rounded-lg border border-slate-700/50 px-3 py-2">
+                  {s.name} {!s.is_active ? <span className="text-xs text-amber-500/90">(выкл.)</span> : null}
+                </li>
+              ))}
+              {!sourcesQuery.isLoading && (sourcesQuery.data ?? []).length === 0 && (
+                <li className="text-sm text-slate-500">Источников пока нет</li>
+              )}
             </ul>
           </section>
         </div>
