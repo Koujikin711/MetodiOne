@@ -1,5 +1,6 @@
 import json
 from datetime import UTC, datetime
+from typing import Annotated
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
