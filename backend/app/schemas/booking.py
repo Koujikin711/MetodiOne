@@ -24,6 +24,7 @@ class BookingSpecialistRead(BaseModel):
     direction_id: int
     direction_name: str | None = None
     phone: str | None
+    specialization: str | None = None
     is_active: bool
 
     model_config = {"from_attributes": True}
@@ -33,6 +34,14 @@ class BookingSpecialistCreate(BaseModel):
     full_name: str = Field(..., min_length=1, max_length=255)
     direction_id: int = Field(..., ge=1)
     phone: str | None = Field(None, max_length=64)
+    specialization: str | None = Field(None, max_length=255)
+
+
+class BookingSpecialistUpdate(BaseModel):
+    full_name: str | None = Field(None, min_length=1, max_length=255)
+    direction_id: int | None = Field(None, ge=1)
+    phone: str | None = Field(None, max_length=64)
+    specialization: str | None = Field(None, max_length=255)
 
 
 class BookingAppointmentRead(BaseModel):

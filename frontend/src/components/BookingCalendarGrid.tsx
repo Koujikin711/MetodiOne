@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { MoreHorizontal, Pencil, Plus, Trash2 } from "@/components/icons";
 import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const GRID_START_HOUR = 7;
@@ -7,8 +8,8 @@ const GRID_END_HOUR = 20;
 const WORK_START_HOUR = 9;
 const WORK_END_HOUR = 18;
 const PX_PER_HOUR = 48;
-/** Высота строки заголовка специалиста (синхрон с padding у колонки времени) */
-const SPEC_HEADER_PX = 40;
+/** Высота строки заголовка специалиста (синхрон: колонка времени paddingTop и шапка колонки) */
+const SPEC_HEADER_PX = 42;
 
 const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => GRID_START_HOUR + i);
 
@@ -18,6 +19,9 @@ const statusCardClass: Record<string, string> = {
   no_show: "border-slate-500/50 bg-slate-600/25 text-slate-200",
   cancelled: "border-slate-500/50 bg-slate-700/30 text-slate-300",
 };
+
+const appointmentHoverClass =
+  "transition-[transform,box-shadow,filter] duration-300 ease-out hover:z-30 hover:scale-[1.04] hover:shadow-[0_0_28px_rgba(139,92,246,0.35),0_0_48px_rgba(34,211,238,0.12)] hover:ring-2 hover:ring-purple-400/50 hover:brightness-[1.06]";
 
 function dayWindowBounds(dateYmd: string): { start: Date; end: Date } {
   const start = new Date(`${dateYmd}T${String(GRID_START_HOUR).padStart(2, "0")}:00:00`);
@@ -69,6 +73,9 @@ type Props = {
   appointments: BookingAppointment[];
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: SlotClickPayload) => void;
+  onAddSpecialist?: () => void;
+  onEditSpecialist?: (s: BookingSpecialist) => void;
+  onDeleteSpecialist?: (s: BookingSpecialist) => void;
 };
 
 export function BookingCalendarGrid({
@@ -77,11 +84,25 @@ export function BookingCalendarGrid({
   appointments,
   onAppointmentClick,
   onSlotClick,
+  onAddSpecialist,
+  onEditSpecialist,
+  onDeleteSpecialist,
 }: Props) {
   const totalHours = GRID_END_HOUR - GRID_START_HOUR;
   const gridHeightPx = totalHours * PX_PER_HOUR;
-
   const hours = HOURS;
+  const [menuSpecId, setMenuSpecId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (menuSpecId == null) return;
+    const onDown = (e: MouseEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.closest("[data-spec-menu-root]")) return;
+      setMenuSpecId(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuSpecId]);
 
   const morningHatchPct = ((WORK_START_HOUR - GRID_START_HOUR) / totalHours) * 100;
   const eveningHatchPct = ((GRID_END_HOUR - WORK_END_HOUR) / totalHours) * 100;
@@ -97,10 +118,23 @@ export function BookingCalendarGrid({
     return m;
   }, [specialists, appointments]);
 
+  const showSpecMenu = Boolean(onEditSpecialist && onDeleteSpecialist);
+
   if (specialists.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-600/50 bg-slate-900/30 px-6 py-16 text-center text-slate-400">
-        Добавьте специалистов в разделе «Справочники», чтобы отобразить сетку.
+        <p>Добавьте специалистов кнопкой «+» справа от сетки или в разделе «Справочники».</p>
+        {onAddSpecialist && (
+          <button
+            type="button"
+            onClick={onAddSpecialist}
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 p-2 text-slate-300 transition-all duration-300 hover:bg-slate-700"
+            aria-label="Добавить специалиста"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="pr-1 text-sm">Добавить специалиста</span>
+          </button>
+        )}
       </div>
     );
   }
@@ -126,15 +160,63 @@ export function BookingCalendarGrid({
         {specialists.map((spec) => (
           <div
             key={spec.id}
-            className="relative w-[min(100vw,240px)] shrink-0 border-r border-slate-700/40 last:border-r-0"
+            className="group/spec relative w-[min(100vw,240px)] shrink-0 border-r border-slate-700/40 last:border-r-0"
             style={{ minHeight: gridHeightPx + SPEC_HEADER_PX }}
           >
             <div
-              className="sticky top-0 z-20 border-b border-slate-700/50 bg-slate-900/90 px-2 py-1.5 backdrop-blur-sm"
+              className="sticky top-0 z-20 border-b border-slate-700/50 bg-slate-900/90 backdrop-blur-sm"
               style={{ minHeight: SPEC_HEADER_PX }}
             >
-              <p className="truncate text-sm font-semibold text-white">{spec.full_name}</p>
-              <p className="truncate text-[11px] text-slate-500">{spec.direction_name ?? "—"}</p>
+              <div className="relative flex min-h-[inherit] items-center px-2 py-1 pr-8">
+                <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+                  <p className="truncate text-sm font-semibold leading-tight text-white">{spec.full_name}</p>
+                  <p className="truncate text-xs leading-tight text-slate-500">
+                    {spec.direction_name ?? "—"}
+                  </p>
+                </div>
+                {showSpecMenu && (
+                  <div className="absolute right-1 top-1 z-30" data-spec-menu-root>
+                    <button
+                      type="button"
+                      className="rounded-lg p-1.5 text-slate-400 opacity-0 transition-opacity duration-300 group-hover/spec:opacity-100 hover:bg-slate-800 hover:text-white"
+                      aria-label="Меню специалиста"
+                      aria-expanded={menuSpecId === spec.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuSpecId((id) => (id === spec.id ? null : spec.id));
+                      }}
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                    {menuSpecId === spec.id && (
+                      <div className="absolute right-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/98 py-1 shadow-2xl shadow-black/40 backdrop-blur-md">
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                          onClick={() => {
+                            setMenuSpecId(null);
+                            onEditSpecialist?.(spec);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4 shrink-0 text-slate-400" />
+                          Редактировать
+                        </button>
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-400 transition hover:bg-slate-800"
+                          onClick={() => {
+                            setMenuSpecId(null);
+                            onDeleteSpecialist?.(spec);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 shrink-0 text-red-400/90" />
+                          Удалить
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="relative" style={{ height: gridHeightPx }}>
@@ -205,8 +287,9 @@ export function BookingCalendarGrid({
                     type="button"
                     onClick={() => onAppointmentClick(a)}
                     className={[
-                      "absolute inset-x-1 z-20 overflow-hidden rounded-lg border px-2 py-1.5 text-left text-xs transition-transform hover:z-30 hover:scale-[1.02] hover:ring-2 hover:ring-purple-500/40",
+                      "absolute inset-x-1 z-20 overflow-hidden rounded-lg border bg-gradient-to-br from-white/[0.04] to-transparent px-2 py-1.5 text-left text-xs",
                       cls,
+                      appointmentHoverClass,
                     ].join(" ")}
                     style={{
                       top: `${topPct}%`,
@@ -240,6 +323,25 @@ export function BookingCalendarGrid({
             </div>
           </div>
         ))}
+
+        {onAddSpecialist && (
+          <div className="sticky right-0 z-[35] flex w-[48px] shrink-0 flex-col border-l border-slate-700/50 bg-slate-950/95 backdrop-blur-sm">
+            <div
+              className="flex shrink-0 items-center justify-center border-b border-slate-700/50 bg-slate-900/90"
+              style={{ minHeight: SPEC_HEADER_PX }}
+            >
+              <button
+                type="button"
+                onClick={onAddSpecialist}
+                className="rounded-full border border-slate-700 bg-slate-800 p-2 text-slate-300 transition-all duration-300 hover:bg-slate-700"
+                aria-label="Добавить специалиста"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="bg-slate-950/30" style={{ height: gridHeightPx }} aria-hidden />
+          </div>
+        )}
       </div>
     </div>
   );

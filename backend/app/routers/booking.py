@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, time, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +25,7 @@ from app.schemas.booking import (
     BookingDirectionRead,
     BookingSpecialistCreate,
     BookingSpecialistRead,
+    BookingSpecialistUpdate,
 )
 from app.schemas.lead import LeadRead
 from app.services.automation import process_lead_automation
@@ -129,6 +130,7 @@ async def list_specialists(
             direction_id=s.direction_id,
             direction_name=dname,
             phone=s.phone,
+            specialization=s.specialization,
             is_active=s.is_active,
         )
         for s, dname in rows
@@ -144,10 +146,12 @@ async def create_specialist(
     d = await db.get(BookingDirection, body.direction_id)
     if d is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное направление")
+    spec = (body.specialization or "").strip() or None
     s = BookingSpecialist(
         full_name=body.full_name.strip(),
         direction_id=body.direction_id,
         phone=(body.phone or "").strip() or None,
+        specialization=spec,
         is_active=True,
     )
     db.add(s)
@@ -159,8 +163,61 @@ async def create_specialist(
         direction_id=s.direction_id,
         direction_name=d.name,
         phone=s.phone,
+        specialization=s.specialization,
         is_active=s.is_active,
     )
+
+
+@router.patch("/specialists/{specialist_id}", response_model=BookingSpecialistRead)
+async def patch_specialist(
+    specialist_id: int,
+    body: BookingSpecialistUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: CurrentUser,
+) -> BookingSpecialistRead:
+    s = await db.get(BookingSpecialist, specialist_id)
+    if s is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
+    patch = body.model_dump(exclude_unset=True)
+    if not patch:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет полей для обновления")
+    if "full_name" in patch and body.full_name is not None:
+        s.full_name = body.full_name.strip()
+    if "phone" in patch:
+        s.phone = (body.phone or "").strip() or None
+    if "specialization" in patch:
+        s.specialization = (body.specialization or "").strip() or None
+    if "direction_id" in patch and body.direction_id is not None:
+        d = await db.get(BookingDirection, body.direction_id)
+        if d is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное направление")
+        s.direction_id = body.direction_id
+    await db.flush()
+    await db.refresh(s)
+    d = await db.get(BookingDirection, s.direction_id)
+    return BookingSpecialistRead(
+        id=s.id,
+        full_name=s.full_name,
+        direction_id=s.direction_id,
+        direction_name=d.name if d else None,
+        phone=s.phone,
+        specialization=s.specialization,
+        is_active=s.is_active,
+    )
+
+
+@router.delete("/specialists/{specialist_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_specialist(
+    specialist_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: CurrentUser,
+) -> Response:
+    s = await db.get(BookingSpecialist, specialist_id)
+    if s is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
+    s.is_active = False
+    await db.flush()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 def _ensure_utc(dt: datetime) -> datetime:

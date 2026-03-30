@@ -105,6 +105,7 @@ class BookingSpecialist(Base):
     full_name: Mapped[str] = mapped_column(String(255))
     direction_id: Mapped[int] = mapped_column(ForeignKey("booking_directions.id", ondelete="RESTRICT"))
     phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    specialization: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
 
     direction: Mapped["BookingDirection"] = relationship(back_populates="specialists")

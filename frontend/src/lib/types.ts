@@ -64,6 +64,8 @@ export interface BookingSpecialist {
   direction_id: number;
   direction_name: string | null;
   phone: string | null;
+  /** Может отсутствовать у кэша до обновления API */
+  specialization?: string | null;
   is_active: boolean;
 }
 
