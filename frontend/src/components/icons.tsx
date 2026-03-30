@@ -132,3 +132,13 @@ export function GripVertical(props: IconProps) {
     </svg>
   );
 }
+
+export function Users(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M16 11a4 4 0 1 0-8 0" />
+      <path d="M16 11a4 4 0 1 1-8 0" />
+      <path d="M16 11c2.5 0 5 1.3 5 4v2H3v-2c0-2.7 2.5-4 5-4" />
+    </svg>
+  );
+}

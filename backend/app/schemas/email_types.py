@@ -21,14 +21,17 @@ RelaxedEmailStr = Annotated[str, PlainValidator(_normalize_email)]
 
 
 def _normalize_login_identifier(v: str) -> str:
-    """Логин admin → тестовый аккаунт admin@crm.local; иначе обычный email."""
+    """Логин: email или телефон; admin → admin@crm.local."""
     s = v.strip()
     if not s:
         raise ValueError("Укажите email или логин")
     if "@" not in s:
         if s.lower() == "admin":
             return "admin@crm.local"
-        raise ValueError("Укажите email или логин admin")
+        digits = "".join(ch for ch in s if ch.isdigit())
+        if len(digits) >= 7:
+            return digits
+        raise ValueError("Укажите email или телефон")
     return _normalize_email(s)
 
 

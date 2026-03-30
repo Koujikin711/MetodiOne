@@ -21,10 +21,18 @@ async def register(
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+    if body.phone:
+        phone_digits = "".join(ch for ch in body.phone if ch.isdigit())
+        if phone_digits:
+            existing_phone = await db.execute(select(User).where(User.phone == phone_digits))
+            if existing_phone.scalar_one_or_none() is not None:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone already registered")
     user = User(
         email=body.email,
         hashed_password=hash_password(body.password),
         role=body.role,
+        phone=("".join(ch for ch in (body.phone or "") if ch.isdigit()) or None),
+        full_name=(body.full_name or "").strip() or None,
     )
     db.add(user)
     await db.flush()
@@ -37,9 +45,13 @@ async def login(
     body: UserLogin,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Token:
-    result = await db.execute(select(User).where(User.email == body.email))
+    identifier = body.email
+    if "@" in identifier:
+        result = await db.execute(select(User).where(User.email == identifier))
+    else:
+        result = await db.execute(select(User).where(User.phone == identifier))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(body.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect login or password")
     token = create_access_token(str(user.id), extra={"role": user.role.value})
     return Token(access_token=token)
