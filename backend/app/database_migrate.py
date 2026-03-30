@@ -82,6 +82,34 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
                 )"""
             )
         )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS chat_threads (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    lead_id INTEGER,
+                    pipeline_id INTEGER,
+                    provider VARCHAR(40) NOT NULL DEFAULT 'green_api',
+                    external_chat_id VARCHAR(128),
+                    title VARCHAR(255),
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )"""
+            )
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS chat_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    thread_id INTEGER NOT NULL,
+                    author_user_id INTEGER,
+                    direction VARCHAR(8) NOT NULL DEFAULT 'in',
+                    text TEXT NOT NULL,
+                    provider_message_id VARCHAR(128),
+                    delivery_status VARCHAR(24) NOT NULL DEFAULT 'sent',
+                    created_at DATETIME
+                )"""
+            )
+        )
 
         r = await conn.execute(text("PRAGMA table_info(booking_specialists)"))
         cols = {row[1] for row in r.fetchall()}
@@ -172,6 +200,34 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
                     id SERIAL PRIMARY KEY,
                     user_id INTEGER NOT NULL,
                     pipeline_id INTEGER NOT NULL
+                )"""
+            )
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS chat_threads (
+                    id SERIAL PRIMARY KEY,
+                    lead_id INTEGER,
+                    pipeline_id INTEGER,
+                    provider VARCHAR(40) NOT NULL DEFAULT 'green_api',
+                    external_chat_id VARCHAR(128),
+                    title VARCHAR(255),
+                    created_at TIMESTAMPTZ,
+                    updated_at TIMESTAMPTZ
+                )"""
+            )
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS chat_messages (
+                    id SERIAL PRIMARY KEY,
+                    thread_id INTEGER NOT NULL,
+                    author_user_id INTEGER,
+                    direction VARCHAR(8) NOT NULL DEFAULT 'in',
+                    text TEXT NOT NULL,
+                    provider_message_id VARCHAR(128),
+                    delivery_status VARCHAR(24) NOT NULL DEFAULT 'sent',
+                    created_at TIMESTAMPTZ
                 )"""
             )
         )

@@ -1,4 +1,4 @@
-import { BarChart3, Calendar, CheckSquare, LayoutDashboard, LogOut, Users } from "@/components/icons";
+import { BarChart3, Calendar, CheckSquare, LayoutDashboard, LogOut, MessageCircle, Users } from "@/components/icons";
 import { GradientIconBox } from "@/components/GradientIconBox";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
@@ -78,6 +78,12 @@ export function MainLayout() {
                 <Users className="h-[18px] w-[18px]" />
               </GradientIconBox>
               <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Сотр.</span>
+            </NavLink>
+            <NavLink to="/chat" className={navLinkClass} title="Чат">
+              <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                <MessageCircle className="h-[18px] w-[18px]" />
+              </GradientIconBox>
+              <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
             </NavLink>
           </nav>
           <div className="mt-auto border-t border-slate-700/40 px-1.5 pt-4">

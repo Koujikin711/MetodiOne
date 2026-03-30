@@ -142,3 +142,11 @@ export function Users(props: IconProps) {
     </svg>
   );
 }
+
+export function MessageCircle(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H7l-4 3v-5.5A8.5 8.5 0 1 1 21 11.5Z" />
+    </svg>
+  );
+}

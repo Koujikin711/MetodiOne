@@ -12,6 +12,7 @@ from app.core.deps import CurrentUser
 from app.core.security import hash_password
 from app.database import get_db
 from app.models import Pipeline, User, UserPipelineAssignment, UserRole
+from app.services.mail import send_email
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
@@ -68,14 +69,6 @@ def _build_invite_url(invite_token: str) -> str:
     if base:
         return f"{base}/login?invite={invite_token}"
     return f"/login?invite={invite_token}"
-
-
-def _send_email_stub(to_email: str, subject: str, body: str) -> bool:
-    # MVP: если SMTP не настроен — вернём False (админ увидит пароль в ответе)
-    if not settings.smtp_host:
-        return False
-    # Реальную отправку добавим следующей итерацией (SMTP).
-    return False
 
 
 @router.get("", response_model=list[EmployeeRead])
@@ -138,7 +131,7 @@ async def invite_employee(
     await db.refresh(u)
 
     invite_url = _build_invite_url(invite_token)
-    sent = _send_email_stub(
+    sent = send_email(
         email,
         "Приглашение в CRM",
         f"Ваша ссылка: {invite_url}\nЛогин: {email} или {phone}\nПароль: {temp_password}\n",
