@@ -1339,9 +1339,11 @@ export function CrmPage() {
                     )}
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    После создания скопируйте URL справа и вставьте в Green API. В параметр{" "}
-                    <span className="font-mono text-slate-400">token=</span> подставьте тот же секрет, что в поле
-                    «Webhook секрет» (не оставляйте текст-заглушку).
+                    В консоли Green API: <span className="font-mono text-slate-400">webhookUrl</span> — адрес без
+                    секрета (как справа) или с <span className="font-mono text-slate-400">?token=...</span>. Поле{" "}
+                    <span className="font-mono text-slate-400">Webhook URL Token</span> — тот же секрет, что «Webhook
+                    секрет» в CRM (Green API шлёт его в заголовке Authorization). Включите входящие уведомления (
+                    <span className="font-mono text-slate-400">incomingWebhook: yes</span>).
                   </p>
                 </div>
               </section>
@@ -1387,9 +1389,10 @@ export function CrmPage() {
                             <span className="text-amber-200/90">&lt;webhook_секрет_из_CRM&gt;</span>
                           </div>
                           <div className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-100/95">
-                            В Green API должен быть <strong>тот же</strong> секрет, что вы сохранили в CRM. Если в
-                            логах сервера нет строк <span className="font-mono">POST .../webhook/</span> — уведомления
-                            до CRM не доходят (проверьте URL в кабинете Green API и типы событий).
+                            Секрет из CRM должен совпадать с <strong>Webhook URL Token</strong> в Green API (или с
+                            параметром <span className="font-mono">?token=</span> в URL). Частая ошибка: заполнить только
+                            URL и забыть токен в консоли Green API. В логах Amvera ищите{" "}
+                            <span className="font-mono">POST .../integrations/webhook/</span>.
                           </div>
                           {!apiBase && (
                             <div className="mt-1 text-[11px] text-amber-300/90">
