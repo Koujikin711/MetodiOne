@@ -1339,7 +1339,9 @@ export function CrmPage() {
                     )}
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    После создания откройте интеграцию справа и возьмите webhook URL.
+                    После создания скопируйте URL справа и вставьте в Green API. В параметр{" "}
+                    <span className="font-mono text-slate-400">token=</span> подставьте тот же секрет, что в поле
+                    «Webhook секрет» (не оставляйте текст-заглушку).
                   </p>
                 </div>
               </section>
@@ -1354,10 +1356,9 @@ export function CrmPage() {
                     const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
                     const base =
                       apiBase && apiBase.endsWith("/") ? apiBase.slice(0, apiBase.length - 1) : apiBase;
-                    const hook =
-                      base
-                        ? `${base}/api/integrations/webhook/${it.id}?token=ВАШ_СЕКРЕТ`
-                        : `/api/integrations/webhook/${it.id}?token=...`;
+                    const hookPath = base
+                      ? `${base}/api/integrations/webhook/${it.id}`
+                      : `/api/integrations/webhook/${it.id}`;
                     return (
                       <div key={it.id} className="rounded-xl border border-slate-700/60 bg-slate-900/30 p-3">
                         <div className="flex items-center justify-between gap-2">
@@ -1380,9 +1381,15 @@ export function CrmPage() {
                           pipeline_id={it.pipeline_id}, stage_id={it.stage_id}, active={String(it.is_active)}
                         </div>
                         <div className="mt-2 text-[11px] text-slate-300">
-                          Webhook:
-                          <div className="mt-1 rounded-lg border border-slate-700 bg-slate-950/40 px-2 py-1 font-mono text-[11px] text-slate-200">
-                            {hook}
+                          Webhook (подставьте свой секрет в конец):
+                          <div className="mt-1 rounded-lg border border-slate-700 bg-slate-950/40 px-2 py-1 font-mono text-[11px] text-slate-200 break-all">
+                            {hookPath}?token=
+                            <span className="text-amber-200/90">&lt;webhook_секрет_из_CRM&gt;</span>
+                          </div>
+                          <div className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-100/95">
+                            В Green API должен быть <strong>тот же</strong> секрет, что вы сохранили в CRM. Если в
+                            логах сервера нет строк <span className="font-mono">POST .../webhook/</span> — уведомления
+                            до CRM не доходят (проверьте URL в кабинете Green API и типы событий).
                           </div>
                           {!apiBase && (
                             <div className="mt-1 text-[11px] text-amber-300/90">
