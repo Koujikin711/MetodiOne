@@ -3,6 +3,7 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,8 +108,8 @@ async def booking_queue(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
 ) -> list[LeadRead]:
-    sales_pipe = (await db.execute(select(Pipeline.id).where(Pipeline.name == "Продажи"))).scalar_one_or_none()
-    q_sid = await _stage_id_by_name(db, settings.booking_queue_stage_name, pipeline_id=sales_pipe)
+    # Не привязываемся к “зашитому” pipeline — берём первую найденную стадию по имени.
+    q_sid = await _stage_id_by_name(db, settings.booking_queue_stage_name)
     if q_sid is None:
         return []
 
@@ -138,6 +139,49 @@ async def booking_queue(
         )
         for lead in leads
     ]
+
+
+class BookingQueueLeadCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    phone: str | None = Field(None, max_length=64)
+    email: str | None = Field(None, max_length=320)
+    source: str | None = Field(None, max_length=120)
+
+
+@router.post("/queue", response_model=LeadRead, status_code=status.HTTP_201_CREATED)
+async def booking_queue_add(
+    body: BookingQueueLeadCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> LeadRead:
+    q_sid = await _stage_id_by_name(db, settings.booking_queue_stage_name)
+    if q_sid is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Stage '{settings.booking_queue_stage_name}' not found",
+        )
+
+    lead = Lead(
+        name=body.name.strip(),
+        phone=(body.phone or "").strip() or None,
+        email=(body.email or "").strip() or None,
+        source=(body.source or "").strip() or None,
+        status_id=q_sid,
+        manager_id=current_user.id,
+    )
+    db.add(lead)
+    await db.flush()
+    await db.refresh(lead, ["stage"])
+    return LeadRead(
+        id=lead.id,
+        name=lead.name,
+        phone=lead.phone,
+        email=lead.email,
+        source=lead.source,
+        status_id=lead.status_id,
+        stage_name=lead.stage.name if lead.stage else None,
+        manager_id=lead.manager_id,
+    )
 
 
 @router.get("/directions", response_model=list[BookingDirectionRead])

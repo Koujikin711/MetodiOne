@@ -20,6 +20,12 @@ export interface Pipeline {
   type: string | null;
 }
 
+export interface LeadSource {
+  id: number;
+  name: string;
+  is_active: boolean;
+}
+
 export interface Lead {
   id: number;
   name: string;

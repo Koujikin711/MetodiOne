@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
-import type { Lead, LeadStatusPatchResponse, Pipeline, PipelineStage, Task, UserRole } from "@/lib/types";
+import type { Lead, LeadSource, LeadStatusPatchResponse, Pipeline, PipelineStage, Task, UserRole } from "@/lib/types";
 
 function stageDroppableId(stageId: number) {
   return `stage-${stageId}`;
@@ -516,6 +516,75 @@ export function CrmPage() {
     queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
   });
 
+  const sourcesQuery = useQuery({
+    queryKey: ["lead-sources"],
+    queryFn: () => apiFetch<LeadSource[]>("/api/sources"),
+  });
+
+  const [createLeadOpen, setCreateLeadOpen] = useState(false);
+  const [leadName, setLeadName] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadSource, setLeadSource] = useState("");
+  const [leadPipelineId, setLeadPipelineId] = useState<number | null>(null);
+  const [leadStageId, setLeadStageId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (leadPipelineId != null) return;
+    const first = pipelinesQuery.data?.[0];
+    if (first) setLeadPipelineId(first.id);
+  }, [leadPipelineId, pipelinesQuery.data]);
+
+  const createLeadStagesQuery = useQuery({
+    queryKey: ["stages", "create-lead", leadPipelineId],
+    queryFn: () =>
+      leadPipelineId
+        ? apiFetch<PipelineStage[]>(`/api/stages?pipeline_id=${leadPipelineId}`)
+        : apiFetch<PipelineStage[]>("/api/stages"),
+    enabled: createLeadOpen,
+  });
+
+  useEffect(() => {
+    if (!createLeadOpen) return;
+    const st = createLeadStagesQuery.data;
+    if (!st || st.length === 0) return;
+    if (leadStageId != null && st.some((x) => x.id === leadStageId)) return;
+    setLeadStageId(st[0].id);
+  }, [createLeadOpen, createLeadStagesQuery.data, leadStageId]);
+
+  async function submitCreateLead() {
+    if (!leadName.trim() || !leadPhone.trim()) {
+      toast.error("Введите имя и телефон");
+      return;
+    }
+    if (!leadStageId) {
+      toast.error("Выберите стадию");
+      return;
+    }
+    try {
+      await apiFetch<Lead>("/api/leads", {
+        method: "POST",
+        body: JSON.stringify({
+          name: leadName.trim(),
+          phone: leadPhone.trim(),
+          email: leadEmail.trim() || null,
+          source: leadSource.trim() || null,
+          status_id: leadStageId,
+        }),
+      });
+      toast.success("Лид создан");
+      setCreateLeadOpen(false);
+      setLeadName("");
+      setLeadPhone("");
+      setLeadEmail("");
+      setLeadSource("");
+      setLeadStageId(null);
+      void queryClient.invalidateQueries({ queryKey: ["leads"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось создать лида");
+    }
+  }
+
   const [createPipelineOpen, setCreatePipelineOpen] = useState(false);
   const [pipeName, setPipeName] = useState("");
   const [pipeType, setPipeType] = useState("sales");
@@ -690,6 +759,13 @@ export function CrmPage() {
           >
             + Создать воронку
           </button>
+          <button
+            type="button"
+            onClick={() => setCreateLeadOpen(true)}
+            className="rounded-full border border-slate-700/50 bg-white/10 px-3 py-1 text-sm text-white transition hover:bg-white/15"
+          >
+            + Лид
+          </button>
         </div>
         {pipelinesQuery.data && pipelinesQuery.data.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
@@ -800,6 +876,110 @@ export function CrmPage() {
               <button
                 type="button"
                 onClick={() => void submitCreatePipeline()}
+                className="mt-2 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+              >
+                Создать
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {createLeadOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-white">Создать лид</h2>
+              <button
+                type="button"
+                onClick={() => setCreateLeadOpen(false)}
+                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+              >
+                Закрыть
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <label className="text-sm text-slate-300">
+                Имя
+                <input
+                  value={leadName}
+                  onChange={(e) => setLeadName(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Телефон
+                <input
+                  value={leadPhone}
+                  onChange={(e) => setLeadPhone(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Email (необязательно)
+                <input
+                  value={leadEmail}
+                  onChange={(e) => setLeadEmail(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Источник
+                <select
+                  value={leadSource}
+                  onChange={(e) => setLeadSource(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                >
+                  <option value="">—</option>
+                  {(sourcesQuery.data ?? [])
+                    .filter((s) => s.is_active)
+                    .map((s) => (
+                      <option key={s.id} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="text-sm text-slate-300">
+                  Воронка
+                  <select
+                    value={leadPipelineId ?? ""}
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      setLeadPipelineId(Number.isFinite(id) ? id : null);
+                      setLeadStageId(null);
+                    }}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  >
+                    {(pipelinesQuery.data ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm text-slate-300">
+                  Стадия
+                  <select
+                    value={leadStageId ?? ""}
+                    onChange={(e) => setLeadStageId(Number(e.target.value))}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  >
+                    {(createLeadStagesQuery.data ?? []).map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void submitCreateLead()}
                 className="mt-2 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
               >
                 Создать

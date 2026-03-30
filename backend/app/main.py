@@ -8,8 +8,8 @@ from app.config import settings
 from app.database import AsyncSessionLocal, engine
 from app.database_migrate import ensure_booking_specialist_columns
 from app.core.security import hash_password
-from app.models import Base, BookingDirection, BookingSpecialist, Pipeline, PipelineStage, User, UserRole
-from app.routers import analytics, auth, booking, deals, leads, pipelines, stages, tasks, users
+from app.models import Base, BookingDirection, BookingSpecialist, LeadSource, Pipeline, PipelineStage, User, UserRole
+from app.routers import analytics, auth, booking, deals, leads, pipelines, sources, stages, tasks, users
 
 
 async def seed_pipelines_and_stages() -> None:
@@ -57,6 +57,22 @@ async def seed_booking_defaults() -> None:
         await session.commit()
 
 
+async def seed_lead_sources_defaults() -> None:
+    async with AsyncSessionLocal() as session:
+        defaults = ["GREEN API", "WHATSAPP", "INSTAGRAM", "TELEGRAM"]
+        existing = (
+            await session.execute(
+                select(LeadSource.name).where(LeadSource.name.in_(defaults)),
+            )
+        ).all()
+        existing_names = {row[0] for row in existing}
+        for name in defaults:
+            if name in existing_names:
+                continue
+            session.add(LeadSource(name=name, is_active=True))
+        await session.commit()
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     async with engine.begin() as conn:
@@ -65,6 +81,7 @@ async def lifespan(_: FastAPI):
     await seed_pipelines_and_stages()
     await seed_test_admin()
     await seed_booking_defaults()
+    await seed_lead_sources_defaults()
     yield
     await engine.dispose()
 
@@ -88,6 +105,7 @@ app.include_router(analytics.router, prefix="/api")
 app.include_router(booking.router, prefix="/api")
 app.include_router(deals.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
+app.include_router(sources.router, prefix="/api")
 
 
 @app.get("/health")
