@@ -6,5 +6,6 @@ class PipelineStageRead(BaseModel):
     name: str
     order: int
     color: str = Field(..., max_length=32)
+    pipeline_id: int | None = None
 
     model_config = {"from_attributes": True}

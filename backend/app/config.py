@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     # Онлайн-запись: имена стадий воронки (как в seed pipeline_stages)
     booking_queue_stage_name: str = "Квалифицирован"
-    booking_stage_after_book: str = "В работе"
+    booking_stage_after_book: str = "Запись"
     booking_stage_completed: str = "Успешно реализован"
     booking_stage_lost: str = "Потерян"
     # Часовой пояс для проверки графика специалистов и слотов записи

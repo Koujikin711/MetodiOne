@@ -43,9 +43,11 @@ async def create_task(
 @router.get("", response_model=list[TaskRead])
 async def list_tasks(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> list[Task]:
-    result = await db.execute(select(Task).order_by(Task.id.desc()))
+    result = await db.execute(
+        select(Task).where(Task.assigned_to == current_user.id).order_by(Task.id.desc()),
+    )
     return list(result.scalars().all())
 
 

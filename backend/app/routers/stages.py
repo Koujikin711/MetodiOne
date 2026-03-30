@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +16,11 @@ router = APIRouter(prefix="/stages", tags=["stages"])
 async def list_stages(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
+    pipeline_id: int | None = Query(default=None),
 ) -> list[PipelineStageRead]:
-    result = await db.execute(select(PipelineStage).order_by(PipelineStage.order, PipelineStage.id))
+    q = select(PipelineStage)
+    if pipeline_id is not None:
+        q = q.where(PipelineStage.pipeline_id == pipeline_id)
+    result = await db.execute(q.order_by(PipelineStage.order, PipelineStage.id))
     stages = result.scalars().all()
     return [PipelineStageRead.model_validate(s) for s in stages]

@@ -14,6 +14,7 @@ class Base(DeclarativeBase):
 class UserRole(str, enum.Enum):
     admin = "admin"
     manager = "manager"
+    expert = "expert"
 
 
 class TaskStatus(str, enum.Enum):
@@ -21,6 +22,16 @@ class TaskStatus(str, enum.Enum):
     in_progress = "in_progress"
     done = "done"
     cancelled = "cancelled"
+
+
+class Pipeline(Base):
+    __tablename__ = "pipelines"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True)
+    type: Mapped[str] = mapped_column(String(64), default="sales")
+
+    stages: Mapped[list["PipelineStage"]] = relationship(back_populates="pipeline")
 
 
 class User(Base):
@@ -48,9 +59,14 @@ class PipelineStage(Base):
     name: Mapped[str] = mapped_column(String(120))
     order: Mapped[int] = mapped_column(default=0)
     color: Mapped[str] = mapped_column(String(32), default="#6366f1")
+    pipeline_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipelines.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     leads: Mapped[list["Lead"]] = relationship(back_populates="stage")
     deals: Mapped[list["Deal"]] = relationship(back_populates="stage")
+    pipeline: Mapped["Pipeline | None"] = relationship(back_populates="stages")
 
 
 def _utc_now() -> datetime:
@@ -67,6 +83,7 @@ class Lead(Base):
     source: Mapped[str | None] = mapped_column(String(120), nullable=True)
     status_id: Mapped[int] = mapped_column(ForeignKey("pipeline_stages.id", ondelete="RESTRICT"))
     manager_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    refusal_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -147,7 +164,13 @@ class Deal(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(255))
+    deal_type: Mapped[str] = mapped_column(String(64), default="extra")
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    is_protocol: Mapped[bool] = mapped_column(default=False)
+    protocol_requested: Mapped[bool] = mapped_column(default=False)
+    protocol_confirmed: Mapped[bool] = mapped_column(default=False)
+    protocol_file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     stage_id: Mapped[int] = mapped_column(ForeignKey("pipeline_stages.id", ondelete="RESTRICT"))
     lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
     probability: Mapped[int] = mapped_column(default=0)  # 0–100

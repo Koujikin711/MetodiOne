@@ -16,6 +16,7 @@ from app.models import (
     BookingDirection,
     BookingSpecialist,
     Lead,
+    Pipeline,
     PipelineStage,
 )
 from app.schemas.booking import (
@@ -78,17 +79,23 @@ def _assert_slot_in_specialist_schedule(s: BookingSpecialist, start_at: datetime
         )
 
 
-async def _stage_id_by_name(db: AsyncSession, name: str) -> int | None:
-    r = await db.execute(select(PipelineStage.id).where(PipelineStage.name == name))
+async def _stage_id_by_name(db: AsyncSession, name: str, pipeline_id: int | None = None) -> int | None:
+    q = select(PipelineStage.id).where(PipelineStage.name == name)
+    if pipeline_id is not None:
+        q = q.where(PipelineStage.pipeline_id == pipeline_id)
+    r = await db.execute(q)
     return r.scalar_one_or_none()
 
 
 async def _sync_lead_to_stage_name(db: AsyncSession, lead_id: int, stage_name: str) -> None:
-    sid = await _stage_id_by_name(db, stage_name)
-    if sid is None:
-        return
     lead = await db.get(Lead, lead_id)
     if lead is None:
+        return
+    # Чтобы не путаться при multi-pipeline, ищем стадию внутри pipeline лида
+    await db.refresh(lead, ["stage"])
+    pipeline_id = lead.stage.pipeline_id if lead.stage else None
+    sid = await _stage_id_by_name(db, stage_name, pipeline_id=pipeline_id)
+    if sid is None:
         return
     lead.status_id = sid
     await db.flush()
@@ -100,7 +107,8 @@ async def booking_queue(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
 ) -> list[LeadRead]:
-    q_sid = await _stage_id_by_name(db, settings.booking_queue_stage_name)
+    sales_pipe = (await db.execute(select(Pipeline.id).where(Pipeline.name == "Продажи"))).scalar_one_or_none()
+    q_sid = await _stage_id_by_name(db, settings.booking_queue_stage_name, pipeline_id=sales_pipe)
     if q_sid is None:
         return []
 

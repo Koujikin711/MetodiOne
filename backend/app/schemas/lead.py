@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
@@ -26,6 +27,15 @@ class LeadRead(BaseModel):
     status_id: int
     stage_name: str | None = None
     manager_id: int | None
+    refusal_reason: str | None = None
+    pipeline_id: int | None = None
+
+    # Для Kanban и workflow (иконки и управление протоколом)
+    protocol_deal_id: int | None = None
+    protocol_requested: bool = False
+    protocol_confirmed: bool = False
+    protocol_file_attached: bool = False
+    paid_extras_amount: Decimal = Decimal("0")
 
     model_config = {"from_attributes": True}
 
