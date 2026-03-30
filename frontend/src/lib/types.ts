@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "manager";
+export type UserRole = "admin" | "manager" | "expert";
 
 export interface User {
   id: number;
@@ -11,6 +11,13 @@ export interface PipelineStage {
   name: string;
   order: number;
   color: string;
+  pipeline_id?: number | null;
+}
+
+export interface Pipeline {
+  id: number;
+  name: string;
+  type: string | null;
 }
 
 export interface Lead {
@@ -22,6 +29,12 @@ export interface Lead {
   status_id: number;
   stage_name: string | null;
   manager_id: number | null;
+  refusal_reason?: string | null;
+  protocol_file_attached?: boolean;
+  protocol_requested?: boolean;
+  protocol_confirmed?: boolean;
+  protocol_deal_id?: number | null;
+  paid_extras_amount?: unknown;
 }
 
 export type TaskStatus = "pending" | "in_progress" | "done" | "cancelled";

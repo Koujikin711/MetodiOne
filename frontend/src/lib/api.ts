@@ -30,7 +30,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   headers.set("Accept", "application/json");
   const token = getStoredToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  if (init.body && !headers.has("Content-Type")) {
+  // Для FormData не ставим Content-Type вручную (fetch сам добавит boundary)
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (init.body && !headers.has("Content-Type") && !isFormData) {
     headers.set("Content-Type", "application/json");
   }
 

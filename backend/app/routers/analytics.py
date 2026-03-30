@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentUser
 from app.database import get_db
 from app.models import Deal, Lead, PipelineStage
-from app.schemas.analytics import AnalyticsSummary
+from app.schemas.analytics import AnalyticsSummary, CustomerValueRead
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -51,3 +51,16 @@ async def analytics_summary(
         deals_total_amount=Decimal(str(deals_sum)),
         conversion_percent=conversion_percent,
     )
+
+
+@router.get("/customer-value/{customer_id}", response_model=CustomerValueRead)
+async def analytics_customer_value(
+    customer_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: CurrentUser,
+) -> CustomerValueRead:
+    total = await db.scalar(
+        select(func.coalesce(func.sum(Deal.amount), 0)).where(Deal.lead_id == customer_id),
+    )
+    total = total if total is not None else Decimal("0")
+    return CustomerValueRead(customer_id=customer_id, value=Decimal(str(total)))

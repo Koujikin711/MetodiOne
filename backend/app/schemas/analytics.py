@@ -10,3 +10,8 @@ class AnalyticsSummary(BaseModel):
         0,
         description="Доля лидов в успешных этапах (Успешно реализован / Оплачено и т.п.)",
     )
+
+
+class CustomerValueRead(BaseModel):
+    customer_id: int
+    value: Decimal = Field(default=Decimal("0"), description="Lifetime Value = сумма покупок по клиенту")

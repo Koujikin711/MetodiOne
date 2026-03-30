@@ -15,8 +15,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
-import { apiFetch } from "@/lib/api";
-import type { Lead, LeadStatusPatchResponse, PipelineStage } from "@/lib/types";
+import { apiFetch, getStoredToken } from "@/lib/api";
+import type { Lead, LeadStatusPatchResponse, Pipeline, PipelineStage, Task, UserRole } from "@/lib/types";
 
 function stageDroppableId(stageId: number) {
   return `stage-${stageId}`;
@@ -45,7 +45,31 @@ function resolveTargetStageId(
   return null;
 }
 
+function base64UrlToBase64(input: string): string {
+  return input.replace(/-/g, "+").replace(/_/g, "/");
+}
+
+function decodeRoleFromToken(token: string | null): UserRole | null {
+  if (!token) return null;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payloadB64 = base64UrlToBase64(parts[1]);
+    const padded = payloadB64.padEnd(payloadB64.length + (4 - (payloadB64.length % 4)) % 4, "=");
+    const json = atob(padded);
+    const payload = JSON.parse(json) as { role?: unknown };
+    const role = payload.role;
+    if (role === "admin" || role === "manager" || role === "expert") return role;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function LeadCardBody({ lead }: { lead: Lead }) {
+  const paidNum =
+    lead.paid_extras_amount == null ? 0 : typeof lead.paid_extras_amount === "number" ? lead.paid_extras_amount : Number(lead.paid_extras_amount);
+
   return (
     <>
       <div className="flex items-start justify-between gap-2">
@@ -55,11 +79,24 @@ function LeadCardBody({ lead }: { lead: Lead }) {
         </span>
       </div>
       <p className="mt-2 text-sm text-slate-400">{lead.phone ?? "—"}</p>
+      <div className="mt-2 flex items-center gap-2">
+        {lead.protocol_file_attached && <span title="Протокол прикреплён">📄</span>}
+        {paidNum > 0 && <span title="Есть оплата по доп. услугам">💰</span>}
+        {lead.refusal_reason && <span title="Есть отказ">❌</span>}
+      </div>
     </>
   );
 }
 
-function LeadCard({ lead }: { lead: Lead }) {
+function LeadCard({
+  lead,
+  currentRole,
+  onRefresh,
+}: {
+  lead: Lead;
+  currentRole: UserRole | null;
+  onRefresh: () => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: leadDraggableId(lead.id),
     data: { lead },
@@ -70,6 +107,162 @@ function LeadCard({ lead }: { lead: Lead }) {
         transform: CSS.Translate.toString(transform),
       }
     : undefined;
+
+  const stage = lead.stage_name;
+
+  const [managerExtraType, setManagerExtraType] = useState<"Протокол" | "Прочее">("Протокол");
+  const [managerAmount, setManagerAmount] = useState<number>(0);
+  const [managerPaidAmount, setManagerPaidAmount] = useState<number>(0);
+
+  const [protocolUploading, setProtocolUploading] = useState(false);
+  const [protocolFile, setProtocolFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    setProtocolFile(null);
+    setProtocolUploading(false);
+  }, [lead.id, lead.protocol_requested, lead.protocol_confirmed, lead.protocol_deal_id]);
+
+  async function refreshAfterMutation() {
+    onRefresh();
+  }
+
+  async function handleArrival() {
+    try {
+      await apiFetch(`/api/leads/${lead.id}/arrival`, { method: "POST" });
+      await refreshAfterMutation();
+      toast.success("Явка оформлена");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось оформить явку");
+    }
+  }
+
+  async function handleNoShow() {
+    try {
+      const mode = window.prompt(
+        "Введите: 'перенести' для переноса или 'отказать' для отказа",
+        "перенести",
+      );
+      if (mode == null) return;
+      const action = mode.trim().toLowerCase().includes("отказ") ? "refuse" : "reschedule";
+      if (action === "reschedule") {
+        await apiFetch(`/api/leads/${lead.id}/no-show`, {
+          method: "POST",
+          body: JSON.stringify({ action }),
+        });
+        await refreshAfterMutation();
+        toast.success("Запись перенесена (квалифицирован)");
+        return;
+      }
+      const reason = window.prompt("Причина отказа (обязательно)");
+      if (!reason || !reason.trim()) {
+        toast.error("Причина обязательна");
+        return;
+      }
+      await apiFetch(`/api/leads/${lead.id}/no-show`, {
+        method: "POST",
+        body: JSON.stringify({ action, reason: reason.trim() }),
+      });
+      await refreshAfterMutation();
+      toast.success("Отказ оформлен");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось оформить неявку");
+    }
+  }
+
+  async function handleServiceDone() {
+    try {
+      await apiFetch(`/api/leads/${lead.id}/service-done`, { method: "POST" });
+      await refreshAfterMutation();
+      toast.success("Услуга оказана");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось подтвердить услугу");
+    }
+  }
+
+  async function handleServiceReject() {
+    try {
+      const reason = window.prompt("Причина отказа (обязательно)");
+      if (!reason || !reason.trim()) {
+        toast.error("Причина обязательна");
+        return;
+      }
+      await apiFetch(`/api/leads/${lead.id}/service-reject`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      await refreshAfterMutation();
+      toast.success("Отказ оформлен");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось оформить отказ");
+    }
+  }
+
+  async function handleAddExtraService() {
+    try {
+      if (managerAmount < 0 || managerPaidAmount < 0) return;
+      await apiFetch(`/api/leads/${lead.id}/cart/extra-services/add`, {
+        method: "POST",
+        body: JSON.stringify({
+          type: managerExtraType,
+          amount: managerAmount,
+          paid_amount: managerPaidAmount,
+        }),
+      });
+      await refreshAfterMutation();
+      toast.success("Доп. услуга добавлена");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось добавить доп. услугу");
+    }
+  }
+
+  const showProtocolQuestion =
+    currentRole === "expert" &&
+    stage === "Доп. услуги" &&
+    lead.protocol_requested &&
+    !lead.protocol_confirmed &&
+    lead.protocol_deal_id != null;
+
+  const showProtocolUpload =
+    currentRole === "expert" &&
+    stage === "Доп. услуги" &&
+    lead.protocol_requested &&
+    lead.protocol_confirmed &&
+    lead.protocol_deal_id != null;
+
+  async function handleProtocolConfirm(confirmed: boolean) {
+    try {
+      if (lead.protocol_deal_id == null) return;
+      await apiFetch(`/api/deals/${lead.protocol_deal_id}/protocol/confirm`, {
+        method: "POST",
+        body: JSON.stringify({ confirmed }),
+      });
+      await refreshAfterMutation();
+      toast.success(confirmed ? "Протокол подтверждён" : "Протокол отклонён");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось обновить протокол");
+    }
+  }
+
+  async function handleProtocolFinish() {
+    if (lead.protocol_deal_id == null || !protocolFile) return;
+    setProtocolUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", protocolFile);
+      await apiFetch(`/api/deals/${lead.protocol_deal_id}/protocol/upload`, {
+        method: "POST",
+        body: fd,
+      });
+      await apiFetch(`/api/leads/${lead.id}/protocol/finish`, { method: "POST" });
+      await refreshAfterMutation();
+      toast.success("Протокол завершён");
+      setProtocolFile(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось завершить протокол");
+    } finally {
+      setProtocolUploading(false);
+    }
+  }
 
   return (
     <div
@@ -83,6 +276,150 @@ function LeadCard({ lead }: { lead: Lead }) {
       ].join(" ")}
     >
       <LeadCardBody lead={lead} />
+
+      {currentRole === "admin" && stage === "Запись" && (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => void handleArrival()}
+            className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+          >
+            Явка
+          </button>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => void handleNoShow()}
+            className="rounded-xl border border-slate-700 bg-slate-900/30 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-900/50"
+          >
+            Неявка
+          </button>
+        </div>
+      )}
+
+      {currentRole === "expert" &&
+        (stage === "У эксперта" || stage === "Оказание услуги") && (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => void handleServiceDone()}
+              className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+            >
+              Услуга оказана
+            </button>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => void handleServiceReject()}
+              className="rounded-xl border border-red-500/40 bg-red-500/10 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/15"
+            >
+              Нет
+            </button>
+          </div>
+        )}
+
+      {currentRole === "manager" && stage === "Доп. услуги" && (
+        <div className="mt-3 rounded-xl border border-slate-700/50 bg-slate-900/20 p-3 shadow-inner backdrop-blur-sm">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+            Продуктовая корзина
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <label className="text-[11px] text-slate-400">
+              Тип
+              <select
+                value={managerExtraType}
+                onChange={(e) => setManagerExtraType(e.target.value as "Протокол" | "Прочее")}
+                className="mt-1 w-full rounded-lg border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-sm text-white"
+              >
+                <option value="Протокол">Протокол</option>
+                <option value="Прочее">Прочее</option>
+              </select>
+            </label>
+            <label className="text-[11px] text-slate-400">
+              Оплачено (₽)
+              <input
+                type="number"
+                value={managerPaidAmount}
+                min={0}
+                onChange={(e) => setManagerPaidAmount(Number(e.target.value))}
+                className="mt-1 w-full rounded-lg border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-sm text-white"
+              />
+            </label>
+            <label className="col-span-2 text-[11px] text-slate-400">
+              Сумма (₽)
+              <input
+                type="number"
+                value={managerAmount}
+                min={0}
+                onChange={(e) => setManagerAmount(Number(e.target.value))}
+                className="mt-1 w-full rounded-lg border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-sm text-white"
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => void handleAddExtraService()}
+            className="mt-3 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+          >
+            + Доп. услуга
+          </button>
+        </div>
+      )}
+
+      {showProtocolQuestion && (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => void handleProtocolConfirm(true)}
+            className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+          >
+            Да
+          </button>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => void handleProtocolConfirm(false)}
+            className="rounded-xl border border-red-500/40 bg-red-500/10 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/15"
+          >
+            Нет
+          </button>
+        </div>
+      )}
+
+      {showProtocolUpload && (
+        <div className="mt-3 rounded-xl border border-slate-700/50 bg-slate-900/20 p-3 shadow-inner backdrop-blur-sm">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+            Загрузите протокол
+          </div>
+          <input
+            type="file"
+            onPointerDown={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              setProtocolFile(f);
+            }}
+            className="mt-2 w-full text-sm text-slate-300"
+          />
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            disabled={!protocolFile || protocolUploading}
+            onClick={() => void handleProtocolFinish()}
+            className={[
+              "mt-3 w-full rounded-xl py-2 text-sm font-semibold transition",
+              protocolUploading || !protocolFile
+                ? "cursor-not-allowed bg-slate-700/40 text-slate-400"
+                : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-purple-500/20 hover:opacity-95",
+            ].join(" ")}
+          >
+            Завершить
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -98,9 +435,13 @@ function LeadCardDragOverlay({ lead }: { lead: Lead }) {
 function KanbanColumn({
   stage,
   leads,
+  currentRole,
+  onRefresh,
 }: {
   stage: PipelineStage;
   leads: Lead[];
+  currentRole: UserRole | null;
+  onRefresh: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: stageDroppableId(stage.id),
@@ -132,7 +473,7 @@ function KanbanColumn({
             Нет лидов
           </p>
         ) : (
-          leads.map((lead) => <LeadCard key={lead.id} lead={lead} />)
+          leads.map((lead) => <LeadCard key={lead.id} lead={lead} currentRole={currentRole} onRefresh={onRefresh} />)
         )}
       </div>
     </div>
@@ -141,9 +482,51 @@ function KanbanColumn({
 
 export function CrmPage() {
   const queryClient = useQueryClient();
+
+  const currentRole = useMemo(() => decodeRoleFromToken(getStoredToken()), []);
+
+  const refreshAll = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["leads"] });
+    void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    void queryClient.invalidateQueries({ queryKey: ["analytics"] });
+  }, [queryClient]);
+
+  const tasksQuery = useQuery({
+    queryKey: ["tasks"],
+    queryFn: () => apiFetch<Task[]>("/api/tasks"),
+    refetchInterval: 4000,
+  });
+  const [seenTaskIds, setSeenTaskIds] = useState<Set<number>>(() => new Set());
+  useEffect(() => {
+    const tasks = tasksQuery.data;
+    if (!tasks || tasks.length === 0) return;
+    const pendingNew = tasks.filter((t) => t.status === "pending" && !seenTaskIds.has(t.id));
+    if (pendingNew.length === 0) return;
+    pendingNew.forEach((t) => toast.success(t.title));
+    setSeenTaskIds((prev) => {
+      const next = new Set(prev);
+      pendingNew.forEach((t) => next.add(t.id));
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasksQuery.data]);
+
+  const pipelinesQuery = useQuery({
+    queryKey: ["pipelines"],
+    queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
+  });
+
+  const [pipelineId, setPipelineId] = useState<number | null>(null);
+  useEffect(() => {
+    if (pipelineId != null) return;
+    const first = pipelinesQuery.data?.[0];
+    if (first) setPipelineId(first.id);
+  }, [pipelinesQuery.data, pipelineId]);
+
   const stagesQuery = useQuery({
-    queryKey: ["stages"],
-    queryFn: () => apiFetch<PipelineStage[]>("/api/stages"),
+    queryKey: ["stages", pipelineId],
+    queryFn: () =>
+      pipelineId ? apiFetch<PipelineStage[]>(`/api/stages?pipeline_id=${pipelineId}`) : apiFetch("/api/stages"),
   });
   const leadsQuery = useQuery({
     queryKey: ["leads"],
@@ -259,6 +642,29 @@ export function CrmPage() {
         <p className="text-base text-slate-400">
           Канбан воронки — перетаскивайте лиды между этапами
         </p>
+        {pipelinesQuery.data && pipelinesQuery.data.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-slate-400">Воронка:</span>
+            {pipelinesQuery.data.map((p) => {
+              const active = pipelineId === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPipelineId(p.id)}
+                  className={[
+                    "rounded-full border px-3 py-1 text-sm transition-colors",
+                    active
+                      ? "border-purple-500/40 bg-white/10 text-white"
+                      : "border-slate-700/50 bg-slate-800/30 text-slate-400 hover:bg-slate-800/50 hover:text-slate-200",
+                  ].join(" ")}
+                >
+                  {p.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </header>
 
       {(stagesQuery.isLoading || leadsQuery.isLoading) && (
@@ -290,6 +696,8 @@ export function CrmPage() {
                 key={stage.id}
                 stage={stage}
                 leads={leadsByStage.get(stage.id) ?? []}
+                currentRole={currentRole}
+                onRefresh={refreshAll}
               />
             ))}
           </div>
