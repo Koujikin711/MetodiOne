@@ -40,6 +40,17 @@ def _webhook_token_matches(provided: str | None, expected: str) -> bool:
     return secrets.compare_digest(provided, expected)
 
 
+def _token_from_authorization_header(raw: str | None) -> str | None:
+    """Green API шлёт webhookUrlToken в заголовке Authorization: Bearer <token>."""
+    if not raw or not str(raw).strip():
+        return None
+    s = str(raw).strip()
+    low = s.lower()
+    if low.startswith("bearer "):
+        return s[7:].strip() or None
+    return s
+
+
 def _integration_read(row: Integration) -> IntegrationRead:
     cfg = row.config
     has_token = False
@@ -354,13 +365,14 @@ async def integration_webhook(
     db: Annotated[AsyncSession, Depends(get_db)],
     token: str | None = Query(default=None),
     x_webhook_token: str | None = Header(default=None),
+    authorization: Annotated[str | None, Header()] = None,
 ) -> LeadRead:
     integ = await db.get(Integration, integration_id)
     if integ is None or not integ.is_active:
         logger.warning("integration webhook: integration_id=%s not found or inactive", integration_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
 
-    provided = token or x_webhook_token
+    provided = token or x_webhook_token or _token_from_authorization_header(authorization)
     if not _webhook_token_matches(provided, integ.secret):
         logger.warning(
             "integration webhook: integration_id=%s rejected (missing/wrong token, len_provided=%s)",
