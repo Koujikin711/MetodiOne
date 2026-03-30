@@ -3,27 +3,17 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser
 from app.database import get_db
 from app.models import BookingDirection, BookingSpecialist
+from app.routers.booking import _specialist_read
 from app.schemas.booking import BookingSpecialistRead
 from app.schemas.specialist_users import SpecialistUserCreate, SpecialistUserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-
-def _read_row(s: BookingSpecialist, direction_name: str | None) -> BookingSpecialistRead:
-    return BookingSpecialistRead(
-        id=s.id,
-        full_name=s.full_name,
-        direction_id=s.direction_id,
-        direction_name=direction_name,
-        phone=s.phone,
-        specialization=s.specialization,
-        is_active=s.is_active,
-    )
 
 
 @router.post("", response_model=BookingSpecialistRead, status_code=status.HTTP_201_CREATED)
@@ -36,17 +26,23 @@ async def create_specialist_user(
     if d is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное направление")
     spec = (body.specialization or "").strip() or None
+    mx = await db.execute(select(func.coalesce(func.max(BookingSpecialist.sort_order), -1)))
+    next_sort = int(mx.scalar_one()) + 1
     s = BookingSpecialist(
         full_name=body.full_name.strip(),
         direction_id=body.direction_id,
         phone=(body.phone or "").strip() or None,
         specialization=spec,
         is_active=True,
+        sort_order=next_sort,
+        work_start_hour=body.work_start_hour,
+        work_end_hour=body.work_end_hour,
+        work_weekdays=list(body.work_weekdays),
     )
     db.add(s)
     await db.flush()
     await db.refresh(s)
-    return _read_row(s, d.name)
+    return _specialist_read(s, d.name)
 
 
 @router.patch("/{user_id}", response_model=BookingSpecialistRead)
@@ -75,11 +71,22 @@ async def patch_specialist_user(
         if d is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное направление")
         s.direction_id = body.direction_id
+    if "work_start_hour" in patch and body.work_start_hour is not None:
+        s.work_start_hour = body.work_start_hour
+    if "work_end_hour" in patch and body.work_end_hour is not None:
+        s.work_end_hour = body.work_end_hour
+    if "work_weekdays" in patch and body.work_weekdays is not None:
+        s.work_weekdays = list(body.work_weekdays)
 
     await db.flush()
     await db.refresh(s)
+    if s.work_start_hour >= s.work_end_hour:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Конец приёма должен быть позже начала",
+        )
     d = await db.get(BookingDirection, s.direction_id)
-    return _read_row(s, d.name if d else None)
+    return _specialist_read(s, d.name if d else None)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
