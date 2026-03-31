@@ -32,6 +32,7 @@ class BookingSpecialistRead(BaseModel):
     specialization: str | None = None
     is_active: bool
     sort_order: int = 0
+    slot_duration_min: int = 30
     work_start_hour: int = 9
     work_end_hour: int = 18
     work_weekdays: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4])
@@ -44,6 +45,7 @@ class BookingSpecialistCreate(BaseModel):
     direction_id: int = Field(..., ge=1)
     phone: str | None = Field(None, max_length=64)
     specialization: str | None = Field(None, max_length=255)
+    slot_duration_min: int = Field(30, ge=15, le=240)
     work_start_hour: int = Field(9, ge=BOOKING_GRID_START_HOUR, le=BOOKING_GRID_END_HOUR - 1)
     work_end_hour: int = Field(18, ge=BOOKING_GRID_START_HOUR + 1, le=BOOKING_GRID_END_HOUR)
     work_weekdays: list[int] = Field(
@@ -73,6 +75,7 @@ class BookingSpecialistUpdate(BaseModel):
     direction_id: int | None = Field(None, ge=1)
     phone: str | None = Field(None, max_length=64)
     specialization: str | None = Field(None, max_length=255)
+    slot_duration_min: int | None = Field(None, ge=15, le=240)
     work_start_hour: int | None = Field(None, ge=BOOKING_GRID_START_HOUR, le=BOOKING_GRID_END_HOUR - 1)
     work_end_hour: int | None = Field(None, ge=BOOKING_GRID_START_HOUR + 1, le=BOOKING_GRID_END_HOUR)
     work_weekdays: list[int] | None = None
@@ -116,6 +119,8 @@ class BookingAppointmentCreate(BaseModel):
     patient_name: str = Field(..., min_length=1, max_length=255)
     patient_phone: str = Field(..., min_length=3, max_length=64)
     lead_id: int | None = Field(None, ge=1)
+    lead_pipeline_id: int | None = Field(None, ge=1)
+    lead_stage_id: int | None = Field(None, ge=1)
     direction_id: int = Field(..., ge=1)
     specialist_id: int = Field(..., ge=1)
     start_at: datetime

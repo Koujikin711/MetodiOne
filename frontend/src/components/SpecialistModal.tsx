@@ -23,6 +23,7 @@ type Props = {
     direction_id: number;
     phone: string;
     specialization: string;
+    slot_duration_min: number;
     work_start_hour: number;
     work_end_hour: number;
     work_weekdays: number[];
@@ -47,6 +48,7 @@ export function SpecialistModal({
   const [directionId, setDirectionId] = useState(0);
   const [phone, setPhone] = useState("");
   const [specialization, setSpecialization] = useState("");
+  const [slotDurationMin, setSlotDurationMin] = useState(30);
   const [workStart, setWorkStart] = useState(9);
   const [workEnd, setWorkEnd] = useState(18);
   const [workWeekdays, setWorkWeekdays] = useState<number[]>([...DEFAULT_WEEKDAYS]);
@@ -58,6 +60,7 @@ export function SpecialistModal({
       setDirectionId(initial.direction_id);
       setPhone(initial.phone ?? "");
       setSpecialization(initial.specialization ?? "");
+      setSlotDurationMin(initial.slot_duration_min ?? 30);
       setWorkStart(initial.work_start_hour ?? 9);
       setWorkEnd(initial.work_end_hour ?? 18);
       setWorkWeekdays(normWeekdays(initial.work_weekdays));
@@ -65,6 +68,7 @@ export function SpecialistModal({
       setFullName("");
       setPhone("");
       setSpecialization("");
+      setSlotDurationMin(30);
       setWorkStart(9);
       setWorkEnd(18);
       setWorkWeekdays([...DEFAULT_WEEKDAYS]);
@@ -104,6 +108,7 @@ export function SpecialistModal({
       direction_id: directionId,
       phone: phone.trim(),
       specialization: specialization.trim(),
+      slot_duration_min: slotDurationMin,
       work_start_hour: workStart,
       work_end_hour: workEnd,
       work_weekdays: [...workWeekdays],
@@ -185,6 +190,20 @@ export function SpecialistModal({
               Вне интервала и в выходные слоты недоступны для записи.
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="text-xs text-slate-400 col-span-2">
+                Длительность записи
+                <select
+                  value={slotDurationMin}
+                  onChange={(e) => setSlotDurationMin(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-slate-600/50 bg-slate-900 px-2 py-1.5 text-sm text-white"
+                >
+                  <option value={30}>30 минут</option>
+                  <option value={60}>1 час</option>
+                  <option value={90}>1.5 часа</option>
+                  <option value={120}>2 часа</option>
+                  <option value={180}>3 часа</option>
+                </select>
+              </label>
               <label className="text-xs text-slate-400">
                 Начало
                 <select

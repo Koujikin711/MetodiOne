@@ -35,6 +35,7 @@ async def create_specialist_user(
         specialization=spec,
         is_active=True,
         sort_order=next_sort,
+        slot_duration_min=body.slot_duration_min,
         work_start_hour=body.work_start_hour,
         work_end_hour=body.work_end_hour,
         work_weekdays=list(body.work_weekdays),
@@ -73,6 +74,8 @@ async def patch_specialist_user(
         s.direction_id = body.direction_id
     if "work_start_hour" in patch and body.work_start_hour is not None:
         s.work_start_hour = body.work_start_hour
+    if "slot_duration_min" in patch and body.slot_duration_min is not None:
+        s.slot_duration_min = body.slot_duration_min
     if "work_end_hour" in patch and body.work_end_hour is not None:
         s.work_end_hour = body.work_end_hour
     if "work_weekdays" in patch and body.work_weekdays is not None:

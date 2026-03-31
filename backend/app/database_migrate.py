@@ -126,6 +126,10 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             await conn.execute(
                 text("ALTER TABLE booking_specialists ADD COLUMN work_start_hour INTEGER NOT NULL DEFAULT 9"),
             )
+        if "slot_duration_min" not in cols:
+            await conn.execute(
+                text("ALTER TABLE booking_specialists ADD COLUMN slot_duration_min INTEGER NOT NULL DEFAULT 30"),
+            )
         if "work_end_hour" not in cols:
             await conn.execute(
                 text("ALTER TABLE booking_specialists ADD COLUMN work_end_hour INTEGER NOT NULL DEFAULT 18"),
@@ -270,6 +274,11 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
         await conn.execute(
             text(
                 "ALTER TABLE booking_specialists ADD COLUMN IF NOT EXISTS work_start_hour INTEGER NOT NULL DEFAULT 9",
+            ),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE booking_specialists ADD COLUMN IF NOT EXISTS slot_duration_min INTEGER NOT NULL DEFAULT 30",
             ),
         )
         await conn.execute(

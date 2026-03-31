@@ -204,6 +204,7 @@ class BookingSpecialist(Base):
     specialization: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     sort_order: Mapped[int] = mapped_column(default=0)
+    slot_duration_min: Mapped[int] = mapped_column(default=30)
     work_start_hour: Mapped[int] = mapped_column(default=9)
     work_end_hour: Mapped[int] = mapped_column(default=18)
     work_weekdays: Mapped[list | None] = mapped_column(JSON, nullable=True)

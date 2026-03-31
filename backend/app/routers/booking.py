@@ -56,6 +56,7 @@ def _specialist_read(s: BookingSpecialist, direction_name: str | None) -> Bookin
         specialization=s.specialization,
         is_active=s.is_active,
         sort_order=s.sort_order,
+        slot_duration_min=s.slot_duration_min,
         work_start_hour=s.work_start_hour,
         work_end_hour=s.work_end_hour,
         work_weekdays=_norm_work_weekdays(s.work_weekdays),
@@ -361,6 +362,8 @@ async def _upsert_lead_for_appointment(
     patient_name: str,
     patient_phone: str,
     responsible_manager_id: int | None,
+    lead_pipeline_id: int | None,
+    lead_stage_id: int | None,
 ) -> int | None:
     phone = _norm_phone(patient_phone)
     if not phone:
@@ -372,7 +375,20 @@ async def _upsert_lead_for_appointment(
     if found is not None:
         return found.id
 
-    stage_id = await _stage_id_by_name(db, settings.booking_stage_after_book)
+    stage_id = lead_stage_id
+    if stage_id is not None and lead_pipeline_id is not None:
+        stage = await db.get(PipelineStage, stage_id)
+        if stage is None or stage.pipeline_id != lead_pipeline_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Стадия не относится к выбранной воронке")
+    if stage_id is None and lead_pipeline_id is not None:
+        stage_id = await db.scalar(
+            select(PipelineStage.id)
+            .where(PipelineStage.pipeline_id == lead_pipeline_id)
+            .order_by(PipelineStage.order.asc(), PipelineStage.id.asc())
+            .limit(1),
+        )
+    if stage_id is None:
+        stage_id = await _stage_id_by_name(db, settings.booking_stage_after_book)
     if stage_id is None:
         return None
 
@@ -457,7 +473,7 @@ async def create_appointment(
 
     start_at = _ensure_utc(body.start_at)
     _assert_slot_in_specialist_schedule(specialist, start_at)
-    duration_min = int(direction.duration_min or 30)
+    duration_min = int(specialist.slot_duration_min or direction.duration_min or 30)
     end_at = start_at + timedelta(minutes=duration_min)
 
     overlap = await db.execute(
@@ -484,6 +500,8 @@ async def create_appointment(
             patient_name=body.patient_name,
             patient_phone=body.patient_phone,
             responsible_manager_id=body.responsible_manager_id,
+            lead_pipeline_id=body.lead_pipeline_id,
+            lead_stage_id=body.lead_stage_id,
         )
 
     now = datetime.now(UTC)

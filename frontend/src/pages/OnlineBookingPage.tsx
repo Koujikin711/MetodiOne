@@ -7,7 +7,7 @@ import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { SpecialistModal } from "@/components/SpecialistModal";
 import { apiFetch } from "@/lib/api";
-import type { BookingAppointment, BookingDirection, BookingSpecialist, LeadSource } from "@/lib/types";
+import type { BookingAppointment, BookingDirection, BookingSpecialist, LeadSource, Pipeline, PipelineStage } from "@/lib/types";
 
 type Tab = "online" | "dicts" | "journal";
 
@@ -40,6 +40,8 @@ export function OnlineBookingPage() {
   const formPanelRef = useRef<HTMLDivElement>(null);
 
   const [leadId, setLeadId] = useState<number | null>(null);
+  const [newLeadPipelineId, setNewLeadPipelineId] = useState<number | null>(null);
+  const [newLeadStageId, setNewLeadStageId] = useState<number | null>(null);
   const [patientName, setPatientName] = useState("");
   const [patientPhone, setPatientPhone] = useState("");
   const [directionId, setDirectionId] = useState(0);
@@ -72,6 +74,16 @@ export function OnlineBookingPage() {
   const sourcesQuery = useQuery({
     queryKey: ["lead-sources"],
     queryFn: () => apiFetch<LeadSource[]>("/api/sources"),
+  });
+  const pipelinesQuery = useQuery({
+    queryKey: ["pipelines"],
+    queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
+  });
+  const leadStagesQuery = useQuery({
+    queryKey: ["stages", "booking-lead", newLeadPipelineId],
+    queryFn: () =>
+      newLeadPipelineId ? apiFetch<PipelineStage[]>(`/api/stages?pipeline_id=${newLeadPipelineId}`) : Promise.resolve([]),
+    enabled: newLeadPipelineId != null,
   });
 
   const [sourceName, setSourceName] = useState("");
@@ -116,7 +128,7 @@ export function OnlineBookingPage() {
         body: JSON.stringify(body),
       }),
     onSuccess: () => {
-      toast.success("Запись создана. Лид на канбане переведён в «В работе».");
+      toast.success("Запись создана.");
       setPatientName("");
       setPatientPhone("");
       setComment("");
@@ -313,11 +325,24 @@ export function OnlineBookingPage() {
     }
   }, [directionsActive, specDirId]);
 
+  useEffect(() => {
+    if (newLeadPipelineId != null) return;
+    const first = pipelinesQuery.data?.[0];
+    if (first) setNewLeadPipelineId(first.id);
+  }, [newLeadPipelineId, pipelinesQuery.data]);
+
+  useEffect(() => {
+    const first = leadStagesQuery.data?.[0];
+    if (!first) return;
+    if (newLeadStageId != null && leadStagesQuery.data?.some((s) => s.id === newLeadStageId)) return;
+    setNewLeadStageId(first.id);
+  }, [leadStagesQuery.data, newLeadStageId]);
+
   function onCalendarAppointmentClick(a: BookingAppointment) {
     if (a.lead_id) {
       navigate(`/leads/${a.lead_id}`);
     } else {
-      toast.error("К этой записи не привязан лид в CRM. Создайте новую запись из листа ожидания слева.");
+      toast.error("К этой записи не привязан лид в CRM.");
     }
   }
 
@@ -338,6 +363,7 @@ export function OnlineBookingPage() {
     direction_id: number;
     phone: string;
     specialization: string;
+    slot_duration_min: number;
     work_start_hour: number;
     work_end_hour: number;
     work_weekdays: number[];
@@ -350,6 +376,7 @@ export function OnlineBookingPage() {
         direction_id: values.direction_id,
         phone,
         specialization,
+        slot_duration_min: values.slot_duration_min,
         role: "specialist",
         work_start_hour: values.work_start_hour,
         work_end_hour: values.work_end_hour,
@@ -365,6 +392,7 @@ export function OnlineBookingPage() {
           direction_id: values.direction_id,
           phone,
           specialization,
+          slot_duration_min: values.slot_duration_min,
           work_start_hour: values.work_start_hour,
           work_end_hour: values.work_end_hour,
           work_weekdays: values.work_weekdays,
@@ -420,6 +448,14 @@ export function OnlineBookingPage() {
       comment: comment.trim() || null,
     };
     if (leadId) payload.lead_id = leadId;
+    if (!leadId) {
+      if (!newLeadPipelineId || !newLeadStageId) {
+        toast.error("Выберите воронку и стадию для создания карточки клиента");
+        return;
+      }
+      payload.lead_pipeline_id = newLeadPipelineId;
+      payload.lead_stage_id = newLeadStageId;
+    }
     if (responsibleManagerId.trim()) payload.responsible_manager_id = Number(responsibleManagerId);
     createMutation.mutate(payload);
   }
@@ -535,6 +571,40 @@ export function OnlineBookingPage() {
                     className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
                   />
                 </label>
+                {!leadId && (
+                  <>
+                    <label className="block text-sm text-slate-300">
+                      Воронка для новой карточки
+                      <select
+                        required
+                        value={newLeadPipelineId ?? ""}
+                        onChange={(e) => setNewLeadPipelineId(Number(e.target.value))}
+                        className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                      >
+                        {(pipelinesQuery.data ?? []).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-sm text-slate-300">
+                      Стадия для новой карточки
+                      <select
+                        required
+                        value={newLeadStageId ?? ""}
+                        onChange={(e) => setNewLeadStageId(Number(e.target.value))}
+                        className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                      >
+                        {(leadStagesQuery.data ?? []).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                )}
                 <label className="block text-sm text-slate-300">
                   Направление
                   <select
