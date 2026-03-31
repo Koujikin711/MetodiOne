@@ -66,7 +66,7 @@ export function MiniMonthCalendar({ value, onChange }: Props) {
   }
 
   return (
-    <div className="max-w-[250px] rounded-xl border border-slate-700/50 bg-slate-900/35 p-2.5">
+    <div className="w-full rounded-xl border border-slate-700/50 bg-slate-900/35 p-2.5">
       <div className="mb-2 flex items-center justify-between gap-1.5">
         <button
           type="button"

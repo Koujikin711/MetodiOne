@@ -222,7 +222,7 @@ function SortableSpecialistColumn({
     <div
       ref={setNodeRef}
       style={{ ...style, minHeight: gridHeightPx + SPEC_HEADER_PX }}
-      className="group/spec relative w-[min(100vw,240px)] shrink-0 border-r border-slate-700/40 last:border-r-0"
+      className="group/spec relative basis-[260px] grow shrink-0 border-r border-slate-700/40 last:border-r-0"
     >
       <div
         className="sticky top-0 z-20 border-b border-slate-700/50 bg-slate-900/90 backdrop-blur-sm"
@@ -525,7 +525,7 @@ export function BookingCalendarGrid({
 
   return (
     <div className="relative overflow-x-auto rounded-2xl border border-slate-700/40 bg-slate-950/40">
-      <div className="flex min-w-max">
+      <div className="flex min-w-full">
         <div
           className="sticky left-0 z-30 flex shrink-0 flex-col border-r border-slate-700/50 bg-slate-950/95 pr-2 backdrop-blur-sm"
           style={{ width: 52, paddingTop: SPEC_HEADER_PX }}
