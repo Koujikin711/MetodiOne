@@ -36,6 +36,11 @@ const statusCardClass: Record<string, string> = {
   cancelled: "border-slate-500/50 bg-slate-700/30 text-slate-300",
 };
 
+const notifySentClass =
+  "border-amber-300/55 bg-amber-500/18 text-amber-50 shadow-[0_0_20px_rgba(245,158,11,0.16)]";
+const notifyRepliedClass =
+  "border-violet-300/60 bg-violet-500/20 text-violet-50 shadow-[0_0_24px_rgba(168,85,247,0.18)]";
+
 const appointmentHoverClass =
   "transition-[transform,box-shadow,filter] duration-300 ease-out hover:z-30 hover:scale-[1.04] hover:shadow-[0_0_28px_rgba(139,92,246,0.35),0_0_48px_rgba(34,211,238,0.12)] hover:ring-2 hover:ring-purple-400/50 hover:brightness-[1.06]";
 
@@ -126,6 +131,28 @@ function formatTimeRange(isoStart: string, isoEnd: string) {
   return `${fmt(a)} – ${fmt(b)}`;
 }
 
+function nowLineTopPct(dateYmd: string, now: Date): number | null {
+  if (now.toISOString().slice(0, 10) !== dateYmd) return null;
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const from = GRID_START_HOUR * 60;
+  const to = GRID_END_HOUR * 60;
+  if (mins < from || mins > to) return null;
+  return ((mins - from) / (to - from)) * 100;
+}
+
+function appointmentVisualClass(a: BookingAppointment): string {
+  const anyA = a as BookingAppointment & {
+    notification_sent_at?: string | null;
+    notification_replied_at?: string | null;
+  };
+  if (anyA.notification_replied_at) return notifyRepliedClass;
+  if (anyA.notification_sent_at) return notifySentClass;
+  const c = (a.comment || "").toLowerCase();
+  if (c.includes("ответил") || c.includes("подтвердил")) return notifyRepliedClass;
+  if (c.includes("уведом") || c.includes("напомин")) return notifySentClass;
+  return statusCardClass[a.status] ?? statusCardClass.booked;
+}
+
 export type SlotClickPayload = {
   specialistId: number;
   directionId: number;
@@ -159,6 +186,7 @@ type SortableColProps = {
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: SlotClickPayload) => void;
   dragEnabled: boolean;
+  nowTopPct: number | null;
 };
 
 function SortableSpecialistColumn({
@@ -176,6 +204,7 @@ function SortableSpecialistColumn({
   onAppointmentClick,
   onSlotClick,
   dragEnabled,
+  nowTopPct,
 }: SortableColProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: spec.id,
@@ -301,6 +330,14 @@ function SortableSpecialistColumn({
           />
         ))}
 
+        {nowTopPct != null && (
+          <div
+            className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-red-400/85 shadow-[0_0_10px_rgba(248,113,113,0.45)]"
+            style={{ top: `${nowTopPct}%` }}
+            aria-hidden
+          />
+        )}
+
         {onSlotClick &&
           hours.map((hh) => {
             const ok = isSlotBookable(dateYmd, spec, hh);
@@ -329,7 +366,7 @@ function SortableSpecialistColumn({
         {(bySpec.get(spec.id) ?? []).map((a) => {
           const { topPct, heightPct, visible } = layoutBlock(dateYmd, a.start_at, a.end_at);
           if (!visible) return null;
-          const cls = statusCardClass[a.status] ?? statusCardClass.booked;
+          const cls = appointmentVisualClass(a);
           return (
             <button
               key={a.id}
@@ -348,7 +385,9 @@ function SortableSpecialistColumn({
               title={a.lead_id ? "Открыть карточку клиента (лид)" : "Нет лида в CRM"}
             >
               <div className="flex items-start justify-between gap-1">
-                <span className="line-clamp-2 font-semibold leading-tight">{a.patient_name}</span>
+                <span className="line-clamp-2 break-words pr-1 text-[13px] font-semibold leading-[1.25]">
+                  {a.patient_name}
+                </span>
                 {a.status === "completed" && (
                   <span className="shrink-0 text-emerald-300" aria-hidden>
                     ✓
@@ -389,6 +428,7 @@ export function BookingCalendarGrid({
   const gridHeightPx = totalHours * PX_PER_HOUR;
   const hours = HOURS;
   const [menuSpecId, setMenuSpecId] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -405,6 +445,11 @@ export function BookingCalendarGrid({
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [menuSpecId]);
+
+  useEffect(() => {
+    const t = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
 
   const bySpec = useMemo(() => {
     const m = new Map<number, BookingAppointment[]>();
@@ -445,6 +490,7 @@ export function BookingCalendarGrid({
     onAppointmentClick,
     onSlotClick,
     dragEnabled,
+    nowTopPct: nowLineTopPct(dateYmd, new Date(nowTick)),
   };
 
   if (specialists.length === 0) {
@@ -470,6 +516,13 @@ export function BookingCalendarGrid({
     <SortableSpecialistColumn key={spec.id} spec={spec} {...colPropsBase} />
   ));
 
+  const nowTopPct = nowLineTopPct(dateYmd, new Date(nowTick));
+  const nowTopPx = nowTopPct != null ? SPEC_HEADER_PX + (nowTopPct / 100) * gridHeightPx : null;
+  const nowLabel =
+    nowTopPct != null
+      ? new Date(nowTick).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+      : "";
+
   return (
     <div className="overflow-x-auto rounded-2xl border border-slate-700/40 bg-slate-950/40">
       <div className="flex min-w-max">
@@ -486,6 +539,20 @@ export function BookingCalendarGrid({
               {String(hh).padStart(2, "0")}:00
             </div>
           ))}
+          {nowTopPct != null && (
+            <>
+              <div
+                className="pointer-events-none absolute right-0 z-40 h-4 w-10 -translate-y-1/2 rounded-r-md bg-red-500/90 px-1 text-right text-[10px] font-semibold tabular-nums text-white shadow-md"
+                style={{ top: `${nowTopPx}px` }}
+              >
+                {nowLabel}
+              </div>
+              <div
+                className="pointer-events-none absolute inset-x-0 z-30 border-t-2 border-red-400/85 shadow-[0_0_8px_rgba(248,113,113,0.45)]"
+                style={{ top: `${nowTopPx}px` }}
+              />
+            </>
+          )}
         </div>
 
         {dragEnabled ? (
