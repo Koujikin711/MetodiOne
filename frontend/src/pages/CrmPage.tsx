@@ -761,6 +761,9 @@ export function CrmPage() {
   }
 
   const [createPipelineOpen, setCreatePipelineOpen] = useState(false);
+  const [createStageOpen, setCreateStageOpen] = useState(false);
+  const [newStageName, setNewStageName] = useState("");
+  const [newStageColor, setNewStageColor] = useState("#6366f1");
   const [pipeName, setPipeName] = useState("");
   const [pipeType, setPipeType] = useState("sales");
   const [pipeStages, setPipeStages] = useState<Array<{ name: string; color: string }>>([
@@ -797,6 +800,34 @@ export function CrmPage() {
       void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Не удалось создать воронку");
+    }
+  }
+
+  async function submitCreateStage() {
+    if (!pipelineId) {
+      toast.error("Сначала выберите воронку");
+      return;
+    }
+    if (!newStageName.trim()) {
+      toast.error("Название стадии обязательно");
+      return;
+    }
+    try {
+      await apiFetch<PipelineStage>("/api/stages", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newStageName.trim(),
+          color: newStageColor,
+          pipeline_id: pipelineId,
+        }),
+      });
+      toast.success("Стадия создана");
+      setCreateStageOpen(false);
+      setNewStageName("");
+      setNewStageColor("#6366f1");
+      void queryClient.invalidateQueries({ queryKey: ["stages", pipelineId] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось создать стадию");
     }
   }
 
@@ -952,6 +983,15 @@ export function CrmPage() {
           >
             + Создать воронку
           </button>
+          {currentRole === "admin" && (
+            <button
+              type="button"
+              onClick={() => setCreateStageOpen(true)}
+              className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
+            >
+              + Стадия в воронку
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setCreateLeadOpen(true)}
@@ -1101,6 +1141,63 @@ export function CrmPage() {
                 className="mt-2 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
               >
                 Создать
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {createStageOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-white">Создать стадию</h2>
+              <button
+                type="button"
+                onClick={() => setCreateStageOpen(false)}
+                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+              >
+                Закрыть
+              </button>
+            </div>
+            <div className="mt-4 grid gap-3">
+              <label className="text-sm text-slate-300">
+                Воронка
+                <select
+                  value={pipelineId ?? ""}
+                  onChange={(e) => setPipelineId(Number(e.target.value))}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                >
+                  {(pipelinesQuery.data ?? []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm text-slate-300">
+                Название стадии
+                <input
+                  value={newStageName}
+                  onChange={(e) => setNewStageName(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Цвет
+                <input
+                  type="color"
+                  value={newStageColor}
+                  onChange={(e) => setNewStageColor(e.target.value)}
+                  className="mt-1 h-10 w-16 rounded-lg border border-slate-700 bg-slate-950/40"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void submitCreateStage()}
+                className="mt-1 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+              >
+                Создать стадию
               </button>
             </div>
           </div>

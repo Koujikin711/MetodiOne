@@ -127,6 +127,7 @@ export interface BookingSpecialist {
   specialization?: string | null;
   is_active: boolean;
   sort_order?: number;
+  slot_duration_min?: number;
   work_start_hour?: number;
   work_end_hour?: number;
   /** 0=Пн … 6=Вс (как на бэкенде) */
