@@ -147,4 +147,8 @@ export interface BookingAppointment {
   direction_name: string | null;
   specialist_name: string | null;
   comment: string | null;
+  /** Когда клиенту отправили уведомление о записи */
+  notification_sent_at?: string | null;
+  /** Когда клиент ответил на уведомление */
+  notification_replied_at?: string | null;
 }

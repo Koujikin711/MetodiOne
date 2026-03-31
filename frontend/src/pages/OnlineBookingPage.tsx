@@ -499,6 +499,11 @@ export function OnlineBookingPage() {
                 className="ml-2 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-white"
               />
             </label>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+              <span className="rounded border border-sky-300/40 bg-sky-500/15 px-2 py-0.5 text-sky-100">Записан</span>
+              <span className="rounded border border-amber-300/50 bg-amber-500/15 px-2 py-0.5 text-amber-100">Уведомление отправлено</span>
+              <span className="rounded border border-violet-300/50 bg-violet-500/20 px-2 py-0.5 text-violet-100">Клиент ответил</span>
+            </div>
           </div>
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_min(100%,400px)] xl:items-start">
             <div className="min-w-0">
