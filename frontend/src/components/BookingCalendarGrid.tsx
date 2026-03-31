@@ -524,7 +524,7 @@ export function BookingCalendarGrid({
       : "";
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-700/40 bg-slate-950/40">
+    <div className="relative overflow-x-auto rounded-2xl border border-slate-700/40 bg-slate-950/40">
       <div className="flex min-w-max">
         <div
           className="sticky left-0 z-30 flex shrink-0 flex-col border-r border-slate-700/50 bg-slate-950/95 pr-2 backdrop-blur-sm"
@@ -565,25 +565,17 @@ export function BookingCalendarGrid({
           columns
         )}
 
-        {onAddSpecialist && (
-          <div className="sticky right-0 z-[35] flex w-[48px] shrink-0 flex-col border-l border-slate-700/50 bg-slate-950/95 backdrop-blur-sm">
-            <div
-              className="flex shrink-0 items-center justify-center border-b border-slate-700/50 bg-slate-900/90"
-              style={{ minHeight: SPEC_HEADER_PX }}
-            >
-              <button
-                type="button"
-                onClick={onAddSpecialist}
-                className="rounded-full border border-slate-700 bg-slate-800 p-2 text-slate-300 transition-all duration-300 hover:bg-slate-700"
-                aria-label="Добавить специалиста"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="bg-slate-950/30" style={{ height: gridHeightPx }} aria-hidden />
-          </div>
-        )}
       </div>
+      {onAddSpecialist && (
+        <button
+          type="button"
+          onClick={onAddSpecialist}
+          className="absolute right-2 top-2 z-40 rounded-full border border-slate-700 bg-slate-900/90 p-2 text-slate-300 shadow-lg transition-all duration-300 hover:bg-slate-800"
+          aria-label="Добавить специалиста"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      )}
     </div>
   );
 }

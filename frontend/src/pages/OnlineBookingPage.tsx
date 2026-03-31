@@ -7,7 +7,7 @@ import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { SpecialistModal } from "@/components/SpecialistModal";
 import { apiFetch } from "@/lib/api";
-import type { BookingAppointment, BookingDirection, BookingSpecialist, Lead, LeadSource } from "@/lib/types";
+import type { BookingAppointment, BookingDirection, BookingSpecialist, LeadSource } from "@/lib/types";
 
 type Tab = "online" | "dicts" | "journal";
 
@@ -37,7 +37,6 @@ export function OnlineBookingPage() {
   const [tab, setTab] = useState<Tab>("online");
   const [filterDate, setFilterDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [journalDate, setJournalDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [queueSearch, setQueueSearch] = useState("");
   const formPanelRef = useRef<HTMLDivElement>(null);
 
   const [leadId, setLeadId] = useState<number | null>(null);
@@ -49,10 +48,6 @@ export function OnlineBookingPage() {
   const [responsibleManagerId, setResponsibleManagerId] = useState("");
   const [comment, setComment] = useState("");
 
-  const [queueLeadName, setQueueLeadName] = useState("");
-  const [queueLeadPhone, setQueueLeadPhone] = useState("");
-  const [queueLeadSource, setQueueLeadSource] = useState("");
-
   const [dirName, setDirName] = useState("");
   const [dirDuration, setDirDuration] = useState(30);
   const [specName, setSpecName] = useState("");
@@ -63,11 +58,6 @@ export function OnlineBookingPage() {
   const [specialistModalOpen, setSpecialistModalOpen] = useState(false);
   const [specialistModalMode, setSpecialistModalMode] = useState<"add" | "edit">("add");
   const [specialistModalTarget, setSpecialistModalTarget] = useState<BookingSpecialist | null>(null);
-
-  const queueQuery = useQuery({
-    queryKey: ["booking-queue"],
-    queryFn: () => apiFetch<Lead[]>("/api/booking/queue"),
-  });
 
   const directionsQuery = useQuery({
     queryKey: ["booking-directions"],
@@ -131,29 +121,11 @@ export function OnlineBookingPage() {
       setPatientPhone("");
       setComment("");
       setLeadId(null);
-      void queryClient.invalidateQueries({ queryKey: ["booking-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics"] });
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const addToQueueMutation = useMutation({
-    mutationFn: (body: { name: string; phone?: string; source?: string }) =>
-      apiFetch<Lead>("/api/booking/queue", {
-        method: "POST",
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      toast.success("Лид добавлен в лист ожидания");
-      setQueueLeadName("");
-      setQueueLeadPhone("");
-      setQueueLeadSource("");
-      void queryClient.invalidateQueries({ queryKey: ["booking-queue"] });
-      void queryClient.invalidateQueries({ queryKey: ["leads"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -324,29 +296,6 @@ export function OnlineBookingPage() {
     }
   }, [directionsActive, specDirId]);
 
-  const filteredQueue = useMemo(() => {
-    const q = queueSearch.trim().toLowerCase();
-    const list = queueQuery.data ?? [];
-    if (!q) return list;
-    return list.filter(
-      (l) =>
-        l.name.toLowerCase().includes(q) ||
-        (l.phone ?? "").toLowerCase().includes(q) ||
-        String(l.id).includes(q),
-    );
-  }, [queueQuery.data, queueSearch]);
-
-  function pickFromQueue(lead: Lead) {
-    setLeadId(lead.id);
-    setPatientName(lead.name);
-    setPatientPhone(lead.phone ?? "");
-    setResponsibleManagerId(lead.manager_id ? String(lead.manager_id) : "");
-    toast.success(`Выбран лид #${lead.id} — данные подставлены в форму`);
-    window.setTimeout(() => {
-      formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }, 80);
-  }
-
   function onCalendarAppointmentClick(a: BookingAppointment) {
     if (a.lead_id) {
       navigate(`/leads/${a.lead_id}`);
@@ -470,8 +419,8 @@ export function OnlineBookingPage() {
           <h1 className="text-3xl font-semibold tracking-tight text-white">Онлайн-записи</h1>
           <p className="max-w-2xl text-base text-slate-400">
             Сетка по специалистам: клик по свободному часу открывает форму справа; клик по карточке записи с
-            лидом — карточка клиента. Лист ожидания — этап «Квалифицирован». После записи лид переходит в «В
-            работе»; при завершении приёма — «Успешно реализован», при отмене / неявке — «Потерян».
+            лидом — карточка клиента. После записи лид переходит в «В работе»; при завершении приёма —
+            «Успешно реализован», при отмене / неявке — «Потерян».
           </p>
           <Link
             to="/"
@@ -524,100 +473,6 @@ export function OnlineBookingPage() {
             </div>
             <aside className="flex w-full min-w-0 flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
               <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
-              <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-white">Лист ожидания</h3>
-                <span className="text-xs text-slate-500">{filteredQueue.length}</span>
-              </div>
-              <p className="mb-3 text-[11px] text-slate-500">
-                «Квалифицирован», без активной записи. Карточка — по имени.
-              </p>
-              <form
-                className="mb-3 grid gap-2 rounded-xl border border-slate-700/40 bg-slate-900/30 p-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!queueLeadName.trim() || !queueLeadPhone.trim()) {
-                    toast.error("Введите имя и телефон");
-                    return;
-                  }
-                  addToQueueMutation.mutate({
-                    name: queueLeadName.trim(),
-                    phone: queueLeadPhone.trim(),
-                    source: queueLeadSource.trim() || undefined,
-                  });
-                }}
-              >
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
-                  Добавить лид в очередь
-                </div>
-                <input
-                  value={queueLeadName}
-                  onChange={(e) => setQueueLeadName(e.target.value)}
-                  placeholder="Имя"
-                  className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
-                />
-                <input
-                  value={queueLeadPhone}
-                  onChange={(e) => setQueueLeadPhone(e.target.value)}
-                  placeholder="Телефон"
-                  className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
-                />
-                <select
-                  value={queueLeadSource}
-                  onChange={(e) => setQueueLeadSource(e.target.value)}
-                  className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white"
-                >
-                  <option value="">Источник (необязательно)</option>
-                  {(sourcesQuery.data ?? [])
-                    .filter((s) => s.is_active)
-                    .map((s) => (
-                      <option key={s.id} value={s.name}>
-                        {s.name}
-                      </option>
-                    ))}
-                </select>
-                <button
-                  type="submit"
-                  disabled={addToQueueMutation.isPending}
-                  className="rounded-xl bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600 disabled:opacity-60"
-                >
-                  {addToQueueMutation.isPending ? "Добавление…" : "Добавить"}
-                </button>
-              </form>
-              <input
-                value={queueSearch}
-                onChange={(e) => setQueueSearch(e.target.value)}
-                placeholder="Поиск…"
-                className="mb-3 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
-              />
-              <div className="max-h-[min(40vh,280px)] space-y-2 overflow-y-auto pr-0.5">
-                {queueQuery.isLoading && <p className="text-xs text-slate-400">Загрузка…</p>}
-                {filteredQueue.map((lead) => (
-                  <div
-                    key={lead.id}
-                    className="rounded-xl border border-slate-600/40 bg-slate-900/50 px-3 py-2 text-sm"
-                  >
-                    <Link
-                      to={`/leads/${lead.id}`}
-                      className="font-medium text-purple-200 hover:text-white hover:underline"
-                    >
-                      {lead.name}
-                    </Link>
-                    <div className="mt-1 text-xs text-slate-400">{lead.phone ?? "—"}</div>
-                    <button
-                      type="button"
-                      onClick={() => pickFromQueue(lead)}
-                      className="mt-2 text-[11px] text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline"
-                    >
-                      Подставить в форму →
-                    </button>
-                  </div>
-                ))}
-                {!queueQuery.isLoading && filteredQueue.length === 0 && (
-                  <p className="text-xs text-slate-500">Пусто</p>
-                )}
-              </div>
-              </section>
 
               <section
               ref={formPanelRef}
@@ -625,7 +480,7 @@ export function OnlineBookingPage() {
             >
               <h2 className="mb-1 text-lg font-semibold text-white">Новая запись</h2>
               <p className="mb-4 text-[11px] text-slate-500">
-                Кликните по слоту в сетке или подставьте лид из очереди.
+                Кликните по слоту в сетке и заполните данные клиента.
               </p>
               <form onSubmit={onSubmit} className="space-y-3">
                 {leadId != null && (
