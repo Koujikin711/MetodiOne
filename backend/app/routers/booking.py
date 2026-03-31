@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, time, timedelta
+import re
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -22,6 +23,7 @@ from app.models import (
 )
 from app.schemas.booking import (
     BookingAppointmentCreate,
+    BookingAppointmentMove,
     BookingAppointmentRead,
     BookingAppointmentStatusUpdate,
     BookingDirectionCreate,
@@ -346,6 +348,52 @@ def _ensure_utc(dt: datetime) -> datetime:
     return dt.astimezone(UTC)
 
 
+def _norm_phone(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    digits = re.sub(r"\D+", "", raw)
+    return digits or None
+
+
+async def _upsert_lead_for_appointment(
+    db: AsyncSession,
+    *,
+    patient_name: str,
+    patient_phone: str,
+    responsible_manager_id: int | None,
+) -> int | None:
+    phone = _norm_phone(patient_phone)
+    if not phone:
+        return None
+    existing = await db.execute(
+        select(Lead).where(Lead.phone == phone).order_by(Lead.id.desc()).limit(1),
+    )
+    found = existing.scalars().first()
+    if found is not None:
+        return found.id
+
+    stage_id = await _stage_id_by_name(db, settings.booking_stage_after_book)
+    if stage_id is None:
+        return None
+
+    stage = await db.get(PipelineStage, stage_id)
+    pipeline_id = stage.pipeline_id if stage else None
+    manager_id = responsible_manager_id
+    if manager_id is None and pipeline_id is not None:
+        manager_id = await assign_manager_for_new_lead(db, pipeline_id=pipeline_id)
+
+    lead = Lead(
+        name=patient_name.strip() or "Клиент",
+        phone=phone,
+        source="Онлайн-запись",
+        status_id=stage_id,
+        manager_id=manager_id,
+    )
+    db.add(lead)
+    await db.flush()
+    return lead.id
+
+
 @router.get("/appointments", response_model=list[BookingAppointmentRead])
 async def list_appointments(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -430,6 +478,13 @@ async def create_appointment(
         lead = await db.get(Lead, lead_id)
         if lead is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Лид не найден")
+    else:
+        lead_id = await _upsert_lead_for_appointment(
+            db,
+            patient_name=body.patient_name,
+            patient_phone=body.patient_phone,
+            responsible_manager_id=body.responsible_manager_id,
+        )
 
     now = datetime.now(UTC)
     appt = BookingAppointment(
@@ -470,6 +525,70 @@ async def create_appointment(
         responsible_manager_id=appt.responsible_manager_id,
         direction_name=dname,
         specialist_name=sname,
+        comment=appt.comment,
+    )
+
+
+@router.patch("/appointments/{appointment_id}/move", response_model=BookingAppointmentRead)
+async def move_appointment(
+    appointment_id: int,
+    body: BookingAppointmentMove,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: CurrentUser,
+) -> BookingAppointmentRead:
+    appt = await db.get(BookingAppointment, appointment_id)
+    if appt is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+    if appt.status != "booked":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Перенос доступен только для активных записей")
+
+    specialist = await db.get(BookingSpecialist, body.specialist_id)
+    if specialist is None or not specialist.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
+
+    direction = await db.get(BookingDirection, appt.direction_id)
+    if direction is None or not direction.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
+    if specialist.direction_id != appt.direction_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Специалист не относится к направлению записи")
+
+    start_at = _ensure_utc(body.start_at)
+    _assert_slot_in_specialist_schedule(specialist, start_at)
+    end_at = start_at + timedelta(minutes=int(direction.duration_min or 30))
+
+    overlap = await db.execute(
+        select(BookingAppointment.id)
+        .where(
+            BookingAppointment.id != appt.id,
+            BookingAppointment.specialist_id == specialist.id,
+            BookingAppointment.status == "booked",
+            BookingAppointment.end_at > start_at,
+            BookingAppointment.start_at < end_at,
+        )
+        .limit(1),
+    )
+    if overlap.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже занят")
+
+    appt.specialist_id = specialist.id
+    appt.start_at = start_at
+    appt.end_at = end_at
+    appt.updated_at = datetime.now(UTC)
+    await db.flush()
+
+    return BookingAppointmentRead(
+        id=appt.id,
+        lead_id=appt.lead_id,
+        specialist_id=appt.specialist_id,
+        direction_id=appt.direction_id,
+        patient_name=appt.patient_name,
+        patient_phone=appt.patient_phone,
+        start_at=appt.start_at,
+        end_at=appt.end_at,
+        status=appt.status,
+        responsible_manager_id=appt.responsible_manager_id,
+        direction_name=direction.name,
+        specialist_name=specialist.full_name,
         comment=appt.comment,
     )
 

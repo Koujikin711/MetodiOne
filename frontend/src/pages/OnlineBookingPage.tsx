@@ -147,6 +147,23 @@ export function OnlineBookingPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const moveAppointmentMutation = useMutation({
+    mutationFn: (body: { appointmentId: number; specialist_id: number; start_at: string }) =>
+      apiFetch<BookingAppointment>(`/api/booking/appointments/${body.appointmentId}/move`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          specialist_id: body.specialist_id,
+          start_at: body.start_at,
+        }),
+      }),
+    onSuccess: () => {
+      toast.success("Запись перенесена");
+      void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const addDirectionMutation = useMutation({
     mutationFn: () =>
       apiFetch("/api/booking/directions", {
@@ -356,16 +373,27 @@ export function OnlineBookingPage() {
     }
   }
 
-  function handleSlotClick(payload: { specialistId: number; directionId: number; hour: number }) {
+  function handleSlotClick(payload: { specialistId: number; directionId: number; minuteOfDay: number }) {
     setDirectionId(payload.directionId);
     setSpecialistId(payload.specialistId);
-    setStartAt(
-      `${filterDate}T${String(payload.hour).padStart(2, "0")}:00`,
-    );
-    toast.success(`Слот ${String(payload.hour).padStart(2, "0")}:00 — заполните форму справа`);
+    const hh = Math.floor(payload.minuteOfDay / 60);
+    const mm = payload.minuteOfDay % 60;
+    setStartAt(`${filterDate}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
+    toast.success(`Слот ${hh}:${String(mm).padStart(2, "0")} — заполните форму справа`);
     window.setTimeout(() => {
       formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }, 80);
+  }
+
+  function handleMoveAppointment(payload: { appointmentId: number; specialistId: number; minuteOfDay: number }) {
+    const hh = Math.floor(payload.minuteOfDay / 60);
+    const mm = payload.minuteOfDay % 60;
+    const localIso = `${filterDate}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
+    moveAppointmentMutation.mutate({
+      appointmentId: payload.appointmentId,
+      specialist_id: payload.specialistId,
+      start_at: new Date(localIso).toISOString(),
+    });
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -462,6 +490,7 @@ export function OnlineBookingPage() {
                 appointments={gridAppointmentsQuery.data ?? []}
                 onAppointmentClick={onCalendarAppointmentClick}
                 onSlotClick={handleSlotClick}
+                onMoveAppointment={handleMoveAppointment}
                 onAddSpecialist={openAddSpecialistModal}
                 onEditSpecialist={openEditSpecialistModal}
                 onDeleteSpecialist={(s) => deleteSpecialistUserMutation.mutate(s.id)}

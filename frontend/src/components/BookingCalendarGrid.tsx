@@ -24,8 +24,13 @@ const GRID_START_HOUR = 7;
 const GRID_END_HOUR = 20;
 const PX_PER_HOUR = 48;
 const SPEC_HEADER_PX = 42;
+const SLOT_STEP_MIN = 30;
 
 const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => GRID_START_HOUR + i);
+const SLOT_MINUTES = Array.from(
+  { length: ((GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_STEP_MIN },
+  (_, i) => GRID_START_HOUR * 60 + i * SLOT_STEP_MIN,
+);
 
 const DEFAULT_WEEKDAYS = [0, 1, 2, 3, 4];
 
@@ -71,11 +76,12 @@ function specWorkBounds(spec: BookingSpecialist) {
   };
 }
 
-function isSlotBookable(dateYmd: string, spec: BookingSpecialist, hour: number): boolean {
+function isSlotBookable(dateYmd: string, spec: BookingSpecialist, minuteOfDay: number): boolean {
   const wd = weekdayMon0FromYmd(dateYmd);
   if (!specWeekdays(spec).includes(wd)) return false;
   const { start, end } = specWorkBounds(spec);
-  return hour >= start && hour < end;
+  const h = Math.floor(minuteOfDay / 60);
+  return h >= start && h < end;
 }
 
 function hatchForSpec(
@@ -126,8 +132,7 @@ function layoutBlock(
 function formatTimeRange(isoStart: string, isoEnd: string) {
   const a = new Date(isoStart);
   const b = new Date(isoEnd);
-  const fmt = (d: Date) =>
-    d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const fmt = (d: Date) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
   return `${fmt(a)} – ${fmt(b)}`;
 }
 
@@ -156,7 +161,7 @@ function appointmentVisualClass(a: BookingAppointment): string {
 export type SlotClickPayload = {
   specialistId: number;
   directionId: number;
-  hour: number;
+  minuteOfDay: number;
 };
 
 type Props = {
@@ -165,6 +170,7 @@ type Props = {
   appointments: BookingAppointment[];
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: SlotClickPayload) => void;
+  onMoveAppointment?: (payload: { appointmentId: number; specialistId: number; minuteOfDay: number }) => void;
   onAddSpecialist?: () => void;
   onEditSpecialist?: (s: BookingSpecialist) => void;
   onDeleteSpecialist?: (s: BookingSpecialist) => void;
@@ -185,6 +191,7 @@ type SortableColProps = {
   onDeleteSpecialist?: (s: BookingSpecialist) => void;
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: SlotClickPayload) => void;
+  onMoveAppointment?: (payload: { appointmentId: number; specialistId: number; minuteOfDay: number }) => void;
   dragEnabled: boolean;
   nowTopPct: number | null;
 };
@@ -203,6 +210,7 @@ function SortableSpecialistColumn({
   onDeleteSpecialist,
   onAppointmentClick,
   onSlotClick,
+  onMoveAppointment,
   dragEnabled,
   nowTopPct,
 }: SortableColProps) {
@@ -322,11 +330,14 @@ function SortableSpecialistColumn({
           )
         )}
 
-        {hours.map((hh) => (
+        {SLOT_MINUTES.map((minuteOfDay) => (
           <div
-            key={hh}
-            className="pointer-events-none absolute inset-x-0 border-t border-slate-700/35"
-            style={{ top: ((hh - GRID_START_HOUR) / totalHours) * 100 + "%" }}
+            key={minuteOfDay}
+            className={[
+              "pointer-events-none absolute inset-x-0 border-t",
+              minuteOfDay % 60 === 0 ? "border-slate-700/35" : "border-slate-700/20",
+            ].join(" ")}
+            style={{ top: `${((minuteOfDay - GRID_START_HOUR * 60) / ((GRID_END_HOUR - GRID_START_HOUR) * 60)) * 100}%` }}
           />
         ))}
 
@@ -338,27 +349,40 @@ function SortableSpecialistColumn({
           />
         )}
 
-        {onSlotClick &&
-          hours.map((hh) => {
-            const ok = isSlotBookable(dateYmd, spec, hh);
+        {(onSlotClick || onMoveAppointment) &&
+          SLOT_MINUTES.map((minuteOfDay) => {
+            const ok = isSlotBookable(dateYmd, spec, minuteOfDay);
             if (!ok) return null;
+            const topPct = ((minuteOfDay - GRID_START_HOUR * 60) / ((GRID_END_HOUR - GRID_START_HOUR) * 60)) * 100;
             return (
               <button
-                key={`slot-${spec.id}-${hh}`}
+                key={`slot-${spec.id}-${minuteOfDay}`}
                 type="button"
                 onClick={() =>
-                  onSlotClick({
+                  onSlotClick?.({
                     specialistId: spec.id,
                     directionId: spec.direction_id,
-                    hour: hh,
+                    minuteOfDay,
                   })
                 }
+                onDragOver={(e) => {
+                  if (!onMoveAppointment) return;
+                  e.preventDefault();
+                }}
+                onDrop={(e) => {
+                  if (!onMoveAppointment) return;
+                  e.preventDefault();
+                  const raw = e.dataTransfer.getData("text/appointment-id");
+                  const id = Number(raw);
+                  if (!Number.isFinite(id)) return;
+                  onMoveAppointment({ appointmentId: id, specialistId: spec.id, minuteOfDay });
+                }}
                 className="absolute inset-x-1 z-[5] cursor-pointer rounded-md border border-transparent transition-colors hover:border-purple-500/35 hover:bg-purple-500/10"
                 style={{
-                  top: `${((hh - GRID_START_HOUR) / totalHours) * 100}%`,
-                  height: `${(1 / totalHours) * 100}%`,
+                  top: `${topPct}%`,
+                  height: `${(SLOT_STEP_MIN / 60 / totalHours) * 100}%`,
                 }}
-                aria-label={`Свободный слот ${String(hh).padStart(2, "0")}:00, ${spec.full_name}`}
+                aria-label={`Свободный слот ${Math.floor(minuteOfDay / 60)}:${String(minuteOfDay % 60).padStart(2, "0")}, ${spec.full_name}`}
               />
             );
           })}
@@ -371,6 +395,11 @@ function SortableSpecialistColumn({
             <button
               key={a.id}
               type="button"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("text/appointment-id", String(a.id));
+                e.dataTransfer.effectAllowed = "move";
+              }}
               onClick={() => onAppointmentClick(a)}
               className={[
                 "absolute inset-x-1 z-20 overflow-hidden rounded-lg border bg-gradient-to-br from-white/[0.04] to-transparent px-2 py-1.5 text-left text-xs",
@@ -394,7 +423,7 @@ function SortableSpecialistColumn({
                   </span>
                 )}
               </div>
-              <div className="mt-1 font-mono text-[10px] opacity-90">
+              <div className="mt-1 text-[9px] opacity-80">
                 {formatTimeRange(a.start_at, a.end_at)}
               </div>
               <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-400">
@@ -423,6 +452,7 @@ export function BookingCalendarGrid({
   onEditSpecialist,
   onDeleteSpecialist,
   onReorderSpecialists,
+  onMoveAppointment,
 }: Props) {
   const totalHours = GRID_END_HOUR - GRID_START_HOUR;
   const gridHeightPx = totalHours * PX_PER_HOUR;
@@ -489,6 +519,7 @@ export function BookingCalendarGrid({
     onDeleteSpecialist,
     onAppointmentClick,
     onSlotClick,
+    onMoveAppointment,
     dragEnabled,
     nowTopPct: nowLineTopPct(dateYmd, new Date(nowTick)),
   };
@@ -530,13 +561,13 @@ export function BookingCalendarGrid({
           className="sticky left-0 z-30 flex shrink-0 flex-col border-r border-slate-700/50 bg-slate-950/95 pr-2 backdrop-blur-sm"
           style={{ width: 52, paddingTop: SPEC_HEADER_PX }}
         >
-          {hours.map((hh) => (
+          {SLOT_MINUTES.map((minuteOfDay) => (
             <div
-              key={hh}
-              className="flex shrink-0 items-start justify-end text-[11px] tabular-nums text-slate-500"
-              style={{ height: PX_PER_HOUR }}
+              key={minuteOfDay}
+              className="flex shrink-0 items-start justify-end pr-0.5 text-[10px] tabular-nums text-slate-500"
+              style={{ height: (SLOT_STEP_MIN / 60) * PX_PER_HOUR }}
             >
-              {String(hh).padStart(2, "0")}:00
+              {Math.floor(minuteOfDay / 60)}:{String(minuteOfDay % 60).padStart(2, "0")}
             </div>
           ))}
           {nowTopPct != null && (
