@@ -250,7 +250,7 @@ function SortableSpecialistColumn({
             <div className="absolute right-1 top-1 z-30" data-spec-menu-root>
               <button
                 type="button"
-                className="rounded-lg p-1.5 text-slate-400 opacity-0 transition-opacity duration-300 group-hover/spec:opacity-100 hover:bg-slate-800 hover:text-white"
+                className="rounded-lg p-1.5 text-slate-300/90 transition-colors duration-200 hover:bg-slate-800 hover:text-white"
                 aria-label="Меню специалиста"
                 aria-expanded={menuSpecId === spec.id}
                 onClick={(e) => {
