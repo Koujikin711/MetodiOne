@@ -66,29 +66,29 @@ export function MiniMonthCalendar({ value, onChange }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-slate-700/50 bg-slate-900/40 p-3">
-      <div className="mb-3 flex items-center justify-between gap-2">
+    <div className="max-w-[250px] rounded-xl border border-slate-700/50 bg-slate-900/35 p-2.5">
+      <div className="mb-2 flex items-center justify-between gap-1.5">
         <button
           type="button"
           onClick={() => shiftMonth(-1)}
-          className="rounded-lg px-2 py-1 text-slate-400 hover:bg-white/5 hover:text-white"
+          className="rounded-md px-1.5 py-0.5 text-slate-400 hover:bg-white/5 hover:text-white"
           aria-label="Предыдущий месяц"
         >
           ‹
         </button>
-        <span className="text-sm font-semibold text-white">{label}</span>
+        <span className="text-xs font-semibold text-white">{label}</span>
         <button
           type="button"
           onClick={() => shiftMonth(1)}
-          className="rounded-lg px-2 py-1 text-slate-400 hover:bg-white/5 hover:text-white"
+          className="rounded-md px-1.5 py-0.5 text-slate-400 hover:bg-white/5 hover:text-white"
           aria-label="Следующий месяц"
         >
           ›
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium uppercase text-slate-500">
+      <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-medium uppercase text-slate-500">
         {weekDays.map((w) => (
-          <div key={w} className="py-1">
+          <div key={w} className="py-0.5">
             {w}
           </div>
         ))}
@@ -101,7 +101,7 @@ export function MiniMonthCalendar({ value, onChange }: Props) {
               type="button"
               onClick={() => onChange(c.iso)}
               className={[
-                "rounded-lg py-1.5 text-xs font-medium transition-colors",
+                "rounded-md py-1 text-[11px] font-medium transition-colors",
                 c.iso === value
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30"
                   : c.isToday
