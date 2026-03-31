@@ -125,3 +125,8 @@ class BookingAppointmentCreate(BaseModel):
 
 class BookingAppointmentStatusUpdate(BaseModel):
     status: Literal["booked", "completed", "no_show", "cancelled"]
+
+
+class BookingAppointmentMove(BaseModel):
+    specialist_id: int = Field(..., ge=1)
+    start_at: datetime
