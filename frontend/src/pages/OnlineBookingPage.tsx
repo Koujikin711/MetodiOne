@@ -454,7 +454,7 @@ export function OnlineBookingPage() {
               <span className="rounded border border-violet-300/50 bg-violet-500/20 px-2 py-0.5 text-violet-100">Клиент ответил</span>
             </div>
           </div>
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_min(100%,400px)] xl:items-start">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
             <div className="min-w-0">
               <BookingCalendarGrid
                 dateYmd={filterDate}
@@ -471,7 +471,7 @@ export function OnlineBookingPage() {
                 <p className="mt-3 text-sm text-slate-400">Загрузка записей…</p>
               )}
             </div>
-            <aside className="flex w-full min-w-0 flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
+            <aside className="flex w-full min-w-0 max-w-[340px] flex-col gap-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
               <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
 
               <section
