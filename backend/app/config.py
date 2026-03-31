@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     booking_stage_completed: str = "Успешно реализован"
     booking_stage_lost: str = "Потерян"
     # Часовой пояс для проверки графика специалистов и слотов записи
-    booking_timezone: str = "Europe/Moscow"
+    # По умолчанию: Таджикистан (Душанбе)
+    booking_timezone: str = "Asia/Dushanbe"
 
     # Public URL фронтенда (для invite ссылок)
     public_app_url: str = ""
