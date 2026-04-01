@@ -538,6 +538,11 @@ export function CrmPage() {
   const [greenApiBaseUrl, setGreenApiBaseUrl] = useState("");
   const [integrationPipelineId, setIntegrationPipelineId] = useState<number | null>(null);
   const [integrationStageId, setIntegrationStageId] = useState<number | null>(null);
+  const [tplGreeting, setTplGreeting] = useState("");
+  const [tplConfirm, setTplConfirm] = useState("");
+  const [tplReminder24h, setTplReminder24h] = useState("");
+  const [tplReminder2h, setTplReminder2h] = useState("");
+  const [tplReactivation, setTplReactivation] = useState("");
 
   function resetIntegrationForm() {
     setEditingIntegrationId(null);
@@ -550,6 +555,11 @@ export function CrmPage() {
     setGreenApiBaseUrl("");
     setIntegrationPipelineId(null);
     setIntegrationStageId(null);
+    setTplGreeting("");
+    setTplConfirm("");
+    setTplReminder24h("");
+    setTplReminder2h("");
+    setTplReactivation("");
   }
 
   function beginEditIntegration(it: Integration) {
@@ -579,6 +589,15 @@ export function CrmPage() {
             : "";
       setGreenApiBaseUrl(ab);
     }
+    const c = (it.config ?? {}) as Record<string, unknown>;
+    const templates =
+      c.templates && typeof c.templates === "object" ? (c.templates as Record<string, unknown>) : {};
+    const pick = (k: string) => (typeof templates[k] === "string" ? String(templates[k]) : "");
+    setTplGreeting(pick("greeting"));
+    setTplConfirm(pick("confirm"));
+    setTplReminder24h(pick("reminder_24h"));
+    setTplReminder2h(pick("reminder_2h"));
+    setTplReactivation(pick("reactivation"));
   }
 
   const integrationStagesQuery = useQuery({
@@ -618,6 +637,14 @@ export function CrmPage() {
     if (!integrationName.trim()) return toast.error("Название обязательно");
     if (!integrationPipelineId || !integrationStageId) return toast.error("Выберите воронку и стадию");
 
+    const templates = {
+      greeting: tplGreeting.trim(),
+      confirm: tplConfirm.trim(),
+      reminder_24h: tplReminder24h.trim(),
+      reminder_2h: tplReminder2h.trim(),
+      reactivation: tplReactivation.trim(),
+    };
+
     if (editingIntegrationId != null) {
       const body: Record<string, unknown> = {
         name: integrationName.trim(),
@@ -636,12 +663,14 @@ export function CrmPage() {
           instance_id: greenInstanceId.trim(),
           ...(greenApiToken.trim() ? { api_token: greenApiToken.trim() } : {}),
           ...(greenApiBaseUrl.trim() ? { api_base_url: greenApiBaseUrl.trim() } : {}),
+          templates,
         };
       } else {
         try {
-          if (integrationConfigText.trim()) {
-            body.config = JSON.parse(integrationConfigText) as Record<string, unknown>;
-          }
+          const parsed = integrationConfigText.trim()
+            ? (JSON.parse(integrationConfigText) as Record<string, unknown>)
+            : {};
+          body.config = { ...parsed, templates };
         } catch {
           toast.error("Config должен быть валидным JSON");
           return;
@@ -671,11 +700,13 @@ export function CrmPage() {
         instance_id: greenInstanceId.trim(),
         api_token: greenApiToken.trim(),
         ...(greenApiBaseUrl.trim() ? { api_base_url: greenApiBaseUrl.trim() } : {}),
+        templates,
       };
     } else {
       if (!integrationSecret.trim()) return toast.error("Для Telegram укажите webhook-секрет (или нажмите «Сгенерировать»)");
       try {
-        cfg = integrationConfigText.trim() ? (JSON.parse(integrationConfigText) as Record<string, unknown>) : null;
+        const parsed = integrationConfigText.trim() ? (JSON.parse(integrationConfigText) as Record<string, unknown>) : {};
+        cfg = { ...parsed, templates };
       } catch {
         toast.error("Config должен быть валидным JSON");
         return;
@@ -1476,6 +1507,64 @@ export function CrmPage() {
                       />
                     </label>
                   )}
+
+                  <div className="rounded-xl border border-slate-700/60 bg-slate-950/20 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Шаблоны сообщений
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Доступны переменные: {"{name}"}, {"{date}"}, {"{time}"}, {"{manager}"}
+                    </p>
+                    <div className="mt-2 grid gap-2">
+                      <label className="text-sm text-slate-300">
+                        Приветствие
+                        <textarea
+                          value={tplGreeting}
+                          onChange={(e) => setTplGreeting(e.target.value)}
+                          rows={2}
+                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        />
+                      </label>
+                      <label className="text-sm text-slate-300">
+                        Подтверждение записи
+                        <textarea
+                          value={tplConfirm}
+                          onChange={(e) => setTplConfirm(e.target.value)}
+                          rows={2}
+                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        />
+                      </label>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="text-sm text-slate-300">
+                          Напоминание за 24ч
+                          <textarea
+                            value={tplReminder24h}
+                            onChange={(e) => setTplReminder24h(e.target.value)}
+                            rows={2}
+                            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                          />
+                        </label>
+                        <label className="text-sm text-slate-300">
+                          Напоминание за 2ч
+                          <textarea
+                            value={tplReminder2h}
+                            onChange={(e) => setTplReminder2h(e.target.value)}
+                            rows={2}
+                            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                          />
+                        </label>
+                      </div>
+                      <label className="text-sm text-slate-300">
+                        Реактивация
+                        <textarea
+                          value={tplReactivation}
+                          onChange={(e) => setTplReactivation(e.target.value)}
+                          rows={2}
+                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        />
+                      </label>
+                    </div>
+                  </div>
 
                   <div className="flex flex-col gap-2">
                     <button
