@@ -54,16 +54,7 @@ export function LeadDetailPage() {
 
       {query.data && (
         <article className="relative rounded-3xl border border-slate-700/40 bg-slate-800/40 p-8 shadow-2xl backdrop-blur-xl">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2">
-            <Link
-              to={`/chat?lead_id=${query.data.id}`}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-600/70 bg-slate-900/70 text-lg text-slate-100 transition hover:border-indigo-400/60 hover:bg-indigo-500/20"
-              title="Открыть чат с клиентом"
-            >
-              💬
-            </Link>
-          </div>
-          <div className="absolute right-3 top-3">
+          <div className="absolute right-3 top-3 flex flex-col gap-2">
             <button
               type="button"
               onClick={() => setAuditOpen(true)}
@@ -71,6 +62,13 @@ export function LeadDetailPage() {
             >
               Аудит
             </button>
+            <Link
+              to={`/chat?lead_id=${query.data.id}`}
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 text-sm font-semibold text-slate-100 transition hover:border-indigo-400/60 hover:bg-indigo-500/20"
+              title="Открыть чат с клиентом"
+            >
+              Чат
+            </Link>
           </div>
           <header className="mb-6 border-b border-slate-700/50 pb-4">
             <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Клиент / лид</p>
