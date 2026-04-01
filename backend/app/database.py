@@ -5,15 +5,22 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.config import settings
 
 
+def _effective_database_url() -> str:
+    url = (settings.database_url or "").strip()
+    if url:
+        return url
+    return "sqlite+aiosqlite:///./crm.db"
+
+
 def _engine_kwargs() -> dict:
-    url = settings.database_url
+    url = _effective_database_url()
     kw: dict = {"echo": False, "pool_pre_ping": True, "pool_timeout": 15}
     if "asyncpg" in url or url.startswith("postgresql"):
         kw["connect_args"] = {"timeout": 12}
     return kw
 
 
-engine = create_async_engine(settings.database_url, **_engine_kwargs())
+engine = create_async_engine(_effective_database_url(), **_engine_kwargs())
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
