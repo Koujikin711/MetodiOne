@@ -10,6 +10,20 @@ const moneyFmt = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 0,
 });
 
+function downloadCsv(filename: string, headers: string[], rows: Array<Array<string | number>>) {
+  const esc = (v: string | number) => `"${String(v).replaceAll('"', '""')}"`;
+  const csv = [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function AnalyticsPage() {
   const [mode, setMode] = useState<"full" | "detailed">("full");
   const [period, setPeriod] = useState<"day" | "month" | "custom">("day");
@@ -46,7 +60,7 @@ export function AnalyticsPage() {
       </header>
 
       <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
-        <div className="grid gap-3 md:grid-cols-[170px_170px_1fr_1fr]">
+        <div className="grid gap-3 md:grid-cols-[170px_170px_1fr_1fr_auto]">
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as "full" | "detailed")}
@@ -78,6 +92,39 @@ export function AnalyticsPage() {
             onChange={(e) => setDateTo(e.target.value)}
             className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white disabled:opacity-50"
           />
+          <button
+            type="button"
+            onClick={() => {
+              if (mode === "full" && fullQuery.data) {
+                downloadCsv(
+                  "analytics_full.csv",
+                  ["Воронка", "Лидов", "Обработано менеджером", "Получено", "Дебиторка"],
+                  fullQuery.data.by_pipeline.map((r) => [
+                    r.pipeline_name,
+                    r.leads_count,
+                    r.processed_by_manager_count,
+                    Number(r.received_amount),
+                    Number(r.debt_amount),
+                  ]),
+                );
+              }
+              if (mode === "detailed" && detailedQuery.data) {
+                downloadCsv(
+                  "analytics_detailed.csv",
+                  ["Менеджер", "Лидов", "Продано", "Не оплачено"],
+                  detailedQuery.data.by_manager.map((r) => [
+                    r.manager_name,
+                    r.leads_count,
+                    Number(r.sold_amount),
+                    Number(r.unpaid_amount),
+                  ]),
+                );
+              }
+            }}
+            className="rounded-xl border border-slate-600/50 bg-slate-900/60 px-4 py-2 text-sm text-white hover:bg-slate-800"
+          >
+            Экспорт CSV
+          </button>
         </div>
       </section>
 

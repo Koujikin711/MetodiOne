@@ -547,6 +547,15 @@ async def create_appointment(
     )
     if overlap.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже занят")
+    if (
+        current_user.role == UserRole.manager
+        and float(body.paid_amount or 0) > 0
+        and body.responsible_manager_id is None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Менеджер не может указать оплату без ответственного менеджера",
+        )
 
     lead_id = body.lead_id
     if lead_id is not None:
