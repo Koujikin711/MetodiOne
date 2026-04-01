@@ -8,6 +8,7 @@ from app.core.deps import CurrentUser
 from app.database import get_db
 from app.models import Pipeline, PipelineStage, UserRole
 from app.schemas.pipeline import PipelineCreate, PipelinePatch, PipelineRead
+from app.services.audit import write_audit_event
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
@@ -49,6 +50,14 @@ async def create_pipeline(
         )
 
     await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="pipeline",
+        entity_id=pipe.id,
+        action="pipeline_created",
+        current_user=current_user,
+        details=f"name={pipe.name}, stages={len(body.stages)}",
+    )
     await db.refresh(pipe)
     return PipelineRead.model_validate(pipe)
 
@@ -74,6 +83,14 @@ async def patch_pipeline(
             )
         pipe.lead_assignment_mode = mode
     await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="pipeline",
+        entity_id=pipe.id,
+        action="pipeline_updated",
+        current_user=current_user,
+        details=f"lead_assignment_mode={pipe.lead_assignment_mode}",
+    )
     await db.refresh(pipe)
     return PipelineRead.model_validate(pipe)
 

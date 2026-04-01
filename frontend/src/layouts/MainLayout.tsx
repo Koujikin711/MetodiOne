@@ -110,6 +110,12 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
                 </NavLink>
+                <NavLink to="/audit" className={navLinkClass} title="Аудит">
+                  <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <BarChart3 className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Аудит</span>
+                </NavLink>
               </>
             )}
           </nav>

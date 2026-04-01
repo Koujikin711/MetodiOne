@@ -93,6 +93,17 @@ export interface LeadAuditEvent {
   created_at: string;
 }
 
+export interface SystemAuditEvent {
+  id: number;
+  entity_type: string;
+  entity_id: number | null;
+  action: string;
+  details: string | null;
+  user_id: number | null;
+  user_name: string | null;
+  created_at: string;
+}
+
 export type TaskStatus = "pending" | "in_progress" | "done" | "cancelled";
 
 export interface Task {
