@@ -23,6 +23,7 @@ git push -u origin main
 В корне **Dockerfile** (сборка только `backend/`) и **amvera.yaml** с `containerPort: 8000` — у Amvera по умолчанию ожидается порт 80, без этого маршрутизация к uvicorn не сработает.
 
 В панели задайте переменные из `backend/.env.example`: `DATABASE_URL` (PostgreSQL Amvera), `SECRET_KEY`, `CORS_ORIGINS` (URL вашего фронта).
+Если оставить SQLite внутри контейнера, после пересборки/деплоя данные обнулятся.
 
 ## Vercel (фронт)
 
