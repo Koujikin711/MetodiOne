@@ -385,10 +385,7 @@ async def reorder_specialists(
 
 def _ensure_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
-        # Для совместимости: если клиент прислал naive datetime,
-        # трактуем как локальное время онлайн-записи, а не как UTC.
-        tz = ZoneInfo(settings.booking_timezone)
-        return dt.replace(tzinfo=tz).astimezone(UTC)
+        return dt.replace(tzinfo=UTC)
     return dt.astimezone(UTC)
 
 
@@ -398,6 +395,15 @@ def _day_bounds_utc_for_booking_tz(date_ymd: str) -> tuple[datetime, datetime]:
     local_start = datetime.combine(day, time.min, tzinfo=tz)
     local_end = local_start + timedelta(days=1)
     return local_start.astimezone(UTC), local_end.astimezone(UTC)
+
+
+def _from_payload_to_utc(dt: datetime) -> datetime:
+    # Для совместимости: если клиент прислал naive datetime,
+    # трактуем его как локальное время онлайн-записи.
+    if dt.tzinfo is None:
+        tz = ZoneInfo(settings.booking_timezone)
+        return dt.replace(tzinfo=tz).astimezone(UTC)
+    return dt.astimezone(UTC)
 
 
 def _norm_phone(raw: str | None) -> str | None:
@@ -520,7 +526,7 @@ async def create_appointment(
     if specialist.direction_id != body.direction_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Специалист не относится к выбранному направлению")
 
-    start_at = _ensure_utc(body.start_at)
+    start_at = _from_payload_to_utc(body.start_at)
     _assert_slot_in_specialist_schedule(specialist, start_at)
     duration_min = int(specialist.slot_duration_min or direction.duration_min or 30)
     end_at = start_at + timedelta(minutes=duration_min)
@@ -627,7 +633,7 @@ async def move_appointment(
     if specialist.direction_id != appt.direction_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Специалист не относится к направлению записи")
 
-    start_at = _ensure_utc(body.start_at)
+    start_at = _from_payload_to_utc(body.start_at)
     _assert_slot_in_specialist_schedule(specialist, start_at)
     end_at = start_at + timedelta(minutes=int(direction.duration_min or 30))
 
