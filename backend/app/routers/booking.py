@@ -349,6 +349,14 @@ def _ensure_utc(dt: datetime) -> datetime:
     return dt.astimezone(UTC)
 
 
+def _day_bounds_utc_for_booking_tz(date_ymd: str) -> tuple[datetime, datetime]:
+    day = datetime.strptime(date_ymd, "%Y-%m-%d").date()
+    tz = ZoneInfo(settings.booking_timezone)
+    local_start = datetime.combine(day, time.min, tzinfo=tz)
+    local_end = local_start + timedelta(days=1)
+    return local_start.astimezone(UTC), local_end.astimezone(UTC)
+
+
 def _norm_phone(raw: str | None) -> str | None:
     if not raw:
         return None
@@ -424,11 +432,9 @@ async def list_appointments(
     )
     if date:
         try:
-            day = datetime.strptime(date, "%Y-%m-%d").date()
+            day_start, day_end = _day_bounds_utc_for_booking_tz(date)
         except ValueError:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверная дата")
-        day_start = datetime.combine(day, time.min, tzinfo=UTC)
-        day_end = day_start + timedelta(days=1)
         q = q.where(BookingAppointment.start_at >= day_start, BookingAppointment.start_at < day_end)
     if specialist_id is not None:
         q = q.where(BookingAppointment.specialist_id == specialist_id)
@@ -444,8 +450,8 @@ async def list_appointments(
                 direction_id=a.direction_id,
                 patient_name=a.patient_name,
                 patient_phone=a.patient_phone,
-                start_at=a.start_at,
-                end_at=a.end_at,
+                start_at=_ensure_utc(a.start_at),
+                end_at=_ensure_utc(a.end_at),
                 status=a.status,
                 responsible_manager_id=a.responsible_manager_id,
                 direction_name=dname,
@@ -537,8 +543,8 @@ async def create_appointment(
         direction_id=appt.direction_id,
         patient_name=appt.patient_name,
         patient_phone=appt.patient_phone,
-        start_at=appt.start_at,
-        end_at=appt.end_at,
+        start_at=_ensure_utc(appt.start_at),
+        end_at=_ensure_utc(appt.end_at),
         status=appt.status,
         responsible_manager_id=appt.responsible_manager_id,
         direction_name=dname,
@@ -601,8 +607,8 @@ async def move_appointment(
         direction_id=appt.direction_id,
         patient_name=appt.patient_name,
         patient_phone=appt.patient_phone,
-        start_at=appt.start_at,
-        end_at=appt.end_at,
+        start_at=_ensure_utc(appt.start_at),
+        end_at=_ensure_utc(appt.end_at),
         status=appt.status,
         responsible_manager_id=appt.responsible_manager_id,
         direction_name=direction.name,
@@ -640,8 +646,8 @@ async def patch_appointment_status(
         direction_id=a.direction_id,
         patient_name=a.patient_name,
         patient_phone=a.patient_phone,
-        start_at=a.start_at,
-        end_at=a.end_at,
+        start_at=_ensure_utc(a.start_at),
+        end_at=_ensure_utc(a.end_at),
         status=a.status,
         responsible_manager_id=a.responsible_manager_id,
         direction_name=direction.name if direction else None,

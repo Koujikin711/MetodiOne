@@ -83,6 +83,16 @@ export interface Lead {
   paid_extras_amount?: unknown;
 }
 
+export interface LeadAuditEvent {
+  id: number;
+  lead_id: number;
+  action: string;
+  details: string | null;
+  user_id: number | null;
+  user_name: string | null;
+  created_at: string;
+}
+
 export type TaskStatus = "pending" | "in_progress" | "done" | "cancelled";
 
 export interface Task {
