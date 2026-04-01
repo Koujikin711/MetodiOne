@@ -486,6 +486,10 @@ export function OnlineBookingPage() {
       toast.error("Оплата не может быть больше стоимости услуги");
       return;
     }
+    if (currentRole === "manager" && paidAmount > 0 && !responsibleManagerId.trim()) {
+      toast.error("Укажите ID ответственного менеджера, если есть оплата");
+      return;
+    }
     if (leadId) payload.lead_id = leadId;
     if (!leadId) {
       if (!newLeadPipelineId || !newLeadStageId) {
@@ -919,12 +923,19 @@ export function OnlineBookingPage() {
                   <th className="py-2 pr-4">Специалист</th>
                   <th className="py-2 pr-4">Стоимость</th>
                   <th className="py-2 pr-4">Оплачено</th>
+                  <th className="py-2 pr-4">Дебиторка</th>
                   <th className="py-2 pr-4">Статус</th>
                 </tr>
               </thead>
               <tbody>
                 {(journalQuery.data ?? []).map((a) => (
-                  <tr key={a.id} className="border-b border-slate-800/80">
+                  <tr
+                    key={a.id}
+                    className={[
+                      "border-b border-slate-800/80",
+                      Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? "bg-amber-500/5" : "",
+                    ].join(" ")}
+                  >
                     <td className="py-2 pr-4 whitespace-nowrap">{formatDt(a.start_at)}</td>
                     <td className="py-2 pr-4">
                       {a.patient_name}
@@ -949,6 +960,13 @@ export function OnlineBookingPage() {
                         />
                       ) : (
                         <span>{a.paid_amount ?? 0}</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-4 text-xs">
+                      {Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? (
+                        <span className="rounded bg-amber-500/20 px-2 py-0.5 text-amber-300">Долг</span>
+                      ) : (
+                        <span className="text-emerald-300">Оплачено</span>
                       )}
                     </td>
                     <td className="py-2 pr-4">
