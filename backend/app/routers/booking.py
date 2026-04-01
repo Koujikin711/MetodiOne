@@ -805,3 +805,27 @@ async def patch_appointment_payment(
         specialist_name=specialist.full_name if specialist else None,
         comment=appt.comment,
     )
+
+
+@router.delete("/appointments/{appointment_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_appointment(
+    appointment_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> Response:
+    if current_user.role != UserRole.admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор может удалять запись")
+    appt = await db.get(BookingAppointment, appointment_id)
+    if appt is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+    await db.delete(appt)
+    await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="booking_appointment",
+        entity_id=appointment_id,
+        action="appointment_deleted",
+        current_user=current_user,
+        details=f"patient={appt.patient_name}, start_at={_ensure_utc(appt.start_at).isoformat()}",
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

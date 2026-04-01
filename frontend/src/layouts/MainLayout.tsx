@@ -43,14 +43,14 @@ export function MainLayout() {
         aria-hidden
       />
 
-      <div className="relative z-10 flex min-h-screen">
-        <aside className="flex w-[4.75rem] shrink-0 flex-col border-r border-slate-700/40 bg-slate-950/55 py-6 shadow-2xl backdrop-blur-xl sm:w-[5.5rem]">
-          <div className="mb-8 flex flex-col items-center px-1">
+      <div className="relative z-10 flex min-h-screen flex-col sm:flex-row">
+        <aside className="flex w-full shrink-0 flex-row items-center border-b border-slate-700/40 bg-slate-950/55 px-2 py-2 shadow-2xl backdrop-blur-xl sm:w-[5.5rem] sm:flex-col sm:border-b-0 sm:border-r sm:px-0 sm:py-6">
+          <div className="mr-2 flex flex-col items-center px-1 sm:mb-8 sm:mr-0">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-xs font-bold tracking-tight text-white shadow-lg shadow-purple-500/30">
               C
             </div>
           </div>
-          <nav className="flex flex-1 flex-col gap-2 px-1.5">
+          <nav className="flex flex-1 flex-row gap-1 overflow-x-auto px-1 sm:flex-col sm:gap-2 sm:px-1.5">
             {isManager ? (
               <>
                 <NavLink to="/chat" className={navLinkClass} title="Чат">
@@ -119,22 +119,22 @@ export function MainLayout() {
               </>
             )}
           </nav>
-          <div className="mt-auto border-t border-slate-700/40 px-1.5 pt-4">
+          <div className="ml-2 border-l border-slate-700/40 pl-2 sm:ml-0 sm:mt-auto sm:border-l-0 sm:border-t sm:px-1.5 sm:pl-0 sm:pt-4">
             <button
               type="button"
               onClick={logout}
               title="Выход"
-              className="flex w-full flex-col items-center gap-2 rounded-2xl py-3 text-slate-500 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-300"
+              className="flex w-full flex-col items-center gap-1 rounded-2xl px-2 py-2 text-slate-500 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-300 sm:gap-2 sm:px-0 sm:py-3"
             >
               <GradientIconBox variant="pink" className="h-9 w-9 opacity-80 [&_svg]:h-4 [&_svg]:w-4">
                 <LogOut className="h-4 w-4" />
               </GradientIconBox>
-              <span className="text-[10px] font-medium">Выход</span>
+              <span className="hidden text-[10px] font-medium sm:inline">Выход</span>
             </button>
           </div>
         </aside>
 
-        <main className="relative flex-1 overflow-auto px-6 py-10 sm:px-10 lg:px-14">
+        <main className="relative flex-1 overflow-auto px-3 py-4 sm:px-10 sm:py-10 lg:px-14">
           <Outlet />
         </main>
       </div>

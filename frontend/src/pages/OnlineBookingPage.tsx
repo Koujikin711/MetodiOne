@@ -184,6 +184,21 @@ export function OnlineBookingPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deleteAppointmentMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch(`/api/booking/appointments/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      toast.success("Запись удалена");
+      void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["analytics-full"] });
+      void queryClient.invalidateQueries({ queryKey: ["analytics-detailed"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const paymentMutation = useMutation({
     mutationFn: ({ id, paid_amount }: { id: number; paid_amount: number }) =>
       apiFetch(`/api/booking/appointments/${id}/payment`, {
@@ -915,7 +930,7 @@ export function OnlineBookingPage() {
             </label>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse text-left text-sm text-slate-200">
+            <table className="w-full min-w-[1100px] border-collapse text-left text-sm text-slate-200">
               <thead>
                 <tr className="border-b border-slate-700 text-slate-400">
                   <th className="py-2 pr-4">Время</th>
@@ -925,6 +940,7 @@ export function OnlineBookingPage() {
                   <th className="py-2 pr-4">Оплачено</th>
                   <th className="py-2 pr-4">Дебиторка</th>
                   <th className="py-2 pr-4">Статус</th>
+                  {currentRole === "admin" && <th className="py-2 pr-4">Действия</th>}
                 </tr>
               </thead>
               <tbody>
@@ -984,6 +1000,20 @@ export function OnlineBookingPage() {
                         ))}
                       </select>
                     </td>
+                    {currentRole === "admin" && (
+                      <td className="py-2 pr-4">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!window.confirm("Удалить эту запись?")) return;
+                            deleteAppointmentMutation.mutate(a.id);
+                          }}
+                          className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs text-red-300 hover:bg-red-500/20"
+                        >
+                          Удалить
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
