@@ -18,3 +18,10 @@ export function RequireNotManager({ children }: { children: ReactNode }) {
   }
   return <>{children}</>;
 }
+
+export function RequireAdmin({ children }: { children: ReactNode }) {
+  if (decodeRoleFromToken(getStoredToken()) !== "admin") {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}

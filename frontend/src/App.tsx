@@ -2,7 +2,7 @@ import { Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { HomeEntry, RequireNotManager } from "@/components/RoleRoutes";
+import { HomeEntry, RequireAdmin, RequireNotManager } from "@/components/RoleRoutes";
 import { MainLayout } from "@/layouts/MainLayout";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { AuditPage } from "@/pages/AuditPage";
@@ -36,9 +36,9 @@ export default function App() {
             <Route
               path="/analytics"
               element={
-                <RequireNotManager>
+                <RequireAdmin>
                   <AnalyticsPage />
-                </RequireNotManager>
+                </RequireAdmin>
               }
             />
             <Route

@@ -254,6 +254,8 @@ class BookingAppointment(Base):
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(32), default="booked")
+    service_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     responsible_manager_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
