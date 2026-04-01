@@ -10,13 +10,42 @@ from sqlalchemy.orm import selectinload
 
 from app.core.deps import CurrentUser
 from app.database import get_db
-from app.models import Deal, Lead, PipelineStage, Task, TaskStatus, User, UserPipelineAssignment, UserRole
+from app.models import Deal, Lead, LeadAuditEvent, PipelineStage, Task, TaskStatus, User, UserPipelineAssignment, UserRole
 from app.schemas.lead import LeadCreate, LeadRead, LeadStatusPatchResponse, LeadStatusUpdate
 from app.services.automation import process_lead_automation
 from app.schemas.deal import DealRead, ExtraServiceAddBody, ProtocolConfirmBody
 from app.schemas.deal import ProtocolFinishBody
 
 router = APIRouter(prefix="/leads", tags=["leads"])
+
+
+class LeadAuditRead(BaseModel):
+    id: int
+    lead_id: int
+    action: str
+    details: str | None = None
+    user_id: int | None = None
+    user_name: str | None = None
+    created_at: datetime
+
+
+async def _audit_lead(
+    db: AsyncSession,
+    *,
+    lead_id: int,
+    action: str,
+    current_user: User | None,
+    details: str | None = None,
+) -> None:
+    db.add(
+        LeadAuditEvent(
+            lead_id=lead_id,
+            user_id=(current_user.id if current_user else None),
+            action=action,
+            details=details,
+        )
+    )
+    await db.flush()
 
 
 async def _stage_id_by_name(db: AsyncSession, name: str, pipeline_id: int | None = None) -> int | None:
@@ -101,6 +130,13 @@ async def create_lead(
     )
     db.add(lead)
     await db.flush()
+    await _audit_lead(
+        db,
+        lead_id=lead.id,
+        action="lead_created",
+        current_user=current_user,
+        details=f"Создан лид на стадии id={lead.status_id}",
+    )
     await db.refresh(lead)
     await db.refresh(lead, ["stage"])
     return _lead_to_read(lead)
@@ -211,6 +247,13 @@ async def get_lead(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")
         if lead.manager_id is not None and lead.manager_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is assigned to another manager")
+    await _audit_lead(
+        db,
+        lead_id=lead.id,
+        action="card_opened",
+        current_user=current_user,
+        details="Открыта карточка лида",
+    )
     deals_info_rows = await db.execute(
         select(
             func.min(case((Deal.is_protocol.is_(True), Deal.id))).label("protocol_deal_id"),
@@ -320,6 +363,13 @@ async def update_lead_status(
 
     lead.status_id = body.status_id
     await db.flush()
+    await _audit_lead(
+        db,
+        lead_id=lead.id,
+        action="status_changed",
+        current_user=current_user,
+        details=f"Смена стадии: {from_stage.name} -> {stage.name}",
+    )
     await db.refresh(lead, ["stage"])
     read = _lead_to_read(lead)
     automation_task_created = await process_lead_automation(db, lead_id, body.status_id)
@@ -367,6 +417,13 @@ async def lead_arrival(
     lead.status_id = to_stage_id
     lead.refusal_reason = None
     await db.flush()
+    await _audit_lead(
+        db,
+        lead_id=lead.id,
+        action="arrival_marked",
+        current_user=current_user,
+        details="Отмечена явка клиента",
+    )
     await db.refresh(lead, ["stage"])
 
     await _notify_by_roles(
@@ -428,6 +485,13 @@ async def lead_no_show(
         lead.refusal_reason = body.reason.strip()
 
     await db.flush()
+    await _audit_lead(
+        db,
+        lead_id=lead.id,
+        action="no_show_processed",
+        current_user=current_user,
+        details=f"Неявка обработана: action={body.action}, reason={(body.reason or '').strip() or '-'}",
+    )
     await db.refresh(lead, ["stage"])
     return _lead_to_read(lead)
 
@@ -462,6 +526,13 @@ async def lead_service_done(
 
     lead.status_id = to_stage_id
     await db.flush()
+    await _audit_lead(
+        db,
+        lead_id=lead.id,
+        action="service_done",
+        current_user=current_user,
+        details="Услуга оказана, перевод на стадию доп. услуг",
+    )
     await db.refresh(lead, ["stage"])
 
     await _notify_by_roles(
@@ -506,6 +577,13 @@ async def lead_service_reject(
     lead.status_id = to_stage_id
     lead.refusal_reason = body.reason.strip()
     await db.flush()
+    await _audit_lead(
+        db,
+        lead_id=lead.id,
+        action="service_rejected",
+        current_user=current_user,
+        details=f"Отказ в услуге: {body.reason.strip()}",
+    )
     await db.refresh(lead, ["stage"])
     return _lead_to_read(lead)
 
@@ -555,6 +633,13 @@ async def add_extra_service_to_cart(
     )
     db.add(deal)
     await db.flush()
+    await _audit_lead(
+        db,
+        lead_id=lead.id,
+        action="extra_service_added",
+        current_user=current_user,
+        details=f"Добавлена доп. услуга: {body.type.strip()}, сумма={body.amount}, оплачено={body.paid_amount}",
+    )
     await db.refresh(deal)
 
     if is_protocol:
@@ -605,6 +690,13 @@ async def protocol_finish(
     lead.status_id = to_stage_id
     lead.refusal_reason = None
     await db.flush()
+    await _audit_lead(
+        db,
+        lead_id=lead.id,
+        action="protocol_finished",
+        current_user=current_user,
+        details="Протокол завершен, сделка закрыта успешно",
+    )
     await db.refresh(lead, ["stage"])
 
     await _notify_by_roles(
@@ -615,3 +707,43 @@ async def protocol_finish(
     )
 
     return _lead_to_read(lead)
+
+
+@router.get("/{lead_id}/audit", response_model=list[LeadAuditRead])
+async def list_lead_audit(
+    lead_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> list[LeadAuditRead]:
+    lead = await db.get(Lead, lead_id)
+    if lead is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await db.refresh(lead, ["stage"])
+    if current_user.role == UserRole.manager:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if (lead.stage.pipeline_id if lead.stage else None) not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")
+        if lead.manager_id is not None and lead.manager_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is assigned to another manager")
+
+    rows = (
+        await db.execute(
+            select(LeadAuditEvent, User)
+            .outerjoin(User, User.id == LeadAuditEvent.user_id)
+            .where(LeadAuditEvent.lead_id == lead_id)
+            .order_by(LeadAuditEvent.created_at.desc(), LeadAuditEvent.id.desc())
+            .limit(200),
+        )
+    ).all()
+    return [
+        LeadAuditRead(
+            id=evt.id,
+            lead_id=evt.lead_id,
+            action=evt.action,
+            details=evt.details,
+            user_id=evt.user_id,
+            user_name=((usr.full_name or "").strip() or usr.email) if usr else None,
+            created_at=evt.created_at,
+        )
+        for evt, usr in rows
+    ]

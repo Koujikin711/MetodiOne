@@ -14,6 +14,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
@@ -86,6 +87,7 @@ function LeadCard({
   currentRole: UserRole | null;
   onRefresh: () => void;
 }) {
+  const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: leadDraggableId(lead.id),
     data: { lead },
@@ -264,6 +266,14 @@ function LeadCard({
         isDragging ? "opacity-50" : "hover:border-slate-500/60 hover:shadow-xl",
       ].join(" ")}
     >
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={() => navigate(`/leads/${lead.id}`)}
+        className="mb-2 rounded-lg border border-slate-700 bg-slate-900/40 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-800"
+      >
+        Открыть карточку
+      </button>
       <LeadCardBody lead={lead} />
 
       {currentRole === "admin" && stage === "Запись" && (

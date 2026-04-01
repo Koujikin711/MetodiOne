@@ -115,6 +115,21 @@ class Lead(Base):
     booking_appointments: Mapped[list["BookingAppointment"]] = relationship(
         back_populates="lead",
     )
+    audit_events: Mapped[list["LeadAuditEvent"]] = relationship(back_populates="lead")
+
+
+class LeadAuditEvent(Base):
+    __tablename__ = "lead_audit_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    action: Mapped[str] = mapped_column(String(64))
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+    lead: Mapped["Lead"] = relationship(back_populates="audit_events")
+    user: Mapped["User | None"] = relationship(foreign_keys=[user_id])
 
 
 class LeadSource(Base):

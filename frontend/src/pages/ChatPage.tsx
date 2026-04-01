@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { apiFetch, resolveMediaUrl } from "@/lib/api";
@@ -59,6 +60,7 @@ function MessageBody({ m }: { m: ChatMessage }) {
 
 export function ChatPage() {
   const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const threadsQuery = useQuery({
     queryKey: ["chat-threads"],
@@ -66,6 +68,15 @@ export function ChatPage() {
     refetchInterval: 4000,
   });
   const [threadId, setThreadId] = useState<number | null>(null);
+  const leadFromQuery = Number(searchParams.get("lead_id"));
+
+  useEffect(() => {
+    if (!Number.isFinite(leadFromQuery) || leadFromQuery <= 0) return;
+    if (threadId != null) return;
+    const match = (threadsQuery.data ?? []).find((t) => t.lead_id === leadFromQuery);
+    if (match) setThreadId(match.id);
+  }, [leadFromQuery, threadId, threadsQuery.data]);
+
   const [text, setText] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
