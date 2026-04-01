@@ -18,6 +18,14 @@ import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
 import { GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "@/components/icons";
+import {
+  BOOKING_TIME_ZONE,
+  formatTimeRangeInBookingTz,
+  utcMsToHourMinuteInBookingTz,
+  weekdayMon0InBookingTz,
+  ymdInBookingTz,
+  zonedWallTimeToUtcMs,
+} from "@/lib/bookingTz";
 import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const GRID_START_HOUR = 7;
@@ -57,12 +65,6 @@ const hatchBg = `repeating-linear-gradient(
   rgba(148, 163, 184, 0.12) 10px
 )`;
 
-function weekdayMon0FromYmd(dateYmd: string): number {
-  const [y, m, d] = dateYmd.split("-").map(Number);
-  const dt = new Date(y, m - 1, d, 12, 0, 0, 0);
-  return (dt.getDay() + 6) % 7;
-}
-
 function specWeekdays(spec: BookingSpecialist): number[] {
   const w = spec.work_weekdays;
   if (w?.length) return w;
@@ -77,7 +79,7 @@ function specWorkBounds(spec: BookingSpecialist) {
 }
 
 function isSlotBookable(dateYmd: string, spec: BookingSpecialist, minuteOfDay: number): boolean {
-  const wd = weekdayMon0FromYmd(dateYmd);
+  const wd = weekdayMon0InBookingTz(dateYmd);
   if (!specWeekdays(spec).includes(wd)) return false;
   const { start, end } = specWorkBounds(spec);
   const h = Math.floor(minuteOfDay / 60);
@@ -88,7 +90,7 @@ function hatchForSpec(
   dateYmd: string,
   spec: BookingSpecialist,
 ): { fullDay: true } | { morningPct: number; eveningPct: number; eveningTopPct: number } {
-  const wd = weekdayMon0FromYmd(dateYmd);
+  const wd = weekdayMon0InBookingTz(dateYmd);
   if (!specWeekdays(spec).includes(wd)) return { fullDay: true };
   const { start: ws, end: we } = specWorkBounds(spec);
   const total = GRID_END_HOUR - GRID_START_HOUR;
@@ -99,10 +101,11 @@ function hatchForSpec(
   };
 }
 
-function dayWindowBounds(dateYmd: string): { start: Date; end: Date } {
-  const start = new Date(`${dateYmd}T${String(GRID_START_HOUR).padStart(2, "0")}:00:00`);
-  const end = new Date(`${dateYmd}T${String(GRID_END_HOUR).padStart(2, "0")}:00:00`);
-  return { start, end };
+function dayWindowBounds(dateYmd: string): { startMs: number; endMs: number } {
+  return {
+    startMs: zonedWallTimeToUtcMs(dateYmd, GRID_START_HOUR, 0),
+    endMs: zonedWallTimeToUtcMs(dateYmd, GRID_END_HOUR, 0),
+  };
 }
 
 function layoutBlock(
@@ -110,11 +113,9 @@ function layoutBlock(
   isoStart: string,
   isoEnd: string,
 ): { topPct: number; heightPct: number; visible: boolean } {
-  const { start: winStart, end: winEnd } = dayWindowBounds(dateYmd);
+  const { startMs: ws, endMs: we } = dayWindowBounds(dateYmd);
   const t0 = new Date(isoStart).getTime();
   const t1 = new Date(isoEnd).getTime();
-  const ws = winStart.getTime();
-  const we = winEnd.getTime();
   const dur = we - ws;
   if (dur <= 0) return { topPct: 0, heightPct: 0, visible: false };
   const top = ((t0 - ws) / dur) * 100;
@@ -129,16 +130,10 @@ function layoutBlock(
   };
 }
 
-function formatTimeRange(isoStart: string, isoEnd: string) {
-  const a = new Date(isoStart);
-  const b = new Date(isoEnd);
-  const fmt = (d: Date) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
-  return `${fmt(a)} – ${fmt(b)}`;
-}
-
-function nowLineTopPct(dateYmd: string, now: Date): number | null {
-  if (now.toISOString().slice(0, 10) !== dateYmd) return null;
-  const mins = now.getHours() * 60 + now.getMinutes();
+function nowLineTopPct(dateYmd: string, nowMs: number): number | null {
+  if (ymdInBookingTz(nowMs) !== dateYmd) return null;
+  const { h, min } = utcMsToHourMinuteInBookingTz(nowMs);
+  const mins = h * 60 + min;
   const from = GRID_START_HOUR * 60;
   const to = GRID_END_HOUR * 60;
   if (mins < from || mins > to) return null;
@@ -424,7 +419,7 @@ function SortableSpecialistColumn({
                 )}
               </div>
               <div className="mt-1 text-[9px] opacity-80">
-                {formatTimeRange(a.start_at, a.end_at)}
+                {formatTimeRangeInBookingTz(a.start_at, a.end_at)}
               </div>
               <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-400">
                 <span className="rounded bg-slate-900/50 px-1 py-0.5">CRM</span>
@@ -521,7 +516,7 @@ export function BookingCalendarGrid({
     onSlotClick,
     onMoveAppointment,
     dragEnabled,
-    nowTopPct: nowLineTopPct(dateYmd, new Date(nowTick)),
+    nowTopPct: nowLineTopPct(dateYmd, nowTick),
   };
 
   if (specialists.length === 0) {
@@ -547,11 +542,15 @@ export function BookingCalendarGrid({
     <SortableSpecialistColumn key={spec.id} spec={spec} {...colPropsBase} />
   ));
 
-  const nowTopPct = nowLineTopPct(dateYmd, new Date(nowTick));
+  const nowTopPct = nowLineTopPct(dateYmd, nowTick);
   const nowTopPx = nowTopPct != null ? SPEC_HEADER_PX + (nowTopPct / 100) * gridHeightPx : null;
   const nowLabel =
     nowTopPct != null
-      ? new Date(nowTick).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+      ? new Date(nowTick).toLocaleTimeString("ru-RU", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: BOOKING_TIME_ZONE,
+        })
       : "";
 
   return (

@@ -7,6 +7,7 @@ import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { SpecialistModal } from "@/components/SpecialistModal";
 import { apiFetch } from "@/lib/api";
+import { BOOKING_TIME_ZONE, datetimeLocalBookingToIsoUtc, ymdInBookingTz } from "@/lib/bookingTz";
 import type { BookingAppointment, BookingDirection, BookingSpecialist, LeadSource, Pipeline, PipelineStage } from "@/lib/types";
 
 type Tab = "online" | "dicts" | "journal";
@@ -25,6 +26,7 @@ function formatDt(iso: string) {
       month: "short",
       hour: "2-digit",
       minute: "2-digit",
+      timeZone: BOOKING_TIME_ZONE,
     });
   } catch {
     return iso;
@@ -35,8 +37,8 @@ export function OnlineBookingPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("online");
-  const [filterDate, setFilterDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [journalDate, setJournalDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [filterDate, setFilterDate] = useState(() => ymdInBookingTz(Date.now()));
+  const [journalDate, setJournalDate] = useState(() => ymdInBookingTz(Date.now()));
   const formPanelRef = useRef<HTMLDivElement>(null);
 
   const [leadId, setLeadId] = useState<number | null>(null);
@@ -416,11 +418,18 @@ export function OnlineBookingPage() {
   function handleMoveAppointment(payload: { appointmentId: number; specialistId: number; minuteOfDay: number }) {
     const hh = Math.floor(payload.minuteOfDay / 60);
     const mm = payload.minuteOfDay % 60;
-    const localIso = `${filterDate}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
+    const localIso = `${filterDate}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    let startIso: string;
+    try {
+      startIso = datetimeLocalBookingToIsoUtc(localIso);
+    } catch {
+      toast.error("Неверная дата переноса");
+      return;
+    }
     moveAppointmentMutation.mutate({
       appointmentId: payload.appointmentId,
       specialist_id: payload.specialistId,
-      start_at: new Date(localIso).toISOString(),
+      start_at: startIso,
     });
   }
 
@@ -434,8 +443,10 @@ export function OnlineBookingPage() {
       toast.error("Для этого направления нет специалистов — добавьте в «Справочники».");
       return;
     }
-    const start = new Date(startAt);
-    if (Number.isNaN(start.getTime())) {
+    let startIso: string;
+    try {
+      startIso = datetimeLocalBookingToIsoUtc(startAt);
+    } catch {
       toast.error("Неверная дата.");
       return;
     }
@@ -444,7 +455,7 @@ export function OnlineBookingPage() {
       patient_phone: patientPhone.trim(),
       direction_id: directionId,
       specialist_id: specialistId,
-      start_at: start.toISOString(),
+      start_at: startIso,
       comment: comment.trim() || null,
     };
     if (leadId) payload.lead_id = leadId;
@@ -644,6 +655,9 @@ export function OnlineBookingPage() {
                     onChange={(e) => setStartAt(e.target.value)}
                     className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
                   />
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Время в часовом поясе записи: {BOOKING_TIME_ZONE} (как на сервере).
+                  </p>
                 </label>
                 <label className="block text-sm text-slate-300">
                   ID ответственного менеджера (необязательно)
