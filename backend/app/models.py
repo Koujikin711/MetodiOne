@@ -132,6 +132,20 @@ class LeadAuditEvent(Base):
     user: Mapped["User | None"] = relationship(foreign_keys=[user_id])
 
 
+class SystemAuditEvent(Base):
+    __tablename__ = "system_audit_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    entity_type: Mapped[str] = mapped_column(String(64), index=True)
+    entity_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(64))
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, index=True)
+
+    user: Mapped["User | None"] = relationship(foreign_keys=[user_id])
+
+
 class LeadSource(Base):
     __tablename__ = "lead_sources"
 

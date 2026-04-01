@@ -8,6 +8,7 @@ from app.core.deps import CurrentUser
 from app.database import get_db
 from app.models import Pipeline, PipelineStage, UserRole
 from app.schemas.stage import PipelineStageCreate, PipelineStageRead
+from app.services.audit import write_audit_event
 
 router = APIRouter(prefix="/stages", tags=["stages"])
 
@@ -55,5 +56,13 @@ async def create_stage(
     )
     db.add(st)
     await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="stage",
+        entity_id=st.id,
+        action="stage_created",
+        current_user=current_user,
+        details=f"name={st.name}, pipeline_id={st.pipeline_id}",
+    )
     await db.refresh(st)
     return PipelineStageRead.model_validate(st)

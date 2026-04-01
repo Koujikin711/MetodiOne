@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { HomeEntry, RequireNotManager } from "@/components/RoleRoutes";
 import { MainLayout } from "@/layouts/MainLayout";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
+import { AuditPage } from "@/pages/AuditPage";
 import { ChatPage } from "@/pages/ChatPage";
 import { EmployeesPage } from "@/pages/EmployeesPage";
 import { LeadDetailPage } from "@/pages/LeadDetailPage";
@@ -49,6 +50,7 @@ export default function App() {
               }
             />
             <Route path="/chat" element={<ChatPage />} />
+            <Route path="/audit" element={<AuditPage />} />
           </Route>
         </Route>
       </Routes>

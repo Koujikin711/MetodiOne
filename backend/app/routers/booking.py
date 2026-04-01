@@ -35,6 +35,7 @@ from app.schemas.booking import (
 )
 from app.schemas.lead import LeadRead
 from app.services.automation import process_lead_automation
+from app.services.audit import write_audit_event
 from app.services.lead_assignment import assign_manager_for_new_lead
 
 router = APIRouter(prefix="/booking", tags=["booking"])
@@ -209,13 +210,21 @@ async def list_directions(
 async def create_direction(
     body: BookingDirectionCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> BookingDirection:
     row = BookingDirection(name=body.name.strip(), duration_min=body.duration_min, is_active=True)
     db.add(row)
     try:
         await db.flush()
         await db.refresh(row)
+        await write_audit_event(
+            db,
+            entity_type="booking_direction",
+            entity_id=row.id,
+            action="booking_direction_created",
+            current_user=current_user,
+            details=f"name={row.name}, duration_min={row.duration_min}",
+        )
     except IntegrityError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Направление с таким именем уже есть")
     return row
@@ -239,7 +248,7 @@ async def list_specialists(
 async def create_specialist(
     body: BookingSpecialistCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> BookingSpecialistRead:
     d = await db.get(BookingDirection, body.direction_id)
     if d is None:
@@ -260,6 +269,14 @@ async def create_specialist(
     )
     db.add(s)
     await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="specialist",
+        entity_id=s.id,
+        action="specialist_created",
+        current_user=current_user,
+        details=f"full_name={s.full_name}, direction_id={s.direction_id}",
+    )
     await db.refresh(s)
     return _specialist_read(s, d.name)
 
@@ -269,7 +286,7 @@ async def patch_specialist(
     specialist_id: int,
     body: BookingSpecialistUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> BookingSpecialistRead:
     s = await db.get(BookingSpecialist, specialist_id)
     if s is None:
@@ -295,6 +312,14 @@ async def patch_specialist(
     if "work_weekdays" in patch and body.work_weekdays is not None:
         s.work_weekdays = list(body.work_weekdays)
     await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="specialist",
+        entity_id=s.id,
+        action="specialist_updated",
+        current_user=current_user,
+        details=f"full_name={s.full_name}, direction_id={s.direction_id}",
+    )
     await db.refresh(s)
     if s.work_start_hour >= s.work_end_hour:
         raise HTTPException(
@@ -309,13 +334,21 @@ async def patch_specialist(
 async def delete_specialist(
     specialist_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> Response:
     s = await db.get(BookingSpecialist, specialist_id)
     if s is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
     s.is_active = False
     await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="specialist",
+        entity_id=s.id,
+        action="specialist_deactivated",
+        current_user=current_user,
+        details=f"full_name={s.full_name}",
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -323,7 +356,7 @@ async def delete_specialist(
 async def reorder_specialists(
     body: SpecialistReorderBody,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> Response:
     active_result = await db.execute(
         select(BookingSpecialist.id).where(BookingSpecialist.is_active.is_(True)),
@@ -340,12 +373,22 @@ async def reorder_specialists(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректный id специалиста")
         s.sort_order = idx
     await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="specialist",
+        action="specialists_reordered",
+        current_user=current_user,
+        details=f"ordered_ids={body.ordered_ids}",
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 def _ensure_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=UTC)
+        # Для совместимости: если клиент прислал naive datetime,
+        # трактуем как локальное время онлайн-записи, а не как UTC.
+        tz = ZoneInfo(settings.booking_timezone)
+        return dt.replace(tzinfo=tz).astimezone(UTC)
     return dt.astimezone(UTC)
 
 
@@ -528,6 +571,14 @@ async def create_appointment(
     )
     db.add(appt)
     await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="booking_appointment",
+        entity_id=appt.id,
+        action="appointment_created",
+        current_user=current_user,
+        details=f"lead_id={appt.lead_id}, specialist_id={appt.specialist_id}, start_at={appt.start_at.isoformat()}",
+    )
 
     if lead_id is not None:
         await _sync_lead_to_stage_name(db, lead_id, settings.booking_stage_after_book)
@@ -558,7 +609,7 @@ async def move_appointment(
     appointment_id: int,
     body: BookingAppointmentMove,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> BookingAppointmentRead:
     appt = await db.get(BookingAppointment, appointment_id)
     if appt is None:
@@ -599,6 +650,14 @@ async def move_appointment(
     appt.end_at = end_at
     appt.updated_at = datetime.now(UTC)
     await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="booking_appointment",
+        entity_id=appt.id,
+        action="appointment_moved",
+        current_user=current_user,
+        details=f"specialist_id={appt.specialist_id}, start_at={appt.start_at.isoformat()}",
+    )
 
     return BookingAppointmentRead(
         id=appt.id,
@@ -622,7 +681,7 @@ async def patch_appointment_status(
     appointment_id: int,
     body: BookingAppointmentStatusUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> BookingAppointmentRead:
     a = await db.get(BookingAppointment, appointment_id)
     if a is None:
@@ -630,6 +689,14 @@ async def patch_appointment_status(
 
     a.status = body.status
     a.updated_at = datetime.now(UTC)
+    await write_audit_event(
+        db,
+        entity_type="booking_appointment",
+        entity_id=a.id,
+        action="appointment_status_updated",
+        current_user=current_user,
+        details=f"status={a.status}",
+    )
 
     if a.lead_id is not None:
         if body.status == "completed":

@@ -12,6 +12,7 @@ from app.models import BookingDirection, BookingSpecialist
 from app.routers.booking import _specialist_read
 from app.schemas.booking import BookingSpecialistRead
 from app.schemas.specialist_users import SpecialistUserCreate, SpecialistUserUpdate
+from app.services.audit import write_audit_event
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 async def create_specialist_user(
     body: SpecialistUserCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> BookingSpecialistRead:
     d = await db.get(BookingDirection, body.direction_id)
     if d is None:
@@ -42,6 +43,14 @@ async def create_specialist_user(
     )
     db.add(s)
     await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="specialist",
+        entity_id=s.id,
+        action="specialist_created",
+        current_user=current_user,
+        details=f"full_name={s.full_name}, direction_id={s.direction_id}",
+    )
     await db.refresh(s)
     return _specialist_read(s, d.name)
 
@@ -51,7 +60,7 @@ async def patch_specialist_user(
     user_id: int,
     body: SpecialistUserUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> BookingSpecialistRead:
     s = await db.get(BookingSpecialist, user_id)
     if s is None:
@@ -82,6 +91,14 @@ async def patch_specialist_user(
         s.work_weekdays = list(body.work_weekdays)
 
     await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="specialist",
+        entity_id=s.id,
+        action="specialist_updated",
+        current_user=current_user,
+        details=f"full_name={s.full_name}, direction_id={s.direction_id}",
+    )
     await db.refresh(s)
     if s.work_start_hour >= s.work_end_hour:
         raise HTTPException(
@@ -96,11 +113,19 @@ async def patch_specialist_user(
 async def delete_specialist_user(
     user_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
 ) -> Response:
     s = await db.get(BookingSpecialist, user_id)
     if s is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
     s.is_active = False
     await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="specialist",
+        entity_id=s.id,
+        action="specialist_deactivated",
+        current_user=current_user,
+        details=f"full_name={s.full_name}",
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
