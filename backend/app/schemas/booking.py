@@ -107,6 +107,8 @@ class BookingAppointmentRead(BaseModel):
     start_at: datetime
     end_at: datetime
     status: str
+    service_amount: float = 0
+    paid_amount: float = 0
     responsible_manager_id: int | None
     direction_name: str | None = None
     specialist_name: str | None = None
@@ -124,8 +126,16 @@ class BookingAppointmentCreate(BaseModel):
     direction_id: int = Field(..., ge=1)
     specialist_id: int = Field(..., ge=1)
     start_at: datetime
+    service_amount: float = Field(..., ge=0)
+    paid_amount: float = Field(..., ge=0)
     responsible_manager_id: int | None = None
     comment: str | None = Field(None, max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_money(self) -> "BookingAppointmentCreate":
+        if self.paid_amount > self.service_amount:
+            raise ValueError("Оплаченная сумма не может быть больше стоимости услуги")
+        return self
 
 
 class BookingAppointmentStatusUpdate(BaseModel):
@@ -135,3 +145,7 @@ class BookingAppointmentStatusUpdate(BaseModel):
 class BookingAppointmentMove(BaseModel):
     specialist_id: int = Field(..., ge=1)
     start_at: datetime
+
+
+class BookingAppointmentPaymentUpdate(BaseModel):
+    paid_amount: float = Field(..., ge=0)

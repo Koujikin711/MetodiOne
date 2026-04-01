@@ -6,7 +6,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { SpecialistModal } from "@/components/SpecialistModal";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getStoredToken } from "@/lib/api";
+import { decodeRoleFromToken } from "@/lib/auth";
 import { BOOKING_TIME_ZONE, datetimeLocalBookingToIsoUtc, ymdInBookingTz } from "@/lib/bookingTz";
 import type { BookingAppointment, BookingDirection, BookingSpecialist, LeadSource, Pipeline, PipelineStage } from "@/lib/types";
 
@@ -49,8 +50,11 @@ export function OnlineBookingPage() {
   const [directionId, setDirectionId] = useState(0);
   const [specialistId, setSpecialistId] = useState(0);
   const [startAt, setStartAt] = useState("");
+  const [serviceAmount, setServiceAmount] = useState<number>(0);
+  const [paidAmount, setPaidAmount] = useState<number>(0);
   const [responsibleManagerId, setResponsibleManagerId] = useState("");
   const [comment, setComment] = useState("");
+  const currentRole = decodeRoleFromToken(getStoredToken());
 
   const [dirName, setDirName] = useState("");
   const [dirDuration, setDirDuration] = useState(30);
@@ -134,6 +138,8 @@ export function OnlineBookingPage() {
       setPatientName("");
       setPatientPhone("");
       setComment("");
+      setServiceAmount(0);
+      setPaidAmount(0);
       setLeadId(null);
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
@@ -174,6 +180,22 @@ export function OnlineBookingPage() {
       toast.success("Запись перенесена");
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const paymentMutation = useMutation({
+    mutationFn: ({ id, paid_amount }: { id: number; paid_amount: number }) =>
+      apiFetch(`/api/booking/appointments/${id}/payment`, {
+        method: "PATCH",
+        body: JSON.stringify({ paid_amount }),
+      }),
+    onSuccess: () => {
+      toast.success("Оплата обновлена");
+      void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
+      void queryClient.invalidateQueries({ queryKey: ["analytics-full"] });
+      void queryClient.invalidateQueries({ queryKey: ["analytics-detailed"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -456,8 +478,14 @@ export function OnlineBookingPage() {
       direction_id: directionId,
       specialist_id: specialistId,
       start_at: startIso,
+      service_amount: serviceAmount,
+      paid_amount: paidAmount,
       comment: comment.trim() || null,
     };
+    if (paidAmount > serviceAmount) {
+      toast.error("Оплата не может быть больше стоимости услуги");
+      return;
+    }
     if (leadId) payload.lead_id = leadId;
     if (!leadId) {
       if (!newLeadPipelineId || !newLeadStageId) {
@@ -660,6 +688,30 @@ export function OnlineBookingPage() {
                   </p>
                 </label>
                 <label className="block text-sm text-slate-300">
+                  Стоимость услуги
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    required
+                    value={serviceAmount}
+                    onChange={(e) => setServiceAmount(Number(e.target.value))}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  />
+                </label>
+                <label className="block text-sm text-slate-300">
+                  Оплатил клиент
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    required
+                    value={paidAmount}
+                    onChange={(e) => setPaidAmount(Number(e.target.value))}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  />
+                </label>
+                <label className="block text-sm text-slate-300">
                   ID ответственного менеджера (необязательно)
                   <input
                     type="number"
@@ -859,12 +911,14 @@ export function OnlineBookingPage() {
             </label>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-left text-sm text-slate-200">
+            <table className="w-full min-w-[980px] border-collapse text-left text-sm text-slate-200">
               <thead>
                 <tr className="border-b border-slate-700 text-slate-400">
                   <th className="py-2 pr-4">Время</th>
                   <th className="py-2 pr-4">Пациент</th>
                   <th className="py-2 pr-4">Специалист</th>
+                  <th className="py-2 pr-4">Стоимость</th>
+                  <th className="py-2 pr-4">Оплачено</th>
                   <th className="py-2 pr-4">Статус</th>
                 </tr>
               </thead>
@@ -877,6 +931,26 @@ export function OnlineBookingPage() {
                       <span className="block text-xs text-slate-500">{a.patient_phone}</span>
                     </td>
                     <td className="py-2 pr-4 text-slate-400">{a.specialist_name}</td>
+                    <td className="py-2 pr-4">{a.service_amount ?? 0}</td>
+                    <td className="py-2 pr-4">
+                      {currentRole === "admin" ? (
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          defaultValue={a.paid_amount ?? 0}
+                          onBlur={(e) => {
+                            const next = Number(e.target.value);
+                            if (!Number.isFinite(next)) return;
+                            if (next === Number(a.paid_amount ?? 0)) return;
+                            paymentMutation.mutate({ id: a.id, paid_amount: next });
+                          }}
+                          className="w-28 rounded-lg border border-slate-600/50 bg-slate-900/80 px-2 py-1 text-white"
+                        />
+                      ) : (
+                        <span>{a.paid_amount ?? 0}</span>
+                      )}
+                    </td>
                     <td className="py-2 pr-4">
                       <select
                         value={a.status}

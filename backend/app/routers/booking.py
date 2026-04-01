@@ -20,10 +20,12 @@ from app.models import (
     Lead,
     Pipeline,
     PipelineStage,
+    UserRole,
 )
 from app.schemas.booking import (
     BookingAppointmentCreate,
     BookingAppointmentMove,
+    BookingAppointmentPaymentUpdate,
     BookingAppointmentRead,
     BookingAppointmentStatusUpdate,
     BookingDirectionCreate,
@@ -502,6 +504,8 @@ async def list_appointments(
                 start_at=_ensure_utc(a.start_at),
                 end_at=_ensure_utc(a.end_at),
                 status=a.status,
+                service_amount=float(a.service_amount or 0),
+                paid_amount=float(a.paid_amount or 0),
                 responsible_manager_id=a.responsible_manager_id,
                 direction_name=dname,
                 specialist_name=sname,
@@ -569,6 +573,8 @@ async def create_appointment(
         start_at=start_at,
         end_at=end_at,
         status="booked",
+        service_amount=body.service_amount,
+        paid_amount=body.paid_amount,
         responsible_manager_id=body.responsible_manager_id,
         created_by_user_id=current_user.id,
         comment=(body.comment or "").strip() or None,
@@ -603,6 +609,8 @@ async def create_appointment(
         start_at=_ensure_utc(appt.start_at),
         end_at=_ensure_utc(appt.end_at),
         status=appt.status,
+        service_amount=float(appt.service_amount or 0),
+        paid_amount=float(appt.paid_amount or 0),
         responsible_manager_id=appt.responsible_manager_id,
         direction_name=dname,
         specialist_name=sname,
@@ -675,6 +683,8 @@ async def move_appointment(
         start_at=_ensure_utc(appt.start_at),
         end_at=_ensure_utc(appt.end_at),
         status=appt.status,
+        service_amount=float(appt.service_amount or 0),
+        paid_amount=float(appt.paid_amount or 0),
         responsible_manager_id=appt.responsible_manager_id,
         direction_name=direction.name,
         specialist_name=specialist.full_name,
@@ -722,8 +732,67 @@ async def patch_appointment_status(
         start_at=_ensure_utc(a.start_at),
         end_at=_ensure_utc(a.end_at),
         status=a.status,
+        service_amount=float(a.service_amount or 0),
+        paid_amount=float(a.paid_amount or 0),
         responsible_manager_id=a.responsible_manager_id,
         direction_name=direction.name if direction else None,
         specialist_name=specialist.full_name if specialist else None,
         comment=a.comment,
+    )
+
+
+@router.patch("/appointments/{appointment_id}/payment", response_model=BookingAppointmentRead)
+async def patch_appointment_payment(
+    appointment_id: int,
+    body: BookingAppointmentPaymentUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> BookingAppointmentRead:
+    if current_user.role != UserRole.admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор может менять оплату")
+    appt = await db.get(BookingAppointment, appointment_id)
+    if appt is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+    if body.paid_amount > float(appt.service_amount or 0):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Оплата не может быть больше стоимости услуги")
+
+    tz = ZoneInfo(settings.booking_timezone)
+    appt_day = _ensure_utc(appt.start_at).astimezone(tz).date()
+    now_day = datetime.now(UTC).astimezone(tz).date()
+    if appt_day != now_day:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Менять оплату можно только в день прихода клиента",
+        )
+
+    appt.paid_amount = body.paid_amount
+    appt.updated_at = datetime.now(UTC)
+    await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="booking_appointment",
+        entity_id=appt.id,
+        action="appointment_payment_updated",
+        current_user=current_user,
+        details=f"paid_amount={body.paid_amount}",
+    )
+
+    direction = await db.get(BookingDirection, appt.direction_id)
+    specialist = await db.get(BookingSpecialist, appt.specialist_id)
+    return BookingAppointmentRead(
+        id=appt.id,
+        lead_id=appt.lead_id,
+        specialist_id=appt.specialist_id,
+        direction_id=appt.direction_id,
+        patient_name=appt.patient_name,
+        patient_phone=appt.patient_phone,
+        start_at=_ensure_utc(appt.start_at),
+        end_at=_ensure_utc(appt.end_at),
+        status=appt.status,
+        service_amount=float(appt.service_amount or 0),
+        paid_amount=float(appt.paid_amount or 0),
+        responsible_manager_id=appt.responsible_manager_id,
+        direction_name=direction.name if direction else None,
+        specialist_name=specialist.full_name if specialist else None,
+        comment=appt.comment,
     )

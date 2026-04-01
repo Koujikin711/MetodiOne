@@ -125,10 +125,35 @@ export interface LeadStatusPatchResponse extends Lead {
   automation_task_created: boolean;
 }
 
-export interface AnalyticsSummary {
+export interface PipelineFullAnalyticsItem {
+  pipeline_id: number | null;
+  pipeline_name: string;
+  leads_count: number;
+  processed_by_manager_count: number;
+  received_amount: string;
+  debt_amount: string;
+}
+
+export interface FullAnalyticsRead {
   total_leads: number;
-  deals_total_amount: string;
-  conversion_percent: number;
+  total_received_amount: string;
+  total_debt_amount: string;
+  by_pipeline: PipelineFullAnalyticsItem[];
+}
+
+export interface ManagerDetailedAnalyticsItem {
+  manager_id: number | null;
+  manager_name: string;
+  leads_count: number;
+  sold_amount: string;
+  unpaid_amount: string;
+}
+
+export interface DetailedAnalyticsRead {
+  total_leads: number;
+  total_sold_amount: string;
+  total_unpaid_amount: string;
+  by_manager: ManagerDetailedAnalyticsItem[];
 }
 
 export interface BookingDirection {
@@ -165,6 +190,8 @@ export interface BookingAppointment {
   start_at: string;
   end_at: string;
   status: string;
+  service_amount: number;
+  paid_amount: number;
   responsible_manager_id: number | null;
   direction_name: string | null;
   specialist_name: string | null;

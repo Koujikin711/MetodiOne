@@ -179,6 +179,17 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN media_mime VARCHAR(128)"))
         if cm_cols and "file_name" not in cm_cols:
             await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN file_name VARCHAR(255)"))
+
+        r = await conn.execute(text("PRAGMA table_info(booking_appointments)"))
+        ba_cols = {row[1] for row in r.fetchall()}
+        if ba_cols and "service_amount" not in ba_cols:
+            await conn.execute(
+                text("ALTER TABLE booking_appointments ADD COLUMN service_amount NUMERIC(14, 2) NOT NULL DEFAULT 0"),
+            )
+        if ba_cols and "paid_amount" not in ba_cols:
+            await conn.execute(
+                text("ALTER TABLE booking_appointments ADD COLUMN paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0"),
+            )
         return
 
     if "postgresql" in database_url or "asyncpg" in database_url:
@@ -321,4 +332,14 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
         await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS media_url TEXT"))
         await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS media_mime VARCHAR(128)"))
         await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS file_name VARCHAR(255)"))
+        await conn.execute(
+            text(
+                "ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS service_amount NUMERIC(14, 2) NOT NULL DEFAULT 0",
+            ),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0",
+            ),
+        )
         return
