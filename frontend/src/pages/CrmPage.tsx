@@ -541,6 +541,7 @@ export function CrmPage() {
   const [greenApiBaseUrl, setGreenApiBaseUrl] = useState("");
   const [integrationPipelineId, setIntegrationPipelineId] = useState<number | null>(null);
   const [integrationStageId, setIntegrationStageId] = useState<number | null>(null);
+  const [integrationCloseDealEnabled, setIntegrationCloseDealEnabled] = useState(false);
   const [tplGreeting, setTplGreeting] = useState("");
   const [tplConfirm, setTplConfirm] = useState("");
   const [tplReminder24h, setTplReminder24h] = useState("");
@@ -563,6 +564,7 @@ export function CrmPage() {
     setTplReminder24h("");
     setTplReminder2h("");
     setTplReactivation("");
+    setIntegrationCloseDealEnabled(false);
   }
 
   function beginEditIntegration(it: Integration) {
@@ -572,6 +574,7 @@ export function CrmPage() {
     setIntegrationProvider(it.provider === "telegram" ? "telegram" : "green_api");
     setIntegrationPipelineId(it.pipeline_id);
     setIntegrationStageId(it.stage_id);
+    setIntegrationCloseDealEnabled(Boolean(it.manager_close_deal_enabled));
     setIntegrationSecret("");
     if (it.provider === "telegram") {
       setIntegrationConfigText(JSON.stringify(it.config ?? {}, null, 2));
@@ -653,6 +656,7 @@ export function CrmPage() {
         name: integrationName.trim(),
         pipeline_id: integrationPipelineId,
         stage_id: integrationStageId,
+        manager_close_deal_enabled: integrationCloseDealEnabled,
       };
       if (integrationProvider !== "green_api" && integrationSecret.trim()) {
         body.secret = integrationSecret.trim();
@@ -721,6 +725,7 @@ export function CrmPage() {
       provider: integrationProvider,
       pipeline_id: integrationPipelineId,
       stage_id: integrationStageId,
+      manager_close_deal_enabled: integrationCloseDealEnabled,
       config: cfg,
     };
     if (integrationProvider !== "green_api") {
@@ -1818,6 +1823,23 @@ export function CrmPage() {
                       </select>
                     </label>
                   </div>
+
+                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={integrationCloseDealEnabled}
+                      onChange={(e) => setIntegrationCloseDealEnabled(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-600"
+                    />
+                    <span>
+                      <span className="font-medium text-white">Кнопка «Закрыть сделку» для менеджеров</span>
+                      <span className="mt-1 block text-[11px] leading-relaxed text-slate-400">
+                        На карточке лида в этой воронке менеджер сможет закрыть сделку: указать стоимость и фактическую
+                        оплату (отдельно от журнала онлайн-записи, где оплату правит только администратор). Лид
+                        перейдёт на стадию успешного закрытия из настроек сервера.
+                      </span>
+                    </span>
+                  </label>
 
                   {integrationProvider === "telegram" && (
                     <label className="text-sm text-slate-300">

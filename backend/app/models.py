@@ -179,6 +179,9 @@ class Integration(Base):
     # Провайдер-специфичная конфигурация (instanceId, apiToken, botToken и т.п.)
     config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # Кнопка «Закрыть сделку» на карточке лида для менеджеров (воронка = pipeline_id интеграции)
+    manager_close_deal_enabled: Mapped[bool] = mapped_column(default=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
 
 

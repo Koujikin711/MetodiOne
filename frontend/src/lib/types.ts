@@ -34,6 +34,8 @@ export interface Integration {
   is_active: boolean;
   pipeline_id: number;
   stage_id: number;
+  /** Кнопка «Закрыть сделку» у менеджеров на карточке лида этой воронки */
+  manager_close_deal_enabled?: boolean;
   /** Без api_token; токен только на сервере */
   config: Record<string, unknown> | null;
   has_api_token?: boolean;
@@ -81,6 +83,7 @@ export interface Lead {
   protocol_confirmed?: boolean;
   protocol_deal_id?: number | null;
   paid_extras_amount?: unknown;
+  show_close_deal_button?: boolean;
 }
 
 export interface LeadImportErrorItem {

@@ -25,6 +25,15 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             )
         )
 
+        r = await conn.execute(text("PRAGMA table_info(integrations)"))
+        integ_cols = {row[1] for row in r.fetchall()}
+        if integ_cols and "manager_close_deal_enabled" not in integ_cols:
+            await conn.execute(
+                text(
+                    "ALTER TABLE integrations ADD COLUMN manager_close_deal_enabled INTEGER NOT NULL DEFAULT 0",
+                ),
+            )
+
         # pipeline_stages.pipeline_id (multi-pipeline UI)
         r = await conn.execute(text("PRAGMA table_info(pipeline_stages)"))
         cols = {row[1] for row in r.fetchall()}
@@ -209,6 +218,11 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
                     created_at TIMESTAMPTZ
                 )"""
             )
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE integrations ADD COLUMN IF NOT EXISTS manager_close_deal_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+            ),
         )
         await conn.execute(
             text("ALTER TABLE pipeline_stages ADD COLUMN IF NOT EXISTS pipeline_id INTEGER"),
