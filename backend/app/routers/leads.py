@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -19,6 +19,7 @@ from app.schemas.lead import (
     LeadRead,
     LeadStatusPatchResponse,
     LeadStatusUpdate,
+    LeadTablePage,
 )
 from app.services.automation import process_lead_automation
 from app.services.lead_import import decode_csv_text, normalize_email_strict, parse_csv_rows, row_to_parsed_lead
@@ -278,6 +279,73 @@ async def list_leads(
     result = await db.execute(q)
     leads = result.scalars().unique().all()
     return await _leads_to_read_with_deals(db, leads)
+
+
+@router.get("/table", response_model=LeadTablePage)
+async def list_leads_table(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    pipeline_id: int = Query(..., ge=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    q: str | None = Query(None, max_length=200),
+    status_id: int | None = Query(None, ge=1),
+) -> LeadTablePage:
+    """Полный список лидов воронки с пагинацией и поиском (без лимита «на стадию» как в канбане)."""
+    if current_user.role == UserRole.manager:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if not allowed or pipeline_id not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Воронка недоступна",
+            )
+
+    if status_id is not None:
+        st = await db.get(PipelineStage, status_id)
+        if st is None or st.pipeline_id != pipeline_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Стадия не принадлежит выбранной воронке",
+            )
+
+    filters = [PipelineStage.pipeline_id == pipeline_id]
+    if current_user.role == UserRole.manager:
+        filters.append(Lead.manager_id == current_user.id)
+    if status_id is not None:
+        filters.append(Lead.status_id == status_id)
+    if q and q.strip():
+        term = f"%{q.strip()}%"
+        filters.append(
+            or_(
+                Lead.name.ilike(term),
+                Lead.phone.ilike(term),
+                Lead.email.ilike(term),
+            ),
+        )
+
+    where_clause = and_(*filters)
+    count_q = (
+        select(func.count(Lead.id))
+        .select_from(Lead)
+        .join(PipelineStage, PipelineStage.id == Lead.status_id)
+        .where(where_clause)
+    )
+    total = int((await db.execute(count_q)).scalar_one())
+
+    offset = (page - 1) * page_size
+    data_q = (
+        select(Lead)
+        .options(selectinload(Lead.stage))
+        .join(PipelineStage, PipelineStage.id == Lead.status_id)
+        .where(where_clause)
+        .order_by(Lead.id.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    result = await db.execute(data_q)
+    leads = result.scalars().unique().all()
+    items = await _leads_to_read_with_deals(db, list(leads))
+    return LeadTablePage(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.get("/import/template")

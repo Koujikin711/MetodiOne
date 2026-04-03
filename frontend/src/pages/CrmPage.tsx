@@ -14,7 +14,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
@@ -24,6 +24,7 @@ import type {
   LeadImportResponse,
   LeadSource,
   LeadStatusPatchResponse,
+  LeadTablePage,
   Pipeline,
   PipelineStage,
   Task,
@@ -487,6 +488,7 @@ export function CrmPage() {
 
   const refreshAll = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["leads"] });
+    void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
     void queryClient.invalidateQueries({ queryKey: ["tasks"] });
     void queryClient.invalidateQueries({ queryKey: ["analytics"] });
   }, [queryClient]);
@@ -797,6 +799,7 @@ export function CrmPage() {
       setLeadSource("");
       setLeadStageId(null);
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Не удалось создать лида");
     }
@@ -879,6 +882,21 @@ export function CrmPage() {
     const first = pipelinesQuery.data?.[0];
     if (first) setPipelineId(first.id);
   }, [pipelinesQuery.data, pipelineId]);
+
+  const [crmView, setCrmView] = useState<"board" | "list">("board");
+  const [listPage, setListPage] = useState(1);
+  const [listSearchInput, setListSearchInput] = useState("");
+  const [listSearchDebounced, setListSearchDebounced] = useState("");
+  const [listStatusFilter, setListStatusFilter] = useState<number | "">("");
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setListSearchDebounced(listSearchInput.trim()), 400);
+    return () => window.clearTimeout(t);
+  }, [listSearchInput]);
+
+  useEffect(() => {
+    setListPage(1);
+  }, [pipelineId, listSearchDebounced, listStatusFilter]);
 
   const stagesQuery = useQuery({
     queryKey: ["stages", pipelineId],
@@ -1015,6 +1033,7 @@ export function CrmPage() {
         if (importFileRef.current) importFileRef.current.value = "";
       }
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
         toast.error("Импорт прерван по таймауту. Разбейте файл на части.");
@@ -1027,6 +1046,7 @@ export function CrmPage() {
   }
 
   const kanbanPerStage = 200;
+  const listPageSize = 50;
 
   const leadsQuery = useQuery({
     queryKey: ["leads", pipelineId, "kanban", kanbanPerStage],
@@ -1034,7 +1054,22 @@ export function CrmPage() {
       apiFetch<Lead[]>(
         `/api/leads?pipeline_id=${pipelineId}&per_stage_limit=${kanbanPerStage}`,
       ),
-    enabled: pipelineId != null,
+    enabled: pipelineId != null && crmView === "board",
+  });
+
+  const leadsTableQuery = useQuery({
+    queryKey: ["leads-table", pipelineId, listPage, listSearchDebounced, listStatusFilter, listPageSize],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        pipeline_id: String(pipelineId),
+        page: String(listPage),
+        page_size: String(listPageSize),
+      });
+      if (listSearchDebounced) params.set("q", listSearchDebounced);
+      if (listStatusFilter !== "") params.set("status_id", String(listStatusFilter));
+      return apiFetch<LeadTablePage>(`/api/leads/table?${params.toString()}`);
+    },
+    enabled: pipelineId != null && crmView === "list",
   });
 
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -1063,6 +1098,12 @@ export function CrmPage() {
     }
     return map;
   }, [leads, sortedStages]);
+
+  const listTotalPages = useMemo(() => {
+    const d = leadsTableQuery.data;
+    if (!d) return 1;
+    return Math.max(1, Math.ceil(d.total / d.page_size));
+  }, [leadsTableQuery.data]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1109,12 +1150,8 @@ export function CrmPage() {
           method: "PATCH",
           body: JSON.stringify({ status_id: newStageId }),
         });
-        queryClient.setQueryData<Lead[]>(["leads"], (old) => {
-          if (!old) return optimistic;
-          return old.map((l) =>
-            l.id === leadId ? { ...l, status_id: newStageId, stage_name: stageName } : l,
-          );
-        });
+        void queryClient.invalidateQueries({ queryKey: ["leads"] });
+        void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
         toast.success("Статус обновлен!");
         if (data.automation_task_created) {
           toast.success("🤖 Робот: Создана новая задача для менеджера", {
@@ -1136,7 +1173,7 @@ export function CrmPage() {
         setKanbanError(e instanceof Error ? e.message : "Не удалось обновить этап");
       }
     },
-    [leads, queryClient, sortedStages],
+    [leads, queryClient, sortedStages, pipelineId],
   );
 
   const onDragCancel = useCallback(() => {
@@ -1148,8 +1185,8 @@ export function CrmPage() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-white">MetodiOne</h1>
         <p className="text-base text-slate-400">
-          Канбан воронки — перетаскивайте лиды между этапами. В каждой колонке показываются до{" "}
-          {kanbanPerStage} последних лидов (по id), чтобы доска не зависала при больших базах.
+          Доска: перетаскивание между стадиями, до {kanbanPerStage} карточек в колонке. Вкладка «Список» —
+          поиск по имени/телефону/email и просмотр всех лидов воронки постранично.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -1216,6 +1253,35 @@ export function CrmPage() {
                 </button>
               );
             })}
+          </div>
+        )}
+        {pipelinesQuery.data && pipelinesQuery.data.length > 0 && pipelineId != null && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-slate-400">Вид:</span>
+            <button
+              type="button"
+              onClick={() => setCrmView("board")}
+              className={[
+                "rounded-full border px-3 py-1 text-sm transition-colors",
+                crmView === "board"
+                  ? "border-purple-500/40 bg-white/10 text-white"
+                  : "border-slate-700/50 bg-slate-800/30 text-slate-400 hover:bg-slate-800/50 hover:text-slate-200",
+              ].join(" ")}
+            >
+              Доска
+            </button>
+            <button
+              type="button"
+              onClick={() => setCrmView("list")}
+              className={[
+                "rounded-full border px-3 py-1 text-sm transition-colors",
+                crmView === "list"
+                  ? "border-purple-500/40 bg-white/10 text-white"
+                  : "border-slate-700/50 bg-slate-800/30 text-slate-400 hover:bg-slate-800/50 hover:text-slate-200",
+              ].join(" ")}
+            >
+              Список (все лиды)
+            </button>
           </div>
         )}
         {currentRole === "admin" && pipelineId != null && selectedPipelineForSettings && (
@@ -1910,22 +1976,131 @@ export function CrmPage() {
         </div>
       )}
 
-      {(stagesQuery.isLoading || leadsQuery.isLoading) && (
+      {crmView === "list" && pipelineId != null && (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="min-w-[200px] flex-1 text-sm text-slate-300">
+              Поиск
+              <input
+                value={listSearchInput}
+                onChange={(e) => setListSearchInput(e.target.value)}
+                placeholder="Имя, телефон, email…"
+                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+              />
+            </label>
+            <label className="text-sm text-slate-300">
+              Стадия
+              <select
+                value={listStatusFilter === "" ? "" : String(listStatusFilter)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setListStatusFilter(v === "" ? "" : Number(v));
+                }}
+                className="mt-1 min-w-[180px] rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+              >
+                <option value="">Все стадии</option>
+                {sortedStages.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {leadsTableQuery.isError && (
+            <p className="text-sm text-red-300">{(leadsTableQuery.error as Error).message}</p>
+          )}
+          {leadsTableQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+          {leadsTableQuery.data && !leadsTableQuery.isLoading && (
+            <>
+              <p className="text-sm text-slate-500">
+                Найдено: {leadsTableQuery.data.total} · страница {leadsTableQuery.data.page} из {listTotalPages}
+              </p>
+              <div className="overflow-x-auto rounded-xl border border-slate-700/50 bg-slate-800/20">
+                <table className="w-full min-w-[720px] text-left text-sm text-slate-200">
+                  <thead>
+                    <tr className="border-b border-slate-700/60 text-xs uppercase tracking-wide text-slate-500">
+                      <th className="px-3 py-2">ID</th>
+                      <th className="px-3 py-2">Имя</th>
+                      <th className="px-3 py-2">Телефон</th>
+                      <th className="px-3 py-2">Email</th>
+                      <th className="px-3 py-2">Стадия</th>
+                      <th className="px-3 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leadsTableQuery.data.items.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-8 text-center text-slate-500">
+                          Нет лидов по условиям
+                        </td>
+                      </tr>
+                    ) : (
+                      leadsTableQuery.data.items.map((lead) => (
+                        <tr key={lead.id} className="border-b border-slate-700/40 hover:bg-slate-800/40">
+                          <td className="px-3 py-2 text-slate-400">{lead.id}</td>
+                          <td className="px-3 py-2 font-medium text-white">{lead.name}</td>
+                          <td className="px-3 py-2">{lead.phone ?? "—"}</td>
+                          <td className="px-3 py-2">{lead.email ?? "—"}</td>
+                          <td className="px-3 py-2 text-purple-200/90">{lead.stage_name ?? "—"}</td>
+                          <td className="px-3 py-2">
+                            <Link
+                              to={`/leads/${lead.id}`}
+                              className="text-indigo-300 underline-offset-2 hover:text-indigo-200 hover:underline"
+                            >
+                              Открыть
+                            </Link>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {listTotalPages > 1 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={listPage <= 1 || leadsTableQuery.isFetching}
+                    onClick={() => setListPage((p) => Math.max(1, p - 1))}
+                    className="rounded-full border border-slate-600 px-3 py-1 text-sm text-slate-200 disabled:opacity-40"
+                  >
+                    Назад
+                  </button>
+                  <span className="text-sm text-slate-400">
+                    {listPage} / {listTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={listPage >= listTotalPages || leadsTableQuery.isFetching}
+                    onClick={() => setListPage((p) => p + 1)}
+                    className="rounded-full border border-slate-600 px-3 py-1 text-sm text-slate-200 disabled:opacity-40"
+                  >
+                    Вперёд
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
+      {crmView === "board" && (stagesQuery.isLoading || leadsQuery.isLoading) && (
         <p className="text-sm text-slate-400">Загрузка…</p>
       )}
-      {(stagesQuery.isError || leadsQuery.isError) && (
+      {crmView === "board" && (stagesQuery.isError || leadsQuery.isError) && (
         <p className="text-sm text-red-300">
           {(stagesQuery.error as Error)?.message ?? (leadsQuery.error as Error)?.message}
         </p>
       )}
 
-      {kanbanError && (
+      {kanbanError && crmView === "board" && (
         <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-100">
           {kanbanError}
         </p>
       )}
 
-      {sortedStages.length > 0 && (
+      {crmView === "board" && sortedStages.length > 0 && (
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
@@ -1950,7 +2125,7 @@ export function CrmPage() {
         </DndContext>
       )}
 
-      {sortedStages.length === 0 && !stagesQuery.isLoading && !stagesQuery.isError && (
+      {crmView === "board" && sortedStages.length === 0 && !stagesQuery.isLoading && !stagesQuery.isError && (
         <p className="text-sm text-slate-500">Этапы воронки не загружены.</p>
       )}
     </div>
