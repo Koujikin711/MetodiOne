@@ -916,6 +916,31 @@ export function CrmPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deleteStageMutation = useMutation({
+    mutationFn: (stageId: number) => apiFetch<void>(`/api/stages/${stageId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast.success("Стадия удалена");
+      void queryClient.invalidateQueries({ queryKey: ["stages"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deletePipelineMutation = useMutation({
+    mutationFn: (id: number) => apiFetch<void>(`/api/pipelines/${id}`, { method: "DELETE" }),
+    onSuccess: (_, deletedId) => {
+      toast.success("Воронка удалена");
+      if (pipelineId === deletedId) setPipelineId(null);
+      void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
+      void queryClient.invalidateQueries({ queryKey: ["stages"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
+      void queryClient.invalidateQueries({ queryKey: ["integrations"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const selectedPipelineForSettings = useMemo(
     () => (pipelineId != null ? pipelinesQuery.data?.find((p) => p.id === pipelineId) : undefined),
     [pipelinesQuery.data, pipelineId],
@@ -1299,6 +1324,59 @@ export function CrmPage() {
               <option value="round_robin">По очереди (равномерно)</option>
               <option value="least_loaded">По минимальной загрузке</option>
             </select>
+          </div>
+        )}
+        {currentRole === "admin" && pipelineId != null && sortedStages.length > 0 && (
+          <div className="mt-3 rounded-xl border border-slate-700/40 bg-slate-950/20 p-4">
+            <div className="text-sm font-semibold text-slate-200">Стадии этой воронки</div>
+            <p className="mt-1 text-xs text-slate-500">
+              Удаление возможно, только если на стадии нет лидов, сделок и интеграций, которые на неё ссылаются.
+            </p>
+            <ul className="mt-2 divide-y divide-slate-700/40">
+              {sortedStages.map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                  <span className="text-slate-300">
+                    <span className="font-mono text-xs text-slate-500">{s.id}</span> · {s.name}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={deleteStageMutation.isPending}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          `Удалить стадию «${s.name}»? Убедитесь, что на ней нет лидов и что ни одна интеграция не создаёт лиды в эту стадию.`,
+                        )
+                      )
+                        return;
+                      deleteStageMutation.mutate(s.id);
+                    }}
+                    className="rounded-lg border border-red-500/40 px-2 py-1 text-xs text-red-200 transition hover:bg-red-500/10 disabled:opacity-50"
+                  >
+                    Удалить
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {pipelinesQuery.data && pipelinesQuery.data.length > 1 && selectedPipelineForSettings && (
+              <div className="mt-4 border-t border-slate-700/50 pt-3">
+                <button
+                  type="button"
+                  disabled={deletePipelineMutation.isPending}
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        `Удалить воронку «${selectedPipelineForSettings.name}» и все её стадии? Стадии должны быть пустыми, интеграций на эту воронку быть не должно. Последнюю воронку удалить нельзя.`,
+                      )
+                    )
+                      return;
+                    deletePipelineMutation.mutate(pipelineId);
+                  }}
+                  className="rounded-lg border border-red-600/50 bg-red-950/30 px-3 py-1.5 text-sm text-red-200 transition hover:bg-red-950/50 disabled:opacity-50"
+                >
+                  Удалить воронку целиком
+                </button>
+              </div>
+            )}
           </div>
         )}
       </header>

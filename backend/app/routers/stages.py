@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models import Pipeline, PipelineStage, UserRole
 from app.schemas.stage import PipelineStageCreate, PipelineStageRead
 from app.services.audit import write_audit_event
+from app.services.stage_delete_checks import stage_delete_block_reason
 
 router = APIRouter(prefix="/stages", tags=["stages"])
 
@@ -66,3 +67,31 @@ async def create_stage(
     )
     await db.refresh(st)
     return PipelineStageRead.model_validate(st)
+
+
+@router.delete("/{stage_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_stage(
+    stage_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> None:
+    if current_user.role != UserRole.admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
+    st = await db.get(PipelineStage, stage_id)
+    if st is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Стадия не найдена")
+    reason = await stage_delete_block_reason(db, stage_id)
+    if reason:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
+    pname = st.name
+    pid = st.pipeline_id
+    await db.delete(st)
+    await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="stage",
+        entity_id=stage_id,
+        action="stage_deleted",
+        current_user=current_user,
+        details=f"name={pname}, pipeline_id={pid}",
+    )
