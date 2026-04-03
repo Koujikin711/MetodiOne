@@ -2,6 +2,7 @@ import html
 import secrets
 import string
 from typing import Annotated
+from urllib.parse import urlparse, urlunparse
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
@@ -64,11 +65,43 @@ async def _employee_read(db: AsyncSession, u: User) -> EmployeeRead:
     )
 
 
+def _invite_app_base() -> str:
+    """
+    Абсолютный URL фронта (без завершающего /).
+    В письмах нельзя использовать относительные ссылки — Gmail даёт битый вид http:///login.
+    """
+    raw = (settings.public_app_url or "").strip()
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Задайте переменную окружения PUBLIC_APP_URL с полным адресом фронта, "
+                "например https://ваш-проект.vercel.app (без слэша в конце). "
+                "Иначе ссылка в письме приглашения будет недействительной."
+            ),
+        )
+    if not raw.startswith(("http://", "https://")):
+        raw = "https://" + raw
+    p = urlparse(raw)
+    if p.scheme not in ("http", "https") or not p.netloc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="PUBLIC_APP_URL указан неверно. Пример: https://metodi.vercel.app",
+        )
+    path = (p.path or "").rstrip("/")
+    if path == "/":
+        path = ""
+    base = urlunparse((p.scheme, p.netloc, path, "", "", "")).rstrip("/")
+    if not base:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="PUBLIC_APP_URL указан неверно (нет домена). Пример: https://metodi.vercel.app",
+        )
+    return base
+
+
 def _build_invite_url(invite_token: str) -> str:
-    base = (settings.public_app_url or "").rstrip("/")
-    if base:
-        return f"{base}/login?invite={invite_token}"
-    return f"/login?invite={invite_token}"
+    return f"{_invite_app_base()}/login?invite={invite_token}"
 
 
 async def _user_with_phone_except(
@@ -115,6 +148,8 @@ async def invite_employee(
         ok = {x[0] for x in r.all()}
         if set(body.pipeline_ids) != ok:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown pipeline_id in list")
+
+    _invite_app_base()
 
     existing_by_email = (await db.execute(select(User).where(User.email == email).limit(1))).scalars().first()
     if existing_by_email is not None and existing_by_email.is_active:
