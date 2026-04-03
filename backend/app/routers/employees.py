@@ -71,6 +71,18 @@ def _build_invite_url(invite_token: str) -> str:
     return f"/login?invite={invite_token}"
 
 
+async def _user_with_phone_except(
+    db: AsyncSession,
+    phone: str,
+    *,
+    except_user_id: int | None,
+) -> User | None:
+    q = select(User).where(User.phone == phone)
+    if except_user_id is not None:
+        q = q.where(User.id != except_user_id)
+    return (await db.execute(q.limit(1))).scalars().first()
+
+
 @router.get("", response_model=list[EmployeeRead])
 async def list_employees(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -97,11 +109,6 @@ async def invite_employee(
     if len(phone) < 7:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Bad phone")
 
-    if (await db.scalar(select(User.id).where(User.email == email))) is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
-    if (await db.scalar(select(User.id).where(User.phone == phone))) is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone already registered")
-
     # validate pipelines
     if body.pipeline_ids:
         r = await db.execute(select(Pipeline.id).where(Pipeline.id.in_(body.pipeline_ids)))
@@ -109,20 +116,48 @@ async def invite_employee(
         if set(body.pipeline_ids) != ok:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown pipeline_id in list")
 
+    existing_by_email = (await db.execute(select(User).where(User.email == email).limit(1))).scalars().first()
+    if existing_by_email is not None and existing_by_email.is_active:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+
+    rehire = existing_by_email is not None and not existing_by_email.is_active
+    u = existing_by_email if rehire else None
+
+    other_phone = await _user_with_phone_except(db, phone, except_user_id=u.id if u else None)
+    if other_phone is not None:
+        if other_phone.is_active:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone already registered")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Этот телефон привязан к другому уволенному аккаунту. "
+                "Пригласите с тем email, что был у того сотрудника, или укажите другой телефон."
+            ),
+        )
+
     temp_password = _rand_password()
     invite_token = secrets.token_urlsafe(32)
 
-    u = User(
-        email=email,
-        phone=phone,
-        full_name=body.full_name.strip(),
-        role=body.role,
-        hashed_password=hash_password(temp_password),
-        invite_token=invite_token,
-        is_active=True,
-    )
-    db.add(u)
-    await db.flush()
+    if rehire and u is not None:
+        u.phone = phone
+        u.full_name = body.full_name.strip()
+        u.role = body.role
+        u.hashed_password = hash_password(temp_password)
+        u.invite_token = invite_token
+        u.is_active = True
+        await db.flush()
+    else:
+        u = User(
+            email=email,
+            phone=phone,
+            full_name=body.full_name.strip(),
+            role=body.role,
+            hashed_password=hash_password(temp_password),
+            invite_token=invite_token,
+            is_active=True,
+        )
+        db.add(u)
+        await db.flush()
 
     await db.execute(delete(UserPipelineAssignment).where(UserPipelineAssignment.user_id == u.id))
     for pid in body.pipeline_ids:
@@ -135,9 +170,10 @@ async def invite_employee(
     safe_email = html.escape(email)
     safe_pw = html.escape(temp_password)
     safe_url = html.escape(invite_url, quote=True)
+    intro = "Вам восстановили доступ к CRM." if rehire else "Вас пригласили в CRM."
     plain = (
         "Здравствуйте!\n\n"
-        "Вас пригласили в CRM.\n"
+        f"{intro}\n"
         f"Логин: {email}\n"
         f"Пароль: {temp_password}\n"
         f"Вход: {invite_url}\n\n"
@@ -148,7 +184,7 @@ async def invite_employee(
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(15,23,42,.08);overflow:hidden;">
     <tr><td style="padding:28px 28px 8px;">
       <h1 style="margin:0;font-size:20px;color:#0f172a;">Приглашение в CRM</h1>
-      <p style="margin:16px 0 0;font-size:15px;">Вам создан доступ. Данные для входа:</p>
+      <p style="margin:16px 0 0;font-size:15px;">{"Вам восстановили доступ." if rehire else "Вам создан доступ."} Данные для входа:</p>
     </td></tr>
     <tr><td style="padding:8px 28px;">
       <p style="margin:8px 0;"><strong>Логин:</strong> {safe_email}</p>
