@@ -4,7 +4,7 @@ from email.message import EmailMessage
 from app.config import settings
 
 
-def send_email(to_email: str, subject: str, body: str) -> bool:
+def send_email(to_email: str, subject: str, body: str, html_body: str | None = None) -> bool:
     if not settings.smtp_host:
         return False
     msg = EmailMessage()
@@ -12,6 +12,8 @@ def send_email(to_email: str, subject: str, body: str) -> bool:
     msg["From"] = settings.smtp_from or settings.smtp_user or "no-reply@crm.local"
     msg["To"] = to_email
     msg.set_content(body)
+    if html_body:
+        msg.add_alternative(html_body, subtype="html")
     try:
         with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as server:
             server.ehlo()

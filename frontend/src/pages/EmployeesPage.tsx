@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getStoredToken } from "@/lib/api";
+import { decodeUserIdFromToken } from "@/lib/auth";
 import type { Pipeline } from "@/lib/types";
 
 type UserRole = "admin" | "manager" | "expert";
@@ -20,7 +21,6 @@ interface InviteResult {
   employee: Employee;
   invite_url: string;
   temp_password_sent_to_email: boolean;
-  temp_password_debug: string | null;
 }
 
 interface SmtpConfig {
@@ -68,6 +68,29 @@ export function EmployeesPage() {
   const pipelines = pipelinesQuery.data ?? [];
   const pipelineById = useMemo(() => new Map(pipelines.map((p) => [p.id, p])), [pipelines]);
 
+  const myUserId = useMemo(() => decodeUserIdFromToken(getStoredToken()), []);
+
+  const terminateMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch(`/api/employees/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["employees"] });
+      toast.success("Сотрудник уволен");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function confirmTerminate(e: Employee) {
+    if (
+      !window.confirm(
+        `Уволить ${e.full_name ?? e.email}? Вход будет заблокирован, назначения по воронкам сняты.`,
+      )
+    ) {
+      return;
+    }
+    terminateMutation.mutate(e.id);
+  }
+
   const inviteMutation = useMutation({
     mutationFn: () =>
       apiFetch<InviteResult>("/api/employees/invite", {
@@ -90,10 +113,7 @@ export function EmployeesPage() {
       void qc.invalidateQueries({ queryKey: ["employees"] });
 
       toast.success("Сотрудник приглашён");
-      const msg = r.temp_password_sent_to_email
-        ? `Ссылка отправлена на email.\nInvite: ${r.invite_url}`
-        : `SMTP не настроен: скопируйте данные вручную.\nInvite: ${r.invite_url}\nПароль: ${r.temp_password_debug ?? "—"}`;
-      window.prompt("Скопируйте данные для сотрудника:", msg);
+      window.prompt("Приглашение отправлено сотруднику на email:", `Invite: ${r.invite_url}`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -140,13 +160,25 @@ export function EmployeesPage() {
                   {e.email} {e.phone ? `· ${e.phone}` : ""} · роль: {e.role}
                 </div>
               </div>
-              <div className="text-xs text-slate-400">
-                Направления:{" "}
-                {e.pipeline_ids.length
-                  ? e.pipeline_ids
-                      .map((id) => pipelineById.get(id)?.name ?? `#${id}`)
-                      .join(", ")
-                  : "—"}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="text-xs text-slate-400">
+                  Направления:{" "}
+                  {e.pipeline_ids.length
+                    ? e.pipeline_ids
+                        .map((id) => pipelineById.get(id)?.name ?? `#${id}`)
+                        .join(", ")
+                    : "—"}
+                </div>
+                {myUserId !== null && e.id !== myUserId && (
+                  <button
+                    type="button"
+                    onClick={() => confirmTerminate(e)}
+                    disabled={terminateMutation.isPending}
+                    className="shrink-0 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
+                  >
+                    Уволить
+                  </button>
+                )}
               </div>
             </div>
           </div>
