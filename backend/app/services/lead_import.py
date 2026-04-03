@@ -8,8 +8,9 @@ import re
 from typing import NamedTuple
 
 # Экспорт Битрикс24 с десятками колонок легко превышает несколько мегабайт.
-_MAX_ROWS = 2000
-_MAX_FILE_BYTES = 50 * 1024 * 1024
+# Крупные базы — десятки тысяч лидов за одну выгрузку.
+_MAX_ROWS = 25_000
+_MAX_FILE_BYTES = 120 * 1024 * 1024
 
 
 class ParsedLeadRow(NamedTuple):

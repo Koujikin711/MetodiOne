@@ -978,7 +978,7 @@ export function CrmPage() {
     fd.append("default_stage_id", String(importStageId));
     const token = getStoredToken();
     const controller = new AbortController();
-    const to = window.setTimeout(() => controller.abort(), 300_000);
+    const to = window.setTimeout(() => controller.abort(), 900_000);
     try {
       const res = await fetch(resolveApiUrl("/api/leads/import"), {
         method: "POST",
@@ -1501,7 +1501,8 @@ export function CrmPage() {
             <p className="mt-3 text-sm leading-relaxed text-slate-400">
               Из Битрикс24: CRM → Лиды → выделите нужные → <span className="text-slate-300">Экспорт</span> в Excel.
               Сохраните файл как CSV (кодировка UTF-8). Подойдут колонки вроде «Название», «Имя», «Фамилия»,
-              «Телефон», «E-mail», «Источник». Все импортируемые лиды попадут в выбранную стадию.
+              «Телефон», «E-mail», «Источник». Все импортируемые лиды попадут в выбранную стадию. За один раз
+              можно загрузить до ~25&nbsp;000 строк; при большом файле импорт может занять несколько минут.
             </p>
 
             <div className="mt-4 grid gap-3">

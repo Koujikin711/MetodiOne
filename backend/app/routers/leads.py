@@ -284,38 +284,72 @@ async def import_leads_csv(
                 detail="Стадия вне ваших направлений",
             )
 
-    created = 0
-    errors: list[LeadImportErrorItem] = []
-
+    work: list[tuple[int, Lead]] = []
     for idx, row_map in enumerate(rows, start=2):
         parsed = row_to_parsed_lead(row_map)
         if not parsed:
             errors.append(LeadImportErrorItem(row=idx, message="Нет названия, имени или компании"))
             continue
         email = normalize_email_strict(parsed.email) if parsed.email else None
+        work.append(
+            (
+                idx,
+                Lead(
+                    name=parsed.name,
+                    phone=parsed.phone,
+                    email=email,
+                    source=parsed.source,
+                    status_id=default_stage_id,
+                    manager_id=current_user.id,
+                ),
+            ),
+        )
+
+    created = 0
+    batch_size = 500
+
+    for start in range(0, len(work), batch_size):
+        batch = work[start : start + batch_size]
         try:
-            lead = Lead(
-                name=parsed.name,
-                phone=parsed.phone,
-                email=email,
-                source=parsed.source,
-                status_id=default_stage_id,
-                manager_id=current_user.id,
-            )
-            db.add(lead)
+            for _row_idx, lead in batch:
+                db.add(lead)
             await db.flush()
-            await _audit_lead(
-                db,
-                lead_id=lead.id,
-                action="lead_imported",
-                current_user=current_user,
-                details="Импорт из CSV",
-            )
+            for _row_idx, lead in batch:
+                await _audit_lead(
+                    db,
+                    lead_id=lead.id,
+                    action="lead_imported",
+                    current_user=current_user,
+                    details="Импорт из CSV",
+                )
             await db.commit()
-            created += 1
-        except Exception as e:
+            created += len(batch)
+        except Exception:
             await db.rollback()
-            errors.append(LeadImportErrorItem(row=idx, message=str(e)[:240]))
+            for row_idx, lead in batch:
+                try:
+                    l2 = Lead(
+                        name=lead.name,
+                        phone=lead.phone,
+                        email=lead.email,
+                        source=lead.source,
+                        status_id=default_stage_id,
+                        manager_id=current_user.id,
+                    )
+                    db.add(l2)
+                    await db.flush()
+                    await _audit_lead(
+                        db,
+                        lead_id=l2.id,
+                        action="lead_imported",
+                        current_user=current_user,
+                        details="Импорт из CSV",
+                    )
+                    await db.commit()
+                    created += 1
+                except Exception as e2:
+                    await db.rollback()
+                    errors.append(LeadImportErrorItem(row=row_idx, message=str(e2)[:240]))
 
     return LeadImportResponse(created=created, errors=errors)
 
