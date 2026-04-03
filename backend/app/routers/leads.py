@@ -284,6 +284,7 @@ async def import_leads_csv(
                 detail="Стадия вне ваших направлений",
             )
 
+    errors: list[LeadImportErrorItem] = []
     work: list[tuple[int, Lead]] = []
     for idx, row_map in enumerate(rows, start=2):
         parsed = row_to_parsed_lead(row_map)
