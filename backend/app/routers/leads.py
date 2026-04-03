@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, case, func, select
@@ -151,22 +151,7 @@ async def create_lead(
     return _lead_to_read(lead)
 
 
-@router.get("", response_model=list[LeadRead])
-async def list_leads(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: CurrentUser,
-) -> list[LeadRead]:
-    q = select(Lead).options(selectinload(Lead.stage)).order_by(Lead.id.desc())
-    if current_user.role == UserRole.manager:
-        allowed = await _manager_pipeline_ids(db, current_user.id)
-        if not allowed:
-            return []
-        q = q.join(PipelineStage, PipelineStage.id == Lead.status_id).where(
-            PipelineStage.pipeline_id.in_(allowed),
-            Lead.manager_id == current_user.id,
-        )
-    result = await db.execute(q)
-    leads = result.scalars().unique().all()
+async def _leads_to_read_with_deals(db: AsyncSession, leads: list[Lead]) -> list[LeadRead]:
     if not leads:
         return []
 
@@ -238,6 +223,61 @@ async def list_leads(
             ),
         )
     return out
+
+
+@router.get("", response_model=list[LeadRead])
+async def list_leads(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    pipeline_id: int | None = Query(None, ge=1),
+    per_stage_limit: int | None = Query(None, ge=1, le=500),
+) -> list[LeadRead]:
+    """
+    Канбан: передайте pipeline_id + per_stage_limit (по умолчанию 200), чтобы не отдавать
+    десятки тысяч лидов и не вешать браузер — в каждой колонке будут последние N лидов.
+    """
+    if pipeline_id is not None:
+        if per_stage_limit is None:
+            per_stage_limit = 200
+        if current_user.role == UserRole.manager:
+            allowed = await _manager_pipeline_ids(db, current_user.id)
+            if not allowed or pipeline_id not in allowed:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Воронка недоступна",
+                )
+        rn = func.row_number().over(partition_by=Lead.status_id, order_by=Lead.id.desc()).label("rn")
+        ranked = (
+            select(Lead.id.label("lead_id"), rn)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(PipelineStage.pipeline_id == pipeline_id)
+        )
+        if current_user.role == UserRole.manager:
+            ranked = ranked.where(Lead.manager_id == current_user.id)
+        ranked_sq = ranked.subquery()
+        q = (
+            select(Lead)
+            .join(ranked_sq, Lead.id == ranked_sq.c.lead_id)
+            .where(ranked_sq.c.rn <= per_stage_limit)
+            .options(selectinload(Lead.stage))
+            .order_by(Lead.id.desc())
+        )
+        result = await db.execute(q)
+        leads = result.scalars().unique().all()
+        return await _leads_to_read_with_deals(db, leads)
+
+    q = select(Lead).options(selectinload(Lead.stage)).order_by(Lead.id.desc())
+    if current_user.role == UserRole.manager:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if not allowed:
+            return []
+        q = q.join(PipelineStage, PipelineStage.id == Lead.status_id).where(
+            PipelineStage.pipeline_id.in_(allowed),
+            Lead.manager_id == current_user.id,
+        )
+    result = await db.execute(q)
+    leads = result.scalars().unique().all()
+    return await _leads_to_read_with_deals(db, leads)
 
 
 @router.get("/import/template")
