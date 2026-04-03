@@ -97,7 +97,7 @@ export function LeadDetailPage() {
               <dd className="mt-1 text-slate-200">{query.data.manager_id ?? "—"}</dd>
             </div>
             <div className="sm:col-span-2">
-              <dt className="text-xs uppercase tracking-wide text-slate-500">ID в CRM</dt>
+              <dt className="text-xs uppercase tracking-wide text-slate-500">ID в MetodiOne</dt>
               <dd className="mt-1 font-mono text-slate-300">#{query.data.id}</dd>
             </div>
           </dl>

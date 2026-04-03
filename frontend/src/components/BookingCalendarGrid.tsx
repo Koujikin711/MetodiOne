@@ -406,7 +406,7 @@ function SortableSpecialistColumn({
                 height: `${heightPct}%`,
                 minHeight: 36,
               }}
-              title={a.lead_id ? "Открыть карточку клиента (лид)" : "Нет лида в CRM"}
+              title={a.lead_id ? "Открыть карточку клиента (лид)" : "Нет лида в MetodiOne"}
             >
               <div className="flex items-start justify-between gap-1">
                 <span className="line-clamp-2 break-words pr-1 text-[13px] font-semibold leading-[1.25]">
@@ -422,7 +422,7 @@ function SortableSpecialistColumn({
                 {formatTimeRangeInBookingTz(a.start_at, a.end_at)}
               </div>
               <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-400">
-                <span className="rounded bg-slate-900/50 px-1 py-0.5">CRM</span>
+                <span className="rounded bg-slate-900/50 px-1 py-0.5">MetodiOne</span>
                 {a.lead_id ? (
                   <span className="text-purple-300">#{a.lead_id}</span>
                 ) : (

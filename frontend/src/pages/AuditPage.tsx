@@ -29,7 +29,7 @@ export function AuditPage() {
       <header>
         <h1 className="text-3xl font-semibold tracking-tight text-white">Системный аудит</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Кто открывал, редактировал, удалял и перемещал записи в CRM.
+          Кто открывал, редактировал, удалял и перемещал записи в MetodiOne.
         </p>
       </header>
 

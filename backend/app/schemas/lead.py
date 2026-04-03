@@ -42,3 +42,13 @@ class LeadRead(BaseModel):
 
 class LeadStatusPatchResponse(LeadRead):
     automation_task_created: bool = False
+
+
+class LeadImportErrorItem(BaseModel):
+    row: int
+    message: str
+
+
+class LeadImportResponse(BaseModel):
+    created: int
+    errors: list[LeadImportErrorItem]

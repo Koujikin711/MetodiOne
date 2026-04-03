@@ -1,4 +1,6 @@
+import asyncio
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +12,9 @@ from app.database_migrate import ensure_booking_specialist_columns
 from app.core.security import hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.routers import analytics, audit, auth, booking, chat, deals, employees, integrations, leads, pipelines, sources, stages, system, tasks, users
+from app.services.whatsapp_automation import run_whatsapp_reminder_tick
+
+logger = logging.getLogger(__name__)
 
 
 async def seed_pipelines_and_stages() -> None:
@@ -82,7 +87,31 @@ async def lifespan(_: FastAPI):
     await seed_test_admin()
     await seed_booking_defaults()
     await seed_lead_sources_defaults()
+    stop_event = asyncio.Event()
+
+    async def _reminder_loop() -> None:
+        while not stop_event.is_set():
+            try:
+                async with AsyncSessionLocal() as session:
+                    sent = await run_whatsapp_reminder_tick(session)
+                    await session.commit()
+                    if sent:
+                        logger.info("whatsapp reminders sent: %s", sent)
+            except Exception:
+                logger.exception("whatsapp reminder tick failed")
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=60.0)
+            except TimeoutError:
+                pass
+
+    reminder_task = asyncio.create_task(_reminder_loop())
     yield
+    stop_event.set()
+    reminder_task.cancel()
+    try:
+        await reminder_task
+    except asyncio.CancelledError:
+        pass
     await engine.dispose()
 
 

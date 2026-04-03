@@ -16,8 +16,8 @@ const btnPrimary =
 export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [email, setEmail] = useState("admin");
-  const [password, setPassword] = useState("admin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [role, setRole] = useState<UserRole>("manager");
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +83,7 @@ export function LoginPage() {
             <LayoutDashboard className="h-8 w-8" />
           </GradientIconBox>
           <h1 className="mt-6 text-3xl font-semibold tracking-tight text-white drop-shadow-sm">
-            CRM
+            MetodiOne
           </h1>
           <p className="mt-2 max-w-xs text-sm text-white/75">
             {mode === "login" ? "Войдите в рабочую панель" : "Создайте аккаунт для доступа"}
@@ -109,19 +109,11 @@ export function LoginPage() {
                 type={mode === "login" ? "text" : "email"}
                 autoComplete={mode === "login" ? "username" : "email"}
                 required
-                placeholder={mode === "login" ? "admin" : "name@company.com"}
+                placeholder={mode === "login" ? "Логин или email" : "name@company.com"}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className={inputClass}
               />
-              {mode === "login" && (
-                <p className="mt-1.5 text-xs text-white/50">
-                  Демо: <span className="text-white/70">admin</span> /{" "}
-                  <span className="text-white/70">admin</span>
-                  {" · "}
-                  или <span className="text-white/70">admin@crm.local</span>
-                </p>
-              )}
             </div>
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-400" htmlFor="password">
@@ -176,13 +168,8 @@ export function LoginPage() {
               const next = mode === "login" ? "register" : "login";
               setMode(next);
               setError(null);
-              if (next === "register") {
-                setEmail("");
-                setPassword("");
-              } else {
-                setEmail("admin");
-                setPassword("admin");
-              }
+              setEmail("");
+              setPassword("");
             }}
           >
             {mode === "login" ? "Нет аккаунта? Регистрация" : "Уже есть аккаунт? Вход"}

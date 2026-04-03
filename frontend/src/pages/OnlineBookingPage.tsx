@@ -381,7 +381,7 @@ export function OnlineBookingPage() {
     if (a.lead_id) {
       navigate(`/leads/${a.lead_id}`);
     } else {
-      toast.error("К этой записи не привязан лид в CRM.");
+      toast.error("К этой записи не привязан лид в MetodiOne.");
     }
   }
 

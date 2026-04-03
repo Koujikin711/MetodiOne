@@ -62,10 +62,23 @@ export function ChatPage() {
   const qc = useQueryClient();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [tabVisible, setTabVisible] = useState(
+    () => typeof document !== "undefined" && document.visibilityState === "visible",
+  );
+
+  useEffect(() => {
+    const onVis = () => setTabVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
   const threadsQuery = useQuery({
     queryKey: ["chat-threads"],
     queryFn: () => apiFetch<ChatThread[]>("/api/chat/threads"),
-    refetchInterval: 4000,
+    refetchInterval: tabVisible ? 2500 : false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
   const [threadId, setThreadId] = useState<number | null>(null);
   const leadFromQuery = Number(searchParams.get("lead_id"));
@@ -89,8 +102,17 @@ export function ChatPage() {
     queryKey: ["chat-messages", threadId],
     queryFn: () => apiFetch<ChatMessage[]>(`/api/chat/threads/${threadId}/messages`),
     enabled: !!threadId,
-    refetchInterval: 3000,
+    refetchInterval: tabVisible && threadId ? 2000 : false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
+
+  const lastMsgId = messagesQuery.data?.at(-1)?.id;
+  const msgCount = messagesQuery.data?.length ?? 0;
+  useEffect(() => {
+    if (msgCount === 0) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+  }, [threadId, lastMsgId, msgCount]);
 
   const sendMutation = useMutation({
     mutationFn: async () => {
@@ -196,6 +218,7 @@ export function ChatPage() {
                 {!messagesQuery.isLoading && (messagesQuery.data ?? []).length === 0 && (
                   <p className="text-sm text-slate-500">Нет сообщений.</p>
                 )}
+                <div ref={messagesEndRef} aria-hidden />
               </div>
 
               <form

@@ -39,6 +39,7 @@ from app.schemas.lead import LeadRead
 from app.services.automation import process_lead_automation
 from app.services.audit import write_audit_event
 from app.services.lead_assignment import assign_manager_for_new_lead
+from app.services.whatsapp_automation import send_booking_confirmation_if_needed
 
 router = APIRouter(prefix="/booking", tags=["booking"])
 
@@ -604,6 +605,7 @@ async def create_appointment(
     if lead_id is not None:
         await _sync_lead_to_stage_name(db, lead_id, settings.booking_stage_after_book)
 
+    await send_booking_confirmation_if_needed(db, appointment=appt)
     await db.refresh(appt)
 
     dname = direction.name
