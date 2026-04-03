@@ -159,6 +159,17 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Чат</span>
               </NavLink>
+              <button
+                type="button"
+                onClick={logout}
+                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center text-slate-400 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-200"
+                title="Выход"
+              >
+                <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <LogOut className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Выход</span>
+              </button>
             </>
           ) : (
             <>

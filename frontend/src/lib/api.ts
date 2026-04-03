@@ -100,6 +100,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
         "Token expired",
         "Not authenticated",
         "User not found",
+        "Аккаунт отключён",
       ].includes(message);
       if (authLost) {
         setStoredToken(null);

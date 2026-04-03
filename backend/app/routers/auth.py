@@ -53,5 +53,7 @@ async def login(
     user = result.scalar_one_or_none()
     if user is None or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect login or password")
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Аккаунт отключён")
     token = create_access_token(str(user.id), extra={"role": user.role.value})
     return Token(access_token=token)

@@ -47,6 +47,7 @@ class User(Base):
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     invite_token: Mapped[str | None] = mapped_column(String(96), unique=True, index=True, nullable=True)
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole, name="user_role"), default=UserRole.manager)
+    is_active: Mapped[bool] = mapped_column(default=True)
 
     leads: Mapped[list["Lead"]] = relationship(
         back_populates="manager",

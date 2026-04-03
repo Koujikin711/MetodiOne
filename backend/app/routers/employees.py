@@ -1,10 +1,11 @@
+import html
 import secrets
 import string
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -38,7 +39,6 @@ class InviteEmployeeResult(BaseModel):
     employee: EmployeeRead
     invite_url: str
     temp_password_sent_to_email: bool
-    temp_password_debug: str | None = None
 
 
 def _rand_password() -> str:
@@ -78,7 +78,7 @@ async def list_employees(
 ) -> list[EmployeeRead]:
     if current_user.role != UserRole.admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
-    r = await db.execute(select(User).order_by(User.id.desc()))
+    r = await db.execute(select(User).where(User.is_active.is_(True)).order_by(User.id.desc()))
     users = r.scalars().all()
     return [await _employee_read(db, u) for u in users]
 
@@ -119,6 +119,7 @@ async def invite_employee(
         role=body.role,
         hashed_password=hash_password(temp_password),
         invite_token=invite_token,
+        is_active=True,
     )
     db.add(u)
     await db.flush()
@@ -131,16 +132,84 @@ async def invite_employee(
     await db.refresh(u)
 
     invite_url = _build_invite_url(invite_token)
+    safe_email = html.escape(email)
+    safe_pw = html.escape(temp_password)
+    safe_url = html.escape(invite_url, quote=True)
+    plain = (
+        "Здравствуйте!\n\n"
+        "Вас пригласили в CRM.\n"
+        f"Логин: {email}\n"
+        f"Пароль: {temp_password}\n"
+        f"Вход: {invite_url}\n\n"
+        "После входа рекомендуем сменить пароль."
+    )
+    html_body = f"""<!DOCTYPE html>
+<html><body style="font-family:system-ui,Segoe UI,sans-serif;line-height:1.5;color:#1e293b;background:#f8fafc;padding:24px;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(15,23,42,.08);overflow:hidden;">
+    <tr><td style="padding:28px 28px 8px;">
+      <h1 style="margin:0;font-size:20px;color:#0f172a;">Приглашение в CRM</h1>
+      <p style="margin:16px 0 0;font-size:15px;">Вам создан доступ. Данные для входа:</p>
+    </td></tr>
+    <tr><td style="padding:8px 28px;">
+      <p style="margin:8px 0;"><strong>Логин:</strong> {safe_email}</p>
+      <p style="margin:8px 0;"><strong>Пароль:</strong> <code style="background:#f1f5f9;padding:2px 8px;border-radius:6px;">{safe_pw}</code></p>
+    </td></tr>
+    <tr><td style="padding:16px 28px 28px;">
+      <a href="{safe_url}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:600;font-size:15px;">Войти в CRM</a>
+      <p style="margin:20px 0 0;font-size:13px;color:#64748b;">Если кнопка не открывается, скопируйте ссылку:<br/><span style="word-break:break-all;color:#475569;">{safe_url}</span></p>
+    </td></tr>
+  </table>
+</body></html>"""
     sent = send_email(
         email,
         "Приглашение в CRM",
-        f"Ваша ссылка: {invite_url}\nЛогин: {email} или {phone}\nПароль: {temp_password}\n",
+        plain,
+        html_body=html_body,
     )
+    if not sent:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Не удалось отправить письмо приглашения. "
+                "Проверьте SMTP_HOST/PORT/USER/PASSWORD/FROM (должно отправляться с metoditj@gmail.com)."
+            ),
+        )
 
     return InviteEmployeeResult(
         employee=await _employee_read(db, u),
         invite_url=invite_url,
         temp_password_sent_to_email=sent,
-        temp_password_debug=None if sent else temp_password,
     )
+
+
+@router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def terminate_employee(
+    employee_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> Response:
+    if current_user.role != UserRole.admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if employee_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя уволить самого себя")
+
+    target = await db.get(User, employee_id)
+    if target is None or not target.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")
+
+    if target.role == UserRole.admin:
+        admins = await db.scalar(
+            select(func.count()).select_from(User).where(User.role == UserRole.admin, User.is_active.is_(True))
+        )
+        if admins is not None and admins <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Нельзя уволить последнего администратора",
+            )
+
+    target.is_active = False
+    target.invite_token = None
+    await db.execute(delete(UserPipelineAssignment).where(UserPipelineAssignment.user_id == target.id))
+    await db.flush()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 

@@ -72,6 +72,8 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             await conn.execute(text("ALTER TABLE users ADD COLUMN full_name VARCHAR(255)"))
         if "invite_token" not in user_cols:
             await conn.execute(text("ALTER TABLE users ADD COLUMN invite_token VARCHAR(96)"))
+        if "is_active" not in user_cols:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"))
 
         await conn.execute(
             text(
@@ -235,6 +237,7 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(32)"))
         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255)"))
         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_token VARCHAR(96)"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE"))
         await conn.execute(
             text(
                 """CREATE TABLE IF NOT EXISTS user_pipeline_assignments (
