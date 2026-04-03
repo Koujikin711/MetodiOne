@@ -8,6 +8,7 @@ class IntegrationRead(BaseModel):
     is_active: bool
     pipeline_id: int
     stage_id: int
+    manager_close_deal_enabled: bool = False
     # api_token в config не отдаётся клиенту; см. has_api_token
     config: dict | None = None
     has_api_token: bool = False
@@ -21,6 +22,7 @@ class IntegrationCreate(BaseModel):
     provider: str = Field(..., min_length=1, max_length=40)
     pipeline_id: int = Field(..., ge=1)
     stage_id: int = Field(..., ge=1)
+    manager_close_deal_enabled: bool = False
     # Для green_api генерируется на сервере; для telegram и др. — обязателен
     secret: str | None = Field(default=None, max_length=128)
     config: dict | None = None
@@ -31,6 +33,7 @@ class IntegrationUpdate(BaseModel):
     is_active: bool | None = None
     pipeline_id: int | None = Field(default=None, ge=1)
     stage_id: int | None = Field(default=None, ge=1)
+    manager_close_deal_enabled: bool | None = None
     secret: str | None = Field(default=None, min_length=8, max_length=128)
     config: dict | None = None
 

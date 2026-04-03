@@ -81,6 +81,7 @@ def _integration_read(row: Integration, *, setup_note: str | None = None) -> Int
         is_active=row.is_active,
         pipeline_id=row.pipeline_id,
         stage_id=row.stage_id,
+        manager_close_deal_enabled=bool(getattr(row, "manager_close_deal_enabled", False)),
         config=safe_cfg,
         has_api_token=has_token,
         setup_note=setup_note,
@@ -180,6 +181,7 @@ async def create_integration(
         stage_id=body.stage_id,
         secret=sec,
         config=cfg,
+        manager_close_deal_enabled=body.manager_close_deal_enabled,
     )
     db.add(row)
     await db.flush()
@@ -250,6 +252,8 @@ async def patch_integration(
         row.is_active = body.is_active
     if body.secret is not None:
         row.secret = body.secret.strip()
+    if body.manager_close_deal_enabled is not None:
+        row.manager_close_deal_enabled = body.manager_close_deal_enabled
     if body.config is not None:
         if row.provider == IntegrationProvider.green_api:
             merged = _merge_green_api_config(row.config, body.config)

@@ -36,6 +36,8 @@ class LeadRead(BaseModel):
     protocol_confirmed: bool = False
     protocol_file_attached: bool = False
     paid_extras_amount: Decimal = Decimal("0")
+    # Воронка с интеграцией «кнопка закрытия сделки» + права пользователя
+    show_close_deal_button: bool = False
 
     model_config = {"from_attributes": True}
 

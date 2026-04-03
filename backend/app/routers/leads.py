@@ -9,9 +9,10 @@ from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.core.deps import CurrentUser
 from app.database import get_db
-from app.models import Deal, Lead, LeadAuditEvent, PipelineStage, Task, TaskStatus, User, UserPipelineAssignment, UserRole
+from app.models import Deal, Integration, Lead, LeadAuditEvent, PipelineStage, Task, TaskStatus, User, UserPipelineAssignment, UserRole
 from app.schemas.lead import (
     LeadCreate,
     LeadImportErrorItem,
@@ -27,6 +28,8 @@ from app.schemas.deal import DealRead, ExtraServiceAddBody, ProtocolConfirmBody
 from app.schemas.deal import ProtocolFinishBody
 
 router = APIRouter(prefix="/leads", tags=["leads"])
+
+INTEGRATION_CLOSE_DEAL_TYPE = "integration_close"
 
 
 class LeadAuditRead(BaseModel):
@@ -71,6 +74,89 @@ async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
         select(UserPipelineAssignment.pipeline_id).where(UserPipelineAssignment.user_id == user_id),
     )
     return {r[0] for r in rows.all()}
+
+
+async def _pipelines_with_manager_close_deal(db: AsyncSession) -> set[int]:
+    r = await db.execute(
+        select(Integration.pipeline_id)
+        .where(
+            Integration.is_active.is_(True),
+            Integration.manager_close_deal_enabled.is_(True),
+        )
+        .distinct(),
+    )
+    return {row[0] for row in r.all()}
+
+
+async def _pipeline_has_manager_close_deal(db: AsyncSession, pipeline_id: int | None) -> bool:
+    if pipeline_id is None:
+        return False
+    r = await db.scalar(
+        select(Integration.id).where(
+            Integration.pipeline_id == pipeline_id,
+            Integration.is_active.is_(True),
+            Integration.manager_close_deal_enabled.is_(True),
+        ).limit(1),
+    )
+    return r is not None
+
+
+async def _lead_ids_with_integration_close_deal(db: AsyncSession, lead_ids: list[int]) -> set[int]:
+    if not lead_ids:
+        return set()
+    r = await db.execute(
+        select(Deal.lead_id).where(
+            Deal.lead_id.in_(lead_ids),
+            Deal.deal_type == INTEGRATION_CLOSE_DEAL_TYPE,
+        ),
+    )
+    return {row[0] for row in r.all()}
+
+
+def _show_close_deal_ui(
+    lead: Lead,
+    read: LeadRead,
+    current_user: User,
+    pipelines_flag: set[int],
+    closed_ids: set[int],
+    mgr_allowed: set[int] | None,
+) -> bool:
+    pid = read.pipeline_id
+    if pid is None or pid not in pipelines_flag:
+        return False
+    if lead.id in closed_ids:
+        return False
+    if (read.stage_name or "").strip() == settings.booking_stage_completed:
+        return False
+    if current_user.role == UserRole.admin:
+        return True
+    if current_user.role != UserRole.manager or mgr_allowed is None:
+        return False
+    if pid not in mgr_allowed:
+        return False
+    if lead.manager_id is not None and lead.manager_id != current_user.id:
+        return False
+    return True
+
+
+async def _enrich_leads_close_deal(
+    db: AsyncSession,
+    leads: list[Lead],
+    items: list[LeadRead],
+    current_user: User,
+) -> list[LeadRead]:
+    if not leads or len(leads) != len(items):
+        return items
+    pf = await _pipelines_with_manager_close_deal(db)
+    closed = await _lead_ids_with_integration_close_deal(db, [l.id for l in leads])
+    mgr_allowed: set[int] | None = None
+    if current_user.role == UserRole.manager:
+        mgr_allowed = await _manager_pipeline_ids(db, current_user.id)
+    out: list[LeadRead] = []
+    for lead, read in zip(leads, items, strict=True):
+        show = _show_close_deal_ui(lead, read, current_user, pf, closed, mgr_allowed)
+        out.append(read.model_copy(update={"show_close_deal_button": show}))
+    return out
 
 
 async def _notify_by_roles(
@@ -149,10 +235,16 @@ async def create_lead(
     )
     await db.refresh(lead)
     await db.refresh(lead, ["stage"])
-    return _lead_to_read(lead)
+    base = _lead_to_read(lead)
+    enriched = await _enrich_leads_close_deal(db, [lead], [base], current_user)
+    return enriched[0]
 
 
-async def _leads_to_read_with_deals(db: AsyncSession, leads: list[Lead]) -> list[LeadRead]:
+async def _leads_to_read_with_deals(
+    db: AsyncSession,
+    leads: list[Lead],
+    current_user: User,
+) -> list[LeadRead]:
     if not leads:
         return []
 
@@ -223,7 +315,7 @@ async def _leads_to_read_with_deals(db: AsyncSession, leads: list[Lead]) -> list
                 },
             ),
         )
-    return out
+    return await _enrich_leads_close_deal(db, leads, out, current_user)
 
 
 @router.get("", response_model=list[LeadRead])
@@ -265,7 +357,7 @@ async def list_leads(
         )
         result = await db.execute(q)
         leads = result.scalars().unique().all()
-        return await _leads_to_read_with_deals(db, leads)
+        return await _leads_to_read_with_deals(db, leads, current_user)
 
     q = select(Lead).options(selectinload(Lead.stage)).order_by(Lead.id.desc())
     if current_user.role == UserRole.manager:
@@ -278,7 +370,7 @@ async def list_leads(
         )
     result = await db.execute(q)
     leads = result.scalars().unique().all()
-    return await _leads_to_read_with_deals(db, leads)
+    return await _leads_to_read_with_deals(db, leads, current_user)
 
 
 @router.get("/table", response_model=LeadTablePage)
@@ -344,7 +436,7 @@ async def list_leads_table(
     )
     result = await db.execute(data_q)
     leads = result.scalars().unique().all()
-    items = await _leads_to_read_with_deals(db, list(leads))
+    items = await _leads_to_read_with_deals(db, list(leads), current_user)
     return LeadTablePage(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -532,7 +624,7 @@ async def get_lead(
             "paid_extras_amount": row[4],
         }
 
-    return _lead_to_read(lead).model_copy(
+    base = _lead_to_read(lead).model_copy(
         update={
             "protocol_deal_id": (info["protocol_deal_id"] if info else None) or None,
             "protocol_requested": bool(info["protocol_requested"]) if info else False,
@@ -541,6 +633,149 @@ async def get_lead(
             "paid_extras_amount": (info["paid_extras_amount"] if info else Decimal("0")),
         },
     )
+    enriched = await _enrich_leads_close_deal(db, [lead], [base], current_user)
+    return enriched[0]
+
+
+class CloseDealBody(BaseModel):
+    amount: Decimal = Field(..., ge=0)
+    paid_amount: Decimal = Field(..., ge=0)
+
+
+@router.post("/{lead_id}/close-deal", response_model=LeadRead)
+async def close_deal_from_integration_pipeline(
+    lead_id: int,
+    body: CloseDealBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> LeadRead:
+    if current_user.role not in (UserRole.admin, UserRole.manager):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор или менеджер")
+
+    lead = await db.get(Lead, lead_id)
+    if lead is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await db.refresh(lead, ["stage"])
+    pipeline_id = lead.stage.pipeline_id if lead.stage else None
+
+    if not await _pipeline_has_manager_close_deal(db, pipeline_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Для этой воронки не включена кнопка закрытия сделки в настройках интеграции",
+        )
+
+    dup = await db.scalar(
+        select(Deal.id).where(
+            Deal.lead_id == lead_id,
+            Deal.deal_type == INTEGRATION_CLOSE_DEAL_TYPE,
+        ).limit(1),
+    )
+    if dup is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Сделка по этому лиду уже закрыта (есть запись закрытия)",
+        )
+
+    if current_user.role == UserRole.manager:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if pipeline_id not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")
+        if lead.manager_id is not None and lead.manager_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is assigned to another manager")
+
+    success_stage_id = await _stage_id_by_name(
+        db,
+        settings.booking_stage_completed,
+        pipeline_id=pipeline_id,
+    )
+    if success_stage_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"В воронке нет стадии «{settings.booking_stage_completed}» для успешного закрытия",
+        )
+
+    deal = Deal(
+        title="Закрытая сделка",
+        deal_type=INTEGRATION_CLOSE_DEAL_TYPE,
+        amount=body.amount,
+        paid_amount=body.paid_amount,
+        is_protocol=False,
+        protocol_requested=False,
+        protocol_confirmed=False,
+        protocol_file_path=None,
+        stage_id=success_stage_id,
+        lead_id=lead.id,
+        probability=100,
+    )
+    db.add(deal)
+    lead.status_id = success_stage_id
+    await db.flush()
+    await _audit_lead(
+        db,
+        lead_id=lead.id,
+        action="integration_deal_closed",
+        current_user=current_user,
+        details=f"Сумма={body.amount}, оплачено={body.paid_amount}",
+    )
+    await db.refresh(lead, ["stage"])
+    await process_lead_automation(db, lead_id, success_stage_id)
+
+    deals_info_rows = await db.execute(
+        select(
+            func.min(case((Deal.is_protocol.is_(True), Deal.id))).label("protocol_deal_id"),
+            func.max(
+                case(
+                    (
+                        and_(Deal.is_protocol.is_(True), Deal.protocol_requested.is_(True)),
+                        1,
+                    ),
+                    else_=0,
+                ),
+            ).label("protocol_requested"),
+            func.max(
+                case(
+                    (
+                        and_(Deal.is_protocol.is_(True), Deal.protocol_confirmed.is_(True)),
+                        1,
+                    ),
+                    else_=0,
+                ),
+            ).label("protocol_confirmed"),
+            func.max(
+                case(
+                    (
+                        and_(Deal.is_protocol.is_(True), Deal.protocol_file_path.is_not(None)),
+                        1,
+                    ),
+                    else_=0,
+                ),
+            ).label("protocol_file_attached"),
+            func.coalesce(func.sum(Deal.paid_amount), 0).label("paid_extras_amount"),
+        )
+        .where(Deal.lead_id == lead_id)
+        .group_by(Deal.lead_id),
+    )
+    row = deals_info_rows.first()
+    info = None
+    if row is not None:
+        info = {
+            "protocol_deal_id": row[0],
+            "protocol_requested": row[1],
+            "protocol_confirmed": row[2],
+            "protocol_file_attached": row[3],
+            "paid_extras_amount": row[4],
+        }
+    base = _lead_to_read(lead).model_copy(
+        update={
+            "protocol_deal_id": (info["protocol_deal_id"] if info else None) or None,
+            "protocol_requested": bool(info["protocol_requested"]) if info else False,
+            "protocol_confirmed": bool(info["protocol_confirmed"]) if info else False,
+            "protocol_file_attached": bool(info["protocol_file_attached"]) if info else False,
+            "paid_extras_amount": (info["paid_extras_amount"] if info else Decimal("0")),
+        },
+    )
+    enriched = await _enrich_leads_close_deal(db, [lead], [base], current_user)
+    return enriched[0]
 
 
 @router.patch("/{lead_id}/status", response_model=LeadStatusPatchResponse)

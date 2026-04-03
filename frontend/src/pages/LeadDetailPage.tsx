@@ -1,20 +1,45 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import toast from "react-hot-toast";
 
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getStoredToken } from "@/lib/api";
+import { decodeRoleFromToken } from "@/lib/auth";
 import type { Lead, LeadAuditEvent } from "@/lib/types";
 
 export function LeadDetailPage() {
   const { id } = useParams();
   const leadId = Number(id);
+  const qc = useQueryClient();
   const [auditOpen, setAuditOpen] = useState(false);
+  const [closeDealOpen, setCloseDealOpen] = useState(false);
+  const [closeAmount, setCloseAmount] = useState("");
+  const [closePaid, setClosePaid] = useState("");
 
   const query = useQuery({
     queryKey: ["lead", leadId],
     queryFn: () => apiFetch<Lead>(`/api/leads/${leadId}`),
     enabled: Number.isFinite(leadId) && leadId > 0,
   });
+
+  const closeDealMutation = useMutation({
+    mutationFn: async (body: { amount: number; paid_amount: number }) =>
+      apiFetch<Lead>(`/api/leads/${leadId}/close-deal`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      toast.success("Сделка закрыта");
+      setCloseDealOpen(false);
+      void qc.invalidateQueries({ queryKey: ["lead", leadId] });
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Не удалось закрыть сделку"),
+  });
+
+  const role = decodeRoleFromToken(getStoredToken());
+  const homeLink = role === "manager" ? "/my-leads" : "/";
+  const homeLabel = role === "manager" ? "Мои лиды" : "Канбан";
 
   const auditQuery = useQuery({
     queryKey: ["lead-audit", leadId],
@@ -42,8 +67,8 @@ export function LeadDetailPage() {
         >
           ← Онлайн запись
         </Link>
-        <Link to="/" className="text-slate-400 hover:text-slate-200">
-          Канбан
+        <Link to={homeLink} className="text-slate-400 hover:text-slate-200">
+          {homeLabel}
         </Link>
       </div>
 
@@ -69,6 +94,19 @@ export function LeadDetailPage() {
             >
               Чат
             </Link>
+            {query.data.show_close_deal_button && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCloseAmount("");
+                  setClosePaid("");
+                  setCloseDealOpen(true);
+                }}
+                className="rounded-xl border border-emerald-600/50 bg-emerald-950/40 px-3 py-1.5 text-xs font-semibold text-emerald-100 transition hover:border-emerald-400/60 hover:bg-emerald-900/30"
+              >
+                Закрыть сделку
+              </button>
+            )}
           </div>
           <header className="mb-6 border-b border-slate-700/50 pb-4">
             <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Клиент / лид</p>
@@ -102,6 +140,73 @@ export function LeadDetailPage() {
             </div>
           </dl>
         </article>
+      )}
+
+      {closeDealOpen && query.data && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4"
+          onClick={() => setCloseDealOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-white">Закрыть сделку</h3>
+            <p className="mt-2 text-sm text-slate-400">
+              Укажите стоимость услуги и фактическую оплату. Лид будет переведён на стадию успешного закрытия. Повторно
+              закрыть того же лида нельзя.
+            </p>
+            <div className="mt-4 grid gap-3">
+              <label className="text-sm text-slate-300">
+                Стоимость услуги
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={closeAmount}
+                  onChange={(e) => setCloseAmount(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Оплачено фактически
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={closePaid}
+                  onChange={(e) => setClosePaid(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                />
+              </label>
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCloseDealOpen(false)}
+                className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                disabled={closeDealMutation.isPending}
+                onClick={() => {
+                  const amount = Number(closeAmount);
+                  const paid = Number(closePaid);
+                  if (!Number.isFinite(amount) || amount < 0 || !Number.isFinite(paid) || paid < 0) {
+                    toast.error("Введите неотрицательные числа");
+                    return;
+                  }
+                  closeDealMutation.mutate({ amount, paid_amount: paid });
+                }}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+              >
+                Подтвердить
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {auditOpen && (
