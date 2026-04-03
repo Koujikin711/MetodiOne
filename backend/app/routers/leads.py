@@ -31,6 +31,14 @@ router = APIRouter(prefix="/leads", tags=["leads"])
 
 INTEGRATION_CLOSE_DEAL_TYPE = "integration_close"
 
+# asyncpg / PostgreSQL wire protocol: max 32767 bind parameters per statement.
+# Deal aggregate query uses 7 fixed params + one per lead_id in IN (...).
+_MAX_LEAD_IDS_PER_IN_QUERY = 32000
+
+
+def _chunked_ids(ids: list[int], size: int) -> list[list[int]]:
+    return [ids[i : i + size] for i in range(0, len(ids), size)]
+
 
 class LeadAuditRead(BaseModel):
     id: int
@@ -104,13 +112,16 @@ async def _pipeline_has_manager_close_deal(db: AsyncSession, pipeline_id: int | 
 async def _lead_ids_with_integration_close_deal(db: AsyncSession, lead_ids: list[int]) -> set[int]:
     if not lead_ids:
         return set()
-    r = await db.execute(
-        select(Deal.lead_id).where(
-            Deal.lead_id.in_(lead_ids),
-            Deal.deal_type == INTEGRATION_CLOSE_DEAL_TYPE,
-        ),
-    )
-    return {row[0] for row in r.all()}
+    out: set[int] = set()
+    for chunk in _chunked_ids(lead_ids, _MAX_LEAD_IDS_PER_IN_QUERY):
+        r = await db.execute(
+            select(Deal.lead_id).where(
+                Deal.lead_id.in_(chunk),
+                Deal.deal_type == INTEGRATION_CLOSE_DEAL_TYPE,
+            ),
+        )
+        out.update(row[0] for row in r.all())
+    return out
 
 
 def _show_close_deal_ui(
@@ -249,56 +260,56 @@ async def _leads_to_read_with_deals(
         return []
 
     lead_ids = [l.id for l in leads]
-    deal_info_rows = await db.execute(
-        select(
-            Deal.lead_id,
-            func.min(case((Deal.is_protocol.is_(True), Deal.id))).label("protocol_deal_id"),
-            func.max(
-                case(
-                    (
-                        and_(Deal.is_protocol.is_(True), Deal.protocol_requested.is_(True)),
-                        1,
-                    ),
-                    else_=0,
-                ),
-            ).label("protocol_requested"),
-            func.max(
-                case(
-                    (
-                        and_(Deal.is_protocol.is_(True), Deal.protocol_confirmed.is_(True)),
-                        1,
-                    ),
-                    else_=0,
-                ),
-            ).label("protocol_confirmed"),
-            func.max(
-                case(
-                    (
-                        and_(
-                            Deal.is_protocol.is_(True),
-                            Deal.protocol_file_path.is_not(None),
-                        ),
-                        1,
-                    ),
-                    else_=0,
-                ),
-            ).label("protocol_file_attached"),
-            func.coalesce(func.sum(Deal.paid_amount), 0).label("paid_extras_amount"),
-        )
-        .where(Deal.lead_id.in_(lead_ids))
-        .group_by(Deal.lead_id)
-    )
-    rows = deal_info_rows.all()
     deal_info: dict[int, dict[str, object]] = {}
-    for r in rows:
-        lead_id = r[0]
-        deal_info[lead_id] = {
-            "protocol_deal_id": r[1],
-            "protocol_requested": r[2],
-            "protocol_confirmed": r[3],
-            "protocol_file_attached": r[4],
-            "paid_extras_amount": r[5],
-        }
+    for chunk in _chunked_ids(lead_ids, _MAX_LEAD_IDS_PER_IN_QUERY):
+        deal_info_rows = await db.execute(
+            select(
+                Deal.lead_id,
+                func.min(case((Deal.is_protocol.is_(True), Deal.id))).label("protocol_deal_id"),
+                func.max(
+                    case(
+                        (
+                            and_(Deal.is_protocol.is_(True), Deal.protocol_requested.is_(True)),
+                            1,
+                        ),
+                        else_=0,
+                    ),
+                ).label("protocol_requested"),
+                func.max(
+                    case(
+                        (
+                            and_(Deal.is_protocol.is_(True), Deal.protocol_confirmed.is_(True)),
+                            1,
+                        ),
+                        else_=0,
+                    ),
+                ).label("protocol_confirmed"),
+                func.max(
+                    case(
+                        (
+                            and_(
+                                Deal.is_protocol.is_(True),
+                                Deal.protocol_file_path.is_not(None),
+                            ),
+                            1,
+                        ),
+                        else_=0,
+                    ),
+                ).label("protocol_file_attached"),
+                func.coalesce(func.sum(Deal.paid_amount), 0).label("paid_extras_amount"),
+            )
+            .where(Deal.lead_id.in_(chunk))
+            .group_by(Deal.lead_id)
+        )
+        for r in deal_info_rows.all():
+            lead_id = r[0]
+            deal_info[lead_id] = {
+                "protocol_deal_id": r[1],
+                "protocol_requested": r[2],
+                "protocol_confirmed": r[3],
+                "protocol_file_attached": r[4],
+                "paid_extras_amount": r[5],
+            }
 
     out: list[LeadRead] = []
     for lead in leads:
