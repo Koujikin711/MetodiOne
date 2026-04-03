@@ -1026,14 +1026,24 @@ export function CrmPage() {
     }
   }
 
+  const kanbanPerStage = 200;
+
   const leadsQuery = useQuery({
-    queryKey: ["leads"],
-    queryFn: () => apiFetch<Lead[]>("/api/leads"),
+    queryKey: ["leads", pipelineId, "kanban", kanbanPerStage],
+    queryFn: () =>
+      apiFetch<Lead[]>(
+        `/api/leads?pipeline_id=${pipelineId}&per_stage_limit=${kanbanPerStage}`,
+      ),
+    enabled: pipelineId != null,
   });
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [kanbanError, setKanbanError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLeads([]);
+  }, [pipelineId]);
 
   useEffect(() => {
     if (leadsQuery.data) setLeads(leadsQuery.data);
@@ -1138,7 +1148,8 @@ export function CrmPage() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-white">MetodiOne</h1>
         <p className="text-base text-slate-400">
-          Канбан воронки — перетаскивайте лиды между этапами
+          Канбан воронки — перетаскивайте лиды между этапами. В каждой колонке показываются до{" "}
+          {kanbanPerStage} последних лидов (по id), чтобы доска не зависала при больших базах.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <button
