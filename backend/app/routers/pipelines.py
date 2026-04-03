@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser
@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models import Pipeline, PipelineStage, UserRole
 from app.schemas.pipeline import PipelineCreate, PipelinePatch, PipelineRead
 from app.services.audit import write_audit_event
+from app.services.stage_delete_checks import pipeline_delete_block_reason
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
@@ -93,4 +94,41 @@ async def patch_pipeline(
     )
     await db.refresh(pipe)
     return PipelineRead.model_validate(pipe)
+
+
+@router.delete("/{pipeline_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_pipeline(
+    pipeline_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> None:
+    if current_user.role != UserRole.admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
+    pipe = await db.get(Pipeline, pipeline_id)
+    if pipe is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Воронка не найдена")
+    total_pipes = await db.scalar(select(func.count()).select_from(Pipeline))
+    if total_pipes is not None and int(total_pipes) <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нельзя удалить последнюю воронку. Создайте другую, затем удалите эту.",
+        )
+    reason = await pipeline_delete_block_reason(db, pipeline_id)
+    if reason:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
+    pname = pipe.name
+    rows = await db.execute(select(PipelineStage).where(PipelineStage.pipeline_id == pipeline_id))
+    stages = rows.scalars().all()
+    for st in stages:
+        await db.delete(st)
+    await db.delete(pipe)
+    await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="pipeline",
+        entity_id=pipeline_id,
+        action="pipeline_deleted",
+        current_user=current_user,
+        details=f"name={pname}, stages_removed={len(stages)}",
+    )
 
