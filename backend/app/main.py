@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 import logging
+import socket
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +16,27 @@ from app.routers import analytics, audit, auth, booking, chat, deals, employees,
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
 
 logger = logging.getLogger(__name__)
+
+
+def _install_asyncio_dns_exception_handler() -> None:
+    """Логируем gaierror понятно; иначе async оставляет «Future exception was never retrieved»."""
+    loop = asyncio.get_running_loop()
+    prev = loop.get_exception_handler()
+
+    def _handler(loop: asyncio.AbstractEventLoop, context: dict) -> None:
+        exc = context.get("exception")
+        if isinstance(exc, socket.gaierror):
+            logger.warning(
+                "DNS/сеть: %s. Проверьте DATABASE_URL (имя хоста БД), DNS контейнера и доступ в интернет.",
+                exc,
+            )
+            return
+        if prev is not None:
+            prev(loop, context)
+        else:
+            loop.default_exception_handler(context)
+
+    loop.set_exception_handler(_handler)
 
 
 async def seed_pipelines_and_stages() -> None:
@@ -80,6 +102,7 @@ async def seed_lead_sources_defaults() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    _install_asyncio_dns_exception_handler()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await ensure_booking_specialist_columns(conn, settings.database_url)
@@ -90,6 +113,10 @@ async def lifespan(_: FastAPI):
     stop_event = asyncio.Event()
 
     async def _reminder_loop() -> None:
+        try:
+            await asyncio.sleep(8)
+        except asyncio.CancelledError:
+            return
         while not stop_event.is_set():
             try:
                 async with AsyncSessionLocal() as session:
@@ -105,6 +132,15 @@ async def lifespan(_: FastAPI):
                 pass
 
     reminder_task = asyncio.create_task(_reminder_loop())
+
+    def _reminder_done(t: asyncio.Task[None]) -> None:
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc is not None:
+            logger.error("whatsapp reminder task ended with error: %s", exc)
+
+    reminder_task.add_done_callback(_reminder_done)
     yield
     stop_event.set()
     reminder_task.cancel()
