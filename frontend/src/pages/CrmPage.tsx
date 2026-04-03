@@ -1745,23 +1745,30 @@ export function CrmPage() {
       )}
 
       {integrationsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-3xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-white">Интеграции</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4">
+          <div
+            className="flex w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
+            style={{ maxHeight: "min(92dvh, 880px)" }}
+          >
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-700/60 px-4 py-3 sm:px-5 sm:py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Интеграции</h2>
+                <p className="mt-0.5 text-[11px] text-slate-500">Форма и список ниже — прокручивайте внутри окна</p>
+              </div>
               <button
                 type="button"
                 onClick={() => {
                   resetIntegrationForm();
                   setIntegrationsOpen(false);
                 }}
-                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+                className="shrink-0 rounded-full border border-slate-700 px-3 py-1.5 text-sm text-slate-300 transition hover:bg-slate-800/40"
               >
                 Закрыть
               </button>
             </div>
 
-            <div className="mt-4 grid gap-6 lg:grid-cols-2">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5 [scrollbar-gutter:stable]">
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
               <section className="rounded-2xl border border-slate-700/50 bg-slate-950/30 p-4">
                 <div className="text-sm font-semibold text-white">
                   {editingIntegrationId != null ? "Редактировать интеграцию" : "Создать интеграцию"}
@@ -1834,9 +1841,8 @@ export function CrmPage() {
                     <span>
                       <span className="font-medium text-white">Кнопка «Закрыть сделку» для менеджеров</span>
                       <span className="mt-1 block text-[11px] leading-relaxed text-slate-400">
-                        На карточке лида в этой воронке менеджер сможет закрыть сделку: указать стоимость и фактическую
-                        оплату (отдельно от журнала онлайн-записи, где оплату правит только администратор). Лид
-                        перейдёт на стадию успешного закрытия из настроек сервера.
+                        Менеджер закроет сделку с суммами на карточке лида (не путать с оплатой в журнале записи — там
+                        только админ). Лид уйдёт на стадию успеха из настроек сервера.
                       </span>
                     </span>
                   </label>
@@ -2010,8 +2016,9 @@ export function CrmPage() {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-slate-700/50 bg-slate-950/30 p-4">
-                <div className="text-sm font-semibold text-white">Список</div>
+              <section className="rounded-2xl border border-slate-700/50 bg-slate-950/40 p-4 lg:sticky lg:top-0 lg:self-start">
+                <div className="text-sm font-semibold text-white">Список интеграций</div>
+                <p className="mt-1 text-[11px] text-slate-500">Webhook и краткая информация</p>
                 <div className="mt-3 space-y-2">
                   {(integrationsQuery.data ?? []).length === 0 && (
                     <p className="text-sm text-slate-500">Интеграций пока нет</p>
@@ -2071,6 +2078,7 @@ export function CrmPage() {
                   })}
                 </div>
               </section>
+              </div>
             </div>
           </div>
         </div>
