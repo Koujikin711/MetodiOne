@@ -2,7 +2,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +12,16 @@ from sqlalchemy.orm import selectinload
 from app.core.deps import CurrentUser
 from app.database import get_db
 from app.models import Deal, Lead, LeadAuditEvent, PipelineStage, Task, TaskStatus, User, UserPipelineAssignment, UserRole
-from app.schemas.lead import LeadCreate, LeadRead, LeadStatusPatchResponse, LeadStatusUpdate
+from app.schemas.lead import (
+    LeadCreate,
+    LeadImportErrorItem,
+    LeadImportResponse,
+    LeadRead,
+    LeadStatusPatchResponse,
+    LeadStatusUpdate,
+)
 from app.services.automation import process_lead_automation
+from app.services.lead_import import decode_csv_text, normalize_email_strict, parse_csv_rows, row_to_parsed_lead
 from app.schemas.deal import DealRead, ExtraServiceAddBody, ProtocolConfirmBody
 from app.schemas.deal import ProtocolFinishBody
 
@@ -229,6 +238,86 @@ async def list_leads(
             ),
         )
     return out
+
+
+@router.get("/import/template")
+async def lead_import_csv_template(current_user: CurrentUser) -> Response:
+    _ = current_user
+    body = "name,phone,email,source\nИван Иванов,+79001234567,client@example.com,Битрикс24\n"
+    return Response(
+        content=("\ufeff" + body).encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="metodione_leads_import.csv"'},
+    )
+
+
+@router.post("/import", response_model=LeadImportResponse)
+async def import_leads_csv(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    file: UploadFile = File(...),
+    default_stage_id: int = Form(...),
+) -> LeadImportResponse:
+    if not file.filename or not file.filename.lower().endswith((".csv", ".txt")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ожидается файл .csv (экспорт из Битрикс24 или шаблон MetodiOne)",
+        )
+    raw = await file.read()
+    try:
+        text = decode_csv_text(raw)
+        rows, _headers = parse_csv_rows(text)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="В файле нет строк с данными")
+
+    stage = await db.get(PipelineStage, default_stage_id)
+    if stage is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная стадия")
+    if current_user.role == UserRole.manager:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if stage.pipeline_id not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Стадия вне ваших направлений",
+            )
+
+    created = 0
+    errors: list[LeadImportErrorItem] = []
+
+    for idx, row_map in enumerate(rows, start=2):
+        parsed = row_to_parsed_lead(row_map)
+        if not parsed:
+            errors.append(LeadImportErrorItem(row=idx, message="Нет названия, имени или компании"))
+            continue
+        email = normalize_email_strict(parsed.email) if parsed.email else None
+        try:
+            lead = Lead(
+                name=parsed.name,
+                phone=parsed.phone,
+                email=email,
+                source=parsed.source,
+                status_id=default_stage_id,
+                manager_id=current_user.id,
+            )
+            db.add(lead)
+            await db.flush()
+            await _audit_lead(
+                db,
+                lead_id=lead.id,
+                action="lead_imported",
+                current_user=current_user,
+                details="Импорт из CSV",
+            )
+            await db.commit()
+            created += 1
+        except Exception as e:
+            await db.rollback()
+            errors.append(LeadImportErrorItem(row=idx, message=str(e)[:240]))
+
+    return LeadImportResponse(created=created, errors=errors)
 
 
 @router.get("/{lead_id}", response_model=LeadRead)

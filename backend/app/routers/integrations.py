@@ -13,6 +13,7 @@ from app.core.deps import CurrentUser
 from app.database import get_db
 from app.services.green_incoming import parse_green_message_data
 from app.services.lead_assignment import assign_manager_for_new_lead
+from app.services.whatsapp_automation import send_welcome_if_first_incoming
 from app.services.green_api_settings import (
     green_api_base_from_config,
     push_green_incoming_webhook,
@@ -585,6 +586,12 @@ async def integration_webhook(
             media_url=murl,
             media_mime=mmime,
             file_name=mfn,
+        )
+        await send_welcome_if_first_incoming(
+            db,
+            lead=lead,
+            thread=thread,
+            integration=integ,
         )
         logger.info("integration webhook: ok lead_id=%s thread_id=%s", lead.id, thread.id)
         return _lead_read(lead)

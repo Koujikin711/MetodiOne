@@ -83,6 +83,16 @@ export interface Lead {
   paid_extras_amount?: unknown;
 }
 
+export interface LeadImportErrorItem {
+  row: number;
+  message: string;
+}
+
+export interface LeadImportResponse {
+  created: number;
+  errors: LeadImportErrorItem[];
+}
+
 export interface LeadAuditEvent {
   id: number;
   lead_id: number;

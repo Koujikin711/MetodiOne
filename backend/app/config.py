@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from: str = ""
+    smtp_from: str = "metoditj@gmail.com"
 
     @property
     def cors_origin_list(self) -> list[str]:

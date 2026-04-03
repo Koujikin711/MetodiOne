@@ -12,15 +12,16 @@ import {
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
-import { apiFetch, getStoredToken } from "@/lib/api";
+import { apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import type {
   Integration,
   Lead,
+  LeadImportResponse,
   LeadSource,
   LeadStatusPatchResponse,
   Pipeline,
@@ -902,6 +903,129 @@ export function CrmPage() {
     [pipelinesQuery.data, pipelineId],
   );
 
+  const [importOpen, setImportOpen] = useState(false);
+  const [importPipelineId, setImportPipelineId] = useState<number | null>(null);
+  const [importStageId, setImportStageId] = useState<number | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const [importLastResult, setImportLastResult] = useState<LeadImportResponse | null>(null);
+
+  useEffect(() => {
+    if (!importOpen) return;
+    setImportLastResult(null);
+    const pid = pipelineId ?? pipelinesQuery.data?.[0]?.id ?? null;
+    if (pid != null) setImportPipelineId(pid);
+  }, [importOpen, pipelineId, pipelinesQuery.data]);
+
+  const importStagesQuery = useQuery({
+    queryKey: ["stages", "import", importPipelineId],
+    queryFn: () =>
+      importPipelineId
+        ? apiFetch<PipelineStage[]>(`/api/stages?pipeline_id=${importPipelineId}`)
+        : apiFetch<PipelineStage[]>("/api/stages"),
+    enabled: importOpen && importPipelineId != null,
+  });
+
+  useEffect(() => {
+    if (!importOpen) return;
+    const st = importStagesQuery.data;
+    if (!st || st.length === 0) return;
+    if (importStageId != null && st.some((x) => x.id === importStageId)) return;
+    setImportStageId(st[0].id);
+  }, [importOpen, importStagesQuery.data, importStageId]);
+
+  async function downloadImportTemplate() {
+    const token = getStoredToken();
+    try {
+      const res = await fetch(resolveApiUrl("/api/leads/import/template"), {
+        headers: token ? { Authorization: `Bearer ${token}`, Accept: "text/csv" } : {},
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text;
+        try {
+          const j = JSON.parse(text) as { detail?: unknown };
+          const d = j.detail;
+          msg = typeof d === "string" ? d : msg;
+        } catch {
+          /* not json */
+        }
+        throw new Error(msg || "Ошибка");
+      }
+      const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "metodione_leads_import.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось скачать шаблон");
+    }
+  }
+
+  async function submitImportLeads() {
+    const inp = importFileRef.current?.files?.[0];
+    if (!inp) {
+      toast.error("Выберите CSV-файл");
+      return;
+    }
+    if (!importStageId) {
+      toast.error("Выберите стадию");
+      return;
+    }
+    const fd = new FormData();
+    fd.append("file", inp);
+    fd.append("default_stage_id", String(importStageId));
+    const token = getStoredToken();
+    const controller = new AbortController();
+    const to = window.setTimeout(() => controller.abort(), 120000);
+    try {
+      const res = await fetch(resolveApiUrl("/api/leads/import"), {
+        method: "POST",
+        body: fd,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal: controller.signal,
+      });
+      const text = await res.text();
+      let data: unknown = null;
+      if (text) {
+        try {
+          data = JSON.parse(text) as unknown;
+        } catch {
+          throw new Error(text.slice(0, 200) || "Ответ не JSON");
+        }
+      }
+      if (!res.ok) {
+        const d = (data as { detail?: unknown } | null)?.detail;
+        const msg =
+          typeof d === "string"
+            ? d
+            : Array.isArray(d)
+              ? d.map((x: { msg?: string }) => x.msg).filter(Boolean).join(", ")
+              : `Ошибка (${res.status})`;
+        throw new Error(msg);
+      }
+      const result = data as LeadImportResponse;
+      setImportLastResult(result);
+      toast.success(`Импортировано лидов: ${result.created}`);
+      if (result.errors.length) {
+        toast.error(`Не удалось разобрать или сохранить строк: ${result.errors.length}`);
+      } else {
+        setImportOpen(false);
+        if (importFileRef.current) importFileRef.current.value = "";
+      }
+      void queryClient.invalidateQueries({ queryKey: ["leads"] });
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") {
+        toast.error("Импорт прерван по таймауту. Разбейте файл на части.");
+        return;
+      }
+      toast.error(e instanceof Error ? e.message : "Не удалось импортировать");
+    } finally {
+      window.clearTimeout(to);
+    }
+  }
+
   const leadsQuery = useQuery({
     queryKey: ["leads"],
     queryFn: () => apiFetch<Lead[]>("/api/leads"),
@@ -1012,7 +1136,7 @@ export function CrmPage() {
   return (
     <div className="relative mx-auto max-w-[1600px] space-y-8 pb-10">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-white">CRM</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-white">MetodiOne</h1>
         <p className="text-base text-slate-400">
           Канбан воронки — перетаскивайте лиды между этапами
         </p>
@@ -1039,6 +1163,13 @@ export function CrmPage() {
             className="rounded-full border border-slate-700/50 bg-white/10 px-3 py-1 text-sm text-white transition hover:bg-white/15"
           >
             + Лид
+          </button>
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
+          >
+            Импорт CSV
           </button>
           {currentRole === "admin" && (
             <button
@@ -1349,6 +1480,109 @@ export function CrmPage() {
         </div>
       )}
 
+      {importOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-white">Импорт лидов (CSV)</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setImportOpen(false);
+                  setImportLastResult(null);
+                  if (importFileRef.current) importFileRef.current.value = "";
+                }}
+                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+              >
+                Закрыть
+              </button>
+            </div>
+
+            <p className="mt-3 text-sm leading-relaxed text-slate-400">
+              Из Битрикс24: CRM → Лиды → выделите нужные → <span className="text-slate-300">Экспорт</span> в Excel.
+              Сохраните файл как CSV (кодировка UTF-8). Подойдут колонки вроде «Название», «Имя», «Фамилия»,
+              «Телефон», «E-mail», «Источник». Все импортируемые лиды попадут в выбранную стадию.
+            </p>
+
+            <div className="mt-4 grid gap-3">
+              <button
+                type="button"
+                onClick={() => void downloadImportTemplate()}
+                className="w-full rounded-xl border border-slate-600 py-2 text-sm text-slate-200 transition hover:bg-slate-800/50"
+              >
+                Скачать шаблон CSV для MetodiOne
+              </button>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="text-sm text-slate-300">
+                  Воронка
+                  <select
+                    value={importPipelineId ?? ""}
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      setImportPipelineId(Number.isFinite(id) ? id : null);
+                      setImportStageId(null);
+                    }}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  >
+                    {(pipelinesQuery.data ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm text-slate-300">
+                  Стадия (все строки файла)
+                  <select
+                    value={importStageId ?? ""}
+                    onChange={(e) => setImportStageId(Number(e.target.value))}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  >
+                    {(importStagesQuery.data ?? []).map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <label className="text-sm text-slate-300">
+                Файл .csv
+                <input
+                  ref={importFileRef}
+                  type="file"
+                  accept=".csv,text/csv,.txt"
+                  className="mt-1 block w-full text-sm text-slate-300 file:mr-3 file:rounded-lg file:border file:border-slate-600 file:bg-slate-800 file:px-3 file:py-1.5 file:text-slate-200"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={() => void submitImportLeads()}
+                className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+              >
+                Загрузить и импортировать
+              </button>
+
+              {importLastResult && importLastResult.errors.length > 0 && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                  <p className="text-sm font-medium text-amber-100">Строки с ошибками:</p>
+                  <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-xs text-amber-200/90">
+                    {importLastResult.errors.map((err, i) => (
+                      <li key={`${err.row}-${i}`}>
+                        Строка {err.row}: {err.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {integrationsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-3xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
@@ -1457,8 +1691,8 @@ export function CrmPage() {
                       <p className="text-[11px] leading-relaxed text-slate-400">
                         Скопируйте три значения из личного кабинета Green API (страница инстанса):{" "}
                         <span className="text-slate-300">idInstance</span>,{" "}
-                        <span className="text-slate-300">apiTokenInstance</span>. При сохранении CRM сама настроит
-                        приём сообщений — вручную вставлять webhook в Green API не нужно.
+                        <span className="text-slate-300">apiTokenInstance</span>. При сохранении MetodiOne автоматически
+                        настроит приём сообщений — вручную вставлять webhook в Green API не нужно.
                       </p>
                       <div className="grid gap-2 sm:grid-cols-2">
                         <label className="text-sm text-slate-300">
@@ -1628,10 +1862,10 @@ export function CrmPage() {
                         </div>
                         {it.provider === "green_api" && (
                           <div className="mt-2 text-[11px] leading-relaxed text-emerald-400/90">
-                            WhatsApp: при сохранении CRM сама настроила приём в Green API. Новые сообщения клиентов
-                            появляются как лиды в выбранной воронке (и в разделе «Чат»). Первое сообщение может
-                            задержаться до нескольких минут. После обновления CRM откройте «Изменить» и снова нажмите
-                            «Сохранить», чтобы переподключить вебхук.
+                            WhatsApp: при сохранении MetodiOne автоматически настроила приём в Green API. Новые
+                            сообщения клиентов появляются как лиды в выбранной воронке (и в разделе «Чат»). Первое
+                            сообщение может задержаться до нескольких минут. После обновления в Green API откройте в
+                            MetodiOne «Изменить» и снова нажмите «Сохранить», чтобы переподключить вебхук.
                           </div>
                         )}
                         {it.provider === "green_api" && it.has_api_token && (
