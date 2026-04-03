@@ -52,3 +52,10 @@ class LeadImportErrorItem(BaseModel):
 class LeadImportResponse(BaseModel):
     created: int
     errors: list[LeadImportErrorItem]
+
+
+class LeadTablePage(BaseModel):
+    items: list[LeadRead]
+    total: int
+    page: int
+    page_size: int

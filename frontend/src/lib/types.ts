@@ -93,6 +93,13 @@ export interface LeadImportResponse {
   errors: LeadImportErrorItem[];
 }
 
+export interface LeadTablePage {
+  items: Lead[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export interface LeadAuditEvent {
   id: number;
   lead_id: number;
