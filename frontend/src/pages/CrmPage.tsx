@@ -978,7 +978,7 @@ export function CrmPage() {
     fd.append("default_stage_id", String(importStageId));
     const token = getStoredToken();
     const controller = new AbortController();
-    const to = window.setTimeout(() => controller.abort(), 120000);
+    const to = window.setTimeout(() => controller.abort(), 300_000);
     try {
       const res = await fetch(resolveApiUrl("/api/leads/import"), {
         method: "POST",

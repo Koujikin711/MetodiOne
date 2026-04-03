@@ -7,8 +7,9 @@ import io
 import re
 from typing import NamedTuple
 
+# Экспорт Битрикс24 с десятками колонок легко превышает несколько мегабайт.
 _MAX_ROWS = 2000
-_MAX_FILE_BYTES = 5 * 1024 * 1024
+_MAX_FILE_BYTES = 50 * 1024 * 1024
 
 
 class ParsedLeadRow(NamedTuple):
@@ -26,7 +27,8 @@ def _norm_header(h: str) -> str:
 
 def decode_csv_text(data: bytes) -> str:
     if len(data) > _MAX_FILE_BYTES:
-        raise ValueError("Файл слишком большой (максимум 5 МБ)")
+        max_mb = _MAX_FILE_BYTES // (1024 * 1024)
+        raise ValueError(f"Файл слишком большой (максимум {max_mb} МБ)")
     for enc in ("utf-8-sig", "utf-8", "cp1251"):
         try:
             return data.decode(enc)
