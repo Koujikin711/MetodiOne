@@ -49,9 +49,9 @@ async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
 
 
 async def _assert_thread_access(db: AsyncSession, thread: ChatThread, current_user) -> None:
-    if current_user.role == UserRole.admin:
+    if current_user.role == UserRole.owner:
         return
-    if current_user.role != UserRole.manager:
+    if current_user.role not in (UserRole.manager, UserRole.admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
     allowed = await _manager_pipeline_ids(db, current_user.id)
     if thread.pipeline_id not in allowed:
@@ -86,9 +86,9 @@ async def list_threads(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> list[ChatThreadRead]:
-    if current_user.role not in (UserRole.admin, UserRole.manager):
+    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
-    if current_user.role == UserRole.manager:
+    if current_user.role in (UserRole.manager, UserRole.admin):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if not allowed:
             return []

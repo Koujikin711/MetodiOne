@@ -147,6 +147,15 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             )
         if "work_weekdays" not in cols:
             await conn.execute(text("ALTER TABLE booking_specialists ADD COLUMN work_weekdays TEXT"))
+        if "crm_user_id" not in cols:
+            await conn.execute(
+                text("ALTER TABLE booking_specialists ADD COLUMN crm_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"),
+            )
+            await conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_specialists_crm_user_id ON booking_specialists(crm_user_id) WHERE crm_user_id IS NOT NULL",
+                ),
+            )
 
         if added_sort_order:
             await conn.execute(text("UPDATE booking_specialists SET sort_order = id"))
@@ -177,6 +186,10 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             await conn.execute(
                 text("ALTER TABLE pipelines ADD COLUMN assignment_rr_counter INTEGER NOT NULL DEFAULT 0"),
             )
+        if pipe_cols and "expert_user_id" not in pipe_cols:
+            await conn.execute(
+                text("ALTER TABLE pipelines ADD COLUMN expert_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"),
+            )
 
         r = await conn.execute(text("PRAGMA table_info(chat_messages)"))
         cm_cols = {row[1] for row in r.fetchall()}
@@ -193,6 +206,10 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
 
         r = await conn.execute(text("PRAGMA table_info(booking_appointments)"))
         ba_cols = {row[1] for row in r.fetchall()}
+        if ba_cols and "pipeline_id" not in ba_cols:
+            await conn.execute(
+                text("ALTER TABLE booking_appointments ADD COLUMN pipeline_id INTEGER REFERENCES pipelines(id) ON DELETE SET NULL"),
+            )
         if ba_cols and "service_amount" not in ba_cols:
             await conn.execute(
                 text("ALTER TABLE booking_appointments ADD COLUMN service_amount NUMERIC(14, 2) NOT NULL DEFAULT 0"),
@@ -201,6 +218,18 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             await conn.execute(
                 text("ALTER TABLE booking_appointments ADD COLUMN paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0"),
             )
+        await conn.execute(
+            text(
+                """UPDATE booking_appointments
+                   SET pipeline_id = (
+                       SELECT ps.pipeline_id
+                       FROM leads l
+                       LEFT JOIN pipeline_stages ps ON ps.id = l.status_id
+                       WHERE l.id = booking_appointments.lead_id
+                   )
+                   WHERE pipeline_id IS NULL""",
+            ),
+        )
         return
 
     if "postgresql" in database_url or "asyncpg" in database_url:
@@ -321,6 +350,16 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
         )
         await conn.execute(
             text(
+                "ALTER TABLE booking_specialists ADD COLUMN IF NOT EXISTS crm_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+            ),
+        )
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_specialists_crm_user_id ON booking_specialists (crm_user_id) WHERE crm_user_id IS NOT NULL",
+            ),
+        )
+        await conn.execute(
+            text(
                 """UPDATE booking_specialists SET sort_order = id
                    WHERE NOT EXISTS (SELECT 1 FROM booking_specialists s WHERE s.sort_order > 0)""",
             ),
@@ -342,6 +381,9 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             ),
         )
         await conn.execute(
+            text("ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS expert_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"),
+        )
+        await conn.execute(
             text(
                 "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(24) NOT NULL DEFAULT 'text'",
             ),
@@ -349,6 +391,11 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
         await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS media_url TEXT"))
         await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS media_mime VARCHAR(128)"))
         await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS file_name VARCHAR(255)"))
+        await conn.execute(
+            text(
+                "ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS pipeline_id INTEGER REFERENCES pipelines(id) ON DELETE SET NULL",
+            ),
+        )
         await conn.execute(
             text(
                 "ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS service_amount NUMERIC(14, 2) NOT NULL DEFAULT 0",
@@ -359,4 +406,32 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
                 "ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0",
             ),
         )
+        await conn.execute(
+            text(
+                """UPDATE booking_appointments ba
+                   SET pipeline_id = ps.pipeline_id
+                   FROM leads l
+                   LEFT JOIN pipeline_stages ps ON ps.id = l.status_id
+                   WHERE ba.lead_id = l.id
+                     AND ba.pipeline_id IS NULL""",
+            ),
+        )
         return
+
+
+async def ensure_owner_role_migration(conn: AsyncConnection, database_url: str) -> None:
+    """
+    Роль «полного» администратора переименована в owner.
+    Существующие пользователи с role=admin становятся owner; значение admin в enum — для новой роли админа воронки.
+    """
+    low = database_url.lower()
+    if "sqlite" in low:
+        await conn.execute(text("UPDATE users SET role = 'owner' WHERE role = 'admin'"))
+        return
+    if "postgresql" not in low and "asyncpg" not in low:
+        return
+    try:
+        await conn.execute(text("ALTER TYPE user_role ADD VALUE 'owner'"))
+    except Exception:
+        pass
+    await conn.execute(text("UPDATE users SET role = 'owner' WHERE role::text = 'admin'"))

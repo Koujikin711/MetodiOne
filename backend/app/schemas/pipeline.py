@@ -12,6 +12,7 @@ class PipelineRead(BaseModel):
     name: str
     type: str | None = None
     lead_assignment_mode: str = "none"
+    expert_user_id: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -21,10 +22,12 @@ class PipelinePatch(BaseModel):
         default=None,
         description="none | round_robin | least_loaded",
     )
+    expert_user_id: int | None = Field(default=None, ge=1)
 
 
 class PipelineCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     type: str | None = Field(default=None, max_length=64)
     stages: list[PipelineStageCreate] = Field(..., min_length=1)
+    expert_user_id: int | None = Field(default=None, ge=1)
 

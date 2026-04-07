@@ -48,9 +48,9 @@ def _period_bounds(period: str, date_from: str | None, date_to: str | None) -> t
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="period: day | month | custom")
 
 
-def _assert_admin(current_user: CurrentUser) -> None:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
+def _assert_owner(current_user: CurrentUser) -> None:
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
 
 
 @router.get("/full", response_model=FullAnalyticsRead)
@@ -61,7 +61,7 @@ async def analytics_full(
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
 ) -> FullAnalyticsRead:
-    _assert_admin(current_user)
+    _assert_owner(current_user)
     start, end = _period_bounds(period, date_from, date_to)
 
     total_leads = int(
@@ -122,7 +122,7 @@ async def analytics_detailed(
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
 ) -> DetailedAnalyticsRead:
-    _assert_admin(current_user)
+    _assert_owner(current_user)
     start, end = _period_bounds(period, date_from, date_to)
 
     total_leads = int(

@@ -34,7 +34,7 @@ async def create_stage(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> PipelineStageRead:
-    if current_user.role != UserRole.admin:
+    if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     pipeline = await db.get(Pipeline, body.pipeline_id)
     if pipeline is None:
@@ -75,7 +75,7 @@ async def delete_stage(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> None:
-    if current_user.role != UserRole.admin:
+    if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
     st = await db.get(PipelineStage, stage_id)
     if st is None:

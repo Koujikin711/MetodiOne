@@ -9,10 +9,10 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.database import AsyncSessionLocal, engine
-from app.database_migrate import ensure_booking_specialist_columns
+from app.database_migrate import ensure_booking_specialist_columns, ensure_owner_role_migration
 from app.core.security import hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, LeadSource, Pipeline, PipelineStage, User, UserRole
-from app.routers import analytics, audit, auth, booking, chat, deals, employees, integrations, leads, pipelines, sources, stages, system, tasks, users
+from app.routers import analytics, audit, auth, booking, chat, deals, employees, integrations, leads, pipelines, reports, sources, stages, system, tasks, users
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ async def seed_test_admin() -> None:
             User(
                 email=TEST_ADMIN_EMAIL,
                 hashed_password=hash_password("admin"),
-                role=UserRole.admin,
+                role=UserRole.owner,
             )
         )
         await session.commit()
@@ -80,7 +80,15 @@ async def seed_booking_defaults() -> None:
         d = BookingDirection(name="Консультация", duration_min=30, is_active=True)
         session.add(d)
         await session.flush()
-        session.add(BookingSpecialist(full_name="Ганчина", direction_id=d.id, phone=None, is_active=True))
+        session.add(
+            BookingSpecialist(
+                full_name="Ганчина",
+                direction_id=d.id,
+                phone=None,
+                is_active=True,
+                specialization="Невролог",
+            ),
+        )
         await session.commit()
 
 
@@ -106,6 +114,7 @@ async def lifespan(_: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await ensure_booking_specialist_columns(conn, settings.database_url)
+        await ensure_owner_role_migration(conn, settings.database_url)
     await seed_pipelines_and_stages()
     await seed_test_admin()
     await seed_booking_defaults()
@@ -176,6 +185,7 @@ app.include_router(employees.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
+app.include_router(reports.router, prefix="/api")
 
 
 @app.get("/health")

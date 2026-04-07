@@ -18,6 +18,11 @@ async def register(
     body: UserCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
+    if body.role in (UserRole.owner, UserRole.admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Роли «Владелец» и «Админ» выдаются только приглашением",
+        )
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser
 from app.database import get_db
-from app.models import Pipeline, PipelineStage, UserRole
+from app.models import Pipeline, PipelineStage, User, UserRole
 from app.schemas.pipeline import PipelineCreate, PipelinePatch, PipelineRead
 from app.services.audit import write_audit_event
 from app.services.stage_delete_checks import pipeline_delete_block_reason
@@ -29,14 +29,20 @@ async def create_pipeline(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> PipelineRead:
-    if current_user.role != UserRole.admin:
+    if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
     exists = await db.scalar(select(Pipeline.id).where(Pipeline.name == body.name))
     if exists is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pipeline name already exists")
 
-    pipe = Pipeline(name=body.name, type=body.type or "sales")
+    expert_user_id = body.expert_user_id
+    if expert_user_id is not None:
+        u = await db.get(User, expert_user_id)
+        if u is None or not u.is_active or u.role != UserRole.expert:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="expert_user_id: unknown expert")
+
+    pipe = Pipeline(name=body.name, type=body.type or "sales", expert_user_id=expert_user_id)
     db.add(pipe)
     await db.flush()
 
@@ -70,11 +76,18 @@ async def patch_pipeline(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> PipelineRead:
-    if current_user.role != UserRole.admin:
+    if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found")
+    if body.expert_user_id is not None:
+        u = await db.get(User, body.expert_user_id)
+        if u is None or not u.is_active or u.role != UserRole.expert:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="expert_user_id: unknown expert")
+        pipe.expert_user_id = body.expert_user_id
+    elif body.expert_user_id is None and "expert_user_id" in body.model_fields_set:
+        pipe.expert_user_id = None
     if body.lead_assignment_mode is not None:
         mode = body.lead_assignment_mode.strip().lower()
         if mode not in ("none", "round_robin", "least_loaded"):
@@ -90,7 +103,7 @@ async def patch_pipeline(
         entity_id=pipe.id,
         action="pipeline_updated",
         current_user=current_user,
-        details=f"lead_assignment_mode={pipe.lead_assignment_mode}",
+        details=f"lead_assignment_mode={pipe.lead_assignment_mode}, expert_user_id={pipe.expert_user_id}",
     )
     await db.refresh(pipe)
     return PipelineRead.model_validate(pipe)
@@ -102,7 +115,7 @@ async def delete_pipeline(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> None:
-    if current_user.role != UserRole.admin:
+    if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None:

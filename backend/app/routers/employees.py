@@ -13,7 +13,7 @@ from app.config import settings
 from app.core.deps import CurrentUser
 from app.core.security import hash_password
 from app.database import get_db
-from app.models import Pipeline, User, UserPipelineAssignment, UserRole
+from app.models import BookingDirection, BookingSpecialist, Pipeline, User, UserPipelineAssignment, UserRole
 from app.services.mail import send_email
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -26,6 +26,8 @@ class EmployeeRead(BaseModel):
     full_name: str | None = None
     role: UserRole
     pipeline_ids: list[int] = Field(default_factory=list)
+    specialization: str | None = None
+    booking_direction_id: int | None = None
 
 
 class InviteEmployeeBody(BaseModel):
@@ -34,6 +36,10 @@ class InviteEmployeeBody(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=255)
     role: UserRole = UserRole.manager
     pipeline_ids: list[int] = Field(default_factory=list)
+    """Для эксперта: подпись в календаре под ФИО (например Невролог)."""
+    specialization: str | None = Field(default=None, max_length=255)
+    """Для эксперта: направление онлайн-записи (тип слота / колонка календаря)."""
+    booking_direction_id: int | None = Field(default=None, ge=1)
 
 
 class InviteEmployeeResult(BaseModel):
@@ -55,6 +61,10 @@ def _norm_phone(raw: str) -> str:
 async def _employee_read(db: AsyncSession, u: User) -> EmployeeRead:
     rows = await db.execute(select(UserPipelineAssignment.pipeline_id).where(UserPipelineAssignment.user_id == u.id))
     pids = [r[0] for r in rows.all()]
+    spec_row = (
+        await db.execute(select(BookingSpecialist).where(BookingSpecialist.crm_user_id == u.id).limit(1))
+    ).scalars().first()
+    sp_text = (spec_row.specialization or "").strip() if spec_row else ""
     return EmployeeRead(
         id=u.id,
         email=u.email,
@@ -62,7 +72,55 @@ async def _employee_read(db: AsyncSession, u: User) -> EmployeeRead:
         full_name=u.full_name,
         role=u.role,
         pipeline_ids=pids,
+        specialization=sp_text or None,
+        booking_direction_id=spec_row.direction_id if spec_row else None,
     )
+
+
+async def _sync_expert_calendar_profile(
+    db: AsyncSession,
+    *,
+    user: User,
+    full_name: str,
+    phone_norm: str,
+    specialization: str,
+    booking_direction_id: int,
+) -> None:
+    d = await db.get(BookingDirection, booking_direction_id)
+    if d is None or not d.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неизвестное или неактивное направление онлайн-записи",
+        )
+
+    r = await db.execute(select(BookingSpecialist).where(BookingSpecialist.crm_user_id == user.id))
+    spec = r.scalars().first()
+    if spec is not None:
+        spec.full_name = full_name.strip()
+        spec.phone = phone_norm or None
+        spec.specialization = specialization.strip()
+        spec.direction_id = booking_direction_id
+        spec.is_active = True
+        await db.flush()
+        return
+
+    mx = await db.scalar(select(func.coalesce(func.max(BookingSpecialist.sort_order), -1)))
+    next_sort = int(mx if mx is not None else -1) + 1
+    spec = BookingSpecialist(
+        full_name=full_name.strip(),
+        direction_id=booking_direction_id,
+        phone=phone_norm or None,
+        specialization=specialization.strip(),
+        is_active=True,
+        sort_order=next_sort,
+        work_start_hour=9,
+        work_end_hour=18,
+        slot_duration_min=30,
+        work_weekdays=[0, 1, 2, 3, 4],
+        crm_user_id=user.id,
+    )
+    db.add(spec)
+    await db.flush()
 
 
 def _invite_app_base() -> str:
@@ -121,8 +179,8 @@ async def list_employees(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> list[EmployeeRead]:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
     r = await db.execute(select(User).where(User.is_active.is_(True)).order_by(User.id.desc()))
     users = r.scalars().all()
     return [await _employee_read(db, u) for u in users]
@@ -134,8 +192,35 @@ async def invite_employee(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> InviteEmployeeResult:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    if body.role == UserRole.owner:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Роль «Владелец» не назначается через приглашение",
+        )
+    if body.role == UserRole.admin and not body.pipeline_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Для роли «Админ» укажите хотя бы одну воронку (онлайн-запись и лиды по направлению)",
+        )
+    if body.role == UserRole.expert:
+        if not body.pipeline_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Для эксперта укажите хотя бы одну воронку CRM",
+            )
+        spec_s = (body.specialization or "").strip()
+        if len(spec_s) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Укажите специальность эксперта (под ФИО в календаре записи, например Невролог)",
+            )
+        if body.booking_direction_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Выберите направление онлайн-записи (колонка календаря: Консультация и т.п.)",
+            )
 
     email = body.email.strip().lower()
     phone = _norm_phone(body.phone)
@@ -201,6 +286,17 @@ async def invite_employee(
     await db.flush()
     await db.refresh(u)
 
+    if u.role == UserRole.expert:
+        assert body.booking_direction_id is not None
+        await _sync_expert_calendar_profile(
+            db,
+            user=u,
+            full_name=u.full_name or body.full_name.strip(),
+            phone_norm=phone,
+            specialization=(body.specialization or "").strip(),
+            booking_direction_id=body.booking_direction_id,
+        )
+
     invite_url = _build_invite_url(invite_token)
     safe_email = html.escape(email)
     safe_pw = html.escape(temp_password)
@@ -259,8 +355,8 @@ async def terminate_employee(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> Response:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
     if employee_id == current_user.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя уволить самого себя")
 
@@ -268,19 +364,44 @@ async def terminate_employee(
     if target is None or not target.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")
 
-    if target.role == UserRole.admin:
-        admins = await db.scalar(
-            select(func.count()).select_from(User).where(User.role == UserRole.admin, User.is_active.is_(True))
+    if target.role == UserRole.owner:
+        owners = await db.scalar(
+            select(func.count()).select_from(User).where(User.role == UserRole.owner, User.is_active.is_(True))
         )
-        if admins is not None and admins <= 1:
+        if owners is not None and owners <= 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Нельзя уволить последнего администратора",
+                detail="Нельзя уволить последнего владельца",
             )
 
     target.is_active = False
     target.invite_token = None
     await db.execute(delete(UserPipelineAssignment).where(UserPipelineAssignment.user_id == target.id))
+    if target.role == UserRole.expert:
+        for sp in (
+            await db.execute(select(BookingSpecialist).where(BookingSpecialist.crm_user_id == target.id))
+        ).scalars().all():
+            sp.is_active = False
     await db.flush()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/experts")
+async def list_experts(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> list[dict[str, object]]:
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    rows = (
+        await db.execute(
+            select(User.id, User.email, User.full_name)
+            .where(User.is_active.is_(True), User.role == UserRole.expert)
+            .order_by(User.id.desc())
+        )
+    ).all()
+    return [
+        {"id": int(uid), "email": str(email), "full_name": (str(fn) if fn else None)}
+        for uid, email, fn in rows
+    ]
 

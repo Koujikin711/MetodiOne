@@ -2,12 +2,13 @@ import { Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { HomeEntry, RequireAdmin, RequireNotManager } from "@/components/RoleRoutes";
+import { HomeEntry, RequireOwner, RequireNotManager } from "@/components/RoleRoutes";
 import { MainLayout } from "@/layouts/MainLayout";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { AuditPage } from "@/pages/AuditPage";
 import { ChatPage } from "@/pages/ChatPage";
 import { EmployeesPage } from "@/pages/EmployeesPage";
+import { ExpertReportsPage } from "@/pages/ExpertReportsPage";
 import { LeadDetailPage } from "@/pages/LeadDetailPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { MyLeadsPage } from "@/pages/MyLeadsPage";
@@ -36,11 +37,12 @@ export default function App() {
             <Route
               path="/analytics"
               element={
-                <RequireAdmin>
+                <RequireOwner>
                   <AnalyticsPage />
-                </RequireAdmin>
+                </RequireOwner>
               }
             />
+            <Route path="/reports" element={<ExpertReportsPage />} />
             <Route
               path="/employees"
               element={

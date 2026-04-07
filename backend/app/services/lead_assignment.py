@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Lead, Pipeline, PipelineStage, UserPipelineAssignment
+from app.models import Lead, Pipeline, PipelineStage, User, UserPipelineAssignment, UserRole
 
 
 async def assign_manager_for_new_lead(db: AsyncSession, *, pipeline_id: int) -> int | None:
@@ -17,7 +17,13 @@ async def assign_manager_for_new_lead(db: AsyncSession, *, pipeline_id: int) -> 
         return None
 
     res = await db.execute(
-        select(UserPipelineAssignment.user_id).where(UserPipelineAssignment.pipeline_id == pipeline_id),
+        select(UserPipelineAssignment.user_id)
+        .join(User, User.id == UserPipelineAssignment.user_id)
+        .where(
+            UserPipelineAssignment.pipeline_id == pipeline_id,
+            User.role == UserRole.manager,
+            User.is_active.is_(True),
+        ),
     )
     user_ids = sorted({r[0] for r in res.all()})
     if not user_ids:
