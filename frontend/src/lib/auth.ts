@@ -14,7 +14,7 @@ export function decodeRoleFromToken(token: string | null): UserRole | null {
     const json = atob(padded);
     const payload = JSON.parse(json) as { role?: unknown };
     const role = payload.role;
-    if (role === "admin" || role === "manager" || role === "expert") return role;
+    if (role === "owner" || role === "admin" || role === "manager" || role === "expert") return role;
     return null;
   } catch {
     return null;

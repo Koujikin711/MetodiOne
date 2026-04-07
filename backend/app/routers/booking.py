@@ -20,6 +20,8 @@ from app.models import (
     Lead,
     Pipeline,
     PipelineStage,
+    User,
+    UserPipelineAssignment,
     UserRole,
 )
 from app.schemas.booking import (
@@ -42,6 +44,87 @@ from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.whatsapp_automation import send_booking_confirmation_if_needed
 
 router = APIRouter(prefix="/booking", tags=["booking"])
+
+
+async def _user_assigned_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
+    r = await db.execute(
+        select(UserPipelineAssignment.pipeline_id).where(UserPipelineAssignment.user_id == user_id),
+    )
+    return {row[0] for row in r.all()}
+
+
+async def _appointment_lead_pipeline_id(db: AsyncSession, appt: BookingAppointment) -> int | None:
+    if getattr(appt, "pipeline_id", None) is not None:
+        return int(appt.pipeline_id)
+    if appt.lead_id is None:
+        return None
+    lead = await db.get(Lead, appt.lead_id)
+    if lead is None:
+        return None
+    await db.refresh(lead, ["stage"])
+    return lead.stage.pipeline_id if lead.stage else None
+
+
+async def compute_can_manage_journal(db: AsyncSession, appt: BookingAppointment, viewer: User) -> bool:
+    if viewer.role == UserRole.owner:
+        return True
+    if viewer.role != UserRole.admin:
+        return False
+    pid = await _appointment_lead_pipeline_id(db, appt)
+    if pid is None:
+        return False
+    allowed = await _user_assigned_pipeline_ids(db, viewer.id)
+    return pid in allowed
+
+
+async def _assert_can_manage_appointment_journal(
+    db: AsyncSession,
+    appt: BookingAppointment,
+    current_user: User,
+) -> None:
+    if current_user.role == UserRole.owner:
+        return
+    if current_user.role != UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Только владелец или админ воронки по лиду записи",
+        )
+    if not await compute_can_manage_journal(db, appt, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Запись относится к воронке, к которой у вас нет прав администратора",
+        )
+
+
+async def _booking_appointment_read(
+    db: AsyncSession,
+    a: BookingAppointment,
+    *,
+    direction_name: str,
+    specialist_name: str,
+    viewer: User | None,
+) -> BookingAppointmentRead:
+    can = False
+    if viewer is not None:
+        can = await compute_can_manage_journal(db, a, viewer)
+    return BookingAppointmentRead(
+        id=a.id,
+        lead_id=a.lead_id,
+        specialist_id=a.specialist_id,
+        direction_id=a.direction_id,
+        patient_name=a.patient_name,
+        patient_phone=a.patient_phone,
+        start_at=_ensure_utc(a.start_at),
+        end_at=_ensure_utc(a.end_at),
+        status=a.status,
+        service_amount=float(a.service_amount or 0),
+        paid_amount=float(a.paid_amount or 0),
+        responsible_manager_id=a.responsible_manager_id,
+        direction_name=direction_name,
+        specialist_name=specialist_name,
+        comment=a.comment,
+        can_manage_journal=can,
+    )
 
 
 def _norm_work_weekdays(raw: list | None) -> list[int]:
@@ -171,11 +254,16 @@ async def booking_queue_add(
 
     stage_row = await db.get(PipelineStage, q_sid)
     pipeline_id = stage_row.pipeline_id if stage_row else None
-    manager_id = current_user.id
+    manager_id: int | None = None
     if pipeline_id is not None:
         assigned = await assign_manager_for_new_lead(db, pipeline_id=pipeline_id)
         if assigned is not None:
             manager_id = assigned
+    if manager_id is None:
+        if current_user.role == UserRole.manager:
+            manager_id = current_user.id
+        elif current_user.role == UserRole.owner:
+            manager_id = current_user.id
 
     lead = Lead(
         name=body.name.strip(),
@@ -473,7 +561,7 @@ async def _upsert_lead_for_appointment(
 @router.get("/appointments", response_model=list[BookingAppointmentRead])
 async def list_appointments(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
     date: str | None = None,
     specialist_id: int | None = None,
 ) -> list[BookingAppointmentRead]:
@@ -495,23 +583,13 @@ async def list_appointments(
     out: list[BookingAppointmentRead] = []
     for a, dname, sname in result.all():
         out.append(
-            BookingAppointmentRead(
-                id=a.id,
-                lead_id=a.lead_id,
-                specialist_id=a.specialist_id,
-                direction_id=a.direction_id,
-                patient_name=a.patient_name,
-                patient_phone=a.patient_phone,
-                start_at=_ensure_utc(a.start_at),
-                end_at=_ensure_utc(a.end_at),
-                status=a.status,
-                service_amount=float(a.service_amount or 0),
-                paid_amount=float(a.paid_amount or 0),
-                responsible_manager_id=a.responsible_manager_id,
+            await _booking_appointment_read(
+                db,
+                a,
                 direction_name=dname,
                 specialist_name=sname,
-                comment=a.comment,
-            )
+                viewer=current_user,
+            ),
         )
     return out
 
@@ -549,20 +627,23 @@ async def create_appointment(
     if overlap.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже занят")
     if (
-        current_user.role == UserRole.manager
+        current_user.role in (UserRole.manager, UserRole.admin)
         and float(body.paid_amount or 0) > 0
         and body.responsible_manager_id is None
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Менеджер не может указать оплату без ответственного менеджера",
+            detail="Менеджер или админ воронки не может указать оплату без ответственного менеджера",
         )
 
     lead_id = body.lead_id
+    appointment_pipeline_id: int | None = None
     if lead_id is not None:
         lead = await db.get(Lead, lead_id)
         if lead is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Лид не найден")
+        await db.refresh(lead, ["stage"])
+        appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
     else:
         lead_id = await _upsert_lead_for_appointment(
             db,
@@ -572,10 +653,17 @@ async def create_appointment(
             lead_pipeline_id=body.lead_pipeline_id,
             lead_stage_id=body.lead_stage_id,
         )
+        appointment_pipeline_id = body.lead_pipeline_id
+        if appointment_pipeline_id is None and lead_id is not None:
+            lead = await db.get(Lead, lead_id)
+            if lead is not None:
+                await db.refresh(lead, ["stage"])
+                appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
 
     now = datetime.now(UTC)
     appt = BookingAppointment(
         lead_id=lead_id,
+        pipeline_id=appointment_pipeline_id,
         patient_name=body.patient_name.strip(),
         patient_phone=body.patient_phone.strip(),
         direction_id=body.direction_id,
@@ -610,22 +698,12 @@ async def create_appointment(
 
     dname = direction.name
     sname = specialist.full_name
-    return BookingAppointmentRead(
-        id=appt.id,
-        lead_id=appt.lead_id,
-        specialist_id=appt.specialist_id,
-        direction_id=appt.direction_id,
-        patient_name=appt.patient_name,
-        patient_phone=appt.patient_phone,
-        start_at=_ensure_utc(appt.start_at),
-        end_at=_ensure_utc(appt.end_at),
-        status=appt.status,
-        service_amount=float(appt.service_amount or 0),
-        paid_amount=float(appt.paid_amount or 0),
-        responsible_manager_id=appt.responsible_manager_id,
+    return await _booking_appointment_read(
+        db,
+        appt,
         direction_name=dname,
         specialist_name=sname,
-        comment=appt.comment,
+        viewer=current_user,
     )
 
 
@@ -684,22 +762,12 @@ async def move_appointment(
         details=f"specialist_id={appt.specialist_id}, start_at={appt.start_at.isoformat()}",
     )
 
-    return BookingAppointmentRead(
-        id=appt.id,
-        lead_id=appt.lead_id,
-        specialist_id=appt.specialist_id,
-        direction_id=appt.direction_id,
-        patient_name=appt.patient_name,
-        patient_phone=appt.patient_phone,
-        start_at=_ensure_utc(appt.start_at),
-        end_at=_ensure_utc(appt.end_at),
-        status=appt.status,
-        service_amount=float(appt.service_amount or 0),
-        paid_amount=float(appt.paid_amount or 0),
-        responsible_manager_id=appt.responsible_manager_id,
+    return await _booking_appointment_read(
+        db,
+        appt,
         direction_name=direction.name,
         specialist_name=specialist.full_name,
-        comment=appt.comment,
+        viewer=current_user,
     )
 
 
@@ -733,22 +801,12 @@ async def patch_appointment_status(
 
     direction = await db.get(BookingDirection, a.direction_id)
     specialist = await db.get(BookingSpecialist, a.specialist_id)
-    return BookingAppointmentRead(
-        id=a.id,
-        lead_id=a.lead_id,
-        specialist_id=a.specialist_id,
-        direction_id=a.direction_id,
-        patient_name=a.patient_name,
-        patient_phone=a.patient_phone,
-        start_at=_ensure_utc(a.start_at),
-        end_at=_ensure_utc(a.end_at),
-        status=a.status,
-        service_amount=float(a.service_amount or 0),
-        paid_amount=float(a.paid_amount or 0),
-        responsible_manager_id=a.responsible_manager_id,
-        direction_name=direction.name if direction else None,
-        specialist_name=specialist.full_name if specialist else None,
-        comment=a.comment,
+    return await _booking_appointment_read(
+        db,
+        a,
+        direction_name=direction.name if direction else "",
+        specialist_name=specialist.full_name if specialist else "",
+        viewer=current_user,
     )
 
 
@@ -759,11 +817,10 @@ async def patch_appointment_payment(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> BookingAppointmentRead:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор может менять оплату")
     appt = await db.get(BookingAppointment, appointment_id)
     if appt is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+    await _assert_can_manage_appointment_journal(db, appt, current_user)
     if body.paid_amount > float(appt.service_amount or 0):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Оплата не может быть больше стоимости услуги")
 
@@ -790,22 +847,12 @@ async def patch_appointment_payment(
 
     direction = await db.get(BookingDirection, appt.direction_id)
     specialist = await db.get(BookingSpecialist, appt.specialist_id)
-    return BookingAppointmentRead(
-        id=appt.id,
-        lead_id=appt.lead_id,
-        specialist_id=appt.specialist_id,
-        direction_id=appt.direction_id,
-        patient_name=appt.patient_name,
-        patient_phone=appt.patient_phone,
-        start_at=_ensure_utc(appt.start_at),
-        end_at=_ensure_utc(appt.end_at),
-        status=appt.status,
-        service_amount=float(appt.service_amount or 0),
-        paid_amount=float(appt.paid_amount or 0),
-        responsible_manager_id=appt.responsible_manager_id,
-        direction_name=direction.name if direction else None,
-        specialist_name=specialist.full_name if specialist else None,
-        comment=appt.comment,
+    return await _booking_appointment_read(
+        db,
+        appt,
+        direction_name=direction.name if direction else "",
+        specialist_name=specialist.full_name if specialist else "",
+        viewer=current_user,
     )
 
 
@@ -815,11 +862,10 @@ async def delete_appointment(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> Response:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор может удалять запись")
     appt = await db.get(BookingAppointment, appointment_id)
     if appt is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+    await _assert_can_manage_appointment_journal(db, appt, current_user)
     await db.delete(appt)
     await db.flush()
     await write_audit_event(

@@ -27,8 +27,8 @@ class SmtpTestBody(BaseModel):
 
 @router.get("/smtp", response_model=SmtpConfigRead)
 async def smtp_config(current_user: CurrentUser) -> SmtpConfigRead:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
     return SmtpConfigRead(
         host=settings.smtp_host,
         port=settings.smtp_port,
@@ -42,8 +42,8 @@ async def smtp_config(current_user: CurrentUser) -> SmtpConfigRead:
 
 @router.post("/smtp/test")
 async def smtp_test(body: SmtpTestBody, current_user: CurrentUser) -> dict:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
     ok = send_email(
         body.to_email.strip(),
         "CRM SMTP test",

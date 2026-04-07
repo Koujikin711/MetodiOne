@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "manager" | "expert";
+export type UserRole = "owner" | "admin" | "manager" | "expert";
 
 export interface User {
   id: number;
@@ -19,6 +19,7 @@ export interface Pipeline {
   name: string;
   type: string | null;
   lead_assignment_mode?: string;
+  expert_user_id?: number | null;
 }
 
 export interface LeadSource {
@@ -216,8 +217,33 @@ export interface BookingAppointment {
   direction_name: string | null;
   specialist_name: string | null;
   comment: string | null;
+  /** Оплата/удаление в журнале (владелец или админ воронки по лиду) */
+  can_manage_journal?: boolean;
   /** Когда клиенту отправили уведомление о записи */
   notification_sent_at?: string | null;
   /** Когда клиент ответил на уведомление */
   notification_replied_at?: string | null;
+}
+
+export interface ExpertSalesItem {
+  specialist_id: number;
+  specialist_name: string;
+  specialization: string | null;
+  appointments_completed: number;
+  patients_count: number;
+  paid_amount_sum: string;
+}
+
+export interface PipelineExpertReport {
+  pipeline_id: number;
+  pipeline_name: string;
+  leads_created: number;
+  leads_opened_by_managers: number;
+  sales_by_expert: ExpertSalesItem[];
+}
+
+export interface ExpertReportsResponse {
+  period_start: string;
+  period_end: string;
+  items: PipelineExpertReport[];
 }

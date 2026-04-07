@@ -20,7 +20,7 @@ async def list_audit_events(
     entity_id: int | None = Query(default=None),
     limit: int = Query(default=200, ge=1, le=500),
 ) -> list[SystemAuditEventRead]:
-    if current_user.role != UserRole.admin:
+    if current_user.role != UserRole.owner:
         return []
 
     q = select(SystemAuditEvent, User).outerjoin(User, User.id == SystemAuditEvent.user_id)

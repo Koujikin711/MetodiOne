@@ -27,7 +27,7 @@ async def create_source(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> LeadSourceRead:
-    if current_user.role != UserRole.admin:
+    if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
     exists = await db.scalar(select(LeadSource.id).where(LeadSource.name == body.name.strip()))
@@ -48,7 +48,7 @@ async def patch_source(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> LeadSourceRead:
-    if current_user.role != UserRole.admin:
+    if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
     s = await db.get(LeadSource, source_id)
@@ -70,7 +70,7 @@ async def delete_source(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ):
-    if current_user.role != UserRole.admin:
+    if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
     s = await db.get(LeadSource, source_id)

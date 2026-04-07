@@ -1,12 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeUserIdFromToken } from "@/lib/auth";
-import type { Pipeline } from "@/lib/types";
-
-type UserRole = "admin" | "manager" | "expert";
+import type { BookingDirection, Pipeline, UserRole } from "@/lib/types";
 
 interface Employee {
   id: number;
@@ -15,6 +13,8 @@ interface Employee {
   full_name: string | null;
   role: UserRole;
   pipeline_ids: number[];
+  specialization?: string | null;
+  booking_direction_id?: number | null;
 }
 
 interface InviteResult {
@@ -43,6 +43,10 @@ export function EmployeesPage() {
     queryKey: ["pipelines"],
     queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
   });
+  const bookingDirectionsQuery = useQuery({
+    queryKey: ["booking-directions"],
+    queryFn: () => apiFetch<BookingDirection[]>("/api/booking/directions"),
+  });
   const smtpQuery = useQuery({
     queryKey: ["smtp-config"],
     queryFn: () => apiFetch<SmtpConfig>("/api/system/smtp"),
@@ -64,17 +68,26 @@ export function EmployeesPage() {
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<UserRole>("manager");
   const [pipelineIds, setPipelineIds] = useState<number[]>([]);
+  const [expertSpecialization, setExpertSpecialization] = useState("");
+  const [bookingDirectionId, setBookingDirectionId] = useState<number | "">("");
 
   const pipelines = pipelinesQuery.data ?? [];
+  const bookingDirections = bookingDirectionsQuery.data ?? [];
   const pipelineById = useMemo(() => new Map(pipelines.map((p) => [p.id, p])), [pipelines]);
 
   const myUserId = useMemo(() => decodeUserIdFromToken(getStoredToken()), []);
+
+  useEffect(() => {
+    if (!open || role !== "expert" || bookingDirections.length === 0 || bookingDirectionId !== "") return;
+    setBookingDirectionId(bookingDirections[0].id);
+  }, [open, role, bookingDirections, bookingDirectionId]);
 
   const terminateMutation = useMutation({
     mutationFn: (id: number) =>
       apiFetch(`/api/employees/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["employees"] });
+      void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
       toast.success("Сотрудник уволен");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -92,17 +105,24 @@ export function EmployeesPage() {
   }
 
   const inviteMutation = useMutation({
-    mutationFn: () =>
-      apiFetch<InviteResult>("/api/employees/invite", {
+    mutationFn: () => {
+      const payload: Record<string, unknown> = {
+        full_name: fullName,
+        email,
+        phone,
+        role,
+        pipeline_ids: pipelineIds,
+      };
+      if (role === "expert") {
+        payload.specialization = expertSpecialization.trim();
+        payload.booking_direction_id =
+          typeof bookingDirectionId === "number" ? bookingDirectionId : undefined;
+      }
+      return apiFetch<InviteResult>("/api/employees/invite", {
         method: "POST",
-        body: JSON.stringify({
-          full_name: fullName,
-          email,
-          phone,
-          role,
-          pipeline_ids: pipelineIds,
-        }),
-      }),
+        body: JSON.stringify(payload),
+      });
+    },
     onSuccess: (r) => {
       setOpen(false);
       setFullName("");
@@ -110,7 +130,10 @@ export function EmployeesPage() {
       setPhone("");
       setRole("manager");
       setPipelineIds([]);
+      setExpertSpecialization("");
+      setBookingDirectionId("");
       void qc.invalidateQueries({ queryKey: ["employees"] });
+      void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
 
       toast.success("Сотрудник приглашён");
       window.prompt("Приглашение отправлено сотруднику на email:", `Invite: ${r.invite_url}`);
@@ -158,6 +181,7 @@ export function EmployeesPage() {
                 </div>
                 <div className="mt-1 text-sm text-slate-400">
                   {e.email} {e.phone ? `· ${e.phone}` : ""} · роль: {e.role}
+                  {e.role === "expert" && e.specialization ? ` · ${e.specialization}` : ""}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
@@ -284,19 +308,65 @@ export function EmployeesPage() {
                 Роль
                 <select
                   value={role}
-                  onChange={(e) => setRole(e.target.value as UserRole)}
+                  onChange={(e) => {
+                    const next = e.target.value as UserRole;
+                    setRole(next);
+                    if (next !== "expert") {
+                      setExpertSpecialization("");
+                      setBookingDirectionId("");
+                    } else if (bookingDirections.length > 0 && bookingDirectionId === "") {
+                      setBookingDirectionId(bookingDirections[0].id);
+                    }
+                  }}
                   className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
                 >
                   <option value="manager">Менеджер</option>
                   <option value="expert">Эксперт</option>
-                  <option value="admin">Админ</option>
+                  <option value="admin">Админ воронки</option>
                 </select>
               </label>
+
+              {role === "expert" && (
+                <>
+                  <label className="text-sm text-slate-300">
+                    Специальность (под ФИО в календаре)
+                    <input
+                      value={expertSpecialization}
+                      onChange={(e) => setExpertSpecialization(e.target.value)}
+                      placeholder="Например: Невролог"
+                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white placeholder:text-slate-600"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-300">
+                    Направление онлайн-записи
+                    <select
+                      value={bookingDirectionId === "" ? "" : String(bookingDirectionId)}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setBookingDirectionId(v === "" ? "" : Number(v));
+                      }}
+                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                    >
+                      <option value="">— выберите —</option>
+                      {bookingDirections.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {bookingDirectionsQuery.isLoading && (
+                    <p className="text-xs text-slate-500">Загрузка направлений…</p>
+                  )}
+                </>
+              )}
 
               <div className="rounded-2xl border border-slate-700/50 bg-slate-950/30 p-3">
                 <div className="text-sm font-semibold text-white">Направления (воронки)</div>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Для менеджера: какие воронки он ведёт. Можно выбрать несколько.
+                  Для менеджера и админа воронки: направления CRM. Для админа воронки обязательна хотя бы одна
+                  (журнал записей и лиды). Для эксперта — тоже хотя бы одна воронка CRM плюс специальность и направление
+                  записи выше.
                 </p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {pipelines.map((p) => (

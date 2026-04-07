@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.core.deps import CurrentUser
+from app.core.rbac import is_manager_like
 from app.database import get_db
 from app.models import Deal, Integration, Lead, LeadAuditEvent, PipelineStage, Task, TaskStatus, User, UserPipelineAssignment, UserRole
 from app.schemas.lead import (
@@ -139,9 +140,9 @@ def _show_close_deal_ui(
         return False
     if (read.stage_name or "").strip() == settings.booking_stage_completed:
         return False
-    if current_user.role == UserRole.admin:
+    if current_user.role == UserRole.owner:
         return True
-    if current_user.role != UserRole.manager or mgr_allowed is None:
+    if not is_manager_like(current_user.role) or mgr_allowed is None:
         return False
     if pid not in mgr_allowed:
         return False
@@ -161,7 +162,7 @@ async def _enrich_leads_close_deal(
     pf = await _pipelines_with_manager_close_deal(db)
     closed = await _lead_ids_with_integration_close_deal(db, [l.id for l in leads])
     mgr_allowed: set[int] | None = None
-    if current_user.role == UserRole.manager:
+    if is_manager_like(current_user.role):
         mgr_allowed = await _manager_pipeline_ids(db, current_user.id)
     out: list[LeadRead] = []
     for lead, read in zip(leads, items, strict=True):
@@ -223,7 +224,7 @@ async def create_lead(
     stage = await db.get(PipelineStage, body.status_id)
     if stage is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown status_id")
-    if current_user.role == UserRole.manager:
+    if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if stage.pipeline_id not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Stage is outside manager directions")
@@ -233,7 +234,7 @@ async def create_lead(
         email=body.email,
         source=body.source,
         status_id=body.status_id,
-        manager_id=current_user.id,
+        manager_id=None if current_user.role == UserRole.admin else current_user.id,
     )
     db.add(lead)
     await db.flush()
@@ -343,7 +344,7 @@ async def list_leads(
     if pipeline_id is not None:
         if per_stage_limit is None:
             per_stage_limit = 200
-        if current_user.role == UserRole.manager:
+        if is_manager_like(current_user.role):
             allowed = await _manager_pipeline_ids(db, current_user.id)
             if not allowed or pipeline_id not in allowed:
                 raise HTTPException(
@@ -356,7 +357,7 @@ async def list_leads(
             .join(PipelineStage, PipelineStage.id == Lead.status_id)
             .where(PipelineStage.pipeline_id == pipeline_id)
         )
-        if current_user.role == UserRole.manager:
+        if is_manager_like(current_user.role):
             ranked = ranked.where(Lead.manager_id == current_user.id)
         ranked_sq = ranked.subquery()
         q = (
@@ -371,7 +372,7 @@ async def list_leads(
         return await _leads_to_read_with_deals(db, leads, current_user)
 
     q = select(Lead).options(selectinload(Lead.stage)).order_by(Lead.id.desc())
-    if current_user.role == UserRole.manager:
+    if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if not allowed:
             return []
@@ -395,7 +396,7 @@ async def list_leads_table(
     status_id: int | None = Query(None, ge=1),
 ) -> LeadTablePage:
     """Полный список лидов воронки с пагинацией и поиском (без лимита «на стадию» как в канбане)."""
-    if current_user.role == UserRole.manager:
+    if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if not allowed or pipeline_id not in allowed:
             raise HTTPException(
@@ -412,7 +413,7 @@ async def list_leads_table(
             )
 
     filters = [PipelineStage.pipeline_id == pipeline_id]
-    if current_user.role == UserRole.manager:
+    if is_manager_like(current_user.role):
         filters.append(Lead.manager_id == current_user.id)
     if status_id is not None:
         filters.append(Lead.status_id == status_id)
@@ -487,7 +488,7 @@ async def import_leads_csv(
     stage = await db.get(PipelineStage, default_stage_id)
     if stage is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная стадия")
-    if current_user.role == UserRole.manager:
+    if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if stage.pipeline_id not in allowed:
             raise HTTPException(
@@ -497,6 +498,7 @@ async def import_leads_csv(
 
     errors: list[LeadImportErrorItem] = []
     work: list[tuple[int, Lead]] = []
+    import_manager_id = None if current_user.role == UserRole.admin else current_user.id
     for idx, row_map in enumerate(rows, start=2):
         parsed = row_to_parsed_lead(row_map)
         if not parsed:
@@ -512,7 +514,7 @@ async def import_leads_csv(
                     email=email,
                     source=parsed.source,
                     status_id=default_stage_id,
-                    manager_id=current_user.id,
+                    manager_id=import_manager_id,
                 ),
             ),
         )
@@ -546,7 +548,7 @@ async def import_leads_csv(
                         email=lead.email,
                         source=lead.source,
                         status_id=default_stage_id,
-                        manager_id=current_user.id,
+                        manager_id=import_manager_id,
                     )
                     db.add(l2)
                     await db.flush()
@@ -576,7 +578,7 @@ async def get_lead(
     if lead is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
-    if current_user.role == UserRole.manager:
+    if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if (lead.stage.pipeline_id if lead.stage else None) not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")
@@ -660,8 +662,8 @@ async def close_deal_from_integration_pipeline(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> LeadRead:
-    if current_user.role not in (UserRole.admin, UserRole.manager):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор или менеджер")
+    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец, админ воронки или менеджер")
 
     lead = await db.get(Lead, lead_id)
     if lead is None:
@@ -687,7 +689,7 @@ async def close_deal_from_integration_pipeline(
             detail="Сделка по этому лиду уже закрыта (есть запись закрытия)",
         )
 
-    if current_user.role == UserRole.manager:
+    if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if pipeline_id not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")
@@ -806,7 +808,7 @@ async def update_lead_status(
     from_stage = await db.get(PipelineStage, lead.status_id)
     if from_stage is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current stage not found")
-    if current_user.role == UserRole.manager:
+    if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if from_stage.pipeline_id not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")
@@ -821,7 +823,7 @@ async def update_lead_status(
     # Остальные действия (неявка/отказ/корзина/протокол) будут вынесены в отдельные endpoint'ы.
     allowed = False
     if (
-        current_user.role == UserRole.admin
+        current_user.role == UserRole.owner
         and from_stage.name == "Запись"
         and stage.name == "У эксперта"
     ):
@@ -873,8 +875,8 @@ async def lead_arrival(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> LeadRead:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
 
     lead = await db.get(Lead, lead_id)
     if lead is None:
@@ -921,8 +923,8 @@ async def lead_no_show(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> LeadRead:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
 
     lead = await db.get(Lead, lead_id)
     if lead is None:
@@ -932,7 +934,7 @@ async def lead_no_show(
     if lead.stage is None or lead.stage.name != "Запись":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Lead is not in stage 'Запись'")
 
-    # MVP: если есть оплаченная часть (paid_amount > 0), то админ подтверждает ветвление
+    # MVP: если есть оплаченная часть (paid_amount > 0), то владелец подтверждает ветвление
     paid_any = await db.scalar(select(Deal.id).where(Deal.lead_id == lead_id, Deal.paid_amount > 0).limit(1))
     if not paid_any and body.action != "reschedule":
         # если оплат нет — «отказано» без причины не делаем
@@ -1017,7 +1019,7 @@ async def lead_service_done(
         db,
         lead_id=lead.id,
         title="Нужны доп. услуги по записи — откройте карточку",
-        assigned_roles=[UserRole.manager],
+        assigned_roles=[UserRole.manager, UserRole.admin],
     )
 
     return _lead_to_read(lead)
@@ -1073,8 +1075,8 @@ async def add_extra_service_to_cart(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> DealRead:
-    if current_user.role != UserRole.manager:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Manager only")
+    if not is_manager_like(current_user.role):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только менеджер или админ воронки")
 
     lead = await db.get(Lead, lead_id)
     if lead is None:
@@ -1181,7 +1183,7 @@ async def protocol_finish(
         db,
         lead_id=lead.id,
         title="Сделка завершена — проверьте этап в канбане",
-        assigned_roles=[UserRole.manager, UserRole.admin],
+        assigned_roles=[UserRole.manager, UserRole.admin, UserRole.owner],
     )
 
     return _lead_to_read(lead)
@@ -1197,7 +1199,7 @@ async def list_lead_audit(
     if lead is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
-    if current_user.role == UserRole.manager:
+    if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if (lead.stage.pipeline_id if lead.stage else None) not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")

@@ -34,7 +34,6 @@ const PX_PER_HOUR = 48;
 const SPEC_HEADER_PX = 42;
 const SLOT_STEP_MIN = 30;
 
-const HOURS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => GRID_START_HOUR + i);
 const SLOT_MINUTES = Array.from(
   { length: ((GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_STEP_MIN },
   (_, i) => GRID_START_HOUR * 60 + i * SLOT_STEP_MIN,
@@ -177,7 +176,6 @@ type SortableColProps = {
   dateYmd: string;
   gridHeightPx: number;
   totalHours: number;
-  hours: number[];
   bySpec: Map<number, BookingAppointment[]>;
   menuSpecId: number | null;
   setMenuSpecId: Dispatch<SetStateAction<number | null>>;
@@ -196,7 +194,6 @@ function SortableSpecialistColumn({
   dateYmd,
   gridHeightPx,
   totalHours,
-  hours,
   bySpec,
   menuSpecId,
   setMenuSpecId,
@@ -246,7 +243,7 @@ function SortableSpecialistColumn({
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
             <p className="truncate text-sm font-semibold leading-tight text-white">{spec.full_name}</p>
             <p className="truncate text-xs leading-tight text-slate-500">
-              {spec.direction_name ?? "—"}
+              {(spec.specialization ?? "").trim() || spec.direction_name || "—"}
             </p>
           </div>
           {showSpecMenu && (
@@ -451,7 +448,6 @@ export function BookingCalendarGrid({
 }: Props) {
   const totalHours = GRID_END_HOUR - GRID_START_HOUR;
   const gridHeightPx = totalHours * PX_PER_HOUR;
-  const hours = HOURS;
   const [menuSpecId, setMenuSpecId] = useState<number | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
 
@@ -505,7 +501,6 @@ export function BookingCalendarGrid({
     dateYmd,
     gridHeightPx,
     totalHours,
-    hours,
     bySpec,
     menuSpecId,
     setMenuSpecId,

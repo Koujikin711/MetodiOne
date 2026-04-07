@@ -501,7 +501,11 @@ export function OnlineBookingPage() {
       toast.error("Оплата не может быть больше стоимости услуги");
       return;
     }
-    if (currentRole === "manager" && paidAmount > 0 && !responsibleManagerId.trim()) {
+    if (
+      (currentRole === "manager" || currentRole === "admin") &&
+      paidAmount > 0 &&
+      !responsibleManagerId.trim()
+    ) {
       toast.error("Укажите ID ответственного менеджера, если есть оплата");
       return;
     }
@@ -940,7 +944,9 @@ export function OnlineBookingPage() {
                   <th className="py-2 pr-4">Оплачено</th>
                   <th className="py-2 pr-4">Дебиторка</th>
                   <th className="py-2 pr-4">Статус</th>
-                  {currentRole === "admin" && <th className="py-2 pr-4">Действия</th>}
+                  {(journalQuery.data ?? []).some((x) => x.can_manage_journal) && (
+                    <th className="py-2 pr-4">Действия</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -960,7 +966,7 @@ export function OnlineBookingPage() {
                     <td className="py-2 pr-4 text-slate-400">{a.specialist_name}</td>
                     <td className="py-2 pr-4">{a.service_amount ?? 0}</td>
                     <td className="py-2 pr-4">
-                      {currentRole === "admin" ? (
+                      {a.can_manage_journal ? (
                         <input
                           type="number"
                           min={0}
@@ -1000,18 +1006,20 @@ export function OnlineBookingPage() {
                         ))}
                       </select>
                     </td>
-                    {currentRole === "admin" && (
+                    {(journalQuery.data ?? []).some((x) => x.can_manage_journal) && (
                       <td className="py-2 pr-4">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!window.confirm("Удалить эту запись?")) return;
-                            deleteAppointmentMutation.mutate(a.id);
-                          }}
-                          className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs text-red-300 hover:bg-red-500/20"
-                        >
-                          Удалить
-                        </button>
+                        {a.can_manage_journal ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!window.confirm("Удалить эту запись?")) return;
+                              deleteAppointmentMutation.mutate(a.id);
+                            }}
+                            className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs text-red-300 hover:bg-red-500/20"
+                          >
+                            Удалить
+                          </button>
+                        ) : null}
                       </td>
                     )}
                   </tr>

@@ -12,6 +12,7 @@ class Base(DeclarativeBase):
 
 
 class UserRole(str, enum.Enum):
+    owner = "owner"
     admin = "admin"
     manager = "manager"
     expert = "expert"
@@ -30,6 +31,11 @@ class Pipeline(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True)
     type: Mapped[str] = mapped_column(String(64), default="sales")
+    # Эксперт, закреплённый за этой воронкой (для «Отчёты» и этапа «У эксперта»).
+    expert_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # none | round_robin | least_loaded — кому назначать новых лидов из интеграций/очереди
     lead_assignment_mode: Mapped[str] = mapped_column(String(32), default="none")
     assignment_rr_counter: Mapped[int] = mapped_column(default=0)
@@ -235,6 +241,12 @@ class BookingSpecialist(Base):
     direction_id: Mapped[int] = mapped_column(ForeignKey("booking_directions.id", ondelete="RESTRICT"))
     phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     specialization: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Связь с учётной записью эксперта CRM (приглашение из «Сотрудники»)
+    crm_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+    )
     is_active: Mapped[bool] = mapped_column(default=True)
     sort_order: Mapped[int] = mapped_column(default=0)
     slot_duration_min: Mapped[int] = mapped_column(default=30)
@@ -251,6 +263,8 @@ class BookingAppointment(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
+    # Снимок воронки в момент создания записи (для стабильной аналитики).
+    pipeline_id: Mapped[int | None] = mapped_column(ForeignKey("pipelines.id", ondelete="SET NULL"), nullable=True)
     patient_name: Mapped[str] = mapped_column(String(255))
     patient_phone: Mapped[str] = mapped_column(String(64))
     direction_id: Mapped[int] = mapped_column(ForeignKey("booking_directions.id", ondelete="RESTRICT"))

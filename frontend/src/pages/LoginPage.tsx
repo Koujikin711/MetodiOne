@@ -145,8 +145,8 @@ export function LoginPage() {
                   <option value="manager" className="bg-slate-900">
                     Менеджер
                   </option>
-                  <option value="admin" className="bg-slate-900">
-                    Администратор
+                  <option value="expert" className="bg-slate-900">
+                    Эксперт
                   </option>
                 </select>
               </div>

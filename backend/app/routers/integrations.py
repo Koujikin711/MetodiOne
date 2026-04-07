@@ -137,8 +137,8 @@ async def list_integrations(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> list[IntegrationRead]:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
     r = await db.execute(select(Integration).order_by(Integration.id.desc()))
     return [_integration_read(x) for x in r.scalars().all()]
 
@@ -150,8 +150,8 @@ async def create_integration(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> IntegrationRead:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
     provider = _provider_from_str(body.provider)
     await _assert_pipeline_stage(db, body.pipeline_id, body.stage_id)
     cfg = dict(body.config or {})
@@ -232,8 +232,8 @@ async def patch_integration(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> IntegrationRead:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
 
     row = await db.get(Integration, integration_id)
     if row is None:
@@ -312,8 +312,8 @@ async def patch_integration(
 async def generate_secret(
     current_user: CurrentUser,
 ) -> dict[str, str]:
-    if current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
     return {"secret": secrets.token_urlsafe(24)}
 
 

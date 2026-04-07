@@ -278,7 +278,7 @@ function LeadCard({
       </button>
       <LeadCardBody lead={lead} />
 
-      {currentRole === "admin" && stage === "Запись" && (
+      {currentRole === "owner" && stage === "Запись" && (
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             type="button"
@@ -321,7 +321,7 @@ function LeadCard({
           </div>
         )}
 
-      {currentRole === "manager" && stage === "Доп. услуги" && (
+      {(currentRole === "manager" || currentRole === "admin") && stage === "Доп. услуги" && (
         <div className="mt-3 rounded-xl border border-slate-700/50 bg-slate-900/20 p-3 shadow-inner backdrop-blur-sm">
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-300">
             Продуктовая корзина
@@ -526,7 +526,7 @@ export function CrmPage() {
   const integrationsQuery = useQuery({
     queryKey: ["integrations"],
     queryFn: () => apiFetch<Integration[]>("/api/integrations"),
-    enabled: currentRole === "admin",
+    enabled: currentRole === "owner",
   });
 
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
@@ -816,6 +816,7 @@ export function CrmPage() {
   const [newStageColor, setNewStageColor] = useState("#6366f1");
   const [pipeName, setPipeName] = useState("");
   const [pipeType, setPipeType] = useState("sales");
+  const [pipeExpertUserId, setPipeExpertUserId] = useState<number | "">("");
   const [pipeStages, setPipeStages] = useState<Array<{ name: string; color: string }>>([
     { name: "Новый", color: "#64748b" },
   ]);
@@ -835,6 +836,7 @@ export function CrmPage() {
         body: JSON.stringify({
           name: pipeName.trim(),
           type: pipeType.trim(),
+          expert_user_id: typeof pipeExpertUserId === "number" ? pipeExpertUserId : null,
           stages: pipeStages.map((s, idx) => ({
             name: s.name.trim(),
             order: idx,
@@ -846,6 +848,7 @@ export function CrmPage() {
       setCreatePipelineOpen(false);
       setPipeName("");
       setPipeType("sales");
+      setPipeExpertUserId("");
       setPipeStages([{ name: "Новый", color: "#64748b" }]);
       void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
     } catch (e) {
@@ -906,7 +909,9 @@ export function CrmPage() {
   const stagesQuery = useQuery({
     queryKey: ["stages", pipelineId],
     queryFn: () =>
-      pipelineId ? apiFetch<PipelineStage[]>(`/api/stages?pipeline_id=${pipelineId}`) : apiFetch("/api/stages"),
+      pipelineId
+        ? apiFetch<PipelineStage[]>(`/api/stages?pipeline_id=${pipelineId}`)
+        : apiFetch<PipelineStage[]>("/api/stages"),
   });
 
   const patchPipelineMutation = useMutation({
@@ -950,6 +955,24 @@ export function CrmPage() {
     () => (pipelineId != null ? pipelinesQuery.data?.find((p) => p.id === pipelineId) : undefined),
     [pipelinesQuery.data, pipelineId],
   );
+
+  const expertsQuery = useQuery({
+    queryKey: ["employees", "experts"],
+    queryFn: () => apiFetch<Array<{ id: number; email: string; full_name: string | null }>>("/api/employees/experts"),
+    enabled: currentRole === "owner",
+  });
+
+  const patchPipelineExpertMutation = useMutation({
+    mutationFn: async ({ id, expert_user_id }: { id: number; expert_user_id: number | null }) =>
+      apiFetch<Pipeline>(`/api/pipelines/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ expert_user_id }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const [importOpen, setImportOpen] = useState(false);
   const [importPipelineId, setImportPipelineId] = useState<number | null>(null);
@@ -1226,7 +1249,7 @@ export function CrmPage() {
           >
             + Создать воронку
           </button>
-          {currentRole === "admin" && (
+          {currentRole === "owner" && (
             <button
               type="button"
               onClick={() => setCreateStageOpen(true)}
@@ -1249,7 +1272,7 @@ export function CrmPage() {
           >
             Импорт CSV
           </button>
-          {currentRole === "admin" && (
+          {currentRole === "owner" && (
             <button
               type="button"
               onClick={() => {
@@ -1314,7 +1337,7 @@ export function CrmPage() {
             </button>
           </div>
         )}
-        {currentRole === "admin" && pipelineId != null && selectedPipelineForSettings && (
+        {currentRole === "owner" && pipelineId != null && selectedPipelineForSettings && (
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="text-sm text-slate-400">Распределение новых лидов (интеграции, очередь записи):</span>
             <select
@@ -1331,7 +1354,31 @@ export function CrmPage() {
             </select>
           </div>
         )}
-        {currentRole === "admin" && pipelineId != null && sortedStages.length > 0 && (
+        {currentRole === "owner" && pipelineId != null && selectedPipelineForSettings && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-sm text-slate-400">Эксперт этой воронки:</span>
+            <select
+              value={selectedPipelineForSettings.expert_user_id ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                patchPipelineExpertMutation.mutate({
+                  id: pipelineId,
+                  expert_user_id: v ? Number(v) : null,
+                });
+              }}
+              disabled={patchPipelineExpertMutation.isPending}
+              className="rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
+            >
+              <option value="">— не назначен —</option>
+              {(expertsQuery.data ?? []).map((u) => (
+                <option key={u.id} value={u.id}>
+                  {(u.full_name || u.email).trim()}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {currentRole === "owner" && pipelineId != null && sortedStages.length > 0 && (
           <div className="mt-3 rounded-xl border border-slate-700/40 bg-slate-950/20 p-4">
             <div className="text-sm font-semibold text-slate-200">Стадии этой воронки</div>
             <p className="mt-1 text-xs text-slate-500">
@@ -1417,6 +1464,26 @@ export function CrmPage() {
                   className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
                 />
               </label>
+              {currentRole === "owner" && (
+                <label className="text-sm text-slate-300">
+                  Эксперт этой воронки
+                  <select
+                    value={pipeExpertUserId === "" ? "" : String(pipeExpertUserId)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setPipeExpertUserId(v ? Number(v) : "");
+                    }}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  >
+                    <option value="">— не назначен —</option>
+                    {(expertsQuery.data ?? []).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {(u.full_name || u.email).trim()}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
               <div className="mt-2">
                 <div className="flex items-center justify-between">

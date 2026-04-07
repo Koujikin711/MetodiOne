@@ -92,17 +92,17 @@ export function MiniMonthCalendar({ value, onChange }: Props) {
             {w}
           </div>
         ))}
-        {cells.map((c, i) =>
-          c.day == null || c.iso == null ? (
-            <div key={`e-${i}`} />
-          ) : (
+        {cells.map((c, i) => {
+          const iso = c.iso ?? null;
+          if (c.day == null || iso == null) return <div key={`e-${i}`} />;
+          return (
             <button
-              key={c.iso}
+              key={iso}
               type="button"
-              onClick={() => onChange(c.iso)}
+              onClick={() => onChange(iso)}
               className={[
                 "rounded-md py-1 text-[11px] font-medium transition-colors",
-                c.iso === value
+                iso === value
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30"
                   : c.isToday
                     ? "bg-white/10 text-white ring-1 ring-purple-500/40"
@@ -111,8 +111,8 @@ export function MiniMonthCalendar({ value, onChange }: Props) {
             >
               {c.day}
             </button>
-          ),
-        )}
+          );
+        })}
       </div>
     </div>
   );

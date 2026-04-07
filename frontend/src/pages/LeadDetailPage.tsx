@@ -38,8 +38,8 @@ export function LeadDetailPage() {
   });
 
   const role = decodeRoleFromToken(getStoredToken());
-  const homeLink = role === "manager" ? "/my-leads" : "/";
-  const homeLabel = role === "manager" ? "Мои лиды" : "Канбан";
+  const homeLink = role === "manager" || role === "admin" ? "/my-leads" : "/";
+  const homeLabel = role === "manager" || role === "admin" ? "Мои лиды" : "Канбан";
 
   const auditQuery = useQuery({
     queryKey: ["lead-audit", leadId],

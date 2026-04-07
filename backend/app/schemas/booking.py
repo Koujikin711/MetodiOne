@@ -113,6 +113,10 @@ class BookingAppointmentRead(BaseModel):
     direction_name: str | None = None
     specialist_name: str | None = None
     comment: str | None
+    can_manage_journal: bool = Field(
+        default=False,
+        description="Владелец или админ воронки лида — оплата/удаление в журнале записей",
+    )
 
     model_config = {"from_attributes": True}
 

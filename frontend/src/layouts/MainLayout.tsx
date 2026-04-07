@@ -19,7 +19,9 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 
 export function MainLayout() {
   const navigate = useNavigate();
-  const isManager = decodeRoleFromToken(getStoredToken()) === "manager";
+  const role = decodeRoleFromToken(getStoredToken());
+  const isManagerNav = role === "manager" || role === "admin";
+  const isExpert = role === "expert";
 
   function logout() {
     setStoredToken(null);
@@ -51,7 +53,7 @@ export function MainLayout() {
             </div>
           </div>
           <nav className="flex flex-1 flex-col gap-2 px-1.5">
-            {isManager ? (
+            {isManagerNav ? (
               <>
                 <NavLink to="/chat" className={navLinkClass} title="Чат">
                   <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
@@ -70,6 +72,27 @@ export function MainLayout() {
                     <UserRound className="h-[18px] w-[18px]" />
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Мои лиды</span>
+                </NavLink>
+              </>
+            ) : isExpert ? (
+              <>
+                <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <Calendar className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Онлайн</span>
+                </NavLink>
+                <NavLink to="/reports" className={navLinkClass} title="Отчёты">
+                  <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <BarChart3 className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Отчёты</span>
+                </NavLink>
+                <NavLink to="/chat" className={navLinkClass} title="Чат">
+                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <MessageCircle className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
                 </NavLink>
               </>
             ) : (
@@ -139,7 +162,7 @@ export function MainLayout() {
         </main>
 
         <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-slate-700/50 bg-slate-950/95 px-2 py-2 backdrop-blur-xl sm:hidden">
-          {isManager ? (
+          {isManagerNav ? (
             <>
               <NavLink to="/my-leads" className={navLinkClass} title="Мои лиды">
                 <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
@@ -152,6 +175,38 @@ export function MainLayout() {
                   <Calendar className="h-4 w-4" />
                 </GradientIconBox>
                 <span className="text-[9px]">Онлайн</span>
+              </NavLink>
+              <NavLink to="/chat" className={navLinkClass} title="Чат">
+                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <MessageCircle className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Чат</span>
+              </NavLink>
+              <button
+                type="button"
+                onClick={logout}
+                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center text-slate-400 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-200"
+                title="Выход"
+              >
+                <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <LogOut className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Выход</span>
+              </button>
+            </>
+          ) : isExpert ? (
+            <>
+              <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <Calendar className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Онлайн</span>
+              </NavLink>
+              <NavLink to="/reports" className={navLinkClass} title="Отчёты">
+                <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <BarChart3 className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Отчёты</span>
               </NavLink>
               <NavLink to="/chat" className={navLinkClass} title="Чат">
                 <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
