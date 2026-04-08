@@ -884,6 +884,32 @@ export function CrmPage() {
     }
   }
 
+  const [distributeOpen, setDistributeOpen] = useState(false);
+  const [distributeStageId, setDistributeStageId] = useState<number | "">("");
+  const [distributeForce, setDistributeForce] = useState(false);
+  const distributeMutation = useMutation({
+    mutationFn: async () => {
+      if (!pipelineId) throw new Error("Сначала выберите воронку");
+      if (distributeStageId === "") throw new Error("Выберите стадию");
+      return apiFetch<{ total: number; assigned: number; skipped: number }>(
+        `/api/pipelines/${pipelineId}/distribute-leads`,
+        {
+          method: "POST",
+          body: JSON.stringify({ stage_id: distributeStageId, force_reassign: distributeForce }),
+        },
+      );
+    },
+    onSuccess: (r) => {
+      toast.success(`Распределено: ${r.assigned}. Пропущено: ${r.skipped}. Всего на стадии: ${r.total}.`);
+      setDistributeOpen(false);
+      setDistributeStageId("");
+      setDistributeForce(false);
+      void queryClient.invalidateQueries({ queryKey: ["leads"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const [pipelineId, setPipelineId] = useState<number | null>(null);
   useEffect(() => {
     if (pipelineId != null) return;
@@ -1384,6 +1410,21 @@ export function CrmPage() {
             <p className="mt-1 text-xs text-slate-500">
               Удаление возможно, только если на стадии нет лидов, сделок и интеграций, которые на неё ссылаются.
             </p>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDistributeOpen(true);
+                  if (sortedStages.length > 0) setDistributeStageId(sortedStages[0].id);
+                }}
+                className="rounded-xl border border-slate-700 bg-slate-900/40 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-800/40"
+              >
+                Распределить лиды
+              </button>
+              <p className="text-xs text-slate-500">
+                Назначит ответственных менеджеров всем лидам на выбранной стадии (только если менеджер ещё не назначен).
+              </p>
+            </div>
             <ul className="mt-2 divide-y divide-slate-700/40">
               {sortedStages.map((s) => (
                 <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm">
@@ -1597,6 +1638,74 @@ export function CrmPage() {
                 className="mt-1 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
               >
                 Создать стадию
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {distributeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-white">Распределить лиды по менеджерам</h2>
+              <button
+                type="button"
+                onClick={() => setDistributeOpen(false)}
+                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+              >
+                Закрыть
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <label className="text-sm text-slate-300">
+                Стадия
+                <select
+                  value={distributeStageId === "" ? "" : String(distributeStageId)}
+                  onChange={(e) => setDistributeStageId(Number(e.target.value))}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                >
+                  {sortedStages.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                Это действие назначит ответственных менеджеров всем лидам на выбранной стадии, у которых ещё нет
+                менеджера. Распределение идёт по настройке воронки (round_robin / least_loaded).
+              </div>
+              <label className="flex items-start gap-3 rounded-xl border border-slate-700/60 bg-slate-950/20 px-4 py-3 text-sm text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={distributeForce}
+                  onChange={(e) => setDistributeForce(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-semibold">Перераспределить всех</span>
+                  <span className="block text-xs text-slate-500">
+                    Включите, чтобы перезаписать ответственного менеджера у всех лидов на этой стадии.
+                  </span>
+                </span>
+              </label>
+
+              <button
+                type="button"
+                disabled={distributeMutation.isPending}
+                onClick={() => {
+                  const msg = distributeForce
+                    ? "Перераспределить ВСЕХ лидов на этой стадии (включая уже назначенных)?"
+                    : "Распределить лиды на выбранной стадии?";
+                  if (!window.confirm(msg)) return;
+                  distributeMutation.mutate();
+                }}
+                className="mt-1 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95 disabled:opacity-60"
+              >
+                {distributeMutation.isPending ? "Распределение…" : "Распределить"}
               </button>
             </div>
           </div>
