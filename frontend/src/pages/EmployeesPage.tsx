@@ -320,6 +320,7 @@ export function EmployeesPage() {
                   }}
                   className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
                 >
+                  <option value="owner">Владелец</option>
                   <option value="manager">Менеджер</option>
                   <option value="expert">Эксперт</option>
                   <option value="admin">Админ воронки</option>
@@ -364,7 +365,7 @@ export function EmployeesPage() {
               <div className="rounded-2xl border border-slate-700/50 bg-slate-950/30 p-3">
                 <div className="text-sm font-semibold text-white">Направления (воронки)</div>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Для менеджера и админа воронки: направления CRM. Для админа воронки обязательна хотя бы одна
+                  Для владельца направления не обязательны. Для менеджера и админа воронки: направления CRM. Для админа воронки обязательна хотя бы одна
                   (журнал записей и лиды). Для эксперта — тоже хотя бы одна воронка CRM плюс специальность и направление
                   записи выше.
                 </p>
