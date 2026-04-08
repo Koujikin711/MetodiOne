@@ -434,7 +434,11 @@ async def ensure_owner_role_migration(conn: AsyncConnection, database_url: str) 
     # прежде чем оно может быть использовано в последующих запросах в этой сессии.
     # Иначе asyncpg выбрасывает UnsafeNewEnumValueUsageError.
     try:
+        # SQLAlchemy async: execution_options() может быть sync или async (в зависимости от версии).
+        # Нам нужно реально получить connection в AUTOCOMMIT и выполнить ALTER TYPE вне транзакции.
         ac = conn.execution_options(isolation_level="AUTOCOMMIT")
+        if hasattr(ac, "__await__"):
+            ac = await ac  # type: ignore[assignment]
         await ac.execute(text("ALTER TYPE user_role ADD VALUE 'owner'"))
     except Exception:
         # значение уже могло быть добавлено ранее
