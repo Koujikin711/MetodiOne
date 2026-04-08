@@ -430,22 +430,27 @@ async def ensure_owner_role_migration(conn: AsyncConnection, database_url: str) 
         return
     if "postgresql" not in low and "asyncpg" not in low:
         return
-    # PostgreSQL требует COMMIT после добавления нового значения ENUM,
-    # прежде чем оно может быть использовано в последующих запросах в этой сессии.
-    # Иначе asyncpg выбрасывает UnsafeNewEnumValueUsageError.
-    try:
-        # SQLAlchemy async: execution_options() может быть sync или async (в зависимости от версии).
-        # Нам нужно реально получить connection в AUTOCOMMIT и выполнить ALTER TYPE вне транзакции.
-        ac = conn.execution_options(isolation_level="AUTOCOMMIT")
-        if hasattr(ac, "__await__"):
-            ac = await ac  # type: ignore[assignment]
+    # ВАЖНО: вызывается на отдельном connection вне engine.begin() транзакции.
+    # Для совместимости версий SQLAlchemy execution_options может быть sync/async.
+    ac = conn.execution_options(isolation_level="AUTOCOMMIT")
+    if hasattr(ac, "__await__"):
+        ac = await ac  # type: ignore[assignment]
+
+    enum_exists_q = text(
+        """
+        SELECT 1
+        FROM pg_enum e
+        JOIN pg_type t ON t.oid = e.enumtypid
+        WHERE t.typname = 'user_role' AND e.enumlabel = 'owner'
+        LIMIT 1
+        """,
+    )
+    owner_exists = await ac.scalar(enum_exists_q)
+    if owner_exists is None:
         await ac.execute(text("ALTER TYPE user_role ADD VALUE 'owner'"))
-    except Exception:
-        # значение уже могло быть добавлено ранее
-        pass
-    # Важно: обновление тоже делаем через autocommit connection,
-    # иначе при вызове из engine.begin() всё ещё может быть активна транзакция.
-    ac2 = conn.execution_options(isolation_level="AUTOCOMMIT")
-    if hasattr(ac2, "__await__"):
-        ac2 = await ac2  # type: ignore[assignment]
-    await ac2.execute(text("UPDATE users SET role = 'owner' WHERE role::text = 'admin'"))
+
+    owner_exists = await ac.scalar(enum_exists_q)
+    if owner_exists is None:
+        raise RuntimeError("Failed to add enum value 'owner' to user_role")
+
+    await ac.execute(text("UPDATE users SET role = 'owner' WHERE role::text = 'admin'"))
