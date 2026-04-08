@@ -1,17 +1,26 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser
 from app.database import get_db
-from app.models import Pipeline, PipelineStage, User, UserRole
+from app.models import Lead, Pipeline, PipelineStage, User, UserPipelineAssignment, UserRole
 from app.schemas.pipeline import PipelineCreate, PipelinePatch, PipelineRead
 from app.services.audit import write_audit_event
+from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.stage_delete_checks import pipeline_delete_block_reason
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
+
+_MAX_DISTRIBUTE_BATCH = 2000
+
+
+class DistributeLeadsBody(BaseModel):
+    stage_id: int = Field(..., ge=1)
+    force_reassign: bool = False
 
 
 @router.get("", response_model=list[PipelineRead])
@@ -144,4 +153,96 @@ async def delete_pipeline(
         current_user=current_user,
         details=f"name={pname}, stages_removed={len(stages)}",
     )
+
+
+@router.post("/{pipeline_id}/distribute-leads")
+async def distribute_leads_from_stage(
+    pipeline_id: int,
+    body: DistributeLeadsBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> dict[str, int]:
+    """
+    Массово назначить менеджеров лидам на выбранной стадии.
+    Работает только для owner; назначение идёт только на пользователей роли manager.
+    """
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+
+    pipe = await db.get(Pipeline, pipeline_id)
+    if pipe is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found")
+
+    st = await db.get(PipelineStage, body.stage_id)
+    if st is None or st.pipeline_id != pipeline_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="stage_id is not in this pipeline")
+
+    # Если в воронке не настроено автораспределение — это всё равно “распределить” не сможет.
+    any_manager = await db.scalar(
+        select(func.count(UserPipelineAssignment.id))
+        .join(User, User.id == UserPipelineAssignment.user_id)
+        .where(
+            UserPipelineAssignment.pipeline_id == pipeline_id,
+            User.role == UserRole.manager,
+            User.is_active.is_(True),
+        )
+    )
+    if int(any_manager or 0) <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="В этой воронке нет активных менеджеров для распределения (назначьте менеджеров в Сотрудниках).",
+        )
+
+    total = int(await db.scalar(select(func.count(Lead.id)).where(Lead.status_id == body.stage_id)) or 0)
+    if total <= 0:
+        return {"total": 0, "assigned": 0, "skipped": 0}
+
+    assigned = 0
+    skipped = 0
+    offset = 0
+    # Идём батчами, чтобы не держать очень большой список в памяти.
+    while True:
+        ids = (
+            await db.execute(
+                select(Lead.id)
+                .where(Lead.status_id == body.stage_id)
+                .order_by(Lead.id.asc())
+                .offset(offset)
+                .limit(_MAX_DISTRIBUTE_BATCH),
+            )
+        ).scalars().all()
+        if not ids:
+            break
+        offset += len(ids)
+
+        for lead_id in ids:
+            lead = await db.get(Lead, int(lead_id))
+            if lead is None:
+                skipped += 1
+                continue
+            # уже назначен — не трогаем, если не принудительный режим
+            if not body.force_reassign and lead.manager_id is not None:
+                skipped += 1
+                continue
+            mid = await assign_manager_for_new_lead(db, pipeline_id=pipeline_id)
+            if mid is None:
+                # Если mode=none — assign_manager_for_new_lead вернёт None
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Воронка не настроена для автораспределения (lead_assignment_mode=round_robin/least_loaded).",
+                )
+            lead.manager_id = mid
+            assigned += 1
+
+        await db.flush()
+
+    await write_audit_event(
+        db,
+        entity_type="pipeline",
+        entity_id=pipeline_id,
+        action="pipeline_leads_distributed",
+        current_user=current_user,
+        details=f"stage_id={body.stage_id}, total={total}, assigned={assigned}, skipped={skipped}",
+    )
+    return {"total": total, "assigned": assigned, "skipped": skipped}
 
