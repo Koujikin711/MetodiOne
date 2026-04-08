@@ -443,4 +443,9 @@ async def ensure_owner_role_migration(conn: AsyncConnection, database_url: str) 
     except Exception:
         # значение уже могло быть добавлено ранее
         pass
-    await conn.execute(text("UPDATE users SET role = 'owner' WHERE role::text = 'admin'"))
+    # Важно: обновление тоже делаем через autocommit connection,
+    # иначе при вызове из engine.begin() всё ещё может быть активна транзакция.
+    ac2 = conn.execution_options(isolation_level="AUTOCOMMIT")
+    if hasattr(ac2, "__await__"):
+        ac2 = await ac2  # type: ignore[assignment]
+    await ac2.execute(text("UPDATE users SET role = 'owner' WHERE role::text = 'admin'"))
