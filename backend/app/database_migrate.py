@@ -430,8 +430,13 @@ async def ensure_owner_role_migration(conn: AsyncConnection, database_url: str) 
         return
     if "postgresql" not in low and "asyncpg" not in low:
         return
+    # PostgreSQL требует COMMIT после добавления нового значения ENUM,
+    # прежде чем оно может быть использовано в последующих запросах в этой сессии.
+    # Иначе asyncpg выбрасывает UnsafeNewEnumValueUsageError.
     try:
-        await conn.execute(text("ALTER TYPE user_role ADD VALUE 'owner'"))
+        ac = conn.execution_options(isolation_level="AUTOCOMMIT")
+        await ac.execute(text("ALTER TYPE user_role ADD VALUE 'owner'"))
     except Exception:
+        # значение уже могло быть добавлено ранее
         pass
     await conn.execute(text("UPDATE users SET role = 'owner' WHERE role::text = 'admin'"))
