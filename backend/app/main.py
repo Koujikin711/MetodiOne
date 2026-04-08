@@ -114,6 +114,8 @@ async def lifespan(_: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await ensure_booking_specialist_columns(conn, settings.database_url)
+    # enum-миграции PostgreSQL нельзя выполнять внутри begin-транзакции
+    async with engine.connect() as conn:
         await ensure_owner_role_migration(conn, settings.database_url)
     await seed_pipelines_and_stages()
     await seed_test_admin()
