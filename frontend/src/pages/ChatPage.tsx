@@ -6,17 +6,51 @@ import toast from "react-hot-toast";
 import { apiFetch, resolveMediaUrl } from "@/lib/api";
 import type { ChatMessage, ChatThread } from "@/lib/types";
 
+const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|bmp|svg|avif|heic|heif)(\?|#|$)/i;
+
+function looksLikeImageAttachment(m: ChatMessage): boolean {
+  const mime = (m.media_mime || "").toLowerCase();
+  if (mime.startsWith("image/")) return true;
+  const name = (m.file_name || "").trim();
+  if (name && IMAGE_EXT_RE.test(name)) return true;
+  const raw = (m.media_url || "").trim();
+  if (raw) {
+    try {
+      const path = new URL(raw, "https://example.com").pathname;
+      if (IMAGE_EXT_RE.test(path)) return true;
+    } catch {
+      /* ignore */
+    }
+  }
+  return false;
+}
+
+function imageCaptionToShow(m: ChatMessage): string | null {
+  const t = (m.text || "").trim();
+  if (!t) return null;
+  if (t === "📷 Фото" || t === "📎 Вложение") return null;
+  const fn = (m.file_name || "").trim();
+  if (fn && (t === fn || t === `📎 ${fn}`)) return null;
+  return m.text;
+}
+
 function MessageBody({ m }: { m: ChatMessage }) {
   const url = resolveMediaUrl(m.media_url);
   const mt = m.message_type ?? "text";
+  const showAsImage =
+    !!url &&
+    mt !== "video" &&
+    mt !== "audio" &&
+    (mt === "image" || looksLikeImageAttachment(m));
 
-  if (mt === "image" && url) {
+  if (showAsImage && url) {
+    const cap = imageCaptionToShow(m);
     return (
       <div className="space-y-2">
         <a href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg">
           <img src={url} alt="" className="max-h-64 w-full object-contain" />
         </a>
-        {m.text && m.text !== "📷 Фото" && <div>{m.text}</div>}
+        {cap ? <div>{cap}</div> : null}
       </div>
     );
   }
@@ -39,7 +73,7 @@ function MessageBody({ m }: { m: ChatMessage }) {
     );
   }
 
-  if ((mt === "document" || url) && url) {
+  if (url) {
     return (
       <div className="space-y-2">
         <a
