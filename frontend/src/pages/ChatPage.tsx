@@ -92,6 +92,10 @@ export function ChatPage() {
 
   const [text, setText] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<BlobPart[]>([]);
+  const recordStreamRef = useRef<MediaStream | null>(null);
 
   const selectedThread = useMemo(
     () => (threadsQuery.data ?? []).find((t) => t.id === threadId) ?? null,
@@ -120,11 +124,12 @@ export function ChatPage() {
   }, [threadId, messagesQuery.isSuccess, qc]);
 
   const sendMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (voiceOrOverrideFile?: File) => {
       if (threadId == null) throw new Error("Нет диалога");
-      if (pendingFile) {
+      const fileToSend = voiceOrOverrideFile ?? pendingFile;
+      if (fileToSend) {
         const fd = new FormData();
-        fd.append("file", pendingFile);
+        fd.append("file", fileToSend);
         if (text.trim()) fd.append("text", text.trim());
         return apiFetch<ChatMessage>(`/api/chat/threads/${threadId}/messages`, {
           method: "POST",
@@ -146,6 +151,70 @@ export function ChatPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const stopVoiceRecording = () => {
+    const mr = mediaRecorderRef.current;
+    if (mr && mr.state !== "inactive") mr.stop();
+  };
+
+  useEffect(() => {
+    return () => {
+      stopVoiceRecording();
+      recordStreamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  const startVoiceRecording = async () => {
+    if (threadId == null) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error("Запись голоса не поддерживается в этом браузере");
+      return;
+    }
+    if (sendMutation.isPending) return;
+    try {
+      setPendingFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordStreamRef.current = stream;
+      recordChunksRef.current = [];
+      let mime = "";
+      if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) mime = "audio/webm;codecs=opus";
+      else if (MediaRecorder.isTypeSupported("audio/webm")) mime = "audio/webm";
+      else if (MediaRecorder.isTypeSupported("audio/mp4")) mime = "audio/mp4";
+      const mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      mediaRecorderRef.current = mr;
+      const chosenMime = mr.mimeType || mime || "audio/webm";
+      mr.ondataavailable = (ev) => {
+        if (ev.data.size > 0) recordChunksRef.current.push(ev.data);
+      };
+      mr.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        recordStreamRef.current = null;
+        mediaRecorderRef.current = null;
+        setIsRecording(false);
+        const blob = new Blob(recordChunksRef.current, { type: chosenMime });
+        if (blob.size < 256) {
+          toast.error("Запись слишком короткая");
+          return;
+        }
+        const ext =
+          chosenMime.includes("mp4") || chosenMime.includes("m4a") || chosenMime.includes("aac")
+            ? "m4a"
+            : "webm";
+        const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type || chosenMime });
+        sendMutation.mutate(file);
+      };
+      mr.start(120);
+      setIsRecording(true);
+    } catch {
+      toast.error("Нет доступа к микрофону. Разрешите запись в настройках браузера.");
+    }
+  };
+
+  const toggleVoiceRecording = () => {
+    if (isRecording) stopVoiceRecording();
+    else void startVoiceRecording();
+  };
 
   return (
     <div className="relative mx-auto max-w-[1400px] space-y-4 pb-10">
@@ -243,8 +312,9 @@ export function ChatPage() {
                 className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end"
                 onSubmit={(e) => {
                   e.preventDefault();
+                  if (isRecording) return;
                   if (!text.trim() && !pendingFile) return;
-                  sendMutation.mutate();
+                  sendMutation.mutate(undefined);
                 }}
               >
                 <input
@@ -260,25 +330,53 @@ export function ChatPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="shrink-0 rounded-xl border border-slate-600 bg-slate-900/50 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800/80"
+                  disabled={isRecording || sendMutation.isPending}
+                  className="shrink-0 rounded-xl border border-slate-600 bg-slate-900/50 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800/80 disabled:opacity-50"
                 >
                   Файл
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleVoiceRecording}
+                  disabled={sendMutation.isPending}
+                  title={isRecording ? "Остановить и отправить голосовое" : "Записать голосовое сообщение"}
+                  className={[
+                    "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg transition disabled:opacity-50",
+                    isRecording
+                      ? "animate-pulse border-red-500/60 bg-red-500/25 text-red-100"
+                      : "border-slate-600 bg-slate-900/50 text-slate-200 hover:bg-slate-800/80",
+                  ].join(" ")}
+                  aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
+                >
+                  <span aria-hidden>{isRecording ? "■" : "🎤"}</span>
                 </button>
                 <input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder={pendingFile ? "Подпись (необязательно)…" : "Сообщение клиенту…"}
-                  className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                  placeholder={
+                    isRecording
+                      ? "Идёт запись… нажмите 🎤 ещё раз, чтобы отправить"
+                      : pendingFile
+                        ? "Подпись (необязательно)…"
+                        : "Сообщение клиенту…"
+                  }
+                  readOnly={isRecording}
+                  className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white read-only:opacity-80"
                 />
                 <button
                   type="submit"
-                  disabled={sendMutation.isPending || (!text.trim() && !pendingFile)}
+                  disabled={
+                    sendMutation.isPending || isRecording || (!text.trim() && !pendingFile)
+                  }
                   className="shrink-0 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                 >
                   Отправить
                 </button>
               </form>
-              {pendingFile && (
+              {isRecording && (
+                <p className="mt-1 text-xs font-medium text-red-300/90">● Запись голосового…</p>
+              )}
+              {pendingFile && !isRecording && (
                 <p className="mt-1 text-xs text-slate-400">Вложение: {pendingFile.name}</p>
               )}
             </>
