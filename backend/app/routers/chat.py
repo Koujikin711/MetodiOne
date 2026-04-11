@@ -3,12 +3,21 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser
 from app.database import get_db
-from app.models import ChatMessage, ChatThread, Integration, IntegrationProvider, Lead, UserPipelineAssignment, UserRole
+from app.models import (
+    ChatMessage,
+    ChatThread,
+    ChatThreadUserRead,
+    Integration,
+    IntegrationProvider,
+    Lead,
+    UserPipelineAssignment,
+    UserRole,
+)
 from app.services.green_api_send import send_green_file_upload, send_green_text
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -23,6 +32,10 @@ class ChatThreadRead(BaseModel):
     title: str | None = None
     pipeline_id: int | None = None
     updated_at: datetime
+    unread_count: int = Field(
+        default=0,
+        description="Входящие от клиента после последнего просмотра диалога этим пользователем.",
+    )
 
 
 class ChatMessageRead(BaseModel):
@@ -63,6 +76,57 @@ async def _assert_thread_access(db: AsyncSession, thread: ChatThread, current_us
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Клиент закреплён за другим менеджером",
             )
+
+
+async def _ensure_thread_read_baseline(db: AsyncSession, *, user_id: int, thread_id: int) -> ChatThreadUserRead:
+    """Первая строка чтения: считаем историю уже просмотренной (как в WhatsApp после обновления)."""
+    r = await db.execute(
+        select(ChatThreadUserRead).where(
+            ChatThreadUserRead.user_id == user_id,
+            ChatThreadUserRead.thread_id == thread_id,
+        )
+    )
+    row = r.scalars().first()
+    if row is not None:
+        return row
+    mx = await db.scalar(select(func.max(ChatMessage.id)).where(ChatMessage.thread_id == thread_id))
+    last_id = int(mx or 0)
+    row = ChatThreadUserRead(user_id=user_id, thread_id=thread_id, last_read_message_id=last_id)
+    db.add(row)
+    await db.flush()
+    return row
+
+
+async def _unread_incoming_count(db: AsyncSession, *, user_id: int, thread_id: int) -> int:
+    read_row = await _ensure_thread_read_baseline(db, user_id=user_id, thread_id=thread_id)
+    last_id = read_row.last_read_message_id
+    n = await db.scalar(
+        select(func.count())
+        .select_from(ChatMessage)
+        .where(
+            ChatMessage.thread_id == thread_id,
+            ChatMessage.direction == "in",
+            ChatMessage.id > last_id,
+        )
+    )
+    return int(n or 0)
+
+
+async def _mark_thread_read_up_to_latest(db: AsyncSession, *, user_id: int, thread_id: int) -> None:
+    mx = await db.scalar(select(func.max(ChatMessage.id)).where(ChatMessage.thread_id == thread_id))
+    last_id = int(mx or 0)
+    r = await db.execute(
+        select(ChatThreadUserRead).where(
+            ChatThreadUserRead.user_id == user_id,
+            ChatThreadUserRead.thread_id == thread_id,
+        )
+    )
+    row = r.scalars().first()
+    if row is None:
+        db.add(ChatThreadUserRead(user_id=user_id, thread_id=thread_id, last_read_message_id=last_id))
+    else:
+        row.last_read_message_id = max(row.last_read_message_id, last_id)
+    await db.flush()
 
 
 def _msg_read(m: ChatMessage) -> ChatMessageRead:
@@ -110,6 +174,7 @@ async def list_threads(
         if t.lead_id:
             lead = await db.get(Lead, t.lead_id)
             lead_name = lead.name if lead else None
+        unread = await _unread_incoming_count(db, user_id=current_user.id, thread_id=t.id)
         out.append(
             ChatThreadRead(
                 id=t.id,
@@ -120,6 +185,7 @@ async def list_threads(
                 title=t.title,
                 pipeline_id=t.pipeline_id,
                 updated_at=t.updated_at,
+                unread_count=unread,
             )
         )
     return out
@@ -136,6 +202,7 @@ async def list_messages(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
     await _assert_thread_access(db, thread, current_user)
     rows = (await db.execute(select(ChatMessage).where(ChatMessage.thread_id == thread_id).order_by(ChatMessage.id.asc()))).scalars().all()
+    await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread_id)
     return [_msg_read(m) for m in rows]
 
 
@@ -271,4 +338,5 @@ async def send_message(
     thread.updated_at = datetime.now(UTC)
     await db.flush()
     await db.refresh(msg)
+    await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread.id)
     return _msg_read(msg)

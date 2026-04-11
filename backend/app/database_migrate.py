@@ -121,6 +121,17 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
                 )"""
             )
         )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS chat_thread_user_reads (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    thread_id INTEGER NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
+                    last_read_message_id INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE(user_id, thread_id)
+                )"""
+            )
+        )
 
         r = await conn.execute(text("PRAGMA table_info(booking_specialists)"))
         cols = {row[1] for row in r.fetchall()}
@@ -315,6 +326,17 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
                     provider_message_id VARCHAR(128),
                     delivery_status VARCHAR(24) NOT NULL DEFAULT 'sent',
                     created_at TIMESTAMPTZ
+                )"""
+            )
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS chat_thread_user_reads (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    thread_id INTEGER NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
+                    last_read_message_id INTEGER NOT NULL DEFAULT 0,
+                    CONSTRAINT uq_chat_thread_user_reads_user_thread UNIQUE (user_id, thread_id)
                 )"""
             )
         )

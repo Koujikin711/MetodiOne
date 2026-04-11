@@ -53,6 +53,8 @@ export interface ChatThread {
   title: string | null;
   pipeline_id: number | null;
   updated_at: string;
+  /** Входящие от клиента, не просмотренные в этом диалоге */
+  unread_count?: number;
 }
 
 export interface ChatMessage {

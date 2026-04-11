@@ -2,7 +2,7 @@ import enum
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, JSON, Numeric, String, Text
+from sqlalchemy import DateTime, ForeignKey, JSON, Numeric, String, Text, UniqueConstraint
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -202,6 +202,18 @@ class ChatThread(Base):
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
+class ChatThreadUserRead(Base):
+    """До какого message.id пользователь «дочитал» диалог (для счётчика непрочитанных входящих)."""
+
+    __tablename__ = "chat_thread_user_reads"
+    __table_args__ = (UniqueConstraint("user_id", "thread_id", name="uq_chat_thread_user_reads_user_thread"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    thread_id: Mapped[int] = mapped_column(ForeignKey("chat_threads.id", ondelete="CASCADE"), index=True)
+    last_read_message_id: Mapped[int] = mapped_column(default=0)
 
 
 class ChatMessage(Base):
