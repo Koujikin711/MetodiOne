@@ -28,6 +28,9 @@ class PipelinePatch(BaseModel):
 class PipelineCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     type: str | None = Field(default=None, max_length=64)
-    stages: list[PipelineStageCreate] = Field(..., min_length=1)
+    stages: list[PipelineStageCreate] = Field(
+        default_factory=list,
+        description="Пустой список — сервер создаст стандартный набор стадий",
+    )
     expert_user_id: int | None = Field(default=None, ge=1)
 

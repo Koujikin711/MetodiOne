@@ -12,6 +12,7 @@ from app.database import AsyncSessionLocal, engine
 from app.database_migrate import ensure_booking_specialist_columns, ensure_owner_role_migration
 from app.core.security import hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, LeadSource, Pipeline, PipelineStage, User, UserRole
+from app.services.default_pipeline_stages import default_pipeline_stage_creates
 from app.routers import analytics, audit, auth, booking, chat, deals, employees, integrations, leads, pipelines, reports, sources, stages, system, tasks, users
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
 
@@ -50,7 +51,15 @@ async def seed_pipelines_and_stages() -> None:
         session.add(pipe)
         await session.flush()
 
-        session.add(PipelineStage(name="Новый", order=0, color="#64748b", pipeline_id=pipe.id))
+        for st in default_pipeline_stage_creates():
+            session.add(
+                PipelineStage(
+                    name=st.name,
+                    order=st.order if st.order is not None else 0,
+                    color=st.color,
+                    pipeline_id=pipe.id,
+                )
+            )
         await session.commit()
 
 
