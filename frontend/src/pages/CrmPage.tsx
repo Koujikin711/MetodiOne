@@ -39,6 +39,19 @@ function leadDraggableId(leadId: number) {
   return `lead-${leadId}`;
 }
 
+/** Совпадает с бэкендом `default_pipeline_stages` (имена для онлайн-записи задаются в .env API). */
+const DEFAULT_AUTO_PIPELINE_STAGES: Array<{ name: string; color: string }> = [
+  { name: "Новый", color: "#64748b" },
+  { name: "Квалифицирован", color: "#6366f1" },
+  { name: "Запись", color: "#8b5cf6" },
+  { name: "Успешно реализован", color: "#22c55e" },
+  { name: "Потерян", color: "#ef4444" },
+];
+
+function cloneDefaultStages() {
+  return DEFAULT_AUTO_PIPELINE_STAGES.map((s) => ({ name: s.name, color: s.color }));
+}
+
 /** Стабильная короткая «дата» для бейджа без поля created_at в API */
 function leadDateBadge(leadId: number): string {
   const d = new Date(Date.UTC(2025, (leadId % 12) + 0, (leadId % 28) + 1));
@@ -817,16 +830,18 @@ export function CrmPage() {
   const [pipeName, setPipeName] = useState("");
   const [pipeType, setPipeType] = useState("sales");
   const [pipeExpertUserId, setPipeExpertUserId] = useState<number | "">("");
-  const [pipeStages, setPipeStages] = useState<Array<{ name: string; color: string }>>([
-    { name: "Новый", color: "#64748b" },
-  ]);
+  const [useCustomPipelineStages, setUseCustomPipelineStages] = useState(false);
+  const [pipeStages, setPipeStages] = useState<Array<{ name: string; color: string }>>(() => cloneDefaultStages());
 
   async function submitCreatePipeline() {
     if (!pipeName.trim()) {
       toast.error("Название воронки обязательно");
       return;
     }
-    if (pipeStages.length === 0 || pipeStages.some((s) => !s.name.trim())) {
+    if (
+      useCustomPipelineStages &&
+      (pipeStages.length === 0 || pipeStages.some((s) => !s.name.trim()))
+    ) {
       toast.error("Добавьте хотя бы одну стадию и заполните названия");
       return;
     }
@@ -837,11 +852,13 @@ export function CrmPage() {
           name: pipeName.trim(),
           type: pipeType.trim(),
           expert_user_id: typeof pipeExpertUserId === "number" ? pipeExpertUserId : null,
-          stages: pipeStages.map((s, idx) => ({
-            name: s.name.trim(),
-            order: idx,
-            color: s.color || "#6366f1",
-          })),
+          stages: useCustomPipelineStages
+            ? pipeStages.map((s, idx) => ({
+                name: s.name.trim(),
+                order: idx,
+                color: s.color || "#6366f1",
+              }))
+            : [],
         }),
       });
       toast.success("Воронка создана");
@@ -849,7 +866,8 @@ export function CrmPage() {
       setPipeName("");
       setPipeType("sales");
       setPipeExpertUserId("");
-      setPipeStages([{ name: "Новый", color: "#64748b" }]);
+      setUseCustomPipelineStages(false);
+      setPipeStages(cloneDefaultStages());
       void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Не удалось создать воронку");
@@ -1270,7 +1288,11 @@ export function CrmPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setCreatePipelineOpen(true)}
+            onClick={() => {
+              setUseCustomPipelineStages(false);
+              setPipeStages(cloneDefaultStages());
+              setCreatePipelineOpen(true);
+            }}
             className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
           >
             + Создать воронку
@@ -1526,54 +1548,83 @@ export function CrmPage() {
                 </label>
               )}
 
-              <div className="mt-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold text-slate-200">Стадии</div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPipeStages((prev) => [...prev, { name: "", color: "#6366f1" }])
-                    }
-                    className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-200 hover:bg-slate-800/40"
-                  >
-                    + Стадия
-                  </button>
-                </div>
-                <div className="mt-3 space-y-2">
-                  {pipeStages.map((st, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <input
-                        value={st.name}
-                        onChange={(e) =>
-                          setPipeStages((prev) =>
-                            prev.map((p, i) => (i === idx ? { ...p, name: e.target.value } : p)),
-                          )
-                        }
-                        placeholder={`Стадия ${idx + 1}`}
-                        className="flex-1 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
-                      />
-                      <input
-                        type="color"
-                        value={st.color}
-                        onChange={(e) =>
-                          setPipeStages((prev) =>
-                            prev.map((p, i) => (i === idx ? { ...p, color: e.target.value } : p)),
-                          )
-                        }
-                        className="h-10 w-12 rounded-lg border border-slate-700 bg-slate-950/40"
-                      />
-                      <button
-                        type="button"
-                        disabled={pipeStages.length <= 1}
-                        onClick={() => setPipeStages((prev) => prev.filter((_, i) => i !== idx))}
-                        className="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/40 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
+              <div className="mt-2 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3">
+                <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-200">
+                  <input
+                    type="checkbox"
+                    className="mt-1 rounded border-slate-600"
+                    checked={useCustomPipelineStages}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setUseCustomPipelineStages(on);
+                      if (on) setPipeStages(cloneDefaultStages());
+                    }}
+                  />
+                  <span>
+                    <span className="font-medium">Задать стадии вручную</span>
+                    <span className="mt-1 block text-xs font-normal text-slate-500">
+                      По умолчанию сервер создаёт стандартный набор из {DEFAULT_AUTO_PIPELINE_STAGES.length}{" "}
+                      стадий (совместим с онлайн-записью).
+                    </span>
+                  </span>
+                </label>
+                {!useCustomPipelineStages && (
+                  <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                    {DEFAULT_AUTO_PIPELINE_STAGES.map((s) => s.name).join(" → ")}
+                  </p>
+                )}
               </div>
+
+              {useCustomPipelineStages && (
+                <div className="mt-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold text-slate-200">Стадии</div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPipeStages((prev) => [...prev, { name: "", color: "#6366f1" }])
+                      }
+                      className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-200 hover:bg-slate-800/40"
+                    >
+                      + Стадия
+                    </button>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {pipeStages.map((st, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          value={st.name}
+                          onChange={(e) =>
+                            setPipeStages((prev) =>
+                              prev.map((p, i) => (i === idx ? { ...p, name: e.target.value } : p)),
+                            )
+                          }
+                          placeholder={`Стадия ${idx + 1}`}
+                          className="flex-1 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                        />
+                        <input
+                          type="color"
+                          value={st.color}
+                          onChange={(e) =>
+                            setPipeStages((prev) =>
+                              prev.map((p, i) => (i === idx ? { ...p, color: e.target.value } : p)),
+                            )
+                          }
+                          className="h-10 w-12 rounded-lg border border-slate-700 bg-slate-950/40"
+                        />
+                        <button
+                          type="button"
+                          disabled={pipeStages.length <= 1}
+                          onClick={() => setPipeStages((prev) => prev.filter((_, i) => i !== idx))}
+                          className="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/40 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <button
                 type="button"
