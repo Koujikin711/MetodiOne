@@ -293,7 +293,7 @@ async def send_message(
                 mtype = "image"
             elif any(low.endswith(x) for x in (".mp4", ".webm", ".mov")):
                 mtype = "video"
-            elif any(low.endswith(x) for x in (".ogg", ".mp3", ".m4a", ".opus")):
+            elif any(low.endswith(x) for x in (".ogg", ".mp3", ".m4a", ".opus", ".webm", ".wav")):
                 mtype = "audio"
         msg = ChatMessage(
             thread_id=thread.id,
