@@ -114,6 +114,11 @@ export function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [threadId, lastMsgId, msgCount]);
 
+  useEffect(() => {
+    if (threadId == null || !messagesQuery.isSuccess) return;
+    void qc.invalidateQueries({ queryKey: ["chat-threads"] });
+  }, [threadId, messagesQuery.isSuccess, qc]);
+
   const sendMutation = useMutation({
     mutationFn: async () => {
       if (threadId == null) throw new Error("Нет диалога");
@@ -159,26 +164,39 @@ export function ChatPage() {
             <p className="text-sm text-red-300">{(threadsQuery.error as Error).message}</p>
           )}
           <div className="space-y-2">
-            {(threadsQuery.data ?? []).map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setThreadId(t.id)}
-                className={[
-                  "w-full rounded-xl border px-3 py-2 text-left transition",
-                  t.id === threadId
-                    ? "border-purple-500/40 bg-purple-500/10"
-                    : "border-slate-700/50 bg-slate-900/30 hover:bg-slate-900/50",
-                ].join(" ")}
-              >
-                <div className="truncate text-sm font-semibold text-slate-100">
-                  {t.lead_name || t.title || `Диалог #${t.id}`}
-                </div>
-                <div className="mt-1 truncate text-xs text-slate-400">
-                  {t.provider} {t.external_chat_id ? `· ${t.external_chat_id}` : ""}
-                </div>
-              </button>
-            ))}
+            {(threadsQuery.data ?? []).map((t) => {
+              const unread = t.unread_count ?? 0;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setThreadId(t.id)}
+                  className={[
+                    "flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition",
+                    t.id === threadId
+                      ? "border-purple-500/40 bg-purple-500/10"
+                      : "border-slate-700/50 bg-slate-900/30 hover:bg-slate-900/50",
+                  ].join(" ")}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-slate-100">
+                      {t.lead_name || t.title || `Диалог #${t.id}`}
+                    </div>
+                    <div className="mt-1 truncate text-xs text-slate-400">
+                      {t.provider} {t.external_chat_id ? `· ${t.external_chat_id}` : ""}
+                    </div>
+                  </div>
+                  {unread > 0 ? (
+                    <span
+                      className="mt-0.5 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1 text-[11px] font-bold leading-none text-white shadow-sm tabular-nums"
+                      title={`Непрочитано: ${unread}`}
+                    >
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
             {!threadsQuery.isLoading && (threadsQuery.data ?? []).length === 0 && (
               <p className="text-sm text-slate-500">Пока нет диалогов</p>
             )}
