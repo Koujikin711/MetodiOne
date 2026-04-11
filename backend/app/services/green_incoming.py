@@ -4,6 +4,27 @@ from __future__ import annotations
 
 from typing import Any
 
+_IMAGE_EXT = (
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".bmp",
+    ".svg",
+    ".avif",
+    ".heic",
+    ".heif",
+)
+
+
+def _is_image_file(name: str, mime: str | None) -> bool:
+    m = (mime or "").lower()
+    if m.startswith("image/"):
+        return True
+    low = name.lower()
+    return any(low.endswith(x) for x in _IMAGE_EXT)
+
 
 def parse_green_message_data(message_data: dict[str, Any]) -> tuple[str, str, str | None, str | None, str | None]:
     """
@@ -60,6 +81,9 @@ def parse_green_message_data(message_data: dict[str, Any]) -> tuple[str, str, st
         cap = (d.get("caption") or "").strip()
         fn = d.get("fileName") or "file"
         mime = d.get("mimeType") or "application/octet-stream"
+        if _is_image_file(fn, mime):
+            label = cap or "📷 Фото"
+            return label, "image", url, mime, fn
         label = cap or f"📎 {fn}"
         return label, "document", url, mime, fn
 
@@ -70,6 +94,9 @@ def parse_green_message_data(message_data: dict[str, Any]) -> tuple[str, str, st
         cap = (d.get("caption") or "").strip()
         mime = d.get("mimeType")
         fn = d.get("fileName") or "file"
+        if _is_image_file(fn, mime):
+            label = cap or "📷 Фото"
+            return label, "image", url, mime or "image/jpeg", fn
         label = cap or "📎 Вложение"
         return label, "document", url, mime, fn
 
