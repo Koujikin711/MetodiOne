@@ -5,6 +5,7 @@ import secrets
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from starlette.responses import Response
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -337,6 +338,8 @@ async def _find_existing_lead(
     phone: str | None,
     source_name: str,
     pipeline_id: int,
+    external_chat_id: str | None = None,
+    thread_provider: str | None = None,
 ) -> Lead | None:
     if phone:
         # Дедуп: один и тот же номер + источник в той же воронке
@@ -356,6 +359,26 @@ async def _find_existing_lead(
         found = res.scalars().first()
         if found is not None:
             return found
+    # Без телефона (или не распарсился): тот же WhatsApp/Telegram chat → один лид
+    if external_chat_id and thread_provider:
+        res = await db.execute(
+            select(Lead)
+            .join(ChatThread, ChatThread.lead_id == Lead.id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(
+                and_(
+                    Lead.source == source_name,
+                    PipelineStage.pipeline_id == pipeline_id,
+                    ChatThread.provider == thread_provider,
+                    ChatThread.external_chat_id == external_chat_id,
+                ),
+            )
+            .order_by(Lead.id.desc())
+            .limit(1),
+        )
+        found = res.scalars().first()
+        if found is not None:
+            return found
     return None
 
 
@@ -367,6 +390,8 @@ async def _create_lead_from_integration(
     phone: str | None,
     email: str | None,
     source_name: str,
+    external_chat_id: str | None = None,
+    thread_provider: str | None = None,
 ) -> Lead:
     await _ensure_source_exists(db, source_name)
     norm_phone = _norm_phone(phone)
@@ -375,6 +400,8 @@ async def _create_lead_from_integration(
         phone=norm_phone,
         source_name=source_name,
         pipeline_id=integ.pipeline_id,
+        external_chat_id=(external_chat_id or "").strip() or None,
+        thread_provider=thread_provider,
     )
     if existing is not None:
         existing.status_id = integ.stage_id
@@ -525,6 +552,7 @@ async def integration_webhook(
             phone = contact.get("phone_number")
         if username:
             text = f"@{username}: {text}".strip()
+        ext_chat = str(chat.get("id") or "").strip()
         lead = await _create_lead_from_integration(
             db,
             integ=integ,
@@ -532,12 +560,14 @@ async def integration_webhook(
             phone=phone,
             email=None,
             source_name=source_name,
+            external_chat_id=ext_chat or None,
+            thread_provider=IntegrationProvider.telegram.value,
         )
         thread = await _upsert_thread(
             db,
             lead=lead,
             provider=IntegrationProvider.telegram.value,
-            external_chat_id=str(chat.get("id") or ""),
+            external_chat_id=ext_chat or None,
             title=name,
         )
         await _add_incoming_message(db, thread.id, text)
@@ -545,15 +575,25 @@ async def integration_webhook(
         return _lead_read(lead)
 
     if integ.provider == IntegrationProvider.green_api:
+        # Иначе на каждый stateInstance/outgoingStatus и т.д. создавались бы новые лиды
+        tw = str(payload.get("typeWebhook") or "").strip()
+        if tw != "incomingMessageReceived":
+            logger.info(
+                "integration webhook: integration_id=%s green_api skip typeWebhook=%s",
+                integration_id,
+                tw or "(empty)",
+            )
+            return Response(status_code=204)
         # Ожидаем типичный webhook GREEN API: { "typeWebhook": "...", "senderData": {...}, "messageData": {...} }
         sender = payload.get("senderData") or {}
         message_data = payload.get("messageData") or {}
-        chat_id = sender.get("chatId") or payload.get("chatId") or ""
+        raw_chat = sender.get("chatId") or payload.get("chatId")
+        chat_id = str(raw_chat).strip() if raw_chat not in (None, "") else ""
         sender_name = sender.get("senderName") or "WhatsApp lead"
         phone = None
-        if isinstance(chat_id, str) and chat_id.endswith("@c.us"):
+        if chat_id.endswith("@c.us"):
             phone = chat_id.replace("@c.us", "")
-        elif isinstance(chat_id, str):
+        elif chat_id:
             phone = chat_id
         # Иногда номер в sender
         if not phone:
@@ -567,6 +607,7 @@ async def integration_webhook(
             )
         source_name = "GREEN API"
         text, mtype, murl, mmime, mfn = parse_green_message_data(message_data)
+        ext_chat = chat_id or None
         lead = await _create_lead_from_integration(
             db,
             integ=integ,
@@ -574,12 +615,14 @@ async def integration_webhook(
             phone=phone,
             email=None,
             source_name=source_name,
+            external_chat_id=ext_chat,
+            thread_provider=IntegrationProvider.green_api.value,
         )
         thread = await _upsert_thread(
             db,
             lead=lead,
             provider=IntegrationProvider.green_api.value,
-            external_chat_id=chat_id if isinstance(chat_id, str) else None,
+            external_chat_id=ext_chat,
             title=str(sender_name),
         )
         await _add_incoming_message(
