@@ -58,6 +58,17 @@ function MessageBody({ m }: { m: ChatMessage }) {
   return <div>{m.text}</div>;
 }
 
+function MicIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V20H9v2h6v-2h-2v-2.08A7 7 0 0 0 19 11h-2z"
+      />
+    </svg>
+  );
+}
+
 export function ChatPage() {
   const qc = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -93,9 +104,14 @@ export function ChatPage() {
   const [text, setText] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [voiceFinishing, setVoiceFinishing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<BlobPart[]>([]);
   const recordStreamRef = useRef<MediaStream | null>(null);
+  const threadIdRef = useRef<number | null>(threadId);
+  useEffect(() => {
+    threadIdRef.current = threadId;
+  }, [threadId]);
 
   const selectedThread = useMemo(
     () => (threadsQuery.data ?? []).find((t) => t.id === threadId) ?? null,
@@ -154,6 +170,13 @@ export function ChatPage() {
 
   const stopVoiceRecording = () => {
     const mr = mediaRecorderRef.current;
+    if (mr && mr.state === "recording") {
+      try {
+        mr.requestData();
+      } catch {
+        /* ignore */
+      }
+    }
     if (mr && mr.state !== "inactive") mr.stop();
   };
 
@@ -164,13 +187,22 @@ export function ChatPage() {
     };
   }, []);
 
+  useEffect(() => {
+    stopVoiceRecording();
+    recordStreamRef.current?.getTracks().forEach((t) => t.stop());
+    recordStreamRef.current = null;
+    setIsRecording(false);
+    setVoiceFinishing(false);
+  }, [threadId]);
+
   const startVoiceRecording = async () => {
     if (threadId == null) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       toast.error("Запись голоса не поддерживается в этом браузере");
       return;
     }
-    if (sendMutation.isPending) return;
+    if (sendMutation.isPending || voiceFinishing) return;
+    const startedForThread = threadId;
     try {
       setPendingFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -192,9 +224,14 @@ export function ChatPage() {
         recordStreamRef.current = null;
         mediaRecorderRef.current = null;
         setIsRecording(false);
+        if (threadIdRef.current !== startedForThread) {
+          setVoiceFinishing(false);
+          return;
+        }
         const blob = new Blob(recordChunksRef.current, { type: chosenMime });
         if (blob.size < 256) {
           toast.error("Запись слишком короткая");
+          setVoiceFinishing(false);
           return;
         }
         const ext =
@@ -202,18 +239,36 @@ export function ChatPage() {
             ? "m4a"
             : "webm";
         const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type || chosenMime });
-        sendMutation.mutate(file);
+        sendMutation.mutate(file, {
+          onSettled: () => setVoiceFinishing(false),
+        });
       };
-      mr.start(120);
+      // Без интервала: один надёжный chunk при stop() (иначе часть браузеров отдаёт пустой blob)
+      mr.start();
       setIsRecording(true);
     } catch {
+      setVoiceFinishing(false);
+      recordStreamRef.current?.getTracks().forEach((t) => t.stop());
+      recordStreamRef.current = null;
       toast.error("Нет доступа к микрофону. Разрешите запись в настройках браузера.");
     }
   };
 
   const toggleVoiceRecording = () => {
-    if (isRecording) stopVoiceRecording();
-    else void startVoiceRecording();
+    if (isRecording) {
+      const mr = mediaRecorderRef.current;
+      setVoiceFinishing(true);
+      if (!mr || mr.state === "inactive") {
+        setVoiceFinishing(false);
+        setIsRecording(false);
+        recordStreamRef.current?.getTracks().forEach((t) => t.stop());
+        recordStreamRef.current = null;
+        return;
+      }
+      stopVoiceRecording();
+      return;
+    }
+    void startVoiceRecording();
   };
 
   return (
@@ -312,7 +367,7 @@ export function ChatPage() {
                 className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (isRecording) return;
+                  if (isRecording || voiceFinishing) return;
                   if (!text.trim() && !pendingFile) return;
                   sendMutation.mutate(undefined);
                 }}
@@ -330,43 +385,56 @@ export function ChatPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isRecording || sendMutation.isPending}
+                  disabled={isRecording || voiceFinishing || sendMutation.isPending}
                   className="shrink-0 rounded-xl border border-slate-600 bg-slate-900/50 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800/80 disabled:opacity-50"
                 >
                   Файл
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleVoiceRecording}
-                  disabled={sendMutation.isPending}
-                  title={isRecording ? "Остановить и отправить голосовое" : "Записать голосовое сообщение"}
-                  className={[
-                    "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg transition disabled:opacity-50",
-                    isRecording
-                      ? "animate-pulse border-red-500/60 bg-red-500/25 text-red-100"
-                      : "border-slate-600 bg-slate-900/50 text-slate-200 hover:bg-slate-800/80",
-                  ].join(" ")}
-                  aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
-                >
-                  <span aria-hidden>{isRecording ? "■" : "🎤"}</span>
                 </button>
                 <input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder={
-                    isRecording
-                      ? "Идёт запись… нажмите 🎤 ещё раз, чтобы отправить"
-                      : pendingFile
-                        ? "Подпись (необязательно)…"
-                        : "Сообщение клиенту…"
+                    voiceFinishing
+                      ? "Отправка голосового…"
+                      : isRecording
+                        ? "Идёт запись… нажмите зелёную кнопку ещё раз, чтобы отправить"
+                        : pendingFile
+                          ? "Подпись (необязательно)…"
+                          : "Сообщение клиенту…"
                   }
-                  readOnly={isRecording}
+                  readOnly={isRecording || voiceFinishing}
                   className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white read-only:opacity-80"
                 />
                 <button
+                  type="button"
+                  onClick={toggleVoiceRecording}
+                  disabled={sendMutation.isPending || (voiceFinishing && !isRecording)}
+                  title={
+                    isRecording
+                      ? "Нажмите ещё раз, чтобы остановить и отправить"
+                      : "Записать голосовое сообщение"
+                  }
+                  className={[
+                    "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-md transition disabled:opacity-50",
+                    isRecording
+                      ? "animate-pulse bg-red-600 hover:bg-red-500"
+                      : "bg-emerald-600 hover:bg-emerald-500",
+                  ].join(" ")}
+                  aria-label={isRecording ? "Остановить и отправить" : "Записать голосовое"}
+                >
+                  {isRecording ? (
+                    <span className="block h-3.5 w-3.5 rounded-sm bg-white" aria-hidden />
+                  ) : (
+                    <MicIcon className="h-6 w-6" />
+                  )}
+                </button>
+                <button
                   type="submit"
                   disabled={
-                    sendMutation.isPending || isRecording || (!text.trim() && !pendingFile)
+                    sendMutation.isPending ||
+                    isRecording ||
+                    voiceFinishing ||
+                    (!text.trim() && !pendingFile)
                   }
                   className="shrink-0 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                 >
@@ -374,7 +442,10 @@ export function ChatPage() {
                 </button>
               </form>
               {isRecording && (
-                <p className="mt-1 text-xs font-medium text-red-300/90">● Запись голосового…</p>
+                <p className="mt-1 text-xs font-medium text-red-300/90">● Запись… нажмите круглую кнопку ещё раз, чтобы отправить</p>
+              )}
+              {voiceFinishing && !isRecording && (
+                <p className="mt-1 text-xs text-slate-400">Отправка голосового…</p>
               )}
               {pendingFile && !isRecording && (
                 <p className="mt-1 text-xs text-slate-400">Вложение: {pendingFile.name}</p>
