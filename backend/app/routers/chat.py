@@ -250,6 +250,7 @@ async def send_message(
     filename: str | None = None
     caption: str = ""
     plain_text: str = ""
+    file_attempted = False
 
     if "application/json" in ct:
         body = SendMessageBody.model_validate(await request.json())
@@ -259,6 +260,8 @@ async def send_message(
         form = await request.form()
         caption = str(form.get("text") or form.get("caption") or "").strip()
         up = form.get("file")
+        if up is not None:
+            file_attempted = True
         if isinstance(up, UploadFile):
             file_bytes = await up.read()
             filename = up.filename or "file"
@@ -305,6 +308,11 @@ async def send_message(
             provider_message_id=provider_msg_id,
             file_name=filename,
             created_at=datetime.now(UTC),
+        )
+    elif file_attempted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Голосовое не дошло или файл пустой. Запишите подольше или обновите страницу.",
         )
     else:
         if not plain_text:
