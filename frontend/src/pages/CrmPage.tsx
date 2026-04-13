@@ -52,9 +52,11 @@ function cloneDefaultStages() {
   return DEFAULT_AUTO_PIPELINE_STAGES.map((s) => ({ name: s.name, color: s.color }));
 }
 
-/** Стабильная короткая «дата» для бейджа без поля created_at в API */
-function leadDateBadge(leadId: number): string {
-  const d = new Date(Date.UTC(2025, (leadId % 12) + 0, (leadId % 28) + 1));
+/** Короткая дата создания лида для бейджа. */
+function leadDateBadge(createdAt?: string | null): string {
+  if (!createdAt) return "—";
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
 }
 
@@ -80,7 +82,7 @@ function LeadCardBody({ lead }: { lead: Lead }) {
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium leading-snug text-white">{lead.name}</p>
         <span className="shrink-0 rounded-full bg-slate-700/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">
-          {leadDateBadge(lead.id)}
+          {leadDateBadge(lead.created_at)}
         </span>
       </div>
       <p className="mt-2 text-sm text-slate-400">{lead.phone ?? "—"}</p>

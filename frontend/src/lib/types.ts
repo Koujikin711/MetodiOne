@@ -87,6 +87,7 @@ export interface Lead {
   protocol_deal_id?: number | null;
   paid_extras_amount?: unknown;
   show_close_deal_button?: boolean;
+  created_at?: string | null;
 }
 
 export interface LeadImportErrorItem {
