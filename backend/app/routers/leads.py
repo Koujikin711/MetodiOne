@@ -212,6 +212,7 @@ def _lead_to_read(lead: Lead) -> LeadRead:
         manager_id=lead.manager_id,
         refusal_reason=lead.refusal_reason,
         pipeline_id=lead.stage.pipeline_id if lead.stage else None,
+        created_at=lead.created_at,
     )
 
 
