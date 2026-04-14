@@ -78,6 +78,30 @@ async def _stage_id_by_name(db: AsyncSession, name: str, pipeline_id: int | None
     return r.scalar_one_or_none()
 
 
+async def _ensure_stage_by_name(
+    db: AsyncSession,
+    *,
+    name: str,
+    pipeline_id: int,
+    color: str = "#ef4444",
+) -> tuple[int, bool]:
+    sid = await _stage_id_by_name(db, name, pipeline_id=pipeline_id)
+    if sid is not None:
+        return sid, False
+    max_order = await db.scalar(
+        select(func.max(PipelineStage.order)).where(PipelineStage.pipeline_id == pipeline_id),
+    )
+    st = PipelineStage(
+        name=name,
+        order=int(max_order or -1) + 1,
+        color=color,
+        pipeline_id=pipeline_id,
+    )
+    db.add(st)
+    await db.flush()
+    return st.id, True
+
+
 async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
     rows = await db.execute(
         select(UserPipelineAssignment.pipeline_id).where(UserPipelineAssignment.user_id == user_id),
@@ -790,6 +814,59 @@ async def close_deal_from_integration_pipeline(
     )
     enriched = await _enrich_leads_close_deal(db, [lead], [base], current_user)
     return enriched[0]
+
+
+class LeadRejectBody(BaseModel):
+    reason: str | None = Field(default=None, max_length=2000)
+
+
+@router.post("/{lead_id}/reject", response_model=LeadRead)
+async def reject_lead(
+    lead_id: int,
+    body: LeadRejectBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> LeadRead:
+    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец, админ воронки или менеджер")
+
+    lead = await db.get(Lead, lead_id)
+    if lead is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await db.refresh(lead, ["stage"])
+    pipeline_id = lead.stage.pipeline_id if lead.stage else None
+    if pipeline_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Лид не привязан к воронке")
+
+    if is_manager_like(current_user.role):
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if pipeline_id not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")
+        if lead.manager_id is not None and lead.manager_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is assigned to another manager")
+
+    reject_stage_id, created_new_stage = await _ensure_stage_by_name(
+        db,
+        name="Неуспешно",
+        pipeline_id=pipeline_id,
+        color="#ef4444",
+    )
+    lead.status_id = reject_stage_id
+    reason = (body.reason or "").strip()
+    lead.refusal_reason = reason or "Отказ"
+    await db.flush()
+    await _audit_lead(
+        db,
+        lead_id=lead.id,
+        action="lead_rejected",
+        current_user=current_user,
+        details=(
+            f"Лид переведён в «Неуспешно», reason={lead.refusal_reason}, "
+            f"stage_created={created_new_stage}"
+        ),
+    )
+    await db.refresh(lead, ["stage"])
+    return _lead_to_read(lead)
 
 
 @router.patch("/{lead_id}/status", response_model=LeadStatusPatchResponse)

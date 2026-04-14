@@ -37,7 +37,23 @@ export function LeadDetailPage() {
     onError: (e: Error) => toast.error(e.message || "Не удалось закрыть сделку"),
   });
 
+  const rejectMutation = useMutation({
+    mutationFn: async (reason?: string) =>
+      apiFetch<Lead>(`/api/leads/${leadId}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason?.trim() || null }),
+      }),
+    onSuccess: () => {
+      toast.success("Лид переведён в «Неуспешно»");
+      void qc.invalidateQueries({ queryKey: ["lead", leadId] });
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+      void qc.invalidateQueries({ queryKey: ["leads-table"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Не удалось оформить отказ"),
+  });
+
   const role = decodeRoleFromToken(getStoredToken());
+  const canRejectLead = role === "owner" || role === "admin" || role === "manager";
   const homeLink = role === "manager" || role === "admin" ? "/my-leads" : "/";
   const homeLabel = role === "manager" || role === "admin" ? "Мои лиды" : "Канбан";
 
@@ -105,6 +121,20 @@ export function LeadDetailPage() {
                 className="rounded-xl border border-emerald-600/50 bg-emerald-950/40 px-3 py-1.5 text-xs font-semibold text-emerald-100 transition hover:border-emerald-400/60 hover:bg-emerald-900/30"
               >
                 Закрыть сделку
+              </button>
+            )}
+            {canRejectLead && (
+              <button
+                type="button"
+                disabled={rejectMutation.isPending}
+                onClick={() => {
+                  const reason = window.prompt("Причина отказа (необязательно)", "");
+                  if (reason == null) return;
+                  rejectMutation.mutate(reason.trim() || undefined);
+                }}
+                className="rounded-xl border border-rose-600/50 bg-rose-950/40 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:border-rose-400/60 hover:bg-rose-900/30 disabled:opacity-50"
+              >
+                Отказ
               </button>
             )}
           </div>
