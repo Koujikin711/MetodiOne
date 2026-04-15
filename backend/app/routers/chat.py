@@ -1,8 +1,10 @@
 import logging
+import mimetypes
 from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +22,7 @@ from app.models import (
     UserRole,
 )
 from app.services.audio_prepare import prepare_file_for_green_whatsapp
+from app.services.chat_media_store import resolve_outgoing_chat_media, save_outgoing_chat_media
 from app.services.green_api_send import send_green_file_upload, send_green_text
 
 logger = logging.getLogger(__name__)
@@ -251,11 +254,13 @@ async def _send_green_file_message(
         delivery_status=status_name,
         provider_message_id=provider_msg_id,
         file_name=filename,
+        media_mime=file_content_type or mimetypes.guess_type(filename or "file")[0],
         created_at=datetime.now(UTC),
     )
     db.add(msg)
     thread.updated_at = datetime.now(UTC)
     await db.flush()
+    msg.media_url = save_outgoing_chat_media(msg.id, filename, file_bytes)
     await db.refresh(msg)
     await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread.id)
     return _msg_read(msg)
@@ -320,6 +325,26 @@ async def list_messages(
     rows = (await db.execute(select(ChatMessage).where(ChatMessage.thread_id == thread_id).order_by(ChatMessage.id.asc()))).scalars().all()
     await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread_id)
     return [_msg_read(m) for m in rows]
+
+
+@router.get("/messages/{message_id}/media")
+async def get_message_media(
+    message_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+):
+    msg = await db.get(ChatMessage, message_id)
+    if msg is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+    thread = await db.get(ChatThread, msg.thread_id)
+    if thread is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+    await _assert_thread_access(db, thread, current_user)
+    fpath = resolve_outgoing_chat_media(message_id)
+    if fpath is None or not fpath.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+    media_type = (msg.media_mime or "").strip() or mimetypes.guess_type(fpath.name)[0] or "application/octet-stream"
+    return FileResponse(path=fpath, media_type=media_type, filename=msg.file_name or fpath.name)
 
 
 @router.post("/threads/{thread_id}/messages/attachment", response_model=ChatMessageRead)
