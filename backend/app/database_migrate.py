@@ -496,7 +496,7 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
         if cid is None:
             await conn.execute(
                 text(
-                    "INSERT INTO companies(name, is_active) VALUES ('Default Company', 1)",
+                    "INSERT INTO companies(name, is_active, created_at) VALUES ('Default Company', 1, CURRENT_TIMESTAMP)",
                 )
             )
             cid = await conn.scalar(text("SELECT id FROM companies ORDER BY id LIMIT 1"))
@@ -546,7 +546,7 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
         cid = await conn.scalar(text("SELECT id FROM companies ORDER BY id LIMIT 1"))
         if cid is None:
             await conn.execute(
-                text("INSERT INTO companies(name, is_active) VALUES ('Default Company', TRUE)"),
+                text("INSERT INTO companies(name, is_active, created_at) VALUES ('Default Company', TRUE, NOW())"),
             )
             cid = await conn.scalar(text("SELECT id FROM companies ORDER BY id LIMIT 1"))
         default_company_id = int(cid or 1)
