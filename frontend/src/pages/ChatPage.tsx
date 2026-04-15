@@ -244,12 +244,14 @@ export function ChatPage() {
       recordStreamRef.current = stream;
       recordChunksRef.current = [];
       let mime = "";
-      if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) mime = "audio/webm;codecs=opus";
+      if (MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")) mime = "audio/ogg;codecs=opus";
+      else if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) mime = "audio/webm;codecs=opus";
       else if (MediaRecorder.isTypeSupported("audio/webm")) mime = "audio/webm";
       else if (MediaRecorder.isTypeSupported("audio/mp4")) mime = "audio/mp4";
       const mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
       mediaRecorderRef.current = mr;
       const chosenMime = mr.mimeType || mime || "audio/webm";
+      const isOgg = chosenMime.includes("ogg");
       mr.ondataavailable = (ev) => {
         if (ev.data.size > 0) recordChunksRef.current.push(ev.data);
       };
@@ -271,7 +273,9 @@ export function ChatPage() {
         const ext =
           chosenMime.includes("mp4") || chosenMime.includes("m4a") || chosenMime.includes("aac")
             ? "m4a"
-            : "webm";
+            : isOgg
+              ? "ogg"
+              : "webm";
         const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type || chosenMime });
         sendMutation.mutate(file, {
           onSettled: () => setVoiceFinishing(false),
