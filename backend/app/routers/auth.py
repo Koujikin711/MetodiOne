@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, hash_password, verify_password
 from app.database import get_db
-from app.models import User, UserRole
+from app.models import Company, User, UserRole
 from app.schemas.token import Token
 from app.schemas.user import UserCreate, UserLogin, UserRead
 
@@ -18,10 +18,10 @@ async def register(
     body: UserCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
-    if body.role in (UserRole.owner, UserRole.admin):
+    if body.role in (UserRole.super_owner, UserRole.owner, UserRole.admin):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Роли «Владелец» и «Админ» выдаются только приглашением",
+            detail="Высокие роли выдаются только приглашением",
         )
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none() is not None:
@@ -32,10 +32,17 @@ async def register(
             existing_phone = await db.execute(select(User).where(User.phone == phone_digits))
             if existing_phone.scalar_one_or_none() is not None:
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone already registered")
+    company_id = (await db.execute(select(Company.id).order_by(Company.id.asc()).limit(1))).scalar_one_or_none()
+    if company_id is None:
+        comp = Company(name="Default Company", is_active=True)
+        db.add(comp)
+        await db.flush()
+        company_id = comp.id
     user = User(
         email=body.email,
         hashed_password=hash_password(body.password),
         role=body.role,
+        company_id=company_id,
         phone=("".join(ch for ch in (body.phone or "") if ch.isdigit()) or None),
         full_name=(body.full_name or "").strip() or None,
     )
@@ -60,5 +67,8 @@ async def login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect login or password")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Аккаунт отключён")
-    token = create_access_token(str(user.id), extra={"role": user.role.value})
+    extra = {"role": user.role.value}
+    if user.company_id is not None:
+        extra["company_id"] = int(user.company_id)
+    token = create_access_token(str(user.id), extra=extra)
     return Token(access_token=token)

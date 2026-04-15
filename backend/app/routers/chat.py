@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import (
     ChatMessage,
@@ -18,6 +18,7 @@ from app.models import (
     Integration,
     IntegrationProvider,
     Lead,
+    User,
     UserPipelineAssignment,
     UserRole,
 )
@@ -64,7 +65,15 @@ class SendMessageBody(BaseModel):
 
 
 async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
-    rows = await db.execute(select(UserPipelineAssignment.pipeline_id).where(UserPipelineAssignment.user_id == user_id))
+    user = await db.get(User, user_id)
+    if user is None or user.company_id is None:
+        return set()
+    rows = await db.execute(
+        select(UserPipelineAssignment.pipeline_id).where(
+            UserPipelineAssignment.user_id == user_id,
+            UserPipelineAssignment.company_id == user.company_id,
+        )
+    )
     return {r[0] for r in rows.all()}
 
 
@@ -155,10 +164,11 @@ def _msg_read(m: ChatMessage) -> ChatMessageRead:
 async def _resolve_green_send(
     db: AsyncSession,
     thread_id: int,
+    company_id: int,
     current_user,
 ) -> tuple[ChatThread, dict, str]:
     thread = await db.get(ChatThread, thread_id)
-    if thread is None:
+    if thread is None or thread.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
     await _assert_thread_access(db, thread, current_user)
     if thread.provider != IntegrationProvider.green_api.value:
@@ -177,6 +187,7 @@ async def _resolve_green_send(
             .where(
                 Integration.provider == IntegrationProvider.green_api,
                 Integration.is_active.is_(True),
+                Integration.company_id == company_id,
                 Integration.pipeline_id == (thread.pipeline_id or 0),
             )
             .limit(1),
@@ -246,6 +257,7 @@ async def _send_green_file_message(
     elif any(low.endswith(x) for x in (".ogg", ".mp3", ".m4a", ".opus", ".wav", ".aac", ".amr")):
         mtype = "audio"
     msg = ChatMessage(
+        company_id=thread.company_id,
         thread_id=thread.id,
         author_user_id=current_user.id,
         direction="out",
@@ -270,12 +282,13 @@ async def _send_green_file_message(
 async def list_threads(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
     q: str | None = Query(default=None, max_length=120),
 ) -> list[ChatThreadRead]:
     if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
     term = (q or "").strip()
-    query = select(ChatThread).outerjoin(Lead, Lead.id == ChatThread.lead_id)
+    query = select(ChatThread).outerjoin(Lead, Lead.id == ChatThread.lead_id).where(ChatThread.company_id == company_id)
     if current_user.role in (UserRole.manager, UserRole.admin):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if not allowed:
@@ -340,12 +353,19 @@ async def list_messages(
     thread_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> list[ChatMessageRead]:
     thread = await db.get(ChatThread, thread_id)
-    if thread is None:
+    if thread is None or thread.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
     await _assert_thread_access(db, thread, current_user)
-    rows = (await db.execute(select(ChatMessage).where(ChatMessage.thread_id == thread_id).order_by(ChatMessage.id.asc()))).scalars().all()
+    rows = (
+        await db.execute(
+            select(ChatMessage)
+            .where(ChatMessage.company_id == company_id, ChatMessage.thread_id == thread_id)
+            .order_by(ChatMessage.id.asc())
+        )
+    ).scalars().all()
     await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread_id)
     return [_msg_read(m) for m in rows]
 
@@ -355,12 +375,13 @@ async def get_message_media(
     message_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ):
     msg = await db.get(ChatMessage, message_id)
-    if msg is None:
+    if msg is None or msg.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
     thread = await db.get(ChatThread, msg.thread_id)
-    if thread is None:
+    if thread is None or thread.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
     await _assert_thread_access(db, thread, current_user)
     fpath = resolve_outgoing_chat_media(message_id)
@@ -375,6 +396,7 @@ async def send_message_attachment(
     thread_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
     file: UploadFile = File(...),
     text: str = Form(""),
 ) -> ChatMessageRead:
@@ -391,7 +413,7 @@ async def send_message_attachment(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Голосовое не дошло или файл пустой. Запишите подольше или обновите страницу.",
         )
-    thread, cfg, chat_id = await _resolve_green_send(db, thread_id, current_user)
+    thread, cfg, chat_id = await _resolve_green_send(db, thread_id, company_id, current_user)
     caption = (text or "").strip()
     return await _send_green_file_message(
         db,
@@ -412,6 +434,7 @@ async def send_message(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> ChatMessageRead:
     ct_raw = request.headers.get("content-type") or ""
     ct_lower = ct_raw.lower()
@@ -443,7 +466,7 @@ async def send_message(
             detail="Ожидается application/json или multipart/form-data",
         )
 
-    thread, cfg, chat_id = await _resolve_green_send(db, thread_id, current_user)
+    thread, cfg, chat_id = await _resolve_green_send(db, thread_id, company_id, current_user)
 
     if file_bytes and len(file_bytes) > 0:
         return await _send_green_file_message(
@@ -474,6 +497,7 @@ async def send_message(
     ok, err, provider_msg_id = send_green_text(cfg, chat_id, plain_text)
     if not ok:
         msg = ChatMessage(
+            company_id=thread.company_id,
             thread_id=thread.id,
             author_user_id=current_user.id,
             direction="out",
@@ -489,6 +513,7 @@ async def send_message(
         logger.warning("chat green text failed thread=%s detail=%s", thread_id, d[:800])
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=d)
     msg = ChatMessage(
+        company_id=thread.company_id,
         thread_id=thread.id,
         author_user_id=current_user.id,
         direction="out",

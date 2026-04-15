@@ -12,6 +12,7 @@ class Base(DeclarativeBase):
 
 
 class UserRole(str, enum.Enum):
+    super_owner = "super_owner"
     owner = "owner"
     admin = "admin"
     manager = "manager"
@@ -25,12 +26,26 @@ class TaskStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+class Company(Base):
+    __tablename__ = "companies"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
 class Pipeline(Base):
     __tablename__ = "pipelines"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True)
     type: Mapped[str] = mapped_column(String(64), default="sales")
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     # Эксперт, закреплённый за этой воронкой (для «Отчёты» и этапа «У эксперта»).
     expert_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -47,6 +62,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
     phone: Mapped[str | None] = mapped_column(String(32), unique=True, index=True, nullable=True)
@@ -69,6 +85,7 @@ class UserPipelineAssignment(Base):
     __tablename__ = "user_pipeline_assignments"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     pipeline_id: Mapped[int] = mapped_column(ForeignKey("pipelines.id", ondelete="CASCADE"))
 
@@ -77,6 +94,7 @@ class PipelineStage(Base):
     __tablename__ = "pipeline_stages"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(120))
     order: Mapped[int] = mapped_column(default=0)
     color: Mapped[str] = mapped_column(String(32), default="#6366f1")
@@ -89,15 +107,11 @@ class PipelineStage(Base):
     deals: Mapped[list["Deal"]] = relationship(back_populates="stage")
     pipeline: Mapped["Pipeline | None"] = relationship(back_populates="stages")
 
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)
-
-
 class Lead(Base):
     __tablename__ = "leads"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
     phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
@@ -129,6 +143,7 @@ class LeadAuditEvent(Base):
     __tablename__ = "lead_audit_events"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action: Mapped[str] = mapped_column(String(64))
@@ -143,6 +158,7 @@ class SystemAuditEvent(Base):
     __tablename__ = "system_audit_events"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     entity_type: Mapped[str] = mapped_column(String(64), index=True)
     entity_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
     action: Mapped[str] = mapped_column(String(64))
@@ -157,6 +173,7 @@ class LeadSource(Base):
     __tablename__ = "lead_sources"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(120), unique=True)
     is_active: Mapped[bool] = mapped_column(default=True)
 
@@ -171,6 +188,7 @@ class Integration(Base):
     __tablename__ = "integrations"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(120))
     provider: Mapped[IntegrationProvider] = mapped_column(
         SQLEnum(IntegrationProvider, name="integration_provider"),
@@ -195,6 +213,7 @@ class ChatThread(Base):
     __tablename__ = "chat_threads"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
     pipeline_id: Mapped[int | None] = mapped_column(ForeignKey("pipelines.id", ondelete="SET NULL"), nullable=True)
     provider: Mapped[str] = mapped_column(String(40), default="green_api")
@@ -220,6 +239,7 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     thread_id: Mapped[int] = mapped_column(ForeignKey("chat_threads.id", ondelete="CASCADE"))
     author_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     direction: Mapped[str] = mapped_column(String(8), default="in")  # in/out
@@ -237,6 +257,7 @@ class BookingDirection(Base):
     __tablename__ = "booking_directions"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255), unique=True)
     duration_min: Mapped[int] = mapped_column(default=30)
     is_active: Mapped[bool] = mapped_column(default=True)
@@ -249,6 +270,7 @@ class BookingSpecialist(Base):
     __tablename__ = "booking_specialists"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     full_name: Mapped[str] = mapped_column(String(255))
     direction_id: Mapped[int] = mapped_column(ForeignKey("booking_directions.id", ondelete="RESTRICT"))
     phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -274,6 +296,7 @@ class BookingAppointment(Base):
     __tablename__ = "booking_appointments"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
     # Снимок воронки в момент создания записи (для стабильной аналитики).
     pipeline_id: Mapped[int | None] = mapped_column(ForeignKey("pipelines.id", ondelete="SET NULL"), nullable=True)
@@ -304,6 +327,7 @@ class Deal(Base):
     __tablename__ = "deals"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(255))
     deal_type: Mapped[str] = mapped_column(String(64), default="extra")
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
@@ -324,6 +348,7 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(255))
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[TaskStatus] = mapped_column(

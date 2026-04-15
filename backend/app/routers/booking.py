@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import (
     BookingAppointment,
@@ -47,8 +47,14 @@ router = APIRouter(prefix="/booking", tags=["booking"])
 
 
 async def _user_assigned_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
+    user = await db.get(User, user_id)
+    if user is None or user.company_id is None:
+        return set()
     r = await db.execute(
-        select(UserPipelineAssignment.pipeline_id).where(UserPipelineAssignment.user_id == user_id),
+        select(UserPipelineAssignment.pipeline_id).where(
+            UserPipelineAssignment.user_id == user_id,
+            UserPipelineAssignment.company_id == user.company_id,
+        ),
     )
     return {row[0] for row in r.all()}
 
@@ -198,6 +204,7 @@ async def _sync_lead_to_stage_name(db: AsyncSession, lead_id: int, stage_name: s
 async def booking_queue(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> list[LeadRead]:
     # Не привязываемся к “зашитому” pipeline — берём первую найденную стадию по имени.
     q_sid = await _stage_id_by_name(db, settings.booking_queue_stage_name)
@@ -211,7 +218,7 @@ async def booking_queue(
     result = await db.execute(
         select(Lead)
         .options(selectinload(Lead.stage))
-        .where(Lead.status_id == q_sid)
+        .where(Lead.company_id == company_id, Lead.status_id == q_sid)
         .where(Lead.id.not_in(booked_subq))
         .order_by(Lead.id.desc())
         .limit(200),
@@ -244,6 +251,7 @@ async def booking_queue_add(
     body: BookingQueueLeadCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadRead:
     q_sid = await _stage_id_by_name(db, settings.booking_queue_stage_name)
     if q_sid is None:
@@ -253,6 +261,8 @@ async def booking_queue_add(
         )
 
     stage_row = await db.get(PipelineStage, q_sid)
+    if stage_row is not None and stage_row.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stage belongs to another company")
     pipeline_id = stage_row.pipeline_id if stage_row else None
     manager_id: int | None = None
     if pipeline_id is not None:
@@ -266,6 +276,7 @@ async def booking_queue_add(
             manager_id = current_user.id
 
     lead = Lead(
+        company_id=company_id,
         name=body.name.strip(),
         phone=(body.phone or "").strip() or None,
         email=(body.email or "").strip() or None,
@@ -292,8 +303,11 @@ async def booking_queue_add(
 async def list_directions(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> list[BookingDirection]:
-    result = await db.execute(select(BookingDirection).order_by(BookingDirection.id.desc()))
+    result = await db.execute(
+        select(BookingDirection).where(BookingDirection.company_id == company_id).order_by(BookingDirection.id.desc())
+    )
     return list(result.scalars().all())
 
 
@@ -302,8 +316,9 @@ async def create_direction(
     body: BookingDirectionCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> BookingDirection:
-    row = BookingDirection(name=body.name.strip(), duration_min=body.duration_min, is_active=True)
+    row = BookingDirection(name=body.name.strip(), duration_min=body.duration_min, is_active=True, company_id=company_id)
     db.add(row)
     try:
         await db.flush()
@@ -325,10 +340,12 @@ async def create_direction(
 async def list_specialists(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> list[BookingSpecialistRead]:
     result = await db.execute(
         select(BookingSpecialist, BookingDirection.name)
         .join(BookingDirection, BookingSpecialist.direction_id == BookingDirection.id)
+        .where(BookingSpecialist.company_id == company_id, BookingDirection.company_id == company_id)
         .order_by(BookingSpecialist.sort_order.asc(), BookingSpecialist.id.asc()),
     )
     rows = result.all()
@@ -340,14 +357,16 @@ async def create_specialist(
     body: BookingSpecialistCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> BookingSpecialistRead:
     d = await db.get(BookingDirection, body.direction_id)
-    if d is None:
+    if d is None or d.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное направление")
     spec = (body.specialization or "").strip() or None
     mx = await db.execute(select(func.coalesce(func.max(BookingSpecialist.sort_order), -1)))
     next_sort = int(mx.scalar_one()) + 1
     s = BookingSpecialist(
+        company_id=company_id,
         full_name=body.full_name.strip(),
         direction_id=body.direction_id,
         phone=(body.phone or "").strip() or None,
@@ -507,6 +526,7 @@ def _norm_phone(raw: str | None) -> str | None:
 async def _upsert_lead_for_appointment(
     db: AsyncSession,
     *,
+    company_id: int,
     patient_name: str,
     patient_phone: str,
     responsible_manager_id: int | None,
@@ -517,7 +537,7 @@ async def _upsert_lead_for_appointment(
     if not phone:
         return None
     existing = await db.execute(
-        select(Lead).where(Lead.phone == phone).order_by(Lead.id.desc()).limit(1),
+        select(Lead).where(Lead.company_id == company_id, Lead.phone == phone).order_by(Lead.id.desc()).limit(1),
     )
     found = existing.scalars().first()
     if found is not None:
@@ -547,6 +567,7 @@ async def _upsert_lead_for_appointment(
         manager_id = await assign_manager_for_new_lead(db, pipeline_id=pipeline_id)
 
     lead = Lead(
+        company_id=company_id,
         name=patient_name.strip() or "Клиент",
         phone=phone,
         source="Онлайн-запись",
@@ -562,6 +583,7 @@ async def _upsert_lead_for_appointment(
 async def list_appointments(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
     date: str | None = None,
     specialist_id: int | None = None,
 ) -> list[BookingAppointmentRead]:
@@ -569,6 +591,7 @@ async def list_appointments(
         select(BookingAppointment, BookingDirection.name, BookingSpecialist.full_name)
         .join(BookingDirection, BookingAppointment.direction_id == BookingDirection.id)
         .join(BookingSpecialist, BookingAppointment.specialist_id == BookingSpecialist.id)
+        .where(BookingAppointment.company_id == company_id)
     )
     if date:
         try:
@@ -599,12 +622,13 @@ async def create_appointment(
     body: BookingAppointmentCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
     direction = await db.get(BookingDirection, body.direction_id)
-    if direction is None or not direction.is_active:
+    if direction is None or direction.company_id != company_id or not direction.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
     specialist = await db.get(BookingSpecialist, body.specialist_id)
-    if specialist is None or not specialist.is_active:
+    if specialist is None or specialist.company_id != company_id or not specialist.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
     if specialist.direction_id != body.direction_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Специалист не относится к выбранному направлению")
@@ -640,13 +664,14 @@ async def create_appointment(
     appointment_pipeline_id: int | None = None
     if lead_id is not None:
         lead = await db.get(Lead, lead_id)
-        if lead is None:
+        if lead is None or lead.company_id != company_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Лид не найден")
         await db.refresh(lead, ["stage"])
         appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
     else:
         lead_id = await _upsert_lead_for_appointment(
             db,
+            company_id=company_id,
             patient_name=body.patient_name,
             patient_phone=body.patient_phone,
             responsible_manager_id=body.responsible_manager_id,
@@ -662,6 +687,7 @@ async def create_appointment(
 
     now = datetime.now(UTC)
     appt = BookingAppointment(
+        company_id=company_id,
         lead_id=lead_id,
         pipeline_id=appointment_pipeline_id,
         patient_name=body.patient_name.strip(),
@@ -713,15 +739,16 @@ async def move_appointment(
     body: BookingAppointmentMove,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
     appt = await db.get(BookingAppointment, appointment_id)
-    if appt is None:
+    if appt is None or appt.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
     if appt.status != "booked":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Перенос доступен только для активных записей")
 
     specialist = await db.get(BookingSpecialist, body.specialist_id)
-    if specialist is None or not specialist.is_active:
+    if specialist is None or specialist.company_id != company_id or not specialist.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
 
     direction = await db.get(BookingDirection, appt.direction_id)
@@ -777,9 +804,10 @@ async def patch_appointment_status(
     body: BookingAppointmentStatusUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
     a = await db.get(BookingAppointment, appointment_id)
-    if a is None:
+    if a is None or a.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
 
     a.status = body.status
@@ -816,9 +844,10 @@ async def patch_appointment_payment(
     body: BookingAppointmentPaymentUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
     appt = await db.get(BookingAppointment, appointment_id)
-    if appt is None:
+    if appt is None or appt.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
     await _assert_can_manage_appointment_journal(db, appt, current_user)
     if body.paid_amount > float(appt.service_amount or 0):
@@ -861,9 +890,10 @@ async def delete_appointment(
     appointment_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> Response:
     appt = await db.get(BookingAppointment, appointment_id)
-    if appt is None:
+    if appt is None or appt.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
     await _assert_can_manage_appointment_journal(db, appt, current_user)
     await db.delete(appt)

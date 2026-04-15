@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.security import hash_password
 from app.database import get_db
 from app.models import BookingDirection, BookingSpecialist, Pipeline, User, UserPipelineAssignment, UserRole
@@ -59,7 +59,12 @@ def _norm_phone(raw: str) -> str:
 
 
 async def _employee_read(db: AsyncSession, u: User) -> EmployeeRead:
-    rows = await db.execute(select(UserPipelineAssignment.pipeline_id).where(UserPipelineAssignment.user_id == u.id))
+    rows = await db.execute(
+        select(UserPipelineAssignment.pipeline_id).where(
+            UserPipelineAssignment.user_id == u.id,
+            UserPipelineAssignment.company_id == u.company_id,
+        )
+    )
     pids = [r[0] for r in rows.all()]
     spec_row = (
         await db.execute(select(BookingSpecialist).where(BookingSpecialist.crm_user_id == u.id).limit(1))
@@ -165,10 +170,11 @@ def _build_invite_url(invite_token: str) -> str:
 async def _user_with_phone_except(
     db: AsyncSession,
     phone: str,
+    company_id: int,
     *,
     except_user_id: int | None,
 ) -> User | None:
-    q = select(User).where(User.phone == phone)
+    q = select(User).where(User.company_id == company_id, User.phone == phone)
     if except_user_id is not None:
         q = q.where(User.id != except_user_id)
     return (await db.execute(q.limit(1))).scalars().first()
@@ -178,10 +184,11 @@ async def _user_with_phone_except(
 async def list_employees(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> list[EmployeeRead]:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
-    r = await db.execute(select(User).where(User.is_active.is_(True)).order_by(User.id.desc()))
+    r = await db.execute(select(User).where(User.company_id == company_id, User.is_active.is_(True)).order_by(User.id.desc()))
     users = r.scalars().all()
     return [await _employee_read(db, u) for u in users]
 
@@ -191,6 +198,7 @@ async def invite_employee(
     body: InviteEmployeeBody,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> InviteEmployeeResult:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
@@ -224,21 +232,25 @@ async def invite_employee(
 
     # validate pipelines
     if body.pipeline_ids:
-        r = await db.execute(select(Pipeline.id).where(Pipeline.id.in_(body.pipeline_ids)))
+        r = await db.execute(
+            select(Pipeline.id).where(Pipeline.company_id == company_id, Pipeline.id.in_(body.pipeline_ids))
+        )
         ok = {x[0] for x in r.all()}
         if set(body.pipeline_ids) != ok:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown pipeline_id in list")
 
     _invite_app_base()
 
-    existing_by_email = (await db.execute(select(User).where(User.email == email).limit(1))).scalars().first()
+    existing_by_email = (
+        await db.execute(select(User).where(User.company_id == company_id, User.email == email).limit(1))
+    ).scalars().first()
     if existing_by_email is not None and existing_by_email.is_active:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
     rehire = existing_by_email is not None and not existing_by_email.is_active
     u = existing_by_email if rehire else None
 
-    other_phone = await _user_with_phone_except(db, phone, except_user_id=u.id if u else None)
+    other_phone = await _user_with_phone_except(db, phone, company_id, except_user_id=u.id if u else None)
     if other_phone is not None:
         if other_phone.is_active:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone already registered")
@@ -263,6 +275,7 @@ async def invite_employee(
         await db.flush()
     else:
         u = User(
+            company_id=company_id,
             email=email,
             phone=phone,
             full_name=body.full_name.strip(),
@@ -274,9 +287,14 @@ async def invite_employee(
         db.add(u)
         await db.flush()
 
-    await db.execute(delete(UserPipelineAssignment).where(UserPipelineAssignment.user_id == u.id))
+    await db.execute(
+        delete(UserPipelineAssignment).where(
+            UserPipelineAssignment.user_id == u.id,
+            UserPipelineAssignment.company_id == company_id,
+        )
+    )
     for pid in body.pipeline_ids:
-        db.add(UserPipelineAssignment(user_id=u.id, pipeline_id=pid))
+        db.add(UserPipelineAssignment(company_id=company_id, user_id=u.id, pipeline_id=pid))
 
     await db.flush()
     await db.refresh(u)
@@ -349,6 +367,7 @@ async def terminate_employee(
     employee_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> Response:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
@@ -356,12 +375,13 @@ async def terminate_employee(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя уволить самого себя")
 
     target = await db.get(User, employee_id)
-    if target is None or not target.is_active:
+    if target is None or target.company_id != company_id or not target.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")
 
     if target.role == UserRole.owner:
         owners = await db.scalar(
             select(func.count()).select_from(User).where(User.role == UserRole.owner, User.is_active.is_(True))
+            .where(User.company_id == company_id)
         )
         if owners is not None and owners <= 1:
             raise HTTPException(
@@ -371,7 +391,12 @@ async def terminate_employee(
 
     target.is_active = False
     target.invite_token = None
-    await db.execute(delete(UserPipelineAssignment).where(UserPipelineAssignment.user_id == target.id))
+    await db.execute(
+        delete(UserPipelineAssignment).where(
+            UserPipelineAssignment.user_id == target.id,
+            UserPipelineAssignment.company_id == company_id,
+        )
+    )
     if target.role == UserRole.expert:
         for sp in (
             await db.execute(select(BookingSpecialist).where(BookingSpecialist.crm_user_id == target.id))
@@ -385,13 +410,14 @@ async def terminate_employee(
 async def list_experts(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> list[dict[str, object]]:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
     rows = (
         await db.execute(
             select(User.id, User.email, User.full_name)
-            .where(User.is_active.is_(True), User.role == UserRole.expert)
+            .where(User.company_id == company_id, User.is_active.is_(True), User.role == UserRole.expert)
             .order_by(User.id.desc())
         )
     ).all()

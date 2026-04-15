@@ -10,7 +10,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.services.green_incoming import parse_green_message_data
 from app.services.lead_assignment import assign_manager_for_new_lead
@@ -116,12 +116,12 @@ def _lead_read(lead: Lead) -> LeadRead:
     )
 
 
-async def _assert_pipeline_stage(db: AsyncSession, pipeline_id: int, stage_id: int) -> None:
+async def _assert_pipeline_stage(db: AsyncSession, pipeline_id: int, stage_id: int, company_id: int) -> None:
     pipe = await db.get(Pipeline, pipeline_id)
-    if pipe is None:
+    if pipe is None or pipe.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pipeline not found")
     st = await db.get(PipelineStage, stage_id)
-    if st is None:
+    if st is None or st.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stage not found")
     if st.pipeline_id != pipeline_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stage does not belong to pipeline")
@@ -138,10 +138,11 @@ def _provider_from_str(s: str) -> IntegrationProvider:
 async def list_integrations(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> list[IntegrationRead]:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
-    r = await db.execute(select(Integration).order_by(Integration.id.desc()))
+    r = await db.execute(select(Integration).where(Integration.company_id == company_id).order_by(Integration.id.desc()))
     return [_integration_read(x) for x in r.scalars().all()]
 
 
@@ -151,11 +152,12 @@ async def create_integration(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> IntegrationRead:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
     provider = _provider_from_str(body.provider)
-    await _assert_pipeline_stage(db, body.pipeline_id, body.stage_id)
+    await _assert_pipeline_stage(db, body.pipeline_id, body.stage_id, company_id)
     cfg = dict(body.config or {})
     sec = (body.secret or "").strip() if body.secret else ""
     if provider == IntegrationProvider.green_api:
@@ -179,6 +181,7 @@ async def create_integration(
         name=body.name.strip(),
         provider=provider,
         is_active=True,
+        company_id=company_id,
         pipeline_id=body.pipeline_id,
         stage_id=body.stage_id,
         secret=sec,
@@ -233,16 +236,17 @@ async def patch_integration(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> IntegrationRead:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
 
     row = await db.get(Integration, integration_id)
-    if row is None:
+    if row is None or row.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
 
     if body.pipeline_id is not None or body.stage_id is not None:
-        await _assert_pipeline_stage(db, body.pipeline_id or row.pipeline_id, body.stage_id or row.stage_id)
+        await _assert_pipeline_stage(db, body.pipeline_id or row.pipeline_id, body.stage_id or row.stage_id, company_id)
         if body.pipeline_id is not None:
             row.pipeline_id = body.pipeline_id
         if body.stage_id is not None:
@@ -319,10 +323,10 @@ async def generate_secret(
     return {"secret": secrets.token_urlsafe(24)}
 
 
-async def _ensure_source_exists(db: AsyncSession, name: str) -> None:
-    existing = await db.scalar(select(LeadSource.id).where(LeadSource.name == name))
+async def _ensure_source_exists(db: AsyncSession, company_id: int, name: str) -> None:
+    existing = await db.scalar(select(LeadSource.id).where(LeadSource.company_id == company_id, LeadSource.name == name))
     if existing is None:
-        db.add(LeadSource(name=name, is_active=True))
+        db.add(LeadSource(name=name, is_active=True, company_id=company_id))
         await db.flush()
 
 
@@ -336,6 +340,7 @@ def _norm_phone(raw: str | None) -> str | None:
 async def _find_existing_lead(
     db: AsyncSession,
     *,
+    company_id: int,
     phone: str | None,
     source_name: str,
     pipeline_id: int,
@@ -350,6 +355,7 @@ async def _find_existing_lead(
             .where(
                 and_(
                     Lead.phone == phone,
+                    Lead.company_id == company_id,
                     Lead.source == source_name,
                     PipelineStage.pipeline_id == pipeline_id,
                 )
@@ -369,6 +375,7 @@ async def _find_existing_lead(
             .where(
                 and_(
                     Lead.source == source_name,
+                    Lead.company_id == company_id,
                     PipelineStage.pipeline_id == pipeline_id,
                     ChatThread.provider == thread_provider,
                     ChatThread.external_chat_id == external_chat_id,
@@ -387,6 +394,7 @@ async def _create_lead_from_integration(
     db: AsyncSession,
     *,
     integ: Integration,
+    company_id: int,
     name: str,
     phone: str | None,
     email: str | None,
@@ -394,10 +402,11 @@ async def _create_lead_from_integration(
     external_chat_id: str | None = None,
     thread_provider: str | None = None,
 ) -> Lead:
-    await _ensure_source_exists(db, source_name)
+    await _ensure_source_exists(db, company_id, source_name)
     norm_phone = _norm_phone(phone)
     existing = await _find_existing_lead(
         db,
+        company_id=company_id,
         phone=norm_phone,
         source_name=source_name,
         pipeline_id=integ.pipeline_id,
@@ -415,6 +424,7 @@ async def _create_lead_from_integration(
         return existing
 
     lead = Lead(
+        company_id=company_id,
         name=name.strip() or "Лид",
         phone=norm_phone,
         email=(email or "").strip() or None,
@@ -435,12 +445,14 @@ async def _create_lead_from_integration(
 async def _upsert_thread(
     db: AsyncSession,
     *,
+    company_id: int,
     lead: Lead,
     provider: str,
     external_chat_id: str | None,
     title: str | None = None,
 ) -> ChatThread:
     q = select(ChatThread).where(
+        ChatThread.company_id == company_id,
         ChatThread.lead_id == lead.id,
         ChatThread.provider == provider,
     )
@@ -456,6 +468,7 @@ async def _upsert_thread(
         await db.flush()
         return found
     t = ChatThread(
+        company_id=company_id,
         lead_id=lead.id,
         pipeline_id=lead.stage.pipeline_id if lead.stage else None,
         provider=provider,
@@ -471,6 +484,7 @@ async def _upsert_thread(
 
 async def _add_incoming_message(
     db: AsyncSession,
+    company_id: int,
     thread_id: int,
     text: str,
     *,
@@ -486,6 +500,7 @@ async def _add_incoming_message(
         body = " "
     db.add(
         ChatMessage(
+            company_id=company_id,
             thread_id=thread_id,
             author_user_id=None,
             direction="in",
@@ -514,6 +529,9 @@ async def integration_webhook(
     if integ is None or not integ.is_active:
         logger.warning("integration webhook: integration_id=%s not found or inactive", integration_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+    if integ.company_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Integration has no company scope")
+    company_id = int(integ.company_id)
 
     provided = token or x_webhook_token or _token_from_authorization_header(authorization)
     if not _webhook_token_matches(provided, integ.secret):
@@ -557,6 +575,7 @@ async def integration_webhook(
         lead = await _create_lead_from_integration(
             db,
             integ=integ,
+            company_id=company_id,
             name=name,
             phone=phone,
             email=None,
@@ -566,12 +585,13 @@ async def integration_webhook(
         )
         thread = await _upsert_thread(
             db,
+            company_id=company_id,
             lead=lead,
             provider=IntegrationProvider.telegram.value,
             external_chat_id=ext_chat or None,
             title=name,
         )
-        await _add_incoming_message(db, thread.id, text)
+        await _add_incoming_message(db, company_id, thread.id, text)
         logger.info("integration webhook: ok lead_id=%s thread_id=%s", lead.id, thread.id)
         return _lead_read(lead)
 
@@ -612,6 +632,7 @@ async def integration_webhook(
         lead = await _create_lead_from_integration(
             db,
             integ=integ,
+            company_id=company_id,
             name=str(sender_name),
             phone=phone,
             email=None,
@@ -621,6 +642,7 @@ async def integration_webhook(
         )
         thread = await _upsert_thread(
             db,
+            company_id=company_id,
             lead=lead,
             provider=IntegrationProvider.green_api.value,
             external_chat_id=ext_chat,
@@ -628,6 +650,7 @@ async def integration_webhook(
         )
         await _add_incoming_message(
             db,
+            company_id,
             thread.id,
             text,
             message_type=mtype,

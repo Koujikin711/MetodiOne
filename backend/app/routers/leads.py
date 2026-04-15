@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.rbac import is_manager_like
 from app.database import get_db
 from app.models import Deal, Integration, Lead, LeadAuditEvent, PipelineStage, Task, TaskStatus, User, UserPipelineAssignment, UserRole
@@ -59,8 +59,10 @@ async def _audit_lead(
     current_user: User | None,
     details: str | None = None,
 ) -> None:
+    lead = await db.get(Lead, lead_id)
     db.add(
         LeadAuditEvent(
+            company_id=(lead.company_id if lead else (current_user.company_id if current_user else None)),
             lead_id=lead_id,
             user_id=(current_user.id if current_user else None),
             action=action,
@@ -103,8 +105,14 @@ async def _ensure_stage_by_name(
 
 
 async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
+    u = await db.get(User, user_id)
+    if u is None or u.company_id is None:
+        return set()
     rows = await db.execute(
-        select(UserPipelineAssignment.pipeline_id).where(UserPipelineAssignment.user_id == user_id),
+        select(UserPipelineAssignment.pipeline_id).where(
+            UserPipelineAssignment.user_id == user_id,
+            UserPipelineAssignment.company_id == u.company_id,
+        ),
     )
     return {r[0] for r in rows.all()}
 
@@ -266,15 +274,17 @@ async def create_lead(
     body: LeadCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadRead:
     stage = await db.get(PipelineStage, body.status_id)
-    if stage is None:
+    if stage is None or stage.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown status_id")
     if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if stage.pipeline_id not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Stage is outside manager directions")
     lead = Lead(
+        company_id=company_id,
         name=body.name,
         phone=body.phone,
         email=body.email,
@@ -382,6 +392,7 @@ async def _leads_to_read_with_deals(
 async def list_leads(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
     pipeline_id: int | None = Query(None, ge=1),
     per_stage_limit: int | None = Query(None, ge=1, le=500),
 ) -> list[LeadRead]:
@@ -403,7 +414,7 @@ async def list_leads(
         ranked = (
             select(Lead.id.label("lead_id"), rn)
             .join(PipelineStage, PipelineStage.id == Lead.status_id)
-            .where(PipelineStage.pipeline_id == pipeline_id)
+            .where(PipelineStage.pipeline_id == pipeline_id, Lead.company_id == company_id, PipelineStage.company_id == company_id)
         )
         if is_manager_like(current_user.role):
             ranked = ranked.where(Lead.manager_id == current_user.id)
@@ -419,12 +430,13 @@ async def list_leads(
         leads = result.scalars().unique().all()
         return await _leads_to_read_with_deals(db, leads, current_user)
 
-    q = select(Lead).options(selectinload(Lead.stage)).order_by(Lead.id.desc())
+    q = select(Lead).options(selectinload(Lead.stage)).where(Lead.company_id == company_id).order_by(Lead.id.desc())
     if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if not allowed:
             return []
         q = q.join(PipelineStage, PipelineStage.id == Lead.status_id).where(
+            PipelineStage.company_id == company_id,
             PipelineStage.pipeline_id.in_(allowed),
             Lead.manager_id == current_user.id,
         )
@@ -437,6 +449,7 @@ async def list_leads(
 async def list_leads_table(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
     pipeline_id: int = Query(..., ge=1),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
@@ -460,7 +473,7 @@ async def list_leads_table(
                 detail="Стадия не принадлежит выбранной воронке",
             )
 
-    filters = [PipelineStage.pipeline_id == pipeline_id]
+    filters = [PipelineStage.pipeline_id == pipeline_id, PipelineStage.company_id == company_id, Lead.company_id == company_id]
     if is_manager_like(current_user.role):
         filters.append(Lead.manager_id == current_user.id)
     if status_id is not None:
@@ -515,6 +528,7 @@ async def lead_import_csv_template(current_user: CurrentUser) -> Response:
 async def import_leads_csv(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
     file: UploadFile = File(...),
     default_stage_id: int = Form(...),
 ) -> LeadImportResponse:
@@ -534,7 +548,7 @@ async def import_leads_csv(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="В файле нет строк с данными")
 
     stage = await db.get(PipelineStage, default_stage_id)
-    if stage is None:
+    if stage is None or stage.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная стадия")
     if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
@@ -557,6 +571,7 @@ async def import_leads_csv(
             (
                 idx,
                 Lead(
+                    company_id=company_id,
                     name=parsed.name,
                     phone=parsed.phone,
                     email=email,
@@ -591,6 +606,7 @@ async def import_leads_csv(
             for row_idx, lead in batch:
                 try:
                     l2 = Lead(
+                        company_id=company_id,
                         name=lead.name,
                         phone=lead.phone,
                         email=lead.email,
@@ -621,9 +637,10 @@ async def get_lead(
     lead_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadRead:
     lead = await db.get(Lead, lead_id)
-    if lead is None:
+    if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
     if is_manager_like(current_user.role):
@@ -709,12 +726,13 @@ async def close_deal_from_integration_pipeline(
     body: CloseDealBody,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadRead:
     if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец, админ воронки или менеджер")
 
     lead = await db.get(Lead, lead_id)
-    if lead is None:
+    if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
     pipeline_id = lead.stage.pipeline_id if lead.stage else None
@@ -756,6 +774,7 @@ async def close_deal_from_integration_pipeline(
         )
 
     deal = Deal(
+        company_id=company_id,
         title="Закрытая сделка",
         deal_type=INTEGRATION_CLOSE_DEAL_TYPE,
         amount=body.amount,
@@ -849,12 +868,13 @@ async def reject_lead(
     body: LeadRejectBody,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadRead:
     if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец, админ воронки или менеджер")
 
     lead = await db.get(Lead, lead_id)
-    if lead is None:
+    if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
     pipeline_id = lead.stage.pipeline_id if lead.stage else None
@@ -898,12 +918,13 @@ async def update_lead_status(
     body: LeadStatusUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadStatusPatchResponse:
     stage = await db.get(PipelineStage, body.status_id)
-    if stage is None:
+    if stage is None or stage.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown status_id")
     lead = await db.get(Lead, lead_id)
-    if lead is None:
+    if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
 
     from_stage = await db.get(PipelineStage, lead.status_id)
@@ -975,12 +996,13 @@ async def lead_arrival(
     lead_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadRead:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
 
     lead = await db.get(Lead, lead_id)
-    if lead is None:
+    if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
 
@@ -1023,12 +1045,13 @@ async def lead_no_show(
     body: ArrivalNoShowBody,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadRead:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
 
     lead = await db.get(Lead, lead_id)
-    if lead is None:
+    if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
 
@@ -1082,12 +1105,13 @@ async def lead_service_done(
     lead_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadRead:
     if current_user.role != UserRole.expert:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Expert only")
 
     lead = await db.get(Lead, lead_id)
-    if lead is None:
+    if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
 
@@ -1132,12 +1156,13 @@ async def lead_service_reject(
     body: ServiceRejectBody,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadRead:
     if current_user.role != UserRole.expert:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Expert only")
 
     lead = await db.get(Lead, lead_id)
-    if lead is None:
+    if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
 
@@ -1175,12 +1200,13 @@ async def add_extra_service_to_cart(
     body: ExtraServiceAddBody,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> DealRead:
     if not is_manager_like(current_user.role):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только менеджер или админ воронки")
 
     lead = await db.get(Lead, lead_id)
-    if lead is None:
+    if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
     allowed = await _manager_pipeline_ids(db, current_user.id)
@@ -1201,6 +1227,7 @@ async def add_extra_service_to_cart(
 
     is_protocol = body.type.strip().lower() == "протокол"
     deal = Deal(
+        company_id=company_id,
         title=body.type.strip(),
         deal_type=body.type.strip(),
         amount=body.amount,
@@ -1240,12 +1267,13 @@ async def protocol_finish(
     lead_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadRead:
     if current_user.role != UserRole.expert:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Expert only")
 
     lead = await db.get(Lead, lead_id)
-    if lead is None:
+    if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
 
@@ -1295,9 +1323,10 @@ async def list_lead_audit(
     lead_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> list[LeadAuditRead]:
     lead = await db.get(Lead, lead_id)
-    if lead is None:
+    if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
     if is_manager_like(current_user.role):
@@ -1312,6 +1341,7 @@ async def list_lead_audit(
             select(LeadAuditEvent, User)
             .outerjoin(User, User.id == LeadAuditEvent.user_id)
             .where(LeadAuditEvent.lead_id == lead_id)
+            .where(LeadAuditEvent.company_id == company_id)
             .order_by(LeadAuditEvent.created_at.desc(), LeadAuditEvent.id.desc())
             .limit(200),
         )

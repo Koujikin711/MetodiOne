@@ -476,3 +476,140 @@ async def ensure_owner_role_migration(conn: AsyncConnection, database_url: str) 
         raise RuntimeError("Failed to add enum value 'owner' to user_role")
 
     await ac.execute(text("UPDATE users SET role = 'owner' WHERE role::text = 'admin'"))
+
+
+async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str) -> None:
+    low = database_url.lower()
+
+    if "sqlite" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS companies (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(255) NOT NULL UNIQUE,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at DATETIME
+                )"""
+            )
+        )
+        cid = await conn.scalar(text("SELECT id FROM companies ORDER BY id LIMIT 1"))
+        if cid is None:
+            await conn.execute(
+                text(
+                    "INSERT INTO companies(name, is_active) VALUES ('Default Company', 1)",
+                )
+            )
+            cid = await conn.scalar(text("SELECT id FROM companies ORDER BY id LIMIT 1"))
+        default_company_id = int(cid or 1)
+
+        tables = [
+            "users",
+            "pipelines",
+            "pipeline_stages",
+            "user_pipeline_assignments",
+            "leads",
+            "lead_audit_events",
+            "system_audit_events",
+            "lead_sources",
+            "integrations",
+            "chat_threads",
+            "chat_messages",
+            "booking_directions",
+            "booking_specialists",
+            "booking_appointments",
+            "deals",
+            "tasks",
+        ]
+        for tn in tables:
+            r = await conn.execute(text(f"PRAGMA table_info({tn})"))
+            cols = {row[1] for row in r.fetchall()}
+            if cols and "company_id" not in cols:
+                await conn.execute(text(f"ALTER TABLE {tn} ADD COLUMN company_id INTEGER"))
+            await conn.execute(
+                text(f"UPDATE {tn} SET company_id = :cid WHERE company_id IS NULL"),
+                {"cid": default_company_id},
+            )
+
+        return
+
+    if "postgresql" in low or "asyncpg" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS companies (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL UNIQUE,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMPTZ
+                )"""
+            )
+        )
+        cid = await conn.scalar(text("SELECT id FROM companies ORDER BY id LIMIT 1"))
+        if cid is None:
+            await conn.execute(
+                text("INSERT INTO companies(name, is_active) VALUES ('Default Company', TRUE)"),
+            )
+            cid = await conn.scalar(text("SELECT id FROM companies ORDER BY id LIMIT 1"))
+        default_company_id = int(cid or 1)
+
+        stmts = [
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE pipeline_stages ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE user_pipeline_assignments ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE leads ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE lead_audit_events ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE system_audit_events ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE lead_sources ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE integrations ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE booking_directions ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE booking_specialists ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE deals ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS company_id INTEGER",
+        ]
+        for s in stmts:
+            await conn.execute(text(s))
+
+        for tn in (
+            "users",
+            "pipelines",
+            "pipeline_stages",
+            "user_pipeline_assignments",
+            "leads",
+            "lead_audit_events",
+            "system_audit_events",
+            "lead_sources",
+            "integrations",
+            "chat_threads",
+            "chat_messages",
+            "booking_directions",
+            "booking_specialists",
+            "booking_appointments",
+            "deals",
+            "tasks",
+        ):
+            await conn.execute(
+                text(f"UPDATE {tn} SET company_id = :cid WHERE company_id IS NULL"),
+                {"cid": default_company_id},
+            )
+
+        # enum user_role: добавить super_owner (если отсутствует)
+        ac = conn.execution_options(isolation_level="AUTOCOMMIT")
+        if hasattr(ac, "__await__"):
+            ac = await ac  # type: ignore[assignment]
+        has_super_owner = await ac.scalar(
+            text(
+                """
+                SELECT 1
+                FROM pg_enum e
+                JOIN pg_type t ON t.oid = e.enumtypid
+                WHERE t.typname = 'user_role' AND e.enumlabel = 'super_owner'
+                LIMIT 1
+                """,
+            )
+        )
+        if has_super_owner is None:
+            await ac.execute(text("ALTER TYPE user_role ADD VALUE 'super_owner'"))
+        return
