@@ -161,8 +161,8 @@ export function LeadDetailPage() {
               <dd className="mt-1 text-slate-200">{query.data.source ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Менеджер (id)</dt>
-              <dd className="mt-1 text-slate-200">{query.data.manager_id ?? "—"}</dd>
+              <dt className="text-xs uppercase tracking-wide text-slate-500">Ответственный менеджер</dt>
+              <dd className="mt-1 text-slate-200">{query.data.manager_name || "—"}</dd>
             </div>
             <div className="sm:col-span-2">
               <dt className="text-xs uppercase tracking-wide text-slate-500">ID в MetodiOne</dt>

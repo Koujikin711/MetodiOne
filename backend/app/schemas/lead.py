@@ -27,6 +27,7 @@ class LeadRead(BaseModel):
     status_id: int
     stage_name: str | None = None
     manager_id: int | None
+    manager_name: str | None = None
     refusal_reason: str | None = None
     pipeline_id: int | None = None
     created_at: datetime | None = None

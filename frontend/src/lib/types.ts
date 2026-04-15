@@ -80,6 +80,7 @@ export interface Lead {
   status_id: number;
   stage_name: string | null;
   manager_id: number | null;
+  manager_name?: string | null;
   refusal_reason?: string | null;
   protocol_file_attached?: boolean;
   protocol_requested?: boolean;

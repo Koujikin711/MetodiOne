@@ -234,10 +234,31 @@ def _lead_to_read(lead: Lead) -> LeadRead:
         status_id=lead.status_id,
         stage_name=lead.stage.name if lead.stage else None,
         manager_id=lead.manager_id,
+        manager_name=None,
         refusal_reason=lead.refusal_reason,
         pipeline_id=lead.stage.pipeline_id if lead.stage else None,
         created_at=lead.created_at,
     )
+
+
+async def _manager_names_map(db: AsyncSession, manager_ids: set[int]) -> dict[int, str]:
+    if not manager_ids:
+        return {}
+    rows = await db.execute(
+        select(User.id, User.full_name, User.email).where(User.id.in_(manager_ids)),
+    )
+    out: dict[int, str] = {}
+    for uid, full_name, email in rows.all():
+        name = (str(full_name or "").strip() or str(email or "").strip())
+        if name:
+            out[int(uid)] = name
+    return out
+
+
+async def _lead_to_read_with_manager(db: AsyncSession, lead: Lead) -> LeadRead:
+    mids = {lead.manager_id} if lead.manager_id else set()
+    managers = await _manager_names_map(db, mids)
+    return _lead_to_read(lead).model_copy(update={"manager_name": managers.get(lead.manager_id or -1)})
 
 
 @router.post("", response_model=LeadRead, status_code=status.HTTP_201_CREATED)
@@ -272,7 +293,7 @@ async def create_lead(
     )
     await db.refresh(lead)
     await db.refresh(lead, ["stage"])
-    base = _lead_to_read(lead)
+    base = await _lead_to_read_with_manager(db, lead)
     enriched = await _enrich_leads_close_deal(db, [lead], [base], current_user)
     return enriched[0]
 
@@ -337,10 +358,12 @@ async def _leads_to_read_with_deals(
                 "paid_extras_amount": r[5],
             }
 
+    manager_ids = {lead.manager_id for lead in leads if lead.manager_id is not None}
+    manager_names = await _manager_names_map(db, manager_ids)
     out: list[LeadRead] = []
     for lead in leads:
         info = deal_info.get(lead.id)
-        base = _lead_to_read(lead)
+        base = _lead_to_read(lead).model_copy(update={"manager_name": manager_names.get(lead.manager_id or -1)})
         out.append(
             base.model_copy(
                 update={
@@ -662,7 +685,7 @@ async def get_lead(
             "paid_extras_amount": row[4],
         }
 
-    base = _lead_to_read(lead).model_copy(
+    base = (await _lead_to_read_with_manager(db, lead)).model_copy(
         update={
             "protocol_deal_id": (info["protocol_deal_id"] if info else None) or None,
             "protocol_requested": bool(info["protocol_requested"]) if info else False,
@@ -803,7 +826,7 @@ async def close_deal_from_integration_pipeline(
             "protocol_file_attached": row[3],
             "paid_extras_amount": row[4],
         }
-    base = _lead_to_read(lead).model_copy(
+    base = (await _lead_to_read_with_manager(db, lead)).model_copy(
         update={
             "protocol_deal_id": (info["protocol_deal_id"] if info else None) or None,
             "protocol_requested": bool(info["protocol_requested"]) if info else False,
@@ -866,7 +889,7 @@ async def reject_lead(
         ),
     )
     await db.refresh(lead, ["stage"])
-    return _lead_to_read(lead)
+    return await _lead_to_read_with_manager(db, lead)
 
 
 @router.patch("/{lead_id}/status", response_model=LeadStatusPatchResponse)
@@ -929,7 +952,7 @@ async def update_lead_status(
         details=f"Смена стадии: {from_stage.name} -> {stage.name}",
     )
     await db.refresh(lead, ["stage"])
-    read = _lead_to_read(lead)
+    read = await _lead_to_read_with_manager(db, lead)
     automation_task_created = await process_lead_automation(db, lead_id, body.status_id)
     return LeadStatusPatchResponse(
         **read.model_dump(),
@@ -991,7 +1014,7 @@ async def lead_arrival(
         assigned_roles=[UserRole.expert],
     )
 
-    return _lead_to_read(lead)
+    return await _lead_to_read_with_manager(db, lead)
 
 
 @router.post("/{lead_id}/no-show", response_model=LeadRead)
@@ -1051,7 +1074,7 @@ async def lead_no_show(
         details=f"Неявка обработана: action={body.action}, reason={(body.reason or '').strip() or '-'}",
     )
     await db.refresh(lead, ["stage"])
-    return _lead_to_read(lead)
+    return await _lead_to_read_with_manager(db, lead)
 
 
 @router.post("/{lead_id}/service-done", response_model=LeadRead)
@@ -1100,7 +1123,7 @@ async def lead_service_done(
         assigned_roles=[UserRole.manager, UserRole.admin],
     )
 
-    return _lead_to_read(lead)
+    return await _lead_to_read_with_manager(db, lead)
 
 
 @router.post("/{lead_id}/service-reject", response_model=LeadRead)
@@ -1143,7 +1166,7 @@ async def lead_service_reject(
         details=f"Отказ в услуге: {body.reason.strip()}",
     )
     await db.refresh(lead, ["stage"])
-    return _lead_to_read(lead)
+    return await _lead_to_read_with_manager(db, lead)
 
 
 @router.post("/{lead_id}/cart/extra-services/add", response_model=DealRead)
@@ -1264,7 +1287,7 @@ async def protocol_finish(
         assigned_roles=[UserRole.manager, UserRole.admin, UserRole.owner],
     )
 
-    return _lead_to_read(lead)
+    return await _lead_to_read_with_manager(db, lead)
 
 
 @router.get("/{lead_id}/audit", response_model=list[LeadAuditRead])
