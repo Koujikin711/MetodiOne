@@ -1,7 +1,8 @@
+import logging
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +21,8 @@ from app.models import (
 )
 from app.services.audio_prepare import prepare_file_for_green_whatsapp
 from app.services.green_api_send import send_green_file_upload, send_green_text
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -146,6 +149,118 @@ def _msg_read(m: ChatMessage) -> ChatMessageRead:
     )
 
 
+async def _resolve_green_send(
+    db: AsyncSession,
+    thread_id: int,
+    current_user,
+) -> tuple[ChatThread, dict, str]:
+    thread = await db.get(ChatThread, thread_id)
+    if thread is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+    await _assert_thread_access(db, thread, current_user)
+    if thread.provider != IntegrationProvider.green_api.value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provider send is not implemented yet")
+
+    chat_id = thread.external_chat_id or ""
+    if not chat_id:
+        lead = await db.get(Lead, thread.lead_id) if thread.lead_id else None
+        if lead and lead.phone:
+            chat_id = f"{lead.phone}@c.us"
+    if not chat_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No chat id / lead phone for WhatsApp")
+    integ = (
+        await db.execute(
+            select(Integration)
+            .where(
+                Integration.provider == IntegrationProvider.green_api,
+                Integration.is_active.is_(True),
+                Integration.pipeline_id == (thread.pipeline_id or 0),
+            )
+            .limit(1),
+        )
+    ).scalars().first()
+    if integ is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active GREEN API integration for thread pipeline",
+        )
+    return thread, integ.config or {}, chat_id
+
+
+async def _send_green_file_message(
+    db: AsyncSession,
+    *,
+    thread: ChatThread,
+    cfg: dict,
+    chat_id: str,
+    current_user,
+    file_bytes: bytes,
+    filename: str,
+    file_content_type: str | None,
+    caption: str,
+) -> ChatMessageRead:
+    status_name = "sent"
+    provider_msg_id = None
+    try:
+        file_bytes, filename = await prepare_file_for_green_whatsapp(
+            file_bytes,
+            filename or "file",
+            file_content_type,
+        )
+    except RuntimeError as e:
+        d = str(e)
+        logger.warning("chat voice prepare failed thread=%s detail=%s", thread.id, d[:500])
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=d) from e
+    ok, err, provider_msg_id = await send_green_file_upload(
+        cfg,
+        chat_id,
+        file_bytes,
+        filename or "file",
+        caption or "",
+    )
+    if not ok:
+        msg = ChatMessage(
+            thread_id=thread.id,
+            author_user_id=current_user.id,
+            direction="out",
+            text=caption or " ",
+            message_type="document",
+            delivery_status="failed",
+            created_at=datetime.now(UTC),
+        )
+        db.add(msg)
+        thread.updated_at = datetime.now(UTC)
+        await db.flush()
+        d = f"Send failed: {err}"
+        logger.warning("chat green upload failed thread=%s detail=%s", thread.id, d[:800])
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=d)
+    mtype = "document"
+    low = (filename or "").lower()
+    if any(low.endswith(x) for x in (".jpg", ".jpeg", ".png", ".gif", ".webp")):
+        mtype = "image"
+    elif any(low.endswith(x) for x in (".mp4", ".webm", ".mov")):
+        mtype = "video"
+    elif any(low.endswith(x) for x in (".ogg", ".mp3", ".m4a", ".opus", ".wav", ".aac", ".amr")):
+        mtype = "audio"
+    msg = ChatMessage(
+        thread_id=thread.id,
+        author_user_id=current_user.id,
+        direction="out",
+        text=caption or "📎 Файл",
+        message_type=mtype,
+        delivery_status=status_name,
+        provider_message_id=provider_msg_id,
+        file_name=filename,
+        created_at=datetime.now(UTC),
+    )
+    db.add(msg)
+    thread.updated_at = datetime.now(UTC)
+    await db.flush()
+    await db.refresh(msg)
+    await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread.id)
+    return _msg_read(msg)
+
+
 @router.get("/threads", response_model=list[ChatThreadRead])
 async def list_threads(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -207,6 +322,42 @@ async def list_messages(
     return [_msg_read(m) for m in rows]
 
 
+@router.post("/threads/{thread_id}/messages/attachment", response_model=ChatMessageRead)
+async def send_message_attachment(
+    thread_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    file: UploadFile = File(...),
+    text: str = Form(""),
+) -> ChatMessageRead:
+    """Файл/голос через стандартный multipart (File/Form) — надёжнее, чем ручной request.form()."""
+    file_bytes = await file.read()
+    if not file_bytes:
+        logger.warning(
+            "chat attachment empty read thread=%s filename=%s content_type=%s",
+            thread_id,
+            file.filename,
+            file.content_type,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Голосовое не дошло или файл пустой. Запишите подольше или обновите страницу.",
+        )
+    thread, cfg, chat_id = await _resolve_green_send(db, thread_id, current_user)
+    caption = (text or "").strip()
+    return await _send_green_file_message(
+        db,
+        thread=thread,
+        cfg=cfg,
+        chat_id=chat_id,
+        current_user=current_user,
+        file_bytes=file_bytes,
+        filename=file.filename or "file",
+        file_content_type=file.content_type,
+        caption=caption,
+    )
+
+
 @router.post("/threads/{thread_id}/messages", response_model=ChatMessageRead)
 async def send_message(
     thread_id: int,
@@ -214,51 +365,20 @@ async def send_message(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> ChatMessageRead:
-    thread = await db.get(ChatThread, thread_id)
-    if thread is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
-    await _assert_thread_access(db, thread, current_user)
-
-    status_name = "sent"
-    provider_msg_id = None
-    if thread.provider != IntegrationProvider.green_api.value:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provider send is not implemented yet")
-
-    chat_id = thread.external_chat_id or ""
-    if not chat_id:
-        lead = await db.get(Lead, thread.lead_id) if thread.lead_id else None
-        if lead and lead.phone:
-            chat_id = f"{lead.phone}@c.us"
-    if not chat_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No chat id / lead phone for WhatsApp")
-    integ = (
-        await db.execute(
-            select(Integration)
-            .where(
-                Integration.provider == IntegrationProvider.green_api,
-                Integration.is_active.is_(True),
-                Integration.pipeline_id == (thread.pipeline_id or 0),
-            )
-            .limit(1),
-        )
-    ).scalars().first()
-    if integ is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active GREEN API integration for thread pipeline")
-
-    cfg = integ.config or {}
-    ct = request.headers.get("content-type", "")
+    ct_raw = request.headers.get("content-type") or ""
+    ct_lower = ct_raw.lower()
     file_bytes: bytes | None = None
     filename: str | None = None
     file_content_type: str | None = None
     caption: str = ""
     plain_text: str = ""
     file_attempted = False
+    up: object | None = None
 
-    if "application/json" in ct:
+    if ct_lower.startswith("application/json"):
         body = SendMessageBody.model_validate(await request.json())
         plain_text = body.text.strip()
-        file_bytes = None
-    else:
+    elif ct_lower.startswith("multipart/form-data"):
         form = await request.form()
         caption = str(form.get("text") or form.get("caption") or "").strip()
         up = form.get("file")
@@ -269,90 +389,67 @@ async def send_message(
             filename = up.filename or "file"
             file_content_type = up.content_type
         plain_text = caption
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Ожидается application/json или multipart/form-data",
+        )
+
+    thread, cfg, chat_id = await _resolve_green_send(db, thread_id, current_user)
 
     if file_bytes and len(file_bytes) > 0:
-        try:
-            file_bytes, filename = await prepare_file_for_green_whatsapp(
-                file_bytes,
-                filename or "file",
-                file_content_type,
-            )
-        except RuntimeError as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-        ok, err, provider_msg_id = await send_green_file_upload(
-            cfg,
-            chat_id,
-            file_bytes,
-            filename or "file",
-            caption or "",
+        return await _send_green_file_message(
+            db,
+            thread=thread,
+            cfg=cfg,
+            chat_id=chat_id,
+            current_user=current_user,
+            file_bytes=file_bytes,
+            filename=filename or "file",
+            file_content_type=file_content_type,
+            caption=caption,
         )
-        if not ok:
-            msg = ChatMessage(
-                thread_id=thread.id,
-                author_user_id=current_user.id,
-                direction="out",
-                text=caption or " ",
-                message_type="document",
-                delivery_status="failed",
-                created_at=datetime.now(UTC),
-            )
-            db.add(msg)
-            thread.updated_at = datetime.now(UTC)
-            await db.flush()
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Send failed: {err}")
-        mtype = "document"
-        if filename:
-            low = filename.lower()
-            if any(low.endswith(x) for x in (".jpg", ".jpeg", ".png", ".gif", ".webp")):
-                mtype = "image"
-            elif any(low.endswith(x) for x in (".mp4", ".webm", ".mov")):
-                mtype = "video"
-            elif any(low.endswith(x) for x in (".ogg", ".mp3", ".m4a", ".opus", ".wav", ".aac", ".amr")):
-                mtype = "audio"
-        msg = ChatMessage(
-            thread_id=thread.id,
-            author_user_id=current_user.id,
-            direction="out",
-            text=caption or "📎 Файл",
-            message_type=mtype,
-            delivery_status=status_name,
-            provider_message_id=provider_msg_id,
-            file_name=filename,
-            created_at=datetime.now(UTC),
+    if file_attempted:
+        logger.warning(
+            "chat multipart file empty or not parsed thread=%s content_type=%r up_type=%s",
+            thread_id,
+            ct_raw,
+            type(up).__name__ if up is not None else "none",
         )
-    elif file_attempted:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Голосовое не дошло или файл пустой. Запишите подольше или обновите страницу.",
+            detail="Голосовое не дошло или файл пустой. Для вложений используйте обновлённый клиент или запишите ещё раз.",
         )
-    else:
-        if not plain_text:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пустое сообщение")
-        ok, err, provider_msg_id = send_green_text(cfg, chat_id, plain_text)
-        if not ok:
-            msg = ChatMessage(
-                thread_id=thread.id,
-                author_user_id=current_user.id,
-                direction="out",
-                text=plain_text,
-                message_type="text",
-                delivery_status="failed",
-                created_at=datetime.now(UTC),
-            )
-            db.add(msg)
-            thread.updated_at = datetime.now(UTC)
-            await db.flush()
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Send failed: {err}")
+    if not plain_text:
+        logger.warning("chat empty text thread=%s", thread_id)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пустое сообщение")
+    ok, err, provider_msg_id = send_green_text(cfg, chat_id, plain_text)
+    if not ok:
         msg = ChatMessage(
             thread_id=thread.id,
             author_user_id=current_user.id,
             direction="out",
             text=plain_text,
             message_type="text",
-            delivery_status=status_name,
-            provider_message_id=provider_msg_id,
+            delivery_status="failed",
             created_at=datetime.now(UTC),
         )
+        db.add(msg)
+        thread.updated_at = datetime.now(UTC)
+        await db.flush()
+        d = f"Send failed: {err}"
+        logger.warning("chat green text failed thread=%s detail=%s", thread_id, d[:800])
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=d)
+    msg = ChatMessage(
+        thread_id=thread.id,
+        author_user_id=current_user.id,
+        direction="out",
+        text=plain_text,
+        message_type="text",
+        delivery_status="sent",
+        provider_message_id=provider_msg_id,
+        created_at=datetime.now(UTC),
+    )
     db.add(msg)
     thread.updated_at = datetime.now(UTC)
     await db.flush()
