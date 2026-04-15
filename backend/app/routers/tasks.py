@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import Task, User
 from app.schemas.task import TaskCreate, TaskRead, TaskUpdate
@@ -12,11 +12,11 @@ from app.schemas.task import TaskCreate, TaskRead, TaskUpdate
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-async def _ensure_user_exists(db: AsyncSession, user_id: int | None) -> None:
+async def _ensure_user_exists(db: AsyncSession, user_id: int | None, company_id: int) -> None:
     if user_id is None:
         return
     u = await db.get(User, user_id)
-    if u is None:
+    if u is None or u.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="assigned_to user not found")
 
 
@@ -25,14 +25,16 @@ async def create_task(
     body: TaskCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> Task:
-    await _ensure_user_exists(db, body.assigned_to)
+    await _ensure_user_exists(db, body.assigned_to, company_id)
     task = Task(
         title=body.title,
         deadline=body.deadline,
         status=body.status,
         assigned_to=body.assigned_to,
         description=body.description,
+        company_id=company_id,
     )
     db.add(task)
     await db.flush()
@@ -44,9 +46,10 @@ async def create_task(
 async def list_tasks(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> list[Task]:
     result = await db.execute(
-        select(Task).where(Task.assigned_to == current_user.id).order_by(Task.id.desc()),
+        select(Task).where(Task.company_id == company_id, Task.assigned_to == current_user.id).order_by(Task.id.desc()),
     )
     return list(result.scalars().all())
 
@@ -56,9 +59,10 @@ async def get_task(
     task_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> Task:
     task = await db.get(Task, task_id)
-    if task is None:
+    if task is None or task.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     return task
 
@@ -69,12 +73,13 @@ async def update_task(
     body: TaskUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> Task:
     task = await db.get(Task, task_id)
-    if task is None:
+    if task is None or task.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     if body.assigned_to is not None:
-        await _ensure_user_exists(db, body.assigned_to)
+        await _ensure_user_exists(db, body.assigned_to, company_id)
     data = body.model_dump(exclude_unset=True)
     for key, value in data.items():
         setattr(task, key, value)
@@ -88,8 +93,9 @@ async def delete_task(
     task_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> None:
     task = await db.get(Task, task_id)
-    if task is None:
+    if task is None or task.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    await db.execute(delete(Task).where(Task.id == task_id))
+    await db.execute(delete(Task).where(Task.id == task_id, Task.company_id == company_id))

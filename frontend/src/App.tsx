@@ -2,7 +2,7 @@ import { Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { HomeEntry, RequireOwner, RequireNotManager } from "@/components/RoleRoutes";
+import { HomeEntry, RequireOwner, RequireNotManager, RequireSuperOwner } from "@/components/RoleRoutes";
 import { MainLayout } from "@/layouts/MainLayout";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { AuditPage } from "@/pages/AuditPage";
@@ -13,6 +13,7 @@ import { LeadDetailPage } from "@/pages/LeadDetailPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { MyLeadsPage } from "@/pages/MyLeadsPage";
 import { OnlineBookingPage } from "@/pages/OnlineBookingPage";
+import { CompaniesPage } from "@/pages/CompaniesPage";
 import { TasksPage } from "@/pages/TasksPage";
 
 export default function App() {
@@ -53,6 +54,14 @@ export default function App() {
             />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/audit" element={<AuditPage />} />
+            <Route
+              path="/companies"
+              element={
+                <RequireSuperOwner>
+                  <CompaniesPage />
+                </RequireSuperOwner>
+              }
+            />
           </Route>
         </Route>
       </Routes>

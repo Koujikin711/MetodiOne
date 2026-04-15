@@ -10,7 +10,11 @@ function isManagerNavRole(role: ReturnType<typeof decodeRoleFromToken>) {
 }
 
 export function HomeEntry() {
-  if (isManagerNavRole(decodeRoleFromToken(getStoredToken()))) {
+  const role = decodeRoleFromToken(getStoredToken());
+  if (role === "super_owner") {
+    return <Navigate to="/companies" replace />;
+  }
+  if (isManagerNavRole(role)) {
     return <Navigate to="/my-leads" replace />;
   }
   return <CrmPage />;
@@ -25,6 +29,13 @@ export function RequireNotManager({ children }: { children: ReactNode }) {
 
 export function RequireOwner({ children }: { children: ReactNode }) {
   if (decodeRoleFromToken(getStoredToken()) !== "owner") {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
+
+export function RequireSuperOwner({ children }: { children: ReactNode }) {
+  if (decodeRoleFromToken(getStoredToken()) !== "super_owner") {
     return <Navigate to="/" replace />;
   }
   return <>{children}</>;

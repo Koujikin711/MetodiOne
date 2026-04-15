@@ -6,14 +6,15 @@ import socket
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import AsyncSessionLocal, engine
-from app.database_migrate import ensure_booking_specialist_columns, ensure_owner_role_migration
+from app.database_migrate import ensure_booking_specialist_columns, ensure_multi_tenant_migration, ensure_owner_role_migration
 from app.core.security import hash_password
-from app.models import Base, BookingDirection, BookingSpecialist, LeadSource, Pipeline, PipelineStage, User, UserRole
+from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
-from app.routers import analytics, audit, auth, booking, chat, deals, employees, integrations, leads, pipelines, reports, sources, stages, system, tasks, users
+from app.routers import analytics, audit, auth, booking, chat, companies, deals, employees, integrations, leads, pipelines, reports, sources, stages, system, tasks, users
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
 
 logger = logging.getLogger(__name__)
@@ -42,12 +43,13 @@ def _install_asyncio_dns_exception_handler() -> None:
 
 async def seed_pipelines_and_stages() -> None:
     async with AsyncSessionLocal() as session:
+        cid = await _ensure_default_company(session)
         # Bootstrap только для пустой БД: без “вшитых” бизнес-стадий.
-        any_pipeline = (await session.execute(select(Pipeline.id).limit(1))).scalar_one_or_none()
+        any_pipeline = (await session.execute(select(Pipeline.id).where(Pipeline.company_id == cid).limit(1))).scalar_one_or_none()
         if any_pipeline is not None:
             return
 
-        pipe = Pipeline(name="Основная", type="sales")
+        pipe = Pipeline(name="Основная", type="sales", company_id=cid)
         session.add(pipe)
         await session.flush()
 
@@ -58,16 +60,19 @@ async def seed_pipelines_and_stages() -> None:
                     order=st.order if st.order is not None else 0,
                     color=st.color,
                     pipeline_id=pipe.id,
+                    company_id=cid,
                 )
             )
         await session.commit()
 
 
 TEST_ADMIN_EMAIL = "admin@crm.local"
+TEST_SUPER_OWNER_EMAIL = "super@crm.local"
 
 
 async def seed_test_admin() -> None:
     async with AsyncSessionLocal() as session:
+        cid = await _ensure_default_company(session)
         result = await session.execute(select(User).where(User.email == TEST_ADMIN_EMAIL))
         if result.scalar_one_or_none() is not None:
             return
@@ -76,6 +81,23 @@ async def seed_test_admin() -> None:
                 email=TEST_ADMIN_EMAIL,
                 hashed_password=hash_password("admin"),
                 role=UserRole.owner,
+                company_id=cid,
+            )
+        )
+        await session.commit()
+
+
+async def seed_super_owner() -> None:
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).where(User.email == TEST_SUPER_OWNER_EMAIL))
+        if result.scalar_one_or_none() is not None:
+            return
+        session.add(
+            User(
+                email=TEST_SUPER_OWNER_EMAIL,
+                hashed_password=hash_password("admin"),
+                role=UserRole.super_owner,
+                company_id=None,
             )
         )
         await session.commit()
@@ -83,15 +105,17 @@ async def seed_test_admin() -> None:
 
 async def seed_booking_defaults() -> None:
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(BookingDirection).limit(1))
+        cid = await _ensure_default_company(session)
+        result = await session.execute(select(BookingDirection).where(BookingDirection.company_id == cid).limit(1))
         if result.scalar_one_or_none() is not None:
             return
-        d = BookingDirection(name="Консультация", duration_min=30, is_active=True)
+        d = BookingDirection(name="Консультация", duration_min=30, is_active=True, company_id=cid)
         session.add(d)
         await session.flush()
         session.add(
             BookingSpecialist(
                 full_name="Ганчина",
+                company_id=cid,
                 direction_id=d.id,
                 phone=None,
                 is_active=True,
@@ -103,18 +127,29 @@ async def seed_booking_defaults() -> None:
 
 async def seed_lead_sources_defaults() -> None:
     async with AsyncSessionLocal() as session:
+        cid = await _ensure_default_company(session)
         defaults = ["GREEN API", "WHATSAPP", "INSTAGRAM", "TELEGRAM"]
         existing = (
             await session.execute(
-                select(LeadSource.name).where(LeadSource.name.in_(defaults)),
+                select(LeadSource.name).where(LeadSource.company_id == cid, LeadSource.name.in_(defaults)),
             )
         ).all()
         existing_names = {row[0] for row in existing}
         for name in defaults:
             if name in existing_names:
                 continue
-            session.add(LeadSource(name=name, is_active=True))
+            session.add(LeadSource(name=name, is_active=True, company_id=cid))
         await session.commit()
+
+
+async def _ensure_default_company(session: AsyncSession) -> int:
+    c = (await session.execute(select(Company).order_by(Company.id.asc()).limit(1))).scalars().first()
+    if c is not None:
+        return int(c.id)
+    c = Company(name="Default Company", is_active=True)
+    session.add(c)
+    await session.flush()
+    return int(c.id)
 
 
 @asynccontextmanager
@@ -123,11 +158,13 @@ async def lifespan(_: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await ensure_booking_specialist_columns(conn, settings.database_url)
+        await ensure_multi_tenant_migration(conn, settings.database_url)
     # enum-миграции PostgreSQL нельзя выполнять внутри begin-транзакции
     async with engine.connect() as conn:
         await ensure_owner_role_migration(conn, settings.database_url)
     await seed_pipelines_and_stages()
     await seed_test_admin()
+    await seed_super_owner()
     await seed_booking_defaults()
     await seed_lead_sources_defaults()
     stop_event = asyncio.Event()
@@ -197,6 +234,7 @@ app.include_router(system.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
+app.include_router(companies.router, prefix="/api")
 
 
 @app.get("/health")

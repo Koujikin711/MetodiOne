@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import Lead, Pipeline, PipelineStage, User, UserPipelineAssignment, UserRole
 from app.schemas.pipeline import PipelineCreate, PipelinePatch, PipelineRead
@@ -28,8 +28,9 @@ class DistributeLeadsBody(BaseModel):
 async def list_pipelines(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> list[PipelineRead]:
-    result = await db.execute(select(Pipeline).order_by(Pipeline.id))
+    result = await db.execute(select(Pipeline).where(Pipeline.company_id == company_id).order_by(Pipeline.id))
     return [PipelineRead.model_validate(p) for p in result.scalars().all()]
 
 
@@ -38,21 +39,22 @@ async def create_pipeline(
     body: PipelineCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> PipelineRead:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
-    exists = await db.scalar(select(Pipeline.id).where(Pipeline.name == body.name))
+    exists = await db.scalar(select(Pipeline.id).where(Pipeline.company_id == company_id, Pipeline.name == body.name))
     if exists is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pipeline name already exists")
 
     expert_user_id = body.expert_user_id
     if expert_user_id is not None:
         u = await db.get(User, expert_user_id)
-        if u is None or not u.is_active or u.role != UserRole.expert:
+        if u is None or not u.is_active or u.role != UserRole.expert or u.company_id != company_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="expert_user_id: unknown expert")
 
-    pipe = Pipeline(name=body.name, type=body.type or "sales", expert_user_id=expert_user_id)
+    pipe = Pipeline(name=body.name, type=body.type or "sales", expert_user_id=expert_user_id, company_id=company_id)
     db.add(pipe)
     await db.flush()
 
@@ -64,6 +66,7 @@ async def create_pipeline(
                 order=st.order if st.order is not None else idx,
                 color=st.color,
                 pipeline_id=pipe.id,
+                company_id=company_id,
             )
         )
 
@@ -86,15 +89,16 @@ async def patch_pipeline(
     body: PipelinePatch,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> PipelineRead:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     pipe = await db.get(Pipeline, pipeline_id)
-    if pipe is None:
+    if pipe is None or pipe.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found")
     if body.expert_user_id is not None:
         u = await db.get(User, body.expert_user_id)
-        if u is None or not u.is_active or u.role != UserRole.expert:
+        if u is None or not u.is_active or u.role != UserRole.expert or u.company_id != company_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="expert_user_id: unknown expert")
         pipe.expert_user_id = body.expert_user_id
     elif body.expert_user_id is None and "expert_user_id" in body.model_fields_set:
@@ -125,13 +129,14 @@ async def delete_pipeline(
     pipeline_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> None:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
     pipe = await db.get(Pipeline, pipeline_id)
-    if pipe is None:
+    if pipe is None or pipe.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Воронка не найдена")
-    total_pipes = await db.scalar(select(func.count()).select_from(Pipeline))
+    total_pipes = await db.scalar(select(func.count()).select_from(Pipeline).where(Pipeline.company_id == company_id))
     if total_pipes is not None and int(total_pipes) <= 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -141,7 +146,7 @@ async def delete_pipeline(
     if reason:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
     pname = pipe.name
-    rows = await db.execute(select(PipelineStage).where(PipelineStage.pipeline_id == pipeline_id))
+    rows = await db.execute(select(PipelineStage).where(PipelineStage.pipeline_id == pipeline_id, PipelineStage.company_id == company_id))
     stages = rows.scalars().all()
     for st in stages:
         await db.delete(st)
@@ -163,6 +168,7 @@ async def distribute_leads_from_stage(
     body: DistributeLeadsBody,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> dict[str, int]:
     """
     Массово назначить менеджеров лидам на выбранной стадии.
@@ -172,11 +178,11 @@ async def distribute_leads_from_stage(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
 
     pipe = await db.get(Pipeline, pipeline_id)
-    if pipe is None:
+    if pipe is None or pipe.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found")
 
     st = await db.get(PipelineStage, body.stage_id)
-    if st is None or st.pipeline_id != pipeline_id:
+    if st is None or st.pipeline_id != pipeline_id or st.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="stage_id is not in this pipeline")
 
     # Если в воронке не настроено автораспределение — это всё равно “распределить” не сможет.
@@ -185,8 +191,10 @@ async def distribute_leads_from_stage(
         .join(User, User.id == UserPipelineAssignment.user_id)
         .where(
             UserPipelineAssignment.pipeline_id == pipeline_id,
+            UserPipelineAssignment.company_id == company_id,
             User.role == UserRole.manager,
             User.is_active.is_(True),
+            User.company_id == company_id,
         )
     )
     if int(any_manager or 0) <= 0:
@@ -195,7 +203,12 @@ async def distribute_leads_from_stage(
             detail="В этой воронке нет активных менеджеров для распределения (назначьте менеджеров в Сотрудниках).",
         )
 
-    total = int(await db.scalar(select(func.count(Lead.id)).where(Lead.status_id == body.stage_id)) or 0)
+    total = int(
+        await db.scalar(
+            select(func.count(Lead.id)).where(Lead.status_id == body.stage_id, Lead.company_id == company_id),
+        )
+        or 0
+    )
     if total <= 0:
         return {"total": 0, "assigned": 0, "skipped": 0}
 
@@ -208,6 +221,7 @@ async def distribute_leads_from_stage(
             await db.execute(
                 select(Lead.id)
                 .where(Lead.status_id == body.stage_id)
+                .where(Lead.company_id == company_id)
                 .order_by(Lead.id.asc())
                 .offset(offset)
                 .limit(_MAX_DISTRIBUTE_BATCH),

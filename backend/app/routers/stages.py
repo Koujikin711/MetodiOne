@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import Pipeline, PipelineStage, UserRole
 from app.schemas.stage import PipelineStageCreate, PipelineStageRead
@@ -18,9 +18,10 @@ router = APIRouter(prefix="/stages", tags=["stages"])
 async def list_stages(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
+    company_id: CurrentCompanyId,
     pipeline_id: int | None = Query(default=None),
 ) -> list[PipelineStageRead]:
-    q = select(PipelineStage)
+    q = select(PipelineStage).where(PipelineStage.company_id == company_id)
     if pipeline_id is not None:
         q = q.where(PipelineStage.pipeline_id == pipeline_id)
     result = await db.execute(q.order_by(PipelineStage.order, PipelineStage.id))
@@ -33,16 +34,17 @@ async def create_stage(
     body: PipelineStageCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> PipelineStageRead:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     pipeline = await db.get(Pipeline, body.pipeline_id)
-    if pipeline is None:
+    if pipeline is None or pipeline.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found")
     if body.order is None:
         mx = await db.scalar(
             select(PipelineStage.order)
-            .where(PipelineStage.pipeline_id == body.pipeline_id)
+            .where(PipelineStage.pipeline_id == body.pipeline_id, PipelineStage.company_id == company_id)
             .order_by(PipelineStage.order.desc())
             .limit(1),
         )
@@ -54,6 +56,7 @@ async def create_stage(
         order=next_order,
         color=body.color,
         pipeline_id=body.pipeline_id,
+        company_id=company_id,
     )
     db.add(st)
     await db.flush()
@@ -74,11 +77,12 @@ async def delete_stage(
     stage_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> None:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
     st = await db.get(PipelineStage, stage_id)
-    if st is None:
+    if st is None or st.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Стадия не найдена")
     reason = await stage_delete_block_reason(db, stage_id)
     if reason:

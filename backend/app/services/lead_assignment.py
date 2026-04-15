@@ -12,6 +12,9 @@ async def assign_manager_for_new_lead(db: AsyncSession, *, pipeline_id: int) -> 
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None:
         return None
+    if pipe.company_id is None:
+        return None
+    company_id = int(pipe.company_id)
     mode = (pipe.lead_assignment_mode or "none").strip().lower()
     if mode not in ("round_robin", "least_loaded"):
         return None
@@ -21,8 +24,10 @@ async def assign_manager_for_new_lead(db: AsyncSession, *, pipeline_id: int) -> 
         .join(User, User.id == UserPipelineAssignment.user_id)
         .where(
             UserPipelineAssignment.pipeline_id == pipeline_id,
+            UserPipelineAssignment.company_id == company_id,
             User.role == UserRole.manager,
             User.is_active.is_(True),
+            User.company_id == company_id,
         ),
     )
     user_ids = sorted({r[0] for r in res.all()})
@@ -46,6 +51,8 @@ async def assign_manager_for_new_lead(db: AsyncSession, *, pipeline_id: int) -> 
             .join(PipelineStage, PipelineStage.id == Lead.status_id)
             .where(
                 PipelineStage.pipeline_id == pipeline_id,
+                PipelineStage.company_id == company_id,
+                Lead.company_id == company_id,
                 Lead.manager_id == uid,
             ),
         )

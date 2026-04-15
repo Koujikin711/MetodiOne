@@ -14,6 +14,7 @@ async def write_audit_event(
 ) -> None:
     db.add(
         SystemAuditEvent(
+            company_id=(current_user.company_id if current_user else None),
             entity_type=entity_type,
             entity_id=entity_id,
             action=action,
@@ -38,6 +39,7 @@ async def log_audit_event(
 ) -> None:
     db.add(
         SystemAuditEvent(
+            company_id=(current_user.company_id if current_user else None),
             entity_type=entity_type,
             entity_id=entity_id,
             action=action,

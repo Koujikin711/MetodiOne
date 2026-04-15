@@ -1,4 +1,5 @@
 const TOKEN_KEY = "crm_access_token";
+const ACTIVE_COMPANY_ID_KEY = "crm_active_company_id";
 
 const REQUEST_TIMEOUT_MS = 20_000;
 /** Загрузка файлов/голоса (конвертация + Green) может занять дольше обычного JSON. */
@@ -24,7 +25,22 @@ export function getStoredToken(): string | null {
 
 export function setStoredToken(token: string | null): void {
   if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  else {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(ACTIVE_COMPANY_ID_KEY);
+  }
+}
+
+export function getActiveCompanyId(): number | null {
+  const raw = localStorage.getItem(ACTIVE_COMPANY_ID_KEY);
+  if (!raw) return null;
+  const id = Number(raw);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+export function setActiveCompanyId(companyId: number | null): void {
+  if (companyId == null) localStorage.removeItem(ACTIVE_COMPANY_ID_KEY);
+  else localStorage.setItem(ACTIVE_COMPANY_ID_KEY, String(companyId));
 }
 
 /** Абсолютный URL для медиа (полный https или путь от API). */
@@ -40,6 +56,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   headers.set("Accept", "application/json");
   const token = getStoredToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  const companyId = getActiveCompanyId();
+  if (companyId != null) headers.set("X-Company-Id", String(companyId));
   // Для FormData не ставим Content-Type вручную (fetch сам добавит boundary)
   const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
   if (init.body && !headers.has("Content-Type") && !isFormData) {
