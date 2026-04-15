@@ -3,10 +3,10 @@ import mimetypes
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser
@@ -270,25 +270,48 @@ async def _send_green_file_message(
 async def list_threads(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    q: str | None = Query(default=None, max_length=120),
 ) -> list[ChatThreadRead]:
     if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
+    term = (q or "").strip()
+    query = select(ChatThread).outerjoin(Lead, Lead.id == ChatThread.lead_id)
     if current_user.role in (UserRole.manager, UserRole.admin):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if not allowed:
             return []
-        q = (
-            select(ChatThread)
-            .join(Lead, Lead.id == ChatThread.lead_id)
-            .where(
-                ChatThread.pipeline_id.in_(allowed),
-                Lead.manager_id == current_user.id,
-            )
-            .order_by(ChatThread.updated_at.desc(), ChatThread.id.desc())
+        query = query.where(
+            ChatThread.pipeline_id.in_(allowed),
+            Lead.manager_id == current_user.id,
         )
-    else:
-        q = select(ChatThread).order_by(ChatThread.updated_at.desc(), ChatThread.id.desc())
-    rows = (await db.execute(q)).scalars().all()
+    if term:
+        like = f"%{term}%"
+        conds = [
+            Lead.name.ilike(like),
+            Lead.phone.ilike(like),
+            ChatThread.title.ilike(like),
+            ChatThread.external_chat_id.ilike(like),
+            exists(
+                select(ChatMessage.id)
+                .where(
+                    ChatMessage.thread_id == ChatThread.id,
+                    ChatMessage.text.ilike(like),
+                )
+                .limit(1),
+            ),
+        ]
+        digits = "".join(ch for ch in term if ch.isdigit())
+        if digits:
+            dlike = f"%{digits}%"
+            conds.extend(
+                [
+                    Lead.phone.ilike(dlike),
+                    ChatThread.external_chat_id.ilike(dlike),
+                ]
+            )
+        query = query.where(or_(*conds))
+    query = query.order_by(ChatThread.updated_at.desc(), ChatThread.id.desc())
+    rows = (await db.execute(query)).scalars().unique().all()
     out: list[ChatThreadRead] = []
     for t in rows:
         lead_name = None

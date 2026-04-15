@@ -86,10 +86,15 @@ function LeadCardBody({ lead }: { lead: Lead }) {
         </span>
       </div>
       <p className="mt-2 text-sm text-slate-400">{lead.phone ?? "—"}</p>
-      <div className="mt-2 flex items-center gap-2">
-        {lead.protocol_file_attached && <span title="Протокол прикреплён">📄</span>}
-        {paidNum > 0 && <span title="Есть оплата по доп. услугам">💰</span>}
-        {lead.refusal_reason && <span title="Есть отказ">❌</span>}
+      <div className="mt-3 flex items-end justify-between gap-2">
+        <p className="truncate text-xs text-slate-500" title={lead.manager_name || "Не назначен"}>
+          Ответственный: {lead.manager_name || "—"}
+        </p>
+        <div className="flex items-center gap-2">
+          {lead.protocol_file_attached && <span title="Протокол прикреплён">📄</span>}
+          {paidNum > 0 && <span title="Есть оплата по доп. услугам">💰</span>}
+          {lead.refusal_reason && <span title="Есть отказ">❌</span>}
+        </div>
       </div>
     </>
   );

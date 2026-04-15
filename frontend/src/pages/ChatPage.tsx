@@ -118,9 +118,21 @@ export function ChatPage() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
 
+  const [threadSearch, setThreadSearch] = useState("");
+  const [threadSearchDebounced, setThreadSearchDebounced] = useState("");
+  useEffect(() => {
+    const t = window.setTimeout(() => setThreadSearchDebounced(threadSearch.trim()), 220);
+    return () => window.clearTimeout(t);
+  }, [threadSearch]);
+
   const threadsQuery = useQuery({
-    queryKey: ["chat-threads"],
-    queryFn: () => apiFetch<ChatThread[]>("/api/chat/threads"),
+    queryKey: ["chat-threads", threadSearchDebounced],
+    queryFn: () =>
+      apiFetch<ChatThread[]>(
+        threadSearchDebounced
+          ? `/api/chat/threads?q=${encodeURIComponent(threadSearchDebounced)}`
+          : "/api/chat/threads",
+      ),
     refetchInterval: tabVisible ? 2500 : false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
@@ -331,6 +343,12 @@ export function ChatPage() {
       <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-3 shadow-inner backdrop-blur-sm">
           <div className="mb-2 text-sm font-semibold text-white">Диалоги</div>
+          <input
+            value={threadSearch}
+            onChange={(e) => setThreadSearch(e.target.value)}
+            placeholder="Поиск: имя, телефон, чат, ключевое слово…"
+            className="mb-2 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+          />
           {threadsQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
           {threadsQuery.isError && (
             <p className="text-sm text-red-300">{(threadsQuery.error as Error).message}</p>
