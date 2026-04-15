@@ -178,6 +178,9 @@ export function ChatPage() {
       if (threadId == null) throw new Error("Нет диалога");
       const fileToSend = voiceOrOverrideFile ?? pendingFile;
       if (fileToSend) {
+        if (fileToSend.size === 0) {
+          throw new Error("Файл пустой — запишите голос ещё раз.");
+        }
         const fd = new FormData();
         fd.append("file", fileToSend);
         if (text.trim()) fd.append("text", text.trim());
@@ -264,25 +267,32 @@ export function ChatPage() {
           setVoiceFinishing(false);
           return;
         }
-        const blob = new Blob(recordChunksRef.current, { type: chosenMime });
-        if (blob.size < 256) {
-          toast.error("Запись слишком короткая");
-          setVoiceFinishing(false);
-          return;
-        }
-        const ext =
-          chosenMime.includes("mp4") || chosenMime.includes("m4a") || chosenMime.includes("aac")
-            ? "m4a"
-            : isOgg
-              ? "ogg"
-              : "webm";
-        const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type || chosenMime });
-        sendMutation.mutate(file, {
-          onSettled: () => setVoiceFinishing(false),
-        });
+        // WebKit / часть Chrome досылают последний chunk после onstop — без паузы сервер получает пустой файл.
+        window.setTimeout(() => {
+          if (threadIdRef.current !== startedForThread) {
+            setVoiceFinishing(false);
+            return;
+          }
+          const blob = new Blob(recordChunksRef.current, { type: chosenMime });
+          if (blob.size < 256) {
+            toast.error("Запись слишком короткая");
+            setVoiceFinishing(false);
+            return;
+          }
+          const ext =
+            chosenMime.includes("mp4") || chosenMime.includes("m4a") || chosenMime.includes("aac")
+              ? "m4a"
+              : isOgg
+                ? "ogg"
+                : "webm";
+          const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type || chosenMime });
+          sendMutation.mutate(file, {
+            onSettled: () => setVoiceFinishing(false),
+          });
+        }, 150);
       };
-      // Без интервала: один надёжный chunk при stop() (иначе часть браузеров отдаёт пустой blob)
-      mr.start();
+      // Интервал + пауза после stop: иначе часть браузеров отдаёт 0 байт на сервер.
+      mr.start(200);
       setIsRecording(true);
     } catch {
       setVoiceFinishing(false);
