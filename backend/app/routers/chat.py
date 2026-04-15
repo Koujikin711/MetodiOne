@@ -18,6 +18,7 @@ from app.models import (
     UserPipelineAssignment,
     UserRole,
 )
+from app.services.audio_prepare import prepare_file_for_green_whatsapp
 from app.services.green_api_send import send_green_file_upload, send_green_text
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -248,6 +249,7 @@ async def send_message(
     ct = request.headers.get("content-type", "")
     file_bytes: bytes | None = None
     filename: str | None = None
+    file_content_type: str | None = None
     caption: str = ""
     plain_text: str = ""
     file_attempted = False
@@ -265,9 +267,18 @@ async def send_message(
         if isinstance(up, UploadFile):
             file_bytes = await up.read()
             filename = up.filename or "file"
+            file_content_type = up.content_type
         plain_text = caption
 
     if file_bytes and len(file_bytes) > 0:
+        try:
+            file_bytes, filename = await prepare_file_for_green_whatsapp(
+                file_bytes,
+                filename or "file",
+                file_content_type,
+            )
+        except RuntimeError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
         ok, err, provider_msg_id = await send_green_file_upload(
             cfg,
             chat_id,
@@ -296,7 +307,7 @@ async def send_message(
                 mtype = "image"
             elif any(low.endswith(x) for x in (".mp4", ".webm", ".mov")):
                 mtype = "video"
-            elif any(low.endswith(x) for x in (".ogg", ".mp3", ".m4a", ".opus", ".webm", ".wav")):
+            elif any(low.endswith(x) for x in (".ogg", ".mp3", ".m4a", ".opus", ".wav", ".aac", ".amr")):
                 mtype = "audio"
         msg = ChatMessage(
             thread_id=thread.id,

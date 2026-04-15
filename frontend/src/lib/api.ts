@@ -1,6 +1,8 @@
 const TOKEN_KEY = "crm_access_token";
 
 const REQUEST_TIMEOUT_MS = 20_000;
+/** Загрузка файлов/голоса (конвертация + Green) может занять дольше обычного JSON. */
+const FORM_DATA_REQUEST_TIMEOUT_MS = 120_000;
 
 export function resolveApiUrl(path: string): string {
   const raw = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
@@ -44,8 +46,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     headers.set("Content-Type", "application/json");
   }
 
+  const timeoutMs = isFormData ? FORM_DATA_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   let res: Response;
   try {
@@ -55,8 +58,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       (e instanceof DOMException && e.name === "AbortError") ||
       (e instanceof Error && e.name === "AbortError");
     if (aborted) {
+      const sec = Math.round(timeoutMs / 1000);
       throw new Error(
-        "Сервер не ответил за 20 с. Запустите API: в папке backend выполните python -m uvicorn app.main:app --reload --port 8000 (и поднимите БД или задайте SQLite: DATABASE_URL=sqlite+aiosqlite:///./crm.db).",
+        `Сервер не ответил за ${sec} с. Запустите API: в папке backend выполните python -m uvicorn app.main:app --reload --port 8000 (и поднимите БД или задайте SQLite: DATABASE_URL=sqlite+aiosqlite:///./crm.db).`,
       );
     }
       throw new Error(
