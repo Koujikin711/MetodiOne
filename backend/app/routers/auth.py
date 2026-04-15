@@ -67,6 +67,12 @@ async def login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect login or password")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Аккаунт отключён")
+    if user.company_id is not None:
+        company = await db.get(Company, int(user.company_id))
+        if company is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Компания не найдена")
+        if not company.is_active:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Компания временно приостановлена")
     extra = {"role": user.role.value}
     if user.company_id is not None:
         extra["company_id"] = int(user.company_id)

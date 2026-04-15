@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_token, jwt_subject
 from app.database import get_db
-from app.models import User, UserRole
+from app.models import Company, User, UserRole
 
 security = HTTPBearer(auto_error=False)
 
@@ -48,19 +48,31 @@ async def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-def get_current_company_id(current_user: CurrentUser) -> int:
+async def get_current_company_id(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> int:
+    cid: int
     if current_user.role == UserRole.super_owner:
         payload = getattr(current_user, "_jwt_payload", {}) or {}
-        cid = payload.get("company_id")
-        if cid is None:
+        payload_cid = payload.get("company_id")
+        if payload_cid is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Выберите компанию (switch context) для выполнения этого запроса",
             )
-        return int(cid)
-    if current_user.company_id is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пользователь не привязан к компании")
-    return int(current_user.company_id)
+        cid = int(payload_cid)
+    else:
+        if current_user.company_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пользователь не привязан к компании")
+        cid = int(current_user.company_id)
+
+    company = await db.get(Company, cid)
+    if company is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Компания не найдена")
+    if not company.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Компания временно приостановлена")
+    return cid
 
 
 CurrentCompanyId = Annotated[int, Depends(get_current_company_id)]
