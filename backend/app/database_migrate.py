@@ -490,11 +490,19 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
                 """CREATE TABLE IF NOT EXISTS companies (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name VARCHAR(255) NOT NULL UNIQUE,
+                    contact_email VARCHAR(320),
+                    external_db_dsn TEXT,
                     is_active INTEGER NOT NULL DEFAULT 1,
                     created_at DATETIME
                 )"""
             )
         )
+        r = await conn.execute(text("PRAGMA table_info(companies)"))
+        company_cols = {row[1] for row in r.fetchall()}
+        if company_cols and "contact_email" not in company_cols:
+            await conn.execute(text("ALTER TABLE companies ADD COLUMN contact_email VARCHAR(320)"))
+        if company_cols and "external_db_dsn" not in company_cols:
+            await conn.execute(text("ALTER TABLE companies ADD COLUMN external_db_dsn TEXT"))
         cid = await conn.scalar(text("SELECT id FROM companies ORDER BY id LIMIT 1"))
         if cid is None:
             await conn.execute(
@@ -541,11 +549,15 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
                 """CREATE TABLE IF NOT EXISTS companies (
                     id SERIAL PRIMARY KEY,
                     name VARCHAR(255) NOT NULL UNIQUE,
+                    contact_email VARCHAR(320),
+                    external_db_dsn TEXT,
                     is_active BOOLEAN NOT NULL DEFAULT TRUE,
                     created_at TIMESTAMPTZ
                 )"""
             )
         )
+        await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_email VARCHAR(320)"))
+        await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS external_db_dsn TEXT"))
         cid = await conn.scalar(text("SELECT id FROM companies ORDER BY id LIMIT 1"))
         if cid is None:
             await conn.execute(
