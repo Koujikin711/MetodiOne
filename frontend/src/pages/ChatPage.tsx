@@ -184,7 +184,7 @@ export function ChatPage() {
         const fd = new FormData();
         fd.append("file", fileToSend);
         if (text.trim()) fd.append("text", text.trim());
-        return apiFetch<ChatMessage>(`/api/chat/threads/${threadId}/messages`, {
+        return apiFetch<ChatMessage>(`/api/chat/threads/${threadId}/messages/attachment`, {
           method: "POST",
           body: fd,
         });
