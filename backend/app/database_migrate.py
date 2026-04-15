@@ -458,22 +458,25 @@ async def ensure_owner_role_migration(conn: AsyncConnection, database_url: str) 
     if hasattr(ac, "__await__"):
         ac = await ac  # type: ignore[assignment]
 
-    enum_exists_q = text(
-        """
-        SELECT 1
-        FROM pg_enum e
-        JOIN pg_type t ON t.oid = e.enumtypid
-        WHERE t.typname = 'user_role' AND e.enumlabel = 'owner'
-        LIMIT 1
-        """,
-    )
-    owner_exists = await ac.scalar(enum_exists_q)
-    if owner_exists is None:
-        await ac.execute(text("ALTER TYPE user_role ADD VALUE 'owner'"))
+    async def _ensure_enum_value(value: str) -> None:
+        exists_q = text(
+            """
+            SELECT 1
+            FROM pg_enum e
+            JOIN pg_type t ON t.oid = e.enumtypid
+            WHERE t.typname = 'user_role' AND e.enumlabel = :val
+            LIMIT 1
+            """,
+        )
+        exists = await ac.scalar(exists_q, {"val": value})
+        if exists is None:
+            await ac.execute(text(f"ALTER TYPE user_role ADD VALUE '{value}'"))
+        exists = await ac.scalar(exists_q, {"val": value})
+        if exists is None:
+            raise RuntimeError(f"Failed to add enum value '{value}' to user_role")
 
-    owner_exists = await ac.scalar(enum_exists_q)
-    if owner_exists is None:
-        raise RuntimeError("Failed to add enum value 'owner' to user_role")
+    await _ensure_enum_value("owner")
+    await _ensure_enum_value("super_owner")
 
     await ac.execute(text("UPDATE users SET role = 'owner' WHERE role::text = 'admin'"))
 
@@ -595,21 +598,4 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
                 {"cid": default_company_id},
             )
 
-        # enum user_role: добавить super_owner (если отсутствует)
-        ac = conn.execution_options(isolation_level="AUTOCOMMIT")
-        if hasattr(ac, "__await__"):
-            ac = await ac  # type: ignore[assignment]
-        has_super_owner = await ac.scalar(
-            text(
-                """
-                SELECT 1
-                FROM pg_enum e
-                JOIN pg_type t ON t.oid = e.enumtypid
-                WHERE t.typname = 'user_role' AND e.enumlabel = 'super_owner'
-                LIMIT 1
-                """,
-            )
-        )
-        if has_super_owner is None:
-            await ac.execute(text("ALTER TYPE user_role ADD VALUE 'super_owner'"))
         return
