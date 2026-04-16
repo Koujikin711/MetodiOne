@@ -28,6 +28,10 @@ export function LoginPage() {
     setSearchParams({}, { replace: true });
     if (session === "expired") {
       setError("Сессия истекла — войдите снова.");
+    } else if (session === "company_suspended") {
+      setError(
+        "Доступ к вашей организации временно приостановлен администратором. Вход в CRM недоступен до возобновления работы компании.",
+      );
     } else {
       setError(
         "Токен не подходит этому серверу (часто после смены SECRET_KEY на хостинге или смены адреса API). Войдите заново.",
@@ -57,7 +61,16 @@ export function LoginPage() {
       setStoredToken(token.access_token);
     },
     onSuccess: () => navigate("/", { replace: true }),
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) => {
+      const m = e.message || "";
+      if (mode === "login" && (m.includes("приостановлен") || m.includes("Компания временно"))) {
+        setError(
+          "Доступ к вашей организации временно приостановлен администратором. Вход в CRM недоступен до возобновления работы компании.",
+        );
+        return;
+      }
+      setError(m || "Не удалось выполнить вход");
+    },
   });
 
   return (
