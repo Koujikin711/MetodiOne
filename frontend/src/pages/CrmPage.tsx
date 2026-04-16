@@ -28,6 +28,7 @@ import type {
   Pipeline,
   PipelineStage,
   Task,
+  TaskListResponse,
   UserRole,
 } from "@/lib/types";
 
@@ -515,13 +516,19 @@ export function CrmPage() {
 
   const tasksQuery = useQuery({
     queryKey: ["tasks"],
-    queryFn: () => apiFetch<Task[]>("/api/tasks"),
+    queryFn: () => apiFetch<Task[] | TaskListResponse>("/api/tasks"),
     refetchInterval: 4000,
   });
+  const tasks = useMemo(() => {
+    const d = tasksQuery.data;
+    if (!d) return [];
+    if (Array.isArray(d)) return d;
+    const items = (d as TaskListResponse).items;
+    return Array.isArray(items) ? items : [];
+  }, [tasksQuery.data]);
   const [seenTaskIds, setSeenTaskIds] = useState<Set<number>>(() => new Set());
   useEffect(() => {
-    const tasks = tasksQuery.data;
-    if (!tasks || tasks.length === 0) return;
+    if (tasks.length === 0) return;
     const pendingNew = tasks.filter((t) => t.status === "pending" && !seenTaskIds.has(t.id));
     if (pendingNew.length === 0) return;
     pendingNew.forEach((t) => toast.success(t.title));
@@ -531,7 +538,7 @@ export function CrmPage() {
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasksQuery.data]);
+  }, [tasks]);
 
   const pipelinesQuery = useQuery({
     queryKey: ["pipelines"],
