@@ -136,6 +136,13 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       }
     }
 
+    /** Компания остановлена super_owner — старый JWT ещё валиден, но доступ к данным закрыт. */
+    if (res.status === 403 && token && message === "Компания временно приостановлена") {
+      setStoredToken(null);
+      window.location.assign("/login?session=company_suspended");
+      throw new Error("Доступ к компании приостановлен. Войдите снова после возобновления работы.");
+    }
+
     throw new Error(message || `Запрос не выполнен (${res.status})`);
   }
   return data as T;
