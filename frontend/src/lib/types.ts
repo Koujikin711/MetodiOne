@@ -137,8 +137,25 @@ export interface Task {
   deadline: string | null;
   status: TaskStatus;
   assigned_to: number | null;
+  assigned_to_name?: string | null;
+  assigned_to_role?: UserRole | null;
+  created_by_user_id?: number | null;
+  created_by_name?: string | null;
+  created_by_role?: UserRole | null;
   description: string | null;
   related_lead_id?: number | null;
+}
+
+export interface TaskAssignee {
+  id: number;
+  full_name?: string | null;
+  email: string;
+  role: UserRole;
+}
+
+export interface TaskListResponse {
+  items: Task[];
+  total: number;
 }
 
 export interface TokenResponse {
@@ -229,21 +246,20 @@ export interface BookingAppointment {
   notification_replied_at?: string | null;
 }
 
-export interface ExpertSalesItem {
+export interface ExpertBookingItem {
   specialist_id: number;
   specialist_name: string;
   specialization: string | null;
-  appointments_completed: number;
-  patients_count: number;
-  paid_amount_sum: string;
+  patients_booked: number;
+  patients_arrived: number;
 }
 
 export interface PipelineExpertReport {
   pipeline_id: number;
   pipeline_name: string;
-  leads_created: number;
-  leads_opened_by_managers: number;
-  sales_by_expert: ExpertSalesItem[];
+  patients_booked: number;
+  patients_arrived: number;
+  experts: ExpertBookingItem[];
 }
 
 export interface ExpertReportsResponse {

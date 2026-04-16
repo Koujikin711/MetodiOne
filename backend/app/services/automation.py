@@ -56,11 +56,13 @@ async def process_lead_automation(
 
     deadline = datetime.now(UTC) + timedelta(hours=24)
     task = Task(
+        company_id=lead.company_id,
         title=AUTOMATION_TASK_TITLE,
         description=AUTOMATION_TASK_DESCRIPTION,
         deadline=deadline,
         status=TaskStatus.pending,
         assigned_to=lead.manager_id,
+        created_by_user_id=None,
         related_lead_id=lead_id,
     )
     session.add(task)

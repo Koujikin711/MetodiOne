@@ -102,6 +102,24 @@ async def _assert_can_manage_appointment_journal(
         )
 
 
+def _assert_expert_specialist_access(current_user: User, specialist: BookingSpecialist) -> None:
+    if current_user.role != UserRole.expert:
+        return
+    if specialist.crm_user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Эксперт может работать только со своими записями",
+        )
+
+
+def _assert_expert_readonly_for_booking(current_user: User) -> None:
+    if current_user.role == UserRole.expert:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Эксперт может только просматривать свои записи (изменения в онлайн-записи недоступны)",
+        )
+
+
 async def _booking_appointment_read(
     db: AsyncSession,
     a: BookingAppointment,
@@ -253,6 +271,7 @@ async def booking_queue_add(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> LeadRead:
+    _assert_expert_readonly_for_booking(current_user)
     q_sid = await _stage_id_by_name(db, settings.booking_queue_stage_name)
     if q_sid is None:
         raise HTTPException(
@@ -318,6 +337,7 @@ async def create_direction(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> BookingDirection:
+    _assert_expert_readonly_for_booking(current_user)
     row = BookingDirection(name=body.name.strip(), duration_min=body.duration_min, is_active=True, company_id=company_id)
     db.add(row)
     try:
@@ -359,6 +379,7 @@ async def create_specialist(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> BookingSpecialistRead:
+    _assert_expert_readonly_for_booking(current_user)
     d = await db.get(BookingDirection, body.direction_id)
     if d is None or d.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное направление")
@@ -398,6 +419,7 @@ async def patch_specialist(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> BookingSpecialistRead:
+    _assert_expert_readonly_for_booking(current_user)
     s = await db.get(BookingSpecialist, specialist_id)
     if s is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
@@ -446,6 +468,7 @@ async def delete_specialist(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> Response:
+    _assert_expert_readonly_for_booking(current_user)
     s = await db.get(BookingSpecialist, specialist_id)
     if s is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
@@ -468,6 +491,7 @@ async def reorder_specialists(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> Response:
+    _assert_expert_readonly_for_booking(current_user)
     active_result = await db.execute(
         select(BookingSpecialist.id).where(BookingSpecialist.is_active.is_(True)),
     )
@@ -601,6 +625,8 @@ async def list_appointments(
         q = q.where(BookingAppointment.start_at >= day_start, BookingAppointment.start_at < day_end)
     if specialist_id is not None:
         q = q.where(BookingAppointment.specialist_id == specialist_id)
+    if current_user.role == UserRole.expert:
+        q = q.where(BookingSpecialist.crm_user_id == current_user.id)
     q = q.order_by(BookingAppointment.start_at.asc())
     result = await db.execute(q)
     out: list[BookingAppointmentRead] = []
@@ -624,12 +650,14 @@ async def create_appointment(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
+    _assert_expert_readonly_for_booking(current_user)
     direction = await db.get(BookingDirection, body.direction_id)
     if direction is None or direction.company_id != company_id or not direction.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
     specialist = await db.get(BookingSpecialist, body.specialist_id)
     if specialist is None or specialist.company_id != company_id or not specialist.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
+    _assert_expert_specialist_access(current_user, specialist)
     if specialist.direction_id != body.direction_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Специалист не относится к выбранному направлению")
 
@@ -741,15 +769,21 @@ async def move_appointment(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
+    _assert_expert_readonly_for_booking(current_user)
     appt = await db.get(BookingAppointment, appointment_id)
     if appt is None or appt.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+    if current_user.role == UserRole.expert and appt.specialist_id is not None:
+        current_spec = await db.get(BookingSpecialist, appt.specialist_id)
+        if current_spec is not None:
+            _assert_expert_specialist_access(current_user, current_spec)
     if appt.status != "booked":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Перенос доступен только для активных записей")
 
     specialist = await db.get(BookingSpecialist, body.specialist_id)
     if specialist is None or specialist.company_id != company_id or not specialist.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
+    _assert_expert_specialist_access(current_user, specialist)
 
     direction = await db.get(BookingDirection, appt.direction_id)
     if direction is None or not direction.is_active:
@@ -806,9 +840,14 @@ async def patch_appointment_status(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
+    _assert_expert_readonly_for_booking(current_user)
     a = await db.get(BookingAppointment, appointment_id)
     if a is None or a.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+    if current_user.role == UserRole.expert and a.specialist_id is not None:
+        specialist = await db.get(BookingSpecialist, a.specialist_id)
+        if specialist is not None:
+            _assert_expert_specialist_access(current_user, specialist)
 
     a.status = body.status
     a.updated_at = datetime.now(UTC)
@@ -846,6 +885,7 @@ async def patch_appointment_payment(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
+    _assert_expert_readonly_for_booking(current_user)
     appt = await db.get(BookingAppointment, appointment_id)
     if appt is None or appt.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
@@ -892,6 +932,7 @@ async def delete_appointment(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> Response:
+    _assert_expert_readonly_for_booking(current_user)
     appt = await db.get(BookingAppointment, appointment_id)
     if appt is None or appt.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")

@@ -83,6 +83,12 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Мои лиды</span>
                 </NavLink>
+                <NavLink to="/tasks" className={navLinkClass} title="Задачи">
+                  <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <CheckSquare className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
+                </NavLink>
               </>
             ) : isExpert ? (
               <>
@@ -103,6 +109,12 @@ export function MainLayout() {
                     <MessageCircle className="h-[18px] w-[18px]" />
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
+                </NavLink>
+                <NavLink to="/tasks" className={navLinkClass} title="Задачи">
+                  <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <CheckSquare className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
                 </NavLink>
               </>
             ) : (
@@ -212,6 +224,12 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Чат</span>
               </NavLink>
+              <NavLink to="/tasks" className={navLinkClass} title="Задачи">
+                <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <CheckSquare className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Задачи</span>
+              </NavLink>
               <button
                 type="button"
                 onClick={logout}
@@ -243,6 +261,12 @@ export function MainLayout() {
                   <MessageCircle className="h-4 w-4" />
                 </GradientIconBox>
                 <span className="text-[9px]">Чат</span>
+              </NavLink>
+              <NavLink to="/tasks" className={navLinkClass} title="Задачи">
+                <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <CheckSquare className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Задачи</span>
               </NavLink>
               <button
                 type="button"

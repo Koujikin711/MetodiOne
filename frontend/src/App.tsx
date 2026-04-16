@@ -27,14 +27,7 @@ export default function App() {
             <Route path="/my-leads" element={<MyLeadsPage />} />
             <Route path="/booking" element={<OnlineBookingPage />} />
             <Route path="/leads/:id" element={<LeadDetailPage />} />
-            <Route
-              path="/tasks"
-              element={
-                <RequireNotManager>
-                  <TasksPage />
-                </RequireNotManager>
-              }
-            />
+            <Route path="/tasks" element={<TasksPage />} />
             <Route
               path="/analytics"
               element={

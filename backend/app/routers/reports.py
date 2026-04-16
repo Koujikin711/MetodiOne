@@ -1,15 +1,14 @@
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import distinct, func, select
+from sqlalchemy import case, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser
 from app.database import get_db
-from app.models import BookingAppointment, BookingSpecialist, Lead, LeadAuditEvent, Pipeline, PipelineStage, User, UserRole
-from app.schemas.reports import ExpertReportsResponse, ExpertSalesItem, PipelineExpertReport
+from app.models import BookingAppointment, BookingSpecialist, Pipeline, UserRole
+from app.schemas.reports import ExpertBookingItem, ExpertReportsResponse, PipelineExpertReport
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -19,12 +18,10 @@ def _period_bounds(period: str, date_from: str | None, date_to: str | None) -> t
     if period == "day":
         start = datetime(now.year, now.month, now.day, tzinfo=UTC)
         return start, start + timedelta(days=1)
-    if period == "month":
-        start = datetime(now.year, now.month, 1, tzinfo=UTC)
-        if now.month == 12:
-            end = datetime(now.year + 1, 1, 1, tzinfo=UTC)
-        else:
-            end = datetime(now.year, now.month + 1, 1, tzinfo=UTC)
+    if period == "week":
+        day_start = datetime(now.year, now.month, now.day, tzinfo=UTC)
+        start = day_start - timedelta(days=day_start.weekday())
+        end = start + timedelta(days=7)
         return start, end
     if period == "custom":
         if not date_from or not date_to:
@@ -39,7 +36,7 @@ def _period_bounds(period: str, date_from: str | None, date_to: str | None) -> t
         if end <= start:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Период задан неверно")
         return start, end
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="period: day | month | custom")
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="period: day | week | custom")
 
 
 @router.get("/expert", response_model=ExpertReportsResponse)
@@ -63,72 +60,48 @@ async def expert_reports(
 
     items: list[PipelineExpertReport] = []
     for pipe in pipes:
-        # Leads created in pipeline during period
-        leads_created = int(
-            await db.scalar(
-                select(func.count(Lead.id))
-                .join(PipelineStage, PipelineStage.id == Lead.status_id)
-                .where(
-                    PipelineStage.pipeline_id == pipe.id,
-                    Lead.created_at.is_not(None),
-                    Lead.created_at >= start,
-                    Lead.created_at < end,
-                )
-            )
-            or 0
-        )
-
-        # Processed by managers/admins: count distinct leads whose card was opened by a manager/admin in period.
-        opened = int(
-            await db.scalar(
-                select(func.count(distinct(LeadAuditEvent.lead_id)))
-                .join(Lead, Lead.id == LeadAuditEvent.lead_id)
-                .join(PipelineStage, PipelineStage.id == Lead.status_id)
-                .join(User, User.id == LeadAuditEvent.user_id)
-                .where(
-                    PipelineStage.pipeline_id == pipe.id,
-                    LeadAuditEvent.action == "card_opened",
-                    LeadAuditEvent.created_at >= start,
-                    LeadAuditEvent.created_at < end,
-                    User.role.in_([UserRole.manager, UserRole.admin]),
-                )
-            )
-            or 0
-        )
-
-        # Sales from online booking: use appointment pipeline snapshot (stable even after lead moves).
+        # Отчёт эксперта: только данные таблицы онлайн-записи.
         rows = (
             await db.execute(
                 select(
                     BookingSpecialist.id,
                     BookingSpecialist.full_name,
                     BookingSpecialist.specialization,
-                    func.count(BookingAppointment.id).label("appt_cnt"),
-                    func.count(distinct(BookingAppointment.patient_phone)).label("patients_cnt"),
-                    func.coalesce(func.sum(BookingAppointment.paid_amount), 0).label("paid_sum"),
+                    func.count(distinct(BookingAppointment.patient_phone)).label("patients_booked"),
+                    func.count(
+                        distinct(
+                            case(
+                                (BookingAppointment.status == "completed", BookingAppointment.patient_phone),
+                            )
+                        )
+                    ).label("patients_arrived"),
                 )
                 .join(BookingSpecialist, BookingSpecialist.id == BookingAppointment.specialist_id)
                 .where(
                     BookingAppointment.pipeline_id == pipe.id,
-                    BookingAppointment.status == "completed",
                     BookingAppointment.start_at >= start,
                     BookingAppointment.start_at < end,
                 )
                 .group_by(BookingSpecialist.id, BookingSpecialist.full_name, BookingSpecialist.specialization)
-                .order_by(func.count(BookingAppointment.id).desc(), BookingSpecialist.id.asc())
+                .order_by(func.count(distinct(BookingAppointment.patient_phone)).desc(), BookingSpecialist.id.asc())
             )
         ).all()
 
-        sales: list[ExpertSalesItem] = []
-        for sid, full_name, spec, appt_cnt, patients_cnt, paid_sum in rows:
-            sales.append(
-                ExpertSalesItem(
+        experts: list[ExpertBookingItem] = []
+        total_booked = 0
+        total_arrived = 0
+        for sid, full_name, spec, patients_booked, patients_arrived in rows:
+            pb = int(patients_booked or 0)
+            pa = int(patients_arrived or 0)
+            total_booked += pb
+            total_arrived += pa
+            experts.append(
+                ExpertBookingItem(
                     specialist_id=int(sid),
                     specialist_name=str(full_name),
                     specialization=(str(spec).strip() if spec else None),
-                    appointments_completed=int(appt_cnt or 0),
-                    patients_count=int(patients_cnt or 0),
-                    paid_amount_sum=Decimal(str(paid_sum or 0)),
+                    patients_booked=pb,
+                    patients_arrived=pa,
                 )
             )
 
@@ -136,9 +109,9 @@ async def expert_reports(
             PipelineExpertReport(
                 pipeline_id=pipe.id,
                 pipeline_name=pipe.name,
-                leads_created=leads_created,
-                leads_opened_by_managers=opened,
-                sales_by_expert=sales,
+                patients_booked=total_booked,
+                patients_arrived=total_arrived,
+                experts=experts,
             )
         )
 

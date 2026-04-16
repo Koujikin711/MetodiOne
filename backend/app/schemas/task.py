@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.models import TaskStatus
+from app.models import TaskStatus, UserRole
 
 
 class TaskCreate(BaseModel):
@@ -11,6 +11,7 @@ class TaskCreate(BaseModel):
     status: TaskStatus = TaskStatus.pending
     assigned_to: int | None = None
     description: str | None = None
+    related_lead_id: int | None = None
 
 
 class TaskUpdate(BaseModel):
@@ -19,6 +20,7 @@ class TaskUpdate(BaseModel):
     status: TaskStatus | None = None
     assigned_to: int | None = None
     description: str | None = None
+    related_lead_id: int | None = None
 
 
 class TaskRead(BaseModel):
@@ -27,7 +29,24 @@ class TaskRead(BaseModel):
     deadline: datetime | None
     status: TaskStatus
     assigned_to: int | None
+    assigned_to_name: str | None = None
+    assigned_to_role: UserRole | None = None
+    created_by_user_id: int | None = None
+    created_by_name: str | None = None
+    created_by_role: UserRole | None = None
     description: str | None
     related_lead_id: int | None = None
 
     model_config = {"from_attributes": True}
+
+
+class TaskAssigneeRead(BaseModel):
+    id: int
+    full_name: str | None = None
+    email: str
+    role: UserRole
+
+
+class TaskListResponse(BaseModel):
+    items: list[TaskRead]
+    total: int

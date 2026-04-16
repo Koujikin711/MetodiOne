@@ -55,6 +55,8 @@ export function OnlineBookingPage() {
   const [responsibleManagerId, setResponsibleManagerId] = useState("");
   const [comment, setComment] = useState("");
   const currentRole = decodeRoleFromToken(getStoredToken());
+  const isExpert = currentRole === "expert";
+  const canEditBooking = !isExpert;
 
   const [dirName, setDirName] = useState("");
   const [dirDuration, setDirDuration] = useState(30);
@@ -371,6 +373,12 @@ export function OnlineBookingPage() {
   }, [newLeadPipelineId, pipelinesQuery.data]);
 
   useEffect(() => {
+    if (!canEditBooking && tab === "dicts") {
+      setTab("online");
+    }
+  }, [canEditBooking, tab]);
+
+  useEffect(() => {
     const first = leadStagesQuery.data?.[0];
     if (!first) return;
     if (newLeadStageId != null && leadStagesQuery.data?.some((s) => s.id === newLeadStageId)) return;
@@ -472,6 +480,10 @@ export function OnlineBookingPage() {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!canEditBooking) {
+      toast.error("Эксперт может только просматривать свои записи");
+      return;
+    }
     if (!directionId || !specialistId || !startAt) {
       toast.error("Заполните направление, специалиста и дату.");
       return;
@@ -557,7 +569,7 @@ export function OnlineBookingPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {tabBtn("online", "Онлайн-записи")}
-          {tabBtn("dicts", "Справочники")}
+          {canEditBooking ? tabBtn("dicts", "Справочники") : null}
           {tabBtn("journal", "Журнал")}
         </div>
       </header>
@@ -587,12 +599,12 @@ export function OnlineBookingPage() {
                 specialists={specialistsActive}
                 appointments={gridAppointmentsQuery.data ?? []}
                 onAppointmentClick={onCalendarAppointmentClick}
-                onSlotClick={handleSlotClick}
-                onMoveAppointment={handleMoveAppointment}
-                onAddSpecialist={openAddSpecialistModal}
-                onEditSpecialist={openEditSpecialistModal}
-                onDeleteSpecialist={(s) => deleteSpecialistUserMutation.mutate(s.id)}
-                onReorderSpecialists={(orderedIds) => reorderSpecialistsMutation.mutate(orderedIds)}
+                onSlotClick={canEditBooking ? handleSlotClick : undefined}
+                onMoveAppointment={canEditBooking ? handleMoveAppointment : undefined}
+                onAddSpecialist={canEditBooking ? openAddSpecialistModal : undefined}
+                onEditSpecialist={canEditBooking ? openEditSpecialistModal : undefined}
+                onDeleteSpecialist={canEditBooking ? (s) => deleteSpecialistUserMutation.mutate(s.id) : undefined}
+                onReorderSpecialists={canEditBooking ? (orderedIds) => reorderSpecialistsMutation.mutate(orderedIds) : undefined}
               />
               {gridAppointmentsQuery.isLoading && (
                 <p className="mt-3 text-sm text-slate-400">Загрузка записей…</p>
@@ -601,15 +613,16 @@ export function OnlineBookingPage() {
             <aside className="flex w-full min-w-0 max-w-[340px] flex-col gap-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
               <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
 
-              <section
-              ref={formPanelRef}
-              className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 shadow-inner backdrop-blur-sm ring-1 ring-purple-500/15"
-            >
-              <h2 className="mb-1 text-lg font-semibold text-white">Новая запись</h2>
-              <p className="mb-4 text-[11px] text-slate-500">
-                Кликните по слоту в сетке и заполните данные клиента.
-              </p>
-              <form onSubmit={onSubmit} className="space-y-3">
+              {canEditBooking ? (
+                <section
+                  ref={formPanelRef}
+                  className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 shadow-inner backdrop-blur-sm ring-1 ring-purple-500/15"
+                >
+                  <h2 className="mb-1 text-lg font-semibold text-white">Новая запись</h2>
+                  <p className="mb-4 text-[11px] text-slate-500">
+                    Кликните по слоту в сетке и заполните данные клиента.
+                  </p>
+                  <form onSubmit={onSubmit} className="space-y-3">
                 {leadId != null && (
                   <p className="text-xs text-emerald-400/90">
                     Привязан лид #{leadId} — после сохранения он перейдёт в «В работе».
@@ -753,21 +766,27 @@ export function OnlineBookingPage() {
                     className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
                   />
                 </label>
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending}
-                  className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 transition hover:opacity-95 disabled:opacity-50"
-                >
-                  {createMutation.isPending ? "Сохранение…" : "Записать"}
-                </button>
-              </form>
-              </section>
+                    <button
+                      type="submit"
+                      disabled={createMutation.isPending}
+                      className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 transition hover:opacity-95 disabled:opacity-50"
+                    >
+                      {createMutation.isPending ? "Сохранение…" : "Записать"}
+                    </button>
+                  </form>
+                </section>
+              ) : (
+                <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 text-sm text-slate-300 shadow-inner backdrop-blur-sm">
+                  <h2 className="mb-2 text-lg font-semibold text-white">Режим эксперта</h2>
+                  <p>Доступен только просмотр ваших записей в календаре и журнале.</p>
+                </section>
+              )}
             </aside>
           </div>
         </div>
       )}
 
-      {tab === "dicts" && (
+      {tab === "dicts" && canEditBooking && (
         <div className="grid gap-6 md:grid-cols-2">
           <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
             <h2 className="mb-4 text-lg font-semibold text-white">Направления</h2>
@@ -992,19 +1011,23 @@ export function OnlineBookingPage() {
                       )}
                     </td>
                     <td className="py-2 pr-4">
-                      <select
-                        value={a.status}
-                        onChange={(e) =>
-                          statusMutation.mutate({ id: a.id, status: e.target.value })
-                        }
-                        className="rounded-lg border border-slate-600/50 bg-slate-900/80 px-2 py-1 text-white"
-                      >
-                        {Object.entries(statusLabels).map(([k, v]) => (
-                          <option key={k} value={k}>
-                            {v}
-                          </option>
-                        ))}
-                      </select>
+                      {canEditBooking ? (
+                        <select
+                          value={a.status}
+                          onChange={(e) =>
+                            statusMutation.mutate({ id: a.id, status: e.target.value })
+                          }
+                          className="rounded-lg border border-slate-600/50 bg-slate-900/80 px-2 py-1 text-white"
+                        >
+                          {Object.entries(statusLabels).map(([k, v]) => (
+                            <option key={k} value={k}>
+                              {v}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-slate-300">{statusLabels[a.status] ?? a.status}</span>
+                      )}
                     </td>
                     {(journalQuery.data ?? []).some((x) => x.can_manage_journal) && (
                       <td className="py-2 pr-4">

@@ -4,14 +4,8 @@ import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import type { ExpertReportsResponse } from "@/lib/types";
 
-const moneyFmt = new Intl.NumberFormat("ru-RU", {
-  style: "currency",
-  currency: "RUB",
-  maximumFractionDigits: 0,
-});
-
 export function ExpertReportsPage() {
-  const [period, setPeriod] = useState<"day" | "month" | "custom">("day");
+  const [period, setPeriod] = useState<"day" | "week" | "custom">("day");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -43,11 +37,11 @@ export function ExpertReportsPage() {
         <div className="grid gap-3 md:grid-cols-[200px_170px_170px_1fr]">
           <select
             value={period}
-            onChange={(e) => setPeriod(e.target.value as "day" | "month" | "custom")}
+            onChange={(e) => setPeriod(e.target.value as "day" | "week" | "custom")}
             className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
           >
-            <option value="day">За день</option>
-            <option value="month">За месяц</option>
+            <option value="day">За сегодня</option>
+            <option value="week">За неделю</option>
             <option value="custom">За период</option>
           </select>
           <input
@@ -79,10 +73,10 @@ export function ExpertReportsPage() {
             <h2 className="text-lg font-semibold text-white">{p.pipeline_name}</h2>
             <div className="flex flex-wrap gap-3 text-sm text-slate-300">
               <span>
-                <span className="text-slate-500">Лидов пришло:</span> {p.leads_created}
+                <span className="text-slate-500">Записано пациентов:</span> {p.patients_booked}
               </span>
               <span>
-                <span className="text-slate-500">Открыто менеджерами:</span> {p.leads_opened_by_managers}
+                <span className="text-slate-500">Пришло пациентов:</span> {p.patients_arrived}
               </span>
             </div>
           </div>
@@ -92,13 +86,12 @@ export function ExpertReportsPage() {
               <thead>
                 <tr className="border-b border-slate-700 text-slate-400">
                   <th className="py-2 pr-4">Эксперт</th>
-                  <th className="py-2 pr-4">Продаж (завершённых записей)</th>
-                  <th className="py-2 pr-4">Пациентов пришло</th>
-                  <th className="py-2 pr-4">Оплачено</th>
+                  <th className="py-2 pr-4">Записано пациентов</th>
+                  <th className="py-2 pr-4">Пришло пациентов</th>
                 </tr>
               </thead>
               <tbody>
-                {(p.sales_by_expert ?? []).map((x) => (
+                {(p.experts ?? []).map((x) => (
                   <tr key={x.specialist_id} className="border-b border-slate-800/80">
                     <td className="py-2 pr-4">
                       {x.specialist_name}
@@ -106,15 +99,14 @@ export function ExpertReportsPage() {
                         <span className="block text-xs text-slate-500">{x.specialization}</span>
                       ) : null}
                     </td>
-                    <td className="py-2 pr-4">{x.appointments_completed}</td>
-                    <td className="py-2 pr-4">{x.patients_count}</td>
-                    <td className="py-2 pr-4">{moneyFmt.format(Number(x.paid_amount_sum || 0))}</td>
+                    <td className="py-2 pr-4">{x.patients_booked}</td>
+                    <td className="py-2 pr-4">{x.patients_arrived}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {!query.isLoading && (p.sales_by_expert ?? []).length === 0 && (
-              <p className="py-5 text-center text-sm text-slate-500">Нет завершённых записей за период</p>
+            {!query.isLoading && (p.experts ?? []).length === 0 && (
+              <p className="py-5 text-center text-sm text-slate-500">Нет записей за период</p>
             )}
           </div>
         </section>
