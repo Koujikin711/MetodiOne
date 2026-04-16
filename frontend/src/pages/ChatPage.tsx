@@ -151,6 +151,8 @@ export function ChatPage() {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceFinishing, setVoiceFinishing] = useState(false);
+  const [voiceDraftFile, setVoiceDraftFile] = useState<File | null>(null);
+  const [voiceDraftUrl, setVoiceDraftUrl] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<BlobPart[]>([]);
   const recordStreamRef = useRef<MediaStream | null>(null);
@@ -233,6 +235,7 @@ export function ChatPage() {
     return () => {
       stopVoiceRecording();
       recordStreamRef.current?.getTracks().forEach((t) => t.stop());
+      if (voiceDraftUrl) URL.revokeObjectURL(voiceDraftUrl);
     };
   }, []);
 
@@ -242,7 +245,16 @@ export function ChatPage() {
     recordStreamRef.current = null;
     setIsRecording(false);
     setVoiceFinishing(false);
+    if (voiceDraftUrl) URL.revokeObjectURL(voiceDraftUrl);
+    setVoiceDraftUrl(null);
+    setVoiceDraftFile(null);
   }, [threadId]);
+
+  const clearVoiceDraft = () => {
+    if (voiceDraftUrl) URL.revokeObjectURL(voiceDraftUrl);
+    setVoiceDraftUrl(null);
+    setVoiceDraftFile(null);
+  };
 
   const startVoiceRecording = async () => {
     if (threadId == null) return;
@@ -254,6 +266,7 @@ export function ChatPage() {
     const startedForThread = threadId;
     try {
       setPendingFile(null);
+      clearVoiceDraft();
       if (fileInputRef.current) fileInputRef.current.value = "";
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recordStreamRef.current = stream;
@@ -298,9 +311,10 @@ export function ChatPage() {
                 ? "ogg"
                 : "webm";
           const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type || chosenMime });
-          sendMutation.mutate(file, {
-            onSettled: () => setVoiceFinishing(false),
-          });
+          const url = URL.createObjectURL(blob);
+          setVoiceDraftFile(file);
+          setVoiceDraftUrl(url);
+          setVoiceFinishing(false);
         }, 150);
       };
       // Интервал + пауза после stop: иначе часть браузеров отдаёт 0 байт на сервер.
@@ -329,6 +343,14 @@ export function ChatPage() {
       return;
     }
     void startVoiceRecording();
+  };
+
+  const sendVoiceDraft = () => {
+    if (!voiceDraftFile) return;
+    sendMutation.mutate(voiceDraftFile, {
+      onSuccess: () => clearVoiceDraft(),
+      onSettled: () => setVoiceFinishing(false),
+    });
   };
 
   return (
@@ -434,6 +456,10 @@ export function ChatPage() {
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (isRecording || voiceFinishing) return;
+                  if (voiceDraftFile) {
+                    sendVoiceDraft();
+                    return;
+                  }
                   if (!text.trim() && !pendingFile) return;
                   sendMutation.mutate(undefined);
                 }}
@@ -464,6 +490,8 @@ export function ChatPage() {
                       ? "Отправка голосового…"
                       : isRecording
                         ? "Идёт запись… нажмите зелёную кнопку ещё раз, чтобы отправить"
+                        : voiceDraftFile
+                          ? "Голосовое готово — прослушайте и отправьте"
                         : pendingFile
                           ? "Подпись (необязательно)…"
                           : "Сообщение клиенту…"
@@ -474,10 +502,10 @@ export function ChatPage() {
                 <button
                   type="button"
                   onClick={toggleVoiceRecording}
-                  disabled={sendMutation.isPending || (voiceFinishing && !isRecording)}
+                  disabled={sendMutation.isPending || (voiceFinishing && !isRecording) || !!voiceDraftFile}
                   title={
                     isRecording
-                      ? "Нажмите ещё раз, чтобы остановить и отправить"
+                      ? "Нажмите ещё раз, чтобы остановить"
                       : "Записать голосовое сообщение"
                   }
                   className={[
@@ -486,7 +514,7 @@ export function ChatPage() {
                       ? "animate-pulse bg-red-600 hover:bg-red-500"
                       : "bg-emerald-600 hover:bg-emerald-500",
                   ].join(" ")}
-                  aria-label={isRecording ? "Остановить и отправить" : "Записать голосовое"}
+                  aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
                 >
                   {isRecording ? (
                     <span className="block h-3.5 w-3.5 rounded-sm bg-white" aria-hidden />
@@ -500,18 +528,42 @@ export function ChatPage() {
                     sendMutation.isPending ||
                     isRecording ||
                     voiceFinishing ||
-                    (!text.trim() && !pendingFile)
+                    (!voiceDraftFile && !text.trim() && !pendingFile)
                   }
                   className="shrink-0 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                 >
-                  Отправить
+                  {voiceDraftFile ? "Отправить голосовое" : "Отправить"}
                 </button>
               </form>
               {isRecording && (
-                <p className="mt-1 text-xs font-medium text-red-300/90">● Запись… нажмите круглую кнопку ещё раз, чтобы отправить</p>
+                <p className="mt-1 text-xs font-medium text-red-300/90">● Запись… нажмите круглую кнопку ещё раз, чтобы остановить</p>
               )}
               {voiceFinishing && !isRecording && (
                 <p className="mt-1 text-xs text-slate-400">Отправка голосового…</p>
+              )}
+              {voiceDraftUrl && voiceDraftFile && !isRecording && !voiceFinishing && (
+                <div className="mt-2 rounded-xl border border-slate-700/50 bg-slate-900/30 p-3">
+                  <div className="text-xs font-semibold text-slate-200">Предпрослушивание голосового</div>
+                  <audio src={voiceDraftUrl} controls className="mt-2 w-full max-w-md" />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={sendVoiceDraft}
+                      disabled={sendMutation.isPending}
+                      className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                    >
+                      Отправить
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearVoiceDraft}
+                      disabled={sendMutation.isPending}
+                      className="rounded-xl border border-slate-600 bg-slate-900/50 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-50"
+                    >
+                      Отменить
+                    </button>
+                  </div>
+                </div>
               )}
               {pendingFile && !isRecording && (
                 <p className="mt-1 text-xs text-slate-400">Вложение: {pendingFile.name}</p>

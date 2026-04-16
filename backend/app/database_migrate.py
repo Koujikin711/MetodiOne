@@ -540,6 +540,10 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
                 text(f"UPDATE {tn} SET company_id = :cid WHERE company_id IS NULL"),
                 {"cid": default_company_id},
             )
+        task_info = await conn.execute(text("PRAGMA table_info(tasks)"))
+        task_cols = {row[1] for row in task_info.fetchall()}
+        if task_cols and "created_by_user_id" not in task_cols:
+            await conn.execute(text("ALTER TABLE tasks ADD COLUMN created_by_user_id INTEGER"))
 
         return
 
@@ -583,6 +587,7 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
             "ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS company_id INTEGER",
             "ALTER TABLE deals ADD COLUMN IF NOT EXISTS company_id INTEGER",
             "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by_user_id INTEGER",
         ]
         for s in stmts:
             await conn.execute(text(s))

@@ -18,6 +18,7 @@ from app.models import (
     Integration,
     IntegrationProvider,
     Lead,
+    Pipeline,
     User,
     UserPipelineAssignment,
     UserRole,
@@ -77,8 +78,29 @@ async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
     return {r[0] for r in rows.all()}
 
 
+async def _expert_pipeline_ids(db: AsyncSession, *, user_id: int, company_id: int) -> set[int]:
+    rows = await db.execute(
+        select(Pipeline.id).where(
+            Pipeline.company_id == company_id,
+            Pipeline.expert_user_id == user_id,
+        )
+    )
+    return {int(r[0]) for r in rows.all()}
+
+
 async def _assert_thread_access(db: AsyncSession, thread: ChatThread, current_user) -> None:
     if current_user.role == UserRole.owner:
+        return
+    if current_user.role == UserRole.expert:
+        if thread.pipeline_id is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Thread is outside expert pipelines")
+        allowed = await _expert_pipeline_ids(
+            db,
+            user_id=current_user.id,
+            company_id=int(thread.company_id or 0),
+        )
+        if thread.pipeline_id not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Thread is outside expert pipelines")
         return
     if current_user.role not in (UserRole.manager, UserRole.admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
@@ -285,7 +307,7 @@ async def list_threads(
     company_id: CurrentCompanyId,
     q: str | None = Query(default=None, max_length=120),
 ) -> list[ChatThreadRead]:
-    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin):
+    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.expert):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
     term = (q or "").strip()
     query = select(ChatThread).outerjoin(Lead, Lead.id == ChatThread.lead_id).where(ChatThread.company_id == company_id)
@@ -297,6 +319,11 @@ async def list_threads(
             ChatThread.pipeline_id.in_(allowed),
             Lead.manager_id == current_user.id,
         )
+    if current_user.role == UserRole.expert:
+        allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
+        if not allowed:
+            return []
+        query = query.where(ChatThread.pipeline_id.in_(allowed))
     if term:
         like = f"%{term}%"
         conds = [

@@ -13,7 +13,7 @@ from app.config import settings
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.rbac import is_manager_like
 from app.database import get_db
-from app.models import Deal, Integration, Lead, LeadAuditEvent, PipelineStage, Task, TaskStatus, User, UserPipelineAssignment, UserRole
+from app.models import Deal, Integration, Lead, LeadAuditEvent, Pipeline, PipelineStage, Task, TaskStatus, User, UserPipelineAssignment, UserRole
 from app.schemas.lead import (
     LeadCreate,
     LeadImportErrorItem,
@@ -117,6 +117,34 @@ async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
     return {r[0] for r in rows.all()}
 
 
+async def _expert_pipeline_ids(db: AsyncSession, *, user_id: int, company_id: int) -> set[int]:
+    rows = await db.execute(
+        select(Pipeline.id).where(
+            Pipeline.company_id == company_id,
+            Pipeline.expert_user_id == user_id,
+        ),
+    )
+    return {int(r[0]) for r in rows.all()}
+
+
+async def _assert_expert_lead_access(
+    db: AsyncSession,
+    *,
+    current_user: User,
+    lead: Lead,
+    company_id: int,
+) -> None:
+    if current_user.role != UserRole.expert:
+        return
+    await db.refresh(lead, ["stage"])
+    pid = lead.stage.pipeline_id if lead.stage else None
+    if pid is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Лид не привязан к воронке эксперта")
+    allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
+    if pid not in allowed:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Лид не относится к воронке эксперта")
+
+
 async def _pipelines_with_manager_close_deal(db: AsyncSession) -> set[int]:
     r = await db.execute(
         select(Integration.pipeline_id)
@@ -206,6 +234,7 @@ async def _enrich_leads_close_deal(
 async def _notify_by_roles(
     db: AsyncSession,
     *,
+    company_id: int,
     lead_id: int,
     title: str,
     assigned_roles: list[UserRole],
@@ -213,7 +242,9 @@ async def _notify_by_roles(
 ) -> None:
     if not assigned_roles:
         return
-    result = await db.execute(select(User.id).where(User.role.in_(assigned_roles)))
+    result = await db.execute(
+        select(User.id).where(User.company_id == company_id, User.is_active.is_(True), User.role.in_(assigned_roles))
+    )
     user_ids = [row[0] for row in result.all()]
     if not user_ids:
         return
@@ -221,10 +252,12 @@ async def _notify_by_roles(
     for uid in user_ids:
         db.add(
             Task(
+                company_id=company_id,
                 title=title,
                 deadline=None,
                 status=TaskStatus.pending,
                 assigned_to=uid,
+                created_by_user_id=None,
                 description=description,
                 related_lead_id=lead_id,
             )
@@ -410,6 +443,10 @@ async def list_leads(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Воронка недоступна",
                 )
+        if current_user.role == UserRole.expert:
+            allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
+            if not allowed or pipeline_id not in allowed:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Воронка недоступна эксперту")
         rn = func.row_number().over(partition_by=Lead.status_id, order_by=Lead.id.desc()).label("rn")
         ranked = (
             select(Lead.id.label("lead_id"), rn)
@@ -440,6 +477,14 @@ async def list_leads(
             PipelineStage.pipeline_id.in_(allowed),
             Lead.manager_id == current_user.id,
         )
+    if current_user.role == UserRole.expert:
+        allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
+        if not allowed:
+            return []
+        q = q.join(PipelineStage, PipelineStage.id == Lead.status_id).where(
+            PipelineStage.company_id == company_id,
+            PipelineStage.pipeline_id.in_(allowed),
+        )
     result = await db.execute(q)
     leads = result.scalars().unique().all()
     return await _leads_to_read_with_deals(db, leads, current_user)
@@ -464,6 +509,10 @@ async def list_leads_table(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Воронка недоступна",
             )
+    if current_user.role == UserRole.expert:
+        allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
+        if not allowed or pipeline_id not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Воронка недоступна эксперту")
 
     if status_id is not None:
         st = await db.get(PipelineStage, status_id)
@@ -643,6 +692,7 @@ async def get_lead(
     if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
+    await _assert_expert_lead_access(db, current_user=current_user, lead=lead, company_id=company_id)
     if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if (lead.stage.pipeline_id if lead.stage else None) not in allowed:
@@ -926,6 +976,7 @@ async def update_lead_status(
     lead = await db.get(Lead, lead_id)
     if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await _assert_expert_lead_access(db, current_user=current_user, lead=lead, company_id=company_id)
 
     from_stage = await db.get(PipelineStage, lead.status_id)
     if from_stage is None:
@@ -1004,6 +1055,7 @@ async def lead_arrival(
     lead = await db.get(Lead, lead_id)
     if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await _assert_expert_lead_access(db, current_user=current_user, lead=lead, company_id=company_id)
     await db.refresh(lead, ["stage"])
 
     if lead.stage is None or lead.stage.name != "Запись":
@@ -1031,6 +1083,7 @@ async def lead_arrival(
 
     await _notify_by_roles(
         db,
+        company_id=company_id,
         lead_id=lead.id,
         title="Появилась запись (явка) — перейдите в карточку",
         assigned_roles=[UserRole.expert],
@@ -1053,6 +1106,7 @@ async def lead_no_show(
     lead = await db.get(Lead, lead_id)
     if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await _assert_expert_lead_access(db, current_user=current_user, lead=lead, company_id=company_id)
     await db.refresh(lead, ["stage"])
 
     if lead.stage is None or lead.stage.name != "Запись":
@@ -1113,6 +1167,7 @@ async def lead_service_done(
     lead = await db.get(Lead, lead_id)
     if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await _assert_expert_lead_access(db, current_user=current_user, lead=lead, company_id=company_id)
     await db.refresh(lead, ["stage"])
 
     if lead.stage is None or lead.stage.name not in {"У эксперта", "Оказание услуги"}:
@@ -1142,6 +1197,7 @@ async def lead_service_done(
 
     await _notify_by_roles(
         db,
+        company_id=company_id,
         lead_id=lead.id,
         title="Нужны доп. услуги по записи — откройте карточку",
         assigned_roles=[UserRole.manager, UserRole.admin],
@@ -1253,6 +1309,7 @@ async def add_extra_service_to_cart(
     if is_protocol:
         await _notify_by_roles(
             db,
+            company_id=company_id,
             lead_id=lead.id,
             title="Запрос по протоколу: вы написали протокол?",
             assigned_roles=[UserRole.expert],
@@ -1310,6 +1367,7 @@ async def protocol_finish(
 
     await _notify_by_roles(
         db,
+        company_id=company_id,
         lead_id=lead.id,
         title="Сделка завершена — проверьте этап в канбане",
         assigned_roles=[UserRole.manager, UserRole.admin, UserRole.owner],
@@ -1329,6 +1387,7 @@ async def list_lead_audit(
     if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     await db.refresh(lead, ["stage"])
+    await _assert_expert_lead_access(db, current_user=current_user, lead=lead, company_id=company_id)
     if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if (lead.stage.pipeline_id if lead.stage else None) not in allowed:

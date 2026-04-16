@@ -358,6 +358,7 @@ class Task(Base):
         default=TaskStatus.pending,
     )
     assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     related_lead_id: Mapped[int | None] = mapped_column(
         ForeignKey("leads.id", ondelete="SET NULL"),
@@ -365,6 +366,7 @@ class Task(Base):
     )
 
     assignee: Mapped["User | None"] = relationship(back_populates="tasks", foreign_keys=[assigned_to])
+    created_by: Mapped["User | None"] = relationship(foreign_keys=[created_by_user_id])
     related_lead: Mapped["Lead | None"] = relationship(
         back_populates="automation_tasks",
         foreign_keys=[related_lead_id],
