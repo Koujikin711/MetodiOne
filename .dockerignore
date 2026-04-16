@@ -1,10 +1,8 @@
 .git
 .gitignore
-frontend
 node_modules
 **/__pycache__
 *.pyc
 .env
 *.db
 .dockerignore
-Dockerfile
