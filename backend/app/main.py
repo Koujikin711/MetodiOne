@@ -2,9 +2,12 @@ import asyncio
 from contextlib import asynccontextmanager
 import logging
 import socket
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -240,3 +243,20 @@ app.include_router(companies.router, prefix="/api")
 @app.get("/health")
 async def health():
     return {"status": "ok", "build": settings.build_version}
+
+
+def _maybe_mount_frontend_spa(app: FastAPI) -> None:
+    """
+    В проде frontend собирается в Docker и кладётся в /app/static.
+    Локально (dev) этой папки может не быть — тогда просто не монтируем.
+    """
+    static_dir = Path("/app/static")
+    index_html = static_dir / "index.html"
+    if not index_html.exists():
+        return
+
+    # Раздаём статические файлы Vite (/assets/* и прочее).
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="frontend")
+
+
+_maybe_mount_frontend_spa(app)
