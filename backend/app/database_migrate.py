@@ -497,6 +497,8 @@ async def ensure_integration_provider_migration(conn: AsyncConnection, database_
     low = database_url.lower()
     if "postgresql" not in low and "asyncpg" not in low:
         return
+    if conn.in_transaction():
+        await conn.commit()
     ac = conn.execution_options(isolation_level="AUTOCOMMIT")
     if hasattr(ac, "__await__"):
         ac = await ac  # type: ignore[assignment]
