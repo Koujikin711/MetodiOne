@@ -285,7 +285,9 @@ async def booking_queue_add(
     pipeline_id = stage_row.pipeline_id if stage_row else None
     manager_id: int | None = None
     if pipeline_id is not None:
-        assigned = await assign_manager_for_new_lead(db, pipeline_id=pipeline_id)
+        pipe = await db.get(Pipeline, int(pipeline_id))
+        exclude_id = int(pipe.intake_manager_user_id) if pipe and pipe.intake_manager_user_id is not None else None
+        assigned = await assign_manager_for_new_lead(db, pipeline_id=pipeline_id, exclude_user_id=exclude_id)
         if assigned is not None:
             manager_id = assigned
     if manager_id is None:
@@ -588,7 +590,9 @@ async def _upsert_lead_for_appointment(
     pipeline_id = stage.pipeline_id if stage else None
     manager_id = responsible_manager_id
     if manager_id is None and pipeline_id is not None:
-        manager_id = await assign_manager_for_new_lead(db, pipeline_id=pipeline_id)
+        pipe = await db.get(Pipeline, int(pipeline_id))
+        exclude_id = int(pipe.intake_manager_user_id) if pipe and pipe.intake_manager_user_id is not None else None
+        manager_id = await assign_manager_for_new_lead(db, pipeline_id=pipeline_id, exclude_user_id=exclude_id)
 
     lead = Lead(
         company_id=company_id,

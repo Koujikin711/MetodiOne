@@ -24,6 +24,7 @@ from app.schemas.lead import (
     LeadTablePage,
 )
 from app.services.automation import process_lead_automation
+from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.lead_import import decode_csv_text, normalize_email_strict, parse_csv_rows, row_to_parsed_lead
 from app.schemas.deal import DealRead, ExtraServiceAddBody, ProtocolConfirmBody
 from app.schemas.deal import ProtocolFinishBody
@@ -302,6 +303,40 @@ async def _lead_to_read_with_manager(db: AsyncSession, lead: Lead) -> LeadRead:
     return _lead_to_read(lead).model_copy(update={"manager_name": managers.get(lead.manager_id or -1)})
 
 
+async def _manager_id_for_manual_lead_create(
+    db: AsyncSession,
+    *,
+    stage: PipelineStage,
+    current_user: User,
+    company_id: int,
+) -> int | None:
+    if current_user.role == UserRole.admin:
+        return None
+    if not is_manager_like(current_user.role):
+        return None
+
+    pipeline_id = stage.pipeline_id
+    if pipeline_id is None:
+        return current_user.id
+
+    pipe = await db.get(Pipeline, int(pipeline_id))
+    if pipe is None or pipe.company_id != company_id:
+        return current_user.id
+
+    mode = (pipe.lead_assignment_mode or "none").strip().lower()
+    intake_id = pipe.intake_manager_user_id
+    if (
+        current_user.role == UserRole.manager
+        and intake_id is not None
+        and int(intake_id) == int(current_user.id)
+        and mode in ("round_robin", "least_loaded")
+    ):
+        mid = await assign_manager_for_new_lead(db, pipeline_id=int(pipeline_id))
+        return mid
+
+    return current_user.id
+
+
 @router.post("", response_model=LeadRead, status_code=status.HTTP_201_CREATED)
 async def create_lead(
     body: LeadCreate,
@@ -316,6 +351,7 @@ async def create_lead(
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if stage.pipeline_id not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Stage is outside manager directions")
+    manager_id = await _manager_id_for_manual_lead_create(db, stage=stage, current_user=current_user, company_id=company_id)
     lead = Lead(
         company_id=company_id,
         name=body.name,
@@ -323,7 +359,7 @@ async def create_lead(
         email=body.email,
         source=body.source,
         status_id=body.status_id,
-        manager_id=None if current_user.role == UserRole.admin else current_user.id,
+        manager_id=manager_id,
     )
     db.add(lead)
     await db.flush()
@@ -610,12 +646,30 @@ async def import_leads_csv(
     errors: list[LeadImportErrorItem] = []
     work: list[tuple[int, Lead]] = []
     import_manager_id = None if current_user.role == UserRole.admin else current_user.id
+
+    async def _import_manager_id_for_row() -> int | None:
+        if import_manager_id is None:
+            return None
+        if stage.pipeline_id is None:
+            return import_manager_id
+        pipe = await db.get(Pipeline, int(stage.pipeline_id))
+        if pipe is None or pipe.company_id != company_id:
+            return import_manager_id
+        mode = (pipe.lead_assignment_mode or "none").strip().lower()
+        intake_id = pipe.intake_manager_user_id
+        if intake_id is None or int(intake_id) != int(import_manager_id):
+            return import_manager_id
+        if mode not in ("round_robin", "least_loaded"):
+            return import_manager_id
+        return await assign_manager_for_new_lead(db, pipeline_id=int(stage.pipeline_id))
+
     for idx, row_map in enumerate(rows, start=2):
         parsed = row_to_parsed_lead(row_map)
         if not parsed:
             errors.append(LeadImportErrorItem(row=idx, message="Нет названия, имени или компании"))
             continue
         email = normalize_email_strict(parsed.email) if parsed.email else None
+        row_manager_id = await _import_manager_id_for_row()
         work.append(
             (
                 idx,
@@ -626,7 +680,7 @@ async def import_leads_csv(
                     email=email,
                     source=parsed.source,
                     status_id=default_stage_id,
-                    manager_id=import_manager_id,
+                    manager_id=row_manager_id,
                 ),
             ),
         )
@@ -661,7 +715,7 @@ async def import_leads_csv(
                         email=lead.email,
                         source=lead.source,
                         status_id=default_stage_id,
-                        manager_id=import_manager_id,
+                        manager_id=lead.manager_id,
                     )
                     db.add(l2)
                     await db.flush()

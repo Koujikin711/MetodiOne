@@ -186,7 +186,7 @@ async def list_employees(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> list[EmployeeRead]:
-    if current_user.role != UserRole.owner:
+    if current_user.role not in (UserRole.owner, UserRole.admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
     r = await db.execute(select(User).where(User.company_id == company_id, User.is_active.is_(True)).order_by(User.id.desc()))
     users = r.scalars().all()
