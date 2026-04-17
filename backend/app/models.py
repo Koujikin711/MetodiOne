@@ -189,6 +189,7 @@ class IntegrationProvider(str, enum.Enum):
     green_api = "green_api"  # WhatsApp via GREEN API
     telegram = "telegram"  # Telegram bot webhook
     instagram = "instagram"  # Meta webhook (placeholder)
+    google_sheets = "google_sheets"  # Pull leads from Google Sheets
 
 
 class Integration(Base):

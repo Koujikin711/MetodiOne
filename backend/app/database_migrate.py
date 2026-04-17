@@ -492,6 +492,35 @@ async def ensure_owner_role_migration(conn: AsyncConnection, database_url: str) 
     await ac.execute(text("UPDATE users SET role = 'owner' WHERE role::text = 'admin'"))
 
 
+async def ensure_integration_provider_migration(conn: AsyncConnection, database_url: str) -> None:
+    """Добавляет новые значения enum integration_provider в PostgreSQL."""
+    low = database_url.lower()
+    if "postgresql" not in low and "asyncpg" not in low:
+        return
+    ac = conn.execution_options(isolation_level="AUTOCOMMIT")
+    if hasattr(ac, "__await__"):
+        ac = await ac  # type: ignore[assignment]
+
+    type_exists = await ac.scalar(
+        text("SELECT 1 FROM pg_type WHERE typname = 'integration_provider' LIMIT 1"),
+    )
+    if type_exists is None:
+        return
+
+    exists_q = text(
+        """
+        SELECT 1
+        FROM pg_enum e
+        JOIN pg_type t ON t.oid = e.enumtypid
+        WHERE t.typname = 'integration_provider' AND e.enumlabel = :val
+        LIMIT 1
+        """,
+    )
+    exists = await ac.scalar(exists_q, {"val": "google_sheets"})
+    if exists is None:
+        await ac.execute(text("ALTER TYPE integration_provider ADD VALUE 'google_sheets'"))
+
+
 async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str) -> None:
     low = database_url.lower()
 
