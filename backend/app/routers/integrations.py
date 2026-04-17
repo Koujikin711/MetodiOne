@@ -20,6 +20,7 @@ from app.services.green_api_settings import (
     push_green_incoming_webhook,
     resolve_public_api_base,
 )
+from app.services.google_sheets_sync import sync_google_sheet_integration
 from datetime import UTC, datetime
 
 from app.models import (
@@ -170,6 +171,15 @@ async def create_integration(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Укажите idInstance и apiTokenInstance из личного кабинета Green API",
             )
+    elif provider == IntegrationProvider.google_sheets:
+        if not sec:
+            sec = secrets.token_urlsafe(24)
+        sheet_url = str(cfg.get("sheet_url") or cfg.get("spreadsheet_id") or "").strip()
+        if not sheet_url:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Для Google Sheets укажите config.sheet_url (или spreadsheet_id)",
+            )
     else:
         if len(sec) < 8:
             raise HTTPException(
@@ -271,6 +281,16 @@ async def patch_integration(
                     detail="For green_api set config.instance_id and config.api_token (или оставьте токен пустым при смене только instance)",
                 )
             row.config = merged
+        elif row.provider == IntegrationProvider.google_sheets:
+            merged = dict(row.config or {})
+            merged.update(body.config)
+            sheet_url = str(merged.get("sheet_url") or merged.get("spreadsheet_id") or "").strip()
+            if not sheet_url:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Для Google Sheets укажите config.sheet_url (или spreadsheet_id)",
+                )
+            row.config = merged
         else:
             row.config = body.config
 
@@ -312,6 +332,25 @@ async def patch_integration(
             )
 
     return _integration_read(row)
+
+
+@router.post("/{integration_id}/sync")
+async def sync_integration_now(
+    integration_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> dict[str, int]:
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    row = await db.get(Integration, integration_id)
+    if row is None or row.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+    if row.provider != IntegrationProvider.google_sheets:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sync supported only for Google Sheets")
+    stats = await sync_google_sheet_integration(db, integ=row, max_rows=1000)
+    await db.commit()
+    return stats
 
 
 @router.post("/generate-secret")

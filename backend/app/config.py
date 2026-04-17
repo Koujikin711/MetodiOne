@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     public_app_url: str = ""
     # Публичный URL API (для автоподключения Green API webhook), напр. https://api.example.com
     public_api_base_url: str = ""
+    # Google Sheets service account (без скриптов у клиента: таблицу шарят на этот email).
+    google_service_account_email: str = ""
+    google_service_account_private_key: str = ""
+    google_sheets_poll_seconds: int = 120
 
     # SMTP (если хотите реальную отправку писем)
     smtp_host: str = ""

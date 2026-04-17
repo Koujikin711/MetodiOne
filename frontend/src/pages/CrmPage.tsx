@@ -560,13 +560,20 @@ export function CrmPage() {
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [editingIntegrationId, setEditingIntegrationId] = useState<number | null>(null);
   const [integrationName, setIntegrationName] = useState("");
-  const [integrationProvider, setIntegrationProvider] = useState<"green_api" | "telegram">("green_api");
+  const [integrationProvider, setIntegrationProvider] = useState<"green_api" | "telegram" | "google_sheets">("green_api");
   const [integrationSecret, setIntegrationSecret] = useState("");
   const [integrationConfigText, setIntegrationConfigText] = useState("{}");
   const [greenInstanceId, setGreenInstanceId] = useState("");
   const [greenApiToken, setGreenApiToken] = useState("");
   /** Как в кабинете Green API, напр. https://7103.api.greenapi.com — если пусто, сервер попробует api.green-api.com */
   const [greenApiBaseUrl, setGreenApiBaseUrl] = useState("");
+  const [sheetsUrl, setSheetsUrl] = useState("");
+  const [sheetsTabName, setSheetsTabName] = useState("");
+  const [sheetsNameColumn, setSheetsNameColumn] = useState("full_name");
+  const [sheetsPhoneColumn, setSheetsPhoneColumn] = useState("phone_number");
+  const [sheetsEmailColumn, setSheetsEmailColumn] = useState("email");
+  const [sheetsHeaderRow, setSheetsHeaderRow] = useState("1");
+  const [sheetsStartRow, setSheetsStartRow] = useState("2");
   const [integrationPipelineId, setIntegrationPipelineId] = useState<number | null>(null);
   const [integrationStageId, setIntegrationStageId] = useState<number | null>(null);
   const [integrationCloseDealEnabled, setIntegrationCloseDealEnabled] = useState(false);
@@ -585,6 +592,13 @@ export function CrmPage() {
     setGreenInstanceId("");
     setGreenApiToken("");
     setGreenApiBaseUrl("");
+    setSheetsUrl("");
+    setSheetsTabName("");
+    setSheetsNameColumn("full_name");
+    setSheetsPhoneColumn("phone_number");
+    setSheetsEmailColumn("email");
+    setSheetsHeaderRow("1");
+    setSheetsStartRow("2");
     setIntegrationPipelineId(null);
     setIntegrationStageId(null);
     setTplGreeting("");
@@ -599,13 +613,33 @@ export function CrmPage() {
     setIntegrationsOpen(true);
     setEditingIntegrationId(it.id);
     setIntegrationName(it.name);
-    setIntegrationProvider(it.provider === "telegram" ? "telegram" : "green_api");
+    setIntegrationProvider(it.provider === "telegram" ? "telegram" : it.provider === "google_sheets" ? "google_sheets" : "green_api");
     setIntegrationPipelineId(it.pipeline_id);
     setIntegrationStageId(it.stage_id);
     setIntegrationCloseDealEnabled(Boolean(it.manager_close_deal_enabled));
     setIntegrationSecret("");
     if (it.provider === "telegram") {
       setIntegrationConfigText(JSON.stringify(it.config ?? {}, null, 2));
+      setGreenInstanceId("");
+      setGreenApiToken("");
+      setGreenApiBaseUrl("");
+      setSheetsUrl("");
+      setSheetsTabName("");
+      setSheetsNameColumn("full_name");
+      setSheetsPhoneColumn("phone_number");
+      setSheetsEmailColumn("email");
+      setSheetsHeaderRow("1");
+      setSheetsStartRow("2");
+    } else if (it.provider === "google_sheets") {
+      const c = it.config as Record<string, unknown> | null;
+      setSheetsUrl(String(c?.sheet_url ?? c?.spreadsheet_id ?? ""));
+      setSheetsTabName(typeof c?.sheet_name === "string" ? c.sheet_name : "");
+      setSheetsNameColumn(typeof c?.full_name_column === "string" ? c.full_name_column : "full_name");
+      setSheetsPhoneColumn(typeof c?.phone_column === "string" ? c.phone_column : "phone_number");
+      setSheetsEmailColumn(typeof c?.email_column === "string" ? c.email_column : "email");
+      setSheetsHeaderRow(String(c?.header_row ?? 1));
+      setSheetsStartRow(String(c?.start_row ?? 2));
+      setIntegrationConfigText("{}");
       setGreenInstanceId("");
       setGreenApiToken("");
       setGreenApiBaseUrl("");
@@ -622,6 +656,13 @@ export function CrmPage() {
             ? c.apiUrl
             : "";
       setGreenApiBaseUrl(ab);
+      setSheetsUrl("");
+      setSheetsTabName("");
+      setSheetsNameColumn("full_name");
+      setSheetsPhoneColumn("phone_number");
+      setSheetsEmailColumn("email");
+      setSheetsHeaderRow("1");
+      setSheetsStartRow("2");
     }
     const c = (it.config ?? {}) as Record<string, unknown>;
     const templates =
@@ -667,6 +708,20 @@ export function CrmPage() {
     }
   }
 
+  async function syncSheetsNow(integrationId: number) {
+    try {
+      const stats = await apiFetch<{ created: number; processed: number; skipped: number }>(
+        `/api/integrations/${integrationId}/sync`,
+        { method: "POST" },
+      );
+      toast.success(`Синхронизация: обработано ${stats.processed}, пропущено ${stats.skipped}`);
+      refreshAll();
+      void queryClient.invalidateQueries({ queryKey: ["integrations"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось синхронизировать таблицу");
+    }
+  }
+
   async function submitCreateIntegration() {
     if (!integrationName.trim()) return toast.error("Название обязательно");
     if (!integrationPipelineId || !integrationStageId) return toast.error("Выберите воронку и стадию");
@@ -686,7 +741,7 @@ export function CrmPage() {
         stage_id: integrationStageId,
         manager_close_deal_enabled: integrationCloseDealEnabled,
       };
-      if (integrationProvider !== "green_api" && integrationSecret.trim()) {
+      if (integrationProvider === "telegram" && integrationSecret.trim()) {
         body.secret = integrationSecret.trim();
       }
       if (integrationProvider === "green_api") {
@@ -701,14 +756,31 @@ export function CrmPage() {
           templates,
         };
       } else {
-        try {
-          const parsed = integrationConfigText.trim()
-            ? (JSON.parse(integrationConfigText) as Record<string, unknown>)
-            : {};
-          body.config = { ...parsed, templates };
-        } catch {
-          toast.error("Config должен быть валидным JSON");
-          return;
+        if (integrationProvider === "google_sheets") {
+          if (!sheetsUrl.trim()) {
+            toast.error("Укажите URL Google таблицы");
+            return;
+          }
+          body.config = {
+            sheet_url: sheetsUrl.trim(),
+            ...(sheetsTabName.trim() ? { sheet_name: sheetsTabName.trim() } : {}),
+            full_name_column: sheetsNameColumn.trim() || "full_name",
+            phone_column: sheetsPhoneColumn.trim() || "phone_number",
+            ...(sheetsEmailColumn.trim() ? { email_column: sheetsEmailColumn.trim() } : {}),
+            header_row: Number(sheetsHeaderRow) || 1,
+            start_row: Number(sheetsStartRow) || 2,
+            templates,
+          };
+        } else {
+          try {
+            const parsed = integrationConfigText.trim()
+              ? (JSON.parse(integrationConfigText) as Record<string, unknown>)
+              : {};
+            body.config = { ...parsed, templates };
+          } catch {
+            toast.error("Config должен быть валидным JSON");
+            return;
+          }
         }
       }
       try {
@@ -737,6 +809,18 @@ export function CrmPage() {
         ...(greenApiBaseUrl.trim() ? { api_base_url: greenApiBaseUrl.trim() } : {}),
         templates,
       };
+    } else if (integrationProvider === "google_sheets") {
+      if (!sheetsUrl.trim()) return toast.error("Укажите URL Google таблицы");
+      cfg = {
+        sheet_url: sheetsUrl.trim(),
+        ...(sheetsTabName.trim() ? { sheet_name: sheetsTabName.trim() } : {}),
+        full_name_column: sheetsNameColumn.trim() || "full_name",
+        phone_column: sheetsPhoneColumn.trim() || "phone_number",
+        ...(sheetsEmailColumn.trim() ? { email_column: sheetsEmailColumn.trim() } : {}),
+        header_row: Number(sheetsHeaderRow) || 1,
+        start_row: Number(sheetsStartRow) || 2,
+        templates,
+      };
     } else {
       if (!integrationSecret.trim()) return toast.error("Для Telegram укажите webhook-секрет (или нажмите «Сгенерировать»)");
       try {
@@ -756,7 +840,7 @@ export function CrmPage() {
       manager_close_deal_enabled: integrationCloseDealEnabled,
       config: cfg,
     };
-    if (integrationProvider !== "green_api") {
+    if (integrationProvider === "telegram") {
       createPayload.secret = integrationSecret.trim();
     }
 
@@ -2075,11 +2159,12 @@ export function CrmPage() {
                     <select
                       value={integrationProvider}
                       disabled={editingIntegrationId != null}
-                      onChange={(e) => setIntegrationProvider(e.target.value as "green_api" | "telegram")}
+                      onChange={(e) => setIntegrationProvider(e.target.value as "green_api" | "telegram" | "google_sheets")}
                       className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <option value="green_api">GREEN API (WhatsApp)</option>
                       <option value="telegram">Telegram Bot</option>
+                      <option value="google_sheets">Google Sheets</option>
                     </select>
                   </label>
 
@@ -2201,6 +2286,81 @@ export function CrmPage() {
                         />
                       </label>
                     </div>
+                  ) : integrationProvider === "google_sheets" ? (
+                    <div className="grid gap-3">
+                      <p className="text-[11px] leading-relaxed text-slate-400">
+                        Вставьте ссылку Google Sheets. Таблица должна быть открыта для сервисного аккаунта CRM (email даст админ
+                        сервера). Поля по умолчанию: <span className="text-slate-300">full_name</span> и{" "}
+                        <span className="text-slate-300">phone_number</span>.
+                      </p>
+                      <label className="text-sm text-slate-300">
+                        URL таблицы
+                        <input
+                          value={sheetsUrl}
+                          onChange={(e) => setSheetsUrl(e.target.value)}
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        />
+                      </label>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="text-sm text-slate-300">
+                          Лист (необязательно)
+                          <input
+                            value={sheetsTabName}
+                            onChange={(e) => setSheetsTabName(e.target.value)}
+                            placeholder="Напр. Sheet1"
+                            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          />
+                        </label>
+                        <label className="text-sm text-slate-300">
+                          Строка заголовков
+                          <input
+                            value={sheetsHeaderRow}
+                            onChange={(e) => setSheetsHeaderRow(e.target.value)}
+                            placeholder="1"
+                            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          />
+                        </label>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <label className="text-sm text-slate-300">
+                          Колонка имени
+                          <input
+                            value={sheetsNameColumn}
+                            onChange={(e) => setSheetsNameColumn(e.target.value)}
+                            placeholder="full_name"
+                            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          />
+                        </label>
+                        <label className="text-sm text-slate-300">
+                          Колонка телефона
+                          <input
+                            value={sheetsPhoneColumn}
+                            onChange={(e) => setSheetsPhoneColumn(e.target.value)}
+                            placeholder="phone_number"
+                            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          />
+                        </label>
+                        <label className="text-sm text-slate-300">
+                          Колонка email
+                          <input
+                            value={sheetsEmailColumn}
+                            onChange={(e) => setSheetsEmailColumn(e.target.value)}
+                            placeholder="email"
+                            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          />
+                        </label>
+                      </div>
+                      <label className="text-sm text-slate-300">
+                        Стартовая строка данных
+                        <input
+                          value={sheetsStartRow}
+                          onChange={(e) => setSheetsStartRow(e.target.value)}
+                          placeholder="2"
+                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                        />
+                      </label>
+                    </div>
                   ) : (
                     <label className="text-sm text-slate-300">
                       Config (JSON)
@@ -2295,6 +2455,11 @@ export function CrmPage() {
                       <span className="font-mono text-slate-400">public_api_base_url</span> (см. раздел SMTP на странице
                       «Сотрудники») или сохраняйте интеграцию, будучи залогиненным с того же сайта, где открыт API.
                     </p>
+                  ) : integrationProvider === "google_sheets" ? (
+                    <p className="text-[11px] text-slate-500">
+                      После сохранения нажмите «Синхронизировать» в списке справа для первой загрузки, далее CRM будет
+                      подтягивать новые строки автоматически.
+                    </p>
                   ) : (
                     <p className="text-[11px] text-slate-500">
                       Для Telegram скопируйте webhook URL из списка справа и укажите секрет в настройках бота.
@@ -2358,6 +2523,20 @@ export function CrmPage() {
                                 Задайте `VITE_API_BASE_URL` для полного URL на проде.
                               </div>
                             )}
+                          </div>
+                        )}
+                        {it.provider === "google_sheets" && (
+                          <div className="mt-2 space-y-2">
+                            <div className="text-[11px] text-slate-300">
+                              Таблица: {String((it.config as Record<string, unknown> | null)?.sheet_url ?? "не указана")}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void syncSheetsNow(it.id)}
+                              className="rounded-lg border border-slate-600 px-2 py-1 text-[11px] text-slate-100 transition hover:bg-slate-800/50"
+                            >
+                              Синхронизировать сейчас
+                            </button>
                           </div>
                         )}
                       </div>

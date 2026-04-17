@@ -10,11 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import AsyncSessionLocal, engine
-from app.database_migrate import ensure_booking_specialist_columns, ensure_multi_tenant_migration, ensure_owner_role_migration
+from app.database_migrate import (
+    ensure_booking_specialist_columns,
+    ensure_integration_provider_migration,
+    ensure_multi_tenant_migration,
+    ensure_owner_role_migration,
+)
 from app.core.security import hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
 from app.routers import analytics, audit, auth, booking, chat, companies, deals, employees, integrations, leads, pipelines, reports, sources, stages, system, tasks, users
+from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
 
 logger = logging.getLogger(__name__)
@@ -128,7 +134,7 @@ async def seed_booking_defaults() -> None:
 async def seed_lead_sources_defaults() -> None:
     async with AsyncSessionLocal() as session:
         cid = await _ensure_default_company(session)
-        defaults = ["GREEN API", "WHATSAPP", "INSTAGRAM", "TELEGRAM"]
+        defaults = ["GREEN API", "WHATSAPP", "INSTAGRAM", "TELEGRAM", "GOOGLE SHEETS"]
         existing = (
             await session.execute(
                 select(LeadSource.name).where(LeadSource.company_id == cid, LeadSource.name.in_(defaults)),
@@ -162,6 +168,7 @@ async def lifespan(_: FastAPI):
     # enum-миграции PostgreSQL нельзя выполнять внутри begin-транзакции
     async with engine.connect() as conn:
         await ensure_owner_role_migration(conn, settings.database_url)
+        await ensure_integration_provider_migration(conn, settings.database_url)
     await seed_pipelines_and_stages()
     await seed_test_admin()
     await seed_super_owner()
@@ -170,6 +177,7 @@ async def lifespan(_: FastAPI):
     stop_event = asyncio.Event()
 
     async def _reminder_loop() -> None:
+        next_sheets_run = 0.0
         try:
             await asyncio.sleep(8)
         except asyncio.CancelledError:
@@ -181,8 +189,16 @@ async def lifespan(_: FastAPI):
                     await session.commit()
                     if sent:
                         logger.info("whatsapp reminders sent: %s", sent)
+                    now = asyncio.get_running_loop().time()
+                    if now >= next_sheets_run:
+                        synced = await run_google_sheets_import_tick(session)
+                        await session.commit()
+                        if synced:
+                            logger.info("google sheets sync tick: integrations=%s", synced)
+                        period = max(int(settings.google_sheets_poll_seconds), 30)
+                        next_sheets_run = now + float(period)
             except Exception:
-                logger.exception("whatsapp reminder tick failed")
+                logger.exception("background tick failed")
             try:
                 await asyncio.wait_for(stop_event.wait(), timeout=60.0)
             except TimeoutError:
