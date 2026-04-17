@@ -201,6 +201,12 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             await conn.execute(
                 text("ALTER TABLE pipelines ADD COLUMN expert_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"),
             )
+        if pipe_cols and "intake_manager_user_id" not in pipe_cols:
+            await conn.execute(
+                text(
+                    "ALTER TABLE pipelines ADD COLUMN intake_manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+                ),
+            )
 
         r = await conn.execute(text("PRAGMA table_info(chat_messages)"))
         cm_cols = {row[1] for row in r.fetchall()}
@@ -404,6 +410,11 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
         )
         await conn.execute(
             text("ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS expert_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS intake_manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+            ),
         )
         await conn.execute(
             text(

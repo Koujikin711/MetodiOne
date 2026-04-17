@@ -506,6 +506,7 @@ export function CrmPage() {
   const queryClient = useQueryClient();
 
   const currentRole = useMemo(() => decodeRoleFromToken(getStoredToken()), []);
+  const isCompanyAdmin = currentRole === "owner" || currentRole === "admin";
 
   const refreshAll = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["leads"] });
@@ -973,10 +974,10 @@ export function CrmPage() {
   });
 
   const patchPipelineMutation = useMutation({
-    mutationFn: async ({ id, mode }: { id: number; mode: string }) =>
+    mutationFn: async ({ id, patch }: { id: number; patch: Record<string, unknown> }) =>
       apiFetch<Pipeline>(`/api/pipelines/${id}`, {
         method: "PATCH",
-        body: JSON.stringify({ lead_assignment_mode: mode }),
+        body: JSON.stringify(patch),
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
@@ -1017,7 +1018,20 @@ export function CrmPage() {
   const expertsQuery = useQuery({
     queryKey: ["employees", "experts"],
     queryFn: () => apiFetch<Array<{ id: number; email: string; full_name: string | null }>>("/api/employees/experts"),
-    enabled: currentRole === "owner",
+    enabled: isCompanyAdmin,
+  });
+
+  type CompanyEmployee = {
+    id: number;
+    email: string;
+    full_name: string | null;
+    role: UserRole;
+  };
+
+  const employeesQuery = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => apiFetch<CompanyEmployee[]>("/api/employees"),
+    enabled: isCompanyAdmin,
   });
 
   const patchPipelineExpertMutation = useMutation({
@@ -1311,7 +1325,7 @@ export function CrmPage() {
           >
             + Создать воронку
           </button>
-          {currentRole === "owner" && (
+          {isCompanyAdmin && (
             <button
               type="button"
               onClick={() => setCreateStageOpen(true)}
@@ -1399,13 +1413,13 @@ export function CrmPage() {
             </button>
           </div>
         )}
-        {currentRole === "owner" && pipelineId != null && selectedPipelineForSettings && (
+        {isCompanyAdmin && pipelineId != null && selectedPipelineForSettings && (
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="text-sm text-slate-400">Распределение новых лидов (интеграции, очередь записи):</span>
             <select
               value={selectedPipelineForSettings.lead_assignment_mode ?? "none"}
               onChange={(e) => {
-                patchPipelineMutation.mutate({ id: pipelineId, mode: e.target.value });
+                patchPipelineMutation.mutate({ id: pipelineId, patch: { lead_assignment_mode: e.target.value } });
               }}
               disabled={patchPipelineMutation.isPending}
               className="rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
@@ -1416,7 +1430,37 @@ export function CrmPage() {
             </select>
           </div>
         )}
-        {currentRole === "owner" && pipelineId != null && selectedPipelineForSettings && (
+        {isCompanyAdmin && pipelineId != null && selectedPipelineForSettings && (
+          <div className="mt-2 flex flex-wrap flex-col gap-2 sm:flex-row sm:items-center">
+            <span className="text-sm text-slate-400">Менеджер приёма (создаёт лиды в этой воронке):</span>
+            <select
+              value={selectedPipelineForSettings.intake_manager_user_id ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                patchPipelineMutation.mutate({
+                  id: pipelineId,
+                  patch: { intake_manager_user_id: v ? Number(v) : null },
+                });
+              }}
+              disabled={patchPipelineMutation.isPending}
+              className="min-w-[240px] rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
+            >
+              <option value="">— не назначен —</option>
+              {(employeesQuery.data ?? [])
+                .filter((u) => u.role === "manager")
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {(u.full_name || u.email).trim()}
+                  </option>
+                ))}
+            </select>
+            <p className="text-xs text-slate-500">
+              Если выбран и включено распределение, лиды, которые он создаёт/импортирует, уйдут другим менеджерам этой
+              воронки (сам «приём» в очередь не попадает).
+            </p>
+          </div>
+        )}
+        {isCompanyAdmin && pipelineId != null && selectedPipelineForSettings && (
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="text-sm text-slate-400">Эксперт этой воронки:</span>
             <select
@@ -1440,7 +1484,7 @@ export function CrmPage() {
             </select>
           </div>
         )}
-        {currentRole === "owner" && pipelineId != null && sortedStages.length > 0 && (
+        {isCompanyAdmin && pipelineId != null && sortedStages.length > 0 && (
           <div className="mt-3 rounded-xl border border-slate-700/40 bg-slate-950/20 p-4">
             <div className="text-sm font-semibold text-slate-200">Стадии этой воронки</div>
             <p className="mt-1 text-xs text-slate-500">

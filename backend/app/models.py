@@ -53,6 +53,11 @@ class Pipeline(Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Менеджер «приёма»: создаёт лиды в этой воронке; при автораспределении его лиды уходят другим менеджерам.
+    intake_manager_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # none | round_robin | least_loaded — кому назначать новых лидов из интеграций/очереди
     lead_assignment_mode: Mapped[str] = mapped_column(String(32), default="none")
     assignment_rr_counter: Mapped[int] = mapped_column(default=0)

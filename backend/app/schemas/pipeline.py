@@ -13,6 +13,7 @@ class PipelineRead(BaseModel):
     type: str | None = None
     lead_assignment_mode: str = "none"
     expert_user_id: int | None = None
+    intake_manager_user_id: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -23,6 +24,7 @@ class PipelinePatch(BaseModel):
         description="none | round_robin | least_loaded",
     )
     expert_user_id: int | None = Field(default=None, ge=1)
+    intake_manager_user_id: int | None = Field(default=None, ge=1)
 
 
 class PipelineCreate(BaseModel):
@@ -33,4 +35,5 @@ class PipelineCreate(BaseModel):
         description="Пустой список — сервер создаст стандартный набор стадий",
     )
     expert_user_id: int | None = Field(default=None, ge=1)
+    intake_manager_user_id: int | None = Field(default=None, ge=1)
 

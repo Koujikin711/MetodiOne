@@ -19,6 +19,10 @@ router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 _MAX_DISTRIBUTE_BATCH = 2000
 
 
+def _is_pipeline_admin(role: UserRole) -> bool:
+    return role in (UserRole.owner, UserRole.admin)
+
+
 class DistributeLeadsBody(BaseModel):
     stage_id: int = Field(..., ge=1)
     force_reassign: bool = False
@@ -41,7 +45,7 @@ async def create_pipeline(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> PipelineRead:
-    if current_user.role != UserRole.owner:
+    if not _is_pipeline_admin(current_user.role):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
     exists = await db.scalar(select(Pipeline.id).where(Pipeline.company_id == company_id, Pipeline.name == body.name))
@@ -54,7 +58,30 @@ async def create_pipeline(
         if u is None or not u.is_active or u.role != UserRole.expert or u.company_id != company_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="expert_user_id: unknown expert")
 
-    pipe = Pipeline(name=body.name, type=body.type or "sales", expert_user_id=expert_user_id, company_id=company_id)
+    intake_manager_user_id = body.intake_manager_user_id
+    if intake_manager_user_id is not None:
+        u = await db.get(User, intake_manager_user_id)
+        if u is None or not u.is_active or u.role != UserRole.manager or u.company_id != company_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="intake_manager_user_id: unknown manager")
+        assigned = await db.scalar(
+            select(func.count(UserPipelineAssignment.id)).where(
+                UserPipelineAssignment.user_id == intake_manager_user_id,
+                UserPipelineAssignment.company_id == company_id,
+            )
+        )
+        if int(assigned or 0) <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="intake_manager_user_id: manager must be assigned to at least one pipeline",
+            )
+
+    pipe = Pipeline(
+        name=body.name,
+        type=body.type or "sales",
+        expert_user_id=expert_user_id,
+        intake_manager_user_id=intake_manager_user_id,
+        company_id=company_id,
+    )
     db.add(pipe)
     await db.flush()
 
@@ -71,6 +98,23 @@ async def create_pipeline(
         )
 
     await db.flush()
+    if intake_manager_user_id is not None:
+        exists_link = await db.scalar(
+            select(func.count(UserPipelineAssignment.id)).where(
+                UserPipelineAssignment.user_id == intake_manager_user_id,
+                UserPipelineAssignment.pipeline_id == pipe.id,
+                UserPipelineAssignment.company_id == company_id,
+            )
+        )
+        if int(exists_link or 0) <= 0:
+            db.add(
+                UserPipelineAssignment(
+                    user_id=intake_manager_user_id,
+                    pipeline_id=pipe.id,
+                    company_id=company_id,
+                )
+            )
+            await db.flush()
     await write_audit_event(
         db,
         entity_type="pipeline",
@@ -91,7 +135,7 @@ async def patch_pipeline(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> PipelineRead:
-    if current_user.role != UserRole.owner:
+    if not _is_pipeline_admin(current_user.role):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None or pipe.company_id != company_id:
@@ -103,6 +147,39 @@ async def patch_pipeline(
         pipe.expert_user_id = body.expert_user_id
     elif body.expert_user_id is None and "expert_user_id" in body.model_fields_set:
         pipe.expert_user_id = None
+    if body.intake_manager_user_id is not None:
+        u = await db.get(User, body.intake_manager_user_id)
+        if u is None or not u.is_active or u.role != UserRole.manager or u.company_id != company_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="intake_manager_user_id: unknown manager")
+        assigned = await db.scalar(
+            select(func.count(UserPipelineAssignment.id)).where(
+                UserPipelineAssignment.user_id == body.intake_manager_user_id,
+                UserPipelineAssignment.company_id == company_id,
+            )
+        )
+        if int(assigned or 0) <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="intake_manager_user_id: manager must be assigned to at least one pipeline",
+            )
+        pipe.intake_manager_user_id = body.intake_manager_user_id
+        exists_link = await db.scalar(
+            select(func.count(UserPipelineAssignment.id)).where(
+                UserPipelineAssignment.user_id == body.intake_manager_user_id,
+                UserPipelineAssignment.pipeline_id == pipeline_id,
+                UserPipelineAssignment.company_id == company_id,
+            )
+        )
+        if int(exists_link or 0) <= 0:
+            db.add(
+                UserPipelineAssignment(
+                    user_id=body.intake_manager_user_id,
+                    pipeline_id=pipeline_id,
+                    company_id=company_id,
+                )
+            )
+    elif body.intake_manager_user_id is None and "intake_manager_user_id" in body.model_fields_set:
+        pipe.intake_manager_user_id = None
     if body.lead_assignment_mode is not None:
         mode = body.lead_assignment_mode.strip().lower()
         if mode not in ("none", "round_robin", "least_loaded"):
@@ -118,7 +195,10 @@ async def patch_pipeline(
         entity_id=pipe.id,
         action="pipeline_updated",
         current_user=current_user,
-        details=f"lead_assignment_mode={pipe.lead_assignment_mode}, expert_user_id={pipe.expert_user_id}",
+        details=(
+            f"lead_assignment_mode={pipe.lead_assignment_mode}, expert_user_id={pipe.expert_user_id}, "
+            f"intake_manager_user_id={pipe.intake_manager_user_id}"
+        ),
     )
     await db.refresh(pipe)
     return PipelineRead.model_validate(pipe)
@@ -131,7 +211,7 @@ async def delete_pipeline(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> None:
-    if current_user.role != UserRole.owner:
+    if not _is_pipeline_admin(current_user.role):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None or pipe.company_id != company_id:
@@ -172,10 +252,10 @@ async def distribute_leads_from_stage(
 ) -> dict[str, int]:
     """
     Массово назначить менеджеров лидам на выбранной стадии.
-    Работает только для owner; назначение идёт только на пользователей роли manager.
+    Работает для owner/admin; назначение идёт только на пользователей роли manager.
     """
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    if not _is_pipeline_admin(current_user.role):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
 
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None or pipe.company_id != company_id:
@@ -240,7 +320,11 @@ async def distribute_leads_from_stage(
             if not body.force_reassign and lead.manager_id is not None:
                 skipped += 1
                 continue
-            mid = await assign_manager_for_new_lead(db, pipeline_id=pipeline_id)
+            mid = await assign_manager_for_new_lead(
+                db,
+                pipeline_id=pipeline_id,
+                exclude_user_id=pipe.intake_manager_user_id,
+            )
             if mid is None:
                 # Если mode=none — assign_manager_for_new_lead вернёт None
                 raise HTTPException(

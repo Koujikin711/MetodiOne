@@ -435,7 +435,9 @@ async def _create_lead_from_integration(
     db.add(lead)
     await db.flush()
     await db.refresh(lead, ["stage"])
-    mid = await assign_manager_for_new_lead(db, pipeline_id=integ.pipeline_id)
+    pipe = await db.get(Pipeline, int(integ.pipeline_id))
+    exclude_id = int(pipe.intake_manager_user_id) if pipe and pipe.intake_manager_user_id is not None else None
+    mid = await assign_manager_for_new_lead(db, pipeline_id=integ.pipeline_id, exclude_user_id=exclude_id)
     if mid is not None:
         lead.manager_id = mid
         await db.flush()

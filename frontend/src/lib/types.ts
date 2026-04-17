@@ -20,6 +20,7 @@ export interface Pipeline {
   type: string | null;
   lead_assignment_mode?: string;
   expert_user_id?: number | null;
+  intake_manager_user_id?: number | null;
 }
 
 export interface LeadSource {
