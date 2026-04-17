@@ -77,6 +77,12 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Онлайн</span>
                 </NavLink>
+                <NavLink to="/crm" className={navLinkClass} title="Канбан">
+                  <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <LayoutDashboard className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Канбан</span>
+                </NavLink>
                 <NavLink to="/my-leads" className={navLinkClass} title="Мои лиды">
                   <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
                     <UserRound className="h-[18px] w-[18px]" />
@@ -206,6 +212,12 @@ export function MainLayout() {
             </>
           ) : isManagerNav ? (
             <>
+              <NavLink to="/crm" className={navLinkClass} title="Канбан">
+                <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <LayoutDashboard className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Канбан</span>
+              </NavLink>
               <NavLink to="/my-leads" className={navLinkClass} title="Мои лиды">
                 <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <UserRound className="h-4 w-4" />
@@ -223,12 +235,6 @@ export function MainLayout() {
                   <MessageCircle className="h-4 w-4" />
                 </GradientIconBox>
                 <span className="text-[9px]">Чат</span>
-              </NavLink>
-              <NavLink to="/tasks" className={navLinkClass} title="Задачи">
-                <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <CheckSquare className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Задачи</span>
               </NavLink>
               <button
                 type="button"

@@ -14,6 +14,7 @@ import { LoginPage } from "@/pages/LoginPage";
 import { MyLeadsPage } from "@/pages/MyLeadsPage";
 import { OnlineBookingPage } from "@/pages/OnlineBookingPage";
 import { CompaniesPage } from "@/pages/CompaniesPage";
+import { CrmPage } from "@/pages/CrmPage";
 import { TasksPage } from "@/pages/TasksPage";
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
             <Route path="/" element={<HomeEntry />} />
+            <Route path="/crm" element={<CrmPage />} />
             <Route path="/my-leads" element={<MyLeadsPage />} />
             <Route path="/booking" element={<OnlineBookingPage />} />
             <Route path="/leads/:id" element={<LeadDetailPage />} />

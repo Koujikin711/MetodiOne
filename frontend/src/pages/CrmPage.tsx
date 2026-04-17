@@ -1314,17 +1314,19 @@ export function CrmPage() {
           поиск по имени/телефону/email и просмотр всех лидов воронки постранично.
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setUseCustomPipelineStages(false);
-              setPipeStages(cloneDefaultStages());
-              setCreatePipelineOpen(true);
-            }}
-            className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
-          >
-            + Создать воронку
-          </button>
+          {isCompanyAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                setUseCustomPipelineStages(false);
+                setPipeStages(cloneDefaultStages());
+                setCreatePipelineOpen(true);
+              }}
+              className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
+            >
+              + Создать воронку
+            </button>
+          )}
           {isCompanyAdmin && (
             <button
               type="button"

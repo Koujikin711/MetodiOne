@@ -54,8 +54,8 @@ export function LeadDetailPage() {
 
   const role = decodeRoleFromToken(getStoredToken());
   const canRejectLead = role === "owner" || role === "admin" || role === "manager";
-  const homeLink = role === "manager" || role === "admin" ? "/my-leads" : "/";
-  const homeLabel = role === "manager" || role === "admin" ? "Мои лиды" : "Канбан";
+  const homeLink = role === "manager" || role === "admin" ? "/crm" : "/";
+  const homeLabel = "Канбан";
 
   const auditQuery = useQuery({
     queryKey: ["lead-audit", leadId],
