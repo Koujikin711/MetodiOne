@@ -19,6 +19,19 @@ router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 _MAX_DISTRIBUTE_BATCH = 2000
 
 
+async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
+    u = await db.get(User, user_id)
+    if u is None or u.company_id is None:
+        return set()
+    rows = await db.execute(
+        select(UserPipelineAssignment.pipeline_id).where(
+            UserPipelineAssignment.user_id == user_id,
+            UserPipelineAssignment.company_id == u.company_id,
+        ),
+    )
+    return {int(r[0]) for r in rows.all()}
+
+
 def _is_pipeline_admin(role: UserRole) -> bool:
     return role in (UserRole.owner, UserRole.admin)
 
@@ -31,10 +44,16 @@ class DistributeLeadsBody(BaseModel):
 @router.get("", response_model=list[PipelineRead])
 async def list_pipelines(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> list[PipelineRead]:
-    result = await db.execute(select(Pipeline).where(Pipeline.company_id == company_id).order_by(Pipeline.id))
+    q = select(Pipeline).where(Pipeline.company_id == company_id)
+    if current_user.role == UserRole.manager:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if not allowed:
+            return []
+        q = q.where(Pipeline.id.in_(allowed))
+    result = await db.execute(q.order_by(Pipeline.id))
     return [PipelineRead.model_validate(p) for p in result.scalars().all()]
 
 

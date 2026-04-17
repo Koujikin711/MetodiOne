@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
-from app.models import Pipeline, PipelineStage, UserRole
+from app.models import Pipeline, PipelineStage, User, UserPipelineAssignment, UserRole
 from app.schemas.stage import PipelineStageCreate, PipelineStageRead
 from app.services.audit import write_audit_event
 from app.services.stage_delete_checks import stage_delete_block_reason
@@ -14,16 +14,40 @@ from app.services.stage_delete_checks import stage_delete_block_reason
 router = APIRouter(prefix="/stages", tags=["stages"])
 
 
+async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
+    u = await db.get(User, user_id)
+    if u is None or u.company_id is None:
+        return set()
+    rows = await db.execute(
+        select(UserPipelineAssignment.pipeline_id).where(
+            UserPipelineAssignment.user_id == user_id,
+            UserPipelineAssignment.company_id == u.company_id,
+        ),
+    )
+    return {int(r[0]) for r in rows.all()}
+
+
 @router.get("", response_model=list[PipelineStageRead])
 async def list_stages(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
     company_id: CurrentCompanyId,
     pipeline_id: int | None = Query(default=None),
 ) -> list[PipelineStageRead]:
     q = select(PipelineStage).where(PipelineStage.company_id == company_id)
-    if pipeline_id is not None:
-        q = q.where(PipelineStage.pipeline_id == pipeline_id)
+    if current_user.role == UserRole.manager:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if not allowed:
+            return []
+        if pipeline_id is not None:
+            if pipeline_id not in allowed:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Воронка недоступна")
+            q = q.where(PipelineStage.pipeline_id == pipeline_id)
+        else:
+            q = q.where(PipelineStage.pipeline_id.in_(allowed))
+    else:
+        if pipeline_id is not None:
+            q = q.where(PipelineStage.pipeline_id == pipeline_id)
     result = await db.execute(q.order_by(PipelineStage.order, PipelineStage.id))
     stages = result.scalars().all()
     return [PipelineStageRead.model_validate(s) for s in stages]
