@@ -348,7 +348,10 @@ async def sync_integration_now(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
     if row.provider != IntegrationProvider.google_sheets:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sync supported only for Google Sheets")
-    stats = await sync_google_sheet_integration(db, integ=row, max_rows=1000)
+    try:
+        stats = await sync_google_sheet_integration(db, integ=row, max_rows=1000)
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     await db.commit()
     return stats
 

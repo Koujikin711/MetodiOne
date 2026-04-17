@@ -30,7 +30,11 @@ _TEST_ROW_MARKERS = (
 
 
 def _norm(s: str) -> str:
-    return re.sub(r"\s+", "_", str(s or "").strip().lower())
+    raw = str(s or "").replace("\ufeff", "").strip().lower()
+    raw = re.sub(r"\s+", "_", raw)
+    raw = re.sub(r"[^a-z0-9а-я_]+", "_", raw)
+    raw = re.sub(r"_+", "_", raw).strip("_")
+    return raw
 
 
 def _resolve_private_key() -> str:
@@ -81,6 +85,14 @@ def _resolve_col_index(spec: str | int | None, headers: list[str]) -> int | None
     if letter_idx is not None:
         return letter_idx
     needle = _norm(s)
+    normalized_headers = [_norm(h) for h in headers]
+    for i, h in enumerate(normalized_headers):
+        if h == needle:
+            return i
+    # Мягкое сопоставление: "phone_number_1", "lead_phone_number", и т.п.
+    for i, h in enumerate(normalized_headers):
+        if needle and (needle in h or h in needle):
+            return i
     for i, h in enumerate(headers):
         if _norm(h) == needle:
             return i
@@ -137,6 +149,23 @@ async def _sheet_title(token: str, spreadsheet_id: str) -> str:
             if isinstance(title, str) and title.strip():
                 return title.strip()
     raise RuntimeError("Google Sheets: не удалось определить имя листа")
+
+
+async def _all_sheet_titles(token: str, spreadsheet_id: str) -> list[str]:
+    url = f"{_GOOGLE_SHEETS_API}/{quote(spreadsheet_id)}/?fields=sheets(properties(title))"
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+    r.raise_for_status()
+    payload = r.json() if isinstance(r.json(), dict) else {}
+    out: list[str] = []
+    sheets = payload.get("sheets") or []
+    if isinstance(sheets, list):
+        for s in sheets:
+            props = s.get("properties") if isinstance(s, dict) else None
+            title = props.get("title") if isinstance(props, dict) else None
+            if isinstance(title, str) and title.strip():
+                out.append(title.strip())
+    return out
 
 
 async def _sheet_rows(token: str, spreadsheet_id: str, rng: str) -> list[list[Any]]:
@@ -292,8 +321,24 @@ async def sync_google_sheet_integration(
     name_col = _resolve_col_index(cfg.get("full_name_column") or "full_name", headers)
     phone_col = _resolve_col_index(cfg.get("phone_column") or "phone_number", headers)
     email_col = _resolve_col_index(cfg.get("email_column") or "email", headers)
+    if (name_col is None or phone_col is None) and cfg.get("sheet_name"):
+        # Если явно указали не тот лист, пробуем автоматически найти корректный по заголовкам.
+        for candidate in await _all_sheet_titles(token, spreadsheet_id):
+            cand_vals = await _sheet_rows(token, spreadsheet_id, f"{candidate}!A{header_row}:ZZ{header_row}")
+            cand_headers = [str(x).strip() for x in (cand_vals[0] if cand_vals else [])]
+            cand_name = _resolve_col_index(cfg.get("full_name_column") or "full_name", cand_headers)
+            cand_phone = _resolve_col_index(cfg.get("phone_column") or "phone_number", cand_headers)
+            if cand_name is not None and cand_phone is not None:
+                sheet_name = candidate
+                headers = cand_headers
+                name_col = cand_name
+                phone_col = cand_phone
+                email_col = _resolve_col_index(cfg.get("email_column") or "email", headers)
+                break
     if name_col is None and phone_col is None:
-        raise RuntimeError("Не найдены колонки full_name/phone_number")
+        raise RuntimeError(
+            "Не найдены колонки full_name/phone_number. Проверьте имя листа, строку заголовков и названия колонок в интеграции.",
+        )
 
     rows = await _sheet_rows(token, spreadsheet_id, f"{sheet_name}!A{from_row}:ZZ")
     created = 0
