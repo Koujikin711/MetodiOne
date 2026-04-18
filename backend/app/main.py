@@ -19,7 +19,7 @@ from app.database_migrate import (
 from app.core.security import hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
-from app.routers import analytics, audit, auth, booking, chat, companies, deals, employees, integrations, leads, pipelines, reports, sources, stages, system, tasks, users
+from app.routers import analytics, audit, auth, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sources, stages, system, tasks, users
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
 
@@ -253,6 +253,7 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(companies.router, prefix="/api")
+app.include_router(finance.router, prefix="/api")
 
 
 @app.get("/health")

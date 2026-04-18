@@ -1,0 +1,649 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.deps import CurrentCompanyId, CurrentUser
+from app.database import get_db
+from app.models import (
+    FinanceAccount,
+    FinanceCompanySettings,
+    FinanceDeferredContract,
+    FinanceDeferredPeriod,
+    FinanceJournalEntry,
+    FinanceJournalLine,
+    FinanceProduct,
+    FinanceStockBalance,
+    FinanceStockLayer,
+    FinanceStockMovement,
+    FinanceWarehouse,
+    User,
+    UserRole,
+)
+from app.schemas.finance import (
+    AccountRead,
+    DeferredContractCreate,
+    DeferredContractRead,
+    DeferredPeriodRead,
+    FinanceDashboardRead,
+    FinanceSettingsPatch,
+    FinanceSettingsRead,
+    JournalCreate,
+    JournalEntryRead,
+    ProductCreate,
+    ProductRead,
+    StockBalanceRead,
+    StockIssueCreate,
+    StockReceiptCreate,
+    WarehouseCreate,
+    WarehousePatch,
+    WarehouseRead,
+)
+from app.services.finance_seed import (
+    account_id_by_code,
+    build_deferred_periods_for_contract,
+    ensure_default_chart,
+    ensure_default_warehouse_if_inventory,
+    ensure_finance_settings,
+)
+
+router = APIRouter(prefix="/finance", tags=["finance"])
+
+_COSTING = frozenset({"fifo", "average"})
+_GOODS_REV = frozenset({"payment", "shipment", "invoice"})
+_SERV_REV = frozenset({"deferred_period", "payment", "shipment"})
+
+
+def _finance_allowed(user: User) -> bool:
+    return user.role in (UserRole.owner, UserRole.admin, UserRole.super_owner)
+
+
+async def _require_finance(user: CurrentUser) -> None:
+    if not _finance_allowed(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к финансам")
+
+
+async def _ready_finance(db: AsyncSession, company_id: int) -> FinanceCompanySettings:
+    s = await ensure_finance_settings(db, company_id)
+    await ensure_default_chart(db, company_id)
+    await ensure_default_warehouse_if_inventory(db, company_id, s)
+    return s
+
+
+async def _post_balanced_journal(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    user_id: int | None,
+    entry_date: datetime,
+    memo: str | None,
+    source_type: str,
+    lines: list[tuple[int, Decimal, Decimal]],
+) -> FinanceJournalEntry:
+    td = Decimal("0")
+    tc = Decimal("0")
+    for _, d, c in lines:
+        td += d
+        tc += c
+    if td != tc or td <= 0:
+        raise HTTPException(status_code=400, detail="Проводки должны быть сбалансированы (сумма дебет = кредит) и больше нуля")
+    ent = FinanceJournalEntry(
+        company_id=company_id,
+        entry_date=entry_date,
+        memo=memo,
+        source_type=source_type,
+        created_by_user_id=user_id,
+    )
+    db.add(ent)
+    await db.flush()
+    for acc_id, d, c in lines:
+        db.add(FinanceJournalLine(entry_id=ent.id, account_id=acc_id, debit=d, credit=c))
+    await db.flush()
+    return ent
+
+
+@router.get("/settings", response_model=FinanceSettingsRead)
+async def get_finance_settings(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceCompanySettings:
+    await _require_finance(current_user)
+    return await _ready_finance(db, company_id)
+
+
+@router.patch("/settings", response_model=FinanceSettingsRead)
+async def patch_finance_settings(
+    body: FinanceSettingsPatch,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceCompanySettings:
+    await _require_finance(current_user)
+    row = await _ready_finance(db, company_id)
+    if body.inventory_enabled is not None:
+        row.inventory_enabled = body.inventory_enabled
+    if body.costing_method is not None:
+        if body.costing_method not in _COSTING:
+            raise HTTPException(400, detail="costing_method: fifo или average")
+        row.costing_method = body.costing_method
+    if body.revenue_goods_policy is not None:
+        if body.revenue_goods_policy not in _GOODS_REV:
+            raise HTTPException(400, detail="revenue_goods_policy: payment, shipment или invoice")
+        row.revenue_goods_policy = body.revenue_goods_policy
+    if body.revenue_services_policy is not None:
+        if body.revenue_services_policy not in _SERV_REV:
+            raise HTTPException(400, detail="revenue_services_policy: deferred_period, payment или shipment")
+        row.revenue_services_policy = body.revenue_services_policy
+    await db.flush()
+    await ensure_default_warehouse_if_inventory(db, company_id, row)
+    await db.commit()
+    await db.refresh(row)
+    return row
+
+
+@router.get("/warehouses", response_model=list[WarehouseRead])
+async def list_warehouses(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[FinanceWarehouse]:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    r = await db.execute(
+        select(FinanceWarehouse).where(FinanceWarehouse.company_id == company_id).order_by(FinanceWarehouse.sort_order, FinanceWarehouse.id),
+    )
+    return list(r.scalars().all())
+
+
+@router.post("/warehouses", response_model=WarehouseRead, status_code=status.HTTP_201_CREATED)
+async def create_warehouse(
+    body: WarehouseCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceWarehouse:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    if body.is_default:
+        rows = (await db.execute(select(FinanceWarehouse).where(FinanceWarehouse.company_id == company_id))).scalars().all()
+        for w in rows:
+            w.is_default = False
+    w = FinanceWarehouse(
+        company_id=company_id,
+        name=body.name.strip(),
+        code=(body.code or "").strip() or None,
+        sort_order=body.sort_order,
+        is_default=body.is_default,
+    )
+    db.add(w)
+    await db.flush()
+    await db.commit()
+    await db.refresh(w)
+    return w
+
+
+@router.patch("/warehouses/{warehouse_id}", response_model=WarehouseRead)
+async def patch_warehouse(
+    warehouse_id: int,
+    body: WarehousePatch,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceWarehouse:
+    await _require_finance(current_user)
+    w = await db.get(FinanceWarehouse, warehouse_id)
+    if w is None or w.company_id != company_id:
+        raise HTTPException(404, detail="Склад не найден")
+    if body.name is not None:
+        w.name = body.name.strip()
+    if body.code is not None:
+        w.code = body.code.strip() or None
+    if body.is_active is not None:
+        w.is_active = body.is_active
+    if body.sort_order is not None:
+        w.sort_order = body.sort_order
+    if body.is_default is True:
+        others = (await db.execute(select(FinanceWarehouse).where(FinanceWarehouse.company_id == company_id))).scalars().all()
+        for o in others:
+            o.is_default = o.id == warehouse_id
+    await db.flush()
+    await db.commit()
+    await db.refresh(w)
+    return w
+
+
+@router.get("/accounts", response_model=list[AccountRead])
+async def list_accounts(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[FinanceAccount]:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    r = await db.execute(
+        select(FinanceAccount).where(FinanceAccount.company_id == company_id).order_by(FinanceAccount.sort_order, FinanceAccount.code),
+    )
+    return list(r.scalars().all())
+
+
+@router.post("/journal", response_model=JournalEntryRead, status_code=status.HTTP_201_CREATED)
+async def post_manual_journal(
+    body: JournalCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceJournalEntry:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    lines: list[tuple[int, Decimal, Decimal]] = []
+    for ln in body.lines:
+        acc = await db.get(FinanceAccount, ln.account_id)
+        if acc is None or acc.company_id != company_id:
+            raise HTTPException(400, detail=f"Счёт {ln.account_id} не найден")
+        lines.append((ln.account_id, ln.debit, ln.credit))
+    ent = await _post_balanced_journal(
+        db,
+        company_id=company_id,
+        user_id=current_user.id,
+        entry_date=body.entry_date,
+        memo=body.memo,
+        source_type="manual",
+        lines=lines,
+    )
+    await db.commit()
+    await db.refresh(ent)
+    return ent
+
+
+@router.get("/dashboard", response_model=FinanceDashboardRead)
+async def finance_dashboard(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceDashboardRead:
+    await _require_finance(current_user)
+    settings = await _ready_finance(db, company_id)
+    wh_rows = (
+        await db.execute(select(FinanceWarehouse).where(FinanceWarehouse.company_id == company_id, FinanceWarehouse.is_active.is_(True)))
+    ).scalars().all()
+    warehouses_out: list[dict] = []
+    if settings.inventory_enabled and len(wh_rows) > 1:
+        for w in wh_rows:
+            q = (
+                select(
+                    func.coalesce(func.sum(FinanceStockBalance.quantity * FinanceStockBalance.avg_unit_cost), 0),
+                    func.count(FinanceStockBalance.id),
+                ).where(FinanceStockBalance.warehouse_id == w.id)
+            )
+            val, cnt = (await db.execute(q)).one()
+            warehouses_out.append(
+                {
+                    "warehouse_id": w.id,
+                    "warehouse_name": w.name,
+                    "sku_positions": int(cnt or 0),
+                    "inventory_value": str(val or Decimal("0")),
+                },
+            )
+    elif settings.inventory_enabled and len(wh_rows) == 1:
+        w = wh_rows[0]
+        q = select(
+            func.coalesce(func.sum(FinanceStockBalance.quantity * FinanceStockBalance.avg_unit_cost), 0),
+            func.count(FinanceStockBalance.id),
+        ).where(FinanceStockBalance.warehouse_id == w.id)
+        val, cnt = (await db.execute(q)).one()
+        warehouses_out.append(
+            {
+                "warehouse_id": w.id,
+                "warehouse_name": w.name,
+                "sku_positions": int(cnt or 0),
+                "inventory_value": str(val or Decimal("0")),
+            },
+        )
+    return FinanceDashboardRead(
+        warehouse_count=len(wh_rows),
+        multi_warehouse=len(wh_rows) > 1,
+        warehouses=warehouses_out,
+        inventory_enabled=settings.inventory_enabled,
+        costing_method=settings.costing_method,
+    )
+
+
+@router.get("/products", response_model=list[ProductRead])
+async def list_products(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[FinanceProduct]:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    r = await db.execute(select(FinanceProduct).where(FinanceProduct.company_id == company_id).order_by(FinanceProduct.name))
+    return list(r.scalars().all())
+
+
+@router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
+async def create_product(
+    body: ProductCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceProduct:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    pt = (body.product_type or "good").strip().lower()
+    if pt not in ("good", "service"):
+        raise HTTPException(400, detail="product_type: good или service")
+    p = FinanceProduct(
+        company_id=company_id,
+        name=body.name.strip(),
+        sku=(body.sku or "").strip() or None,
+        product_type=pt,
+        unit=(body.unit or "pcs").strip() or "pcs",
+    )
+    db.add(p)
+    await db.flush()
+    await db.commit()
+    await db.refresh(p)
+    return p
+
+
+@router.get("/stock/balances", response_model=list[StockBalanceRead])
+async def list_stock_balances(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[StockBalanceRead]:
+    await _require_finance(current_user)
+    settings = await _ready_finance(db, company_id)
+    if not settings.inventory_enabled:
+        return []
+    r = await db.execute(
+        select(FinanceStockBalance, FinanceProduct, FinanceWarehouse)
+        .join(FinanceProduct, FinanceProduct.id == FinanceStockBalance.product_id)
+        .join(FinanceWarehouse, FinanceWarehouse.id == FinanceStockBalance.warehouse_id)
+        .where(FinanceProduct.company_id == company_id),
+    )
+    out: list[StockBalanceRead] = []
+    for bal, prod, wh in r.all():
+        val = (bal.quantity or Decimal("0")) * (bal.avg_unit_cost or Decimal("0"))
+        out.append(
+            StockBalanceRead(
+                product_id=prod.id,
+                product_name=prod.name,
+                warehouse_id=wh.id,
+                warehouse_name=wh.name,
+                quantity=bal.quantity,
+                avg_unit_cost=bal.avg_unit_cost,
+                value=val.quantize(Decimal("0.01")),
+            ),
+        )
+    return out
+
+
+@router.post("/stock/receipt", status_code=status.HTTP_201_CREATED)
+async def stock_receipt(
+    body: StockReceiptCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> dict[str, int]:
+    await _require_finance(current_user)
+    settings = await _ready_finance(db, company_id)
+    if not settings.inventory_enabled:
+        raise HTTPException(400, detail="Склад выключен в настройках финансов")
+    wh = await db.get(FinanceWarehouse, body.warehouse_id)
+    if wh is None or wh.company_id != company_id:
+        raise HTTPException(404, detail="Склад не найден")
+    prod = await db.get(FinanceProduct, body.product_id)
+    if prod is None or prod.company_id != company_id:
+        raise HTTPException(404, detail="Номенклатура не найдена")
+    if prod.product_type != "good":
+        raise HTTPException(400, detail="Приход только для типа «товар»")
+    q = body.quantity
+    uc = body.unit_cost
+    bal = await db.scalar(
+        select(FinanceStockBalance).where(
+            FinanceStockBalance.product_id == prod.id,
+            FinanceStockBalance.warehouse_id == wh.id,
+        ),
+    )
+    if bal is None:
+        bal = FinanceStockBalance(product_id=prod.id, warehouse_id=wh.id, quantity=Decimal("0"), avg_unit_cost=Decimal("0"))
+        db.add(bal)
+        await db.flush()
+    old_q = bal.quantity or Decimal("0")
+    old_c = bal.avg_unit_cost or Decimal("0")
+    new_q = old_q + q
+    mv = FinanceStockMovement(
+        company_id=company_id,
+        warehouse_id=wh.id,
+        product_id=prod.id,
+        qty_delta=q,
+        movement_type="receipt",
+        unit_cost=uc,
+        memo=body.memo,
+    )
+    db.add(mv)
+    await db.flush()
+
+    if settings.costing_method == "average":
+        if new_q > 0:
+            bal.avg_unit_cost = ((old_q * old_c) + (q * uc)) / new_q
+        else:
+            bal.avg_unit_cost = uc
+        bal.quantity = new_q
+    else:
+        bal.quantity = new_q
+        bal.avg_unit_cost = bal.avg_unit_cost or uc
+        db.add(
+            FinanceStockLayer(
+                product_id=prod.id,
+                warehouse_id=wh.id,
+                qty_remaining=q,
+                unit_cost=uc,
+                movement_id=mv.id,
+            ),
+        )
+    amount = (q * uc).quantize(Decimal("0.01"))
+    acc_inv = await account_id_by_code(db, company_id, "2010")
+    acc_tech = await account_id_by_code(db, company_id, "2999")
+    if acc_inv and acc_tech and amount > 0:
+        await _post_balanced_journal(
+            db,
+            company_id=company_id,
+            user_id=current_user.id,
+            entry_date=datetime.now(UTC),
+            memo=body.memo or f"Приход {prod.name}",
+            source_type="stock_receipt",
+            lines=[(acc_inv, amount, Decimal("0")), (acc_tech, Decimal("0"), amount)],
+        )
+    await db.commit()
+    return {"ok": 1}
+
+
+@router.post("/stock/issue", status_code=status.HTTP_201_CREATED)
+async def stock_issue(
+    body: StockIssueCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> dict[str, str]:
+    await _require_finance(current_user)
+    settings = await _ready_finance(db, company_id)
+    if not settings.inventory_enabled:
+        raise HTTPException(400, detail="Склад выключен в настройках финансов")
+    wh = await db.get(FinanceWarehouse, body.warehouse_id)
+    if wh is None or wh.company_id != company_id:
+        raise HTTPException(404, detail="Склад не найден")
+    prod = await db.get(FinanceProduct, body.product_id)
+    if prod is None or prod.company_id != company_id or prod.product_type != "good":
+        raise HTTPException(404, detail="Номенклатура не найдена или не товар")
+    need = body.quantity
+    bal = await db.scalar(
+        select(FinanceStockBalance).where(
+            FinanceStockBalance.product_id == prod.id,
+            FinanceStockBalance.warehouse_id == wh.id,
+        ),
+    )
+    if bal is None or (bal.quantity or Decimal("0")) < need:
+        raise HTTPException(400, detail="Недостаточно остатка")
+    cost_total = Decimal("0")
+    if settings.costing_method == "average":
+        uc = bal.avg_unit_cost or Decimal("0")
+        cost_total = (need * uc).quantize(Decimal("0.01"))
+        bal.quantity = (bal.quantity or Decimal("0")) - need
+    else:
+        layers = (
+            await db.execute(
+                select(FinanceStockLayer)
+                .where(
+                    FinanceStockLayer.product_id == prod.id,
+                    FinanceStockLayer.warehouse_id == wh.id,
+                    FinanceStockLayer.qty_remaining > 0,
+                )
+                .order_by(FinanceStockLayer.id.asc()),
+            )
+        ).scalars().all()
+        left = need
+        for layer in layers:
+            if left <= 0:
+                break
+            take = min(left, layer.qty_remaining)
+            cost_total += take * layer.unit_cost
+            layer.qty_remaining -= take
+            left -= take
+        if left > 0:
+            raise HTTPException(400, detail="Недостаточно партий FIFO")
+        bal.quantity = (bal.quantity or Decimal("0")) - need
+    mv = FinanceStockMovement(
+        company_id=company_id,
+        warehouse_id=wh.id,
+        product_id=prod.id,
+        qty_delta=-need,
+        movement_type="issue",
+        unit_cost=None,
+        memo=body.memo,
+    )
+    db.add(mv)
+    cost_total = cost_total.quantize(Decimal("0.01"))
+    acc_inv = await account_id_by_code(db, company_id, "2010")
+    acc_cogs = await account_id_by_code(db, company_id, "7010")
+    if acc_inv and acc_cogs and cost_total > 0:
+        await _post_balanced_journal(
+            db,
+            company_id=company_id,
+            user_id=current_user.id,
+            entry_date=datetime.now(UTC),
+            memo=body.memo or f"Списание {prod.name}",
+            source_type="stock_issue",
+            lines=[(acc_cogs, cost_total, Decimal("0")), (acc_inv, Decimal("0"), cost_total)],
+        )
+    await db.commit()
+    return {"cost": str(cost_total)}
+
+
+@router.get("/deferred-contracts", response_model=list[DeferredContractRead])
+async def list_deferred(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[FinanceDeferredContract]:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    r = await db.execute(select(FinanceDeferredContract).where(FinanceDeferredContract.company_id == company_id).order_by(FinanceDeferredContract.id.desc()))
+    return list(r.scalars().all())
+
+
+@router.post("/deferred-contracts", response_model=DeferredContractRead, status_code=status.HTTP_201_CREATED)
+async def create_deferred(
+    body: DeferredContractCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceDeferredContract:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    if body.end_date <= body.start_date:
+        raise HTTPException(400, detail="end_date должен быть позже start_date")
+    c = FinanceDeferredContract(
+        company_id=company_id,
+        title=body.title.strip(),
+        total_amount=body.total_amount,
+        period_count=body.period_count,
+        start_date=body.start_date,
+        end_date=body.end_date,
+        memo=body.memo,
+    )
+    db.add(c)
+    await db.flush()
+    await build_deferred_periods_for_contract(db, c)
+    await db.commit()
+    await db.refresh(c)
+    return c
+
+
+@router.get("/deferred-contracts/{contract_id}/periods", response_model=list[DeferredPeriodRead])
+async def list_deferred_periods(
+    contract_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[FinanceDeferredPeriod]:
+    await _require_finance(current_user)
+    c = await db.get(FinanceDeferredContract, contract_id)
+    if c is None or c.company_id != company_id:
+        raise HTTPException(404, detail="Договор не найден")
+    r = await db.execute(
+        select(FinanceDeferredPeriod).where(FinanceDeferredPeriod.contract_id == contract_id).order_by(FinanceDeferredPeriod.period_no),
+    )
+    return list(r.scalars().all())
+
+
+@router.post("/deferred-contracts/{contract_id}/periods/{period_no}/recognize", response_model=JournalEntryRead)
+async def recognize_period(
+    contract_id: int,
+    period_no: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceJournalEntry:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    c = await db.get(FinanceDeferredContract, contract_id)
+    if c is None or c.company_id != company_id:
+        raise HTTPException(404, detail="Договор не найден")
+    per = await db.scalar(
+        select(FinanceDeferredPeriod).where(
+            FinanceDeferredPeriod.contract_id == contract_id,
+            FinanceDeferredPeriod.period_no == period_no,
+        ),
+    )
+    if per is None:
+        raise HTTPException(404, detail="Период не найден")
+    if per.posted_at is not None:
+        raise HTTPException(400, detail="Период уже признан")
+    acc_def = await account_id_by_code(db, company_id, "2090")
+    acc_rev = await account_id_by_code(db, company_id, "4010")
+    if not acc_def or not acc_rev:
+        raise HTTPException(500, detail="Не настроены счета 2090/4010")
+    amt = per.amount
+    ent = await _post_balanced_journal(
+        db,
+        company_id=company_id,
+        user_id=current_user.id,
+        entry_date=datetime.now(UTC),
+        memo=f"Признание выручки: {c.title} период {period_no}",
+        source_type="deferred_revenue",
+        lines=[(acc_def, amt, Decimal("0")), (acc_rev, Decimal("0"), amt)],
+    )
+    per.journal_entry_id = ent.id
+    per.posted_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(ent)
+    return ent

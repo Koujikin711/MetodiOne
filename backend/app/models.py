@@ -377,3 +377,159 @@ class Task(Base):
         back_populates="automation_tasks",
         foreign_keys=[related_lead_id],
     )
+
+
+# --- ERP Finance (без налогового блока): настройки, GL, склады, товар, отложенная выручка ---
+
+
+class FinanceCompanySettings(Base):
+    """Политики учёта на компанию (включаемые модули)."""
+
+    __tablename__ = "finance_company_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), unique=True, index=True)
+    inventory_enabled: Mapped[bool] = mapped_column(default=False)
+    # fifo | average
+    costing_method: Mapped[str] = mapped_column(String(16), default="average")
+    # payment | shipment | invoice
+    revenue_goods_policy: Mapped[str] = mapped_column(String(24), default="shipment")
+    # deferred_period | payment | shipment
+    revenue_services_policy: Mapped[str] = mapped_column(String(24), default="deferred_period")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, onupdate=_utc_now)
+
+
+class FinanceWarehouse(Base):
+    __tablename__ = "finance_warehouses"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    sort_order: Mapped[int] = mapped_column(default=0)
+    is_default: Mapped[bool] = mapped_column(default=False)
+
+
+class FinanceAccount(Base):
+    __tablename__ = "finance_accounts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    code: Mapped[str] = mapped_column(String(32))
+    name: Mapped[str] = mapped_column(String(255))
+    # asset | liability | equity | revenue | expense
+    account_type: Mapped[str] = mapped_column(String(24), default="asset")
+    is_system: Mapped[bool] = mapped_column(default=False)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    sort_order: Mapped[int] = mapped_column(default=0)
+
+    __table_args__ = (UniqueConstraint("company_id", "code", name="uq_finance_accounts_company_code"),)
+
+
+class FinanceJournalEntry(Base):
+    __tablename__ = "finance_journal_entries"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    entry_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    memo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_type: Mapped[str] = mapped_column(String(40), default="manual")
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
+class FinanceJournalLine(Base):
+    __tablename__ = "finance_journal_lines"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    entry_id: Mapped[int] = mapped_column(ForeignKey("finance_journal_entries.id", ondelete="CASCADE"), index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("finance_accounts.id", ondelete="RESTRICT"))
+    debit: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    credit: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    dimensions: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class FinanceProduct(Base):
+    __tablename__ = "finance_products"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    sku: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    # good | service
+    product_type: Mapped[str] = mapped_column(String(16), default="good")
+    unit: Mapped[str] = mapped_column(String(32), default="pcs")
+    is_active: Mapped[bool] = mapped_column(default=True)
+
+
+class FinanceStockBalance(Base):
+    __tablename__ = "finance_stock_balances"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("finance_products.id", ondelete="CASCADE"), index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("finance_warehouses.id", ondelete="CASCADE"), index=True)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
+    avg_unit_cost: Mapped[Decimal] = mapped_column(Numeric(14, 4), default=Decimal("0"))
+
+    __table_args__ = (UniqueConstraint("product_id", "warehouse_id", name="uq_finance_stock_bal_product_wh"),)
+
+
+class FinanceStockMovement(Base):
+    __tablename__ = "finance_stock_movements"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("finance_warehouses.id", ondelete="CASCADE"))
+    product_id: Mapped[int] = mapped_column(ForeignKey("finance_products.id", ondelete="CASCADE"))
+    qty_delta: Mapped[Decimal] = mapped_column(Numeric(18, 4))
+    # receipt | issue | transfer_out | transfer_in
+    movement_type: Mapped[str] = mapped_column(String(24))
+    unit_cost: Mapped[Decimal | None] = mapped_column(Numeric(14, 4), nullable=True)
+    counter_warehouse_id: Mapped[int | None] = mapped_column(ForeignKey("finance_warehouses.id", ondelete="SET NULL"), nullable=True)
+    memo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
+class FinanceStockLayer(Base):
+    """Партии для FIFO."""
+
+    __tablename__ = "finance_stock_layers"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("finance_products.id", ondelete="CASCADE"), index=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("finance_warehouses.id", ondelete="CASCADE"), index=True)
+    qty_remaining: Mapped[Decimal] = mapped_column(Numeric(18, 4))
+    unit_cost: Mapped[Decimal] = mapped_column(Numeric(14, 4))
+    movement_id: Mapped[int | None] = mapped_column(ForeignKey("finance_stock_movements.id", ondelete="SET NULL"), nullable=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
+class FinanceDeferredContract(Base):
+    """Договор/абонемент: отложенная выручка услуг по периодам."""
+
+    __tablename__ = "finance_deferred_contracts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    period_count: Mapped[int] = mapped_column(default=1)
+    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    memo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
+class FinanceDeferredPeriod(Base):
+    __tablename__ = "finance_deferred_periods"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("finance_deferred_contracts.id", ondelete="CASCADE"), index=True)
+    period_no: Mapped[int] = mapped_column()
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    due_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    journal_entry_id: Mapped[int | None] = mapped_column(ForeignKey("finance_journal_entries.id", ondelete="SET NULL"), nullable=True)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (UniqueConstraint("contract_id", "period_no", name="uq_finance_deferred_contract_period"),)
