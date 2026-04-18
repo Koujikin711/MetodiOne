@@ -1,4 +1,14 @@
-import { BarChart3, Calendar, CheckSquare, LayoutDashboard, LogOut, MessageCircle, UserRound, Users } from "@/components/icons";
+import {
+  BarChart3,
+  Calendar,
+  CheckSquare,
+  LayoutDashboard,
+  LogOut,
+  MessageCircle,
+  UserRound,
+  Users,
+  Wallet,
+} from "@/components/icons";
 import { GradientIconBox } from "@/components/GradientIconBox";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
@@ -23,6 +33,7 @@ export function MainLayout() {
   const isSuperOwner = role === "super_owner";
   const isManagerNav = role === "manager" || role === "admin";
   const isExpert = role === "expert";
+  const showFinance = role === "owner" || role === "admin" || role === "super_owner";
 
   function logout() {
     setStoredToken(null);
@@ -62,6 +73,14 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Компании</span>
                 </NavLink>
+                {showFinance ? (
+                  <NavLink to="/finance" className={navLinkClass} title="Финансы">
+                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Wallet className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Финансы</span>
+                  </NavLink>
+                ) : null}
               </>
             ) : isManagerNav ? (
               <>
@@ -95,6 +114,14 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
                 </NavLink>
+                {role === "admin" ? (
+                  <NavLink to="/finance" className={navLinkClass} title="Финансы">
+                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Wallet className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Финансы</span>
+                  </NavLink>
+                ) : null}
               </>
             ) : isExpert ? (
               <>
@@ -149,6 +176,12 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Аналит.</span>
                 </NavLink>
+                <NavLink to="/finance" className={navLinkClass} title="Финансы">
+                  <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <Wallet className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Финансы</span>
+                </NavLink>
                 <NavLink to="/employees" className={navLinkClass} title="Сотрудники">
                   <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
                     <Users className="h-[18px] w-[18px]" />
@@ -198,6 +231,14 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Компании</span>
               </NavLink>
+              {showFinance ? (
+                <NavLink to="/finance" className={navLinkClass} title="Финансы">
+                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Wallet className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Финансы</span>
+                </NavLink>
+              ) : null}
               <button
                 type="button"
                 onClick={logout}
@@ -236,6 +277,14 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Чат</span>
               </NavLink>
+              {role === "admin" ? (
+                <NavLink to="/finance" className={navLinkClass} title="Финансы">
+                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Wallet className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Финансы</span>
+                </NavLink>
+              ) : null}
               <button
                 type="button"
                 onClick={logout}
@@ -299,6 +348,12 @@ export function MainLayout() {
                   <Calendar className="h-4 w-4" />
                 </GradientIconBox>
                 <span className="text-[9px]">Онлайн</span>
+              </NavLink>
+              <NavLink to="/finance" className={navLinkClass} title="Финансы">
+                <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <Wallet className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Финансы</span>
               </NavLink>
               <NavLink to="/chat" className={navLinkClass} title="Чат">
                 <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">

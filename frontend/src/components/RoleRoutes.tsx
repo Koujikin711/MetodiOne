@@ -67,3 +67,11 @@ export function RequireSuperOwner({ children }: { children: ReactNode }) {
   }
   return <>{children}</>;
 }
+
+export function RequireFinance({ children }: { children: ReactNode }) {
+  const r = decodeRoleFromToken(getStoredToken());
+  if (r !== "owner" && r !== "admin" && r !== "super_owner") {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}

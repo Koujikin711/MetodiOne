@@ -268,3 +268,73 @@ export interface ExpertReportsResponse {
   period_end: string;
   items: PipelineExpertReport[];
 }
+
+/** Настройки финансового модуля (политики учёта) */
+export interface FinanceSettings {
+  inventory_enabled: boolean;
+  costing_method: string;
+  revenue_goods_policy: string;
+  revenue_services_policy: string;
+}
+
+export interface FinanceWarehouse {
+  id: number;
+  name: string;
+  code: string | null;
+  is_active: boolean;
+  sort_order: number;
+  is_default: boolean;
+}
+
+export interface FinanceProduct {
+  id: number;
+  name: string;
+  sku: string | null;
+  product_type: string;
+  unit: string;
+  is_active: boolean;
+}
+
+export interface FinanceStockBalanceRow {
+  product_id: number;
+  product_name: string;
+  warehouse_id: number;
+  warehouse_name: string;
+  quantity: string;
+  avg_unit_cost: string;
+  value: string;
+}
+
+export interface FinanceDashboardWarehouse {
+  warehouse_id: number;
+  warehouse_name: string;
+  sku_positions: number;
+  inventory_value: string;
+}
+
+export interface FinanceDashboard {
+  warehouse_count: number;
+  multi_warehouse: boolean;
+  warehouses: FinanceDashboardWarehouse[];
+  inventory_enabled: boolean;
+  costing_method: string;
+}
+
+export interface FinanceDeferredContract {
+  id: number;
+  title: string;
+  total_amount: string;
+  period_count: number;
+  start_date: string;
+  end_date: string;
+  memo: string | null;
+}
+
+export interface FinanceDeferredPeriod {
+  id: number;
+  period_no: number;
+  amount: string;
+  due_date: string;
+  posted_at: string | null;
+  journal_entry_id: number | null;
+}

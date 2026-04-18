@@ -2,7 +2,7 @@ import { Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { HomeEntry, RequireOwner, RequireNotManager, RequireSuperOwner } from "@/components/RoleRoutes";
+import { HomeEntry, RequireFinance, RequireOwner, RequireNotManager, RequireSuperOwner } from "@/components/RoleRoutes";
 import { MainLayout } from "@/layouts/MainLayout";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { AuditPage } from "@/pages/AuditPage";
@@ -15,6 +15,7 @@ import { MyLeadsPage } from "@/pages/MyLeadsPage";
 import { OnlineBookingPage } from "@/pages/OnlineBookingPage";
 import { CompaniesPage } from "@/pages/CompaniesPage";
 import { CrmPage } from "@/pages/CrmPage";
+import { FinancePage } from "@/pages/FinancePage";
 import { TasksPage } from "@/pages/TasksPage";
 
 export default function App() {
@@ -36,6 +37,14 @@ export default function App() {
                 <RequireOwner>
                   <AnalyticsPage />
                 </RequireOwner>
+              }
+            />
+            <Route
+              path="/finance"
+              element={
+                <RequireFinance>
+                  <FinancePage />
+                </RequireFinance>
               }
             />
             <Route path="/reports" element={<ExpertReportsPage />} />
