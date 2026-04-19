@@ -338,3 +338,41 @@ export interface FinanceDeferredPeriod {
   posted_at: string | null;
   journal_entry_id: number | null;
 }
+
+export interface FinanceAccount {
+  id: number;
+  code: string;
+  name: string;
+  account_type: string;
+  is_system: boolean;
+  is_active: boolean;
+}
+
+export interface FinanceJournalLineDetail {
+  account_code: string;
+  account_name: string;
+  debit: string;
+  credit: string;
+}
+
+export interface FinanceJournalEntryDetail {
+  id: number;
+  entry_date: string;
+  memo: string | null;
+  source_type: string;
+  created_at: string;
+  lines: FinanceJournalLineDetail[];
+}
+
+export interface FinanceStockMovement {
+  id: number;
+  created_at: string;
+  movement_type: string;
+  qty_delta: string;
+  unit_cost: string | null;
+  memo: string | null;
+  warehouse_id: number;
+  warehouse_name: string;
+  product_id: number;
+  product_name: string;
+}

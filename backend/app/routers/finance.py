@@ -4,11 +4,9 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import and_, func, select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import (
@@ -35,11 +33,14 @@ from app.schemas.finance import (
     FinanceSettingsPatch,
     FinanceSettingsRead,
     JournalCreate,
+    JournalEntryDetailRead,
     JournalEntryRead,
+    JournalLineDetailRead,
     ProductCreate,
     ProductRead,
     StockBalanceRead,
     StockIssueCreate,
+    StockMovementRead,
     StockReceiptCreate,
     WarehouseCreate,
     WarehousePatch,
@@ -260,6 +261,90 @@ async def post_manual_journal(
     await db.commit()
     await db.refresh(ent)
     return ent
+
+
+@router.get("/journal-entries", response_model=list[JournalEntryDetailRead])
+async def list_journal_entries(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    limit: int = Query(80, ge=1, le=200),
+    source_type: str | None = Query(None, max_length=40),
+) -> list[JournalEntryDetailRead]:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    q = select(FinanceJournalEntry).where(FinanceJournalEntry.company_id == company_id)
+    if source_type:
+        q = q.where(FinanceJournalEntry.source_type == source_type.strip())
+    q = q.order_by(FinanceJournalEntry.entry_date.desc(), FinanceJournalEntry.id.desc()).limit(limit)
+    entries = list((await db.execute(q)).scalars().all())
+    if not entries:
+        return []
+    eids = [e.id for e in entries]
+    line_rows = (
+        await db.execute(
+            select(FinanceJournalLine, FinanceAccount.code, FinanceAccount.name)
+            .join(FinanceAccount, FinanceAccount.id == FinanceJournalLine.account_id)
+            .where(FinanceJournalLine.entry_id.in_(eids))
+            .order_by(FinanceJournalLine.entry_id.asc(), FinanceJournalLine.id.asc()),
+        )
+    ).all()
+    by_entry: dict[int, list[JournalLineDetailRead]] = {i: [] for i in eids}
+    for ln, code, name in line_rows:
+        by_entry[ln.entry_id].append(
+            JournalLineDetailRead(account_code=code, account_name=name, debit=ln.debit, credit=ln.credit),
+        )
+    out: list[JournalEntryDetailRead] = []
+    for ent in entries:
+        out.append(
+            JournalEntryDetailRead(
+                id=ent.id,
+                entry_date=ent.entry_date,
+                memo=ent.memo,
+                source_type=ent.source_type,
+                created_at=ent.created_at,
+                lines=by_entry.get(ent.id, []),
+            ),
+        )
+    return out
+
+
+@router.get("/stock/movements", response_model=list[StockMovementRead])
+async def list_stock_movements(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    limit: int = Query(100, ge=1, le=500),
+) -> list[StockMovementRead]:
+    await _require_finance(current_user)
+    settings = await _ready_finance(db, company_id)
+    if not settings.inventory_enabled:
+        return []
+    r = await db.execute(
+        select(FinanceStockMovement, FinanceWarehouse.name, FinanceProduct.name)
+        .join(FinanceWarehouse, FinanceWarehouse.id == FinanceStockMovement.warehouse_id)
+        .join(FinanceProduct, FinanceProduct.id == FinanceStockMovement.product_id)
+        .where(FinanceStockMovement.company_id == company_id)
+        .order_by(FinanceStockMovement.created_at.desc(), FinanceStockMovement.id.desc())
+        .limit(limit),
+    )
+    out: list[StockMovementRead] = []
+    for mv, wh_name, prod_name in r.all():
+        out.append(
+            StockMovementRead(
+                id=mv.id,
+                created_at=mv.created_at,
+                movement_type=mv.movement_type,
+                qty_delta=mv.qty_delta,
+                unit_cost=mv.unit_cost,
+                memo=mv.memo,
+                warehouse_id=mv.warehouse_id,
+                warehouse_name=wh_name,
+                product_id=mv.product_id,
+                product_name=prod_name,
+            ),
+        )
+    return out
 
 
 @router.get("/dashboard", response_model=FinanceDashboardRead)
