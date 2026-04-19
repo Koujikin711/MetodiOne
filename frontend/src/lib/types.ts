@@ -386,6 +386,14 @@ export interface FinancePeriodSummary {
   inventory_value: string;
   deferred_unrecognized: string;
   journal_entries_count: number;
+  net_margin_pct?: string | null;
+}
+
+export interface FinanceAccountTypeRollup {
+  account_type: string;
+  debit_total: string;
+  credit_total: string;
+  net_balance: string;
 }
 
 export interface FinanceTrialBalanceLine {
