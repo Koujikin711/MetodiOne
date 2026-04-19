@@ -3,8 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 
+import { FinanceReportsCharts, PeriodDelta, PlanFactBar } from "@/components/finance/FinanceReportsCharts";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeCompanyIdFromToken, decodeRoleFromToken } from "@/lib/auth";
+import { previousPeriodRange } from "@/lib/financePeriod";
 import type {
   FinanceAccount,
   FinanceDashboard,
@@ -149,6 +151,9 @@ export function FinancePage() {
   });
 
   const reportRangeKey = `${reportFrom}_${reportTo}`;
+  const prevRange = useMemo(() => previousPeriodRange(reportFrom, reportTo), [reportFrom, reportTo]);
+  const prevRangeKey = prevRange ? `${prevRange.from}_${prevRange.to}` : "";
+
   const periodSummaryQuery = useQuery({
     queryKey: ["finance-reports", "period-summary", reportRangeKey],
     queryFn: () =>
@@ -156,6 +161,15 @@ export function FinancePage() {
         `/api/finance/reports/period-summary?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
       ),
     enabled: !superNeedsCompany && tab === "reports",
+  });
+
+  const prevPeriodSummaryQuery = useQuery({
+    queryKey: ["finance-reports", "period-summary-prev", prevRangeKey],
+    queryFn: () =>
+      apiFetch<FinancePeriodSummary>(
+        `/api/finance/reports/period-summary?date_from=${encodeURIComponent(prevRange!.from)}&date_to=${encodeURIComponent(prevRange!.to)}`,
+      ),
+    enabled: !superNeedsCompany && tab === "reports" && prevRange != null,
   });
 
   const trialBalanceQuery = useQuery({
@@ -1255,6 +1269,12 @@ export function FinancePage() {
 
           <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
             <h2 className="text-lg font-medium text-white">Дашборд за период</h2>
+            {prevRange ? (
+              <p className="mt-1 text-xs text-slate-500">
+                Сравнение с предыдущим периодом: {prevRange.from} — {prevRange.to}
+                {prevPeriodSummaryQuery.isLoading ? " · загрузка базы…" : null}
+              </p>
+            ) : null}
             {periodSummaryQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
             {periodSummaryQuery.isError && (
               <p className="mt-2 text-sm text-rose-300">{(periodSummaryQuery.error as Error).message}</p>
@@ -1266,18 +1286,31 @@ export function FinancePage() {
                   <div className="mt-1 text-lg font-semibold text-white">
                     {parseMoney(periodSummaryQuery.data.revenue_total)}
                   </div>
+                  <PeriodDelta
+                    current={periodSummaryQuery.data.revenue_total}
+                    previous={prevPeriodSummaryQuery.data?.revenue_total}
+                  />
                 </div>
                 <div className="rounded-xl border border-rose-500/20 bg-rose-950/20 px-4 py-3">
                   <div className="text-xs text-rose-200/80">Расходы (в т.ч. себестоимость)</div>
                   <div className="mt-1 text-lg font-semibold text-white">
                     {parseMoney(periodSummaryQuery.data.expense_total)}
                   </div>
+                  <PeriodDelta
+                    current={periodSummaryQuery.data.expense_total}
+                    previous={prevPeriodSummaryQuery.data?.expense_total}
+                    invert
+                  />
                 </div>
                 <div className="rounded-xl border border-purple-500/20 bg-purple-950/20 px-4 py-3">
                   <div className="text-xs text-purple-200/80">Чистый результат</div>
                   <div className="mt-1 text-lg font-semibold text-white">
                     {parseMoney(periodSummaryQuery.data.net_income)}
                   </div>
+                  <PeriodDelta
+                    current={periodSummaryQuery.data.net_income}
+                    previous={prevPeriodSummaryQuery.data?.net_income}
+                  />
                 </div>
                 {periodSummaryQuery.data.net_margin_pct != null && (
                   <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/20 px-4 py-3">
@@ -1285,6 +1318,12 @@ export function FinancePage() {
                     <div className="mt-1 text-lg font-semibold text-white">
                       {periodSummaryQuery.data.net_margin_pct}%
                     </div>
+                    {prevPeriodSummaryQuery.data?.net_margin_pct != null ? (
+                      <PeriodDelta
+                        current={String(periodSummaryQuery.data.net_margin_pct)}
+                        previous={String(prevPeriodSummaryQuery.data.net_margin_pct)}
+                      />
+                    ) : null}
                   </div>
                 )}
                 <div className="rounded-xl border border-slate-600/40 bg-slate-900/40 px-4 py-3">
@@ -1305,6 +1344,21 @@ export function FinancePage() {
                 </div>
               </div>
             )}
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+            <h2 className="text-lg font-medium text-white">Графики</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              По году из блока «План–факт» и прогнозу из блока «Прогноз» ниже (параметры года и горизонта там же).
+            </p>
+            <div className="mt-4">
+              <FinanceReportsCharts
+                yearRows={yearOverviewQuery.data}
+                forecast={forecastQuery.data}
+                loadingYear={yearOverviewQuery.isLoading}
+                loadingForecast={forecastQuery.isLoading}
+              />
+            </div>
           </section>
 
           <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
@@ -1527,9 +1581,15 @@ export function FinancePage() {
                     <th className="px-2 py-2">Мес.</th>
                     <th className="px-2 py-2 text-right">Выручка факт</th>
                     <th className="px-2 py-2 text-right">Выручка план</th>
+                    <th className="px-2 py-2 text-center" title="Факт к плану по выручке">
+                      %% В
+                    </th>
                     <th className="px-2 py-2 text-right">Δ выручка</th>
                     <th className="px-2 py-2 text-right">Расх. факт</th>
                     <th className="px-2 py-2 text-right">Расх. план</th>
+                    <th className="px-2 py-2 text-center" title="Факт к плану по расходам">
+                      %% Р
+                    </th>
                     <th className="px-2 py-2 text-right">Чистый факт</th>
                   </tr>
                 </thead>
@@ -1541,9 +1601,19 @@ export function FinancePage() {
                         <td className="px-2 py-1.5 text-white">{row.month}</td>
                         <td className="px-2 py-1.5 text-right">{parseMoney(row.revenue_actual)}</td>
                         <td className="px-2 py-1.5 text-right text-slate-500">{parseMoney(row.revenue_plan)}</td>
+                        <td className="px-2 py-1.5 align-middle">
+                          <div className="flex justify-center">
+                            <PlanFactBar actual={Number(row.revenue_actual)} plan={Number(row.revenue_plan)} />
+                          </div>
+                        </td>
                         <td className="px-2 py-1.5 text-right text-slate-400">{moneyFmt.format(dv)}</td>
                         <td className="px-2 py-1.5 text-right">{parseMoney(row.expense_actual)}</td>
                         <td className="px-2 py-1.5 text-right text-slate-500">{parseMoney(row.expense_plan)}</td>
+                        <td className="px-2 py-1.5 align-middle">
+                          <div className="flex justify-center">
+                            <PlanFactBar actual={Number(row.expense_actual)} plan={Number(row.expense_plan)} />
+                          </div>
+                        </td>
                         <td className="px-2 py-1.5 text-right font-medium text-white">{parseMoney(row.net_actual)}</td>
                       </tr>
                     );
