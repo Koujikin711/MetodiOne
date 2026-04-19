@@ -11,6 +11,7 @@ from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import (
     FinanceAccount,
+    FinanceBudgetMonth,
     FinanceCompanySettings,
     FinanceDeferredContract,
     FinanceDeferredPeriod,
@@ -26,25 +27,43 @@ from app.models import (
 )
 from app.schemas.finance import (
     AccountRead,
+    BudgetMonthPut,
+    BudgetMonthRead,
     DeferredContractCreate,
     DeferredContractRead,
     DeferredPeriodRead,
     FinanceDashboardRead,
+    FinanceForecastRead,
+    FinancePeriodSummaryRead,
     FinanceSettingsPatch,
     FinanceSettingsRead,
+    ForecastPointRead,
     JournalCreate,
     JournalEntryDetailRead,
     JournalEntryRead,
     JournalLineDetailRead,
+    PLLineRead,
     ProductCreate,
     ProductRead,
     StockBalanceRead,
     StockIssueCreate,
     StockMovementRead,
     StockReceiptCreate,
+    TrialBalanceLineRead,
     WarehouseCreate,
     WarehousePatch,
     WarehouseRead,
+    YearOverviewMonthRead,
+)
+from app.services.finance_reports import (
+    deferred_unrecognized_total,
+    journal_entries_count,
+    month_bounds_utc,
+    pl_by_account,
+    pl_totals,
+    simple_revenue_forecast,
+    total_inventory_value,
+    trial_balance_rows,
 )
 from app.services.finance_seed import (
     account_id_by_code,
@@ -55,6 +74,23 @@ from app.services.finance_seed import (
 )
 
 router = APIRouter(prefix="/finance", tags=["finance"])
+
+
+def _parse_period_dates(date_from_s: str, date_to_s: str) -> tuple[datetime, datetime]:
+    try:
+        d0 = datetime.strptime(date_from_s.strip(), "%Y-%m-%d").replace(tzinfo=UTC)
+        d1 = datetime.strptime(date_to_s.strip(), "%Y-%m-%d").replace(
+            hour=23,
+            minute=59,
+            second=59,
+            microsecond=999000,
+            tzinfo=UTC,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="date_from / date_to: формат YYYY-MM-DD") from e
+    if d1 < d0:
+        raise HTTPException(status_code=400, detail="date_to не может быть раньше date_from")
+    return d0, d1
 
 _COSTING = frozenset({"fifo", "average"})
 _GOODS_REV = frozenset({"payment", "shipment", "invoice"})
@@ -345,6 +381,168 @@ async def list_stock_movements(
             ),
         )
     return out
+
+
+@router.get("/reports/period-summary", response_model=FinancePeriodSummaryRead)
+async def report_period_summary(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD"),
+    date_to: str = Query(..., description="YYYY-MM-DD"),
+) -> FinancePeriodSummaryRead:
+    await _require_finance(current_user)
+    settings = await _ready_finance(db, company_id)
+    d0, d1 = _parse_period_dates(date_from, date_to)
+    rev, exp, net = await pl_totals(db, company_id, d0, d1)
+    inv = await total_inventory_value(db, company_id) if settings.inventory_enabled else Decimal("0")
+    deferred = await deferred_unrecognized_total(db, company_id)
+    jn = await journal_entries_count(db, company_id, d0, d1)
+    return FinancePeriodSummaryRead(
+        date_from=d0,
+        date_to=d1,
+        revenue_total=rev,
+        expense_total=exp,
+        net_income=net,
+        inventory_value=inv,
+        deferred_unrecognized=deferred,
+        journal_entries_count=jn,
+    )
+
+
+@router.get("/reports/trial-balance", response_model=list[TrialBalanceLineRead])
+async def report_trial_balance(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD"),
+    date_to: str = Query(..., description="YYYY-MM-DD"),
+) -> list[TrialBalanceLineRead]:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    d0, d1 = _parse_period_dates(date_from, date_to)
+    rows = await trial_balance_rows(db, company_id, d0, d1)
+    return [
+        TrialBalanceLineRead(
+            account_code=c,
+            account_name=n,
+            account_type=t,
+            debit_total=d,
+            credit_total=crd,
+            net_balance=nb,
+        )
+        for c, n, t, d, crd, nb in rows
+    ]
+
+
+@router.get("/reports/pl-lines", response_model=list[PLLineRead])
+async def report_pl_lines(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD"),
+    date_to: str = Query(..., description="YYYY-MM-DD"),
+) -> list[PLLineRead]:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    d0, d1 = _parse_period_dates(date_from, date_to)
+    rows = await pl_by_account(db, company_id, d0, d1, ("revenue", "expense"))
+    return [PLLineRead(account_code=c, account_name=n, account_type=t, amount=a) for c, n, t, a in rows]
+
+
+@router.get("/reports/year-overview", response_model=list[YearOverviewMonthRead])
+async def report_year_overview(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    year: int = Query(..., ge=2000, le=2100),
+) -> list[YearOverviewMonthRead]:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    budget_rows = (
+        await db.execute(select(FinanceBudgetMonth).where(FinanceBudgetMonth.company_id == company_id, FinanceBudgetMonth.year == year))
+    ).scalars().all()
+    by_m = {b.month: b for b in budget_rows}
+    out: list[YearOverviewMonthRead] = []
+    for month in range(1, 13):
+        mf, mt = month_bounds_utc(year, month)
+        rev, exp, net = await pl_totals(db, company_id, mf, mt)
+        b = by_m.get(month)
+        out.append(
+            YearOverviewMonthRead(
+                year=year,
+                month=month,
+                revenue_actual=rev,
+                expense_actual=exp,
+                net_actual=net,
+                revenue_plan=b.revenue_plan if b else Decimal("0"),
+                expense_plan=b.expense_plan if b else Decimal("0"),
+            ),
+        )
+    return out
+
+
+@router.get("/reports/forecast", response_model=FinanceForecastRead)
+async def report_forecast(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12, description="Опорный месяц: прогноз на следующие horizon месяцев"),
+    horizon: int = Query(3, ge=1, le=24),
+    history_depth: int = Query(3, ge=1, le=12),
+) -> FinanceForecastRead:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    avg, pts = await simple_revenue_forecast(
+        db,
+        company_id,
+        anchor_year=year,
+        anchor_month=month,
+        horizon=horizon,
+        history_depth=history_depth,
+    )
+    return FinanceForecastRead(
+        baseline_months_used=history_depth,
+        average_monthly_revenue=avg,
+        points=[ForecastPointRead(year=y, month=m, projected_revenue=v) for y, m, v in pts],
+    )
+
+
+@router.put("/budgets/month", response_model=BudgetMonthRead)
+async def upsert_budget_month(
+    body: BudgetMonthPut,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceBudgetMonth:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    row = (
+        await db.execute(
+            select(FinanceBudgetMonth).where(
+                FinanceBudgetMonth.company_id == company_id,
+                FinanceBudgetMonth.year == body.year,
+                FinanceBudgetMonth.month == body.month,
+            ),
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        row = FinanceBudgetMonth(
+            company_id=company_id,
+            year=body.year,
+            month=body.month,
+            revenue_plan=body.revenue_plan,
+            expense_plan=body.expense_plan,
+        )
+        db.add(row)
+    else:
+        row.revenue_plan = body.revenue_plan
+        row.expense_plan = body.expense_plan
+    await db.flush()
+    await db.commit()
+    await db.refresh(row)
+    return row
 
 
 @router.get("/dashboard", response_model=FinanceDashboardRead)

@@ -399,6 +399,22 @@ class FinanceCompanySettings(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, onupdate=_utc_now)
 
 
+class FinanceBudgetMonth(Base):
+    """Помесячный план (выручка / расходы) для сравнения с фактом по журналу."""
+
+    __tablename__ = "finance_budget_months"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    year: Mapped[int] = mapped_column()
+    month: Mapped[int] = mapped_column()  # 1–12
+    revenue_plan: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    expense_plan: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, onupdate=_utc_now)
+
+    __table_args__ = (UniqueConstraint("company_id", "year", "month", name="uq_finance_budget_co_ym"),)
+
+
 class FinanceWarehouse(Base):
     __tablename__ = "finance_warehouses"
 

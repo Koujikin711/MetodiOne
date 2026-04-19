@@ -10,12 +10,18 @@ import type {
   FinanceDashboard,
   FinanceDeferredContract,
   FinanceDeferredPeriod,
+  FinanceForecast,
   FinanceJournalEntryDetail,
+  FinancePLLine,
+  FinancePeriodSummary,
   FinanceProduct,
   FinanceSettings,
   FinanceStockBalanceRow,
   FinanceStockMovement,
+  FinanceTrialBalanceLine,
   FinanceWarehouse,
+  FinanceYearOverviewMonth,
+  FinanceBudgetMonthRow,
 } from "@/lib/types";
 
 const moneyFmt = new Intl.NumberFormat("ru-RU", {
@@ -44,7 +50,30 @@ function movementTypeLabel(t: string): string {
   return m[t] ?? t;
 }
 
-type FinanceTab = "overview" | "accounting" | "inventory";
+function defaultMonthRange(): { from: string; to: string } {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const last = new Date(y, m, 0).getDate();
+  return { from: `${y}-${pad(m)}-01`, to: `${y}-${pad(m)}-${pad(last)}` };
+}
+
+function downloadCsv(filename: string, headers: string[], rows: Array<Array<string | number>>) {
+  const esc = (v: string | number) => `"${String(v).replaceAll('"', '""')}"`;
+  const csv = [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+type FinanceTab = "overview" | "accounting" | "inventory" | "reports";
 
 type ManualLine = { accountId: number; debit: string; credit: string };
 
@@ -56,6 +85,17 @@ export function FinancePage() {
 
   const [tab, setTab] = useState<FinanceTab>("overview");
   const [journalSource, setJournalSource] = useState<string>("");
+  const dm0 = defaultMonthRange();
+  const [reportFrom, setReportFrom] = useState(dm0.from);
+  const [reportTo, setReportTo] = useState(dm0.to);
+  const [overviewYear, setOverviewYear] = useState(() => new Date().getFullYear());
+  const [budgetYear, setBudgetYear] = useState(() => new Date().getFullYear());
+  const [budgetMonth, setBudgetMonth] = useState(() => new Date().getMonth() + 1);
+  const [budgetRev, setBudgetRev] = useState("");
+  const [budgetExp, setBudgetExp] = useState("");
+  const [fcYear, setFcYear] = useState(() => new Date().getFullYear());
+  const [fcMonth, setFcMonth] = useState(() => new Date().getMonth() + 1);
+  const [fcHorizon, setFcHorizon] = useState(3);
 
   const settingsQuery = useQuery({
     queryKey: ["finance-settings"],
@@ -104,7 +144,71 @@ export function FinancePage() {
   const accountsQuery = useQuery({
     queryKey: ["finance-accounts"],
     queryFn: () => apiFetch<FinanceAccount[]>("/api/finance/accounts"),
-    enabled: !superNeedsCompany && (tab === "accounting" || tab === "overview"),
+    enabled: !superNeedsCompany && (tab === "accounting" || tab === "overview" || tab === "reports"),
+  });
+
+  const reportRangeKey = `${reportFrom}_${reportTo}`;
+  const periodSummaryQuery = useQuery({
+    queryKey: ["finance-reports", "period-summary", reportRangeKey],
+    queryFn: () =>
+      apiFetch<FinancePeriodSummary>(
+        `/api/finance/reports/period-summary?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
+      ),
+    enabled: !superNeedsCompany && tab === "reports",
+  });
+
+  const trialBalanceQuery = useQuery({
+    queryKey: ["finance-reports", "trial-balance", reportRangeKey],
+    queryFn: () =>
+      apiFetch<FinanceTrialBalanceLine[]>(
+        `/api/finance/reports/trial-balance?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
+      ),
+    enabled: !superNeedsCompany && tab === "reports",
+  });
+
+  const plLinesQuery = useQuery({
+    queryKey: ["finance-reports", "pl-lines", reportRangeKey],
+    queryFn: () =>
+      apiFetch<FinancePLLine[]>(
+        `/api/finance/reports/pl-lines?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
+      ),
+    enabled: !superNeedsCompany && tab === "reports",
+  });
+
+  const yearOverviewQuery = useQuery({
+    queryKey: ["finance-reports", "year-overview", overviewYear],
+    queryFn: () => apiFetch<FinanceYearOverviewMonth[]>(`/api/finance/reports/year-overview?year=${overviewYear}`),
+    enabled: !superNeedsCompany && tab === "reports",
+  });
+
+  const forecastQuery = useQuery({
+    queryKey: ["finance-reports", "forecast", fcYear, fcMonth, fcHorizon],
+    queryFn: () =>
+      apiFetch<FinanceForecast>(
+        `/api/finance/reports/forecast?year=${fcYear}&month=${fcMonth}&horizon=${fcHorizon}`,
+      ),
+    enabled: !superNeedsCompany && tab === "reports",
+  });
+
+  const saveBudgetMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<FinanceBudgetMonthRow>(
+        "/api/finance/budgets/month",
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            year: budgetYear,
+            month: budgetMonth,
+            revenue_plan: budgetRev || "0",
+            expense_plan: budgetExp || "0",
+          }),
+        },
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
+      toast.success("План на месяц сохранён");
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const journalQs = useMemo(() => {
@@ -136,6 +240,7 @@ export function FinancePage() {
     void queryClient.invalidateQueries({ queryKey: ["finance-accounts"] });
     void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
     void queryClient.invalidateQueries({ queryKey: ["finance-deferred"] });
+    void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
   };
 
   const invalidateFinance = refetchAll;
@@ -230,6 +335,7 @@ export function FinancePage() {
     onSuccess: () => {
       invalidateFinance();
       void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
       toast.success("Приход проведён");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -251,6 +357,7 @@ export function FinancePage() {
     onSuccess: (res) => {
       invalidateFinance();
       void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
       toast.success(`Списание, себестоимость ${parseMoney(res.cost)}`);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -301,6 +408,7 @@ export function FinancePage() {
       void periodsQuery.refetch();
       void deferredQuery.refetch();
       void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
       toast.success("Период признан в выручку");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -354,6 +462,7 @@ export function FinancePage() {
         { accountId: 0, debit: "", credit: "" },
       ]);
       void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
       toast.success("Проводка создана");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -417,6 +526,7 @@ export function FinancePage() {
         {tabBtn("overview", "Обзор")}
         {tabBtn("accounting", "Бухгалтерия")}
         {effective?.inventory_enabled ? tabBtn("inventory", "Склад") : null}
+        {tabBtn("reports", "Отчёты")}
       </div>
 
       {settingsQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
@@ -1068,6 +1178,360 @@ export function FinancePage() {
                 </tbody>
               </table>
             </div>
+          </section>
+        </>
+      )}
+
+      {tab === "reports" && (
+        <>
+          <section className="rounded-2xl border border-indigo-500/25 bg-indigo-950/25 p-5">
+            <h2 className="text-lg font-medium text-white">Отчётность и автоматизация (обзор)</h2>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-300">
+              <li>
+                В модуле заложены типовые элементы финансового контура SMB: управленческий отчёт о прибылях и убытках по
+                счетам выручки и расходов, оборотно-сальдовая ведомость по журналу, план на месяц и сравнение с фактом за
+                год, упрощённый прогноз выручки.
+              </li>
+              <li>
+                Для углублённой аналитики (ДДС, консолидация, сценарии) выгружайте CSV и стройте модели во внешних
+                инструментах (Excel, Power BI, Google Looker Studio) — так обычно делают при внедрении ERP и
+                казначейских дашбордов.
+              </li>
+              <li>Расширенная автоматизация (расписание отчётов на e-mail, сверка с банком) — следующий этап разработки.</li>
+            </ul>
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+            <h2 className="text-lg font-medium text-white">Период</h2>
+            <p className="mt-1 text-xs text-slate-500">Сводка, отчёт по счетам и ОСВ считаются по дате проводки в журнале.</p>
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <label className="text-sm text-slate-300">
+                С
+                <input
+                  type="date"
+                  value={reportFrom}
+                  onChange={(e) => setReportFrom(e.target.value)}
+                  className="mt-1 block rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                По
+                <input
+                  type="date"
+                  value={reportTo}
+                  onChange={(e) => setReportTo(e.target.value)}
+                  className="mt-1 block rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+            <h2 className="text-lg font-medium text-white">Дашборд за период</h2>
+            {periodSummaryQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+            {periodSummaryQuery.isError && (
+              <p className="mt-2 text-sm text-rose-300">{(periodSummaryQuery.error as Error).message}</p>
+            )}
+            {periodSummaryQuery.data && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 px-4 py-3">
+                  <div className="text-xs text-emerald-200/80">Выручка</div>
+                  <div className="mt-1 text-lg font-semibold text-white">
+                    {parseMoney(periodSummaryQuery.data.revenue_total)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-rose-500/20 bg-rose-950/20 px-4 py-3">
+                  <div className="text-xs text-rose-200/80">Расходы (в т.ч. себестоимость)</div>
+                  <div className="mt-1 text-lg font-semibold text-white">
+                    {parseMoney(periodSummaryQuery.data.expense_total)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-purple-500/20 bg-purple-950/20 px-4 py-3">
+                  <div className="text-xs text-purple-200/80">Чистый результат</div>
+                  <div className="mt-1 text-lg font-semibold text-white">
+                    {parseMoney(periodSummaryQuery.data.net_income)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-600/40 bg-slate-900/40 px-4 py-3">
+                  <div className="text-xs text-slate-400">Оценка запасов</div>
+                  <div className="mt-1 text-sm font-medium text-white">
+                    {parseMoney(periodSummaryQuery.data.inventory_value)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-600/40 bg-slate-900/40 px-4 py-3">
+                  <div className="text-xs text-slate-400">Отложенная выручка (не признана)</div>
+                  <div className="mt-1 text-sm font-medium text-amber-200">
+                    {parseMoney(periodSummaryQuery.data.deferred_unrecognized)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-600/40 bg-slate-900/40 px-4 py-3">
+                  <div className="text-xs text-slate-400">Проводок за период</div>
+                  <div className="mt-1 text-sm font-medium text-white">{periodSummaryQuery.data.journal_entries_count}</div>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <h2 className="text-lg font-medium text-white">Прибыли и убытки по счетам (выручка и расходы)</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  const rows = (plLinesQuery.data ?? []).map((r) => [
+                    r.account_code,
+                    r.account_name,
+                    r.account_type,
+                    r.amount,
+                  ]);
+                  downloadCsv(`pl_${reportFrom}_${reportTo}.csv`, ["Код", "Счёт", "Тип", "Сумма"], rows);
+                }}
+                className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
+              >
+                CSV
+              </button>
+            </div>
+            {plLinesQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+            <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-slate-700/40">
+              <table className="w-full text-left text-sm text-slate-300">
+                <thead className="sticky top-0 bg-slate-900/95 text-xs text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2">Код</th>
+                    <th className="px-3 py-2">Счёт</th>
+                    <th className="px-3 py-2">Тип</th>
+                    <th className="px-3 py-2 text-right">Сумма</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(plLinesQuery.data ?? []).map((r, idx) => (
+                    <tr key={`${r.account_code}-${r.account_type}-${idx}`} className="border-t border-slate-700/40">
+                      <td className="px-3 py-2 font-mono text-slate-400">{r.account_code}</td>
+                      <td className="px-3 py-2 text-white">{r.account_name}</td>
+                      <td className="px-3 py-2 text-slate-500">{r.account_type}</td>
+                      <td className="px-3 py-2 text-right">{parseMoney(r.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {(plLinesQuery.data ?? []).length === 0 && !plLinesQuery.isLoading && (
+              <p className="mt-2 text-sm text-slate-500">Нет движений по счетам выручки и расходов за период.</p>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <h2 className="text-lg font-medium text-white">Оборотно-сальдовая ведомость (по журналу)</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  const rows = (trialBalanceQuery.data ?? []).map((r) => [
+                    r.account_code,
+                    r.account_name,
+                    r.account_type,
+                    r.debit_total,
+                    r.credit_total,
+                    r.net_balance,
+                  ]);
+                  downloadCsv(`trial_balance_${reportFrom}_${reportTo}.csv`, ["Код", "Счёт", "Тип", "Дт", "Кт", "Сальдо"], rows);
+                }}
+                className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
+              >
+                CSV
+              </button>
+            </div>
+            {trialBalanceQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+            <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-slate-700/40">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="sticky top-0 bg-slate-900/95 text-slate-500">
+                  <tr>
+                    <th className="px-2 py-2">Код</th>
+                    <th className="px-2 py-2">Счёт</th>
+                    <th className="px-2 py-2 text-right">Дт</th>
+                    <th className="px-2 py-2 text-right">Кт</th>
+                    <th className="px-2 py-2 text-right">Сальдо</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(trialBalanceQuery.data ?? []).map((r) => (
+                    <tr key={r.account_code} className="border-t border-slate-700/40">
+                      <td className="px-2 py-1.5 font-mono text-slate-400">{r.account_code}</td>
+                      <td className="px-2 py-1.5">{r.account_name}</td>
+                      <td className="px-2 py-1.5 text-right">{parseMoney(r.debit_total)}</td>
+                      <td className="px-2 py-1.5 text-right">{parseMoney(r.credit_total)}</td>
+                      <td className="px-2 py-1.5 text-right text-white">{parseMoney(r.net_balance)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+            <h2 className="text-lg font-medium text-white">План–факт по году</h2>
+            <p className="mt-1 text-xs text-slate-500">Факт из журнала; план — из сохранённых помесячных бюджетов.</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <label className="text-sm text-slate-300">
+                Год
+                <input
+                  type="number"
+                  min={2000}
+                  max={2100}
+                  value={overviewYear}
+                  onChange={(e) => setOverviewYear(Number(e.target.value) || overviewYear)}
+                  className="mt-1 block w-28 rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                />
+              </label>
+            </div>
+            {yearOverviewQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+            <div className="mt-4 max-h-80 overflow-auto rounded-xl border border-slate-700/40">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="sticky top-0 bg-slate-900/95 text-slate-500">
+                  <tr>
+                    <th className="px-2 py-2">Мес.</th>
+                    <th className="px-2 py-2 text-right">Выручка факт</th>
+                    <th className="px-2 py-2 text-right">Выручка план</th>
+                    <th className="px-2 py-2 text-right">Δ выручка</th>
+                    <th className="px-2 py-2 text-right">Расх. факт</th>
+                    <th className="px-2 py-2 text-right">Расх. план</th>
+                    <th className="px-2 py-2 text-right">Чистый факт</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(yearOverviewQuery.data ?? []).map((row) => {
+                    const dv = Number(row.revenue_actual) - Number(row.revenue_plan);
+                    return (
+                      <tr key={row.month} className="border-t border-slate-700/40">
+                        <td className="px-2 py-1.5 text-white">{row.month}</td>
+                        <td className="px-2 py-1.5 text-right">{parseMoney(row.revenue_actual)}</td>
+                        <td className="px-2 py-1.5 text-right text-slate-500">{parseMoney(row.revenue_plan)}</td>
+                        <td className="px-2 py-1.5 text-right text-slate-400">{moneyFmt.format(dv)}</td>
+                        <td className="px-2 py-1.5 text-right">{parseMoney(row.expense_actual)}</td>
+                        <td className="px-2 py-1.5 text-right text-slate-500">{parseMoney(row.expense_plan)}</td>
+                        <td className="px-2 py-1.5 text-right font-medium text-white">{parseMoney(row.net_actual)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+            <h2 className="text-lg font-medium text-white">Бюджет на месяц</h2>
+            <p className="mt-1 text-xs text-slate-500">Плановые выручка и расходы (управленческий уровень, без детализации по счетам).</p>
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <label className="text-sm text-slate-300">
+                Год
+                <input
+                  type="number"
+                  value={budgetYear}
+                  onChange={(e) => setBudgetYear(Number(e.target.value) || budgetYear)}
+                  className="mt-1 block w-24 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Месяц
+                <select
+                  value={budgetMonth}
+                  onChange={(e) => setBudgetMonth(Number(e.target.value))}
+                  className="mt-1 block rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="min-w-[120px] text-sm text-slate-300">
+                План выручки
+                <input
+                  value={budgetRev}
+                  onChange={(e) => setBudgetRev(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                  placeholder="0"
+                />
+              </label>
+              <label className="min-w-[120px] text-sm text-slate-300">
+                План расходов
+                <input
+                  value={budgetExp}
+                  onChange={(e) => setBudgetExp(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                  placeholder="0"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={saveBudgetMutation.isPending}
+                onClick={() => saveBudgetMutation.mutate()}
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                Сохранить план
+              </button>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+            <h2 className="text-lg font-medium text-white">Прогноз выручки (простая модель)</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Средняя выручка за несколько месяцев до опорного месяца; далее — горизонт вперёд с той же средней (база
+              для «финмодели»; сценарии «что если» добавляйте во внешнем BI).
+            </p>
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <label className="text-sm text-slate-300">
+                Год (опора)
+                <input
+                  type="number"
+                  value={fcYear}
+                  onChange={(e) => setFcYear(Number(e.target.value) || fcYear)}
+                  className="mt-1 block w-24 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Месяц
+                <select
+                  value={fcMonth}
+                  onChange={(e) => setFcMonth(Number(e.target.value))}
+                  className="mt-1 block rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm text-slate-300">
+                Горизонт, мес.
+                <input
+                  type="number"
+                  min={1}
+                  max={24}
+                  value={fcHorizon}
+                  onChange={(e) => setFcHorizon(Number(e.target.value) || 3)}
+                  className="mt-1 block w-20 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                />
+              </label>
+            </div>
+            {forecastQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+            {forecastQuery.data && (
+              <div className="mt-4 space-y-2 text-sm text-slate-300">
+                <p>
+                  База: средняя выручка ≈{" "}
+                  <span className="font-medium text-white">{parseMoney(forecastQuery.data.average_monthly_revenue)}</span>{" "}
+                  (месяцев в истории: {forecastQuery.data.baseline_months_used})
+                </p>
+                <ul className="space-y-1 rounded-xl border border-slate-700/40 bg-slate-900/30 p-3 text-xs">
+                  {forecastQuery.data.points.map((p) => (
+                    <li key={`${p.year}-${p.month}`}>
+                      {p.year}-{String(p.month).padStart(2, "0")}: прогноз {parseMoney(p.projected_revenue)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </section>
         </>
       )}

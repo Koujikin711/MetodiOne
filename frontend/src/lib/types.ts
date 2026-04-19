@@ -376,3 +376,60 @@ export interface FinanceStockMovement {
   product_id: number;
   product_name: string;
 }
+
+export interface FinancePeriodSummary {
+  date_from: string;
+  date_to: string;
+  revenue_total: string;
+  expense_total: string;
+  net_income: string;
+  inventory_value: string;
+  deferred_unrecognized: string;
+  journal_entries_count: number;
+}
+
+export interface FinanceTrialBalanceLine {
+  account_code: string;
+  account_name: string;
+  account_type: string;
+  debit_total: string;
+  credit_total: string;
+  net_balance: string;
+}
+
+export interface FinancePLLine {
+  account_code: string;
+  account_name: string;
+  account_type: string;
+  amount: string;
+}
+
+export interface FinanceYearOverviewMonth {
+  year: number;
+  month: number;
+  revenue_actual: string;
+  expense_actual: string;
+  net_actual: string;
+  revenue_plan: string;
+  expense_plan: string;
+}
+
+export interface FinanceForecastPoint {
+  year: number;
+  month: number;
+  projected_revenue: string;
+}
+
+export interface FinanceForecast {
+  baseline_months_used: number;
+  average_monthly_revenue: string;
+  points: FinanceForecastPoint[];
+}
+
+export interface FinanceBudgetMonthRow {
+  year: number;
+  month: number;
+  revenue_plan: string;
+  expense_plan: string;
+  updated_at: string;
+}
