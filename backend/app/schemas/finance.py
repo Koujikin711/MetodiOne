@@ -202,11 +202,22 @@ class FinancePeriodSummaryRead(BaseModel):
     inventory_value: Decimal
     deferred_unrecognized: Decimal
     journal_entries_count: int
+    net_margin_pct: Decimal | None = Field(
+        default=None,
+        description="Чистая маржа % к выручке; null если выручка 0",
+    )
 
 
 class TrialBalanceLineRead(BaseModel):
     account_code: str
     account_name: str
+    account_type: str
+    debit_total: Decimal
+    credit_total: Decimal
+    net_balance: Decimal
+
+
+class AccountTypeRollupRead(BaseModel):
     account_type: str
     debit_total: Decimal
     credit_total: Decimal

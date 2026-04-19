@@ -27,6 +27,7 @@ from app.models import (
 )
 from app.schemas.finance import (
     AccountRead,
+    AccountTypeRollupRead,
     BudgetMonthPut,
     BudgetMonthRead,
     DeferredContractCreate,
@@ -56,6 +57,7 @@ from app.schemas.finance import (
     YearOverviewMonthRead,
 )
 from app.services.finance_reports import (
+    account_type_rollup_rows,
     deferred_unrecognized_total,
     journal_entries_count,
     month_bounds_utc,
@@ -306,12 +308,26 @@ async def list_journal_entries(
     company_id: CurrentCompanyId,
     limit: int = Query(80, ge=1, le=200),
     source_type: str | None = Query(None, max_length=40),
+    date_from: str | None = Query(None, description="YYYY-MM-DD, вместе с date_to"),
+    date_to: str | None = Query(None, description="YYYY-MM-DD"),
+    account_id: int | None = Query(None, ge=1),
 ) -> list[JournalEntryDetailRead]:
     await _require_finance(current_user)
     await _ready_finance(db, company_id)
     q = select(FinanceJournalEntry).where(FinanceJournalEntry.company_id == company_id)
     if source_type:
         q = q.where(FinanceJournalEntry.source_type == source_type.strip())
+    if (date_from or date_to) and (not date_from or not date_to):
+        raise HTTPException(status_code=400, detail="Укажите оба date_from и date_to для фильтра по датам")
+    if date_from and date_to:
+        d0, d1 = _parse_period_dates(date_from, date_to)
+        q = q.where(FinanceJournalEntry.entry_date >= d0, FinanceJournalEntry.entry_date <= d1)
+    if account_id is not None:
+        acc = await db.get(FinanceAccount, account_id)
+        if acc is None or acc.company_id != company_id:
+            raise HTTPException(status_code=404, detail="Счёт не найден")
+        line_entry_ids = select(FinanceJournalLine.entry_id).where(FinanceJournalLine.account_id == account_id).distinct()
+        q = q.where(FinanceJournalEntry.id.in_(line_entry_ids))
     q = q.order_by(FinanceJournalEntry.entry_date.desc(), FinanceJournalEntry.id.desc()).limit(limit)
     entries = list((await db.execute(q)).scalars().all())
     if not entries:
@@ -398,6 +414,9 @@ async def report_period_summary(
     inv = await total_inventory_value(db, company_id) if settings.inventory_enabled else Decimal("0")
     deferred = await deferred_unrecognized_total(db, company_id)
     jn = await journal_entries_count(db, company_id, d0, d1)
+    margin: Decimal | None = None
+    if rev > 0:
+        margin = (net / rev * Decimal("100")).quantize(Decimal("0.01"))
     return FinancePeriodSummaryRead(
         date_from=d0,
         date_to=d1,
@@ -407,6 +426,7 @@ async def report_period_summary(
         inventory_value=inv,
         deferred_unrecognized=deferred,
         journal_entries_count=jn,
+        net_margin_pct=margin,
     )
 
 
@@ -448,6 +468,23 @@ async def report_pl_lines(
     d0, d1 = _parse_period_dates(date_from, date_to)
     rows = await pl_by_account(db, company_id, d0, d1, ("revenue", "expense"))
     return [PLLineRead(account_code=c, account_name=n, account_type=t, amount=a) for c, n, t, a in rows]
+
+
+@router.get("/reports/account-type-rollup", response_model=list[AccountTypeRollupRead])
+async def report_account_type_rollup(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD"),
+    date_to: str = Query(..., description="YYYY-MM-DD"),
+) -> list[AccountTypeRollupRead]:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    d0, d1 = _parse_period_dates(date_from, date_to)
+    rows = await account_type_rollup_rows(db, company_id, d0, d1)
+    return [
+        AccountTypeRollupRead(account_type=t, debit_total=d, credit_total=c, net_balance=nb) for t, d, c, nb in rows
+    ]
 
 
 @router.get("/reports/year-overview", response_model=list[YearOverviewMonthRead])

@@ -220,3 +220,37 @@ async def simple_revenue_forecast(
         y, m = shift_month(anchor_year, anchor_month, j)
         pts.append((y, m, avg))
     return avg, pts
+
+
+async def account_type_rollup_rows(
+    db: AsyncSession,
+    company_id: int,
+    date_from: datetime,
+    date_to: datetime,
+) -> list[tuple[str, Decimal, Decimal, Decimal]]:
+    """Суммы Дт/Кт и сальдо по классу счёта (asset, liability, …) за период."""
+    stmt = (
+        select(
+            FinanceAccount.account_type,
+            func.coalesce(func.sum(FinanceJournalLine.debit), 0).label("sdebit"),
+            func.coalesce(func.sum(FinanceJournalLine.credit), 0).label("scredit"),
+        )
+        .select_from(FinanceJournalLine)
+        .join(FinanceJournalEntry, FinanceJournalEntry.id == FinanceJournalLine.entry_id)
+        .join(FinanceAccount, FinanceAccount.id == FinanceJournalLine.account_id)
+        .where(
+            FinanceJournalEntry.company_id == company_id,
+            FinanceAccount.company_id == company_id,
+            FinanceJournalEntry.entry_date >= date_from,
+            FinanceJournalEntry.entry_date <= date_to,
+        )
+        .group_by(FinanceAccount.account_type)
+        .order_by(FinanceAccount.account_type)
+    )
+    rows = (await db.execute(stmt)).all()
+    out: list[tuple[str, Decimal, Decimal, Decimal]] = []
+    for atype, sd, sc in rows:
+        d = Decimal(str(sd or 0)).quantize(Decimal("0.01"))
+        c = Decimal(str(sc or 0)).quantize(Decimal("0.01"))
+        out.append((atype, d, c, (d - c).quantize(Decimal("0.01"))))
+    return out
