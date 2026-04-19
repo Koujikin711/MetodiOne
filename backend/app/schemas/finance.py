@@ -188,3 +188,72 @@ class DeferredPeriodRead(BaseModel):
     journal_entry_id: int | None
 
     model_config = {"from_attributes": True}
+
+
+# --- Отчёты, дашборды, бюджет ---
+
+
+class FinancePeriodSummaryRead(BaseModel):
+    date_from: datetime
+    date_to: datetime
+    revenue_total: Decimal
+    expense_total: Decimal
+    net_income: Decimal
+    inventory_value: Decimal
+    deferred_unrecognized: Decimal
+    journal_entries_count: int
+
+
+class TrialBalanceLineRead(BaseModel):
+    account_code: str
+    account_name: str
+    account_type: str
+    debit_total: Decimal
+    credit_total: Decimal
+    net_balance: Decimal
+
+
+class PLLineRead(BaseModel):
+    account_code: str
+    account_name: str
+    account_type: str
+    amount: Decimal
+
+
+class YearOverviewMonthRead(BaseModel):
+    year: int
+    month: int
+    revenue_actual: Decimal
+    expense_actual: Decimal
+    net_actual: Decimal
+    revenue_plan: Decimal
+    expense_plan: Decimal
+
+
+class BudgetMonthPut(BaseModel):
+    year: int = Field(..., ge=2000, le=2100)
+    month: int = Field(..., ge=1, le=12)
+    revenue_plan: Decimal = Field(default=Decimal("0"), ge=0)
+    expense_plan: Decimal = Field(default=Decimal("0"), ge=0)
+
+
+class BudgetMonthRead(BaseModel):
+    year: int
+    month: int
+    revenue_plan: Decimal
+    expense_plan: Decimal
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ForecastPointRead(BaseModel):
+    year: int
+    month: int
+    projected_revenue: Decimal
+
+
+class FinanceForecastRead(BaseModel):
+    baseline_months_used: int
+    average_monthly_revenue: Decimal
+    points: list[ForecastPointRead]
