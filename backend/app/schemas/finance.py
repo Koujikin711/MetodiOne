@@ -78,6 +78,35 @@ class JournalEntryRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class JournalLineDetailRead(BaseModel):
+    account_code: str
+    account_name: str
+    debit: Decimal
+    credit: Decimal
+
+
+class JournalEntryDetailRead(BaseModel):
+    id: int
+    entry_date: datetime
+    memo: str | None
+    source_type: str
+    created_at: datetime
+    lines: list[JournalLineDetailRead]
+
+
+class StockMovementRead(BaseModel):
+    id: int
+    created_at: datetime
+    movement_type: str
+    qty_delta: Decimal
+    unit_cost: Decimal | None
+    memo: str | None
+    warehouse_id: int
+    warehouse_name: str
+    product_id: int
+    product_name: str
+
+
 class ProductRead(BaseModel):
     id: int
     name: str
