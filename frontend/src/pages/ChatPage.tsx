@@ -103,6 +103,37 @@ function MicIcon({ className }: { className?: string }) {
   );
 }
 
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** Зелёный: последнее сообщение от клиента (ждём ответ). Голубой: в пределах 3 суток с первого сообщения в чате. */
+type ThreadAttention = "waiting_reply" | "recent_window" | "normal";
+
+function threadAttention(t: ChatThread): ThreadAttention {
+  if (t.last_message_direction === "in") return "waiting_reply";
+  const raw = t.first_message_at;
+  if (!raw) return "normal";
+  const first = new Date(raw).getTime();
+  if (Number.isNaN(first)) return "normal";
+  if (Date.now() - first <= THREE_DAYS_MS) return "recent_window";
+  return "normal";
+}
+
+function threadRowClasses(t: ChatThread, selected: boolean) {
+  const base =
+    "flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition";
+  if (selected) {
+    return [base, "border-purple-500/40 bg-purple-500/10"].join(" ");
+  }
+  const attn = threadAttention(t);
+  if (attn === "waiting_reply") {
+    return [base, "border-emerald-500/45 bg-emerald-500/10 hover:bg-emerald-500/15"].join(" ");
+  }
+  if (attn === "recent_window") {
+    return [base, "border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/15"].join(" ");
+  }
+  return [base, "border-slate-700/50 bg-slate-900/30 hover:bg-slate-900/50"].join(" ");
+}
+
 export function ChatPage() {
   const qc = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -165,6 +196,22 @@ export function ChatPage() {
     () => (threadsQuery.data ?? []).find((t) => t.id === threadId) ?? null,
     [threadsQuery.data, threadId],
   );
+
+  const sortedThreads = useMemo(() => {
+    const list = [...(threadsQuery.data ?? [])];
+    const score = (t: ChatThread) => {
+      const a = threadAttention(t);
+      if (a === "waiting_reply") return 3;
+      if (a === "recent_window") return 2;
+      return 1;
+    };
+    list.sort((a, b) => {
+      const d = score(b) - score(a);
+      if (d !== 0) return d;
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    });
+    return list;
+  }, [threadsQuery.data]);
 
   const messagesQuery = useQuery({
     queryKey: ["chat-messages", threadId],
@@ -371,24 +418,23 @@ export function ChatPage() {
             placeholder="Поиск: имя, телефон, чат, ключевое слово…"
             className="mb-2 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500"
           />
+          <p className="mb-2 text-[10px] leading-relaxed text-slate-500">
+            Подсветка: зелёный — ждёт вашего ответа · голубой — первые 3 дня с первого сообщения · без заливки —
+            старше.
+          </p>
           {threadsQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
           {threadsQuery.isError && (
             <p className="text-sm text-red-300">{(threadsQuery.error as Error).message}</p>
           )}
           <div className="space-y-2">
-            {(threadsQuery.data ?? []).map((t) => {
+            {sortedThreads.map((t) => {
               const unread = t.unread_count ?? 0;
               return (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => setThreadId(t.id)}
-                  className={[
-                    "flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition",
-                    t.id === threadId
-                      ? "border-purple-500/40 bg-purple-500/10"
-                      : "border-slate-700/50 bg-slate-900/30 hover:bg-slate-900/50",
-                  ].join(" ")}
+                  className={threadRowClasses(t, t.id === threadId)}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-slate-100">

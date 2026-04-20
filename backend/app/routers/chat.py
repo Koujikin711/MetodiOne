@@ -45,6 +45,14 @@ class ChatThreadRead(BaseModel):
         default=0,
         description="Входящие от клиента после последнего просмотра диалога этим пользователем.",
     )
+    first_message_at: datetime | None = Field(
+        default=None,
+        description="Время самого раннего сообщения в потоке (для подсветки свежих диалогов).",
+    )
+    last_message_direction: str | None = Field(
+        default=None,
+        description="Направление последнего сообщения: in — от клиента, out — от менеджера.",
+    )
 
 
 class ChatMessageRead(BaseModel):
@@ -352,6 +360,34 @@ async def list_threads(
         query = query.where(or_(*conds))
     query = query.order_by(ChatThread.updated_at.desc(), ChatThread.id.desc())
     rows = (await db.execute(query)).scalars().unique().all()
+    thread_ids = [t.id for t in rows]
+    first_map: dict[int, datetime] = {}
+    last_dir_map: dict[int, str | None] = {}
+    if thread_ids:
+        fr = await db.execute(
+            select(ChatMessage.thread_id, func.min(ChatMessage.created_at))
+            .where(ChatMessage.thread_id.in_(thread_ids))
+            .group_by(ChatMessage.thread_id)
+        )
+        first_map = {int(tid): ts for tid, ts in fr.all() if tid is not None and ts is not None}
+        mx_rows = (
+            await db.execute(
+                select(ChatMessage.thread_id, func.max(ChatMessage.id))
+                .where(ChatMessage.thread_id.in_(thread_ids))
+                .group_by(ChatMessage.thread_id)
+            )
+        ).all()
+        max_ids = [mid for _tid, mid in mx_rows if mid is not None]
+        if max_ids:
+            dir_rows = (
+                await db.execute(select(ChatMessage.id, ChatMessage.direction).where(ChatMessage.id.in_(max_ids)))
+            ).all()
+            id_to_dir = {int(mid): d for mid, d in dir_rows}
+            for tid, mid in mx_rows:
+                if tid is None or mid is None:
+                    continue
+                last_dir_map[int(tid)] = id_to_dir.get(int(mid))
+
     out: list[ChatThreadRead] = []
     for t in rows:
         lead_name = None
@@ -370,6 +406,8 @@ async def list_threads(
                 pipeline_id=t.pipeline_id,
                 updated_at=t.updated_at,
                 unread_count=unread,
+                first_message_at=first_map.get(t.id),
+                last_message_direction=last_dir_map.get(t.id),
             )
         )
     return out

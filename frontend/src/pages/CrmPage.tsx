@@ -12,7 +12,7 @@ import {
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -80,13 +80,13 @@ function LeadCardBody({ lead }: { lead: Lead }) {
 
   return (
     <>
-      <div className="flex items-start justify-between gap-2">
-        <p className="font-medium leading-snug text-white">{lead.name}</p>
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <p className="min-w-0 flex-1 break-words font-medium leading-snug text-white">{lead.name}</p>
         <span className="shrink-0 rounded-full bg-slate-700/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">
           {leadDateBadge(lead.created_at)}
         </span>
       </div>
-      <p className="mt-2 text-sm text-slate-400">{lead.phone ?? "—"}</p>
+      <p className="mt-2 break-all text-sm text-slate-400">{lead.phone ?? "—"}</p>
       <div className="mt-3 flex items-end justify-between gap-2">
         <p className="truncate text-xs text-slate-500" title={lead.manager_name || "Не назначен"}>
           Ответственный: {lead.manager_name || "—"}
@@ -285,7 +285,7 @@ function LeadCard({
       {...listeners}
       {...attributes}
       className={[
-        "cursor-grab touch-none rounded-xl border border-slate-600/50 bg-slate-800/70 p-4 shadow-lg backdrop-blur-sm transition-shadow duration-200 active:cursor-grabbing",
+        "min-w-0 max-w-full cursor-grab touch-none rounded-xl border border-slate-600/50 bg-slate-800/70 p-4 shadow-lg backdrop-blur-sm transition-shadow duration-200 active:cursor-grabbing",
         isDragging ? "opacity-50" : "hover:border-slate-500/60 hover:shadow-xl",
       ].join(" ")}
     >
@@ -478,7 +478,7 @@ function KanbanColumn({
       data-kanban-column="true"
       data-stage-id={stage.id}
       className={[
-        "flex h-[min(70vh,520px)] w-[min(100%,280px)] shrink-0 flex-col rounded-2xl border border-slate-700/40 bg-slate-800/30 p-3 shadow-inner backdrop-blur-sm transition-colors duration-300",
+        "flex h-[min(70vh,520px)] w-[min(100%,280px)] min-w-0 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-700/40 bg-slate-800/30 p-3 shadow-inner backdrop-blur-sm transition-colors duration-300",
         isOver ? "border-purple-500/40 bg-slate-800/45 ring-1 ring-purple-500/20" : "",
       ].join(" ")}
     >
@@ -496,7 +496,7 @@ function KanbanColumn({
       <div
         ref={(el) => registerScrollContainer(stage.id, el)}
         data-kanban-scroll="true"
-        className="flex flex-1 flex-col gap-3 overflow-y-auto pr-0.5"
+        className="no-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden pr-0.5"
       >
         {leads.length === 0 ? (
           <p className="flex flex-1 items-center justify-center px-2 py-8 text-center text-sm text-slate-500">
@@ -1047,6 +1047,8 @@ export function CrmPage() {
   const [listSearchInput, setListSearchInput] = useState("");
   const [listSearchDebounced, setListSearchDebounced] = useState("");
   const [listStatusFilter, setListStatusFilter] = useState<number | "">("");
+  const [boardSearchInput, setBoardSearchInput] = useState("");
+  const [boardSearchDebounced, setBoardSearchDebounced] = useState("");
 
   useEffect(() => {
     const t = window.setTimeout(() => setListSearchDebounced(listSearchInput.trim()), 400);
@@ -1054,8 +1056,17 @@ export function CrmPage() {
   }, [listSearchInput]);
 
   useEffect(() => {
+    const t = window.setTimeout(() => setBoardSearchDebounced(boardSearchInput.trim()), 250);
+    return () => window.clearTimeout(t);
+  }, [boardSearchInput]);
+
+  useEffect(() => {
     setListPage(1);
   }, [pipelineId, listSearchDebounced, listStatusFilter]);
+
+  useEffect(() => {
+    setBoardSearchInput("");
+  }, [pipelineId]);
 
   const stagesQuery = useQuery({
     queryKey: ["stages", pipelineId],
@@ -1308,15 +1319,25 @@ export function CrmPage() {
     return [...stagesQuery.data].sort((a, b) => a.order - b.order || a.id - b.id);
   }, [stagesQuery.data]);
 
+  const leadsForBoard = useMemo(() => {
+    const q = boardSearchDebounced.trim().toLowerCase();
+    if (!q) return leads;
+    return leads.filter((l) => {
+      const idStr = String(l.id);
+      const hay = [l.name, l.phone ?? "", l.email ?? "", idStr].join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+  }, [leads, boardSearchDebounced]);
+
   const leadsByStage = useMemo(() => {
     const map = new Map<number, Lead[]>();
     for (const s of sortedStages) map.set(s.id, []);
-    for (const lead of leads) {
+    for (const lead of leadsForBoard) {
       const bucket = map.get(lead.status_id);
       if (bucket) bucket.push(lead);
     }
     return map;
-  }, [leads, sortedStages]);
+  }, [leadsForBoard, sortedStages]);
 
   const listTotalPages = useMemo(() => {
     const d = leadsTableQuery.data;
@@ -2735,33 +2756,47 @@ export function CrmPage() {
       )}
 
       {crmView === "board" && sortedStages.length > 0 && (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-          onDragCancel={onDragCancel}
-        >
-          <div
-            ref={boardContainerRef}
-            onWheelCapture={onBoardWheelCapture}
-            className="flex gap-4 overflow-x-auto pb-4"
+        <>
+          <label className="mb-2 block max-w-xl text-xs text-slate-400">
+            Поиск на доске
+            <input
+              value={boardSearchInput}
+              onChange={(e) => setBoardSearchInput(e.target.value)}
+              placeholder="Имя, телефон, email или № лида…"
+              className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
+            <span className="mt-1 block text-[10px] text-slate-500">
+              Только отображение на доске; перетаскивание и данные на сервере не меняются.
+            </span>
+          </label>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            onDragCancel={onDragCancel}
           >
-            {sortedStages.map((stage) => (
-              <KanbanColumn
-                key={stage.id}
-                stage={stage}
-                leads={leadsByStage.get(stage.id) ?? []}
-                currentRole={currentRole}
-                onRefresh={refreshAll}
-                registerScrollContainer={registerScrollContainer}
-              />
-            ))}
-          </div>
-          <DragOverlay dropAnimation={null}>
-            {activeLead ? <LeadCardDragOverlay lead={activeLead} /> : null}
-          </DragOverlay>
-        </DndContext>
+            <div
+              ref={boardContainerRef}
+              onWheelCapture={onBoardWheelCapture}
+              className="no-scrollbar flex gap-4 overflow-x-auto pb-4"
+            >
+              {sortedStages.map((stage) => (
+                <KanbanColumn
+                  key={stage.id}
+                  stage={stage}
+                  leads={leadsByStage.get(stage.id) ?? []}
+                  currentRole={currentRole}
+                  onRefresh={refreshAll}
+                  registerScrollContainer={registerScrollContainer}
+                />
+              ))}
+            </div>
+            <DragOverlay dropAnimation={null}>
+              {activeLead ? <LeadCardDragOverlay lead={activeLead} /> : null}
+            </DragOverlay>
+          </DndContext>
+        </>
       )}
 
       {crmView === "board" && sortedStages.length === 0 && !stagesQuery.isLoading && !stagesQuery.isError && (
