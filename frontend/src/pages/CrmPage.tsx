@@ -12,7 +12,7 @@ import {
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -459,11 +459,13 @@ function KanbanColumn({
   leads,
   currentRole,
   onRefresh,
+  registerScrollContainer,
 }: {
   stage: PipelineStage;
   leads: Lead[];
   currentRole: UserRole | null;
   onRefresh: () => void;
+  registerScrollContainer: (stageId: number, el: HTMLDivElement | null) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: stageDroppableId(stage.id),
@@ -473,8 +475,9 @@ function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
+      data-kanban-column="true"
       className={[
-        "flex min-h-[min(70vh,520px)] w-[min(100%,280px)] shrink-0 flex-col rounded-2xl border border-slate-700/40 bg-slate-800/30 p-3 shadow-inner backdrop-blur-sm transition-colors duration-300",
+        "flex h-[min(70vh,520px)] w-[min(100%,280px)] shrink-0 flex-col rounded-2xl border border-slate-700/40 bg-slate-800/30 p-3 shadow-inner backdrop-blur-sm transition-colors duration-300",
         isOver ? "border-purple-500/40 bg-slate-800/45 ring-1 ring-purple-500/20" : "",
       ].join(" ")}
     >
@@ -489,7 +492,11 @@ function KanbanColumn({
         <h3 className="text-sm font-semibold text-slate-200">{stage.name}</h3>
         <span className="ml-auto text-xs text-slate-500">{leads.length}</span>
       </div>
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto pr-0.5">
+      <div
+        ref={(el) => registerScrollContainer(stage.id, el)}
+        data-kanban-scroll="true"
+        className="flex flex-1 flex-col gap-3 overflow-y-auto pr-0.5"
+      >
         {leads.length === 0 ? (
           <p className="flex flex-1 items-center justify-center px-2 py-8 text-center text-sm text-slate-500">
             Нет лидов
@@ -1254,8 +1261,10 @@ export function CrmPage() {
     }
   }
 
-  const kanbanPerStage = 200;
+  const kanbanPerStage = 50;
   const listPageSize = 50;
+  const boardContainerRef = useRef<HTMLDivElement | null>(null);
+  const stageScrollRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const leadsQuery = useQuery({
     queryKey: ["leads", pipelineId, "kanban", kanbanPerStage],
@@ -1387,6 +1396,47 @@ export function CrmPage() {
 
   const onDragCancel = useCallback(() => {
     setActiveLead(null);
+  }, []);
+
+  const registerScrollContainer = useCallback((stageId: number, el: HTMLDivElement | null) => {
+    if (el) {
+      stageScrollRefs.current.set(stageId, el);
+    } else {
+      stageScrollRefs.current.delete(stageId);
+    }
+  }, []);
+
+  const onBoardWheelCapture = useCallback((event: WheelEvent<HTMLDivElement>) => {
+    if (event.deltaY === 0) return;
+    const boardEl = boardContainerRef.current;
+    if (!boardEl) return;
+
+    const pointEl = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+    let scroller = pointEl?.closest?.("[data-kanban-scroll='true']") as HTMLDivElement | null;
+    if (!scroller || !boardEl.contains(scroller)) {
+      // Если курсор в зазоре между колонками — берём ближайшую колонку по X.
+      let nearest: HTMLDivElement | null = null;
+      let nearestDx = Number.POSITIVE_INFINITY;
+      for (const el of stageScrollRefs.current.values()) {
+        const rect = el.getBoundingClientRect();
+        if (event.clientY < rect.top || event.clientY > rect.bottom) continue;
+        const cx = rect.left + rect.width / 2;
+        const dx = Math.abs(event.clientX - cx);
+        if (dx < nearestDx) {
+          nearestDx = dx;
+          nearest = el;
+        }
+      }
+      scroller = nearest;
+    }
+    if (!scroller) return;
+
+    const before = scroller.scrollTop;
+    scroller.scrollTop += event.deltaY;
+    if (scroller.scrollTop !== before) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
   }, []);
 
   return (
@@ -2682,7 +2732,11 @@ export function CrmPage() {
           onDragEnd={onDragEnd}
           onDragCancel={onDragCancel}
         >
-          <div className="flex gap-4 overflow-x-auto pb-4">
+          <div
+            ref={boardContainerRef}
+            onWheelCapture={onBoardWheelCapture}
+            className="flex gap-4 overflow-x-auto pb-4"
+          >
             {sortedStages.map((stage) => (
               <KanbanColumn
                 key={stage.id}
@@ -2690,6 +2744,7 @@ export function CrmPage() {
                 leads={leadsByStage.get(stage.id) ?? []}
                 currentRole={currentRole}
                 onRefresh={refreshAll}
+                registerScrollContainer={registerScrollContainer}
               />
             ))}
           </div>
