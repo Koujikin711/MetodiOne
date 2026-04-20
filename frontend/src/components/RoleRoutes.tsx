@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Navigate } from "react-router-dom";
 
+import { AccessDenied } from "@/components/AccessDenied";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import type { Pipeline } from "@/lib/types";
@@ -49,21 +50,23 @@ export function HomeEntry() {
 
 export function RequireNotManager({ children }: { children: ReactNode }) {
   if (isManagerNavRole(decodeRoleFromToken(getStoredToken()))) {
-    return <Navigate to="/crm" replace />;
+    return (
+      <AccessDenied message="Этот раздел недоступен для роли менеджера или администратора воронки. Обратитесь к владельцу компании." />
+    );
   }
   return <>{children}</>;
 }
 
 export function RequireOwner({ children }: { children: ReactNode }) {
   if (decodeRoleFromToken(getStoredToken()) !== "owner") {
-    return <Navigate to="/" replace />;
+    return <AccessDenied message="Раздел доступен только владельцу компании (роль owner)." />;
   }
   return <>{children}</>;
 }
 
 export function RequireSuperOwner({ children }: { children: ReactNode }) {
   if (decodeRoleFromToken(getStoredToken()) !== "super_owner") {
-    return <Navigate to="/" replace />;
+    return <AccessDenied message="Раздел «Компании» доступен только супер-владельцу платформы." />;
   }
   return <>{children}</>;
 }
@@ -71,7 +74,9 @@ export function RequireSuperOwner({ children }: { children: ReactNode }) {
 export function RequireFinance({ children }: { children: ReactNode }) {
   const r = decodeRoleFromToken(getStoredToken());
   if (r !== "owner" && r !== "admin" && r !== "super_owner") {
-    return <Navigate to="/" replace />;
+    return (
+      <AccessDenied message="Раздел «Финансы» доступен владельцу, администратору и супер-владельцу. Попросите владельца выдать вам роль или открыть отчёты." />
+    );
   }
   return <>{children}</>;
 }

@@ -5,6 +5,8 @@ import socket
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.request_id_middleware import RequestIdMiddleware
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,10 +22,17 @@ from app.core.security import hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
 from app.routers import analytics, audit, auth, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sources, stages, system, tasks, users
+from app.services.background_events import record_background_event
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
 
 logger = logging.getLogger(__name__)
+
+if not logging.root.handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s %(name)s %(message)s",
+    )
 
 
 def _install_asyncio_dns_exception_handler() -> None:
@@ -191,16 +200,31 @@ async def lifespan(_: FastAPI):
                     await session.commit()
                     if sent:
                         logger.info("whatsapp reminders sent: %s", sent)
+                        record_background_event(
+                            source="whatsapp_reminders",
+                            ok=True,
+                            message=f"Отправлено напоминаний/сообщений: {sent}",
+                        )
                     now = asyncio.get_running_loop().time()
                     if now >= next_sheets_run:
                         synced = await run_google_sheets_import_tick(session)
                         await session.commit()
                         if synced:
                             logger.info("google sheets sync tick: integrations=%s", synced)
+                            record_background_event(
+                                source="google_sheets",
+                                ok=True,
+                                message=f"Тик Google Sheets обработал интеграций: {synced}",
+                            )
                         period = max(int(settings.google_sheets_poll_seconds), 30)
                         next_sheets_run = now + float(period)
-            except Exception:
+            except Exception as exc:
                 logger.exception("background tick failed")
+                record_background_event(
+                    source="background_tick",
+                    ok=False,
+                    message=str(exc)[:400],
+                )
             try:
                 await asyncio.wait_for(stop_event.wait(), timeout=60.0)
             except TimeoutError:
@@ -228,6 +252,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="CRM API", version="0.1.0", lifespan=lifespan)
 
+app.add_middleware(RequestIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,

@@ -16,6 +16,8 @@ import { OnlineBookingPage } from "@/pages/OnlineBookingPage";
 import { CompaniesPage } from "@/pages/CompaniesPage";
 import { CrmPage } from "@/pages/CrmPage";
 import { FinancePage } from "@/pages/FinancePage";
+import { IntegrationsHubPage } from "@/pages/IntegrationsHubPage";
+import { OnboardingPage } from "@/pages/OnboardingPage";
 import { TasksPage } from "@/pages/TasksPage";
 
 export default function App() {
@@ -57,6 +59,8 @@ export default function App() {
               }
             />
             <Route path="/chat" element={<ChatPage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/integrations" element={<IntegrationsHubPage />} />
             <Route path="/audit" element={<AuditPage />} />
             <Route
               path="/companies"
