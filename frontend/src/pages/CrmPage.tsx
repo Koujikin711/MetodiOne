@@ -1431,12 +1431,11 @@ export function CrmPage() {
     }
     if (!scroller) return;
 
-    const before = scroller.scrollTop;
+    // Внутри зоны этапов вертикальное колесо всегда направляем в колонку под курсором,
+    // чтобы не включался горизонтальный скролл контейнера.
     scroller.scrollTop += event.deltaY;
-    if (scroller.scrollTop !== before) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
+    event.preventDefault();
+    event.stopPropagation();
   }, []);
 
   return (
