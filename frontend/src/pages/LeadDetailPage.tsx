@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
-import type { Lead, LeadAuditEvent } from "@/lib/types";
+import type { FinanceJournalEntryDetail, Lead, LeadAuditEvent } from "@/lib/types";
 
 export function LeadDetailPage() {
   const { id } = useParams();
@@ -61,6 +61,16 @@ export function LeadDetailPage() {
     queryKey: ["lead-audit", leadId],
     queryFn: () => apiFetch<LeadAuditEvent[]>(`/api/leads/${leadId}/audit`),
     enabled: auditOpen && Number.isFinite(leadId) && leadId > 0,
+  });
+
+  const canSeeFinanceJournal =
+    role === "owner" || role === "admin" || role === "super_owner" || role === "finance_analyst";
+
+  const financeJournalQuery = useQuery({
+    queryKey: ["lead-finance-journal", leadId],
+    queryFn: () =>
+      apiFetch<FinanceJournalEntryDetail[]>(`/api/finance/journal-entries?lead_id=${leadId}&limit=40`),
+    enabled: canSeeFinanceJournal && Number.isFinite(leadId) && leadId > 0,
   });
 
   if (!Number.isFinite(leadId) || leadId <= 0) {
@@ -169,6 +179,49 @@ export function LeadDetailPage() {
               <dd className="mt-1 font-mono text-slate-300">#{query.data.id}</dd>
             </div>
           </dl>
+
+          {canSeeFinanceJournal ? (
+            <section className="mt-8 border-t border-slate-700/50 pt-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-white">Финансы: проводки по лиду</h2>
+                <Link
+                  to="/finance"
+                  className="text-xs font-medium text-purple-300 hover:text-purple-200 hover:underline"
+                >
+                  Открыть финансы →
+                </Link>
+              </div>
+              {financeJournalQuery.isLoading && <p className="mt-2 text-xs text-slate-500">Загрузка журнала…</p>}
+              {financeJournalQuery.isError && (
+                <p className="mt-2 text-xs text-rose-300">
+                  {(financeJournalQuery.error as Error).message ?? "Нет доступа или ошибка API"}
+                </p>
+              )}
+              {(financeJournalQuery.data ?? []).length === 0 && !financeJournalQuery.isLoading && (
+                <p className="mt-2 text-xs text-slate-500">Проводок с привязкой к этому лиду пока нет.</p>
+              )}
+              <ul className="mt-3 space-y-2">
+                {(financeJournalQuery.data ?? []).map((je) => (
+                  <li key={je.id} className="rounded-xl border border-slate-700/50 bg-slate-900/40 p-3 text-xs">
+                    <div className="flex flex-wrap gap-2 text-slate-300">
+                      <span className="font-mono text-slate-400">#{je.id}</span>
+                      <span>{new Date(je.entry_date).toLocaleString("ru-RU")}</span>
+                      <span className="rounded bg-slate-700/60 px-2 py-0.5 text-slate-200">{je.source_type}</span>
+                    </div>
+                    {je.memo && <p className="mt-1 text-slate-400">{je.memo}</p>}
+                    <ul className="mt-2 space-y-1 font-mono text-[11px] text-slate-500">
+                      {je.lines.map((ln, i) => (
+                        <li key={i}>
+                          {ln.account_code} {ln.debit !== "0" ? `Дт ${ln.debit}` : ""}{" "}
+                          {ln.credit !== "0" ? `Кт ${ln.credit}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </article>
       )}
 

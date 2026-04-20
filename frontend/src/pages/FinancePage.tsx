@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 
 import { PeriodDelta, PlanFactBar } from "@/components/finance/FinanceReportsCharts";
 import { FinanceReportsChartsLazy } from "@/components/finance/FinanceReportsChartsLazy";
-import { apiFetch, getStoredToken } from "@/lib/api";
+import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl } from "@/lib/api";
 import { decodeCompanyIdFromToken, decodeRoleFromToken } from "@/lib/auth";
 import { previousPeriodRange } from "@/lib/financePeriod";
 import { printFinanceZone } from "@/lib/printFinance";
@@ -18,6 +18,7 @@ import type {
   FinanceForecast,
   FinanceJournalEntryDetail,
   FinanceJournalTemplate,
+  FinanceRemindersOverview,
   FinanceOsvImportResult,
   FinancePLLine,
   FinanceAccountTypeRollup,
@@ -96,6 +97,13 @@ export function FinancePage() {
   const token = getStoredToken();
   const role = decodeRoleFromToken(token);
   const superNeedsCompany = role === "super_owner" && decodeCompanyIdFromToken(token) == null;
+  const readOnlyFinance = role === "finance_analyst";
+
+  function assertFinanceCanEdit() {
+    if (readOnlyFinance) {
+      throw new Error("Роль «Финансовый аналитик»: только просмотр отчётов и журнала.");
+    }
+  }
 
   const [tab, setTab] = useState<FinanceTab>("overview");
   const [journalSource, setJournalSource] = useState<string>("");
@@ -274,9 +282,16 @@ export function FinancePage() {
     enabled: !superNeedsCompany && tab === "accounting",
   });
 
+  const remindersQuery = useQuery({
+    queryKey: ["finance-reminders"],
+    queryFn: () => apiFetch<FinanceRemindersOverview>("/api/finance/reminders/overview"),
+    enabled: !superNeedsCompany,
+  });
+
   const saveBudgetMutation = useMutation({
-    mutationFn: () =>
-      apiFetch<FinanceBudgetMonthRow>(
+    mutationFn: () => {
+      assertFinanceCanEdit();
+      return apiFetch<FinanceBudgetMonthRow>(
         "/api/finance/budgets/month",
         {
           method: "PUT",
@@ -287,7 +302,8 @@ export function FinancePage() {
             expense_plan: budgetExp || "0",
           }),
         },
-      ),
+      );
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
       toast.success("План на месяц сохранён");
@@ -332,8 +348,10 @@ export function FinancePage() {
   const invalidateFinance = refetchAll;
 
   const patchSettings = useMutation({
-    mutationFn: (body: Partial<FinanceSettings>) =>
-      apiFetch<FinanceSettings>("/api/finance/settings", { method: "PATCH", body: JSON.stringify(body) }),
+    mutationFn: (body: Partial<FinanceSettings>) => {
+      assertFinanceCanEdit();
+      return apiFetch<FinanceSettings>("/api/finance/settings", { method: "PATCH", body: JSON.stringify(body) });
+    },
     onSuccess: () => {
       invalidateFinance();
       toast.success("Настройки сохранены");
@@ -354,7 +372,10 @@ export function FinancePage() {
   );
 
   const deleteTemplateMut = useMutation({
-    mutationFn: (id: number) => apiFetch<void>(`/api/finance/journal-templates/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => {
+      assertFinanceCanEdit();
+      return apiFetch<void>(`/api/finance/journal-templates/${id}`, { method: "DELETE" });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["finance-journal-templates"] });
       toast.success("Шаблон удалён");
@@ -364,6 +385,7 @@ export function FinancePage() {
 
   const createTemplateMut = useMutation({
     mutationFn: () => {
+      assertFinanceCanEdit();
       let lines: Array<{ account_code: string; debit: string; credit: string }>;
       try {
         lines = JSON.parse(tplJson) as Array<{ account_code: string; debit: string; credit: string }>;
@@ -384,6 +406,7 @@ export function FinancePage() {
 
   const applyTemplateMut = useMutation({
     mutationFn: async (tid: number) => {
+      assertFinanceCanEdit();
       const raw = window.prompt("Дата проводки (ISO, например 2026-01-15T12:00)", manualDate.trim() || "");
       if (!raw) throw new Error("Отменено");
       return apiFetch<{ id: number }>(`/api/finance/journal/from-template/${tid}`, {
@@ -401,6 +424,7 @@ export function FinancePage() {
 
   const osvImportMut = useMutation({
     mutationFn: async (opts: { file: File; apply: boolean }) => {
+      assertFinanceCanEdit();
       const fd = new FormData();
       fd.append("file", opts.file);
       fd.append("replace_period", osvReplace ? "true" : "false");
@@ -428,11 +452,13 @@ export function FinancePage() {
   const [whName, setWhName] = useState("");
   const [whDefault, setWhDefault] = useState(false);
   const createWh = useMutation({
-    mutationFn: () =>
-      apiFetch<FinanceWarehouse>("/api/finance/warehouses", {
+    mutationFn: () => {
+      assertFinanceCanEdit();
+      return apiFetch<FinanceWarehouse>("/api/finance/warehouses", {
         method: "POST",
         body: JSON.stringify({ name: whName.trim(), is_default: whDefault, sort_order: 0 }),
-      }),
+      });
+    },
     onSuccess: () => {
       setWhName("");
       setWhDefault(false);
@@ -443,11 +469,13 @@ export function FinancePage() {
   });
 
   const patchWarehouse = useMutation({
-    mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) =>
-      apiFetch<FinanceWarehouse>(`/api/finance/warehouses/${id}`, {
+    mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) => {
+      assertFinanceCanEdit();
+      return apiFetch<FinanceWarehouse>(`/api/finance/warehouses/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ is_active }),
-      }),
+      });
+    },
     onSuccess: () => {
       invalidateFinance();
       toast.success("Склад обновлён");
@@ -458,11 +486,13 @@ export function FinancePage() {
   const [prodName, setProdName] = useState("");
   const [prodType, setProdType] = useState<"good" | "service">("good");
   const createProd = useMutation({
-    mutationFn: () =>
-      apiFetch<FinanceProduct>("/api/finance/products", {
+    mutationFn: () => {
+      assertFinanceCanEdit();
+      return apiFetch<FinanceProduct>("/api/finance/products", {
         method: "POST",
         body: JSON.stringify({ name: prodName.trim(), product_type: prodType, unit: "pcs" }),
-      }),
+      });
+    },
     onSuccess: () => {
       setProdName("");
       invalidateFinance();
@@ -482,8 +512,9 @@ export function FinancePage() {
   const [rcpQty, setRcpQty] = useState("1");
   const [rcpCost, setRcpCost] = useState("0");
   const receiptMut = useMutation({
-    mutationFn: () =>
-      apiFetch<{ ok: number }>("/api/finance/stock/receipt", {
+    mutationFn: () => {
+      assertFinanceCanEdit();
+      return apiFetch<{ ok: number }>("/api/finance/stock/receipt", {
         method: "POST",
         body: JSON.stringify({
           warehouse_id: rcpWh || defaultWhId,
@@ -491,7 +522,8 @@ export function FinancePage() {
           quantity: rcpQty,
           unit_cost: rcpCost,
         }),
-      }),
+      });
+    },
     onSuccess: () => {
       invalidateFinance();
       void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
@@ -505,15 +537,17 @@ export function FinancePage() {
   const [issProd, setIssProd] = useState(0);
   const [issQty, setIssQty] = useState("1");
   const issueMut = useMutation({
-    mutationFn: () =>
-      apiFetch<{ cost: string }>("/api/finance/stock/issue", {
+    mutationFn: () => {
+      assertFinanceCanEdit();
+      return apiFetch<{ cost: string }>("/api/finance/stock/issue", {
         method: "POST",
         body: JSON.stringify({
           warehouse_id: issWh || defaultWhId,
           product_id: issProd,
           quantity: issQty,
         }),
-      }),
+      });
+    },
     onSuccess: (res) => {
       invalidateFinance();
       void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
@@ -530,6 +564,7 @@ export function FinancePage() {
   const [defEnd, setDefEnd] = useState("");
   const createDef = useMutation({
     mutationFn: () => {
+      assertFinanceCanEdit();
       const start = defStart ? `${defStart}T00:00:00` : new Date().toISOString().slice(0, 19);
       const end = defEnd ? `${defEnd}T00:00:00` : new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 19);
       return apiFetch<FinanceDeferredContract>("/api/finance/deferred-contracts", {
@@ -559,11 +594,13 @@ export function FinancePage() {
   });
 
   const recognizeMut = useMutation({
-    mutationFn: ({ contractId, periodNo }: { contractId: number; periodNo: number }) =>
-      apiFetch<{ id: number }>(
+    mutationFn: ({ contractId, periodNo }: { contractId: number; periodNo: number }) => {
+      assertFinanceCanEdit();
+      return apiFetch<{ id: number }>(
         `/api/finance/deferred-contracts/${contractId}/periods/${periodNo}/recognize`,
         { method: "POST" },
-      ),
+      );
+    },
     onSuccess: () => {
       void periodsQuery.refetch();
       void deferredQuery.refetch();
@@ -593,6 +630,7 @@ export function FinancePage() {
 
   const postManualJournal = useMutation({
     mutationFn: () => {
+      assertFinanceCanEdit();
       const lines = manualLines
         .filter((l) => l.accountId > 0)
         .map((l) => ({
@@ -683,6 +721,32 @@ export function FinancePage() {
     toast.success("Скачаны 4 CSV: сводка, ОСВ, P&L, rollup по типам счетов");
   };
 
+  const downloadWorkbookXlsx = async () => {
+    const df = reportFrom;
+    const dt = reportTo;
+    const qs = `date_from=${encodeURIComponent(df)}&date_to=${encodeURIComponent(dt)}`;
+    const headers: Record<string, string> = {};
+    const token = getStoredToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const cid = getActiveCompanyId();
+    if (cid != null) headers["X-Company-Id"] = String(cid);
+    const res = await fetch(resolveApiUrl(`/api/finance/reports/export-workbook?${qs}`), { headers });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(t || `Ошибка ${res.status}`);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `metodione-finance_${df}_${dt}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success("Скачан XLSX (ОСВ, ОПиУ, баланс, ДДС)");
+  };
+
   if (superNeedsCompany) {
     return (
       <div className="relative mx-auto max-w-2xl space-y-4 pb-10">
@@ -720,7 +784,8 @@ export function FinancePage() {
         <div className="space-y-1">
           <h1 className="text-3xl font-semibold tracking-tight text-white">Финансы</h1>
           <p className="text-sm text-slate-400">
-            Учётные политики, склад, журнал проводок и отложенная выручка. Доступ: владелец, админ, супер-владелец.
+            Учётные политики, склад, журнал проводок и отложенная выручка. Доступ: владелец, админ, супер-владелец;
+            финансовый аналитик — просмотр и отчёты без изменений.
           </p>
         </div>
         <button
@@ -731,6 +796,24 @@ export function FinancePage() {
           Обновить данные
         </button>
       </header>
+
+      {readOnlyFinance ? (
+        <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-50">
+          Вы вошли как <strong>финансовый аналитик</strong>: доступны отчёты и журнал, создание и изменение проводок
+          недоступны.
+        </div>
+      ) : null}
+
+      {remindersQuery.data?.messages?.length ? (
+        <div className="rounded-2xl border border-slate-600/40 bg-slate-950/40 px-4 py-3 text-sm text-slate-200">
+          <div className="font-medium text-white">Напоминания</div>
+          <ul className="mt-2 list-inside list-disc space-y-1 text-slate-300">
+            {remindersQuery.data.messages.map((m) => (
+              <li key={`${m.kind}-${m.text.slice(0, 40)}`}>{m.text}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-2 border-b border-slate-700/50 pb-3 print:hidden">
         {tabBtn("overview", "Обзор")}
@@ -1593,6 +1676,18 @@ export function FinancePage() {
                 className="rounded-xl border border-cyan-500/40 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-950/25 disabled:opacity-40"
               >
                 Пакет CSV (4 файла)
+              </button>
+              <button
+                type="button"
+                disabled={periodSummaryQuery.isFetching}
+                onClick={() =>
+                  void downloadWorkbookXlsx().catch((e: unknown) =>
+                    toast.error(e instanceof Error ? e.message : "Не удалось скачать XLSX"),
+                  )
+                }
+                className="rounded-xl border border-violet-500/40 px-3 py-2 text-xs text-violet-100 hover:bg-violet-950/25 disabled:opacity-40"
+              >
+                XLSX (ОСВ + формы)
               </button>
             </div>
           </section>

@@ -50,6 +50,17 @@ async def total_inventory_value(db: AsyncSession, company_id: int) -> Decimal:
     return Decimal(str(v or 0)).quantize(Decimal("0.01"))
 
 
+async def deferred_open_period_count(db: AsyncSession, company_id: int) -> int:
+    q = (
+        select(func.count())
+        .select_from(FinanceDeferredPeriod)
+        .join(FinanceDeferredContract, FinanceDeferredContract.id == FinanceDeferredPeriod.contract_id)
+        .where(FinanceDeferredContract.company_id == company_id, FinanceDeferredPeriod.posted_at.is_(None))
+    )
+    n = (await db.execute(q)).scalar_one()
+    return int(n or 0)
+
+
 async def deferred_unrecognized_total(db: AsyncSession, company_id: int) -> Decimal:
     q = (
         select(func.coalesce(func.sum(FinanceDeferredPeriod.amount), 0))
@@ -393,6 +404,33 @@ async def balance_sheet_snapshot(
     )
 
 
+_DDS_BUCKETS = frozenset({"op_customers", "op_expenses", "op_other", "investing", "financing"})
+
+
+def _dds_bucket_from_line_dimensions(dim: object) -> str | None:
+    """Явный dds_bucket в dimensions или эвристика по тексту dds_article."""
+    if not isinstance(dim, dict):
+        return None
+    raw_b = dim.get("dds_bucket")
+    if isinstance(raw_b, str):
+        b = raw_b.strip()
+        if b in _DDS_BUCKETS:
+            return b
+    art = dim.get("dds_article")
+    if not isinstance(art, str) or not art.strip():
+        return None
+    t = art.strip().lower()
+    if any(w in t for w in ("выруч", "клиент", "поступ", "оплат", "покупат")):
+        return "op_customers"
+    if any(w in t for w in ("расход", "постав", "аренд", "зарплат", "услуг", "коммун")):
+        return "op_expenses"
+    if any(w in t for w in ("инвест", "основн", "оборуд", "актив", "запас")):
+        return "investing"
+    if any(w in t for w in ("кредит", "займ", "дивиденд", "обязатель", "капитал")):
+        return "financing"
+    return "op_other"
+
+
 async def cash_flow_statement(
     db: AsyncSession,
     company_id: int,
@@ -458,6 +496,7 @@ async def cash_flow_statement(
             FinanceJournalLine.credit,
             FinanceAccount.code,
             FinanceAccount.account_type,
+            FinanceJournalLine.dimensions,
         )
         .join(FinanceJournalEntry, FinanceJournalEntry.id == FinanceJournalLine.entry_id)
         .join(FinanceAccount, FinanceAccount.id == FinanceJournalLine.account_id)
@@ -468,26 +507,31 @@ async def cash_flow_statement(
     )
     raw = (await db.execute(stmt_lines)).all()
 
-    by_entry: dict[int, list[tuple[Decimal, Decimal, str, str]]] = {}
-    for eid, deb, cred, code, atype in raw:
-        by_entry.setdefault(int(eid), []).append((Decimal(str(deb or 0)), Decimal(str(cred or 0)), code, atype))
+    by_entry: dict[int, list[tuple[Decimal, Decimal, str, str, object]]] = {}
+    for eid, deb, cred, code, atype, dim in raw:
+        by_entry.setdefault(int(eid), []).append(
+            (Decimal(str(deb or 0)), Decimal(str(cred or 0)), code, atype, dim),
+        )
 
     for _eid, lines in by_entry.items():
-        cash_dc = sum(d - c for d, c, code, _t in lines if code in CASH_ACCOUNT_CODES)
+        cash_dc = sum(d - c for d, c, code, _t, _dim in lines if code in CASH_ACCOUNT_CODES)
         cash_dc = cash_dc.quantize(Decimal("0.01"))
         if cash_dc == 0:
             continue
-        others = [(d, c, code, t) for d, c, code, t in lines if code not in CASH_ACCOUNT_CODES]
+        others = [(d, c, code, t, dim) for d, c, code, t, dim in lines if code not in CASH_ACCOUNT_CODES]
         if not others:
             buckets["op_other"] += cash_dc
             continue
         best = max(others, key=lambda x: abs(x[0] - x[1]))
-        od, oc, _ocode, otype = best
+        od, oc, _ocode, otype, odim = best
         primary_mag = abs(od - oc)
         if primary_mag == 0:
             buckets["op_other"] += cash_dc
             continue
-        if otype == "revenue":
+        dim_bucket = _dds_bucket_from_line_dimensions(odim)
+        if dim_bucket is not None:
+            buckets[dim_bucket] += cash_dc
+        elif otype == "revenue":
             buckets["op_customers"] += cash_dc
         elif otype == "expense":
             buckets["op_expenses"] += cash_dc

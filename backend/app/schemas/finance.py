@@ -68,12 +68,18 @@ class JournalLineIn(BaseModel):
     account_id: int = Field(..., ge=1)
     debit: Decimal = Field(default=Decimal("0"), ge=0)
     credit: Decimal = Field(default=Decimal("0"), ge=0)
+    dimensions: dict | None = Field(
+        default=None,
+        description="Аналитика строки (JSON), напр. dds_bucket, dds_article, проект, подразделение",
+    )
 
 
 class JournalCreate(BaseModel):
     entry_date: datetime
     memo: str | None = None
     lines: list[JournalLineIn] = Field(..., min_length=2)
+    related_lead_id: int | None = Field(default=None, ge=1)
+    related_deal_id: int | None = Field(default=None, ge=1)
 
 
 class JournalEntryRead(BaseModel):
@@ -90,6 +96,7 @@ class JournalLineDetailRead(BaseModel):
     account_name: str
     debit: Decimal
     credit: Decimal
+    dimensions: dict | None = None
 
 
 class JournalEntryDetailRead(BaseModel):
@@ -98,7 +105,51 @@ class JournalEntryDetailRead(BaseModel):
     memo: str | None
     source_type: str
     created_at: datetime
+    related_lead_id: int | None = None
+    related_deal_id: int | None = None
     lines: list[JournalLineDetailRead]
+
+
+class JournalEntryCrmPatch(BaseModel):
+    related_lead_id: int | None = Field(default=None, ge=1, description="null — снять привязку")
+    related_deal_id: int | None = Field(default=None, ge=1, description="null — снять привязку")
+
+
+class FinanceClosedMonthRead(BaseModel):
+    year: int
+    month: int
+    closed_at: datetime
+    closed_by_user_id: int | None = None
+
+
+class FinanceClosedMonthCreate(BaseModel):
+    year: int = Field(..., ge=2000, le=2100)
+    month: int = Field(..., ge=1, le=12)
+
+
+class FinanceBankStatementLineRead(BaseModel):
+    id: int
+    txn_date: date
+    amount: Decimal
+    description: str | None = None
+    journal_entry_id: int | None = None
+    matched_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class FinanceBankStatementMatchBody(BaseModel):
+    journal_entry_id: int = Field(..., ge=1)
+
+
+class FinanceReminderMessageRead(BaseModel):
+    kind: str
+    text: str
+
+
+class FinanceRemindersRead(BaseModel):
+    messages: list[FinanceReminderMessageRead]
 
 
 class StockMovementRead(BaseModel):

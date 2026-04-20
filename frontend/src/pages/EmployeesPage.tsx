@@ -324,6 +324,7 @@ export function EmployeesPage() {
                   <option value="manager">Менеджер</option>
                   <option value="expert">Эксперт</option>
                   <option value="admin">Админ воронки</option>
+                  <option value="finance_analyst">Финансовый аналитик</option>
                 </select>
               </label>
 
@@ -367,7 +368,7 @@ export function EmployeesPage() {
                 <p className="mt-1 text-[11px] text-slate-500">
                   Для владельца направления не обязательны. Для менеджера и админа воронки: направления CRM. Для админа воронки обязательна хотя бы одна
                   (журнал записей и лиды). Для эксперта — тоже хотя бы одна воронка CRM плюс специальность и направление
-                  записи выше.
+                  записи выше. Для финансового аналитика воронки не обязательны (доступ к отчётам и журналу без правок).
                 </p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {pipelines.map((p) => (

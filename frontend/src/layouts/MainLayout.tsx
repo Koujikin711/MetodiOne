@@ -35,7 +35,8 @@ export function MainLayout() {
   const isSuperOwner = role === "super_owner";
   const isManagerNav = role === "manager" || role === "admin";
   const isExpert = role === "expert";
-  const showFinance = role === "owner" || role === "admin" || role === "super_owner";
+  const showFinance =
+    role === "owner" || role === "admin" || role === "super_owner" || role === "finance_analyst";
   const showIntegrationsHub = role === "owner";
 
   function logout() {

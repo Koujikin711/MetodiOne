@@ -681,9 +681,58 @@ async def ensure_finance_extensions(conn: AsyncConnection, database_url: str) ->
                 )""",
             ),
         )
+        r = await conn.execute(text("PRAGMA table_info(finance_journal_entries)"))
+        je_cols = {row[1] for row in r.fetchall()}
+        if je_cols:
+            if "related_lead_id" not in je_cols:
+                await conn.execute(text("ALTER TABLE finance_journal_entries ADD COLUMN related_lead_id INTEGER"))
+            if "related_deal_id" not in je_cols:
+                await conn.execute(text("ALTER TABLE finance_journal_entries ADD COLUMN related_deal_id INTEGER"))
+        r = await conn.execute(text("PRAGMA table_info(finance_journal_lines)"))
+        jl_cols = {row[1] for row in r.fetchall()}
+        if jl_cols and "dimensions" not in jl_cols:
+            await conn.execute(text("ALTER TABLE finance_journal_lines ADD COLUMN dimensions TEXT"))
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS finance_closed_months (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    year INTEGER NOT NULL,
+                    month INTEGER NOT NULL,
+                    closed_at DATETIME,
+                    closed_by_user_id INTEGER,
+                    UNIQUE(company_id, year, month)
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS finance_bank_statement_lines (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    txn_date DATE NOT NULL,
+                    amount NUMERIC(14, 2) NOT NULL,
+                    description TEXT,
+                    journal_entry_id INTEGER,
+                    matched_at DATETIME,
+                    created_at DATETIME
+                )""",
+            ),
+        )
         return
 
     if "postgresql" in low or "asyncpg" in low:
+        await conn.execute(
+            text(
+                """DO $body$
+                BEGIN
+                    ALTER TYPE user_role ADD VALUE 'finance_analyst';
+                EXCEPTION
+                    WHEN duplicate_object THEN NULL;
+                END
+                $body$;""",
+            ),
+        )
         await conn.execute(
             text("ALTER TABLE finance_company_settings ADD COLUMN IF NOT EXISTS last_osv_import_from DATE"),
         )
@@ -700,6 +749,46 @@ async def ensure_finance_extensions(conn: AsyncConnection, database_url: str) ->
                     company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
                     name VARCHAR(255) NOT NULL,
                     lines JSONB NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE finance_journal_entries ADD COLUMN IF NOT EXISTS related_lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL",
+            ),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE finance_journal_entries ADD COLUMN IF NOT EXISTS related_deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL",
+            ),
+        )
+        await conn.execute(
+            text("ALTER TABLE finance_journal_lines ADD COLUMN IF NOT EXISTS dimensions JSONB"),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS finance_closed_months (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    year INTEGER NOT NULL,
+                    month INTEGER NOT NULL,
+                    closed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    closed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    CONSTRAINT uq_finance_closed_month_company_ym UNIQUE (company_id, year, month)
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS finance_bank_statement_lines (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    txn_date DATE NOT NULL,
+                    amount NUMERIC(14, 2) NOT NULL,
+                    description TEXT,
+                    journal_entry_id INTEGER REFERENCES finance_journal_entries(id) ON DELETE SET NULL,
+                    matched_at TIMESTAMPTZ,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )""",
             ),

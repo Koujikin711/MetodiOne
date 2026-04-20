@@ -1,18 +1,25 @@
 from __future__ import annotations
 
 import calendar
+import csv
+import io
+from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import (
+    Deal,
     FinanceAccount,
+    FinanceBankStatementLine,
     FinanceBudgetMonth,
+    FinanceClosedMonth,
     FinanceCompanySettings,
     FinanceDeferredContract,
     FinanceDeferredPeriod,
@@ -24,6 +31,8 @@ from app.models import (
     FinanceStockLayer,
     FinanceStockMovement,
     FinanceWarehouse,
+    Lead,
+    SystemAuditEvent,
     User,
     UserRole,
 )
@@ -39,14 +48,21 @@ from app.schemas.finance import (
     DeferredContractCreate,
     DeferredContractRead,
     DeferredPeriodRead,
+    FinanceBankStatementLineRead,
+    FinanceBankStatementMatchBody,
+    FinanceClosedMonthCreate,
+    FinanceClosedMonthRead,
     FinanceConsistencyRead,
     FinanceDashboardRead,
     FinanceForecastRead,
     FinancePeriodSummaryRead,
+    FinanceReminderMessageRead,
+    FinanceRemindersRead,
     FinanceSettingsPatch,
     FinanceSettingsRead,
     ForecastPointRead,
     JournalCreate,
+    JournalEntryCrmPatch,
     JournalEntryDetailRead,
     JournalEntryRead,
     JournalFromTemplateBody,
@@ -67,11 +83,13 @@ from app.schemas.finance import (
     WarehouseRead,
     YearOverviewMonthRead,
 )
+from app.services.finance_export_workbook import build_finance_workbook_bytes
 from app.services.finance_osv_import import parse_osv_csv_text
 from app.services.finance_reports import (
     account_type_rollup_rows,
     balance_sheet_snapshot,
     cash_flow_statement,
+    deferred_open_period_count,
     deferred_unrecognized_total,
     journal_entries_count,
     month_bounds_utc,
@@ -115,13 +133,28 @@ _GOODS_REV = frozenset({"payment", "shipment", "invoice"})
 _SERV_REV = frozenset({"deferred_period", "payment", "shipment"})
 
 
-def _finance_allowed(user: User) -> bool:
-    return user.role in (UserRole.owner, UserRole.admin, UserRole.super_owner)
+_FINANCE_READ_ROLES = frozenset(
+    {
+        UserRole.owner,
+        UserRole.admin,
+        UserRole.super_owner,
+        UserRole.finance_analyst,
+    },
+)
+_FINANCE_WRITE_ROLES = frozenset({UserRole.owner, UserRole.admin, UserRole.super_owner})
 
 
 async def _require_finance(user: CurrentUser) -> None:
-    if not _finance_allowed(user):
+    if user.role not in _FINANCE_READ_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к финансам")
+
+
+async def _require_finance_write(user: CurrentUser) -> None:
+    if user.role not in _FINANCE_WRITE_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Недостаточно прав для изменения данных финансов",
+        )
 
 
 async def _ready_finance(db: AsyncSession, company_id: int) -> FinanceCompanySettings:
@@ -134,14 +167,61 @@ async def _ready_finance(db: AsyncSession, company_id: int) -> FinanceCompanySet
 async def _assert_journal_period_unlocked(db: AsyncSession, company_id: int, entry_date: datetime) -> None:
     s = await db.scalar(select(FinanceCompanySettings).where(FinanceCompanySettings.company_id == company_id))
     if s is None or s.posting_locked_until is None:
-        return
-    lock = s.posting_locked_until
-    ed = entry_date.date() if isinstance(entry_date, datetime) else entry_date
-    if ed <= lock:
+        pass
+    else:
+        lock = s.posting_locked_until
+        ed = entry_date.date() if isinstance(entry_date, datetime) else entry_date
+        if ed <= lock:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Период закрыт: проводки с датой ≤ {lock.isoformat()} запрещены. Измените «Блокировка проводок до» в настройках финансов.",
+            )
+    ed2 = entry_date.date() if isinstance(entry_date, datetime) else entry_date
+    y, m = ed2.year, ed2.month
+    closed_id = await db.scalar(
+        select(FinanceClosedMonth.id).where(
+            FinanceClosedMonth.company_id == company_id,
+            FinanceClosedMonth.year == y,
+            FinanceClosedMonth.month == m,
+        ),
+    )
+    if closed_id is not None:
         raise HTTPException(
             status_code=400,
-            detail=f"Период закрыт: проводки с датой ≤ {lock.isoformat()} запрещены. Измените «Блокировка проводок до» в настройках финансов.",
+            detail=f"Календарный месяц {y:04d}-{m:02d} закрыт: новые проводки с датой в этом месяце запрещены.",
         )
+
+
+def _normalize_journal_lines(
+    lines: Sequence[tuple[int, Decimal, Decimal] | tuple[int, Decimal, Decimal, dict | None]],
+) -> list[tuple[int, Decimal, Decimal, dict | None]]:
+    out: list[tuple[int, Decimal, Decimal, dict | None]] = []
+    for row in lines:
+        if len(row) == 3:
+            a, d, c = row  # type: ignore[misc]
+            out.append((int(a), d, c, None))
+        else:
+            a, d, c, dim = row  # type: ignore[misc]
+            out.append((int(a), d, c, dim if isinstance(dim, dict) else None))
+    return out
+
+
+async def _validate_journal_crm(
+    db: AsyncSession,
+    company_id: int,
+    *,
+    related_lead_id: int | None,
+    related_deal_id: int | None,
+) -> tuple[int | None, int | None]:
+    if related_lead_id is not None:
+        ld = await db.get(Lead, related_lead_id)
+        if ld is None or (ld.company_id is not None and ld.company_id != company_id):
+            raise HTTPException(status_code=400, detail="Лид не найден или не в этой компании")
+    if related_deal_id is not None:
+        d = await db.get(Deal, related_deal_id)
+        if d is None or (d.company_id is not None and d.company_id != company_id):
+            raise HTTPException(status_code=400, detail="Сделка не найдена или не в этой компании")
+    return related_lead_id, related_deal_id
 
 
 async def _post_balanced_journal(
@@ -152,14 +232,17 @@ async def _post_balanced_journal(
     entry_date: datetime,
     memo: str | None,
     source_type: str,
-    lines: list[tuple[int, Decimal, Decimal]],
+    lines: Sequence[tuple[int, Decimal, Decimal] | tuple[int, Decimal, Decimal, dict | None]],
     skip_period_lock: bool = False,
+    related_lead_id: int | None = None,
+    related_deal_id: int | None = None,
 ) -> FinanceJournalEntry:
     if not skip_period_lock:
         await _assert_journal_period_unlocked(db, company_id, entry_date)
+    norm = _normalize_journal_lines(lines)
     td = Decimal("0")
     tc = Decimal("0")
-    for _, d, c in lines:
+    for _, d, c, _dim in norm:
         td += d
         tc += c
     if td != tc or td <= 0:
@@ -170,11 +253,13 @@ async def _post_balanced_journal(
         memo=memo,
         source_type=source_type,
         created_by_user_id=user_id,
+        related_lead_id=related_lead_id,
+        related_deal_id=related_deal_id,
     )
     db.add(ent)
     await db.flush()
-    for acc_id, d, c in lines:
-        db.add(FinanceJournalLine(entry_id=ent.id, account_id=acc_id, debit=d, credit=c))
+    for acc_id, d, c, dim in norm:
+        db.add(FinanceJournalLine(entry_id=ent.id, account_id=acc_id, debit=d, credit=c, dimensions=dim))
     await db.flush()
     return ent
 
@@ -196,8 +281,9 @@ async def patch_finance_settings(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceCompanySettings:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     row = await _ready_finance(db, company_id)
+    old_lock = row.posting_locked_until
     if body.inventory_enabled is not None:
         row.inventory_enabled = body.inventory_enabled
     if body.costing_method is not None:
@@ -214,6 +300,17 @@ async def patch_finance_settings(
         row.revenue_services_policy = body.revenue_services_policy
     if "posting_locked_until" in body.model_fields_set:
         row.posting_locked_until = body.posting_locked_until
+        if old_lock != row.posting_locked_until:
+            db.add(
+                SystemAuditEvent(
+                    company_id=company_id,
+                    entity_type="finance_company_settings",
+                    entity_id=company_id,
+                    action="posting_locked_until_changed",
+                    details=f"Было: {old_lock!s}, стало: {row.posting_locked_until!s}",
+                    user_id=current_user.id,
+                ),
+            )
     await db.flush()
     await ensure_default_warehouse_if_inventory(db, company_id, row)
     await db.commit()
@@ -242,7 +339,7 @@ async def create_warehouse(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceWarehouse:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     await _ready_finance(db, company_id)
     if body.is_default:
         rows = (await db.execute(select(FinanceWarehouse).where(FinanceWarehouse.company_id == company_id))).scalars().all()
@@ -270,7 +367,7 @@ async def patch_warehouse(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceWarehouse:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     w = await db.get(FinanceWarehouse, warehouse_id)
     if w is None or w.company_id != company_id:
         raise HTTPException(404, detail="Склад не найден")
@@ -313,9 +410,15 @@ async def post_manual_journal(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceJournalEntry:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     await _ready_finance(db, company_id)
-    lines: list[tuple[int, Decimal, Decimal]] = []
+    rl, rd = await _validate_journal_crm(
+        db,
+        company_id,
+        related_lead_id=body.related_lead_id,
+        related_deal_id=body.related_deal_id,
+    )
+    lines: list[tuple[int, Decimal, Decimal, dict | None]] = []
     for ln in body.lines:
         acc = await db.get(FinanceAccount, ln.account_id)
         if acc is None or acc.company_id != company_id:
@@ -324,7 +427,8 @@ async def post_manual_journal(
             raise HTTPException(400, detail="В одной строке не может быть одновременно дебет и кредит")
         if ln.debit <= 0 and ln.credit <= 0:
             raise HTTPException(400, detail="В каждой строке укажите либо дебет, либо кредит")
-        lines.append((ln.account_id, ln.debit, ln.credit))
+        dim = ln.dimensions if isinstance(ln.dimensions, dict) else None
+        lines.append((ln.account_id, ln.debit, ln.credit, dim))
     ent = await _post_balanced_journal(
         db,
         company_id=company_id,
@@ -333,6 +437,8 @@ async def post_manual_journal(
         memo=body.memo,
         source_type="manual",
         lines=lines,
+        related_lead_id=rl,
+        related_deal_id=rd,
     )
     await db.commit()
     await db.refresh(ent)
@@ -349,10 +455,13 @@ async def list_journal_entries(
     date_from: str | None = Query(None, description="YYYY-MM-DD, вместе с date_to"),
     date_to: str | None = Query(None, description="YYYY-MM-DD"),
     account_id: int | None = Query(None, ge=1),
+    lead_id: int | None = Query(None, ge=1, description="Фильтр по привязанному лиду CRM"),
 ) -> list[JournalEntryDetailRead]:
     await _require_finance(current_user)
     await _ready_finance(db, company_id)
     q = select(FinanceJournalEntry).where(FinanceJournalEntry.company_id == company_id)
+    if lead_id is not None:
+        q = q.where(FinanceJournalEntry.related_lead_id == lead_id)
     if source_type:
         q = q.where(FinanceJournalEntry.source_type == source_type.strip())
     if (date_from or date_to) and (not date_from or not date_to):
@@ -382,7 +491,13 @@ async def list_journal_entries(
     by_entry: dict[int, list[JournalLineDetailRead]] = {i: [] for i in eids}
     for ln, code, name in line_rows:
         by_entry[ln.entry_id].append(
-            JournalLineDetailRead(account_code=code, account_name=name, debit=ln.debit, credit=ln.credit),
+            JournalLineDetailRead(
+                account_code=code,
+                account_name=name,
+                debit=ln.debit,
+                credit=ln.credit,
+                dimensions=ln.dimensions if isinstance(ln.dimensions, dict) else None,
+            ),
         )
     out: list[JournalEntryDetailRead] = []
     for ent in entries:
@@ -393,10 +508,276 @@ async def list_journal_entries(
                 memo=ent.memo,
                 source_type=ent.source_type,
                 created_at=ent.created_at,
+                related_lead_id=ent.related_lead_id,
+                related_deal_id=ent.related_deal_id,
                 lines=by_entry.get(ent.id, []),
             ),
         )
     return out
+
+
+@router.patch("/journal-entries/{entry_id}/crm-link", response_model=JournalEntryRead)
+async def patch_journal_entry_crm(
+    entry_id: int,
+    body: JournalEntryCrmPatch,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceJournalEntry:
+    await _require_finance_write(current_user)
+    await _ready_finance(db, company_id)
+    ent = await db.get(FinanceJournalEntry, entry_id)
+    if ent is None or ent.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Проводка не найдена")
+    data = body.model_dump(exclude_unset=True)
+    rl = ent.related_lead_id
+    rd = ent.related_deal_id
+    if "related_lead_id" in data:
+        rl = data["related_lead_id"]
+    if "related_deal_id" in data:
+        rd = data["related_deal_id"]
+    rl, rd = await _validate_journal_crm(db, company_id, related_lead_id=rl, related_deal_id=rd)
+    ent.related_lead_id = rl
+    ent.related_deal_id = rd
+    await db.flush()
+    await db.commit()
+    await db.refresh(ent)
+    return ent
+
+
+@router.get("/closed-months", response_model=list[FinanceClosedMonthRead])
+async def list_closed_months(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[FinanceClosedMonthRead]:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    rows = (
+        await db.execute(
+            select(FinanceClosedMonth).where(FinanceClosedMonth.company_id == company_id).order_by(
+                FinanceClosedMonth.year.desc(),
+                FinanceClosedMonth.month.desc(),
+            ),
+        )
+    ).scalars().all()
+    return [
+        FinanceClosedMonthRead(year=r.year, month=r.month, closed_at=r.closed_at, closed_by_user_id=r.closed_by_user_id)
+        for r in rows
+    ]
+
+
+@router.post("/closed-months", response_model=FinanceClosedMonthRead, status_code=status.HTTP_201_CREATED)
+async def close_finance_month(
+    body: FinanceClosedMonthCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceClosedMonth:
+    await _require_finance_write(current_user)
+    await _ready_finance(db, company_id)
+    exists = await db.scalar(
+        select(FinanceClosedMonth.id).where(
+            FinanceClosedMonth.company_id == company_id,
+            FinanceClosedMonth.year == body.year,
+            FinanceClosedMonth.month == body.month,
+        ),
+    )
+    if exists is not None:
+        raise HTTPException(status_code=400, detail="Этот месяц уже закрыт")
+    row = FinanceClosedMonth(
+        company_id=company_id,
+        year=body.year,
+        month=body.month,
+        closed_by_user_id=current_user.id,
+    )
+    db.add(row)
+    await db.flush()
+    await db.commit()
+    await db.refresh(row)
+    return row
+
+
+@router.delete("/closed-months/{year}/{month}", status_code=status.HTTP_204_NO_CONTENT)
+async def reopen_finance_month(
+    year: int,
+    month: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> None:
+    await _require_finance_write(current_user)
+    await _ready_finance(db, company_id)
+    row = (
+        await db.execute(
+            select(FinanceClosedMonth).where(
+                FinanceClosedMonth.company_id == company_id,
+                FinanceClosedMonth.year == year,
+                FinanceClosedMonth.month == month,
+            ),
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Закрытие месяца не найдено")
+    await db.execute(
+        delete(FinanceClosedMonth).where(
+            FinanceClosedMonth.company_id == company_id,
+            FinanceClosedMonth.year == year,
+            FinanceClosedMonth.month == month,
+        ),
+    )
+    await db.commit()
+
+
+@router.get("/bank-statement/lines", response_model=list[FinanceBankStatementLineRead])
+async def list_bank_statement_lines(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    matched: bool | None = Query(None, description="true — только сопоставленные, false — только без проводки"),
+    limit: int = Query(200, ge=1, le=1000),
+) -> list[FinanceBankStatementLine]:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    q = select(FinanceBankStatementLine).where(FinanceBankStatementLine.company_id == company_id)
+    if matched is True:
+        q = q.where(FinanceBankStatementLine.journal_entry_id.is_not(None))
+    elif matched is False:
+        q = q.where(FinanceBankStatementLine.journal_entry_id.is_(None))
+    q = q.order_by(FinanceBankStatementLine.txn_date.desc(), FinanceBankStatementLine.id.desc()).limit(limit)
+    return list((await db.execute(q)).scalars().all())
+
+
+def _bank_csv_pick(row: dict[str, str], *keys: str) -> str | None:
+    lower = {k.strip().lower(): (v or "").strip() for k, v in row.items()}
+    for k in keys:
+        if k in lower and lower[k]:
+            return lower[k]
+    return None
+
+
+@router.post("/bank-statement/import-csv", response_model=dict)
+async def import_bank_statement_csv(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    file: UploadFile = File(..., description="CSV UTF-8: колонки date, amount, description (или txn_date / sum / memo)"),
+) -> dict[str, int]:
+    await _require_finance_write(current_user)
+    await _ready_finance(db, company_id)
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError as e:
+        raise HTTPException(400, detail="Файл должен быть в UTF-8") from e
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        raise HTTPException(400, detail="Пустой CSV или нет заголовков")
+    inserted = 0
+    for row in reader:
+        ds = _bank_csv_pick(row, "date", "txn_date", "дата", "operationdate")
+        as_ = _bank_csv_pick(row, "amount", "sum", "сумма")
+        desc = _bank_csv_pick(row, "description", "memo", "назначение", "details", "описание")
+        if not ds or not as_:
+            continue
+        try:
+            txn_d = datetime.strptime(ds.strip()[:10], "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        try:
+            amt = Decimal(as_.replace(" ", "").replace(",", ".")).quantize(Decimal("0.01"))
+        except Exception:
+            continue
+        db.add(
+            FinanceBankStatementLine(
+                company_id=company_id,
+                txn_date=txn_d,
+                amount=amt,
+                description=(desc or None),
+            ),
+        )
+        inserted += 1
+    await db.commit()
+    return {"inserted": inserted}
+
+
+@router.post("/bank-statement/lines/{line_id}/match", response_model=FinanceBankStatementLineRead)
+async def match_bank_statement_line(
+    line_id: int,
+    body: FinanceBankStatementMatchBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceBankStatementLine:
+    await _require_finance_write(current_user)
+    await _ready_finance(db, company_id)
+    ln = await db.get(FinanceBankStatementLine, line_id)
+    if ln is None or ln.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Строка выписки не найдена")
+    ent = await db.get(FinanceJournalEntry, body.journal_entry_id)
+    if ent is None or ent.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Проводка журнала не найдена")
+    ln.journal_entry_id = ent.id
+    ln.matched_at = datetime.now(UTC)
+    await db.flush()
+    await db.commit()
+    await db.refresh(ln)
+    return ln
+
+
+@router.get("/reminders/overview", response_model=FinanceRemindersRead)
+async def finance_reminders_overview(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceRemindersRead:
+    await _require_finance(current_user)
+    settings = await _ready_finance(db, company_id)
+    messages: list[FinanceReminderMessageRead] = []
+    n_open = await deferred_open_period_count(db, company_id)
+    if n_open > 0:
+        messages.append(
+            FinanceReminderMessageRead(
+                kind="deferred_revenue",
+                text=f"Периодов отложенной выручки без признания: {n_open}",
+            ),
+        )
+    du = await deferred_unrecognized_total(db, company_id)
+    if du > 0:
+        messages.append(
+            FinanceReminderMessageRead(
+                kind="deferred_amount",
+                text=f"Сумма непризнанной отложенной выручки: {du}",
+            ),
+        )
+    if settings.posting_locked_until is not None:
+        messages.append(
+            FinanceReminderMessageRead(
+                kind="posting_lock",
+                text=f"Проводки заблокированы до даты включительно: {settings.posting_locked_until.isoformat()}",
+            ),
+        )
+    return FinanceRemindersRead(messages=messages)
+
+
+@router.get("/reports/export-workbook")
+async def export_finance_workbook(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD"),
+    date_to: str = Query(..., description="YYYY-MM-DD"),
+) -> Response:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    d0, d1 = _parse_period_dates(date_from, date_to)
+    data = await build_finance_workbook_bytes(db, company_id, d0, d1)
+    fname = f"finance_{date_from}_{date_to}.xlsx"
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
 
 
 @router.get("/stock/movements", response_model=list[StockMovementRead])
@@ -625,7 +1006,7 @@ async def upsert_budget_month(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceBudgetMonth:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     await _ready_finance(db, company_id)
     row = (
         await db.execute(
@@ -726,7 +1107,7 @@ async def create_product(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceProduct:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     await _ready_finance(db, company_id)
     pt = (body.product_type or "good").strip().lower()
     if pt not in ("good", "service"):
@@ -785,7 +1166,7 @@ async def stock_receipt(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> dict[str, int]:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     settings = await _ready_finance(db, company_id)
     if not settings.inventory_enabled:
         raise HTTPException(400, detail="Склад выключен в настройках финансов")
@@ -866,7 +1247,7 @@ async def stock_issue(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> dict[str, str]:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     settings = await _ready_finance(db, company_id)
     if not settings.inventory_enabled:
         raise HTTPException(400, detail="Склад выключен в настройках финансов")
@@ -959,7 +1340,7 @@ async def create_deferred(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceDeferredContract:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     await _ready_finance(db, company_id)
     if body.end_date <= body.start_date:
         raise HTTPException(400, detail="end_date должен быть позже start_date")
@@ -1005,7 +1386,7 @@ async def recognize_period(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceJournalEntry:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     await _ready_finance(db, company_id)
     c = await db.get(FinanceDeferredContract, contract_id)
     if c is None or c.company_id != company_id:
@@ -1215,7 +1596,7 @@ async def create_journal_template(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> JournalTemplateRead:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     await _ready_finance(db, company_id)
     for ln in body.lines:
         if ln.debit > 0 and ln.credit > 0:
@@ -1240,7 +1621,7 @@ async def delete_journal_template(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> None:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     t = await db.get(FinanceJournalTemplate, template_id)
     if t is None or t.company_id != company_id:
         raise HTTPException(404, detail="Шаблон не найден")
@@ -1256,7 +1637,7 @@ async def post_journal_from_template(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceJournalEntry:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     await _ready_finance(db, company_id)
     t = await db.get(FinanceJournalTemplate, template_id)
     if t is None or t.company_id != company_id:
@@ -1301,7 +1682,7 @@ async def import_osv_csv(
     replace_period: bool = Form(False, description="Удалить прежние проводки osv_import за этот период"),
     apply: bool = Form(False, description="Записать в журнал; false — только разбор и период"),
 ) -> OsvImportResultRead:
-    await _require_finance(current_user)
+    await _require_finance_write(current_user)
     settings = await _ready_finance(db, company_id)
     raw = await file.read()
     try:
@@ -1340,8 +1721,6 @@ async def import_osv_csv(
             warnings=warnings,
             accounts_missing=missing,
         )
-
-    await _assert_journal_period_unlocked(db, company_id, d1)
 
     agg: dict[int, tuple[Decimal, Decimal]] = {}
     for row in parsed.rows:
