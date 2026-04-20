@@ -327,3 +327,39 @@ class FinanceConsistencyRead(BaseModel):
     inventory_account_code: str
     inventory_gl_net: Decimal
     inventory_stock_value: Decimal
+
+
+class BalanceSheetRowRead(BaseModel):
+    """Строка упрощённого баланса: раздел + подпись + сумма (в рублях, как в журнале)."""
+
+    section: str = Field(..., description="asset | liability | equity | retained")
+    line_kind: str = Field(..., description="header | detail | total")
+    account_code: str | None = None
+    label: str
+    amount: Decimal
+
+
+class BalanceSheetReportRead(BaseModel):
+    as_of_date: datetime
+    rows: list[BalanceSheetRowRead]
+    total_assets: Decimal
+    total_liabilities: Decimal
+    total_equity_accounts: Decimal
+    retained_earnings: Decimal
+    total_passive: Decimal
+    balanced: bool
+
+
+class CashFlowBucketRead(BaseModel):
+    bucket_key: str
+    label: str
+    amount: Decimal = Field(..., description="Знак: + приток денег, − отток (по оценке корр. счетов)")
+
+
+class CashFlowReportRead(BaseModel):
+    date_from: datetime
+    date_to: datetime
+    opening_cash: Decimal
+    closing_cash: Decimal
+    net_change: Decimal
+    buckets: list[CashFlowBucketRead]

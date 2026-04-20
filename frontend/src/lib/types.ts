@@ -451,6 +451,42 @@ export interface FinancePLLine {
   amount: string;
 }
 
+/** Упрощённый бухгалтерский баланс (на конец date_to) */
+export interface FinanceBalanceSheetRow {
+  section: string;
+  line_kind: string;
+  account_code?: string | null;
+  label: string;
+  amount: string;
+}
+
+export interface FinanceBalanceSheetReport {
+  as_of_date: string;
+  rows: FinanceBalanceSheetRow[];
+  total_assets: string;
+  total_liabilities: string;
+  total_equity_accounts: string;
+  retained_earnings: string;
+  total_passive: string;
+  balanced: boolean;
+}
+
+/** Упрощённый ДДС по счетам кассы и расчётного счёта */
+export interface FinanceCashFlowBucket {
+  bucket_key: string;
+  label: string;
+  amount: string;
+}
+
+export interface FinanceCashFlowReport {
+  date_from: string;
+  date_to: string;
+  opening_cash: string;
+  closing_cash: string;
+  net_change: string;
+  buckets: FinanceCashFlowBucket[];
+}
+
 export interface FinanceYearOverviewMonth {
   year: number;
   month: number;
