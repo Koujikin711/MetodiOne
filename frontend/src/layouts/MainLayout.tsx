@@ -29,6 +29,17 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
   ].join(" ");
 }
 
+function MetodiBrandMark({ className = "h-10 w-10" }: { className?: string }) {
+  return (
+    <img
+      src="/metodione-mark.svg"
+      alt=""
+      className={["shrink-0 select-none drop-shadow-lg", className].filter(Boolean).join(" ")}
+      decoding="async"
+    />
+  );
+}
+
 export function MainLayout() {
   const navigate = useNavigate();
   const role = decodeRoleFromToken(getStoredToken());
@@ -63,10 +74,11 @@ export function MainLayout() {
 
       <div className="relative z-10 flex min-h-screen flex-col sm:flex-row">
         <aside className="print:hidden hidden w-[5.5rem] shrink-0 border-r border-slate-700/40 bg-slate-950/55 py-6 shadow-2xl backdrop-blur-xl sm:flex sm:flex-col">
-          <div className="mr-2 flex flex-col items-center px-1 sm:mb-8 sm:mr-0">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-xs font-bold tracking-tight text-white shadow-lg shadow-purple-500/30">
-              M
-            </div>
+          <div className="mr-2 flex flex-col items-center gap-1 px-1 sm:mb-6 sm:mr-0">
+            <MetodiBrandMark className="h-10 w-10" />
+            <span className="hidden max-w-[4.5rem] text-center text-[9px] font-medium leading-tight text-slate-500 sm:block">
+              MetodiOne
+            </span>
           </div>
           <nav className="flex flex-1 flex-col gap-2 px-1.5">
             {isSuperOwner ? (
@@ -157,9 +169,7 @@ export function MainLayout() {
             ) : (
               <>
                 <NavLink to="/" end className={navLinkClass} title="MetodiOne">
-                  <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <LayoutDashboard className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
+                  <MetodiBrandMark className="h-9 w-9" />
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">MetodiOne</span>
                 </NavLink>
                 <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
@@ -351,9 +361,7 @@ export function MainLayout() {
           ) : (
             <>
               <NavLink to="/" end className={navLinkClass} title="MetodiOne">
-                <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <LayoutDashboard className="h-4 w-4" />
-                </GradientIconBox>
+                <MetodiBrandMark className="h-8 w-8" />
                 <span className="text-[9px]">MetodiOne</span>
               </NavLink>
               <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
