@@ -658,3 +658,49 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
             )
 
         return
+
+
+async def ensure_finance_extensions(conn: AsyncConnection, database_url: str) -> None:
+    """Колонки финнастроек (ОСВ, блокировка периода) и таблица шаблонов проводок."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        r = await conn.execute(text("PRAGMA table_info(finance_company_settings)"))
+        cols = {row[1] for row in r.fetchall()}
+        if cols:
+            for col in ("last_osv_import_from", "last_osv_import_to", "posting_locked_until"):
+                if col not in cols:
+                    await conn.execute(text(f"ALTER TABLE finance_company_settings ADD COLUMN {col}"))
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS finance_journal_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    lines TEXT NOT NULL,
+                    created_at DATETIME
+                )""",
+            ),
+        )
+        return
+
+    if "postgresql" in low or "asyncpg" in low:
+        await conn.execute(
+            text("ALTER TABLE finance_company_settings ADD COLUMN IF NOT EXISTS last_osv_import_from DATE"),
+        )
+        await conn.execute(
+            text("ALTER TABLE finance_company_settings ADD COLUMN IF NOT EXISTS last_osv_import_to DATE"),
+        )
+        await conn.execute(
+            text("ALTER TABLE finance_company_settings ADD COLUMN IF NOT EXISTS posting_locked_until DATE"),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS finance_journal_templates (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    name VARCHAR(255) NOT NULL,
+                    lines JSONB NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""",
+            ),
+        )

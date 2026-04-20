@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 
@@ -11,11 +11,14 @@ import { previousPeriodRange } from "@/lib/financePeriod";
 import { printFinanceZone } from "@/lib/printFinance";
 import type {
   FinanceAccount,
+  FinanceConsistency,
   FinanceDashboard,
   FinanceDeferredContract,
   FinanceDeferredPeriod,
   FinanceForecast,
   FinanceJournalEntryDetail,
+  FinanceJournalTemplate,
+  FinanceOsvImportResult,
   FinancePLLine,
   FinanceAccountTypeRollup,
   FinancePeriodSummary,
@@ -46,6 +49,8 @@ function sourceTypeLabel(t: string): string {
     stock_receipt: "Приход ТМЦ",
     stock_issue: "Списание ТМЦ",
     deferred_revenue: "Отложенная выручка",
+    osv_import: "Импорт ОСВ",
+    template: "Шаблон",
   };
   return m[t] ?? t;
 }
@@ -231,6 +236,21 @@ export function FinancePage() {
     enabled: !superNeedsCompany && tab === "reports",
   });
 
+  const consistencyQuery = useQuery({
+    queryKey: ["finance-reports", "consistency", reportRangeKey],
+    queryFn: () =>
+      apiFetch<FinanceConsistency>(
+        `/api/finance/reports/consistency?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
+      ),
+    enabled: !superNeedsCompany && tab === "reports",
+  });
+
+  const templatesQuery = useQuery({
+    queryKey: ["finance-journal-templates"],
+    queryFn: () => apiFetch<FinanceJournalTemplate[]>("/api/finance/journal-templates"),
+    enabled: !superNeedsCompany && tab === "accounting",
+  });
+
   const saveBudgetMutation = useMutation({
     mutationFn: () =>
       apiFetch<FinanceBudgetMonthRow>(
@@ -283,6 +303,7 @@ export function FinancePage() {
     void queryClient.invalidateQueries({ queryKey: ["finance-deferred"] });
     void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
     void queryClient.invalidateQueries({ queryKey: ["finance-journal-drill"] });
+    void queryClient.invalidateQueries({ queryKey: ["finance-journal-templates"] });
   };
 
   const invalidateFinance = refetchAll;
@@ -301,6 +322,80 @@ export function FinancePage() {
   const [draftCosting, setDraftCosting] = useState<string | null>(null);
   const [draftGoodsPol, setDraftGoodsPol] = useState<string | null>(null);
   const [draftServPol, setDraftServPol] = useState<string | null>(null);
+  const [draftPostingLock, setDraftPostingLock] = useState("");
+  const [osvReplace, setOsvReplace] = useState(false);
+  const osvFileRef = useRef<HTMLInputElement>(null);
+  const [tplName, setTplName] = useState("");
+  const [tplJson, setTplJson] = useState(
+    '[\n  {"account_code":"1010","debit":"100","credit":"0"},\n  {"account_code":"2999","debit":"0","credit":"100"}\n]',
+  );
+
+  const deleteTemplateMut = useMutation({
+    mutationFn: (id: number) => apiFetch<void>(`/api/finance/journal-templates/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["finance-journal-templates"] });
+      toast.success("Шаблон удалён");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createTemplateMut = useMutation({
+    mutationFn: () => {
+      let lines: Array<{ account_code: string; debit: string; credit: string }>;
+      try {
+        lines = JSON.parse(tplJson) as Array<{ account_code: string; debit: string; credit: string }>;
+      } catch {
+        throw new Error("Некорректный JSON в шаблоне");
+      }
+      return apiFetch<FinanceJournalTemplate>("/api/finance/journal-templates", {
+        method: "POST",
+        body: JSON.stringify({ name: tplName.trim(), lines }),
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["finance-journal-templates"] });
+      toast.success("Шаблон сохранён");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const applyTemplateMut = useMutation({
+    mutationFn: async (tid: number) => {
+      const raw = window.prompt("Дата проводки (ISO, например 2026-01-15T12:00)", manualDate.trim() || "");
+      if (!raw) throw new Error("Отменено");
+      return apiFetch<{ id: number }>(`/api/finance/journal/from-template/${tid}`, {
+        method: "POST",
+        body: JSON.stringify({ entry_date: new Date(raw).toISOString() }),
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
+      invalidateFinance();
+      toast.success("Проведено из шаблона");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const osvImportMut = useMutation({
+    mutationFn: async (opts: { file: File; apply: boolean }) => {
+      const fd = new FormData();
+      fd.append("file", opts.file);
+      fd.append("replace_period", osvReplace ? "true" : "false");
+      fd.append("apply", opts.apply ? "true" : "false");
+      return apiFetch<FinanceOsvImportResult>("/api/finance/import/osv", { method: "POST", body: fd });
+    },
+    onSuccess: (r) => {
+      setReportFrom(r.date_from);
+      setReportTo(r.date_to);
+      invalidateFinance();
+      if (r.applied) setTab("reports");
+      if (r.warnings.length) toast(r.warnings.join("; "), { icon: "ℹ️" });
+      if (r.accounts_missing?.length)
+        toast.error(`Нет в плане счетов: ${r.accounts_missing.join(", ")}`);
+      toast.success(r.applied ? `ОСВ записано в журнал (${r.rows_parsed} строк)` : `ОСВ разобрано (${r.rows_parsed} строк)`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const inv = draftInventory ?? effective?.inventory_enabled ?? false;
   const cost = draftCosting ?? effective?.costing_method ?? "average";
@@ -462,6 +557,12 @@ export function FinancePage() {
     const pad = (n: number) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   });
+
+  useEffect(() => {
+    if (!effective) return;
+    setDraftPostingLock(effective.posting_locked_until ? effective.posting_locked_until.slice(0, 10) : "");
+  }, [effective?.posting_locked_until]);
+
   const [manualLines, setManualLines] = useState<ManualLine[]>([
     { accountId: 0, debit: "", credit: "" },
     { accountId: 0, debit: "", credit: "" },
@@ -521,6 +622,43 @@ export function FinancePage() {
     () => (accountsQuery.data ?? []).filter((a) => a.is_active),
     [accountsQuery.data],
   );
+
+  const downloadReportPack = async () => {
+    const df = reportFrom;
+    const dt = reportTo;
+    const qs = `date_from=${encodeURIComponent(df)}&date_to=${encodeURIComponent(dt)}`;
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const ps = await apiFetch<FinancePeriodSummary>(`/api/finance/reports/period-summary?${qs}`);
+    downloadCsv(`metodione-summary_${df}_${dt}.csv`, ["field", "value"], [
+      ["revenue", ps.revenue_total],
+      ["expense", ps.expense_total],
+      ["net", ps.net_income],
+      ["inventory", ps.inventory_value],
+      ["entries", String(ps.journal_entries_count)],
+    ]);
+    await delay(250);
+    const tb = await apiFetch<FinanceTrialBalanceLine[]>(`/api/finance/reports/trial-balance?${qs}`);
+    downloadCsv(
+      `metodione-tb_${df}_${dt}.csv`,
+      ["account_code", "account_name", "account_type", "debit_total", "credit_total", "net_balance"],
+      tb.map((r) => [r.account_code, r.account_name, r.account_type, r.debit_total, r.credit_total, r.net_balance]),
+    );
+    await delay(250);
+    const pl = await apiFetch<FinancePLLine[]>(`/api/finance/reports/pl-lines?${qs}`);
+    downloadCsv(
+      `metodione-pl_${df}_${dt}.csv`,
+      ["account_code", "account_name", "account_type", "amount"],
+      pl.map((r) => [r.account_code, r.account_name, r.account_type, r.amount]),
+    );
+    await delay(250);
+    const roll = await apiFetch<FinanceAccountTypeRollup[]>(`/api/finance/reports/account-type-rollup?${qs}`);
+    downloadCsv(
+      `metodione-rollup_${df}_${dt}.csv`,
+      ["account_type", "debit_total", "credit_total", "net_balance"],
+      roll.map((r) => [r.account_type, r.debit_total, r.credit_total, r.net_balance]),
+    );
+    toast.success("Скачаны 4 CSV: сводка, ОСВ, P&L, rollup по типам счетов");
+  };
 
   if (superNeedsCompany) {
     return (
@@ -635,6 +773,19 @@ export function FinancePage() {
                   <option value="shipment">По отгрузке / оказанию</option>
                 </select>
               </label>
+              <label className="sm:col-span-2 flex flex-col gap-1 text-sm text-slate-300">
+                Блокировка проводок до (включительно)
+                <input
+                  type="date"
+                  value={draftPostingLock}
+                  onChange={(e) => setDraftPostingLock(e.target.value)}
+                  className="max-w-xs rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                />
+                <span className="text-[11px] text-slate-500">
+                  Пусто — без блокировки. Проводки с датой ≤ выбранной даты будут запрещены (импорт ОСВ, ручные, склад,
+                  признание отложенной выручки).
+                </span>
+              </label>
             </div>
             <button
               type="button"
@@ -645,6 +796,7 @@ export function FinancePage() {
                   costing_method: draftCosting ?? undefined,
                   revenue_goods_policy: draftGoodsPol ?? undefined,
                   revenue_services_policy: draftServPol ?? undefined,
+                  posting_locked_until: draftPostingLock ? draftPostingLock : null,
                 })
               }
               className="mt-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-medium text-white shadow-lg disabled:opacity-50"
@@ -919,6 +1071,136 @@ export function FinancePage() {
           </section>
 
           <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+            <h2 className="text-lg font-medium text-white">Импорт ОСВ (CSV)</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              UTF-8; разделитель «;» или «,». В начале файла можно указать{" "}
+              <code className="font-mono text-slate-400">#PERIOD=YYYY-MM-DD..YYYY-MM-DD</code> — тогда во вкладке
+              «Отчёты» автоматически подставятся даты периода. Колонки: код счёта, оборот по дебету, по кредиту
+              (допустимы русские или английские заголовки).
+            </p>
+            <input ref={osvFileRef} type="file" accept=".csv,text/csv" className="hidden" />
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => osvFileRef.current?.click()}
+                className="rounded-xl border border-slate-500/50 px-4 py-2 text-sm text-white hover:bg-white/5"
+              >
+                Выбрать файл…
+              </button>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+                <input type="checkbox" checked={osvReplace} onChange={(e) => setOsvReplace(e.target.checked)} />
+                Удалить прежние проводки импорта ОСВ за этот период перед записью
+              </label>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={osvImportMut.isPending}
+                onClick={() => {
+                  const f = osvFileRef.current?.files?.[0];
+                  if (!f) {
+                    toast.error("Сначала выберите CSV-файл");
+                    osvFileRef.current?.click();
+                    return;
+                  }
+                  osvImportMut.mutate({ file: f, apply: false });
+                }}
+                className="rounded-xl border border-amber-500/40 px-4 py-2 text-sm text-amber-100 hover:bg-amber-950/20 disabled:opacity-40"
+              >
+                Только разбор
+              </button>
+              <button
+                type="button"
+                disabled={osvImportMut.isPending}
+                onClick={() => {
+                  const f = osvFileRef.current?.files?.[0];
+                  if (!f) {
+                    toast.error("Сначала выберите CSV-файл");
+                    osvFileRef.current?.click();
+                    return;
+                  }
+                  osvImportMut.mutate({ file: f, apply: true });
+                }}
+                className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                Записать в журнал
+              </button>
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500">
+              Несбалансированный файл доводится техническим счётом 2999 (если есть в плане). Заблокированный период
+              настроек учёта импорт не пройдёт.
+            </p>
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+            <h2 className="text-lg font-medium text-white">Шаблоны проводок</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              JSON-массив строк <code className="text-slate-400">account_code</code>, <code className="text-slate-400">debit</code>,{" "}
+              <code className="text-slate-400">credit</code>. «Провести» спросит дату — как в ручной проводке, берётся
+              подсказка из поля даты ниже.
+            </p>
+            <div className="mt-3 flex flex-wrap items-end gap-2">
+              <label className="min-w-[180px] flex-1 text-sm text-slate-300">
+                Название
+                <input
+                  value={tplName}
+                  onChange={(e) => setTplName(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  placeholder="Например, аренда"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={!tplName.trim() || createTemplateMut.isPending}
+                onClick={() => createTemplateMut.mutate()}
+                className="rounded-xl border border-slate-500/50 px-4 py-2 text-sm text-white hover:bg-white/5 disabled:opacity-40"
+              >
+                Сохранить шаблон
+              </button>
+            </div>
+            <textarea
+              value={tplJson}
+              onChange={(e) => setTplJson(e.target.value)}
+              rows={6}
+              className="mt-3 w-full rounded-xl border border-slate-600/50 bg-slate-950/50 p-3 font-mono text-xs text-slate-200"
+            />
+            <ul className="mt-4 space-y-2 text-sm text-slate-300">
+              {(templatesQuery.data ?? []).map((t) => (
+                <li
+                  key={t.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-700/40 bg-slate-900/30 px-3 py-2"
+                >
+                  <span className="font-medium text-white">{t.name}</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => applyTemplateMut.mutate(t.id)}
+                      disabled={applyTemplateMut.isPending}
+                      className="rounded-lg border border-emerald-600/50 px-2 py-1 text-xs text-emerald-200 hover:bg-emerald-950/30 disabled:opacity-40"
+                    >
+                      Провести
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!window.confirm("Удалить шаблон?")) return;
+                        deleteTemplateMut.mutate(t.id);
+                      }}
+                      disabled={deleteTemplateMut.isPending}
+                      className="rounded-lg border border-rose-600/40 px-2 py-1 text-xs text-rose-200 hover:bg-rose-950/20 disabled:opacity-40"
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {!templatesQuery.isLoading && (templatesQuery.data ?? []).length === 0 && (
+              <p className="mt-2 text-sm text-slate-500">Шаблонов пока нет.</p>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-lg font-medium text-white">Журнал проводок</h2>
               <label className="text-sm text-slate-300">
@@ -933,6 +1215,8 @@ export function FinancePage() {
                   <option value="stock_receipt">Приход ТМЦ</option>
                   <option value="stock_issue">Списание ТМЦ</option>
                   <option value="deferred_revenue">Отложенная выручка</option>
+                  <option value="osv_import">Импорт ОСВ</option>
+                  <option value="template">Шаблон</option>
                 </select>
               </label>
             </div>
@@ -1272,7 +1556,59 @@ export function FinancePage() {
                   className="mt-1 block rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
                 />
               </label>
+              {effective?.last_osv_import_from && effective?.last_osv_import_to ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReportFrom(effective.last_osv_import_from!.slice(0, 10));
+                    setReportTo(effective.last_osv_import_to!.slice(0, 10));
+                    toast.success("Подставлен период последнего импорта ОСВ");
+                  }}
+                  className="rounded-xl border border-purple-500/40 px-3 py-2 text-xs text-purple-200 hover:bg-purple-950/30"
+                >
+                  Период последнего ОСВ
+                </button>
+              ) : null}
+              <button
+                type="button"
+                disabled={periodSummaryQuery.isFetching}
+                onClick={() => void downloadReportPack()}
+                className="rounded-xl border border-cyan-500/40 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-950/25 disabled:opacity-40"
+              >
+                Пакет CSV (4 файла)
+              </button>
             </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+            <h2 className="text-lg font-medium text-white">Сверка журнала и запасов</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Сумма дебета и кредита за период; сравнение сальдо по счёту запасов в журнале с оценкой запасов из модуля
+              склада.
+            </p>
+            {consistencyQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+            {consistencyQuery.data && (
+              <ul className="mt-3 space-y-2 text-sm text-slate-300">
+                <li>
+                  Обороты: Дт <span className="font-mono text-white">{parseMoney(consistencyQuery.data.debit_total)}</span>
+                  {" · "}
+                  Кт <span className="font-mono text-white">{parseMoney(consistencyQuery.data.credit_total)}</span>
+                  {consistencyQuery.data.balanced ? (
+                    <span className="ml-2 text-emerald-400">· сходится</span>
+                  ) : (
+                    <span className="ml-2 text-rose-400">
+                      · расхождение {parseMoney(consistencyQuery.data.difference)}
+                    </span>
+                  )}
+                </li>
+                <li>
+                  Счёт запасов <span className="font-mono text-slate-400">{consistencyQuery.data.inventory_account_code}</span>
+                  : в журнале (нетто){" "}
+                  <span className="text-white">{parseMoney(consistencyQuery.data.inventory_gl_net)}</span>, по складу{" "}
+                  <span className="text-white">{parseMoney(consistencyQuery.data.inventory_stock_value)}</span>
+                </li>
+              </ul>
+            )}
           </section>
 
           <section className="relative rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
@@ -1297,6 +1633,12 @@ export function FinancePage() {
             {periodSummaryQuery.isError && (
               <p className="mt-2 text-sm text-rose-300">{(periodSummaryQuery.error as Error).message}</p>
             )}
+            {periodSummaryQuery.data && periodSummaryQuery.data.budget_alert ? (
+              <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-950/25 px-4 py-2 text-sm text-amber-100">
+                План–факт: отклонение по выручке или расходам от месячного плана более 10% (см. блок бюджета ниже в
+                карточках).
+              </div>
+            ) : null}
             {periodSummaryQuery.data && (
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 px-4 py-3">
@@ -1360,6 +1702,41 @@ export function FinancePage() {
                   <div className="text-xs text-slate-400">Проводок за период</div>
                   <div className="mt-1 text-sm font-medium text-white">{periodSummaryQuery.data.journal_entries_count}</div>
                 </div>
+                {periodSummaryQuery.data.budget_revenue_plan != null &&
+                periodSummaryQuery.data.budget_revenue_plan !== "" ? (
+                  <>
+                    <div className="rounded-xl border border-indigo-500/25 bg-indigo-950/30 px-4 py-3 sm:col-span-2">
+                      <div className="text-xs text-indigo-200/80">Бюджет месяца (план)</div>
+                      <div className="mt-1 flex flex-wrap gap-4 text-sm text-slate-200">
+                        <span>
+                          Выручка план:{" "}
+                          <span className="font-medium text-white">
+                            {parseMoney(periodSummaryQuery.data.budget_revenue_plan)}
+                          </span>
+                        </span>
+                        <span>
+                          Расходы план:{" "}
+                          <span className="font-medium text-white">
+                            {parseMoney(periodSummaryQuery.data.budget_expense_plan ?? "0")}
+                          </span>
+                        </span>
+                      </div>
+                      {(periodSummaryQuery.data.budget_revenue_variance_pct != null ||
+                        periodSummaryQuery.data.budget_expense_variance_pct != null) && (
+                        <div className="mt-2 text-xs text-slate-400">
+                          Отклонение факта от плана: выручка{" "}
+                          <span className="text-slate-200">
+                            {periodSummaryQuery.data.budget_revenue_variance_pct ?? "—"}%
+                          </span>
+                          , расходы{" "}
+                          <span className="text-slate-200">
+                            {periodSummaryQuery.data.budget_expense_variance_pct ?? "—"}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : null}
               </div>
             )}
           </section>

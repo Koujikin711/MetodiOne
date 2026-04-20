@@ -279,6 +279,9 @@ export interface FinanceSettings {
   costing_method: string;
   revenue_goods_policy: string;
   revenue_services_policy: string;
+  last_osv_import_from?: string | null;
+  last_osv_import_to?: string | null;
+  posting_locked_until?: string | null;
 }
 
 export interface FinanceWarehouse {
@@ -391,6 +394,38 @@ export interface FinancePeriodSummary {
   deferred_unrecognized: string;
   journal_entries_count: number;
   net_margin_pct?: string | null;
+  budget_revenue_plan?: string | null;
+  budget_expense_plan?: string | null;
+  budget_revenue_variance_pct?: string | null;
+  budget_expense_variance_pct?: string | null;
+  budget_alert?: boolean;
+}
+
+export interface FinanceOsvImportResult {
+  applied: boolean;
+  date_from: string;
+  date_to: string;
+  rows_parsed: number;
+  journal_entry_id?: number | null;
+  warnings: string[];
+  accounts_missing: string[];
+}
+
+export interface FinanceJournalTemplate {
+  id: number;
+  name: string;
+  lines: Array<{ account_code: string; debit: string | number; credit: string | number }>;
+  created_at: string;
+}
+
+export interface FinanceConsistency {
+  debit_total: string;
+  credit_total: string;
+  balanced: boolean;
+  difference: string;
+  inventory_account_code: string;
+  inventory_gl_net: string;
+  inventory_stock_value: string;
 }
 
 export interface FinanceAccountTypeRollup {

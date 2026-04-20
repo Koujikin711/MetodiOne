@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import calendar
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
@@ -17,6 +18,7 @@ from app.models import (
     FinanceDeferredPeriod,
     FinanceJournalEntry,
     FinanceJournalLine,
+    FinanceJournalTemplate,
     FinanceProduct,
     FinanceStockBalance,
     FinanceStockLayer,
@@ -33,6 +35,7 @@ from app.schemas.finance import (
     DeferredContractCreate,
     DeferredContractRead,
     DeferredPeriodRead,
+    FinanceConsistencyRead,
     FinanceDashboardRead,
     FinanceForecastRead,
     FinancePeriodSummaryRead,
@@ -42,7 +45,11 @@ from app.schemas.finance import (
     JournalCreate,
     JournalEntryDetailRead,
     JournalEntryRead,
+    JournalFromTemplateBody,
     JournalLineDetailRead,
+    JournalTemplateCreate,
+    JournalTemplateRead,
+    OsvImportResultRead,
     PLLineRead,
     ProductCreate,
     ProductRead,
@@ -56,15 +63,18 @@ from app.schemas.finance import (
     WarehouseRead,
     YearOverviewMonthRead,
 )
+from app.services.finance_osv_import import parse_osv_csv_text
 from app.services.finance_reports import (
     account_type_rollup_rows,
     deferred_unrecognized_total,
     journal_entries_count,
     month_bounds_utc,
+    period_journal_debit_credit_totals,
     pl_by_account,
     pl_totals,
     simple_revenue_forecast,
     total_inventory_value,
+    trial_balance_net_for_account_code,
     trial_balance_rows,
 )
 from app.services.finance_seed import (
@@ -115,6 +125,19 @@ async def _ready_finance(db: AsyncSession, company_id: int) -> FinanceCompanySet
     return s
 
 
+async def _assert_journal_period_unlocked(db: AsyncSession, company_id: int, entry_date: datetime) -> None:
+    s = await db.scalar(select(FinanceCompanySettings).where(FinanceCompanySettings.company_id == company_id))
+    if s is None or s.posting_locked_until is None:
+        return
+    lock = s.posting_locked_until
+    ed = entry_date.date() if isinstance(entry_date, datetime) else entry_date
+    if ed <= lock:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Период закрыт: проводки с датой ≤ {lock.isoformat()} запрещены. Измените «Блокировка проводок до» в настройках финансов.",
+        )
+
+
 async def _post_balanced_journal(
     db: AsyncSession,
     *,
@@ -124,7 +147,10 @@ async def _post_balanced_journal(
     memo: str | None,
     source_type: str,
     lines: list[tuple[int, Decimal, Decimal]],
+    skip_period_lock: bool = False,
 ) -> FinanceJournalEntry:
+    if not skip_period_lock:
+        await _assert_journal_period_unlocked(db, company_id, entry_date)
     td = Decimal("0")
     tc = Decimal("0")
     for _, d, c in lines:
@@ -180,6 +206,8 @@ async def patch_finance_settings(
         if body.revenue_services_policy not in _SERV_REV:
             raise HTTPException(400, detail="revenue_services_policy: deferred_period, payment или shipment")
         row.revenue_services_policy = body.revenue_services_policy
+    if "posting_locked_until" in body.model_fields_set:
+        row.posting_locked_until = body.posting_locked_until
     await db.flush()
     await ensure_default_warehouse_if_inventory(db, company_id, row)
     await db.commit()
@@ -421,6 +449,35 @@ async def report_period_summary(
     margin: Decimal | None = None
     if rev > 0:
         margin = (net / rev * Decimal("100")).quantize(Decimal("0.01"))
+    bud_rev: Decimal | None = None
+    bud_exp: Decimal | None = None
+    v_rev: Decimal | None = None
+    v_exp: Decimal | None = None
+    budget_alert = False
+    last_day = calendar.monthrange(d0.year, d0.month)[1]
+    if d0.day == 1 and d1.year == d0.year and d1.month == d0.month and d1.day == last_day:
+        mf, mt = month_bounds_utc(d0.year, d0.month)
+        if d0 == mf and d1 == mt:
+            bud = (
+                await db.execute(
+                    select(FinanceBudgetMonth).where(
+                        FinanceBudgetMonth.company_id == company_id,
+                        FinanceBudgetMonth.year == d0.year,
+                        FinanceBudgetMonth.month == d0.month,
+                    ),
+                )
+            ).scalars().first()
+            if bud is not None:
+                bud_rev = bud.revenue_plan
+                bud_exp = bud.expense_plan
+                if bud_rev and bud_rev > 0:
+                    v_rev = ((rev - bud_rev) / bud_rev * Decimal("100")).quantize(Decimal("0.01"))
+                if bud_exp and bud_exp > 0:
+                    v_exp = ((exp - bud_exp) / bud_exp * Decimal("100")).quantize(Decimal("0.01"))
+                if v_rev is not None and abs(v_rev) > Decimal("10"):
+                    budget_alert = True
+                if v_exp is not None and abs(v_exp) > Decimal("10"):
+                    budget_alert = True
     return FinancePeriodSummaryRead(
         date_from=d0,
         date_to=d1,
@@ -431,6 +488,11 @@ async def report_period_summary(
         deferred_unrecognized=deferred,
         journal_entries_count=jn,
         net_margin_pct=margin,
+        budget_revenue_plan=bud_rev,
+        budget_expense_plan=bud_exp,
+        budget_revenue_variance_pct=v_rev,
+        budget_expense_variance_pct=v_exp,
+        budget_alert=budget_alert,
     )
 
 
@@ -971,3 +1033,267 @@ async def recognize_period(
     await db.commit()
     await db.refresh(ent)
     return ent
+
+
+def _calendar_period_bounds(d0: date, d1: date) -> tuple[datetime, datetime]:
+    return (
+        datetime(d0.year, d0.month, d0.day, 0, 0, 0, tzinfo=UTC),
+        datetime(d1.year, d1.month, d1.day, 23, 59, 59, 999000, tzinfo=UTC),
+    )
+
+
+@router.get("/reports/consistency", response_model=FinanceConsistencyRead)
+async def report_consistency(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD"),
+    date_to: str = Query(..., description="YYYY-MM-DD"),
+) -> FinanceConsistencyRead:
+    await _require_finance(current_user)
+    settings = await _ready_finance(db, company_id)
+    d0, d1 = _parse_period_dates(date_from, date_to)
+    td, tc = await period_journal_debit_credit_totals(db, company_id, d0, d1)
+    diff = (td - tc).quantize(Decimal("0.01"))
+    inv_net = await trial_balance_net_for_account_code(db, company_id, d0, d1, "2010")
+    inv_val = await total_inventory_value(db, company_id) if settings.inventory_enabled else Decimal("0")
+    return FinanceConsistencyRead(
+        debit_total=td,
+        credit_total=tc,
+        balanced=diff == 0,
+        difference=diff,
+        inventory_account_code="2010",
+        inventory_gl_net=inv_net,
+        inventory_stock_value=inv_val,
+    )
+
+
+@router.get("/journal-templates", response_model=list[JournalTemplateRead])
+async def list_journal_templates(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[JournalTemplateRead]:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    rows = (
+        await db.execute(
+            select(FinanceJournalTemplate)
+            .where(FinanceJournalTemplate.company_id == company_id)
+            .order_by(FinanceJournalTemplate.id.desc()),
+        )
+    ).scalars().all()
+    return [
+        JournalTemplateRead(
+            id=t.id,
+            name=t.name,
+            lines=list(t.lines or []),
+            created_at=t.created_at,
+        )
+        for t in rows
+    ]
+
+
+@router.post("/journal-templates", response_model=JournalTemplateRead, status_code=status.HTTP_201_CREATED)
+async def create_journal_template(
+    body: JournalTemplateCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> JournalTemplateRead:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    for ln in body.lines:
+        if ln.debit > 0 and ln.credit > 0:
+            raise HTTPException(400, detail="В строке шаблона не может быть одновременно дебет и кредит")
+        if ln.debit <= 0 and ln.credit <= 0:
+            raise HTTPException(400, detail="В каждой строке шаблона укажите дебет или кредит")
+    t = FinanceJournalTemplate(
+        company_id=company_id,
+        name=body.name.strip(),
+        lines=[ln.model_dump(mode="json") for ln in body.lines],
+    )
+    db.add(t)
+    await db.commit()
+    await db.refresh(t)
+    return JournalTemplateRead(id=t.id, name=t.name, lines=list(t.lines or []), created_at=t.created_at)
+
+
+@router.delete("/journal-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_journal_template(
+    template_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> None:
+    await _require_finance(current_user)
+    t = await db.get(FinanceJournalTemplate, template_id)
+    if t is None or t.company_id != company_id:
+        raise HTTPException(404, detail="Шаблон не найден")
+    await db.delete(t)
+    await db.commit()
+
+
+@router.post("/journal/from-template/{template_id}", response_model=JournalEntryRead, status_code=status.HTTP_201_CREATED)
+async def post_journal_from_template(
+    template_id: int,
+    body: JournalFromTemplateBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceJournalEntry:
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    t = await db.get(FinanceJournalTemplate, template_id)
+    if t is None or t.company_id != company_id:
+        raise HTTPException(404, detail="Шаблон не найден")
+    lines_out: list[tuple[int, Decimal, Decimal]] = []
+    for item in t.lines or []:
+        code = str(item.get("account_code") or "").strip()
+        d = Decimal(str(item.get("debit", "0"))).quantize(Decimal("0.01"))
+        c = Decimal(str(item.get("credit", "0"))).quantize(Decimal("0.01"))
+        aid = await account_id_by_code(db, company_id, code)
+        if aid is None:
+            raise HTTPException(400, detail=f"Счёт с кодом {code!r} не найден")
+        if d > 0 and c > 0:
+            raise HTTPException(400, detail=f"Строка шаблона для {code}: и дебет, и кредит")
+        if d <= 0 and c <= 0:
+            continue
+        lines_out.append((aid, d, c))
+    if len(lines_out) < 2:
+        raise HTTPException(400, detail="Мало строк для проводки")
+    ent = await _post_balanced_journal(
+        db,
+        company_id=company_id,
+        user_id=current_user.id,
+        entry_date=body.entry_date,
+        memo=f"Из шаблона: {t.name}",
+        source_type="template",
+        lines=lines_out,
+    )
+    await db.commit()
+    await db.refresh(ent)
+    return ent
+
+
+@router.post("/import/osv", response_model=OsvImportResultRead)
+async def import_osv_csv(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    file: UploadFile = File(..., description="CSV ОСВ (UTF-8), см. подсказку в UI"),
+    date_from: str | None = Form(None, description="YYYY-MM-DD, если нет #PERIOD в файле"),
+    date_to: str | None = Form(None, description="YYYY-MM-DD"),
+    replace_period: bool = Form(False, description="Удалить прежние проводки osv_import за этот период"),
+    apply: bool = Form(False, description="Записать в журнал; false — только разбор и период"),
+) -> OsvImportResultRead:
+    await _require_finance(current_user)
+    settings = await _ready_finance(db, company_id)
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError as e:
+        raise HTTPException(400, detail="Файл должен быть в кодировке UTF-8") from e
+    try:
+        parsed = parse_osv_csv_text(text)
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e)) from e
+
+    p_from = parsed.period_from
+    p_to = parsed.period_to
+    if date_from and date_to:
+        p_from = datetime.strptime(date_from.strip(), "%Y-%m-%d").date()
+        p_to = datetime.strptime(date_to.strip(), "%Y-%m-%d").date()
+    if p_from is None or p_to is None:
+        raise HTTPException(
+            400,
+            detail="Укажите период: первая строка файла #PERIOD=YYYY-MM-DD..YYYY-MM-DD или поля date_from/date_to формы",
+        )
+    if p_to < p_from:
+        raise HTTPException(400, detail="date_to не может быть раньше date_from")
+
+    d0, d1 = _calendar_period_bounds(p_from, p_to)
+    warnings = list(parsed.warnings)
+    missing: list[str] = []
+
+    if not apply:
+        return OsvImportResultRead(
+            applied=False,
+            date_from=p_from.isoformat(),
+            date_to=p_to.isoformat(),
+            rows_parsed=len(parsed.rows),
+            journal_entry_id=None,
+            warnings=warnings,
+            accounts_missing=missing,
+        )
+
+    await _assert_journal_period_unlocked(db, company_id, d1)
+
+    agg: dict[int, tuple[Decimal, Decimal]] = {}
+    for row in parsed.rows:
+        aid = await account_id_by_code(db, company_id, row.account_code.strip())
+        if aid is None:
+            missing.append(row.account_code.strip())
+            continue
+        td, tc = agg.get(aid, (Decimal("0"), Decimal("0")))
+        agg[aid] = (td + row.debit, tc + row.credit)
+
+    if missing:
+        raise HTTPException(400, detail=f"Не найдены счета в плане счетов: {', '.join(missing)}")
+
+    lines: list[tuple[int, Decimal, Decimal]] = []
+    for aid, (td, tc) in agg.items():
+        net = td - tc
+        if net > 0:
+            lines.append((aid, net, Decimal("0")))
+        elif net < 0:
+            lines.append((aid, Decimal("0"), -net))
+
+    td_tot = sum(x[1] for x in lines)
+    tc_tot = sum(x[2] for x in lines)
+    bal = td_tot - tc_tot
+    tech_id = await account_id_by_code(db, company_id, "2999")
+    if tech_id is None:
+        raise HTTPException(500, detail="Не найден технический счёт 2999")
+    if bal > 0:
+        lines.append((tech_id, Decimal("0"), bal))
+    elif bal < 0:
+        lines.append((tech_id, -bal, Decimal("0")))
+
+    if not lines or sum(x[1] for x in lines) <= 0:
+        raise HTTPException(400, detail="Нет данных для проводки (все обороты нулевые)")
+
+    if replace_period:
+        await db.execute(
+            delete(FinanceJournalEntry).where(
+                FinanceJournalEntry.company_id == company_id,
+                FinanceJournalEntry.source_type == "osv_import",
+                FinanceJournalEntry.entry_date >= d0,
+                FinanceJournalEntry.entry_date <= d1,
+            ),
+        )
+
+    memo = f"Импорт ОСВ {p_from.isoformat()}..{p_to.isoformat()}"
+    ent = await _post_balanced_journal(
+        db,
+        company_id=company_id,
+        user_id=current_user.id,
+        entry_date=d1,
+        memo=memo,
+        source_type="osv_import",
+        lines=lines,
+    )
+    settings.last_osv_import_from = p_from
+    settings.last_osv_import_to = p_to
+    await db.flush()
+    await db.commit()
+    await db.refresh(ent)
+    return OsvImportResultRead(
+        applied=True,
+        date_from=p_from.isoformat(),
+        date_to=p_to.isoformat(),
+        rows_parsed=len(parsed.rows),
+        journal_entry_id=ent.id,
+        warnings=warnings,
+        accounts_missing=[],
+    )
