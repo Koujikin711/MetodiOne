@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
@@ -9,6 +9,9 @@ class FinanceSettingsRead(BaseModel):
     costing_method: str
     revenue_goods_policy: str
     revenue_services_policy: str
+    last_osv_import_from: date | None = None
+    last_osv_import_to: date | None = None
+    posting_locked_until: date | None = None
 
     model_config = {"from_attributes": True}
 
@@ -18,6 +21,10 @@ class FinanceSettingsPatch(BaseModel):
     costing_method: str | None = Field(default=None, max_length=16)
     revenue_goods_policy: str | None = Field(default=None, max_length=24)
     revenue_services_policy: str | None = Field(default=None, max_length=24)
+    posting_locked_until: date | None = Field(
+        default=None,
+        description="Последняя дата закрытого периода (включительно): проводки с датой ≤ этой дате запрещены. null — снять блокировку.",
+    )
 
 
 class WarehouseRead(BaseModel):
@@ -206,6 +213,14 @@ class FinancePeriodSummaryRead(BaseModel):
         default=None,
         description="Чистая маржа % к выручке; null если выручка 0",
     )
+    budget_revenue_plan: Decimal | None = Field(default=None, description="План выручки за месяц, если период = полный календарный месяц")
+    budget_expense_plan: Decimal | None = Field(default=None, description="План расходов за месяц")
+    budget_revenue_variance_pct: Decimal | None = Field(default=None, description="Отклонение факта выручки от плана, %")
+    budget_expense_variance_pct: Decimal | None = Field(default=None, description="Отклонение факта расходов от плана, %")
+    budget_alert: bool = Field(
+        default=False,
+        description="True если отклонение по выручке или расходам от плана по модулю > 10%",
+    )
 
 
 class TrialBalanceLineRead(BaseModel):
@@ -268,3 +283,47 @@ class FinanceForecastRead(BaseModel):
     baseline_months_used: int
     average_monthly_revenue: Decimal
     points: list[ForecastPointRead]
+
+
+class OsvImportResultRead(BaseModel):
+    applied: bool
+    date_from: str
+    date_to: str
+    rows_parsed: int
+    journal_entry_id: int | None = None
+    warnings: list[str] = Field(default_factory=list)
+    accounts_missing: list[str] = Field(default_factory=list)
+
+
+class JournalTemplateLineIn(BaseModel):
+    account_code: str = Field(..., min_length=1, max_length=32)
+    debit: Decimal = Field(default=Decimal("0"), ge=0)
+    credit: Decimal = Field(default=Decimal("0"), ge=0)
+
+
+class JournalTemplateCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    lines: list[JournalTemplateLineIn] = Field(..., min_length=2)
+
+
+class JournalTemplateRead(BaseModel):
+    id: int
+    name: str
+    lines: list[dict]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class JournalFromTemplateBody(BaseModel):
+    entry_date: datetime
+
+
+class FinanceConsistencyRead(BaseModel):
+    debit_total: Decimal
+    credit_total: Decimal
+    balanced: bool
+    difference: Decimal
+    inventory_account_code: str
+    inventory_gl_net: Decimal
+    inventory_stock_value: Decimal

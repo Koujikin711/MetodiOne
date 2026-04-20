@@ -254,3 +254,43 @@ async def account_type_rollup_rows(
         c = Decimal(str(sc or 0)).quantize(Decimal("0.01"))
         out.append((atype, d, c, (d - c).quantize(Decimal("0.01"))))
     return out
+
+
+async def period_journal_debit_credit_totals(
+    db: AsyncSession,
+    company_id: int,
+    date_from: datetime,
+    date_to: datetime,
+) -> tuple[Decimal, Decimal]:
+    """Суммарный дебет и кредит по всем строкам журнала за период (контроль двойной записи)."""
+    stmt = (
+        select(
+            func.coalesce(func.sum(FinanceJournalLine.debit), 0),
+            func.coalesce(func.sum(FinanceJournalLine.credit), 0),
+        )
+        .select_from(FinanceJournalLine)
+        .join(FinanceJournalEntry, FinanceJournalEntry.id == FinanceJournalLine.entry_id)
+        .where(
+            FinanceJournalEntry.company_id == company_id,
+            FinanceJournalEntry.entry_date >= date_from,
+            FinanceJournalEntry.entry_date <= date_to,
+        )
+    )
+    row = (await db.execute(stmt)).one()
+    td = Decimal(str(row[0] or 0)).quantize(Decimal("0.01"))
+    tc = Decimal(str(row[1] or 0)).quantize(Decimal("0.01"))
+    return td, tc
+
+
+async def trial_balance_net_for_account_code(
+    db: AsyncSession,
+    company_id: int,
+    date_from: datetime,
+    date_to: datetime,
+    account_code: str,
+) -> Decimal:
+    rows = await trial_balance_rows(db, company_id, date_from, date_to)
+    for c, _n, _t, _d, _cr, nb in rows:
+        if c == account_code:
+            return nb
+    return Decimal("0")

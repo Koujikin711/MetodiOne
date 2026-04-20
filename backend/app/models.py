@@ -1,8 +1,8 @@
 import enum
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, JSON, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Date, DateTime, ForeignKey, JSON, Numeric, String, Text, UniqueConstraint
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -397,6 +397,11 @@ class FinanceCompanySettings(Base):
     # deferred_period | payment | shipment
     revenue_services_policy: Mapped[str] = mapped_column(String(24), default="deferred_period")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, onupdate=_utc_now)
+    # Последний успешный импорт ОСВ (для автоподстановки периода в отчётах)
+    last_osv_import_from: Mapped[date | None] = mapped_column(Date, nullable=True, default=None)
+    last_osv_import_to: Mapped[date | None] = mapped_column(Date, nullable=True, default=None)
+    # Проводки с датой <= этой (по календарю UTC) запрещены, кроме служебных сценариев
+    posting_locked_until: Mapped[date | None] = mapped_column(Date, nullable=True, default=None)
 
 
 class FinanceBudgetMonth(Base):
@@ -413,6 +418,19 @@ class FinanceBudgetMonth(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, onupdate=_utc_now)
 
     __table_args__ = (UniqueConstraint("company_id", "year", "month", name="uq_finance_budget_co_ym"),)
+
+
+class FinanceJournalTemplate(Base):
+    """Шаблон ручной проводки (несколько строк по кодам счетов)."""
+
+    __tablename__ = "finance_journal_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    # [{"account_code":"1010","debit":"0","credit":"1000.00"}, ...]
+    lines: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
 
 
 class FinanceWarehouse(Base):
