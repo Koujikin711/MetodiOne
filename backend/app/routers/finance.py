@@ -30,8 +30,12 @@ from app.models import (
 from app.schemas.finance import (
     AccountRead,
     AccountTypeRollupRead,
+    BalanceSheetReportRead,
+    BalanceSheetRowRead,
     BudgetMonthPut,
     BudgetMonthRead,
+    CashFlowBucketRead,
+    CashFlowReportRead,
     DeferredContractCreate,
     DeferredContractRead,
     DeferredPeriodRead,
@@ -66,6 +70,8 @@ from app.schemas.finance import (
 from app.services.finance_osv_import import parse_osv_csv_text
 from app.services.finance_reports import (
     account_type_rollup_rows,
+    balance_sheet_snapshot,
+    cash_flow_statement,
     deferred_unrecognized_total,
     journal_entries_count,
     month_bounds_utc,
@@ -1065,6 +1071,114 @@ async def report_consistency(
         inventory_account_code="2010",
         inventory_gl_net=inv_net,
         inventory_stock_value=inv_val,
+    )
+
+
+@router.get("/reports/balance-sheet", response_model=BalanceSheetReportRead)
+async def report_balance_sheet(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD (для справки)"),
+    date_to: str = Query(..., description="YYYY-MM-DD — баланс на конец этого дня"),
+) -> BalanceSheetReportRead:
+    """Упрощённый бухгалтерский баланс на дату окончания периода (накопительно по журналу)."""
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    _d0, d1 = _parse_period_dates(date_from, date_to)
+    asset_lines, liability_lines, equity_lines, ta, tld, tea, ret, tp, bal = await balance_sheet_snapshot(
+        db,
+        company_id,
+        d1,
+    )
+    z = Decimal("0")
+    rows: list[BalanceSheetRowRead] = [
+        BalanceSheetRowRead(section="asset", line_kind="header", label="Актив", amount=z),
+    ]
+    for code, name, amt in asset_lines:
+        rows.append(
+            BalanceSheetRowRead(
+                section="asset",
+                line_kind="detail",
+                account_code=code,
+                label=f"{code} — {name}",
+                amount=amt,
+            ),
+        )
+    rows.append(BalanceSheetRowRead(section="asset", line_kind="total", label="Итого актив", amount=ta))
+    rows.append(BalanceSheetRowRead(section="liability", line_kind="header", label="Обязательства", amount=z))
+    for code, name, amt in liability_lines:
+        rows.append(
+            BalanceSheetRowRead(
+                section="liability",
+                line_kind="detail",
+                account_code=code,
+                label=f"{code} — {name}",
+                amount=amt,
+            ),
+        )
+    rows.append(
+        BalanceSheetRowRead(section="liability", line_kind="total", label="Итого обязательства", amount=tld),
+    )
+    rows.append(BalanceSheetRowRead(section="equity", line_kind="header", label="Капитал и накопленная прибыль", amount=z))
+    for code, name, amt in equity_lines:
+        rows.append(
+            BalanceSheetRowRead(
+                section="equity",
+                line_kind="detail",
+                account_code=code,
+                label=f"{code} — {name}",
+                amount=amt,
+            ),
+        )
+    rows.append(
+        BalanceSheetRowRead(
+            section="retained",
+            line_kind="detail",
+            label="Накопленная прибыль (убыток) по ОПиУ с начала учёта",
+            amount=ret,
+        ),
+    )
+    rows.append(
+        BalanceSheetRowRead(
+            section="equity",
+            line_kind="total",
+            label="Итого обязательства и капитал",
+            amount=tp,
+        ),
+    )
+    return BalanceSheetReportRead(
+        as_of_date=d1,
+        rows=rows,
+        total_assets=ta,
+        total_liabilities=tld,
+        total_equity_accounts=tea,
+        retained_earnings=ret,
+        total_passive=tp,
+        balanced=bal,
+    )
+
+
+@router.get("/reports/cash-flow", response_model=CashFlowReportRead)
+async def report_cash_flow(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD"),
+    date_to: str = Query(..., description="YYYY-MM-DD"),
+) -> CashFlowReportRead:
+    """Упрощённый ДДС за период (деньги на счетах 1010, 1020; разбивка по корр. счетам проводок)."""
+    await _require_finance(current_user)
+    await _ready_finance(db, company_id)
+    d0, d1 = _parse_period_dates(date_from, date_to)
+    opening, closing, net_ch, bkt = await cash_flow_statement(db, company_id, d0, d1)
+    return CashFlowReportRead(
+        date_from=d0,
+        date_to=d1,
+        opening_cash=opening,
+        closing_cash=closing,
+        net_change=net_ch,
+        buckets=[CashFlowBucketRead(bucket_key=k, label=lab, amount=a) for k, lab, a in bkt],
     )
 
 

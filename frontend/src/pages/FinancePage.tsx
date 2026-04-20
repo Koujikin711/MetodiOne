@@ -30,6 +30,8 @@ import type {
   FinanceWarehouse,
   FinanceYearOverviewMonth,
   FinanceBudgetMonthRow,
+  FinanceBalanceSheetReport,
+  FinanceCashFlowReport,
 } from "@/lib/types";
 
 const moneyFmt = new Intl.NumberFormat("ru-RU", {
@@ -85,6 +87,8 @@ function downloadCsv(filename: string, headers: string[], rows: Array<Array<stri
 
 type FinanceTab = "overview" | "accounting" | "inventory" | "reports";
 
+type StatementsTab = "opiu" | "balance" | "dds";
+
 type ManualLine = { accountId: number; debit: string; credit: string };
 
 export function FinancePage() {
@@ -106,6 +110,7 @@ export function FinancePage() {
   const [fcMonth, setFcMonth] = useState(() => new Date().getMonth() + 1);
   const [fcHorizon, setFcHorizon] = useState(3);
   const [drillAccountId, setDrillAccountId] = useState(0);
+  const [statementsTab, setStatementsTab] = useState<StatementsTab>("opiu");
 
   const settingsQuery = useQuery({
     queryKey: ["finance-settings"],
@@ -241,6 +246,24 @@ export function FinancePage() {
     queryFn: () =>
       apiFetch<FinanceConsistency>(
         `/api/finance/reports/consistency?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
+      ),
+    enabled: !superNeedsCompany && tab === "reports",
+  });
+
+  const balanceSheetQuery = useQuery({
+    queryKey: ["finance-reports", "balance-sheet", reportRangeKey],
+    queryFn: () =>
+      apiFetch<FinanceBalanceSheetReport>(
+        `/api/finance/reports/balance-sheet?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
+      ),
+    enabled: !superNeedsCompany && tab === "reports",
+  });
+
+  const cashFlowQuery = useQuery({
+    queryKey: ["finance-reports", "cash-flow", reportRangeKey],
+    queryFn: () =>
+      apiFetch<FinanceCashFlowReport>(
+        `/api/finance/reports/cash-flow?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
       ),
     enabled: !superNeedsCompany && tab === "reports",
   });
@@ -1517,21 +1540,15 @@ export function FinancePage() {
 
       {tab === "reports" && (
         <>
-          <section className="rounded-2xl border border-indigo-500/25 bg-indigo-950/25 p-5">
-            <h2 className="text-lg font-medium text-white">Отчётность и автоматизация (обзор)</h2>
-            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-300">
-              <li>
-                В модуле заложены типовые элементы финансового контура SMB: управленческий отчёт о прибылях и убытках по
-                счетам выручки и расходов, оборотно-сальдовая ведомость по журналу, план на месяц и сравнение с фактом за
-                год, упрощённый прогноз выручки.
-              </li>
-              <li>
-                Для углублённой аналитики (ДДС, консолидация, сценарии) выгружайте CSV и стройте модели во внешних
-                инструментах (Excel, Power BI, Google Looker Studio) — так обычно делают при внедрении ERP и
-                казначейских дашбордов.
-              </li>
-              <li>Расширенная автоматизация (расписание отчётов на e-mail, сверка с банком) — следующий этап разработки.</li>
-            </ul>
+          <section className="rounded-2xl border border-indigo-500/25 bg-gradient-to-br from-indigo-950/40 via-slate-900/40 to-slate-900/30 p-5">
+            <h2 className="text-lg font-medium text-white">Финансы: просто и по делу</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-300">
+              Ниже — три ключевые формы в духе управленческой отчётности: <strong className="font-medium text-white">ОПиУ</strong>{" "}
+              (прибыли и убытки), <strong className="font-medium text-white">баланс</strong> на дату окончания периода и{" "}
+              <strong className="font-medium text-white">ДДС</strong> по движению денег на счетах «Касса» и «Расчётный счёт».
+              Данные берутся из журнала проводок и импорта ОСВ — как в вашей кассовой таблице, но без ручной сводки в
+              Google Sheets.
+            </p>
           </section>
 
           <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
@@ -1578,6 +1595,213 @@ export function FinancePage() {
                 Пакет CSV (4 файла)
               </button>
             </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/20 p-5 shadow-lg shadow-black/10">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h2 className="text-lg font-medium text-white">ОПиУ, баланс и ДДС</h2>
+                <p className="mt-1 max-w-xl text-xs text-slate-500">
+                  Переключатель форм. ОПиУ за выбранный период; баланс — на конец даты «По»; ДДС — движение денег на 1010
+                  и 1020 за период (оценка статей по корреспондирующим счетам проводок).
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-1 rounded-xl border border-slate-600/40 bg-slate-950/50 p-1">
+                {(
+                  [
+                    { id: "opiu" as const, label: "ОПиУ" },
+                    { id: "balance" as const, label: "Баланс" },
+                    { id: "dds" as const, label: "ДДС" },
+                  ] as const
+                ).map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setStatementsTab(t.id)}
+                    className={[
+                      "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                      statementsTab === t.id
+                        ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md"
+                        : "text-slate-400 hover:bg-white/5 hover:text-slate-200",
+                    ].join(" ")}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {statementsTab === "opiu" && (
+              <div className="mt-6 space-y-4">
+                {periodSummaryQuery.data && (
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/25 px-4 py-4">
+                      <div className="text-xs uppercase tracking-wide text-emerald-200/80">Выручка (период)</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {parseMoney(periodSummaryQuery.data.revenue_total)}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-rose-500/25 bg-rose-950/25 px-4 py-4">
+                      <div className="text-xs uppercase tracking-wide text-rose-200/80">Расходы (период)</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {parseMoney(periodSummaryQuery.data.expense_total)}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-violet-500/25 bg-violet-950/25 px-4 py-4">
+                      <div className="text-xs uppercase tracking-wide text-violet-200/80">Чистая прибыль</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {parseMoney(periodSummaryQuery.data.net_income)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-600/40 bg-slate-900/40 px-4 py-3">
+                  <p className="text-sm text-slate-300">
+                    Разбивка по счетам выручки и расходов — в таблице ниже на этой странице.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById("finance-opiu-pl")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    className="rounded-lg border border-indigo-500/50 bg-indigo-600/30 px-3 py-1.5 text-sm text-indigo-100 hover:bg-indigo-600/50"
+                  >
+                    К таблице ОПиУ
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {statementsTab === "balance" && (
+              <div className="mt-6">
+                {balanceSheetQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+                {balanceSheetQuery.isError && (
+                  <p className="text-sm text-rose-300">{(balanceSheetQuery.error as Error).message}</p>
+                )}
+                {balanceSheetQuery.data && (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                      <span>
+                        На дату:{" "}
+                        <span className="font-mono text-slate-200">
+                          {balanceSheetQuery.data.as_of_date?.slice(0, 10)}
+                        </span>
+                      </span>
+                      {balanceSheetQuery.data.balanced ? (
+                        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-emerald-300">Актив ≈ пассив</span>
+                      ) : (
+                        <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-amber-200">
+                          Контроль: расхождение актив и пассива (проверьте полноту импорта ОСВ и проводок)
+                        </span>
+                      )}
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-slate-700/50">
+                      <table className="w-full min-w-[480px] text-left text-sm text-slate-200">
+                        <thead className="bg-slate-950/80 text-xs uppercase text-slate-500">
+                          <tr>
+                            <th className="px-4 py-2">Показатель</th>
+                            <th className="px-4 py-2 text-right">Сумма</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {balanceSheetQuery.data.rows.map((row, idx) => (
+                            <tr
+                              key={`${row.section}-${idx}-${row.label}`}
+                              className={[
+                                "border-t border-slate-700/40",
+                                row.line_kind === "header" ? "bg-slate-900/60" : "",
+                                row.line_kind === "total" ? "bg-slate-900/40 font-semibold text-white" : "",
+                              ].join(" ")}
+                            >
+                              <td className="px-4 py-2 pl-5 text-slate-300">
+                                <span
+                                  className={
+                                    row.line_kind === "header"
+                                      ? "font-semibold text-white"
+                                      : row.line_kind === "total"
+                                        ? "text-white"
+                                        : ""
+                                  }
+                                >
+                                  {row.label}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-right font-mono">
+                                {row.line_kind === "header" ? "—" : parseMoney(row.amount)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Итого пассив включает обязательства, счета капитала (если есть) и накопленную прибыль по ОПиУ с
+                      начала учёта. Упрощённая модель для SMB; при необходимости доработайте план счетов.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {statementsTab === "dds" && (
+              <div className="mt-6 space-y-4">
+                {cashFlowQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+                {cashFlowQuery.isError && (
+                  <p className="text-sm text-rose-300">{(cashFlowQuery.error as Error).message}</p>
+                )}
+                {cashFlowQuery.data && (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-4">
+                        <div className="text-xs uppercase tracking-wide text-cyan-200/80">Остаток ДС на начало</div>
+                        <div className="mt-2 text-xl font-semibold text-white">
+                          {parseMoney(cashFlowQuery.data.opening_cash)}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-4">
+                        <div className="text-xs uppercase tracking-wide text-cyan-200/80">Изменение за период</div>
+                        <div className="mt-2 text-xl font-semibold text-white">
+                          {parseMoney(cashFlowQuery.data.net_change)}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-4">
+                        <div className="text-xs uppercase tracking-wide text-cyan-200/80">Остаток ДС на конец</div>
+                        <div className="mt-2 text-xl font-semibold text-white">
+                          {parseMoney(cashFlowQuery.data.closing_cash)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-slate-700/50">
+                      <table className="w-full min-w-[480px] text-left text-sm text-slate-200">
+                        <thead className="bg-slate-950/80 text-xs uppercase text-slate-500">
+                          <tr>
+                            <th className="px-4 py-2">Статья движения (оценка)</th>
+                            <th className="px-4 py-2 text-right">Влияние на деньги</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {cashFlowQuery.data.buckets.map((b) => (
+                            <tr key={b.bucket_key} className="border-t border-slate-700/40">
+                              <td className="px-4 py-2 text-slate-300">{b.label}</td>
+                              <td
+                                className={[
+                                  "px-4 py-2 text-right font-mono",
+                                  Number(b.amount) < 0 ? "text-rose-300" : Number(b.amount) > 0 ? "text-emerald-300" : "text-slate-500",
+                                ].join(" ")}
+                              >
+                                {parseMoney(b.amount)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Положительное значение — приток денег на кассу/р/с, отрицательное — отток. Классификация по
+                      доминирующей некассовой строке проводки (как упрощённый аналог вашей «кассы» по статьям).
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
           </section>
 
           <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
@@ -1756,9 +1980,12 @@ export function FinancePage() {
             </div>
           </section>
 
-          <section className="print-zone print-zone-pl relative rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+          <section
+            id="finance-opiu-pl"
+            className="print-zone print-zone-pl relative rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5"
+          >
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-              <h2 className="text-lg font-medium text-white">Прибыли и убытки по счетам (выручка и расходы)</h2>
+              <h2 className="text-lg font-medium text-white">ОПиУ — прибыли и убытки по счетам (выручка и расходы)</h2>
               <div className="flex flex-wrap gap-2 print:hidden">
                 <button
                   type="button"
