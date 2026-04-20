@@ -35,6 +35,17 @@ body {
   @apply min-h-screen bg-slate-900 text-slate-100 antialiased font-sans;
 }
 
+/* Скрыть полосы прокрутки, оставив прокрутку колесом/тачпадом */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 /* Auth: крупный анимированный градиент */
 .auth-gradient-bg {
   background: linear-gradient(

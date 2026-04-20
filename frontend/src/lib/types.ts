@@ -56,6 +56,10 @@ export interface ChatThread {
   updated_at: string;
   /** Входящие от клиента, не просмотренные в этом диалоге */
   unread_count?: number;
+  /** Время первого сообщения в диалоге (для подсветки «свежих») */
+  first_message_at?: string | null;
+  /** Направление последнего сообщения: in — от клиента, out — от нас */
+  last_message_direction?: "in" | "out" | null;
 }
 
 export interface ChatMessage {
