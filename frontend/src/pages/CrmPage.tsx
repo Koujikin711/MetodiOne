@@ -476,6 +476,7 @@ function KanbanColumn({
     <div
       ref={setNodeRef}
       data-kanban-column="true"
+      data-stage-id={stage.id}
       className={[
         "flex h-[min(70vh,520px)] w-[min(100%,280px)] shrink-0 flex-col rounded-2xl border border-slate-700/40 bg-slate-800/30 p-3 shadow-inner backdrop-blur-sm transition-colors duration-300",
         isOver ? "border-purple-500/40 bg-slate-800/45 ring-1 ring-purple-500/20" : "",
@@ -1407,12 +1408,20 @@ export function CrmPage() {
   }, []);
 
   const onBoardWheelCapture = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    if (event.deltaY === 0) return;
+    if (event.deltaY === 0 && event.deltaX === 0) return;
     const boardEl = boardContainerRef.current;
     if (!boardEl) return;
 
     const pointEl = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
     let scroller = pointEl?.closest?.("[data-kanban-scroll='true']") as HTMLDivElement | null;
+    if ((!scroller || !boardEl.contains(scroller)) && pointEl) {
+      const columnEl = pointEl.closest("[data-kanban-column='true']") as HTMLElement | null;
+      const stageIdRaw = columnEl?.getAttribute("data-stage-id");
+      const stageId = stageIdRaw ? Number(stageIdRaw) : Number.NaN;
+      if (!Number.isNaN(stageId)) {
+        scroller = stageScrollRefs.current.get(stageId) ?? null;
+      }
+    }
     if (!scroller || !boardEl.contains(scroller)) {
       // Если курсор в зазоре между колонками — берём ближайшую колонку по X.
       let nearest: HTMLDivElement | null = null;
@@ -1431,9 +1440,11 @@ export function CrmPage() {
     }
     if (!scroller) return;
 
-    // Внутри зоны этапов вертикальное колесо всегда направляем в колонку под курсором,
-    // чтобы не включался горизонтальный скролл контейнера.
-    scroller.scrollTop += event.deltaY;
+    // На тачпадах вертикальный жест может приходить как deltaX, поэтому берём доминирующую ось
+    // и всегда направляем её в вертикальный скролл колонки.
+    const dominantDelta =
+      Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    scroller.scrollTop += dominantDelta;
     event.preventDefault();
     event.stopPropagation();
   }, []);
