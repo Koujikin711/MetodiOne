@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
-import type { BackgroundEventRow, Integration, TariffStatus } from "@/lib/types";
+import type { BackgroundEventRow, TariffStatus } from "@/lib/types";
 
 import { AccessDenied } from "@/components/AccessDenied";
+import { IntegrationSetupPanel } from "@/components/integrations/IntegrationSetupPanel";
 
 function fmtTs(ts: string) {
   try {
@@ -22,11 +23,6 @@ export function IntegrationsHubPage() {
     );
   }
 
-  const integrationsQuery = useQuery({
-    queryKey: ["integrations"],
-    queryFn: () => apiFetch<Integration[]>("/api/integrations"),
-  });
-
   const eventsQuery = useQuery({
     queryKey: ["system-background-events"],
     queryFn: () => apiFetch<BackgroundEventRow[]>("/api/system/background-events?limit=40"),
@@ -42,7 +38,8 @@ export function IntegrationsHubPage() {
       <div>
         <h1 className="text-2xl font-semibold text-white">Интеграции и фон</h1>
         <p className="mt-2 text-sm text-slate-400">
-          Статус подключений и последние события цикла WhatsApp / Google Sheets (серверный опрос).
+          Подключение каналов: выберите иконку WhatsApp, Telegram или Google Таблицы — затем заполните форму. Ниже —
+          журнал фоновых задач (серверный опрос).
         </p>
       </div>
 
@@ -73,40 +70,7 @@ export function IntegrationsHubPage() {
         </section>
       )}
 
-      <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-        <h2 className="text-lg font-medium text-white">Подключённые интеграции</h2>
-        {integrationsQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
-        {integrationsQuery.isError && (
-          <p className="mt-2 text-sm text-rose-300">{(integrationsQuery.error as Error).message}</p>
-        )}
-        <ul className="mt-4 space-y-3">
-          {(integrationsQuery.data ?? []).map((it) => (
-            <li
-              key={it.id}
-              className="rounded-xl border border-slate-600/40 bg-slate-900/35 px-4 py-3 text-sm text-slate-300"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-medium text-white">{it.name}</span>
-                <span
-                  className={
-                    it.is_active ? "rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-200" : "rounded-full bg-slate-600/40 px-2 py-0.5 text-xs text-slate-400"
-                  }
-                >
-                  {it.is_active ? "Активна" : "Выключена"}
-                </span>
-              </div>
-              <div className="mt-1 text-xs text-slate-500">
-                Провайдер: <span className="text-slate-400">{it.provider}</span>
-                {it.has_api_token ? " · токен сохранён" : " · токен не задан"}
-              </div>
-              {it.setup_note ? <p className="mt-2 text-xs text-violet-200/90">{it.setup_note}</p> : null}
-            </li>
-          ))}
-        </ul>
-        {(integrationsQuery.data ?? []).length === 0 && !integrationsQuery.isLoading && (
-          <p className="mt-3 text-sm text-slate-500">Интеграций пока нет. Создайте их через API или будущую форму настроек.</p>
-        )}
-      </section>
+      <IntegrationSetupPanel />
 
       <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
         <h2 className="text-lg font-medium text-white">Журнал фоновых задач</h2>
