@@ -3,10 +3,10 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import BookingAppointment, Lead, Pipeline, PipelineStage, User, UserRole
 from app.schemas.analytics import (
@@ -57,6 +57,7 @@ def _assert_owner(current_user: CurrentUser) -> None:
 async def analytics_full(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
     period: str = Query("day"),
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
@@ -65,24 +66,40 @@ async def analytics_full(
     start, end = _period_bounds(period, date_from, date_to)
 
     total_leads = int(
-        await db.scalar(select(func.count(Lead.id)).where(Lead.created_at >= start, Lead.created_at < end)) or 0
+        await db.scalar(
+            select(func.count(Lead.id)).where(
+                Lead.company_id == company_id,
+                Lead.created_at >= start,
+                Lead.created_at < end,
+            ),
+        )
+        or 0
     )
 
+    leads_with_manager_expr = case((Lead.manager_id.is_not(None), Lead.id), else_=None)
     rows = (
         await db.execute(
             select(
                 Pipeline.id,
                 Pipeline.name,
-                func.count(Lead.id),
-                func.count(Lead.manager_id),
+                func.count(func.distinct(Lead.id)),
+                func.count(func.distinct(leads_with_manager_expr)),
                 func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
                 func.coalesce(func.sum(BookingAppointment.service_amount - BookingAppointment.paid_amount), 0),
             )
             .select_from(Lead)
             .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
             .join(Pipeline, Pipeline.id == PipelineStage.pipeline_id, isouter=True)
-            .join(BookingAppointment, BookingAppointment.lead_id == Lead.id, isouter=True)
-            .where(Lead.created_at >= start, Lead.created_at < end)
+            .join(
+                BookingAppointment,
+                (BookingAppointment.lead_id == Lead.id) & (BookingAppointment.company_id == company_id),
+                isouter=True,
+            )
+            .where(
+                Lead.company_id == company_id,
+                Lead.created_at >= start,
+                Lead.created_at < end,
+            )
             .group_by(Pipeline.id, Pipeline.name)
             .order_by(Pipeline.name.asc().nulls_last()),
         )
@@ -118,6 +135,7 @@ async def analytics_full(
 async def analytics_detailed(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
     period: str = Query("day"),
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
@@ -126,7 +144,14 @@ async def analytics_detailed(
     start, end = _period_bounds(period, date_from, date_to)
 
     total_leads = int(
-        await db.scalar(select(func.count(Lead.id)).where(Lead.created_at >= start, Lead.created_at < end)) or 0
+        await db.scalar(
+            select(func.count(Lead.id)).where(
+                Lead.company_id == company_id,
+                Lead.created_at >= start,
+                Lead.created_at < end,
+            ),
+        )
+        or 0
     )
 
     rows = (
@@ -135,14 +160,22 @@ async def analytics_detailed(
                 User.id,
                 User.full_name,
                 User.email,
-                func.count(Lead.id),
+                func.count(func.distinct(Lead.id)),
                 func.coalesce(func.sum(BookingAppointment.service_amount), 0),
                 func.coalesce(func.sum(BookingAppointment.service_amount - BookingAppointment.paid_amount), 0),
             )
             .select_from(Lead)
             .join(User, User.id == Lead.manager_id, isouter=True)
-            .join(BookingAppointment, BookingAppointment.lead_id == Lead.id, isouter=True)
-            .where(Lead.created_at >= start, Lead.created_at < end)
+            .join(
+                BookingAppointment,
+                (BookingAppointment.lead_id == Lead.id) & (BookingAppointment.company_id == company_id),
+                isouter=True,
+            )
+            .where(
+                Lead.company_id == company_id,
+                Lead.created_at >= start,
+                Lead.created_at < end,
+            )
             .group_by(User.id, User.full_name, User.email)
             .order_by(User.full_name.asc().nulls_last(), User.email.asc().nulls_last()),
         )
@@ -177,10 +210,15 @@ async def analytics_detailed(
 async def analytics_customer_value(
     customer_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> CustomerValueRead:
+    _assert_owner(current_user)
     total = await db.scalar(
-        select(func.coalesce(func.sum(BookingAppointment.service_amount), 0)).where(BookingAppointment.lead_id == customer_id),
+        select(func.coalesce(func.sum(BookingAppointment.service_amount), 0)).where(
+            BookingAppointment.company_id == company_id,
+            BookingAppointment.lead_id == customer_id,
+        ),
     )
     total = total if total is not None else Decimal("0")
     return CustomerValueRead(customer_id=customer_id, value=Decimal(str(total)))

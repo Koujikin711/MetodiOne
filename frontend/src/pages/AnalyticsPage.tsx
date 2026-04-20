@@ -55,7 +55,7 @@ export function AnalyticsPage() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-white">Аналитика</h1>
         <p className="text-sm text-slate-400">
-          Полная — по воронкам. Детальная — по менеджерам. Доступно только администратору.
+          Полная — по воронкам. Детальная — по менеджерам. Доступно только владельцу компании.
         </p>
       </header>
 
