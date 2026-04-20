@@ -10,6 +10,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.services.tariff import count_company_active_users
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.security import hash_password
 from app.database import get_db
@@ -261,6 +262,16 @@ async def invite_employee(
                 "Пригласите с тем email, что был у того сотрудника, или укажите другой телефон."
             ),
         )
+
+    if not rehire:
+        mx = settings.tariff_max_active_users
+        if mx > 0:
+            n_active = await count_company_active_users(db, company_id)
+            if n_active >= mx:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Достигнут лимит активных пользователей по тарифу ({mx}).",
+                )
 
     temp_password = _rand_password()
     invite_token = secrets.token_urlsafe(32)

@@ -5,10 +5,12 @@ import {
   LayoutDashboard,
   LogOut,
   MessageCircle,
+  Plug,
   UserRound,
   Users,
   Wallet,
 } from "@/components/icons";
+import { AppBanners } from "@/components/AppBanners";
 import { GradientIconBox } from "@/components/GradientIconBox";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
@@ -34,6 +36,7 @@ export function MainLayout() {
   const isManagerNav = role === "manager" || role === "admin";
   const isExpert = role === "expert";
   const showFinance = role === "owner" || role === "admin" || role === "super_owner";
+  const showIntegrationsHub = role === "owner";
 
   function logout() {
     setStoredToken(null);
@@ -58,7 +61,7 @@ export function MainLayout() {
       />
 
       <div className="relative z-10 flex min-h-screen flex-col sm:flex-row">
-        <aside className="hidden w-[5.5rem] shrink-0 border-r border-slate-700/40 bg-slate-950/55 py-6 shadow-2xl backdrop-blur-xl sm:flex sm:flex-col">
+        <aside className="print:hidden hidden w-[5.5rem] shrink-0 border-r border-slate-700/40 bg-slate-950/55 py-6 shadow-2xl backdrop-blur-xl sm:flex sm:flex-col">
           <div className="mr-2 flex flex-col items-center px-1 sm:mb-8 sm:mr-0">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-xs font-bold tracking-tight text-white shadow-lg shadow-purple-500/30">
               M
@@ -200,6 +203,14 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Аудит</span>
                 </NavLink>
+                {showIntegrationsHub ? (
+                  <NavLink to="/integrations" className={navLinkClass} title="Интеграции">
+                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Plug className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Интегр.</span>
+                  </NavLink>
+                ) : null}
               </>
             )}
           </nav>
@@ -219,10 +230,11 @@ export function MainLayout() {
         </aside>
 
         <main className="relative flex-1 overflow-auto px-3 py-4 pb-24 sm:px-10 sm:py-10 sm:pb-10 lg:px-14">
+          <AppBanners />
           <Outlet />
         </main>
 
-        <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-slate-700/50 bg-slate-950/95 px-2 py-2 backdrop-blur-xl sm:hidden">
+        <nav className="print:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-slate-700/50 bg-slate-950/95 px-2 py-2 backdrop-blur-xl sm:hidden">
           {isSuperOwner ? (
             <>
               <NavLink to="/companies" className={navLinkClass} title="Компании">

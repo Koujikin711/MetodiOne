@@ -286,6 +286,10 @@ async def post_manual_journal(
         acc = await db.get(FinanceAccount, ln.account_id)
         if acc is None or acc.company_id != company_id:
             raise HTTPException(400, detail=f"Счёт {ln.account_id} не найден")
+        if ln.debit > 0 and ln.credit > 0:
+            raise HTTPException(400, detail="В одной строке не может быть одновременно дебет и кредит")
+        if ln.debit <= 0 and ln.credit <= 0:
+            raise HTTPException(400, detail="В каждой строке укажите либо дебет, либо кредит")
         lines.append((ln.account_id, ln.debit, ln.credit))
     ent = await _post_balanced_journal(
         db,

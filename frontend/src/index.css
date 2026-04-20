@@ -53,3 +53,34 @@ body {
 .glass-card {
   @apply rounded-2xl border border-slate-700/50 bg-slate-800/50 shadow-xl backdrop-blur-md;
 }
+
+/* Печать отчётов финансов (P&L / ОСВ): кнопка вызывает printFinanceZone */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body {
+    background: #fff !important;
+    color: #0f172a !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  body.printing-pl .print-zone-pl,
+  body.printing-pl .print-zone-pl *,
+  body.printing-tb .print-zone-tb,
+  body.printing-tb .print-zone-tb * {
+    visibility: visible;
+  }
+  body.printing-pl .print-zone-pl,
+  body.printing-tb .print-zone-tb {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  body.printing-pl .print-zone-tb,
+  body.printing-tb .print-zone-pl {
+    display: none !important;
+  }
+}

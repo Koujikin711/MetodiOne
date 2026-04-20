@@ -441,3 +441,18 @@ export interface FinanceBudgetMonthRow {
   expense_plan: string;
   updated_at: string;
 }
+
+export interface BackgroundEventRow {
+  ts: string;
+  source: string;
+  ok: boolean;
+  message: string;
+  detail: string | null;
+}
+
+export interface TariffStatus {
+  max_active_users: number;
+  max_integrations: number;
+  active_users: number;
+  integrations: number;
+}

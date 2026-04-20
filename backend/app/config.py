@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     smtp_from: str = "metoditj@gmail.com"
     build_version: str = "dev"
 
+    # Тариф (0 = без лимита). Задаётся в окружении для SaaS / демо.
+    tariff_max_active_users: int = 0
+    tariff_max_integrations: int = 0
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

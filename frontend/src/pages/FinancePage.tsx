@@ -3,10 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 
-import { FinanceReportsCharts, PeriodDelta, PlanFactBar } from "@/components/finance/FinanceReportsCharts";
+import { PeriodDelta, PlanFactBar } from "@/components/finance/FinanceReportsCharts";
+import { FinanceReportsChartsLazy } from "@/components/finance/FinanceReportsChartsLazy";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeCompanyIdFromToken, decodeRoleFromToken } from "@/lib/auth";
 import { previousPeriodRange } from "@/lib/financePeriod";
+import { printFinanceZone } from "@/lib/printFinance";
 import type {
   FinanceAccount,
   FinanceDashboard,
@@ -480,6 +482,12 @@ export function FinancePage() {
         td += Number(ln.debit) || 0;
         tc += Number(ln.credit) || 0;
       }
+      for (const ln of lines) {
+        const d = Number(ln.debit) || 0;
+        const c = Number(ln.credit) || 0;
+        if (d > 0 && c > 0) throw new Error("В строке укажите либо дебет, либо кредит (не оба)");
+        if (d <= 0 && c <= 0) throw new Error("В каждой строке должен быть дебет или кредит");
+      }
       if (lines.length < 2) throw new Error("Добавьте минимум две строки со счетами");
       if (Math.abs(td - tc) > 0.005) throw new Error("Сумма дебета должна равняться сумме кредита");
       if (td <= 0) throw new Error("Сумма проводки должна быть больше нуля");
@@ -547,7 +555,7 @@ export function FinancePage() {
 
   return (
     <div className="relative mx-auto max-w-5xl space-y-6 pb-12">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <header className="flex flex-col gap-3 print:hidden sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-semibold tracking-tight text-white">Финансы</h1>
           <p className="text-sm text-slate-400">
@@ -563,7 +571,7 @@ export function FinancePage() {
         </button>
       </header>
 
-      <div className="flex flex-wrap gap-2 border-b border-slate-700/50 pb-3">
+      <div className="flex flex-wrap gap-2 border-b border-slate-700/50 pb-3 print:hidden">
         {tabBtn("overview", "Обзор")}
         {tabBtn("accounting", "Бухгалтерия")}
         {effective?.inventory_enabled ? tabBtn("inventory", "Склад") : null}
@@ -1267,13 +1275,23 @@ export function FinancePage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+          <section className="relative rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
             <h2 className="text-lg font-medium text-white">Дашборд за период</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Текущий период отчёта: <span className="text-slate-300">{reportFrom}</span> —{" "}
+              <span className="text-slate-300">{reportTo}</span>
+            </p>
             {prevRange ? (
               <p className="mt-1 text-xs text-slate-500">
                 Сравнение с предыдущим периодом: {prevRange.from} — {prevRange.to}
                 {prevPeriodSummaryQuery.isLoading ? " · загрузка базы…" : null}
               </p>
+            ) : null}
+            {periodSummaryQuery.isFetching && !periodSummaryQuery.isLoading ? (
+              <div
+                className="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-slate-900/35 backdrop-blur-[1px]"
+                aria-busy
+              />
             ) : null}
             {periodSummaryQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
             {periodSummaryQuery.isError && (
@@ -1352,7 +1370,7 @@ export function FinancePage() {
               По году из блока «План–факт» и прогнозу из блока «Прогноз» ниже (параметры года и горизонта там же).
             </p>
             <div className="mt-4">
-              <FinanceReportsCharts
+              <FinanceReportsChartsLazy
                 yearRows={yearOverviewQuery.data}
                 forecast={forecastQuery.data}
                 loadingYear={yearOverviewQuery.isLoading}
@@ -1361,24 +1379,33 @@ export function FinancePage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+          <section className="print-zone print-zone-pl relative rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <h2 className="text-lg font-medium text-white">Прибыли и убытки по счетам (выручка и расходы)</h2>
-              <button
-                type="button"
-                onClick={() => {
-                  const rows = (plLinesQuery.data ?? []).map((r) => [
-                    r.account_code,
-                    r.account_name,
-                    r.account_type,
-                    r.amount,
-                  ]);
-                  downloadCsv(`pl_${reportFrom}_${reportTo}.csv`, ["Код", "Счёт", "Тип", "Сумма"], rows);
-                }}
-                className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
-              >
-                CSV
-              </button>
+              <div className="flex flex-wrap gap-2 print:hidden">
+                <button
+                  type="button"
+                  onClick={() => printFinanceZone("pl")}
+                  className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
+                >
+                  Печать
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rows = (plLinesQuery.data ?? []).map((r) => [
+                      r.account_code,
+                      r.account_name,
+                      r.account_type,
+                      r.amount,
+                    ]);
+                    downloadCsv(`pl_${reportFrom}_${reportTo}.csv`, ["Код", "Счёт", "Тип", "Сумма"], rows);
+                  }}
+                  className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
+                >
+                  CSV
+                </button>
+              </div>
             </div>
             {plLinesQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
             <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-slate-700/40">
@@ -1408,26 +1435,35 @@ export function FinancePage() {
             )}
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+          <section className="print-zone print-zone-tb relative rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <h2 className="text-lg font-medium text-white">Оборотно-сальдовая ведомость (по журналу)</h2>
-              <button
-                type="button"
-                onClick={() => {
-                  const rows = (trialBalanceQuery.data ?? []).map((r) => [
-                    r.account_code,
-                    r.account_name,
-                    r.account_type,
-                    r.debit_total,
-                    r.credit_total,
-                    r.net_balance,
-                  ]);
-                  downloadCsv(`trial_balance_${reportFrom}_${reportTo}.csv`, ["Код", "Счёт", "Тип", "Дт", "Кт", "Сальдо"], rows);
-                }}
-                className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
-              >
-                CSV
-              </button>
+              <div className="flex flex-wrap gap-2 print:hidden">
+                <button
+                  type="button"
+                  onClick={() => printFinanceZone("tb")}
+                  className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
+                >
+                  Печать
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rows = (trialBalanceQuery.data ?? []).map((r) => [
+                      r.account_code,
+                      r.account_name,
+                      r.account_type,
+                      r.debit_total,
+                      r.credit_total,
+                      r.net_balance,
+                    ]);
+                    downloadCsv(`trial_balance_${reportFrom}_${reportTo}.csv`, ["Код", "Счёт", "Тип", "Дт", "Кт", "Сальдо"], rows);
+                  }}
+                  className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
+                >
+                  CSV
+                </button>
+              </div>
             </div>
             {trialBalanceQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
             <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-slate-700/40">
@@ -1574,6 +1610,22 @@ export function FinancePage() {
               </button>
             </div>
             {yearOverviewQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-700/30 bg-slate-900/30 px-3 py-2 text-[11px] text-slate-400 print:hidden">
+              <span>
+                <span className="inline-block h-2 w-6 rounded-full bg-emerald-500 align-middle" title="≥100% плана" />{" "}
+                выручка: план выполнен или перевыполнен
+              </span>
+              <span>
+                <span className="inline-block h-2 w-6 rounded-full bg-amber-500 align-middle" title="<90% плана" />{" "}
+                ниже 90% плана
+              </span>
+              <span>
+                <span className="inline-block h-2 w-6 rounded-full bg-violet-500 align-middle" /> в процессе
+              </span>
+              <span className="text-slate-500" title="Полоски %% В и %% Р — факт к плану по выручке и расходам">
+                Колонки «%% В / %% Р»: доля факта от плана (при плане 0 — только факт).
+              </span>
+            </div>
             <div className="mt-4 max-h-80 overflow-auto rounded-xl border border-slate-700/40">
               <table className="w-full text-left text-xs text-slate-300">
                 <thead className="sticky top-0 bg-slate-900/95 text-slate-500">
