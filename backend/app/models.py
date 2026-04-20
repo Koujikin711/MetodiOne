@@ -17,6 +17,7 @@ class UserRole(str, enum.Enum):
     admin = "admin"
     manager = "manager"
     expert = "expert"
+    finance_analyst = "finance_analyst"
 
 
 class TaskStatus(str, enum.Enum):
@@ -471,6 +472,8 @@ class FinanceJournalEntry(Base):
     source_type: Mapped[str] = mapped_column(String(40), default="manual")
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    related_lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
+    related_deal_id: Mapped[int | None] = mapped_column(ForeignKey("deals.id", ondelete="SET NULL"), nullable=True, index=True)
 
 
 class FinanceJournalLine(Base):
@@ -482,6 +485,39 @@ class FinanceJournalLine(Base):
     debit: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     credit: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     dimensions: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class FinanceClosedMonth(Base):
+    """Явное закрытие календарного месяца: запрет новых проводок с датой в этом месяце."""
+
+    __tablename__ = "finance_closed_months"
+    __table_args__ = (UniqueConstraint("company_id", "year", "month", name="uq_finance_closed_month_company_ym"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    year: Mapped[int] = mapped_column()
+    month: Mapped[int] = mapped_column()
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    closed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+
+class FinanceBankStatementLine(Base):
+    """Строка выписки (импорт CSV) и ручная привязка к проводке журнала."""
+
+    __tablename__ = "finance_bank_statement_lines"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    txn_date: Mapped[date] = mapped_column(Date)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    journal_entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("finance_journal_entries.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    matched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
 
 
 class FinanceProduct(Base):

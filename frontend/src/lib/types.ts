@@ -1,4 +1,4 @@
-export type UserRole = "super_owner" | "owner" | "admin" | "manager" | "expert";
+export type UserRole = "super_owner" | "owner" | "admin" | "manager" | "expert" | "finance_analyst";
 
 export interface User {
   id: number;
@@ -360,6 +360,7 @@ export interface FinanceJournalLineDetail {
   account_name: string;
   debit: string;
   credit: string;
+  dimensions?: Record<string, unknown> | null;
 }
 
 export interface FinanceJournalEntryDetail {
@@ -368,7 +369,18 @@ export interface FinanceJournalEntryDetail {
   memo: string | null;
   source_type: string;
   created_at: string;
+  related_lead_id?: number | null;
+  related_deal_id?: number | null;
   lines: FinanceJournalLineDetail[];
+}
+
+export interface FinanceReminderMessage {
+  kind: string;
+  text: string;
+}
+
+export interface FinanceRemindersOverview {
+  messages: FinanceReminderMessage[];
 }
 
 export interface FinanceStockMovement {
