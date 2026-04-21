@@ -367,6 +367,11 @@ class Task(Base):
     assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Оценка выполнения задачи по 10-балльной шкале, выставляет постановщик после закрытия.
+    review_score: Mapped[int | None] = mapped_column(nullable=True)
+    review_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    review_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     related_lead_id: Mapped[int | None] = mapped_column(
         ForeignKey("leads.id", ondelete="SET NULL"),
         nullable=True,

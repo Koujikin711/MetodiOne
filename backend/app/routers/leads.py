@@ -22,6 +22,7 @@ from app.schemas.lead import (
     LeadStatusPatchResponse,
     LeadStatusUpdate,
     LeadTablePage,
+    LeadUpdate,
 )
 from app.services.automation import process_lead_automation
 from app.services.lead_assignment import assign_manager_for_new_lead
@@ -815,6 +816,63 @@ async def get_lead(
             "paid_extras_amount": (info["paid_extras_amount"] if info else Decimal("0")),
         },
     )
+    enriched = await _enrich_leads_close_deal(db, [lead], [base], current_user)
+    return enriched[0]
+
+
+@router.patch("/{lead_id}", response_model=LeadRead)
+async def patch_lead(
+    lead_id: int,
+    body: LeadUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> LeadRead:
+    lead = await db.get(Lead, lead_id)
+    if lead is None or lead.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await db.refresh(lead, ["stage"])
+    await _assert_expert_lead_access(db, current_user=current_user, lead=lead, company_id=company_id)
+
+    if current_user.role == UserRole.owner:
+        pass
+    elif current_user.role == UserRole.admin:
+        pipeline_id = lead.stage.pipeline_id if lead.stage else None
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if pipeline_id is None or pipeline_id not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside admin directions")
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Редактирование карточки доступно только владельцу и админу назначенной воронки",
+        )
+
+    patch = body.model_dump(exclude_unset=True)
+    if not patch:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет полей для обновления")
+
+    if "name" in patch and body.name is not None:
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Имя не может быть пустым")
+        lead.name = name
+    if "phone" in patch:
+        lead.phone = (body.phone or "").strip() or None
+    if "email" in patch:
+        lead.email = str(body.email).strip() if body.email else None
+    if "source" in patch:
+        lead.source = (body.source or "").strip() or None
+
+    await db.flush()
+    await _audit_lead(
+        db,
+        lead_id=lead.id,
+        action="lead_profile_updated",
+        current_user=current_user,
+        details="Обновлены поля карточки клиента (ФИО/телефон/email/источник)",
+    )
+    await db.refresh(lead, ["stage"])
+    base = await _lead_to_read_with_manager(db, lead)
     enriched = await _enrich_leads_close_deal(db, [lead], [base], current_user)
     return enriched[0]
 

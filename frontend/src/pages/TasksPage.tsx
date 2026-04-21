@@ -31,6 +31,7 @@ export function TasksPage() {
   const isLimitedEditor = role === "manager" || role === "expert";
 
   const [scope, setScope] = useState<"my" | "team">("my");
+  const [bucket, setBucket] = useState<"active" | "journal">("active");
   const [statusFilter, setStatusFilter] = useState("");
   const [deadlineFrom, setDeadlineFrom] = useState("");
   const [deadlineTo, setDeadlineTo] = useState("");
@@ -48,16 +49,18 @@ export function TasksPage() {
   const [editingDeadline, setEditingDeadline] = useState("");
   const [editingDescription, setEditingDescription] = useState("");
   const [editingAssignedTo, setEditingAssignedTo] = useState<number | "">("");
+  const [reviewByTaskId, setReviewByTaskId] = useState<Record<number, { score: number; comment: string }>>({});
 
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
     p.set("scope", canTeamScope ? scope : "my");
+    p.set("journal", bucket === "journal" ? "true" : "false");
     if (statusFilter) p.set("status", statusFilter);
     if (deadlineFrom) p.set("deadline_from", `${deadlineFrom}T00:00:00`);
     if (deadlineTo) p.set("deadline_to", `${deadlineTo}T23:59:59`);
     if (search.trim()) p.set("q", search.trim());
     return p.toString();
-  }, [canTeamScope, scope, statusFilter, deadlineFrom, deadlineTo, search]);
+  }, [canTeamScope, scope, bucket, statusFilter, deadlineFrom, deadlineTo, search]);
 
   const assigneesQuery = useQuery({
     queryKey: ["tasks-assignees"],
@@ -120,11 +123,50 @@ export function TasksPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const reviewMutation = useMutation({
+    mutationFn: ({ id, score, comment }: { id: number; score: number; comment: string }) =>
+      apiFetch<Task>(`/api/tasks/${id}/review`, {
+        method: "PATCH",
+        body: JSON.stringify({ score, comment: comment.trim() || null }),
+      }),
+    onSuccess: () => {
+      toast.success("Оценка сохранена");
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <div className="relative mx-auto max-w-3xl space-y-10">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-white">Задачи</h1>
         <p className="text-base text-slate-400">Персональные и командные задачи по ролям</p>
+        <div className="flex gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => setBucket("active")}
+            className={[
+              "rounded-xl px-3 py-1.5 text-xs font-semibold",
+              bucket === "active"
+                ? "bg-indigo-500/25 text-indigo-100 ring-1 ring-indigo-400/45"
+                : "border border-slate-700 bg-slate-900/40 text-slate-300",
+            ].join(" ")}
+          >
+            Активные
+          </button>
+          <button
+            type="button"
+            onClick={() => setBucket("journal")}
+            className={[
+              "rounded-xl px-3 py-1.5 text-xs font-semibold",
+              bucket === "journal"
+                ? "bg-indigo-500/25 text-indigo-100 ring-1 ring-indigo-400/45"
+                : "border border-slate-700 bg-slate-900/40 text-slate-300",
+            ].join(" ")}
+          >
+            Журнал задач
+          </button>
+        </div>
       </header>
 
       <section className="grid gap-3 rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 md:grid-cols-5">
@@ -184,7 +226,7 @@ export function TasksPage() {
         </label>
       </section>
 
-      {canCreate && (
+      {canCreate && bucket === "active" && (
         <section className="grid gap-3 rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 md:grid-cols-2">
           <h2 className="md:col-span-2 text-sm font-semibold text-slate-200">Новая задача</h2>
           <label className="text-xs text-slate-400">
@@ -391,22 +433,25 @@ export function TasksPage() {
                     </button>
                   </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingTaskId(t.id);
-                      setEditingStatus(t.status);
-                      setEditingTitle(t.title);
-                      setEditingDeadline(t.deadline ? new Date(t.deadline).toISOString().slice(0, 16) : "");
-                      setEditingDescription(t.description || "");
-                      setEditingAssignedTo(t.assigned_to || "");
-                    }}
-                    className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-300"
-                  >
-                    {isLimitedEditor ? "Закрыть/обновить статус" : "Изменить статус"}
-                  </button>
+                  !t.is_locked && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingTaskId(t.id);
+                        setEditingStatus(t.status);
+                        setEditingTitle(t.title);
+                        setEditingDeadline(t.deadline ? new Date(t.deadline).toISOString().slice(0, 16) : "");
+                        setEditingDescription(t.description || "");
+                        setEditingAssignedTo(t.assigned_to || "");
+                      }}
+                      className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-300"
+                    >
+                      {isLimitedEditor ? "Закрыть/обновить статус" : "Изменить статус"}
+                    </button>
+                  )
                 )}
-                {(role === "owner" || (role === "admin" && currentUserId != null && t.created_by_user_id === currentUserId)) && (
+                {!t.is_locked &&
+                  (role === "owner" || (role === "admin" && currentUserId != null && t.created_by_user_id === currentUserId)) && (
                   <button
                     type="button"
                     onClick={() => {
@@ -419,6 +464,60 @@ export function TasksPage() {
                   </button>
                 )}
               </div>
+              {t.is_locked ? (
+                <div className="mt-3 rounded-lg border border-slate-700/60 bg-slate-900/35 p-3 text-xs text-slate-400">
+                  <p>Задача в журнале: редактирование отключено.</p>
+                  {t.review_score ? (
+                    <p className="mt-1 text-emerald-300">
+                      Оценка постановщика: {t.review_score}/10
+                      {t.review_comment ? ` · ${t.review_comment}` : ""}
+                    </p>
+                  ) : null}
+                  {currentUserId != null && t.created_by_user_id === currentUserId ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <select
+                        value={reviewByTaskId[t.id]?.score ?? t.review_score ?? 10}
+                        onChange={(e) =>
+                          setReviewByTaskId((prev) => ({
+                            ...prev,
+                            [t.id]: { score: Number(e.target.value), comment: prev[t.id]?.comment ?? t.review_comment ?? "" },
+                          }))
+                        }
+                        className="rounded-lg border border-slate-600/50 bg-slate-900/60 px-2 py-1 text-xs text-white"
+                      >
+                        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                          <option key={n} value={n}>
+                            {n}/10
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        value={reviewByTaskId[t.id]?.comment ?? t.review_comment ?? ""}
+                        onChange={(e) =>
+                          setReviewByTaskId((prev) => ({
+                            ...prev,
+                            [t.id]: { score: prev[t.id]?.score ?? t.review_score ?? 10, comment: e.target.value },
+                          }))
+                        }
+                        placeholder="Комментарий к оценке"
+                        className="min-w-[220px] flex-1 rounded-lg border border-slate-600/50 bg-slate-900/60 px-2 py-1 text-xs text-white"
+                      />
+                      <button
+                        type="button"
+                        disabled={reviewMutation.isPending}
+                        onClick={() => {
+                          const score = reviewByTaskId[t.id]?.score ?? t.review_score ?? 10;
+                          const comment = reviewByTaskId[t.id]?.comment ?? t.review_comment ?? "";
+                          reviewMutation.mutate({ id: t.id, score, comment });
+                        }}
+                        className="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-xs text-emerald-200 disabled:opacity-50"
+                      >
+                        {t.review_score ? "Обновить оценку" : "Оценить"}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>

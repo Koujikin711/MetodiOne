@@ -12,11 +12,14 @@ import {
 } from "@/components/icons";
 import { AppBanners } from "@/components/AppBanners";
 import { GradientIconBox } from "@/components/GradientIconBox";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import toast from "react-hot-toast";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import metodiMarkUrl from "@/assets/metodione-mark.svg?url";
-import { getStoredToken, setStoredToken } from "@/lib/api";
-import { decodeRoleFromToken } from "@/lib/auth";
+import { apiFetch, getStoredToken, setStoredToken } from "@/lib/api";
+import { decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
+import type { ChatThread, Task, TaskListResponse } from "@/lib/types";
 
 const navLinkBase =
   "group flex flex-col items-center gap-2 rounded-2xl px-1 py-3 text-center transition-all duration-500";
@@ -43,7 +46,9 @@ function MetodiBrandMark({ className = "h-10 w-10" }: { className?: string }) {
 
 export function MainLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const role = decodeRoleFromToken(getStoredToken());
+  const userId = decodeUserIdFromToken(getStoredToken());
   const isSuperOwner = role === "super_owner";
   const isManagerNav = role === "manager" || role === "admin";
   const isExpert = role === "expert";
@@ -55,6 +60,97 @@ export function MainLayout() {
     setStoredToken(null);
     navigate("/login", { replace: true });
   }
+
+  const prevUnreadRef = useRef<Record<number, number>>({});
+  const prevMyTaskIdsRef = useRef<Set<number>>(new Set());
+  const prevCreatedStatusesRef = useRef<Record<number, string>>({});
+  const notificationsInitializedRef = useRef(false);
+
+  useEffect(() => {
+    function pushBrowserNotification(title: string, body: string) {
+      if (typeof window === "undefined" || typeof Notification === "undefined") return;
+      if (Notification.permission === "granted") {
+        try {
+          const n = new Notification(title, { body });
+          window.setTimeout(() => n.close(), 7000);
+        } catch {
+          /* ignore browser notification errors */
+        }
+      } else if (Notification.permission === "default") {
+        void Notification.requestPermission();
+      }
+    }
+
+    async function pollNotifications() {
+      try {
+        const [threads, myActiveTasks, createdActiveTasks, createdJournalTasks] = await Promise.all([
+          apiFetch<ChatThread[]>("/api/chat/threads"),
+          apiFetch<TaskListResponse>("/api/tasks?scope=my&journal=false"),
+          apiFetch<TaskListResponse>("/api/tasks?scope=team&journal=false"),
+          apiFetch<TaskListResponse>("/api/tasks?scope=team&journal=true"),
+        ]);
+
+        const nextUnread: Record<number, number> = {};
+        for (const th of threads) {
+          nextUnread[th.id] = Number(th.unread_count ?? 0);
+        }
+        if (notificationsInitializedRef.current) {
+          for (const th of threads) {
+            const prev = prevUnreadRef.current[th.id] ?? 0;
+            const curr = Number(th.unread_count ?? 0);
+            if (curr > prev) {
+              const label = th.lead_name || th.title || `Диалог #${th.id}`;
+              toast(`Новое сообщение в чате: ${label}`);
+              pushBrowserNotification("Новое сообщение", label);
+            }
+          }
+        }
+        prevUnreadRef.current = nextUnread;
+
+        const myTasks = myActiveTasks.items ?? [];
+        const nextMyIds = new Set(myTasks.map((t) => t.id));
+        if (notificationsInitializedRef.current) {
+          for (const t of myTasks) {
+            if (!prevMyTaskIdsRef.current.has(t.id)) {
+              toast(`Вам назначена новая задача: ${t.title}`);
+              pushBrowserNotification("Новая задача", t.title);
+            }
+          }
+        }
+        prevMyTaskIdsRef.current = nextMyIds;
+
+        if (userId != null) {
+          const createdTasks = [...(createdActiveTasks.items ?? []), ...(createdJournalTasks.items ?? [])].filter(
+            (t) => t.created_by_user_id === userId,
+          );
+          const nextStatuses: Record<number, string> = {};
+          for (const t of createdTasks) nextStatuses[t.id] = t.status;
+          if (notificationsInitializedRef.current) {
+            for (const t of createdTasks) {
+              const prevStatus = prevCreatedStatusesRef.current[t.id];
+              if (prevStatus && prevStatus !== t.status) {
+                const msg = `Статус задачи "${t.title}" изменён: ${t.status}`;
+                toast(msg);
+                pushBrowserNotification("Обновление задачи", msg);
+              }
+            }
+          }
+          prevCreatedStatusesRef.current = nextStatuses;
+        }
+
+        notificationsInitializedRef.current = true;
+      } catch {
+        // silent: notifications should not break UI
+      }
+    }
+
+    void pollNotifications();
+    const timer = window.setInterval(() => {
+      if (location.pathname === "/login") return;
+      void pollNotifications();
+    }, 8000);
+    return () => window.clearInterval(timer);
+  }, [location.pathname, userId]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-900">

@@ -36,8 +36,18 @@ class TaskRead(BaseModel):
     created_by_role: UserRole | None = None
     description: str | None
     related_lead_id: int | None = None
+    review_score: int | None = None
+    review_comment: str | None = None
+    review_by_user_id: int | None = None
+    review_at: datetime | None = None
+    is_locked: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class TaskReviewUpdate(BaseModel):
+    score: int = Field(..., ge=1, le=10)
+    comment: str | None = Field(None, max_length=1000)
 
 
 class TaskAssigneeRead(BaseModel):

@@ -18,6 +18,13 @@ class LeadStatusUpdate(BaseModel):
     status_id: int = Field(..., ge=1)
 
 
+class LeadUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=255)
+    phone: str | None = Field(None, max_length=64)
+    email: RelaxedEmailStr | None = None
+    source: str | None = Field(None, max_length=120)
+
+
 class LeadRead(BaseModel):
     id: int
     name: str
