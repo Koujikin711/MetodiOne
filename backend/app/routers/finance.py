@@ -84,7 +84,7 @@ from app.schemas.finance import (
     YearOverviewMonthRead,
 )
 from app.services.finance_export_workbook import build_finance_workbook_bytes
-from app.services.finance_osv_import import parse_osv_csv_text
+from app.services.finance_osv_import import parse_osv_cash_csv_text, parse_osv_csv_text
 from app.services.finance_reports import (
     account_type_rollup_rows,
     balance_sheet_snapshot,
@@ -1679,6 +1679,7 @@ async def import_osv_csv(
     file: UploadFile = File(..., description="CSV ОСВ (UTF-8), см. подсказку в UI"),
     date_from: str | None = Form(None, description="YYYY-MM-DD, если нет #PERIOD в файле"),
     date_to: str | None = Form(None, description="YYYY-MM-DD"),
+    default_year: int | None = Form(None, description="Год для дат вида `2 янв.` в кассовом формате"),
     replace_period: bool = Form(False, description="Удалить прежние проводки osv_import за этот период"),
     apply: bool = Form(False, description="Записать в журнал; false — только разбор и период"),
 ) -> OsvImportResultRead:
@@ -1689,6 +1690,179 @@ async def import_osv_csv(
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError as e:
         raise HTTPException(400, detail="Файл должен быть в кодировке UTF-8") from e
+    parsed_cash = None
+    warnings: list[str] = []
+    if date_from is None and date_to is None:
+        try:
+            parsed_cash = parse_osv_cash_csv_text(text, default_year=int(default_year or datetime.now(UTC).year))
+            warnings.extend(parsed_cash.warnings)
+        except ValueError:
+            parsed_cash = None
+
+    if parsed_cash is not None and parsed_cash.rows:
+        p_from = parsed_cash.period_from
+        p_to = parsed_cash.period_to
+        if p_from is None or p_to is None:
+            raise HTTPException(400, detail="Не удалось определить период из файла")
+        d0, d1 = _calendar_period_bounds(p_from, p_to)
+
+        if not apply:
+            return OsvImportResultRead(
+                applied=False,
+                date_from=p_from.isoformat(),
+                date_to=p_to.isoformat(),
+                rows_parsed=len(parsed_cash.rows),
+                journal_entry_id=None,
+                warnings=warnings,
+                accounts_missing=[],
+            )
+
+        if replace_period:
+            await db.execute(
+                delete(FinanceJournalEntry).where(
+                    FinanceJournalEntry.company_id == company_id,
+                    FinanceJournalEntry.source_type.in_(("osv_import", "osv_cash_import")),
+                    FinanceJournalEntry.entry_date >= d0,
+                    FinanceJournalEntry.entry_date <= d1,
+                ),
+            )
+
+        next_sort = int(
+            (await db.scalar(select(func.coalesce(func.max(FinanceAccount.sort_order), 0)).where(FinanceAccount.company_id == company_id)))
+            or 0
+        ) + 1
+        acc_cache: dict[str, int] = {}
+
+        async def ensure_account(code: str, name: str, account_type: str) -> int:
+            nonlocal next_sort
+            if code in acc_cache:
+                return acc_cache[code]
+            aid = await account_id_by_code(db, company_id, code)
+            if aid is not None:
+                acc_cache[code] = aid
+                return aid
+            row = FinanceAccount(
+                company_id=company_id,
+                code=code,
+                name=name,
+                account_type=account_type,
+                is_system=False,
+                is_active=True,
+                sort_order=next_sort,
+            )
+            next_sort += 1
+            db.add(row)
+            await db.flush()
+            acc_cache[code] = row.id
+            return row.id
+
+        def is_revenue_kind(short_kind: str | None, article: str | None) -> bool:
+            t = f"{short_kind or ''} {article or ''}".lower()
+            if any(k in t for k in ("расход", "зарп", "фот")):
+                return False
+            if any(k in t for k in ("выруч", "поступ")):
+                return True
+            return True
+
+        def classify_non_cash_account(
+            short_kind: str | None, article: str | None, details: str | None
+        ) -> tuple[str, str, str, str]:
+            txt = f"{short_kind or ''} {article or ''} {details or ''}".lower()
+            if "инвест" in txt or "ос " in txt or "ос_" in txt or "ос" == txt.strip():
+                return ("2030", "Внеоборотные активы", "asset", "investing")
+            if "зарп" in txt or "фот" in txt:
+                return ("7110", "Расходы на персонал", "expense", "op_expenses")
+            if "аренд" in txt or "коммун" in txt:
+                return ("7130", "Аренда и коммунальные расходы", "expense", "op_expenses")
+            if "маркет" in txt or "реклам" in txt or "таргет" in txt:
+                return ("7140", "Маркетинг и реклама", "expense", "op_expenses")
+            if "администр" in txt:
+                return ("7120", "Административные расходы", "expense", "op_expenses")
+            if "прям" in txt:
+                return ("7150", "Прямые расходы", "expense", "op_expenses")
+            return ("7190", "Прочие операционные расходы", "expense", "op_other")
+
+        created_entries = 0
+        last_entry_id: int | None = None
+        for row in parsed_cash.rows:
+            bank_txt = (row.bank or "").lower()
+            cash_code = "1010" if "касс" in bank_txt else "1020"
+            cash_name = "Касса" if cash_code == "1010" else "Расчётный счёт"
+            cash_acc_id = await ensure_account(cash_code, cash_name, "asset")
+
+            revenue = is_revenue_kind(row.short_kind, row.article)
+            if revenue:
+                non_cash_code, non_cash_name, non_cash_type, dds_bucket = (
+                    "4010",
+                    "Выручка — услуги",
+                    "revenue",
+                    "op_customers",
+                )
+            else:
+                non_cash_code, non_cash_name, non_cash_type, dds_bucket = classify_non_cash_account(
+                    row.short_kind, row.article, row.details
+                )
+            non_cash_acc_id = await ensure_account(non_cash_code, non_cash_name, non_cash_type)
+
+            cash_delta = row.amount if revenue else -row.amount
+            if cash_delta == 0:
+                continue
+            amount = abs(cash_delta).quantize(Decimal("0.01"))
+            if amount <= 0:
+                continue
+
+            dds_article_parts = [x for x in [row.short_kind, row.article, row.details] if x]
+            dims = {
+                "dds_bucket": dds_bucket,
+                "dds_article": " / ".join(dds_article_parts) if dds_article_parts else "Импорт кассового ОСВ",
+                "bank_source": row.bank or "",
+                "import_kind": "osv_cash",
+            }
+            if row.counterparty:
+                dims["counterparty"] = row.counterparty
+
+            if cash_delta > 0:
+                lines: list[tuple[int, Decimal, Decimal, dict | None]] = [
+                    (cash_acc_id, amount, Decimal("0"), None),
+                    (non_cash_acc_id, Decimal("0"), amount, dims),
+                ]
+            else:
+                lines = [
+                    (non_cash_acc_id, amount, Decimal("0"), dims),
+                    (cash_acc_id, Decimal("0"), amount, None),
+                ]
+
+            memo_parts = [x for x in [row.basis, row.counterparty, row.article] if x]
+            memo = " | ".join(memo_parts[:3]) if memo_parts else "Импорт кассового ОСВ"
+            entry_dt = datetime(row.txn_date.year, row.txn_date.month, row.txn_date.day, 12, 0, tzinfo=UTC)
+            ent = await _post_balanced_journal(
+                db,
+                company_id=company_id,
+                user_id=current_user.id,
+                entry_date=entry_dt,
+                memo=memo,
+                source_type="osv_cash_import",
+                lines=lines,
+            )
+            created_entries += 1
+            last_entry_id = ent.id
+
+        if created_entries == 0:
+            raise HTTPException(400, detail="Не удалось сформировать проводки из файла")
+        settings.last_osv_import_from = p_from
+        settings.last_osv_import_to = p_to
+        await db.flush()
+        await db.commit()
+        return OsvImportResultRead(
+            applied=True,
+            date_from=p_from.isoformat(),
+            date_to=p_to.isoformat(),
+            rows_parsed=len(parsed_cash.rows),
+            journal_entry_id=last_entry_id,
+            warnings=warnings,
+            accounts_missing=[],
+        )
+
     try:
         parsed = parse_osv_csv_text(text)
     except ValueError as e:
@@ -1708,7 +1882,7 @@ async def import_osv_csv(
         raise HTTPException(400, detail="date_to не может быть раньше date_from")
 
     d0, d1 = _calendar_period_bounds(p_from, p_to)
-    warnings = list(parsed.warnings)
+    warnings.extend(parsed.warnings)
     missing: list[str] = []
 
     if not apply:

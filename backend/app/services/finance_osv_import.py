@@ -1,4 +1,4 @@
-"""Парсинг CSV ОСВ (обороты по счетам) и подготовка строк для загрузки в журнал."""
+"""Парсинг CSV ОСВ и кассового CSV для загрузки в финансы."""
 
 from __future__ import annotations
 
@@ -47,6 +47,26 @@ class OsvParseResult:
     period_from: date | None
     period_to: date | None
     rows: list[OsvParsedRow]
+    warnings: list[str]
+
+
+@dataclass
+class OsvCashParsedRow:
+    txn_date: date
+    amount: Decimal
+    bank: str | None
+    short_kind: str | None
+    article: str | None
+    details: str | None
+    basis: str | None
+    counterparty: str | None
+
+
+@dataclass
+class OsvCashParseResult:
+    period_from: date | None
+    period_to: date | None
+    rows: list[OsvCashParsedRow]
     warnings: list[str]
 
 
@@ -125,3 +145,184 @@ def parse_osv_csv_text(raw: str) -> OsvParseResult:
         rows_out.append(OsvParsedRow(account_code=code, debit=d, credit=c_))
 
     return OsvParseResult(period_from, period_to, rows_out, warnings)
+
+
+_RU_MONTHS: dict[str, int] = {
+    "янв": 1,
+    "январ": 1,
+    "фев": 2,
+    "февр": 2,
+    "феврал": 2,
+    "мар": 3,
+    "март": 3,
+    "апр": 4,
+    "апрел": 4,
+    "май": 5,
+    "мая": 5,
+    "июн": 6,
+    "июнь": 6,
+    "июл": 7,
+    "июль": 7,
+    "авг": 8,
+    "август": 8,
+    "сен": 9,
+    "сент": 9,
+    "сентябр": 9,
+    "окт": 10,
+    "октябр": 10,
+    "ноя": 11,
+    "нояб": 11,
+    "ноябр": 11,
+    "дек": 12,
+    "декабр": 12,
+}
+
+
+def _month_ru_to_num(token: str) -> int | None:
+    t = (token or "").strip().lower().replace(".", "")
+    t = re.sub(r"[^a-zа-яё]", "", t)
+    if not t:
+        return None
+    for k, v in _RU_MONTHS.items():
+        if t.startswith(k):
+            return v
+    return None
+
+
+def _parse_day_month_year(cell: str, default_year: int) -> date | None:
+    s = (cell or "").strip()
+    if not s:
+        return None
+    try:
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+            return datetime.strptime(s, "%Y-%m-%d").date()
+    except ValueError:
+        pass
+    m = re.match(r"^\s*(\d{1,2})\s+([^\s]+)\.?(?:\s+(\d{4}))?\s*$", s, flags=re.IGNORECASE)
+    if not m:
+        return None
+    day = int(m.group(1))
+    month = _month_ru_to_num(m.group(2))
+    if month is None:
+        return None
+    year = int(m.group(3)) if m.group(3) else int(default_year)
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def _norm_header(h: str) -> str:
+    x = (h or "").strip().lower()
+    x = x.replace("\u00a0", " ")
+    x = re.sub(r"\s+", " ", x)
+    return x
+
+
+def parse_osv_cash_csv_text(raw: str, *, default_year: int) -> OsvCashParseResult:
+    """Парсер «кассового ОСВ»-CSV, как в файле с колонками Дата/Банк/Статья/Кратко.
+
+    Поддерживает разделители `,` и `;`, русские даты формата `2 янв.` (год берётся из default_year).
+    """
+    text = raw.lstrip("\ufeff")
+    if not text.strip():
+        return OsvCashParseResult(None, None, [], ["Файл пустой"])
+    lines = text.splitlines()
+    sample = "\n".join(lines[:50])
+    delim = ";" if sample.count(";") > sample.count(",") else ","
+    reader = csv.reader(io.StringIO(text), delimiter=delim)
+    rows = [r for r in reader]
+    if not rows:
+        return OsvCashParseResult(None, None, [], ["Файл пустой"])
+
+    header_idx = -1
+    for i, row in enumerate(rows[:80]):
+        headers = [_norm_header(c) for c in row]
+        joined = " ".join(headers)
+        if "дата" in joined and "статья" in joined and "кратко" in joined:
+            header_idx = i
+            break
+    if header_idx < 0:
+        raise ValueError("Формат не распознан: нет заголовка с колонками Дата/Статья/Кратко")
+
+    hdr = [_norm_header(c) for c in rows[header_idx]]
+    idx_date = next((i for i, h in enumerate(hdr) if h.startswith("дата")), None)
+    idx_bank = next((i for i, h in enumerate(hdr) if "банк" in h), None)
+    idx_article = next((i for i, h in enumerate(hdr) if "статья" in h), None)
+    idx_details = next((i for i, h in enumerate(hdr) if "подроб" in h), None)
+    idx_short = next((i for i, h in enumerate(hdr) if "кратко" in h), None)
+    idx_basis = next((i for i, h in enumerate(hdr) if "основание" in h), None)
+    idx_counterparty = next((i for i, h in enumerate(hdr) if "контрагент" in h), None)
+    if idx_date is None:
+        raise ValueError("В файле не найдена колонка «Дата»")
+    if idx_article is None and idx_short is None:
+        raise ValueError("В файле не найдены колонки «Статья»/«Кратко»")
+
+    idx_som_before_bank = [i for i, h in enumerate(hdr) if h == "som" and (idx_bank is None or i < idx_bank)]
+    if not idx_som_before_bank:
+        raise ValueError("В файле не найдены колонки суммы (SOM) перед колонкой «Банк»")
+    primary_amount_idx = idx_som_before_bank[-1]
+    fallback_amount_idx = idx_som_before_bank[:-1]
+
+    out: list[OsvCashParsedRow] = []
+    warnings: list[str] = []
+    skipped_no_date = 0
+    skipped_no_amount = 0
+
+    for raw_row in rows[header_idx + 1 :]:
+        if not raw_row or all(not (c or "").strip() for c in raw_row):
+            continue
+        row = raw_row + [""] * (len(hdr) - len(raw_row))
+
+        d = _parse_day_month_year(row[idx_date], default_year=default_year)
+        if d is None:
+            skipped_no_date += 1
+            continue
+
+        amount_cell = row[primary_amount_idx] if primary_amount_idx < len(row) else ""
+        amount: Decimal
+        try:
+            amount = _parse_decimal(amount_cell)
+        except ValueError:
+            amount = Decimal("0")
+        if amount == 0:
+            for alt_idx in reversed(fallback_amount_idx):
+                try:
+                    cand = _parse_decimal(row[alt_idx] if alt_idx < len(row) else "")
+                except ValueError:
+                    cand = Decimal("0")
+                if cand != 0:
+                    amount = cand
+                    break
+        if amount == 0:
+            skipped_no_amount += 1
+            continue
+
+        def pick(i: int | None) -> str | None:
+            if i is None or i >= len(row):
+                return None
+            v = (row[i] or "").strip()
+            return v or None
+
+        out.append(
+            OsvCashParsedRow(
+                txn_date=d,
+                amount=amount,
+                bank=pick(idx_bank),
+                short_kind=pick(idx_short),
+                article=pick(idx_article),
+                details=pick(idx_details),
+                basis=pick(idx_basis),
+                counterparty=pick(idx_counterparty),
+            )
+        )
+
+    if skipped_no_date > 0:
+        warnings.append(f"Пропущено строк без даты/неизвестной даты: {skipped_no_date}")
+    if skipped_no_amount > 0:
+        warnings.append(f"Пропущено строк без суммы: {skipped_no_amount}")
+    if not out:
+        return OsvCashParseResult(None, None, [], warnings + ["Не найдено валидных операций"])
+    p_from = min(r.txn_date for r in out)
+    p_to = max(r.txn_date for r in out)
+    return OsvCashParseResult(p_from, p_to, out, warnings)
