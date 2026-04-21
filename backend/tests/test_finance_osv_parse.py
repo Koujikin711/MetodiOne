@@ -1,4 +1,4 @@
-from app.services.finance_osv_import import parse_osv_csv_text
+from app.services.finance_osv_import import parse_osv_cash_csv_text, parse_osv_csv_text
 
 
 def test_osv_parse_period_and_rows():
@@ -20,3 +20,18 @@ def test_dds_bucket_helper_importable():
 
     assert _dds_bucket_from_line_dimensions({"dds_bucket": "investing"}) == "investing"
     assert _dds_bucket_from_line_dimensions({"dds_article": "Оплата от клиента X"}) == "op_customers"
+
+
+def test_osv_cash_format_parse():
+    text = """Дата,Период оказания услуги,SOM,SOM,Банк,Основание Выручка/расход,Контрагенты,Телефон,Чрз,Товар/услуга,Статья,Подробно,Кратко,SOM
+2 янв.,,1000,500,ДС,Оплата,Клиент 1,,,Врач,Поступления,Медицина,Выручка,61500
+2 янв.,,,250,КАССА,Аренда офиса,Арендодатель,,,Офис,Аренда и коммуналка,Аренда,Расход,61000
+"""
+    r = parse_osv_cash_csv_text(text, default_year=2026)
+    assert r.period_from is not None and r.period_to is not None
+    assert r.period_from.isoformat() == "2026-01-02"
+    assert r.period_to.isoformat() == "2026-01-02"
+    assert len(r.rows) == 2
+    assert r.rows[0].amount == 500
+    assert r.rows[0].short_kind == "Выручка"
+    assert r.rows[1].bank == "КАССА"

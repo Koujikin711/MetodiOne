@@ -365,6 +365,7 @@ export function FinancePage() {
   const [draftServPol, setDraftServPol] = useState<string | null>(null);
   const [draftPostingLock, setDraftPostingLock] = useState("");
   const [osvReplace, setOsvReplace] = useState(false);
+  const [osvDefaultYear, setOsvDefaultYear] = useState(String(new Date().getFullYear()));
   const osvFileRef = useRef<HTMLInputElement>(null);
   const [tplName, setTplName] = useState("");
   const [tplJson, setTplJson] = useState(
@@ -427,6 +428,7 @@ export function FinancePage() {
       assertFinanceCanEdit();
       const fd = new FormData();
       fd.append("file", opts.file);
+      if (osvDefaultYear.trim()) fd.append("default_year", osvDefaultYear.trim());
       fd.append("replace_period", osvReplace ? "true" : "false");
       fd.append("apply", opts.apply ? "true" : "false");
       return apiFetch<FinanceOsvImportResult>("/api/finance/import/osv", { method: "POST", body: fd });
@@ -1179,7 +1181,8 @@ export function FinancePage() {
           <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
             <h2 className="text-lg font-medium text-white">Импорт ОСВ (CSV)</h2>
             <p className="mt-1 text-xs text-slate-500">
-              UTF-8; разделитель «;» или «,». В начале файла можно указать{" "}
+              UTF-8; разделитель «;» или «,». Поддерживаются 2 формата: классическая ОСВ (счет/дебет/кредит) и
+              кассовая таблица с колонками Дата/Банк/Статья/Кратко. В начале файла можно указать{" "}
               <code className="font-mono text-slate-400">#PERIOD=YYYY-MM-DD..YYYY-MM-DD</code> — тогда во вкладке
               «Отчёты» автоматически подставятся даты периода. Колонки: код счёта, оборот по дебету, по кредиту
               (допустимы русские или английские заголовки).
@@ -1196,6 +1199,17 @@ export function FinancePage() {
               <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
                 <input type="checkbox" checked={osvReplace} onChange={(e) => setOsvReplace(e.target.checked)} />
                 Удалить прежние проводки импорта ОСВ за этот период перед записью
+              </label>
+              <label className="text-sm text-slate-300">
+                Год для дат вида <span className="font-mono text-slate-400">2 янв.</span>
+                <input
+                  type="number"
+                  min={2000}
+                  max={2100}
+                  value={osvDefaultYear}
+                  onChange={(e) => setOsvDefaultYear(e.target.value)}
+                  className="ml-2 w-24 rounded-lg border border-slate-600/60 bg-slate-900/50 px-2 py-1 text-white"
+                />
               </label>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
