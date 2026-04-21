@@ -1,14 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
-import type { FinanceJournalEntryDetail, Lead, LeadAuditEvent } from "@/lib/types";
+import { BOOKING_TIME_ZONE, addCalendarMonthsInBookingTz, formatTimeRangeInBookingTz } from "@/lib/bookingTz";
+import type { BookingAppointment, FinanceJournalEntryDetail, Lead, LeadAuditEvent } from "@/lib/types";
 
 export function LeadDetailPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const leadId = Number(id);
   const qc = useQueryClient();
   const [auditOpen, setAuditOpen] = useState(false);
@@ -54,8 +56,83 @@ export function LeadDetailPage() {
 
   const role = decodeRoleFromToken(getStoredToken());
   const canRejectLead = role === "owner" || role === "admin" || role === "manager";
+  const canEditBooking = role !== "expert";
   const homeLink = role === "manager" || role === "admin" ? "/crm" : "/";
   const homeLabel = "Канбан";
+
+  const appointmentFromUrl = Number(searchParams.get("appointment"));
+
+  const leadAppointmentsQuery = useQuery({
+    queryKey: ["booking-appointments-by-lead", leadId],
+    queryFn: () => apiFetch<BookingAppointment[]>(`/api/booking/appointments?lead_id=${leadId}`),
+    enabled: Number.isFinite(leadId) && leadId > 0,
+  });
+
+  const moveAppointmentMutation = useMutation({
+    mutationFn: (body: { appointmentId: number; specialist_id: number; start_at: string }) =>
+      apiFetch<BookingAppointment>(`/api/booking/appointments/${body.appointmentId}/move`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          specialist_id: body.specialist_id,
+          start_at: body.start_at,
+        }),
+      }),
+    onSuccess: () => {
+      toast.success("Запись перенесена на следующий месяц");
+      void qc.invalidateQueries({ queryKey: ["booking-appointments-by-lead", leadId] });
+      void qc.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
+      void qc.invalidateQueries({ queryKey: ["booking-journal"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Не удалось перенести запись"),
+  });
+
+  const deleteAppointmentMutation = useMutation({
+    mutationFn: (appointmentId: number) =>
+      apiFetch(`/api/booking/appointments/${appointmentId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast.success("Запись удалена");
+      void qc.invalidateQueries({ queryKey: ["booking-appointments-by-lead", leadId] });
+      void qc.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
+      void qc.invalidateQueries({ queryKey: ["booking-journal"] });
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+      void qc.invalidateQueries({ queryKey: ["analytics-full"] });
+      void qc.invalidateQueries({ queryKey: ["analytics-detailed"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Не удалось удалить запись"),
+  });
+
+  /** Для кнопок в шапке: запись из ссылки с календаря или первая активная (booked). */
+  const primaryBookedForHeader = useMemo(() => {
+    const list = leadAppointmentsQuery.data ?? [];
+    const booked = list.filter((a) => a.status === "booked");
+    if (booked.length === 0) return undefined;
+    if (Number.isFinite(appointmentFromUrl) && appointmentFromUrl > 0) {
+      const hit = booked.find((a) => a.id === appointmentFromUrl);
+      if (hit) return hit;
+    }
+    return booked[0];
+  }, [leadAppointmentsQuery.data, appointmentFromUrl]);
+
+  function handleMoveAppointmentNextMonth(a: BookingAppointment) {
+    const nextStart = addCalendarMonthsInBookingTz(a.start_at, 1);
+    if (
+      !window.confirm(
+        "Перенести запись на тот же час через один календарный месяц (в часовом поясе онлайн-записи)?",
+      )
+    ) {
+      return;
+    }
+    moveAppointmentMutation.mutate({
+      appointmentId: a.id,
+      specialist_id: a.specialist_id,
+      start_at: nextStart,
+    });
+  }
+
+  function handleDeleteAppointment(a: BookingAppointment) {
+    if (!window.confirm("Удалить эту запись из журнала онлайн-записи?")) return;
+    deleteAppointmentMutation.mutate(a.id);
+  }
 
   const auditQuery = useQuery({
     queryKey: ["lead-audit", leadId],
@@ -120,6 +197,26 @@ export function LeadDetailPage() {
             >
               Чат
             </Link>
+            {canEditBooking && primaryBookedForHeader && (
+              <>
+                <button
+                  type="button"
+                  disabled={moveAppointmentMutation.isPending || deleteAppointmentMutation.isPending}
+                  onClick={() => handleMoveAppointmentNextMonth(primaryBookedForHeader)}
+                  className="rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-purple-400/60 hover:bg-purple-500/15 disabled:opacity-50"
+                >
+                  Перенос записи
+                </button>
+                <button
+                  type="button"
+                  disabled={moveAppointmentMutation.isPending || deleteAppointmentMutation.isPending}
+                  onClick={() => handleDeleteAppointment(primaryBookedForHeader)}
+                  className="rounded-xl border border-rose-600/50 bg-rose-950/40 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:border-rose-400/60 hover:bg-rose-900/30 disabled:opacity-50"
+                >
+                  Удалить запись
+                </button>
+              </>
+            )}
             {query.data.show_close_deal_button && (
               <button
                 type="button"
@@ -179,6 +276,89 @@ export function LeadDetailPage() {
               <dd className="mt-1 font-mono text-slate-300">#{query.data.id}</dd>
             </div>
           </dl>
+
+          {(leadAppointmentsQuery.data ?? []).length > 0 && (
+            <section className="mt-8 border-t border-slate-700/50 pt-6">
+              <h2 className="text-sm font-semibold text-white">Онлайн-запись</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Активные записи по этому лиду. «Перенос» — тот же час в календаре записи, на один месяц вперёд.
+              </p>
+              {leadAppointmentsQuery.isLoading && <p className="mt-2 text-xs text-slate-500">Загрузка…</p>}
+              {leadAppointmentsQuery.isError && (
+                <p className="mt-2 text-xs text-rose-300">
+                  {(leadAppointmentsQuery.error as Error).message ?? "Не удалось загрузить записи"}
+                </p>
+              )}
+              <ul className="mt-3 space-y-3">
+                {(leadAppointmentsQuery.data ?? []).map((a) => {
+                  const isBooked = a.status === "booked";
+                  const highlight =
+                    Number.isFinite(appointmentFromUrl) && appointmentFromUrl === a.id && isBooked;
+                  return (
+                    <li
+                      key={a.id}
+                      className={[
+                        "rounded-xl border p-4 text-sm",
+                        highlight
+                          ? "border-sky-500/50 bg-sky-500/10 ring-1 ring-sky-400/30"
+                          : "border-slate-700/50 bg-slate-900/40",
+                      ].join(" ")}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-slate-100">
+                            {new Date(a.start_at).toLocaleDateString("ru-RU", {
+                              day: "2-digit",
+                              month: "long",
+                              year: "numeric",
+                              timeZone: BOOKING_TIME_ZONE,
+                            })}
+                          </p>
+                          <p className="mt-0.5 text-slate-300">
+                            {formatTimeRangeInBookingTz(a.start_at, a.end_at)}
+                            {a.specialist_name ? ` · ${a.specialist_name}` : ""}
+                            {a.direction_name ? ` · ${a.direction_name}` : ""}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Статус:{" "}
+                            {a.status === "booked"
+                              ? "Записан"
+                              : a.status === "completed"
+                                ? "Завершён"
+                                : a.status === "no_show"
+                                  ? "Не явился"
+                                  : a.status === "cancelled"
+                                    ? "Отменён"
+                                    : a.status}
+                          </p>
+                        </div>
+                        {canEditBooking && isBooked && (
+                          <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+                            <button
+                              type="button"
+                              disabled={moveAppointmentMutation.isPending || deleteAppointmentMutation.isPending}
+                              onClick={() => handleMoveAppointmentNextMonth(a)}
+                              className="rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-purple-400/60 hover:bg-purple-500/15 disabled:opacity-50"
+                            >
+                              Перенос записи
+                            </button>
+                            <button
+                              type="button"
+                              disabled={moveAppointmentMutation.isPending || deleteAppointmentMutation.isPending}
+                              onClick={() => handleDeleteAppointment(a)}
+                              className="rounded-xl border border-rose-600/50 bg-rose-950/40 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:border-rose-400/60 hover:bg-rose-900/30 disabled:opacity-50"
+                            >
+                              Удалить запись
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
 
           {canSeeFinanceJournal ? (
             <section className="mt-8 border-t border-slate-700/50 pt-6">
