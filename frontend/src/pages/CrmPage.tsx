@@ -1265,6 +1265,8 @@ export function CrmPage() {
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="text-sm text-slate-400">Распределение новых лидов (интеграции, очередь записи):</span>
             <select
+              id="crm-pipeline-lead-assignment"
+              name="lead_assignment_mode"
               value={selectedPipelineForSettings.lead_assignment_mode ?? "none"}
               onChange={(e) => {
                 patchPipelineMutation.mutate({ id: pipelineId, patch: { lead_assignment_mode: e.target.value } });
@@ -1282,6 +1284,8 @@ export function CrmPage() {
           <div className="mt-2 flex flex-wrap flex-col gap-2 sm:flex-row sm:items-center">
             <span className="text-sm text-slate-400">Менеджер приёма (создаёт лиды в этой воронке):</span>
             <select
+              id="crm-pipeline-intake-manager"
+              name="intake_manager_user_id"
               value={selectedPipelineForSettings.intake_manager_user_id ?? ""}
               onChange={(e) => {
                 const v = e.target.value;
@@ -1312,6 +1316,8 @@ export function CrmPage() {
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="text-sm text-slate-400">Эксперт этой воронки:</span>
             <select
+              id="crm-pipeline-expert"
+              name="expert_user_id"
               value={selectedPipelineForSettings.expert_user_id ?? ""}
               onChange={(e) => {
                 const v = e.target.value;
@@ -2003,9 +2009,11 @@ export function CrmPage() {
 
       {crmView === "board" && sortedStages.length > 0 && (
         <>
-          <label className="mb-2 block max-w-xl text-xs text-slate-400">
+          <label className="mb-2 block max-w-xl text-xs text-slate-400" htmlFor="crm-board-search">
             Поиск на доске
             <input
+              id="crm-board-search"
+              name="board_search"
               value={boardSearchInput}
               onChange={(e) => setBoardSearchInput(e.target.value)}
               placeholder="Имя, телефон, email или № лида…"
