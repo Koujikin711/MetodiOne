@@ -551,33 +551,47 @@ export function BookingCalendarGrid({
   return (
     <div className="relative overflow-x-auto rounded-2xl border border-slate-700/40 bg-slate-950/40">
       <div className="flex min-w-full">
-        <div
-          className="sticky left-0 z-30 flex shrink-0 flex-col border-r border-slate-700/50 bg-slate-950/95 pr-2 backdrop-blur-sm"
-          style={{ width: 52, paddingTop: SPEC_HEADER_PX }}
-        >
-          {SLOT_MINUTES.map((minuteOfDay) => (
-            <div
-              key={minuteOfDay}
-              className="flex shrink-0 items-start justify-end pr-0.5 text-[10px] tabular-nums text-slate-500"
-              style={{ height: (SLOT_STEP_MIN / 60) * PX_PER_HOUR }}
-            >
-              {Math.floor(minuteOfDay / 60)}:{String(minuteOfDay % 60).padStart(2, "0")}
-            </div>
-          ))}
-          {nowTopPct != null && (
-            <>
-              <div
-                className="pointer-events-none absolute right-0 z-40 h-4 w-10 -translate-y-1/2 rounded-r-md bg-red-500/90 px-1 text-right text-[10px] font-semibold tabular-nums text-white shadow-md"
-                style={{ top: `${nowTopPx}px` }}
+        <div className="sticky left-0 z-30 flex w-[52px] shrink-0 flex-col border-r border-slate-700/50 bg-slate-950/95 backdrop-blur-sm">
+          <div
+            className="flex shrink-0 items-center justify-end border-b border-slate-700/50 bg-slate-950/95 px-0.5 py-1"
+            style={{ minHeight: SPEC_HEADER_PX }}
+          >
+            {onAddSpecialist && (
+              <button
+                type="button"
+                onClick={onAddSpecialist}
+                className="rounded-full border border-slate-700 bg-slate-900/90 p-1.5 text-slate-300 shadow-md transition-all duration-300 hover:bg-slate-800 hover:text-white"
+                aria-label="Добавить специалиста"
               >
-                {nowLabel}
-              </div>
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="relative flex flex-col pr-2">
+            {SLOT_MINUTES.map((minuteOfDay) => (
               <div
-                className="pointer-events-none absolute inset-x-0 z-30 border-t-2 border-red-400/85 shadow-[0_0_8px_rgba(248,113,113,0.45)]"
-                style={{ top: `${nowTopPx}px` }}
-              />
-            </>
-          )}
+                key={minuteOfDay}
+                className="flex shrink-0 items-start justify-end pr-0.5 text-[10px] tabular-nums text-slate-500"
+                style={{ height: (SLOT_STEP_MIN / 60) * PX_PER_HOUR }}
+              >
+                {Math.floor(minuteOfDay / 60)}:{String(minuteOfDay % 60).padStart(2, "0")}
+              </div>
+            ))}
+            {nowTopPct != null && (
+              <>
+                <div
+                  className="pointer-events-none absolute right-0 z-40 h-4 w-10 -translate-y-1/2 rounded-r-md bg-red-500/90 px-1 text-right text-[10px] font-semibold tabular-nums text-white shadow-md"
+                  style={{ top: `${nowTopPx - SPEC_HEADER_PX}px` }}
+                >
+                  {nowLabel}
+                </div>
+                <div
+                  className="pointer-events-none absolute inset-x-0 z-30 border-t-2 border-red-400/85 shadow-[0_0_8px_rgba(248,113,113,0.45)]"
+                  style={{ top: `${nowTopPx - SPEC_HEADER_PX}px` }}
+                />
+              </>
+            )}
+          </div>
         </div>
 
         {dragEnabled ? (
@@ -591,16 +605,6 @@ export function BookingCalendarGrid({
         )}
 
       </div>
-      {onAddSpecialist && (
-        <button
-          type="button"
-          onClick={onAddSpecialist}
-          className="absolute right-2 top-2 z-40 rounded-full border border-slate-700 bg-slate-900/90 p-2 text-slate-300 shadow-lg transition-all duration-300 hover:bg-slate-800"
-          aria-label="Добавить специалиста"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
-      )}
     </div>
   );
 }
