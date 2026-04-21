@@ -120,6 +120,17 @@ def _assert_expert_readonly_for_booking(current_user: User) -> None:
         )
 
 
+def _appointment_duration_minutes(specialist: BookingSpecialist, direction: BookingDirection) -> int:
+    """
+    Длина приёма: берём максимум из слота специалиста и длительности направления,
+    чтобы учитывались и «Длительность записи» в карточке специалиста, и услуга в справочнике.
+    """
+    spec_slot = int(specialist.slot_duration_min or 0)
+    dir_dur = int(direction.duration_min or 0)
+    best = max((x for x in (spec_slot, dir_dur) if x >= 15), default=0)
+    return best if best > 0 else 30
+
+
 async def _booking_appointment_read(
     db: AsyncSession,
     a: BookingAppointment,
@@ -396,6 +407,7 @@ async def create_specialist(
         specialization=spec,
         is_active=True,
         sort_order=next_sort,
+        slot_duration_min=body.slot_duration_min,
         work_start_hour=body.work_start_hour,
         work_end_hour=body.work_end_hour,
         work_weekdays=list(body.work_weekdays),
@@ -445,6 +457,8 @@ async def patch_specialist(
         s.work_end_hour = body.work_end_hour
     if "work_weekdays" in patch and body.work_weekdays is not None:
         s.work_weekdays = list(body.work_weekdays)
+    if "slot_duration_min" in patch and body.slot_duration_min is not None:
+        s.slot_duration_min = body.slot_duration_min
     await db.flush()
     await write_audit_event(
         db,
@@ -667,7 +681,7 @@ async def create_appointment(
 
     start_at = _from_payload_to_utc(body.start_at)
     _assert_slot_in_specialist_schedule(specialist, start_at)
-    duration_min = int(specialist.slot_duration_min or direction.duration_min or 30)
+    duration_min = _appointment_duration_minutes(specialist, direction)
     end_at = start_at + timedelta(minutes=duration_min)
 
     overlap = await db.execute(
@@ -797,7 +811,8 @@ async def move_appointment(
 
     start_at = _from_payload_to_utc(body.start_at)
     _assert_slot_in_specialist_schedule(specialist, start_at)
-    end_at = start_at + timedelta(minutes=int(direction.duration_min or 30))
+    duration_min = _appointment_duration_minutes(specialist, direction)
+    end_at = start_at + timedelta(minutes=duration_min)
 
     overlap = await db.execute(
         select(BookingAppointment.id)
