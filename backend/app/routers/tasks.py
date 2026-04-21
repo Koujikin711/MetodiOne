@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -9,7 +9,7 @@ from sqlalchemy.orm import aliased
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import Lead, Pipeline, Task, TaskStatus, User, UserRole
-from app.schemas.task import TaskAssigneeRead, TaskCreate, TaskListResponse, TaskRead, TaskUpdate
+from app.schemas.task import TaskAssigneeRead, TaskCreate, TaskListResponse, TaskRead, TaskReviewUpdate, TaskUpdate
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -100,7 +100,16 @@ def _to_task_read(task: Task, assignee: User | None, creator: User | None) -> Ta
         created_by_role=(creator.role if creator else None),
         description=task.description,
         related_lead_id=task.related_lead_id,
+        review_score=getattr(task, "review_score", None),
+        review_comment=getattr(task, "review_comment", None),
+        review_by_user_id=getattr(task, "review_by_user_id", None),
+        review_at=getattr(task, "review_at", None),
+        is_locked=task.status in (TaskStatus.done, TaskStatus.cancelled),
     )
+
+
+def _is_task_closed(task: Task) -> bool:
+    return task.status in (TaskStatus.done, TaskStatus.cancelled)
 
 
 @router.get("/assignees", response_model=list[TaskAssigneeRead])
@@ -167,6 +176,7 @@ async def list_tasks(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
     scope: str = Query(default="my", pattern="^(my|team)$"),
+    journal: bool = Query(default=False),
     status_filter: str | None = Query(default=None, alias="status"),
     deadline_from: str | None = Query(default=None),
     deadline_to: str | None = Query(default=None),
@@ -181,7 +191,7 @@ async def list_tasks(
         .where(Task.company_id == company_id)
     )
     if current_user.role == UserRole.manager:
-        query = query.where(Task.assigned_to == current_user.id)
+        query = query.where(or_(Task.assigned_to == current_user.id, Task.created_by_user_id == current_user.id))
     elif scope == "my":
         query = query.where(Task.assigned_to == current_user.id)
     elif current_user.role == UserRole.admin:
@@ -205,6 +215,11 @@ async def list_tasks(
                 Task.created_by_user_id == current_user.id,
             )
         )
+
+    if journal:
+        query = query.where(Task.status.in_([TaskStatus.done, TaskStatus.cancelled]))
+    else:
+        query = query.where(~Task.status.in_([TaskStatus.done, TaskStatus.cancelled]))
 
     if status_filter:
         valid_statuses = {s.value for s in TaskStatus}
@@ -237,7 +252,12 @@ async def get_task(
     task = await db.get(Task, task_id)
     if task is None or task.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    if current_user.role == UserRole.manager and task.assigned_to != current_user.id:
+    if _is_task_closed(task):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Задача уже в журнале и не может быть удалена",
+        )
+    if current_user.role == UserRole.manager and task.assigned_to != current_user.id and task.created_by_user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Менеджер видит только свои задачи")
     if current_user.role == UserRole.expert and task.assigned_to == current_user.id:
         creator = await _get_company_user(db, task.created_by_user_id, company_id)
@@ -259,6 +279,11 @@ async def update_task(
     task = await db.get(Task, task_id)
     if task is None or task.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    if _is_task_closed(task):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Задача уже в журнале (решена/закрыта) и больше не редактируется",
+        )
     data = body.model_dump(exclude_unset=True)
     if current_user.role in (UserRole.manager, UserRole.expert):
         if task.assigned_to != current_user.id:
@@ -285,6 +310,34 @@ async def update_task(
         await _ensure_related_lead_exists(db, body.related_lead_id, company_id)
     for key, value in data.items():
         setattr(task, key, value)
+    await db.flush()
+    assignee = await _get_company_user(db, task.assigned_to, company_id)
+    creator = await _get_company_user(db, task.created_by_user_id, company_id)
+    return _to_task_read(task, assignee=assignee, creator=creator)
+
+
+@router.patch("/{task_id}/review", response_model=TaskRead)
+async def review_task(
+    task_id: int,
+    body: TaskReviewUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> TaskRead:
+    task = await db.get(Task, task_id)
+    if task is None or task.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    if not _is_task_closed(task):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Оценка доступна только для задач в журнале")
+    if task.created_by_user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Оценку может выставить только постановщик задачи",
+        )
+    task.review_score = body.score
+    task.review_comment = (body.comment or "").strip() or None
+    task.review_by_user_id = current_user.id
+    task.review_at = datetime.now(UTC)
     await db.flush()
     assignee = await _get_company_user(db, task.assigned_to, company_id)
     creator = await _get_company_user(db, task.created_by_user_id, company_id)

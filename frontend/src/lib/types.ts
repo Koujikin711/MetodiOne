@@ -149,6 +149,11 @@ export interface Task {
   created_by_role?: UserRole | null;
   description: string | null;
   related_lead_id?: number | null;
+  review_score?: number | null;
+  review_comment?: string | null;
+  review_by_user_id?: number | null;
+  review_at?: string | null;
+  is_locked?: boolean;
 }
 
 export interface TaskAssignee {

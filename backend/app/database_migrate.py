@@ -586,6 +586,14 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
         task_cols = {row[1] for row in task_info.fetchall()}
         if task_cols and "created_by_user_id" not in task_cols:
             await conn.execute(text("ALTER TABLE tasks ADD COLUMN created_by_user_id INTEGER"))
+        if task_cols and "review_score" not in task_cols:
+            await conn.execute(text("ALTER TABLE tasks ADD COLUMN review_score INTEGER"))
+        if task_cols and "review_comment" not in task_cols:
+            await conn.execute(text("ALTER TABLE tasks ADD COLUMN review_comment TEXT"))
+        if task_cols and "review_by_user_id" not in task_cols:
+            await conn.execute(text("ALTER TABLE tasks ADD COLUMN review_by_user_id INTEGER"))
+        if task_cols and "review_at" not in task_cols:
+            await conn.execute(text("ALTER TABLE tasks ADD COLUMN review_at DATETIME"))
 
         return
 
@@ -630,6 +638,10 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
             "ALTER TABLE deals ADD COLUMN IF NOT EXISTS company_id INTEGER",
             "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS company_id INTEGER",
             "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by_user_id INTEGER",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS review_score INTEGER",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS review_comment TEXT",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS review_by_user_id INTEGER",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS review_at TIMESTAMPTZ",
         ]
         for s in stmts:
             await conn.execute(text(s))

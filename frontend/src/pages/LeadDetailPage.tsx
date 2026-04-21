@@ -24,6 +24,11 @@ export function LeadDetailPage() {
   const [closeDealOpen, setCloseDealOpen] = useState(false);
   const [closeAmount, setCloseAmount] = useState("");
   const [closePaid, setClosePaid] = useState("");
+  const [editLeadOpen, setEditLeadOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editSource, setEditSource] = useState("");
   const [moveModalAppointment, setMoveModalAppointment] = useState<BookingAppointment | null>(null);
   const [moveDateYmd, setMoveDateYmd] = useState("");
   const [moveMinuteOfDay, setMoveMinuteOfDay] = useState<number | null>(null);
@@ -99,6 +104,7 @@ export function LeadDetailPage() {
 
   const role = decodeRoleFromToken(getStoredToken());
   const canRejectLead = role === "owner" || role === "admin" || role === "manager";
+  const canEditLeadProfile = role === "owner" || role === "admin";
   const canEditBooking = role !== "expert";
   const homeLink = role === "manager" || role === "admin" ? "/crm" : "/";
   const homeLabel = "Канбан";
@@ -189,6 +195,46 @@ export function LeadDetailPage() {
     },
     onError: (e: Error) => toast.error(e.message || "Не удалось удалить запись"),
   });
+
+  const patchLeadMutation = useMutation({
+    mutationFn: (body: { name: string; phone: string | null; email: string | null; source: string | null }) =>
+      apiFetch<Lead>(`/api/leads/${leadId}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      toast.success("Карточка клиента обновлена");
+      setEditLeadOpen(false);
+      void qc.invalidateQueries({ queryKey: ["lead", leadId] });
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+      void qc.invalidateQueries({ queryKey: ["leads-table"] });
+      void qc.invalidateQueries({ queryKey: ["booking-appointments-by-lead", leadId] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Не удалось обновить карточку"),
+  });
+
+  function openEditLeadModal() {
+    if (!query.data) return;
+    setEditName(query.data.name ?? "");
+    setEditPhone(query.data.phone ?? "");
+    setEditEmail(query.data.email ?? "");
+    setEditSource(query.data.source ?? "");
+    setEditLeadOpen(true);
+  }
+
+  function submitLeadEdit() {
+    const name = editName.trim();
+    if (!name) {
+      toast.error("Введите ФИО клиента");
+      return;
+    }
+    patchLeadMutation.mutate({
+      name,
+      phone: editPhone.trim() || null,
+      email: editEmail.trim() || null,
+      source: editSource.trim() || null,
+    });
+  }
 
   function openMoveAppointmentModal(a: BookingAppointment) {
     setMoveDateYmd("");
@@ -310,6 +356,15 @@ export function LeadDetailPage() {
             >
               Аудит
             </button>
+            {canEditLeadProfile && (
+              <button
+                type="button"
+                onClick={openEditLeadModal}
+                className="rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-sky-400/60 hover:bg-sky-500/15"
+              >
+                Редактировать
+              </button>
+            )}
             <Link
               to={`/chat?lead_id=${query.data.id}`}
               className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 text-sm font-semibold text-slate-100 transition hover:border-indigo-400/60 hover:bg-indigo-500/20"
@@ -566,6 +621,79 @@ export function LeadDetailPage() {
                 className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
               >
                 Подтвердить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editLeadOpen && query.data && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4"
+          onClick={() => {
+            if (patchLeadMutation.isPending) return;
+            setEditLeadOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-white">Редактировать клиента</h3>
+            <p className="mt-2 text-sm text-slate-400">
+              Можно обновить ФИО, телефон, email и источник прямо из карточки.
+            </p>
+            <div className="mt-4 grid gap-3">
+              <label className="text-sm text-slate-300">
+                ФИО
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Телефон
+                <input
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Email
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Источник
+                <input
+                  value={editSource}
+                  onChange={(e) => setEditSource(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                />
+              </label>
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={patchLeadMutation.isPending}
+                onClick={() => setEditLeadOpen(false)}
+                className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                disabled={patchLeadMutation.isPending}
+                onClick={submitLeadEdit}
+                className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-50"
+              >
+                {patchLeadMutation.isPending ? "Сохранение..." : "Сохранить"}
               </button>
             </div>
           </div>
