@@ -1,11 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
-import { BOOKING_TIME_ZONE, addCalendarMonthsInBookingTz, formatTimeRangeInBookingTz } from "@/lib/bookingTz";
+import {
+  BOOKING_TIME_ZONE,
+  datetimeLocalBookingToIsoUtc,
+  formatTimeRangeInBookingTz,
+  utcMsToHourMinuteInBookingTz,
+  ymdInBookingTz,
+} from "@/lib/bookingTz";
 import type { BookingAppointment, FinanceJournalEntryDetail, Lead, LeadAuditEvent } from "@/lib/types";
 
 export function LeadDetailPage() {
@@ -17,6 +23,8 @@ export function LeadDetailPage() {
   const [closeDealOpen, setCloseDealOpen] = useState(false);
   const [closeAmount, setCloseAmount] = useState("");
   const [closePaid, setClosePaid] = useState("");
+  const [moveModalAppointment, setMoveModalAppointment] = useState<BookingAppointment | null>(null);
+  const [moveDateTimeLocal, setMoveDateTimeLocal] = useState("");
 
   const query = useQuery({
     queryKey: ["lead", leadId],
@@ -101,32 +109,40 @@ export function LeadDetailPage() {
     onError: (e: Error) => toast.error(e.message || "Не удалось удалить запись"),
   });
 
-  /** Для кнопок в шапке: запись из ссылки с календаря или первая активная (booked). */
-  const primaryBookedForHeader = useMemo(() => {
-    const list = leadAppointmentsQuery.data ?? [];
-    const booked = list.filter((a) => a.status === "booked");
-    if (booked.length === 0) return undefined;
-    if (Number.isFinite(appointmentFromUrl) && appointmentFromUrl > 0) {
-      const hit = booked.find((a) => a.id === appointmentFromUrl);
-      if (hit) return hit;
-    }
-    return booked[0];
-  }, [leadAppointmentsQuery.data, appointmentFromUrl]);
+  function openMoveAppointmentModal(a: BookingAppointment) {
+    const startMs = new Date(a.start_at).getTime();
+    const dateYmd = ymdInBookingTz(startMs);
+    const { h, min } = utcMsToHourMinuteInBookingTz(startMs);
+    setMoveDateTimeLocal(`${dateYmd}T${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
+    setMoveModalAppointment(a);
+  }
 
-  function handleMoveAppointmentNextMonth(a: BookingAppointment) {
-    const nextStart = addCalendarMonthsInBookingTz(a.start_at, 1);
-    if (
-      !window.confirm(
-        "Перенести запись на тот же час через один календарный месяц (в часовом поясе онлайн-записи)?",
-      )
-    ) {
+  function handleMoveAppointmentSubmit() {
+    if (!moveModalAppointment) return;
+    if (!moveDateTimeLocal.trim()) {
+      toast.error("Выберите дату и время для переноса");
       return;
     }
-    moveAppointmentMutation.mutate({
-      appointmentId: a.id,
-      specialist_id: a.specialist_id,
-      start_at: nextStart,
-    });
+    let startAtIso: string;
+    try {
+      startAtIso = datetimeLocalBookingToIsoUtc(moveDateTimeLocal);
+    } catch {
+      toast.error("Неверная дата или время");
+      return;
+    }
+    moveAppointmentMutation.mutate(
+      {
+        appointmentId: moveModalAppointment.id,
+        specialist_id: moveModalAppointment.specialist_id,
+        start_at: startAtIso,
+      },
+      {
+        onSuccess: () => {
+          setMoveModalAppointment(null);
+          setMoveDateTimeLocal("");
+        },
+      },
+    );
   }
 
   function handleDeleteAppointment(a: BookingAppointment) {
@@ -197,26 +213,6 @@ export function LeadDetailPage() {
             >
               Чат
             </Link>
-            {canEditBooking && primaryBookedForHeader && (
-              <>
-                <button
-                  type="button"
-                  disabled={moveAppointmentMutation.isPending || deleteAppointmentMutation.isPending}
-                  onClick={() => handleMoveAppointmentNextMonth(primaryBookedForHeader)}
-                  className="rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-purple-400/60 hover:bg-purple-500/15 disabled:opacity-50"
-                >
-                  Перенос записи
-                </button>
-                <button
-                  type="button"
-                  disabled={moveAppointmentMutation.isPending || deleteAppointmentMutation.isPending}
-                  onClick={() => handleDeleteAppointment(primaryBookedForHeader)}
-                  className="rounded-xl border border-rose-600/50 bg-rose-950/40 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:border-rose-400/60 hover:bg-rose-900/30 disabled:opacity-50"
-                >
-                  Удалить запись
-                </button>
-              </>
-            )}
             {query.data.show_close_deal_button && (
               <button
                 type="button"
@@ -281,7 +277,7 @@ export function LeadDetailPage() {
             <section className="mt-8 border-t border-slate-700/50 pt-6">
               <h2 className="text-sm font-semibold text-white">Онлайн-запись</h2>
               <p className="mt-1 text-xs text-slate-500">
-                Активные записи по этому лиду. «Перенос» — тот же час в календаре записи, на один месяц вперёд.
+                Активные записи по этому лиду. «Перенос» открывает выбор даты и времени в календаре записи.
               </p>
               {leadAppointmentsQuery.isLoading && <p className="mt-2 text-xs text-slate-500">Загрузка…</p>}
               {leadAppointmentsQuery.isError && (
@@ -337,7 +333,7 @@ export function LeadDetailPage() {
                             <button
                               type="button"
                               disabled={moveAppointmentMutation.isPending || deleteAppointmentMutation.isPending}
-                              onClick={() => handleMoveAppointmentNextMonth(a)}
+                              onClick={() => openMoveAppointmentModal(a)}
                               className="rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-purple-400/60 hover:bg-purple-500/15 disabled:opacity-50"
                             >
                               Перенос записи
@@ -466,6 +462,53 @@ export function LeadDetailPage() {
                 className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
               >
                 Подтвердить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {moveModalAppointment && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4"
+          onClick={() => {
+            if (moveAppointmentMutation.isPending) return;
+            setMoveModalAppointment(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-white">Перенос записи</h3>
+            <p className="mt-2 text-sm text-slate-400">
+              Выберите новую дату и время. Запись будет перенесена у того же специалиста.
+            </p>
+            <label className="mt-4 block text-sm text-slate-300">
+              Новая дата и время
+              <input
+                type="datetime-local"
+                value={moveDateTimeLocal}
+                onChange={(e) => setMoveDateTimeLocal(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+              />
+            </label>
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={moveAppointmentMutation.isPending}
+                onClick={() => setMoveModalAppointment(null)}
+                className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                disabled={moveAppointmentMutation.isPending}
+                onClick={handleMoveAppointmentSubmit}
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+              >
+                {moveAppointmentMutation.isPending ? "Перенос..." : "Перенести"}
               </button>
             </div>
           </div>
