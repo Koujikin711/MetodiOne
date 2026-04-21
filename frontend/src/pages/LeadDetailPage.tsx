@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -9,10 +9,11 @@ import {
   BOOKING_TIME_ZONE,
   datetimeLocalBookingToIsoUtc,
   formatTimeRangeInBookingTz,
-  utcMsToHourMinuteInBookingTz,
+  weekdayMon0InBookingTz,
   ymdInBookingTz,
+  zonedWallTimeToUtcMs,
 } from "@/lib/bookingTz";
-import type { BookingAppointment, FinanceJournalEntryDetail, Lead, LeadAuditEvent } from "@/lib/types";
+import type { BookingAppointment, BookingSpecialist, FinanceJournalEntryDetail, Lead, LeadAuditEvent } from "@/lib/types";
 
 export function LeadDetailPage() {
   const { id } = useParams();
@@ -24,7 +25,41 @@ export function LeadDetailPage() {
   const [closeAmount, setCloseAmount] = useState("");
   const [closePaid, setClosePaid] = useState("");
   const [moveModalAppointment, setMoveModalAppointment] = useState<BookingAppointment | null>(null);
-  const [moveDateTimeLocal, setMoveDateTimeLocal] = useState("");
+  const [moveDateYmd, setMoveDateYmd] = useState("");
+  const [moveMinuteOfDay, setMoveMinuteOfDay] = useState<number | null>(null);
+
+  const SLOT_STEP_MIN = 30;
+
+  function addDaysInBookingTz(ymd: string, days: number): string {
+    const noonMs = zonedWallTimeToUtcMs(ymd, 12, 0);
+    return ymdInBookingTz(noonMs + days * 24 * 60 * 60 * 1000);
+  }
+
+  function computeFreeStartMinutes(
+    dateYmd: string,
+    specialist: BookingSpecialist,
+    appointments: BookingAppointment[],
+    durationMin: number,
+    ignoreAppointmentId: number,
+  ): number[] {
+    const weekdays = specialist.work_weekdays?.length ? specialist.work_weekdays : [0, 1, 2, 3, 4];
+    if (!weekdays.includes(weekdayMon0InBookingTz(dateYmd))) return [];
+    const workStartMin = (specialist.work_start_hour ?? 9) * 60;
+    const workEndMin = (specialist.work_end_hour ?? 18) * 60;
+    const busy = appointments.filter((a) => a.status === "booked" && a.id !== ignoreAppointmentId);
+    const out: number[] = [];
+    for (let m = workStartMin; m + durationMin <= workEndMin; m += SLOT_STEP_MIN) {
+      const startMs = zonedWallTimeToUtcMs(dateYmd, Math.floor(m / 60), m % 60);
+      const endMs = startMs + durationMin * 60_000;
+      const overlapped = busy.some((a) => {
+        const aStart = new Date(a.start_at).getTime();
+        const aEnd = new Date(a.end_at).getTime();
+        return aEnd > startMs && aStart < endMs;
+      });
+      if (!overlapped) out.push(m);
+    }
+    return out;
+  }
 
   const query = useQuery({
     queryKey: ["lead", leadId],
@@ -76,6 +111,52 @@ export function LeadDetailPage() {
     enabled: Number.isFinite(leadId) && leadId > 0,
   });
 
+  const specialistsQuery = useQuery({
+    queryKey: ["booking-specialists", "lead-move-modal"],
+    queryFn: () => apiFetch<BookingSpecialist[]>("/api/booking/specialists"),
+    enabled: Boolean(moveModalAppointment),
+  });
+
+  const moveTargetSpecialist = useMemo(() => {
+    if (!moveModalAppointment) return null;
+    return (specialistsQuery.data ?? []).find((s) => s.id === moveModalAppointment.specialist_id) ?? null;
+  }, [specialistsQuery.data, moveModalAppointment]);
+
+  const moveTargetDurationMin = useMemo(() => {
+    if (!moveModalAppointment) return 30;
+    const start = new Date(moveModalAppointment.start_at).getTime();
+    const end = new Date(moveModalAppointment.end_at).getTime();
+    const mins = Math.round((end - start) / 60_000);
+    return mins > 0 ? mins : 30;
+  }, [moveModalAppointment]);
+
+  const moveAvailableDaysQuery = useQuery({
+    queryKey: ["booking-move-available-days", moveModalAppointment?.id, moveModalAppointment?.specialist_id],
+    enabled: Boolean(moveModalAppointment && moveTargetSpecialist),
+    queryFn: async () => {
+      if (!moveModalAppointment || !moveTargetSpecialist) return [] as Array<{ dateYmd: string; slots: number[] }>;
+      const today = ymdInBookingTz(Date.now());
+      const maxScanDays = 180;
+      const wantedDays = 30;
+      const out: Array<{ dateYmd: string; slots: number[] }> = [];
+      for (let delta = 0; delta < maxScanDays && out.length < wantedDays; delta += 1) {
+        const dateYmd = addDaysInBookingTz(today, delta);
+        const dayAppointments = await apiFetch<BookingAppointment[]>(
+          `/api/booking/appointments?date=${dateYmd}&specialist_id=${moveModalAppointment.specialist_id}`,
+        );
+        const slots = computeFreeStartMinutes(
+          dateYmd,
+          moveTargetSpecialist,
+          dayAppointments,
+          moveTargetDurationMin,
+          moveModalAppointment.id,
+        );
+        if (slots.length > 0) out.push({ dateYmd, slots });
+      }
+      return out;
+    },
+  });
+
   const moveAppointmentMutation = useMutation({
     mutationFn: (body: { appointmentId: number; specialist_id: number; start_at: string }) =>
       apiFetch<BookingAppointment>(`/api/booking/appointments/${body.appointmentId}/move`, {
@@ -110,22 +191,24 @@ export function LeadDetailPage() {
   });
 
   function openMoveAppointmentModal(a: BookingAppointment) {
-    const startMs = new Date(a.start_at).getTime();
-    const dateYmd = ymdInBookingTz(startMs);
-    const { h, min } = utcMsToHourMinuteInBookingTz(startMs);
-    setMoveDateTimeLocal(`${dateYmd}T${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
+    setMoveDateYmd("");
+    setMoveMinuteOfDay(null);
     setMoveModalAppointment(a);
   }
 
   function handleMoveAppointmentSubmit() {
     if (!moveModalAppointment) return;
-    if (!moveDateTimeLocal.trim()) {
-      toast.error("Выберите дату и время для переноса");
+    if (!moveDateYmd || moveMinuteOfDay == null) {
+      toast.error("Выберите свободные дату и время");
       return;
     }
     let startAtIso: string;
     try {
-      startAtIso = datetimeLocalBookingToIsoUtc(moveDateTimeLocal);
+      const hh = Math.floor(moveMinuteOfDay / 60);
+      const mm = moveMinuteOfDay % 60;
+      startAtIso = datetimeLocalBookingToIsoUtc(
+        `${moveDateYmd}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`,
+      );
     } catch {
       toast.error("Неверная дата или время");
       return;
@@ -139,7 +222,8 @@ export function LeadDetailPage() {
       {
         onSuccess: () => {
           setMoveModalAppointment(null);
-          setMoveDateTimeLocal("");
+          setMoveDateYmd("");
+          setMoveMinuteOfDay(null);
         },
       },
     );
@@ -149,6 +233,26 @@ export function LeadDetailPage() {
     if (!window.confirm("Удалить эту запись из журнала онлайн-записи?")) return;
     deleteAppointmentMutation.mutate(a.id);
   }
+
+  const selectedMoveDay = useMemo(
+    () => (moveAvailableDaysQuery.data ?? []).find((d) => d.dateYmd === moveDateYmd),
+    [moveAvailableDaysQuery.data, moveDateYmd],
+  );
+
+  useEffect(() => {
+    if (!moveModalAppointment) return;
+    const days = moveAvailableDaysQuery.data ?? [];
+    if (days.length === 0) return;
+    if (!moveDateYmd || !days.some((d) => d.dateYmd === moveDateYmd)) {
+      setMoveDateYmd(days[0].dateYmd);
+      setMoveMinuteOfDay(days[0].slots[0] ?? null);
+      return;
+    }
+    const currentSlots = days.find((d) => d.dateYmd === moveDateYmd)?.slots ?? [];
+    if (moveMinuteOfDay == null || !currentSlots.includes(moveMinuteOfDay)) {
+      setMoveMinuteOfDay(currentSlots[0] ?? null);
+    }
+  }, [moveModalAppointment, moveAvailableDaysQuery.data, moveDateYmd, moveMinuteOfDay]);
 
   const auditQuery = useQuery({
     queryKey: ["lead-audit", leadId],
@@ -482,17 +586,60 @@ export function LeadDetailPage() {
           >
             <h3 className="text-lg font-semibold text-white">Перенос записи</h3>
             <p className="mt-2 text-sm text-slate-400">
-              Выберите новую дату и время. Запись будет перенесена у того же специалиста.
+              Доступны только свободные даты и свободные слоты этого специалиста.
             </p>
-            <label className="mt-4 block text-sm text-slate-300">
-              Новая дата и время
-              <input
-                type="datetime-local"
-                value={moveDateTimeLocal}
-                onChange={(e) => setMoveDateTimeLocal(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
-              />
-            </label>
+            {specialistsQuery.isLoading || moveAvailableDaysQuery.isLoading ? (
+              <p className="mt-4 text-sm text-slate-400">Ищем свободные слоты…</p>
+            ) : null}
+            {moveAvailableDaysQuery.isError && (
+              <p className="mt-4 text-sm text-rose-300">
+                {(moveAvailableDaysQuery.error as Error).message ?? "Не удалось загрузить свободные слоты"}
+              </p>
+            )}
+            {!moveAvailableDaysQuery.isLoading &&
+              !moveAvailableDaysQuery.isError &&
+              (moveAvailableDaysQuery.data ?? []).length === 0 && (
+                <p className="mt-4 text-sm text-amber-300">
+                  Свободных слотов не найдено на ближайшие 180 дней для этого специалиста.
+                </p>
+              )}
+            {(moveAvailableDaysQuery.data ?? []).length > 0 && (
+              <div className="mt-4 grid gap-3">
+                <label className="text-sm text-slate-300">
+                  Свободная дата
+                  <select
+                    value={moveDateYmd}
+                    onChange={(e) => setMoveDateYmd(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  >
+                    {(moveAvailableDaysQuery.data ?? []).map((d) => (
+                      <option key={d.dateYmd} value={d.dateYmd}>
+                        {new Date(zonedWallTimeToUtcMs(d.dateYmd, 12, 0)).toLocaleDateString("ru-RU", {
+                          day: "2-digit",
+                          month: "long",
+                          year: "numeric",
+                          timeZone: BOOKING_TIME_ZONE,
+                        })}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm text-slate-300">
+                  Свободное время
+                  <select
+                    value={moveMinuteOfDay == null ? "" : String(moveMinuteOfDay)}
+                    onChange={(e) => setMoveMinuteOfDay(Number(e.target.value))}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  >
+                    {(selectedMoveDay?.slots ?? []).map((m) => (
+                      <option key={m} value={m}>
+                        {String(Math.floor(m / 60)).padStart(2, "0")}:{String(m % 60).padStart(2, "0")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
             <div className="mt-6 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
@@ -504,7 +651,12 @@ export function LeadDetailPage() {
               </button>
               <button
                 type="button"
-                disabled={moveAppointmentMutation.isPending}
+                disabled={
+                  moveAppointmentMutation.isPending ||
+                  moveAvailableDaysQuery.isLoading ||
+                  (moveAvailableDaysQuery.data ?? []).length === 0 ||
+                  moveMinuteOfDay == null
+                }
                 onClick={handleMoveAppointmentSubmit}
                 className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
               >
