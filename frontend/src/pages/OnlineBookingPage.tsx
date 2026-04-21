@@ -387,7 +387,7 @@ export function OnlineBookingPage() {
 
   function onCalendarAppointmentClick(a: BookingAppointment) {
     if (a.lead_id) {
-      navigate(`/leads/${a.lead_id}`);
+      navigate(`/leads/${a.lead_id}?appointment=${a.id}`);
     } else {
       toast.error("К этой записи не привязан лид в MetodiOne.");
     }

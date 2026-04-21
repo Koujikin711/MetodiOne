@@ -628,6 +628,7 @@ async def list_appointments(
     company_id: CurrentCompanyId,
     date: str | None = None,
     specialist_id: int | None = None,
+    lead_id: int | None = None,
 ) -> list[BookingAppointmentRead]:
     q = (
         select(BookingAppointment, BookingDirection.name, BookingSpecialist.full_name)
@@ -635,6 +636,8 @@ async def list_appointments(
         .join(BookingSpecialist, BookingAppointment.specialist_id == BookingSpecialist.id)
         .where(BookingAppointment.company_id == company_id)
     )
+    if lead_id is not None:
+        q = q.where(BookingAppointment.lead_id == lead_id)
     if date:
         try:
             day_start, day_end = _day_bounds_utc_for_booking_tz(date)
@@ -955,7 +958,6 @@ async def delete_appointment(
     appt = await db.get(BookingAppointment, appointment_id)
     if appt is None or appt.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
-    await _assert_can_manage_appointment_journal(db, appt, current_user)
     await db.delete(appt)
     await db.flush()
     await write_audit_event(

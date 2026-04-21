@@ -89,3 +89,37 @@ export function datetimeLocalBookingToIsoUtc(datetimeLocal: string): string {
   const ms = zonedWallTimeToUtcMs(m[1], Number(m[2]), Number(m[3]));
   return new Date(ms).toISOString();
 }
+
+function isGregorianLeapYear(y: number): boolean {
+  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+}
+
+/** Число дней в календарном месяце 1–12 (григорианский). */
+function daysInGregorianMonth(year: number, month1to12: number): number {
+  if (month1to12 === 2) return isGregorianLeapYear(year) ? 29 : 28;
+  return [31, 0, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month1to12 - 1];
+}
+
+/**
+ * Сдвиг календарной даты в TZ записи на deltaMonths месяцев; локальное время (час:минута) сохраняется.
+ * Используется для «переноса на следующий месяц» в онлайн-записи.
+ */
+export function addCalendarMonthsInBookingTz(isoUtc: string, deltaMonths: number): string {
+  const ms0 = new Date(isoUtc).getTime();
+  const p0 = partsAtUtcMs(ms0);
+  let y = p0.y;
+  let m = p0.m + deltaMonths;
+  while (m > 12) {
+    m -= 12;
+    y += 1;
+  }
+  while (m < 1) {
+    m += 12;
+    y -= 1;
+  }
+  const dim = daysInGregorianMonth(y, m);
+  const d = Math.min(p0.d, dim);
+  const dateYmd = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const ms1 = zonedWallTimeToUtcMs(dateYmd, p0.h, p0.min);
+  return new Date(ms1).toISOString();
+}
