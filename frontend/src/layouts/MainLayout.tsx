@@ -14,6 +14,7 @@ import { AppBanners } from "@/components/AppBanners";
 import { GradientIconBox } from "@/components/GradientIconBox";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
+import metodiMarkUrl from "@/assets/metodione-mark.svg?url";
 import { getStoredToken, setStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 
@@ -32,7 +33,7 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 function MetodiBrandMark({ className = "h-10 w-10" }: { className?: string }) {
   return (
     <img
-      src="/metodione-mark.svg"
+      src={metodiMarkUrl}
       alt=""
       className={["shrink-0 select-none drop-shadow-lg", className].filter(Boolean).join(" ")}
       decoding="async"

@@ -3,8 +3,24 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 
+import metodiMarkUrl from "@/assets/metodione-mark.svg?url";
+
 import App from "./App";
 import "./index.css";
+
+function applyMetodiFavicons() {
+  for (const rel of ["icon", "apple-touch-icon"] as const) {
+    let el = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
+    if (!el) {
+      el = document.createElement("link");
+      el.rel = rel;
+      document.head.appendChild(el);
+    }
+    el.type = "image/svg+xml";
+    el.href = metodiMarkUrl;
+  }
+}
+applyMetodiFavicons();
 
 const queryClient = new QueryClient({
   defaultOptions: {
