@@ -1757,7 +1757,15 @@ async def import_osv_csv(
             return row.id
 
         def is_revenue_kind(short_kind: str | None, article: str | None) -> bool:
-            t = f"{short_kind or ''} {article or ''}".lower()
+            # В "кассовом ОСВ" колонка "Кратко" явно задаёт тип операции:
+            # Выручка / Расход / Зарплата. Ей даём абсолютный приоритет.
+            sk = (short_kind or "").strip().lower()
+            if sk:
+                if "выруч" in sk:
+                    return True
+                if "расход" in sk or "зарп" in sk:
+                    return False
+            t = f"{article or ''}".lower()
             if any(k in t for k in ("расход", "зарп", "фот")):
                 return False
             if any(k in t for k in ("выруч", "поступ")):
