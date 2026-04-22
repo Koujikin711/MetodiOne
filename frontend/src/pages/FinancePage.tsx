@@ -53,6 +53,7 @@ function sourceTypeLabel(t: string): string {
     stock_issue: "Списание ТМЦ",
     deferred_revenue: "Отложенная выручка",
     osv_import: "Импорт ОСВ",
+    osv_cash_import: "Импорт кассового ОСВ",
     template: "Шаблон",
   };
   return m[t] ?? t;

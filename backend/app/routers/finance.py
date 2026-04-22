@@ -84,7 +84,11 @@ from app.schemas.finance import (
     YearOverviewMonthRead,
 )
 from app.services.finance_export_workbook import build_finance_workbook_bytes
-from app.services.finance_osv_import import parse_osv_cash_csv_text, parse_osv_csv_text
+from app.services.finance_osv_import import (
+    is_cash_osv_revenue_kind,
+    parse_osv_cash_csv_text,
+    parse_osv_csv_text,
+)
 from app.services.finance_reports import (
     account_type_rollup_rows,
     balance_sheet_snapshot,
@@ -1756,22 +1760,6 @@ async def import_osv_csv(
             acc_cache[code] = row.id
             return row.id
 
-        def is_revenue_kind(short_kind: str | None, article: str | None) -> bool:
-            # В "кассовом ОСВ" колонка "Кратко" явно задаёт тип операции:
-            # Выручка / Расход / Зарплата. Ей даём абсолютный приоритет.
-            sk = (short_kind or "").strip().lower()
-            if sk:
-                if "выруч" in sk:
-                    return True
-                if "расход" in sk or "зарп" in sk:
-                    return False
-            t = f"{article or ''}".lower()
-            if any(k in t for k in ("расход", "зарп", "фот")):
-                return False
-            if any(k in t for k in ("выруч", "поступ")):
-                return True
-            return True
-
         def classify_non_cash_account(
             short_kind: str | None, article: str | None, details: str | None
         ) -> tuple[str, str, str, str]:
@@ -1798,7 +1786,7 @@ async def import_osv_csv(
             cash_name = "Касса" if cash_code == "1010" else "Расчётный счёт"
             cash_acc_id = await ensure_account(cash_code, cash_name, "asset")
 
-            revenue = is_revenue_kind(row.short_kind, row.article)
+            revenue = is_cash_osv_revenue_kind(row.short_kind, row.article)
             if revenue:
                 non_cash_code, non_cash_name, non_cash_type, dds_bucket = (
                     "4010",
