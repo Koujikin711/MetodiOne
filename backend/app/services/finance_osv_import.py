@@ -219,6 +219,26 @@ def _norm_header(h: str) -> str:
     return x
 
 
+def is_cash_osv_revenue_kind(short_kind: str | None, article: str | None) -> bool:
+    """Определяет тип операции cash-OSV с приоритетом колонки "Кратко"."""
+    sk = (short_kind or "").strip().lower()
+    if sk:
+        # Если "Кратко" заполнено, используем только его как источник типа операции.
+        if any(k in sk for k in ("выруч", "поступ", "доход")):
+            return True
+        if any(k in sk for k in ("расход", "зарп", "фот")):
+            return False
+        # Неизвестное заполненное значение в "Кратко" считаем поступлением по умолчанию.
+        return True
+
+    t = (article or "").lower()
+    if any(k in t for k in ("расход", "зарп", "фот")):
+        return False
+    if any(k in t for k in ("выруч", "поступ", "доход")):
+        return True
+    return True
+
+
 def parse_osv_cash_csv_text(raw: str, *, default_year: int) -> OsvCashParseResult:
     """Парсер «кассового ОСВ»-CSV, как в файле с колонками Дата/Банк/Статья/Кратко.
 

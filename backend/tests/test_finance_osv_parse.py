@@ -1,4 +1,8 @@
-from app.services.finance_osv_import import parse_osv_cash_csv_text, parse_osv_csv_text
+from app.services.finance_osv_import import (
+    is_cash_osv_revenue_kind,
+    parse_osv_cash_csv_text,
+    parse_osv_csv_text,
+)
 
 
 def test_osv_parse_period_and_rows():
@@ -35,3 +39,14 @@ def test_osv_cash_format_parse():
     assert r.rows[0].amount == 500
     assert r.rows[0].short_kind == "Выручка"
     assert r.rows[1].bank == "КАССА"
+
+
+def test_cash_osv_kind_prefers_short_kind_over_article():
+    # "Кратко" задает тип операции и не должен переопределяться "Статьей".
+    assert is_cash_osv_revenue_kind("Расход", "Поступления") is False
+    assert is_cash_osv_revenue_kind("Поступление", "Аренда и коммуналка") is True
+
+
+def test_cash_osv_kind_falls_back_to_article_when_short_kind_empty():
+    assert is_cash_osv_revenue_kind(None, "Поступления от клиентов") is True
+    assert is_cash_osv_revenue_kind("", "ФОТ и зарплата") is False
