@@ -843,6 +843,7 @@ export function CrmPage() {
   });
 
   const [importOpen, setImportOpen] = useState(false);
+  const [pipelineSettingsOpen, setPipelineSettingsOpen] = useState(false);
   const [importPipelineId, setImportPipelineId] = useState<number | null>(null);
   const [importStageId, setImportStageId] = useState<number | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
@@ -1167,31 +1168,14 @@ export function CrmPage() {
     <div className="relative mx-auto max-w-[1600px] space-y-8 pb-10">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-white">MetodiOne</h1>
-        <p className="text-base text-slate-400">
-          Доска: перетаскивание между стадиями, до {kanbanPerStage} карточек в колонке. Вкладка «Список» —
-          поиск по имени/телефону/email и просмотр всех лидов воронки постранично.
-        </p>
         <div className="flex flex-wrap items-center gap-2">
           {isCompanyAdmin && (
             <button
               type="button"
-              onClick={() => {
-                setUseCustomPipelineStages(false);
-                setPipeStages(cloneDefaultStages());
-                setCreatePipelineOpen(true);
-              }}
+              onClick={() => setPipelineSettingsOpen((v) => !v)}
               className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
             >
-              + Создать воронку
-            </button>
-          )}
-          {isCompanyAdmin && (
-            <button
-              type="button"
-              onClick={() => setCreateStageOpen(true)}
-              className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
-            >
-              + Стадия в воронку
+              {pipelineSettingsOpen ? "Скрыть настройки воронки" : "Настройки воронки"}
             </button>
           )}
           <button
@@ -1209,6 +1193,156 @@ export function CrmPage() {
             Импорт CSV
           </button>
         </div>
+        {isCompanyAdmin && pipelineSettingsOpen && (
+          <div className="mt-2 rounded-xl border border-slate-700/40 bg-slate-950/20 p-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setUseCustomPipelineStages(false);
+                  setPipeStages(cloneDefaultStages());
+                  setCreatePipelineOpen(true);
+                }}
+                className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
+              >
+                + Создать воронку
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreateStageOpen(true)}
+                className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
+              >
+                + Стадия в воронку
+              </button>
+            </div>
+            {pipelineId != null && selectedPipelineForSettings && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-sm text-slate-400">Распределение новых лидов:</span>
+                <select
+                  id="crm-pipeline-lead-assignment"
+                  name="lead_assignment_mode"
+                  value={selectedPipelineForSettings.lead_assignment_mode ?? "none"}
+                  onChange={(e) => {
+                    patchPipelineMutation.mutate({ id: pipelineId, patch: { lead_assignment_mode: e.target.value } });
+                  }}
+                  disabled={patchPipelineMutation.isPending}
+                  className="rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
+                >
+                  <option value="none">Без автораспределения</option>
+                  <option value="round_robin">По очереди (равномерно)</option>
+                  <option value="least_loaded">По минимальной загрузке</option>
+                </select>
+              </div>
+            )}
+            {pipelineId != null && selectedPipelineForSettings && (
+              <div className="mt-2 flex flex-wrap flex-col gap-2 sm:flex-row sm:items-center">
+                <span className="text-sm text-slate-400">Менеджер приёма:</span>
+                <select
+                  id="crm-pipeline-intake-manager"
+                  name="intake_manager_user_id"
+                  value={selectedPipelineForSettings.intake_manager_user_id ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    patchPipelineMutation.mutate({
+                      id: pipelineId,
+                      patch: { intake_manager_user_id: v ? Number(v) : null },
+                    });
+                  }}
+                  disabled={patchPipelineMutation.isPending}
+                  className="min-w-[240px] rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
+                >
+                  <option value="">— не назначен —</option>
+                  {(employeesQuery.data ?? [])
+                    .filter((u) => u.role === "manager")
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {(u.full_name || u.email).trim()}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
+            {pipelineId != null && selectedPipelineForSettings && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-sm text-slate-400">Эксперт этой воронки:</span>
+                <select
+                  id="crm-pipeline-expert"
+                  name="expert_user_id"
+                  value={selectedPipelineForSettings.expert_user_id ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    patchPipelineExpertMutation.mutate({
+                      id: pipelineId,
+                      expert_user_id: v ? Number(v) : null,
+                    });
+                  }}
+                  disabled={patchPipelineExpertMutation.isPending}
+                  className="rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
+                >
+                  <option value="">— не назначен —</option>
+                  {(expertsQuery.data ?? []).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {(u.full_name || u.email).trim()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {pipelineId != null && sortedStages.length > 0 && (
+              <div className="mt-3 rounded-xl border border-slate-700/40 bg-slate-950/20 p-4">
+                <div className="text-sm font-semibold text-slate-200">Стадии этой воронки</div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDistributeOpen(true);
+                      if (sortedStages.length > 0) setDistributeStageId(sortedStages[0].id);
+                    }}
+                    className="rounded-xl border border-slate-700 bg-slate-900/40 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-800/40"
+                  >
+                    Распределить лиды
+                  </button>
+                </div>
+                <ul className="mt-2 divide-y divide-slate-700/40">
+                  {sortedStages.map((s) => (
+                    <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                      <span className="text-slate-300">
+                        <span className="font-mono text-xs text-slate-500">{s.id}</span> · {s.name}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={deleteStageMutation.isPending}
+                        onClick={() => {
+                          if (!window.confirm(`Удалить стадию «${s.name}»?`)) return;
+                          deleteStageMutation.mutate(s.id);
+                        }}
+                        className="rounded-lg border border-red-500/40 px-2 py-1 text-xs text-red-200 transition hover:bg-red-500/10 disabled:opacity-50"
+                      >
+                        Удалить
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {pipelinesQuery.data && pipelinesQuery.data.length > 1 && selectedPipelineForSettings && (
+                  <div className="mt-4 border-t border-slate-700/50 pt-3">
+                    <button
+                      type="button"
+                      disabled={deletePipelineMutation.isPending}
+                      onClick={() => {
+                        if (!window.confirm(`Удалить воронку «${selectedPipelineForSettings.name}» и все её стадии?`))
+                          return;
+                        deletePipelineMutation.mutate(pipelineId);
+                      }}
+                      className="rounded-lg border border-red-600/50 bg-red-950/30 px-3 py-1.5 text-sm text-red-200 transition hover:bg-red-950/50 disabled:opacity-50"
+                    >
+                      Удалить воронку целиком
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         {pipelinesQuery.data && pipelinesQuery.data.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-slate-400">Воронка:</span>
@@ -1259,151 +1393,6 @@ export function CrmPage() {
             >
               Список (все лиды)
             </button>
-          </div>
-        )}
-        {isCompanyAdmin && pipelineId != null && selectedPipelineForSettings && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="text-sm text-slate-400">Распределение новых лидов (интеграции, очередь записи):</span>
-            <select
-              id="crm-pipeline-lead-assignment"
-              name="lead_assignment_mode"
-              value={selectedPipelineForSettings.lead_assignment_mode ?? "none"}
-              onChange={(e) => {
-                patchPipelineMutation.mutate({ id: pipelineId, patch: { lead_assignment_mode: e.target.value } });
-              }}
-              disabled={patchPipelineMutation.isPending}
-              className="rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
-            >
-              <option value="none">Без автораспределения</option>
-              <option value="round_robin">По очереди (равномерно)</option>
-              <option value="least_loaded">По минимальной загрузке</option>
-            </select>
-          </div>
-        )}
-        {isCompanyAdmin && pipelineId != null && selectedPipelineForSettings && (
-          <div className="mt-2 flex flex-wrap flex-col gap-2 sm:flex-row sm:items-center">
-            <span className="text-sm text-slate-400">Менеджер приёма (создаёт лиды в этой воронке):</span>
-            <select
-              id="crm-pipeline-intake-manager"
-              name="intake_manager_user_id"
-              value={selectedPipelineForSettings.intake_manager_user_id ?? ""}
-              onChange={(e) => {
-                const v = e.target.value;
-                patchPipelineMutation.mutate({
-                  id: pipelineId,
-                  patch: { intake_manager_user_id: v ? Number(v) : null },
-                });
-              }}
-              disabled={patchPipelineMutation.isPending}
-              className="min-w-[240px] rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
-            >
-              <option value="">— не назначен —</option>
-              {(employeesQuery.data ?? [])
-                .filter((u) => u.role === "manager")
-                .map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {(u.full_name || u.email).trim()}
-                  </option>
-                ))}
-            </select>
-            <p className="text-xs text-slate-500">
-              Если выбран и включено распределение, лиды, которые он создаёт/импортирует, уйдут другим менеджерам этой
-              воронки (сам «приём» в очередь не попадает).
-            </p>
-          </div>
-        )}
-        {isCompanyAdmin && pipelineId != null && selectedPipelineForSettings && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="text-sm text-slate-400">Эксперт этой воронки:</span>
-            <select
-              id="crm-pipeline-expert"
-              name="expert_user_id"
-              value={selectedPipelineForSettings.expert_user_id ?? ""}
-              onChange={(e) => {
-                const v = e.target.value;
-                patchPipelineExpertMutation.mutate({
-                  id: pipelineId,
-                  expert_user_id: v ? Number(v) : null,
-                });
-              }}
-              disabled={patchPipelineExpertMutation.isPending}
-              className="rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
-            >
-              <option value="">— не назначен —</option>
-              {(expertsQuery.data ?? []).map((u) => (
-                <option key={u.id} value={u.id}>
-                  {(u.full_name || u.email).trim()}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        {isCompanyAdmin && pipelineId != null && sortedStages.length > 0 && (
-          <div className="mt-3 rounded-xl border border-slate-700/40 bg-slate-950/20 p-4">
-            <div className="text-sm font-semibold text-slate-200">Стадии этой воронки</div>
-            <p className="mt-1 text-xs text-slate-500">
-              Удаление возможно, только если на стадии нет лидов, сделок и интеграций, которые на неё ссылаются.
-            </p>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setDistributeOpen(true);
-                  if (sortedStages.length > 0) setDistributeStageId(sortedStages[0].id);
-                }}
-                className="rounded-xl border border-slate-700 bg-slate-900/40 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-800/40"
-              >
-                Распределить лиды
-              </button>
-              <p className="text-xs text-slate-500">
-                Назначит ответственных менеджеров всем лидам на выбранной стадии (только если менеджер ещё не назначен).
-              </p>
-            </div>
-            <ul className="mt-2 divide-y divide-slate-700/40">
-              {sortedStages.map((s) => (
-                <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                  <span className="text-slate-300">
-                    <span className="font-mono text-xs text-slate-500">{s.id}</span> · {s.name}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={deleteStageMutation.isPending}
-                    onClick={() => {
-                      if (
-                        !window.confirm(
-                          `Удалить стадию «${s.name}»? Убедитесь, что на ней нет лидов и что ни одна интеграция не создаёт лиды в эту стадию.`,
-                        )
-                      )
-                        return;
-                      deleteStageMutation.mutate(s.id);
-                    }}
-                    className="rounded-lg border border-red-500/40 px-2 py-1 text-xs text-red-200 transition hover:bg-red-500/10 disabled:opacity-50"
-                  >
-                    Удалить
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {pipelinesQuery.data && pipelinesQuery.data.length > 1 && selectedPipelineForSettings && (
-              <div className="mt-4 border-t border-slate-700/50 pt-3">
-                <button
-                  type="button"
-                  disabled={deletePipelineMutation.isPending}
-                  onClick={() => {
-                    if (
-                      !window.confirm(
-                        `Удалить воронку «${selectedPipelineForSettings.name}» и все её стадии? Стадии должны быть пустыми, интеграций на эту воронку быть не должно. Последнюю воронку удалить нельзя.`,
-                      )
-                    )
-                      return;
-                    deletePipelineMutation.mutate(pipelineId);
-                  }}
-                  className="rounded-lg border border-red-600/50 bg-red-950/30 px-3 py-1.5 text-sm text-red-200 transition hover:bg-red-950/50 disabled:opacity-50"
-                >
-                  Удалить воронку целиком
-                </button>
-              </div>
-            )}
           </div>
         )}
       </header>
