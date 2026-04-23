@@ -475,14 +475,13 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
         await conn.execute(
             text(
                 """UPDATE booking_directions bd
-                   SET pipeline_id = p.id
-                   FROM LATERAL (
-                       SELECT id
+                   SET pipeline_id = (
+                       SELECT p2.id
                        FROM pipelines p2
                        WHERE p2.company_id = bd.company_id
                        ORDER BY p2.id ASC
                        LIMIT 1
-                   ) p
+                   )
                    WHERE bd.pipeline_id IS NULL""",
             ),
         )
@@ -726,14 +725,13 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
         await conn.execute(
             text(
                 """UPDATE booking_directions bd
-                   SET pipeline_id = p.id
-                   FROM LATERAL (
-                       SELECT id
+                   SET pipeline_id = (
+                       SELECT p2.id
                        FROM pipelines p2
                        WHERE p2.company_id = bd.company_id
                        ORDER BY p2.id ASC
                        LIMIT 1
-                   ) p
+                   )
                    WHERE bd.pipeline_id IS NULL""",
             ),
         )
