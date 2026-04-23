@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models import UserRole
 from app.services.background_events import list_background_events
 from app.services.mail import send_email
+from app.schemas.email_types import RelaxedEmailStr
 from app.services.tariff import count_company_active_users, count_company_integrations
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -27,6 +28,13 @@ class SmtpConfigRead(BaseModel):
 
 class SmtpTestBody(BaseModel):
     to_email: str = Field(..., min_length=3, max_length=320)
+
+
+class DemoRequestBody(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=255)
+    phone: str = Field(..., min_length=7, max_length=32)
+    email: RelaxedEmailStr
+    message: str | None = Field(default=None, max_length=2000)
 
 
 @router.get("/smtp", response_model=SmtpConfigRead)
@@ -57,6 +65,45 @@ async def smtp_test(body: SmtpTestBody, current_user: CurrentUser) -> dict:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="SMTP test failed. Check SMTP_HOST/PORT/USER/PASSWORD/FROM and server network access.",
+        )
+    return {"ok": True}
+
+
+@router.post("/demo-request")
+async def demo_request(body: DemoRequestBody) -> dict:
+    target = (settings.demo_request_to_email or "").strip().lower()
+    if not target:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="DEMO_REQUEST_TO_EMAIL is not configured",
+        )
+    phone_norm = "".join(ch for ch in body.phone if ch.isdigit())
+    if len(phone_norm) < 7:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректный телефон")
+
+    subject = "Новая заявка на демо MetodiOne"
+    text = (
+        "Получена заявка с лендинга.\n\n"
+        f"ФИО: {body.full_name.strip()}\n"
+        f"Телефон: {body.phone.strip()}\n"
+        f"Email: {body.email}\n"
+        f"Сообщение: {(body.message or '').strip() or '-'}\n"
+    )
+    html_body = (
+        "<h2>Новая заявка на демо MetodiOne</h2>"
+        f"<p><b>ФИО:</b> {body.full_name.strip()}</p>"
+        f"<p><b>Телефон:</b> {body.phone.strip()}</p>"
+        f"<p><b>Email:</b> {body.email}</p>"
+        f"<p><b>Сообщение:</b> {(body.message or '').strip() or '-'}</p>"
+    )
+    ok = send_email(target, subject, text, html_body=html_body)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Не удалось отправить заявку. Проверьте SMTP_HOST/PORT/USER/PASSWORD/FROM "
+                "и доступ сервера к smtp.gmail.com."
+            ),
         )
     return {"ok": True}
 
