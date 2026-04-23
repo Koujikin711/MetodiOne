@@ -50,6 +50,17 @@ export function BarChart3(props: IconProps) {
   );
 }
 
+/** KPI / цель */
+export function Target(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
 /** Финансы / касса */
 export function Wallet(props: IconProps) {
   return (

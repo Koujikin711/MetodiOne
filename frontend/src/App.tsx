@@ -17,6 +17,7 @@ import { CompaniesPage } from "@/pages/CompaniesPage";
 import { CrmPage } from "@/pages/CrmPage";
 import { FinancePage } from "@/pages/FinancePage";
 import { IntegrationsHubPage } from "@/pages/IntegrationsHubPage";
+import { KpiPage } from "@/pages/KpiPage";
 import { OnboardingPage } from "@/pages/OnboardingPage";
 import { TasksPage } from "@/pages/TasksPage";
 
@@ -41,6 +42,7 @@ export default function App() {
                 </RequireOwner>
               }
             />
+            <Route path="/kpi" element={<KpiPage />} />
             <Route
               path="/finance"
               element={
