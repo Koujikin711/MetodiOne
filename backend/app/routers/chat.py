@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import exists, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentCompanyId, CurrentUser
@@ -137,10 +138,24 @@ async def _ensure_thread_read_baseline(db: AsyncSession, *, user_id: int, thread
         return row
     mx = await db.scalar(select(func.max(ChatMessage.id)).where(ChatMessage.thread_id == thread_id))
     last_id = int(mx or 0)
-    row = ChatThreadUserRead(user_id=user_id, thread_id=thread_id, last_read_message_id=last_id)
-    db.add(row)
-    await db.flush()
-    return row
+    try:
+        # Защита от гонки: параллельные запросы могут пытаться создать baseline одновременно.
+        async with db.begin_nested():
+            row = ChatThreadUserRead(user_id=user_id, thread_id=thread_id, last_read_message_id=last_id)
+            db.add(row)
+            await db.flush()
+            return row
+    except IntegrityError:
+        r2 = await db.execute(
+            select(ChatThreadUserRead).where(
+                ChatThreadUserRead.user_id == user_id,
+                ChatThreadUserRead.thread_id == thread_id,
+            )
+        )
+        existing = r2.scalars().first()
+        if existing is not None:
+            return existing
+        raise
 
 
 async def _unread_incoming_count(db: AsyncSession, *, user_id: int, thread_id: int) -> int:
@@ -169,7 +184,20 @@ async def _mark_thread_read_up_to_latest(db: AsyncSession, *, user_id: int, thre
     )
     row = r.scalars().first()
     if row is None:
-        db.add(ChatThreadUserRead(user_id=user_id, thread_id=thread_id, last_read_message_id=last_id))
+        try:
+            async with db.begin_nested():
+                db.add(ChatThreadUserRead(user_id=user_id, thread_id=thread_id, last_read_message_id=last_id))
+                await db.flush()
+        except IntegrityError:
+            r2 = await db.execute(
+                select(ChatThreadUserRead).where(
+                    ChatThreadUserRead.user_id == user_id,
+                    ChatThreadUserRead.thread_id == thread_id,
+                )
+            )
+            existing = r2.scalars().first()
+            if existing is not None:
+                existing.last_read_message_id = max(existing.last_read_message_id, last_id)
     else:
         row.last_read_message_id = max(row.last_read_message_id, last_id)
     await db.flush()
