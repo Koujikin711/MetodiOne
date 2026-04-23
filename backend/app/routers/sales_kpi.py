@@ -1,4 +1,4 @@
-"""KPI продаж: план по воронке (эксперт) и менеджерам, факт по оплатам записей за месяц."""
+"""KPI продаж: матрица план/факт по услугам и менеджерам."""
 
 from __future__ import annotations
 
@@ -19,19 +19,24 @@ from app.models import (
     Lead,
     Pipeline,
     PipelineStage,
-    SalesKpiPlan,
+    SalesKpiServicePlan,
+    SalesKpiServicePrice,
     User,
     UserPipelineAssignment,
     UserRole,
 )
 from app.schemas.sales_kpi import (
-    SalesKpiManagerOwnerRow,
-    SalesKpiManagerSnapshot,
-    SalesKpiOwnerDashboard,
+    SalesKpiDirectionMeta,
+    SalesKpiLeadPriceHint,
+    SalesKpiManagerCell,
+    SalesKpiManagerMatrix,
+    SalesKpiManagerRow,
+    SalesKpiMatrixPut,
+    SalesKpiOwnerMatrix,
     SalesKpiPipelineMeta,
-    SalesKpiPlansPut,
-    SalesKpiServiceSlice,
+    SalesKpiPriceHint,
 )
+from app.services.sales_kpi import get_kpi_service_price, month_start_from_datetime
 
 router = APIRouter(prefix="/sales-kpi", tags=["sales-kpi"])
 
@@ -45,40 +50,24 @@ def _parse_year_month(s: str) -> date:
     raise ValueError("year_month: ожидается YYYY-MM")
 
 
-def _month_range(ym: date) -> tuple[datetime, datetime]:
-    y, m = ym.year, ym.month
-    start = datetime(y, m, 1, tzinfo=UTC)
-    if m == 12:
-        end = datetime(y + 1, 1, 1, tzinfo=UTC)
+def _month_bounds(ym: date) -> tuple[datetime, datetime]:
+    start = datetime(ym.year, ym.month, 1, tzinfo=UTC)
+    if ym.month == 12:
+        end = datetime(ym.year + 1, 1, 1, tzinfo=UTC)
     else:
-        end = datetime(y, m + 1, 1, tzinfo=UTC)
+        end = datetime(ym.year, ym.month + 1, 1, tzinfo=UTC)
     return start, end
 
 
-def _days_in_month(ym: date) -> int:
-    return calendar.monthrange(ym.year, ym.month)[1]
-
-
-def _elapsed_days_for_pacing(ym: date, today: date) -> int:
-    if (today.year, today.month) < (ym.year, ym.month):
-        return 0
-    if (today.year, today.month) > (ym.year, ym.month):
-        return _days_in_month(ym)
-    return min(today.day, _days_in_month(ym))
-
-
 def _assert_kpi_access(current_user: CurrentUser) -> None:
-    if current_user.role == UserRole.finance_analyst:
+    if current_user.role in (UserRole.expert, UserRole.finance_analyst):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Раздел KPI недоступен для этой роли")
-    if current_user.role == UserRole.expert:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Раздел KPI недоступен для эксперта")
-    if current_user.role not in (
-        UserRole.owner,
-        UserRole.manager,
-        UserRole.admin,
-        UserRole.super_owner,
-    ):
+    if current_user.role not in (UserRole.owner, UserRole.super_owner, UserRole.manager, UserRole.admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к KPI")
+
+
+def _manager_expr():
+    return func.coalesce(BookingAppointment.responsible_manager_id, Lead.manager_id)
 
 
 async def _load_pipeline(db: AsyncSession, company_id: int, pipeline_id: int) -> Pipeline:
@@ -88,9 +77,7 @@ async def _load_pipeline(db: AsyncSession, company_id: int, pipeline_id: int) ->
     return pipe
 
 
-async def _user_assigned_to_pipeline(
-    db: AsyncSession, company_id: int, user_id: int, pipeline_id: int
-) -> bool:
+async def _is_user_assigned_pipeline(db: AsyncSession, company_id: int, user_id: int, pipeline_id: int) -> bool:
     n = await db.scalar(
         select(func.count(UserPipelineAssignment.id)).where(
             UserPipelineAssignment.company_id == company_id,
@@ -101,51 +88,10 @@ async def _user_assigned_to_pipeline(
     return int(n or 0) > 0
 
 
-def _manager_expr():
-    return func.coalesce(BookingAppointment.responsible_manager_id, Lead.manager_id)
-
-
-async def _paid_by_manager_and_direction(
-    db: AsyncSession,
-    company_id: int,
-    pipeline_id: int,
-    start: datetime,
-    end: datetime,
-) -> list[tuple[int | None, int, str, Decimal]]:
-    rows = (
-        await db.execute(
-            select(
-                _manager_expr(),
-                BookingDirection.id,
-                BookingDirection.name,
-                func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
-            )
-            .select_from(BookingAppointment)
-            .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
-            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
-            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
-            .where(
-                BookingAppointment.company_id == company_id,
-                BookingAppointment.start_at >= start,
-                BookingAppointment.start_at < end,
-                or_(
-                    BookingAppointment.pipeline_id == pipeline_id,
-                    PipelineStage.pipeline_id == pipeline_id,
-                ),
-            )
-            .group_by(_manager_expr(), BookingDirection.id, BookingDirection.name),
-        )
-    ).all()
-    out: list[tuple[int | None, int, str, Decimal]] = []
-    for mgr_id, did, dname, paid in rows:
-        out.append((mgr_id, int(did), str(dname or ""), Decimal(str(paid or 0))))
-    return out
-
-
-def _pct(numer: Decimal, denom: Decimal) -> float | None:
-    if denom <= 0:
+def _pct(part: Decimal, total: Decimal) -> float | None:
+    if total <= 0:
         return None
-    return float((numer / denom * Decimal("100")).quantize(Decimal("0.01")))
+    return float((part / total * Decimal("100")).quantize(Decimal("0.01")))
 
 
 @router.get("/pipelines", response_model=list[SalesKpiPipelineMeta])
@@ -174,111 +120,131 @@ async def list_kpi_pipelines(
             id=int(p.id),
             name=p.name,
             expert_user_id=p.expert_user_id,
-            expert_name=(fn or em) if (fn or em) else None,
+            expert_name=(full_name or email) if (full_name or email) else None,
         )
-        for p, fn, em in rows
+        for p, full_name, email in rows
     ]
 
 
-@router.get("/manager", response_model=SalesKpiManagerSnapshot)
-async def kpi_manager_snapshot(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: CurrentUser,
-    company_id: CurrentCompanyId,
-    pipeline_id: int = Query(..., ge=1),
-    year_month: str = Query(..., description="YYYY-MM"),
-) -> SalesKpiManagerSnapshot:
-    _assert_kpi_access(current_user)
-    if current_user.role in (UserRole.owner, UserRole.super_owner):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Для владельца используйте /sales-kpi/owner-dashboard",
-        )
-    pipe = await _load_pipeline(db, company_id, pipeline_id)
-    if not await _user_assigned_to_pipeline(db, company_id, current_user.id, pipeline_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Вы не назначены на эту воронку")
-
-    try:
-        ym = _parse_year_month(year_month)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    start, end = _month_range(ym)
-    days = _days_in_month(ym)
-    today = datetime.now(UTC).date()
-    elapsed = _elapsed_days_for_pacing(ym, today)
-
-    expert = await db.get(User, pipe.expert_user_id) if pipe.expert_user_id else None
-    expert_name = (expert.full_name or expert.email) if expert else None
-
-    plan_row = (
+async def _load_directions_for_pipeline(
+    db: AsyncSession,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> list[SalesKpiDirectionMeta]:
+    all_dir_rows = (
         await db.execute(
-            select(SalesKpiPlan).where(
-                SalesKpiPlan.company_id == company_id,
-                SalesKpiPlan.pipeline_id == pipeline_id,
-                SalesKpiPlan.year_month == ym,
-                SalesKpiPlan.manager_user_id == current_user.id,
+            select(BookingDirection.id, BookingDirection.name)
+            .where(BookingDirection.company_id == company_id, BookingDirection.is_active.is_(True))
+            .order_by(BookingDirection.name.asc()),
+        )
+    ).all()
+    prices = (
+        await db.execute(
+            select(SalesKpiServicePrice.direction_id, SalesKpiServicePrice.unit_price).where(
+                SalesKpiServicePrice.company_id == company_id,
+                SalesKpiServicePrice.pipeline_id == pipeline_id,
+                SalesKpiServicePrice.year_month == ym,
             ),
         )
-    ).scalar_one_or_none()
-    plan_amount: Decimal | None = None
-    if plan_row is not None:
-        plan_amount = Decimal(str(plan_row.plan_amount))
-
-    slices = await _paid_by_manager_and_direction(db, company_id, pipeline_id, start, end)
-    actual = Decimal("0")
-    for mgr_id, _d, _n, paid in slices:
-        if mgr_id == current_user.id:
-            actual += paid
-
-    linear_target = Decimal("0")
-    if plan_amount is not None and plan_amount > 0 and days > 0 and elapsed > 0:
-        linear_target = (plan_amount * Decimal(elapsed) / Decimal(days)).quantize(Decimal("0.01"))
-
-    daily = (plan_amount / Decimal(days)).quantize(Decimal("0.01")) if plan_amount and days else Decimal("0")
-
-    return SalesKpiManagerSnapshot(
-        pipeline_id=pipe.id,
-        pipeline_name=pipe.name,
-        expert_user_id=pipe.expert_user_id,
-        expert_name=expert_name,
-        year_month=ym.isoformat()[:7],
-        days_in_month=days,
-        elapsed_days_for_pacing=elapsed,
-        daily_plan=daily,
-        plan_amount=plan_amount,
-        actual_paid=actual,
-        month_progress_percent=_pct(actual, plan_amount) if plan_amount is not None else None,
-        linear_target_to_date=linear_target,
-        pace_percent=_pct(actual, linear_target) if linear_target > 0 else None,
-    )
+    ).all()
+    price_map = {int(direction_id): Decimal(str(unit_price or 0)) for direction_id, unit_price in prices}
+    out: list[SalesKpiDirectionMeta] = []
+    for direction_id, direction_name in all_dir_rows:
+        did = int(direction_id)
+        out.append(
+            SalesKpiDirectionMeta(
+                direction_id=did,
+                direction_name=str(direction_name),
+                unit_price=price_map.get(did, Decimal("0")),
+            ),
+        )
+    return out
 
 
-@router.get("/owner-dashboard", response_model=SalesKpiOwnerDashboard)
-async def kpi_owner_dashboard(
+async def _load_facts(
+    db: AsyncSession,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> dict[tuple[int, int], tuple[Decimal, int]]:
+    start, end = _month_bounds(ym)
+    rows = (
+        await db.execute(
+            select(
+                _manager_expr(),
+                BookingAppointment.direction_id,
+                func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
+                func.count(BookingAppointment.id),
+            )
+            .select_from(BookingAppointment)
+            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.start_at >= start,
+                BookingAppointment.start_at < end,
+                or_(
+                    BookingAppointment.pipeline_id == pipeline_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                ),
+            )
+            .group_by(_manager_expr(), BookingAppointment.direction_id),
+        )
+    ).all()
+    out: dict[tuple[int, int], tuple[Decimal, int]] = {}
+    for manager_id, direction_id, paid_sum, cnt in rows:
+        if manager_id is None:
+            continue
+        out[(int(manager_id), int(direction_id))] = (Decimal(str(paid_sum or 0)), int(cnt or 0))
+    return out
+
+
+async def _load_plan_qtys(
+    db: AsyncSession,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> dict[tuple[int, int], int]:
+    rows = (
+        await db.execute(
+            select(
+                SalesKpiServicePlan.manager_user_id,
+                SalesKpiServicePlan.direction_id,
+                SalesKpiServicePlan.plan_qty,
+            ).where(
+                SalesKpiServicePlan.company_id == company_id,
+                SalesKpiServicePlan.pipeline_id == pipeline_id,
+                SalesKpiServicePlan.year_month == ym,
+            ),
+        )
+    ).all()
+    return {(int(mid), int(did)): int(qty or 0) for mid, did, qty in rows}
+
+
+@router.get("/owner-matrix", response_model=SalesKpiOwnerMatrix)
+async def owner_matrix(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
     pipeline_id: int = Query(..., ge=1),
     year_month: str = Query(..., description="YYYY-MM"),
-) -> SalesKpiOwnerDashboard:
+) -> SalesKpiOwnerMatrix:
     _assert_kpi_access(current_user)
     if current_user.role not in (UserRole.owner, UserRole.super_owner):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец компании")
-
     pipe = await _load_pipeline(db, company_id, pipeline_id)
     try:
         ym = _parse_year_month(year_month)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    start, end = _month_range(ym)
-    days = _days_in_month(ym)
-    today = datetime.now(UTC).date()
-    elapsed = _elapsed_days_for_pacing(ym, today)
 
-    expert = await db.get(User, pipe.expert_user_id) if pipe.expert_user_id else None
-    expert_name = (expert.full_name or expert.email) if expert else None
+    directions = await _load_directions_for_pipeline(db, company_id, pipeline_id, ym)
+    price_by_dir = {d.direction_id: d.unit_price for d in directions}
+    fact_map = await _load_facts(db, company_id, pipeline_id, ym)
+    plan_qty_map = await _load_plan_qtys(db, company_id, pipeline_id, ym)
 
-    mgr_rows = (
+    manager_rows = (
         await db.execute(
             select(User.id, User.full_name, User.email)
             .join(
@@ -296,91 +262,114 @@ async def kpi_owner_dashboard(
         )
     ).all()
 
-    manager_ids = {int(r[0]) for r in mgr_rows}
-
-    plan_rows = (
-        await db.execute(
-            select(SalesKpiPlan).where(
-                SalesKpiPlan.company_id == company_id,
-                SalesKpiPlan.pipeline_id == pipeline_id,
-                SalesKpiPlan.year_month == ym,
-            ),
-        )
-    ).scalars().all()
-    plan_by_mgr: dict[int, Decimal] = {int(p.manager_user_id): Decimal(str(p.plan_amount)) for p in plan_rows}
-
-    slices = await _paid_by_manager_and_direction(db, company_id, pipeline_id, start, end)
-    actual_by_mgr: dict[int, Decimal] = {}
-    by_mgr_dir: dict[int, dict[int, tuple[str, Decimal]]] = {}
-    for mgr_id, did, dname, paid in slices:
-        if mgr_id is None:
-            continue
-        mid = int(mgr_id)
-        actual_by_mgr[mid] = actual_by_mgr.get(mid, Decimal("0")) + paid
-        by_mgr_dir.setdefault(mid, {})[did] = (dname, paid)
-
-    for mid, amt in list(actual_by_mgr.items()):
-        if mid not in manager_ids and amt > 0:
-            u = await db.get(User, mid)
-            if u is not None and u.company_id == company_id:
-                mgr_rows.append((u.id, u.full_name, u.email))
-                manager_ids.add(mid)
-
-    managers_out: list[SalesKpiManagerOwnerRow] = []
-    for mid, fn, em in sorted(mgr_rows, key=lambda x: ((x[1] or x[2] or "").lower(), x[0])):
-        mid_i = int(mid)
-        name = fn or em or f"#{mid_i}"
-        plan_amt = plan_by_mgr.get(mid_i, Decimal("0"))
-        act = actual_by_mgr.get(mid_i, Decimal("0"))
-        linear_target = Decimal("0")
-        if plan_amt > 0 and days > 0 and elapsed > 0:
-            linear_target = (plan_amt * Decimal(elapsed) / Decimal(days)).quantize(Decimal("0.01"))
-
-        svc_slices: list[SalesKpiServiceSlice] = []
-        for did, (dname, paid) in sorted(
-            by_mgr_dir.get(mid_i, {}).items(),
-            key=lambda x: (-x[1][1], x[1][0]),
-        ):
-            svc_slices.append(
-                SalesKpiServiceSlice(
-                    direction_id=did,
-                    direction_name=dname,
-                    paid_amount=paid,
-                    percent_of_plan=_pct(paid, plan_amt) if plan_amt > 0 else None,
-                ),
+    managers: list[SalesKpiManagerRow] = []
+    for manager_id, full_name, email in manager_rows:
+        mid = int(manager_id)
+        manager_name = (full_name or email or f"#{mid}")
+        cells: list[SalesKpiManagerCell] = []
+        total_plan = Decimal("0")
+        total_actual = Decimal("0")
+        for d in directions:
+            plan_qty = plan_qty_map.get((mid, d.direction_id), 0)
+            plan_amount = (Decimal(plan_qty) * d.unit_price).quantize(Decimal("0.01"))
+            actual_paid, actual_count = fact_map.get((mid, d.direction_id), (Decimal("0"), 0))
+            total_plan += plan_amount
+            total_actual += actual_paid
+            cells.append(
+                SalesKpiManagerCell(
+                    direction_id=d.direction_id,
+                    plan_qty=plan_qty,
+                    plan_amount=plan_amount,
+                    actual_paid=actual_paid,
+                    actual_count=actual_count,
+                    progress_percent=_pct(actual_paid, plan_amount),
+                )
             )
-
-        managers_out.append(
-            SalesKpiManagerOwnerRow(
-                manager_id=mid_i,
-                manager_name=name,
-                plan_amount=plan_amt,
-                actual_paid=act,
-                month_progress_percent=_pct(act, plan_amt) if plan_amt > 0 else None,
-                linear_target_to_date=linear_target,
-                pace_percent=_pct(act, linear_target) if linear_target > 0 else None,
-                by_service=svc_slices,
-            ),
+        managers.append(
+            SalesKpiManagerRow(
+                manager_id=mid,
+                manager_name=manager_name,
+                total_plan_amount=total_plan,
+                total_actual_paid=total_actual,
+                total_progress_percent=_pct(total_actual, total_plan),
+                cells=cells,
+            )
         )
 
-    return SalesKpiOwnerDashboard(
+    return SalesKpiOwnerMatrix(
         pipeline_id=pipe.id,
         pipeline_name=pipe.name,
-        expert_user_id=pipe.expert_user_id,
-        expert_name=expert_name,
         year_month=ym.isoformat()[:7],
-        days_in_month=days,
-        elapsed_days_for_pacing=elapsed,
-        managers=managers_out,
+        directions=directions,
+        managers=managers,
     )
 
 
-@router.put("/plans", status_code=status.HTTP_204_NO_CONTENT)
-async def put_kpi_plans(
+@router.get("/manager-matrix", response_model=SalesKpiManagerMatrix)
+async def manager_matrix(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
-    body: SalesKpiPlansPut,
+    pipeline_id: int = Query(..., ge=1),
+    year_month: str = Query(..., description="YYYY-MM"),
+) -> SalesKpiManagerMatrix:
+    _assert_kpi_access(current_user)
+    if current_user.role not in (UserRole.manager, UserRole.admin):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только менеджер или админ воронки")
+    pipe = await _load_pipeline(db, company_id, pipeline_id)
+    if not await _is_user_assigned_pipeline(db, company_id, current_user.id, pipeline_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Вы не назначены на эту воронку")
+    try:
+        ym = _parse_year_month(year_month)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    directions = await _load_directions_for_pipeline(db, company_id, pipeline_id, ym)
+    fact_map = await _load_facts(db, company_id, pipeline_id, ym)
+    plan_qty_map = await _load_plan_qtys(db, company_id, pipeline_id, ym)
+    cells: list[SalesKpiManagerCell] = []
+    total_plan = Decimal("0")
+    total_actual = Decimal("0")
+    for d in directions:
+        plan_qty = plan_qty_map.get((current_user.id, d.direction_id), 0)
+        plan_amount = (Decimal(plan_qty) * d.unit_price).quantize(Decimal("0.01"))
+        actual_paid, actual_count = fact_map.get((current_user.id, d.direction_id), (Decimal("0"), 0))
+        total_plan += plan_amount
+        total_actual += actual_paid
+        cells.append(
+            SalesKpiManagerCell(
+                direction_id=d.direction_id,
+                plan_qty=plan_qty,
+                plan_amount=plan_amount,
+                actual_paid=actual_paid,
+                actual_count=actual_count,
+                progress_percent=_pct(actual_paid, plan_amount),
+            )
+        )
+
+    manager_name = (current_user.full_name or current_user.email or f"#{current_user.id}")
+    return SalesKpiManagerMatrix(
+        pipeline_id=pipe.id,
+        pipeline_name=pipe.name,
+        year_month=ym.isoformat()[:7],
+        directions=directions,
+        manager=SalesKpiManagerRow(
+            manager_id=current_user.id,
+            manager_name=manager_name,
+            total_plan_amount=total_plan,
+            total_actual_paid=total_actual,
+            total_progress_percent=_pct(total_actual, total_plan),
+            cells=cells,
+        ),
+    )
+
+
+@router.put("/matrix", status_code=status.HTTP_204_NO_CONTENT)
+async def put_matrix(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    body: SalesKpiMatrixPut,
 ) -> None:
     _assert_kpi_access(current_user)
     if current_user.role not in (UserRole.owner, UserRole.super_owner):
@@ -392,32 +381,140 @@ async def put_kpi_plans(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     await db.execute(
-        delete(SalesKpiPlan).where(
-            SalesKpiPlan.company_id == company_id,
-            SalesKpiPlan.pipeline_id == body.pipeline_id,
-            SalesKpiPlan.year_month == ym,
-        ),
+        delete(SalesKpiServicePrice).where(
+            SalesKpiServicePrice.company_id == company_id,
+            SalesKpiServicePrice.pipeline_id == body.pipeline_id,
+            SalesKpiServicePrice.year_month == ym,
+        )
+    )
+    await db.execute(
+        delete(SalesKpiServicePlan).where(
+            SalesKpiServicePlan.company_id == company_id,
+            SalesKpiServicePlan.pipeline_id == body.pipeline_id,
+            SalesKpiServicePlan.year_month == ym,
+        )
     )
 
-    for row in body.plans:
-        if row.plan_amount <= 0:
+    for p in body.prices:
+        if p.unit_price <= 0:
             continue
-        u = await db.get(User, row.manager_user_id)
-        if u is None or u.company_id != company_id:
-            raise HTTPException(status_code=400, detail=f"Пользователь {row.manager_user_id} не в компании")
-        if not await _user_assigned_to_pipeline(db, company_id, row.manager_user_id, body.pipeline_id):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Менеджер {row.manager_user_id} не назначен на эту воронку — добавьте направление в карточке сотрудника",
-            )
+        d = await db.get(BookingDirection, p.direction_id)
+        if d is None or d.company_id != company_id:
+            raise HTTPException(status_code=400, detail=f"Неизвестное направление: {p.direction_id}")
         db.add(
-            SalesKpiPlan(
+            SalesKpiServicePrice(
                 company_id=company_id,
                 pipeline_id=body.pipeline_id,
                 year_month=ym,
-                manager_user_id=row.manager_user_id,
-                expert_user_id=pipe.expert_user_id,
-                plan_amount=row.plan_amount,
-            ),
+                direction_id=p.direction_id,
+                unit_price=p.unit_price,
+            )
         )
+
+    for m in body.managers:
+        u = await db.get(User, m.manager_user_id)
+        if u is None or u.company_id != company_id:
+            raise HTTPException(status_code=400, detail=f"Пользователь {m.manager_user_id} не найден в компании")
+        if not await _is_user_assigned_pipeline(db, company_id, m.manager_user_id, body.pipeline_id):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Менеджер {m.manager_user_id} не назначен на выбранную воронку",
+            )
+        for c in m.cells:
+            if c.plan_qty <= 0:
+                continue
+            d = await db.get(BookingDirection, c.direction_id)
+            if d is None or d.company_id != company_id:
+                raise HTTPException(status_code=400, detail=f"Неизвестное направление: {c.direction_id}")
+            db.add(
+                SalesKpiServicePlan(
+                    company_id=company_id,
+                    pipeline_id=body.pipeline_id,
+                    year_month=ym,
+                    manager_user_id=m.manager_user_id,
+                    direction_id=c.direction_id,
+                    plan_qty=c.plan_qty,
+                    expert_user_id=pipe.expert_user_id,
+                )
+            )
+
     await db.commit()
+
+
+@router.get("/price-hint", response_model=SalesKpiPriceHint)
+async def price_hint(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    pipeline_id: int = Query(..., ge=1),
+    direction_id: int = Query(..., ge=1),
+    start_at: datetime = Query(...),
+) -> SalesKpiPriceHint:
+    _assert_kpi_access(current_user)
+    pipe = await _load_pipeline(db, company_id, pipeline_id)
+    _ = pipe
+    direction = await db.get(BookingDirection, direction_id)
+    if direction is None or direction.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Направление не найдено")
+    fixed = await get_kpi_service_price(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        direction_id=direction_id,
+        at_datetime=start_at if start_at.tzinfo else start_at.replace(tzinfo=UTC),
+    )
+    ym = month_start_from_datetime(start_at if start_at.tzinfo else start_at.replace(tzinfo=UTC))
+    return SalesKpiPriceHint(
+        fixed_price=fixed,
+        year_month=ym.isoformat()[:7],
+        direction_id=direction_id,
+        direction_name=direction.name,
+        start_at=start_at,
+    )
+
+
+@router.get("/lead-price-hint", response_model=SalesKpiLeadPriceHint)
+async def lead_price_hint(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    lead_id: int = Query(..., ge=1),
+) -> SalesKpiLeadPriceHint:
+    _assert_kpi_access(current_user)
+    lead = await db.get(Lead, lead_id)
+    if lead is None or lead.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Лид не найден")
+    await db.refresh(lead, ["stage"])
+    pipeline_id = lead.stage.pipeline_id if lead.stage else None
+    if pipeline_id is None:
+        return SalesKpiLeadPriceHint(fixed_price=None, year_month=datetime.now(UTC).strftime("%Y-%m"))
+    last_appt = (
+        await db.execute(
+            select(BookingAppointment)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.lead_id == lead_id,
+                BookingAppointment.direction_id.is_not(None),
+            )
+            .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc())
+            .limit(1),
+        )
+    ).scalars().first()
+    if last_appt is None:
+        return SalesKpiLeadPriceHint(fixed_price=None, year_month=datetime.now(UTC).strftime("%Y-%m"))
+    at_dt = last_appt.start_at if last_appt.start_at.tzinfo else last_appt.start_at.replace(tzinfo=UTC)
+    fixed = await get_kpi_service_price(
+        db,
+        company_id=company_id,
+        pipeline_id=int(pipeline_id),
+        direction_id=int(last_appt.direction_id),
+        at_datetime=at_dt,
+    )
+    direction = await db.get(BookingDirection, int(last_appt.direction_id))
+    ym = month_start_from_datetime(at_dt)
+    return SalesKpiLeadPriceHint(
+        fixed_price=fixed,
+        year_month=ym.isoformat()[:7],
+        direction_id=int(last_appt.direction_id),
+        direction_name=direction.name if direction else None,
+    )

@@ -41,6 +41,7 @@ from app.schemas.lead import LeadRead
 from app.services.automation import process_lead_automation
 from app.services.audit import write_audit_event
 from app.services.lead_assignment import assign_manager_for_new_lead
+from app.services.sales_kpi import get_kpi_service_price
 from app.services.whatsapp_automation import send_booking_confirmation_if_needed
 
 router = APIRouter(prefix="/booking", tags=["booking"])
@@ -734,6 +735,20 @@ async def create_appointment(
                 await db.refresh(lead, ["stage"])
                 appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
 
+    service_amount_value = float(body.service_amount)
+    if appointment_pipeline_id is not None:
+        fixed_price = await get_kpi_service_price(
+            db,
+            company_id=company_id,
+            pipeline_id=int(appointment_pipeline_id),
+            direction_id=body.direction_id,
+            at_datetime=start_at,
+        )
+        if fixed_price is not None:
+            service_amount_value = float(fixed_price)
+    if float(body.paid_amount or 0) > float(service_amount_value):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Оплата не может быть больше стоимости услуги")
+
     now = datetime.now(UTC)
     appt = BookingAppointment(
         company_id=company_id,
@@ -746,7 +761,7 @@ async def create_appointment(
         start_at=start_at,
         end_at=end_at,
         status="booked",
-        service_amount=body.service_amount,
+        service_amount=service_amount_value,
         paid_amount=body.paid_amount,
         responsible_manager_id=body.responsible_manager_id,
         created_by_user_id=current_user.id,

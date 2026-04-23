@@ -13,7 +13,14 @@ import {
   ymdInBookingTz,
   zonedWallTimeToUtcMs,
 } from "@/lib/bookingTz";
-import type { BookingAppointment, BookingSpecialist, FinanceJournalEntryDetail, Lead, LeadAuditEvent } from "@/lib/types";
+import type {
+  BookingAppointment,
+  BookingSpecialist,
+  FinanceJournalEntryDetail,
+  Lead,
+  LeadAuditEvent,
+  SalesKpiLeadPriceHint,
+} from "@/lib/types";
 
 export function LeadDetailPage() {
   const { id } = useParams();
@@ -71,9 +78,16 @@ export function LeadDetailPage() {
     queryFn: () => apiFetch<Lead>(`/api/leads/${leadId}`),
     enabled: Number.isFinite(leadId) && leadId > 0,
   });
+  const leadPriceHintQuery = useQuery({
+    queryKey: ["lead-kpi-price-hint", leadId],
+    queryFn: () => apiFetch<SalesKpiLeadPriceHint>(`/api/sales-kpi/lead-price-hint?lead_id=${leadId}`),
+    enabled: Number.isFinite(leadId) && leadId > 0,
+  });
+  const fixedCloseAmount =
+    leadPriceHintQuery.data?.fixed_price != null ? Number(leadPriceHintQuery.data.fixed_price) : null;
 
   const closeDealMutation = useMutation({
-    mutationFn: async (body: { amount: number; paid_amount: number }) =>
+    mutationFn: async (body: { amount?: number; paid_amount: number }) =>
       apiFetch<Lead>(`/api/leads/${leadId}/close-deal`, {
         method: "POST",
         body: JSON.stringify(body),
@@ -571,21 +585,29 @@ export function LeadDetailPage() {
           >
             <h3 className="text-lg font-semibold text-white">Закрыть сделку</h3>
             <p className="mt-2 text-sm text-slate-400">
-              Укажите стоимость услуги и фактическую оплату. Лид будет переведён на стадию успешного закрытия. Повторно
-              закрыть того же лида нельзя.
+              {fixedCloseAmount != null
+                ? "Для последней услуги по этому лиду цена зафиксирована в KPI. Укажите только фактическую оплату."
+                : "Укажите стоимость услуги и фактическую оплату. Лид будет переведён на стадию успешного закрытия."}{" "}
+              Повторно закрыть того же лида нельзя.
             </p>
             <div className="mt-4 grid gap-3">
-              <label className="text-sm text-slate-300">
-                Стоимость услуги
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={closeAmount}
-                  onChange={(e) => setCloseAmount(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
-                />
-              </label>
+              {fixedCloseAmount != null ? (
+                <div className="rounded-xl border border-emerald-600/40 bg-emerald-900/10 px-3 py-2 text-sm text-emerald-300">
+                  Цена по KPI: {fixedCloseAmount.toLocaleString("ru-RU")}
+                </div>
+              ) : (
+                <label className="text-sm text-slate-300">
+                  Стоимость услуги
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={closeAmount}
+                    onChange={(e) => setCloseAmount(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  />
+                </label>
+              )}
               <label className="text-sm text-slate-300">
                 Оплачено фактически
                 <input
@@ -610,10 +632,18 @@ export function LeadDetailPage() {
                 type="button"
                 disabled={closeDealMutation.isPending}
                 onClick={() => {
-                  const amount = Number(closeAmount);
+                  const amount = fixedCloseAmount ?? Number(closeAmount);
                   const paid = Number(closePaid);
-                  if (!Number.isFinite(amount) || amount < 0 || !Number.isFinite(paid) || paid < 0) {
+                  if (!Number.isFinite(paid) || paid < 0) {
                     toast.error("Введите неотрицательные числа");
+                    return;
+                  }
+                  if (!Number.isFinite(amount) || amount < 0) {
+                    toast.error("Укажите стоимость услуги");
+                    return;
+                  }
+                  if (fixedCloseAmount != null) {
+                    closeDealMutation.mutate({ paid_amount: paid });
                     return;
                   }
                   closeDealMutation.mutate({ amount, paid_amount: paid });
