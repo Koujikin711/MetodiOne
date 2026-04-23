@@ -155,7 +155,7 @@ export function MainLayout() {
   }, [location.pathname, userId]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-900">
+    <div className="relative h-screen overflow-hidden bg-slate-900">
       <div
         className="pointer-events-none fixed inset-0 bg-gradient-to-br from-indigo-600/35 via-purple-600/25 to-pink-500/20"
         aria-hidden
@@ -171,8 +171,8 @@ export function MainLayout() {
         aria-hidden
       />
 
-      <div className="relative z-10 flex min-h-screen flex-col sm:flex-row">
-        <aside className="print:hidden hidden w-[5.5rem] shrink-0 border-r border-slate-700/40 bg-slate-950/55 py-6 shadow-2xl backdrop-blur-xl sm:flex sm:flex-col">
+      <div className="relative z-10 flex h-screen min-h-0 flex-col sm:flex-row">
+        <aside className="print:hidden hidden h-screen w-[5.5rem] shrink-0 border-r border-slate-700/40 bg-slate-950/55 py-6 shadow-2xl backdrop-blur-xl sm:flex sm:flex-col">
           <div className="mr-2 flex flex-col items-center gap-1 px-1 sm:mb-6 sm:mr-0">
             <MetodiBrandMark className="h-10 w-10" />
             <span className="hidden max-w-[4.5rem] text-center text-[9px] font-medium leading-tight text-slate-500 sm:block">
@@ -363,7 +363,7 @@ export function MainLayout() {
           </div>
         </aside>
 
-        <main className="relative flex-1 overflow-auto px-3 py-4 pb-24 sm:px-10 sm:py-10 sm:pb-10 lg:px-14">
+        <main className="relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-24 sm:px-10 sm:py-10 sm:pb-10 lg:px-14">
           <AppBanners />
           <Outlet />
         </main>
