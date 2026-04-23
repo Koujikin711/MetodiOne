@@ -119,6 +119,7 @@ export function LeadDetailPage() {
   const role = decodeRoleFromToken(getStoredToken());
   const canRejectLead = role === "owner" || role === "admin" || role === "manager";
   const canEditLeadProfile = role === "owner" || role === "admin";
+  const canDeleteLead = role === "owner";
   const canEditBooking = role !== "expert";
   const homeLink = role === "manager" || role === "admin" ? "/crm" : "/";
   const homeLabel = "Канбан";
@@ -225,6 +226,19 @@ export function LeadDetailPage() {
       void qc.invalidateQueries({ queryKey: ["booking-appointments-by-lead", leadId] });
     },
     onError: (e: Error) => toast.error(e.message || "Не удалось обновить карточку"),
+  });
+  const deleteLeadMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<void>(`/api/leads/${leadId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      toast.success("Клиент удалён");
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+      void qc.invalidateQueries({ queryKey: ["leads-table"] });
+      window.location.href = "/crm";
+    },
+    onError: (e: Error) => toast.error(e.message || "Не удалось удалить клиента"),
   });
 
   function openEditLeadModal() {
@@ -569,6 +583,21 @@ export function LeadDetailPage() {
                   </li>
                 ))}
               </ul>
+            </section>
+          ) : null}
+          {canDeleteLead ? (
+            <section className="mt-8 border-t border-slate-700/50 pt-6">
+              <button
+                type="button"
+                disabled={deleteLeadMutation.isPending}
+                onClick={() => {
+                  if (!window.confirm("Удалить клиента полностью? Действие необратимо.")) return;
+                  deleteLeadMutation.mutate();
+                }}
+                className="rounded-xl border border-rose-600/50 bg-rose-950/40 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:border-rose-400/60 hover:bg-rose-900/30 disabled:opacity-50"
+              >
+                {deleteLeadMutation.isPending ? "Удаление..." : "Удалить клиента"}
+              </button>
             </section>
           ) : null}
         </article>

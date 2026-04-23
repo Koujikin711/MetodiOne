@@ -457,8 +457,14 @@ async def delete_direction(
     d = await db.get(BookingDirection, direction_id)
     if d is None or d.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
-    d.is_active = False
-    await db.flush()
+    await db.delete(d)
+    try:
+        await db.flush()
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Нельзя удалить услугу: есть связанные записи/специалисты. Сначала удалите или перенесите их.",
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
