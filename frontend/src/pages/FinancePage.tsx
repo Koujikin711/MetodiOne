@@ -35,11 +35,33 @@ import type {
   FinanceCashFlowReport,
 } from "@/lib/types";
 
-const moneyFmt = new Intl.NumberFormat("ru-RU", {
+type FinanceDisplayCurrency = "TJS" | "RUB" | "USD";
+
+let _moneyDisplayCurrency: FinanceDisplayCurrency = "TJS";
+let _moneyDisplayRate = 1;
+let _moneyFmtIntl = new Intl.NumberFormat("ru-RU", {
   style: "currency",
-  currency: "RUB",
+  currency: _moneyDisplayCurrency,
   maximumFractionDigits: 2,
 });
+
+function setMoneyDisplay(currency: FinanceDisplayCurrency, rate: number) {
+  _moneyDisplayCurrency = currency;
+  _moneyDisplayRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
+  _moneyFmtIntl = new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  });
+}
+
+const moneyFmt = {
+  format(value: number) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return String(value);
+    return _moneyFmtIntl.format(n * _moneyDisplayRate);
+  },
+};
 
 function parseMoney(s: string) {
   const n = Number(s);
@@ -120,6 +142,35 @@ export function FinancePage() {
   const [fcHorizon, setFcHorizon] = useState(3);
   const [drillAccountId, setDrillAccountId] = useState(0);
   const [statementsTab, setStatementsTab] = useState<StatementsTab>("opiu");
+  const [displayCurrency, setDisplayCurrency] = useState<FinanceDisplayCurrency>(() => {
+    const raw = (typeof window !== "undefined" ? window.localStorage.getItem("finance_display_currency") : null) || "TJS";
+    if (raw === "RUB" || raw === "USD" || raw === "TJS") return raw;
+    return "TJS";
+  });
+
+  const fxRateQuery = useQuery({
+    queryKey: ["finance-display-fx", displayCurrency],
+    queryFn: async () => {
+      if (displayCurrency === "TJS") return 1;
+      const res = await fetch("https://open.er-api.com/v6/latest/TJS");
+      if (!res.ok) throw new Error("Не удалось получить курс валют");
+      const data = (await res.json()) as { rates?: Record<string, number> };
+      const next = Number(data.rates?.[displayCurrency]);
+      if (!Number.isFinite(next) || next <= 0) throw new Error("Не найден курс для выбранной валюты");
+      return next;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("finance_display_currency", displayCurrency);
+    }
+  }, [displayCurrency]);
+
+  useEffect(() => {
+    setMoneyDisplay(displayCurrency, fxRateQuery.data ?? 1);
+  }, [displayCurrency, fxRateQuery.data]);
 
   const settingsQuery = useQuery({
     queryKey: ["finance-settings"],
@@ -791,14 +842,38 @@ export function FinancePage() {
             финансовый аналитик — просмотр и отчёты без изменений.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => refetchAll()}
-          className="shrink-0 rounded-xl border border-slate-600/60 px-4 py-2 text-sm text-slate-200 hover:bg-white/5"
-        >
-          Обновить данные
-        </button>
+        <div className="flex items-end gap-2">
+          <label className="flex flex-col gap-1 text-xs text-slate-400">
+            Валюта отображения
+            <select
+              value={displayCurrency}
+              onChange={(e) => setDisplayCurrency(e.target.value as FinanceDisplayCurrency)}
+              className="rounded-xl border border-slate-600/60 bg-slate-900/60 px-3 py-2 text-sm text-white"
+            >
+              <option value="TJS">TJS</option>
+              <option value="RUB">RUB</option>
+              <option value="USD">USD</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => refetchAll()}
+            className="shrink-0 rounded-xl border border-slate-600/60 px-4 py-2 text-sm text-slate-200 hover:bg-white/5"
+          >
+            Обновить данные
+          </button>
+        </div>
       </header>
+      {displayCurrency !== "TJS" ? (
+        <p className="text-xs text-slate-500">
+          Курс для отображения: 1 TJS = {Number(fxRateQuery.data ?? 1).toFixed(4)} {displayCurrency}
+        </p>
+      ) : null}
+      {fxRateQuery.isError ? (
+        <p className="text-xs text-amber-300">
+          {(fxRateQuery.error as Error).message}. Используется 1:1 до обновления курса.
+        </p>
+      ) : null}
 
       {readOnlyFinance ? (
         <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-50">

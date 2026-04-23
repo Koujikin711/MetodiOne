@@ -126,7 +126,7 @@ export function KpiPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-white">KPI продаж</h1>
         <p className="text-sm text-slate-400">
           Месячная матрица по выбранной воронке: сверху услуги (специальности), справа менеджеры, план задаётся в
-          количестве, цена задаётся отдельно, прогресс считается по оплатам.
+          количестве, цена задаётся отдельно, факт-сумма считается как факт-количество × цена услуги.
         </p>
       </header>
 
@@ -272,7 +272,7 @@ function OwnerMatrixTable({
                         title="Плановое количество"
                       />
                       <div className="text-xs text-slate-500">
-                        факт {moneyFmt.format(Number(cell?.actual_paid ?? 0))} /{" "}
+                        факт {cell?.actual_count ?? 0} шт · {moneyFmt.format(Number(cell?.actual_paid ?? 0))} /{" "}
                         {moneyFmt.format(Number(cell?.plan_amount ?? 0))}
                       </div>
                       <div className="text-xs text-purple-300">
@@ -306,8 +306,9 @@ function ManagerMatrixTable({ data }: { data: SalesKpiManagerMatrix }) {
             <th className="py-2 pr-3">Услуга</th>
             <th className="py-2 pr-3">Цена</th>
             <th className="py-2 pr-3">План (шт)</th>
+            <th className="py-2 pr-3">Факт (шт)</th>
             <th className="py-2 pr-3">План (сумма)</th>
-            <th className="py-2 pr-3">Факт (оплачено)</th>
+            <th className="py-2 pr-3">Факт (сумма)</th>
             <th className="py-2 pr-3">Выполнение</th>
           </tr>
         </thead>
@@ -317,6 +318,7 @@ function ManagerMatrixTable({ data }: { data: SalesKpiManagerMatrix }) {
               <td className="py-2 pr-3">{byDirection[c.direction_id]?.direction_name ?? c.direction_id}</td>
               <td className="py-2 pr-3">{moneyFmt.format(Number(byDirection[c.direction_id]?.unit_price ?? 0))}</td>
               <td className="py-2 pr-3">{c.plan_qty}</td>
+              <td className="py-2 pr-3">{c.actual_count}</td>
               <td className="py-2 pr-3">{moneyFmt.format(Number(c.plan_amount))}</td>
               <td className="py-2 pr-3 text-emerald-300">{moneyFmt.format(Number(c.actual_paid))}</td>
               <td className="py-2 pr-3">{c.progress_percent != null ? `${c.progress_percent.toFixed(1)}%` : "—"}</td>
@@ -324,6 +326,7 @@ function ManagerMatrixTable({ data }: { data: SalesKpiManagerMatrix }) {
           ))}
           <tr className="bg-slate-900/40">
             <td className="py-2 pr-3 font-semibold">Итого</td>
+            <td />
             <td />
             <td />
             <td className="py-2 pr-3 font-semibold">{moneyFmt.format(Number(data.manager.total_plan_amount))}</td>
