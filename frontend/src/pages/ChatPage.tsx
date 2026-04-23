@@ -178,13 +178,26 @@ export function ChatPage() {
   const [threadId, setThreadId] = useState<number | null>(null);
   const leadFromQuery = Number(searchParams.get("lead_id"));
 
+  const allThreads = useMemo(() => {
+    const pages = threadsQuery.data?.pages ?? [];
+    const seen = new Set<number>();
+    const merged: ChatThread[] = [];
+    for (const page of pages) {
+      for (const t of page) {
+        if (seen.has(t.id)) continue;
+        seen.add(t.id);
+        merged.push(t);
+      }
+    }
+    return merged;
+  }, [threadsQuery.data]);
+
   useEffect(() => {
     if (!Number.isFinite(leadFromQuery) || leadFromQuery <= 0) return;
     if (threadId != null) return;
-    const all = threadsQuery.data?.pages.flatMap((x) => x) ?? [];
-    const match = all.find((t) => t.lead_id === leadFromQuery);
+    const match = allThreads.find((t) => t.lead_id === leadFromQuery);
     if (match) setThreadId(match.id);
-  }, [leadFromQuery, threadId, threadsQuery.data]);
+  }, [leadFromQuery, threadId, allThreads]);
 
   const [text, setText] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -200,26 +213,7 @@ export function ChatPage() {
     threadIdRef.current = threadId;
   }, [threadId]);
 
-  const selectedThread = useMemo(
-    () => (threadsQuery.data?.pages.flatMap((x) => x) ?? []).find((t) => t.id === threadId) ?? null,
-    [threadsQuery.data, threadId],
-  );
-
-  const sortedThreads = useMemo(() => {
-    const list = [...(threadsQuery.data?.pages.flatMap((x) => x) ?? [])];
-    const score = (t: ChatThread) => {
-      const a = threadAttention(t);
-      if (a === "waiting_reply") return 3;
-      if (a === "recent_window") return 2;
-      return 1;
-    };
-    list.sort((a, b) => {
-      const d = score(b) - score(a);
-      if (d !== 0) return d;
-      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-    });
-    return list;
-  }, [threadsQuery.data]);
+  const selectedThread = useMemo(() => allThreads.find((t) => t.id === threadId) ?? null, [allThreads, threadId]);
 
   const messagesQuery = useQuery({
     queryKey: ["chat-messages", threadId],
@@ -443,7 +437,7 @@ export function ChatPage() {
               void threadsQuery.fetchNextPage();
             }}
           >
-            {sortedThreads.map((t) => {
+            {allThreads.map((t) => {
               const unread = t.unread_count ?? 0;
               return (
                 <button
@@ -471,7 +465,7 @@ export function ChatPage() {
                 </button>
               );
             })}
-            {!threadsQuery.isLoading && sortedThreads.length === 0 && (
+            {!threadsQuery.isLoading && allThreads.length === 0 && (
               <p className="text-sm text-slate-500">Пока нет диалогов</p>
             )}
             {threadsQuery.isFetchingNextPage && (
