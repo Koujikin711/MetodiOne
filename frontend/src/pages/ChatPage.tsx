@@ -123,16 +123,19 @@ function threadRowClasses(t: ChatThread, selected: boolean) {
   const base =
     "flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition";
   if (selected) {
-    return [base, "border-purple-500/40 bg-purple-500/10"].join(" ");
+    return [base, "border-purple-400/80 bg-purple-500/25 ring-1 ring-purple-300/35"].join(" ");
   }
   const attn = threadAttention(t);
   if (attn === "waiting_reply") {
-    return [base, "border-emerald-500/45 bg-emerald-500/10 hover:bg-emerald-500/15"].join(" ");
+    return [
+      base,
+      "border-emerald-300/85 bg-emerald-500/30 hover:bg-emerald-500/40 ring-1 ring-emerald-200/30",
+    ].join(" ");
   }
   if (attn === "recent_window") {
-    return [base, "border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/15"].join(" ");
+    return [base, "border-sky-300/80 bg-sky-500/28 hover:bg-sky-500/38 ring-1 ring-sky-200/30"].join(" ");
   }
-  return [base, "border-slate-700/50 bg-slate-900/30 hover:bg-slate-900/50"].join(" ");
+  return [base, "border-slate-600/70 bg-slate-900/45 hover:bg-slate-900/60"].join(" ");
 }
 
 export function ChatPage() {
@@ -214,6 +217,15 @@ export function ChatPage() {
   }, [threadId]);
 
   const selectedThread = useMemo(() => allThreads.find((t) => t.id === threadId) ?? null, [allThreads, threadId]);
+  const displayThreads = useMemo(() => {
+    const list = [...allThreads];
+    list.sort((a, b) => {
+      const ts = new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      if (ts !== 0) return ts;
+      return b.id - a.id;
+    });
+    return list;
+  }, [allThreads]);
 
   const messagesQuery = useQuery({
     queryKey: ["chat-messages", threadId],
@@ -437,7 +449,7 @@ export function ChatPage() {
               void threadsQuery.fetchNextPage();
             }}
           >
-            {allThreads.map((t) => {
+            {displayThreads.map((t) => {
               const unread = t.unread_count ?? 0;
               return (
                 <button
@@ -465,7 +477,7 @@ export function ChatPage() {
                 </button>
               );
             })}
-            {!threadsQuery.isLoading && allThreads.length === 0 && (
+            {!threadsQuery.isLoading && displayThreads.length === 0 && (
               <p className="text-sm text-slate-500">Пока нет диалогов</p>
             )}
             {threadsQuery.isFetchingNextPage && (
