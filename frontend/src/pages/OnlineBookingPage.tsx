@@ -283,7 +283,7 @@ export function OnlineBookingPage() {
         method: "DELETE",
       }),
     onSuccess: () => {
-      toast.success("Услуга скрыта");
+      toast.success("Услуга удалена");
       void queryClient.invalidateQueries({ queryKey: ["booking-directions"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -999,7 +999,7 @@ export function OnlineBookingPage() {
                         type="button"
                         className="rounded border border-rose-500/50 px-2 py-0.5 text-xs text-rose-300 hover:bg-rose-500/20"
                         onClick={() => {
-                          if (!window.confirm("Скрыть эту услугу?")) return;
+                          if (!window.confirm("Удалить услугу полностью?")) return;
                           deleteDirectionMutation.mutate(d.id);
                         }}
                       >

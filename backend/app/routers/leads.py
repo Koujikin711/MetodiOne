@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -889,6 +890,29 @@ async def patch_lead(
     base = await _lead_to_read_with_manager(db, lead)
     enriched = await _enrich_leads_close_deal(db, [lead], [base], current_user)
     return enriched[0]
+
+
+@router.delete("/{lead_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_lead(
+    lead_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> Response:
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Удаление клиента доступно только владельцу")
+    lead = await db.get(Lead, lead_id)
+    if lead is None or lead.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await db.delete(lead)
+    try:
+        await db.flush()
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Нельзя удалить клиента: есть связанные данные, которые блокируют удаление.",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 class CloseDealBody(BaseModel):
