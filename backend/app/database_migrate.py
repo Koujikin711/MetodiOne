@@ -805,3 +805,39 @@ async def ensure_finance_extensions(conn: AsyncConnection, database_url: str) ->
                 )""",
             ),
         )
+
+
+async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> None:
+    """Таблица планов KPI по воронке и менеджерам."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    pipeline_id INTEGER NOT NULL,
+                    year_month DATE NOT NULL,
+                    manager_user_id INTEGER NOT NULL,
+                    expert_user_id INTEGER,
+                    plan_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    UNIQUE (company_id, pipeline_id, year_month, manager_user_id)
+                )""",
+            ),
+        )
+        return
+    if "postgresql" in low or "asyncpg" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_plans (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+                    year_month DATE NOT NULL,
+                    manager_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    expert_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    plan_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    CONSTRAINT uq_sales_kpi_plan_scope UNIQUE (company_id, pipeline_id, year_month, manager_user_id)
+                )""",
+            ),
+        )

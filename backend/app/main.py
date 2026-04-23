@@ -18,11 +18,12 @@ from app.database_migrate import (
     ensure_integration_provider_migration,
     ensure_multi_tenant_migration,
     ensure_owner_role_migration,
+    ensure_sales_kpi_plans,
 )
 from app.core.security import hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
-from app.routers import analytics, audit, auth, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sources, stages, system, tasks, users
+from app.routers import analytics, audit, auth, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tasks, users
 from app.services.background_events import record_background_event
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
@@ -176,6 +177,7 @@ async def lifespan(_: FastAPI):
         await ensure_booking_specialist_columns(conn, settings.database_url)
         await ensure_multi_tenant_migration(conn, settings.database_url)
         await ensure_finance_extensions(conn, settings.database_url)
+        await ensure_sales_kpi_plans(conn, settings.database_url)
     # enum-миграции PostgreSQL нельзя выполнять внутри begin-транзакции.
     # Для надёжности запускаем каждую миграцию на отдельном "свежем" connection.
     async with engine.connect() as conn:
@@ -269,6 +271,7 @@ app.include_router(pipelines.router, prefix="/api")
 app.include_router(stages.router, prefix="/api")
 app.include_router(tasks.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
+app.include_router(sales_kpi.router, prefix="/api")
 app.include_router(booking.router, prefix="/api")
 app.include_router(deals.router, prefix="/api")
 app.include_router(users.router, prefix="/api")

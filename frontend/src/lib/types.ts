@@ -548,3 +548,56 @@ export interface TariffStatus {
   active_users: number;
   integrations: number;
 }
+
+/** KPI продаж по воронке (эксперт) и менеджерам */
+export interface SalesKpiPipelineMeta {
+  id: number;
+  name: string;
+  expert_user_id: number | null;
+  expert_name: string | null;
+}
+
+export interface SalesKpiServiceSlice {
+  direction_id: number;
+  direction_name: string;
+  paid_amount: string;
+  percent_of_plan: number | null;
+}
+
+export interface SalesKpiManagerOwnerRow {
+  manager_id: number;
+  manager_name: string;
+  plan_amount: string;
+  actual_paid: string;
+  month_progress_percent: number | null;
+  linear_target_to_date: string;
+  pace_percent: number | null;
+  by_service: SalesKpiServiceSlice[];
+}
+
+export interface SalesKpiOwnerDashboard {
+  pipeline_id: number;
+  pipeline_name: string;
+  expert_user_id: number | null;
+  expert_name: string | null;
+  year_month: string;
+  days_in_month: number;
+  elapsed_days_for_pacing: number;
+  managers: SalesKpiManagerOwnerRow[];
+}
+
+export interface SalesKpiManagerSnapshot {
+  pipeline_id: number;
+  pipeline_name: string;
+  expert_user_id: number | null;
+  expert_name: string | null;
+  year_month: string;
+  days_in_month: number;
+  elapsed_days_for_pacing: number;
+  daily_plan: string;
+  plan_amount: string | null;
+  actual_paid: string;
+  month_progress_percent: number | null;
+  linear_target_to_date: string;
+  pace_percent: number | null;
+}

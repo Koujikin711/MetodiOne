@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Calendar,
+  Target,
   CheckSquare,
   LayoutDashboard,
   LogOut,
@@ -55,6 +56,7 @@ export function MainLayout() {
   const showFinance =
     role === "owner" || role === "admin" || role === "super_owner" || role === "finance_analyst";
   const showIntegrationsHub = role === "owner";
+  const showKpi = role === "owner" || role === "super_owner" || role === "manager" || role === "admin";
 
   function logout() {
     setStoredToken(null);
@@ -186,6 +188,14 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Компании</span>
                 </NavLink>
+                {showKpi ? (
+                  <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
+                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Target className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">KPI</span>
+                  </NavLink>
+                ) : null}
                 {showFinance ? (
                   <NavLink to="/finance" className={navLinkClass} title="Финансы">
                     <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
@@ -227,6 +237,14 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
                 </NavLink>
+                {showKpi ? (
+                  <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
+                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Target className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">KPI</span>
+                  </NavLink>
+                ) : null}
                 {role === "admin" ? (
                   <NavLink to="/finance" className={navLinkClass} title="Финансы">
                     <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
@@ -287,6 +305,14 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Аналит.</span>
                 </NavLink>
+                {showKpi ? (
+                  <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
+                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Target className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">KPI</span>
+                  </NavLink>
+                ) : null}
                 <NavLink to="/finance" className={navLinkClass} title="Финансы">
                   <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
                     <Wallet className="h-[18px] w-[18px]" />
@@ -351,6 +377,14 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Компании</span>
               </NavLink>
+              {showKpi ? (
+                <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
+                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Target className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">KPI</span>
+                </NavLink>
+              ) : null}
               {showFinance ? (
                 <NavLink to="/finance" className={navLinkClass} title="Финансы">
                   <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
@@ -397,6 +431,14 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Чат</span>
               </NavLink>
+              {showKpi ? (
+                <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
+                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Target className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">KPI</span>
+                </NavLink>
+              ) : null}
               {role === "admin" ? (
                 <NavLink to="/finance" className={navLinkClass} title="Финансы">
                   <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
@@ -467,6 +509,14 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Онлайн</span>
               </NavLink>
+              {showKpi ? (
+                <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
+                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Target className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">KPI</span>
+                </NavLink>
+              ) : null}
               <NavLink to="/finance" className={navLinkClass} title="Финансы">
                 <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <Wallet className="h-4 w-4" />

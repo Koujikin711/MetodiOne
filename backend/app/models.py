@@ -98,6 +98,29 @@ class UserPipelineAssignment(Base):
     pipeline_id: Mapped[int] = mapped_column(ForeignKey("pipelines.id", ondelete="CASCADE"))
 
 
+class SalesKpiPlan(Base):
+    """План продаж (руб/мес) по менеджеру в воронке эксперта; факт — оплаты по записям за месяц."""
+
+    __tablename__ = "sales_kpi_plans"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id",
+            "pipeline_id",
+            "year_month",
+            "manager_user_id",
+            name="uq_sales_kpi_plan_scope",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    pipeline_id: Mapped[int] = mapped_column(ForeignKey("pipelines.id", ondelete="CASCADE"), index=True)
+    year_month: Mapped[date] = mapped_column(Date, index=True)
+    manager_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    expert_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    plan_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+
+
 class PipelineStage(Base):
     __tablename__ = "pipeline_stages"
 
