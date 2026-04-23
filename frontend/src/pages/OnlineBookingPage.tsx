@@ -91,11 +91,8 @@ export function OnlineBookingPage() {
   }, [startAt]);
 
   const directionsQuery = useQuery({
-    queryKey: ["booking-directions", directionPipelineId],
-    queryFn: () =>
-      directionPipelineId
-        ? apiFetch<BookingDirection[]>(`/api/booking/directions?pipeline_id=${directionPipelineId}`)
-        : apiFetch<BookingDirection[]>("/api/booking/directions"),
+    queryKey: ["booking-directions"],
+    queryFn: () => apiFetch<BookingDirection[]>("/api/booking/directions"),
   });
 
   const specialistsQuery = useQuery({
@@ -373,10 +370,11 @@ export function OnlineBookingPage() {
     },
   });
 
-  const directionsActive = useMemo(
-    () => directionsQuery.data?.filter((d) => d.is_active) ?? [],
-    [directionsQuery.data],
-  );
+  const directionsActive = useMemo(() => directionsQuery.data?.filter((d) => d.is_active) ?? [], [directionsQuery.data]);
+  const directionsForPipeline = useMemo(() => {
+    if (directionPipelineId == null) return directionsActive;
+    return directionsActive.filter((d) => d.pipeline_id === directionPipelineId);
+  }, [directionsActive, directionPipelineId]);
 
   const specialistsActive = useMemo(() => {
     const list = specialistsQuery.data?.filter((s) => s.is_active) ?? [];
@@ -405,10 +403,14 @@ export function OnlineBookingPage() {
   }, [specialistsActive, directionId]);
 
   useEffect(() => {
-    if (directionsActive.length && !directionId) {
-      setDirectionId(directionsActive[0].id);
+    if (directionsForPipeline.length === 0) {
+      setDirectionId(0);
+      return;
     }
-  }, [directionsActive, directionId]);
+    if (!directionsForPipeline.some((d) => d.id === directionId)) {
+      setDirectionId(directionsForPipeline[0].id);
+    }
+  }, [directionsForPipeline, directionId]);
 
   useEffect(() => {
     if (!directionId) {
@@ -442,6 +444,30 @@ export function OnlineBookingPage() {
       setDirectionPipelineId(newLeadPipelineId);
     }
   }, [leadId, newLeadPipelineId]);
+  useEffect(() => {
+    if (!specialistId) return;
+    const specialist = specialistsActive.find((s) => s.id === specialistId);
+    if (!specialist) return;
+    const specialistDirection = directionsActive.find((d) => d.id === specialist.direction_id);
+    if (!specialistDirection || specialistDirection.pipeline_id == null) return;
+    if (specialistDirection.pipeline_id !== directionPipelineId) {
+      setDirectionPipelineId(specialistDirection.pipeline_id);
+    }
+    if (!leadId && specialistDirection.pipeline_id !== newLeadPipelineId) {
+      setNewLeadPipelineId(specialistDirection.pipeline_id);
+    }
+    if (directionId !== specialistDirection.id) {
+      setDirectionId(specialistDirection.id);
+    }
+  }, [
+    specialistId,
+    specialistsActive,
+    directionsActive,
+    directionPipelineId,
+    leadId,
+    newLeadPipelineId,
+    directionId,
+  ]);
 
   useEffect(() => {
     if (!canEditBooking && tab === "dicts") {
@@ -524,6 +550,11 @@ export function OnlineBookingPage() {
   }
 
   function handleSlotClick(payload: { specialistId: number; directionId: number; minuteOfDay: number }) {
+    const slotDirection = directionsActive.find((d) => d.id === payload.directionId);
+    if (slotDirection?.pipeline_id != null) {
+      setDirectionPipelineId(slotDirection.pipeline_id);
+      if (!leadId) setNewLeadPipelineId(slotDirection.pipeline_id);
+    }
     setDirectionId(payload.directionId);
     setSpecialistId(payload.specialistId);
     const hh = Math.floor(payload.minuteOfDay / 60);
@@ -777,7 +808,7 @@ export function OnlineBookingPage() {
                     onChange={(e) => setDirectionId(Number(e.target.value))}
                     className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
                   >
-                    {directionsActive.map((d) => (
+                    {directionsForPipeline.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.name} ({d.duration_min} мин)
                       </option>
