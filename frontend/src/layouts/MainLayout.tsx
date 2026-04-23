@@ -179,7 +179,7 @@ export function MainLayout() {
               MetodiOne
             </span>
           </div>
-          <nav className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1.5">
+          <nav className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1.5">
             {isSuperOwner ? (
               <>
                 <NavLink to="/companies" className={navLinkClass} title="Компании">
