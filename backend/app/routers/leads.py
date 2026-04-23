@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, delete, false, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -16,7 +16,9 @@ from app.core.rbac import is_manager_like
 from app.database import get_db
 from app.models import (
     BookingAppointment,
+    ChatThread,
     Deal,
+    FinanceJournalEntry,
     Integration,
     Lead,
     LeadAuditEvent,
@@ -904,13 +906,64 @@ async def delete_lead(
     lead = await db.get(Lead, lead_id)
     if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+
+    # Полное удаление связанных сущностей по клиенту.
+    deal_ids = list(
+        (
+            await db.execute(
+                select(Deal.id).where(
+                    Deal.company_id == company_id,
+                    Deal.lead_id == lead_id,
+                )
+            )
+        ).scalars()
+    )
+    await db.execute(
+        delete(FinanceJournalEntry).where(
+            FinanceJournalEntry.company_id == company_id,
+            or_(
+                FinanceJournalEntry.related_lead_id == lead_id,
+                FinanceJournalEntry.related_deal_id.in_(deal_ids) if deal_ids else false(),
+            ),
+        )
+    )
+    await db.execute(
+        delete(BookingAppointment).where(
+            BookingAppointment.company_id == company_id,
+            BookingAppointment.lead_id == lead_id,
+        )
+    )
+    await db.execute(
+        delete(ChatThread).where(
+            ChatThread.company_id == company_id,
+            ChatThread.lead_id == lead_id,
+        )
+    )
+    await db.execute(
+        delete(Task).where(
+            Task.company_id == company_id,
+            Task.related_lead_id == lead_id,
+        )
+    )
+    await db.execute(
+        delete(Deal).where(
+            Deal.company_id == company_id,
+            Deal.lead_id == lead_id,
+        )
+    )
+    await db.execute(
+        delete(LeadAuditEvent).where(
+            LeadAuditEvent.company_id == company_id,
+            LeadAuditEvent.lead_id == lead_id,
+        )
+    )
     await db.delete(lead)
     try:
         await db.flush()
     except IntegrityError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Нельзя удалить клиента: есть связанные данные, которые блокируют удаление.",
+            detail="Нельзя удалить клиента: часть связанных данных не удалось удалить.",
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
