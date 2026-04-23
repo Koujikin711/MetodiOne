@@ -66,3 +66,28 @@ export function decodeUserIdFromToken(token: string | null): number | null {
     return null;
   }
 }
+
+export function decodeDisplayNameFromToken(token: string | null): string | null {
+  if (!token) return null;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payloadB64 = base64UrlToBase64(parts[1]);
+    const padded = payloadB64.padEnd(payloadB64.length + (4 - (payloadB64.length % 4)) % 4, "=");
+    const json = atob(padded);
+    const payload = JSON.parse(json) as {
+      full_name?: unknown;
+      name?: unknown;
+      email?: unknown;
+    };
+    const fullName = typeof payload.full_name === "string" ? payload.full_name.trim() : "";
+    if (fullName) return fullName;
+    const name = typeof payload.name === "string" ? payload.name.trim() : "";
+    if (name) return name;
+    const email = typeof payload.email === "string" ? payload.email.trim() : "";
+    if (email) return email;
+    return null;
+  } catch {
+    return null;
+  }
+}

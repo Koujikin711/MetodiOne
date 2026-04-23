@@ -7,7 +7,7 @@ import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { SpecialistModal } from "@/components/SpecialistModal";
 import { apiFetch, getStoredToken } from "@/lib/api";
-import { decodeRoleFromToken } from "@/lib/auth";
+import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import { BOOKING_TIME_ZONE, datetimeLocalBookingToIsoUtc, ymdInBookingTz } from "@/lib/bookingTz";
 import type {
   BookingAppointment,
@@ -61,10 +61,13 @@ export function OnlineBookingPage() {
   const [startAt, setStartAt] = useState("");
   const [serviceAmount, setServiceAmount] = useState<number>(0);
   const [paidAmount, setPaidAmount] = useState<number>(0);
-  const [responsibleManagerId, setResponsibleManagerId] = useState("");
   const [comment, setComment] = useState("");
-  const currentRole = decodeRoleFromToken(getStoredToken());
+  const token = getStoredToken();
+  const currentRole = decodeRoleFromToken(token);
+  const currentUserId = decodeUserIdFromToken(token);
+  const currentUserName = decodeDisplayNameFromToken(token) || "Текущий пользователь";
   const isExpert = currentRole === "expert";
+  const isManagerOrAdmin = currentRole === "manager" || currentRole === "admin";
   const canEditBooking = !isExpert;
 
   const [dirName, setDirName] = useState("");
@@ -586,12 +589,8 @@ export function OnlineBookingPage() {
       toast.error("Оплата не может быть больше стоимости услуги");
       return;
     }
-    if (
-      (currentRole === "manager" || currentRole === "admin") &&
-      paidAmount > 0 &&
-      !responsibleManagerId.trim()
-    ) {
-      toast.error("Укажите ID ответственного менеджера, если есть оплата");
+    if (isManagerOrAdmin && paidAmount > 0 && !currentUserId) {
+      toast.error("Не удалось определить ответственного менеджера автоматически");
       return;
     }
     if (leadId) payload.lead_id = leadId;
@@ -603,7 +602,9 @@ export function OnlineBookingPage() {
       payload.lead_pipeline_id = newLeadPipelineId;
       payload.lead_stage_id = newLeadStageId;
     }
-    if (responsibleManagerId.trim()) payload.responsible_manager_id = Number(responsibleManagerId);
+    if (isManagerOrAdmin && paidAmount > 0 && currentUserId) {
+      payload.responsible_manager_id = currentUserId;
+    }
     createMutation.mutate(payload);
   }
 
@@ -845,16 +846,20 @@ export function OnlineBookingPage() {
                     className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
                   />
                 </label>
-                <label className="block text-sm text-slate-300">
-                  ID ответственного менеджера (необязательно)
-                  <input
-                    type="number"
-                    min={1}
-                    value={responsibleManagerId}
-                    onChange={(e) => setResponsibleManagerId(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-                  />
-                </label>
+                {isManagerOrAdmin ? (
+                  <label className="block text-sm text-slate-300">
+                    Ответственный менеджер
+                    <input
+                      type="text"
+                      value={currentUserName}
+                      readOnly
+                      className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white opacity-90"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      Подставляется автоматически при оплате.
+                    </p>
+                  </label>
+                ) : null}
                 <label className="block text-sm text-slate-300">
                   Комментарий
                   <textarea
