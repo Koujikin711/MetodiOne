@@ -1,17 +1,7 @@
+from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
-
-
-class SalesKpiPlanRowWrite(BaseModel):
-    manager_user_id: int = Field(..., ge=1)
-    plan_amount: Decimal = Field(default=Decimal("0"), ge=0)
-
-
-class SalesKpiPlansPut(BaseModel):
-    pipeline_id: int = Field(..., ge=1)
-    year_month: str = Field(..., description="YYYY-MM")
-    plans: list[SalesKpiPlanRowWrite] = Field(default_factory=list)
 
 
 class SalesKpiPipelineMeta(BaseModel):
@@ -21,46 +11,78 @@ class SalesKpiPipelineMeta(BaseModel):
     expert_name: str | None = None
 
 
-class SalesKpiServiceSlice(BaseModel):
+class SalesKpiPriceWrite(BaseModel):
+    direction_id: int = Field(..., ge=1)
+    unit_price: Decimal = Field(default=Decimal("0"), ge=0)
+
+
+class SalesKpiPlanCellWrite(BaseModel):
+    direction_id: int = Field(..., ge=1)
+    plan_qty: int = Field(default=0, ge=0)
+
+
+class SalesKpiManagerPlanWrite(BaseModel):
+    manager_user_id: int = Field(..., ge=1)
+    cells: list[SalesKpiPlanCellWrite] = Field(default_factory=list)
+
+
+class SalesKpiMatrixPut(BaseModel):
+    pipeline_id: int = Field(..., ge=1)
+    year_month: str = Field(..., description="YYYY-MM")
+    prices: list[SalesKpiPriceWrite] = Field(default_factory=list)
+    managers: list[SalesKpiManagerPlanWrite] = Field(default_factory=list)
+
+
+class SalesKpiDirectionMeta(BaseModel):
     direction_id: int
     direction_name: str
-    paid_amount: Decimal
-    percent_of_plan: float | None = Field(None, description="Доля плана менеджера, закрытая этой услугой, %")
+    unit_price: Decimal
 
 
-class SalesKpiManagerOwnerRow(BaseModel):
-    manager_id: int
-    manager_name: str
+class SalesKpiManagerCell(BaseModel):
+    direction_id: int
+    plan_qty: int
     plan_amount: Decimal
     actual_paid: Decimal
-    month_progress_percent: float | None = Field(None, description="Факт / план за месяц, %")
-    linear_target_to_date: Decimal
-    pace_percent: float | None = Field(None, description="Факт / линейный план на сегодня, %")
-    by_service: list[SalesKpiServiceSlice]
+    actual_count: int
+    progress_percent: float | None = None
 
 
-class SalesKpiOwnerDashboard(BaseModel):
+class SalesKpiManagerRow(BaseModel):
+    manager_id: int
+    manager_name: str
+    total_plan_amount: Decimal
+    total_actual_paid: Decimal
+    total_progress_percent: float | None = None
+    cells: list[SalesKpiManagerCell]
+
+
+class SalesKpiOwnerMatrix(BaseModel):
     pipeline_id: int
     pipeline_name: str
-    expert_user_id: int | None = None
-    expert_name: str | None = None
     year_month: str
-    days_in_month: int
-    elapsed_days_for_pacing: int
-    managers: list[SalesKpiManagerOwnerRow]
+    directions: list[SalesKpiDirectionMeta]
+    managers: list[SalesKpiManagerRow]
 
 
-class SalesKpiManagerSnapshot(BaseModel):
+class SalesKpiManagerMatrix(BaseModel):
     pipeline_id: int
     pipeline_name: str
-    expert_user_id: int | None = None
-    expert_name: str | None = None
     year_month: str
-    days_in_month: int
-    elapsed_days_for_pacing: int
-    daily_plan: Decimal
-    plan_amount: Decimal | None = None
-    actual_paid: Decimal
-    month_progress_percent: float | None = None
-    linear_target_to_date: Decimal
-    pace_percent: float | None = None
+    directions: list[SalesKpiDirectionMeta]
+    manager: SalesKpiManagerRow
+
+
+class SalesKpiPriceHint(BaseModel):
+    fixed_price: Decimal | None = None
+    year_month: str
+    direction_id: int
+    direction_name: str | None = None
+    start_at: datetime
+
+
+class SalesKpiLeadPriceHint(BaseModel):
+    fixed_price: Decimal | None = None
+    year_month: str
+    direction_id: int | None = None
+    direction_name: str | None = None

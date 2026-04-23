@@ -9,7 +9,15 @@ import { SpecialistModal } from "@/components/SpecialistModal";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { BOOKING_TIME_ZONE, datetimeLocalBookingToIsoUtc, ymdInBookingTz } from "@/lib/bookingTz";
-import type { BookingAppointment, BookingDirection, BookingSpecialist, LeadSource, Pipeline, PipelineStage } from "@/lib/types";
+import type {
+  BookingAppointment,
+  BookingDirection,
+  BookingSpecialist,
+  LeadSource,
+  Pipeline,
+  PipelineStage,
+  SalesKpiPriceHint,
+} from "@/lib/types";
 
 type Tab = "online" | "dicts" | "journal";
 
@@ -68,6 +76,15 @@ export function OnlineBookingPage() {
   const [specialistModalOpen, setSpecialistModalOpen] = useState(false);
   const [specialistModalMode, setSpecialistModalMode] = useState<"add" | "edit">("add");
   const [specialistModalTarget, setSpecialistModalTarget] = useState<BookingSpecialist | null>(null);
+  const pipelineForKpiPrice = leadId ? null : newLeadPipelineId;
+  const startAtIsoForKpi = useMemo(() => {
+    if (!startAt) return null;
+    try {
+      return datetimeLocalBookingToIsoUtc(startAt);
+    } catch {
+      return null;
+    }
+  }, [startAt]);
 
   const directionsQuery = useQuery({
     queryKey: ["booking-directions"],
@@ -93,6 +110,16 @@ export function OnlineBookingPage() {
       newLeadPipelineId ? apiFetch<PipelineStage[]>(`/api/stages?pipeline_id=${newLeadPipelineId}`) : Promise.resolve([]),
     enabled: newLeadPipelineId != null,
   });
+  const kpiPriceHintQuery = useQuery({
+    queryKey: ["sales-kpi-price-hint", pipelineForKpiPrice, directionId, startAtIsoForKpi],
+    queryFn: () =>
+      apiFetch<SalesKpiPriceHint>(
+        `/api/sales-kpi/price-hint?pipeline_id=${pipelineForKpiPrice}&direction_id=${directionId}&start_at=${encodeURIComponent(startAtIsoForKpi!)}`,
+      ),
+    enabled: Boolean(pipelineForKpiPrice && directionId && startAtIsoForKpi),
+  });
+  const fixedServiceAmount =
+    kpiPriceHintQuery.data?.fixed_price != null ? Number(kpiPriceHintQuery.data.fixed_price) : null;
 
   const [sourceName, setSourceName] = useState("");
   const addSourceMutation = useMutation({
@@ -384,6 +411,10 @@ export function OnlineBookingPage() {
     if (newLeadStageId != null && leadStagesQuery.data?.some((s) => s.id === newLeadStageId)) return;
     setNewLeadStageId(first.id);
   }, [leadStagesQuery.data, newLeadStageId]);
+  useEffect(() => {
+    if (fixedServiceAmount == null) return;
+    setServiceAmount(fixedServiceAmount);
+  }, [fixedServiceAmount]);
 
   function onCalendarAppointmentClick(a: BookingAppointment) {
     if (a.lead_id) {
@@ -499,17 +530,18 @@ export function OnlineBookingPage() {
       toast.error("Неверная дата.");
       return;
     }
+    const resolvedServiceAmount = fixedServiceAmount ?? serviceAmount;
     const payload: Record<string, unknown> = {
       patient_name: patientName.trim(),
       patient_phone: patientPhone.trim(),
       direction_id: directionId,
       specialist_id: specialistId,
       start_at: startIso,
-      service_amount: serviceAmount,
+      service_amount: resolvedServiceAmount,
       paid_amount: paidAmount,
       comment: comment.trim() || null,
     };
-    if (paidAmount > serviceAmount) {
+    if (paidAmount > resolvedServiceAmount) {
       toast.error("Оплата не может быть больше стоимости услуги");
       return;
     }
@@ -730,10 +762,20 @@ export function OnlineBookingPage() {
                     min={0}
                     step={1}
                     required
-                    value={serviceAmount}
+                    value={fixedServiceAmount ?? serviceAmount}
                     onChange={(e) => setServiceAmount(Number(e.target.value))}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    disabled={fixedServiceAmount != null}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white disabled:opacity-70"
                   />
+                  {fixedServiceAmount != null ? (
+                    <p className="mt-1 text-xs text-emerald-300">
+                      Цена зафиксирована в KPI ({kpiPriceHintQuery.data?.year_month}). Введите только сумму оплаты.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Если владелец задал цену услуги в KPI на этот месяц, поле подставится автоматически.
+                    </p>
+                  )}
                 </label>
                 <label className="block text-sm text-slate-300">
                   Оплатил клиент

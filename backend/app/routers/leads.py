@@ -13,7 +13,20 @@ from app.config import settings
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.rbac import is_manager_like
 from app.database import get_db
-from app.models import Deal, Integration, Lead, LeadAuditEvent, Pipeline, PipelineStage, Task, TaskStatus, User, UserPipelineAssignment, UserRole
+from app.models import (
+    BookingAppointment,
+    Deal,
+    Integration,
+    Lead,
+    LeadAuditEvent,
+    Pipeline,
+    PipelineStage,
+    Task,
+    TaskStatus,
+    User,
+    UserPipelineAssignment,
+    UserRole,
+)
 from app.schemas.lead import (
     LeadCreate,
     LeadImportErrorItem,
@@ -26,6 +39,7 @@ from app.schemas.lead import (
 )
 from app.services.automation import process_lead_automation
 from app.services.lead_assignment import assign_manager_for_new_lead
+from app.services.sales_kpi import get_kpi_service_price
 from app.services.lead_import import decode_csv_text, normalize_email_strict, parse_csv_rows, row_to_parsed_lead
 from app.schemas.deal import DealRead, ExtraServiceAddBody, ProtocolConfirmBody
 from app.schemas.deal import ProtocolFinishBody
@@ -878,7 +892,7 @@ async def patch_lead(
 
 
 class CloseDealBody(BaseModel):
-    amount: Decimal = Field(..., ge=0)
+    amount: Decimal | None = Field(default=None, ge=0)
     paid_amount: Decimal = Field(..., ge=0)
 
 
@@ -935,11 +949,44 @@ async def close_deal_from_integration_pipeline(
             detail=f"В воронке нет стадии «{settings.booking_stage_completed}» для успешного закрытия",
         )
 
+    last_appt = (
+        await db.execute(
+            select(BookingAppointment)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.lead_id == lead_id,
+            )
+            .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc())
+            .limit(1),
+        )
+    ).scalars().first()
+
+    final_amount = body.amount
+    if pipeline_id is not None and last_appt is not None and last_appt.direction_id is not None:
+        start_dt = last_appt.start_at if last_appt.start_at.tzinfo else last_appt.start_at.replace(tzinfo=UTC)
+        fixed_price = await get_kpi_service_price(
+            db,
+            company_id=company_id,
+            pipeline_id=int(pipeline_id),
+            direction_id=int(last_appt.direction_id),
+            at_datetime=start_dt,
+        )
+        if fixed_price is not None:
+            final_amount = fixed_price
+
+    if final_amount is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Для этой услуги не задана цена KPI: укажите стоимость сделки",
+        )
+    if body.paid_amount > final_amount:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Оплата не может быть больше стоимости услуги")
+
     deal = Deal(
         company_id=company_id,
         title="Закрытая сделка",
         deal_type=INTEGRATION_CLOSE_DEAL_TYPE,
-        amount=body.amount,
+        amount=final_amount,
         paid_amount=body.paid_amount,
         is_protocol=False,
         protocol_requested=False,
@@ -957,7 +1004,7 @@ async def close_deal_from_integration_pipeline(
         lead_id=lead.id,
         action="integration_deal_closed",
         current_user=current_user,
-        details=f"Сумма={body.amount}, оплачено={body.paid_amount}",
+        details=f"Сумма={final_amount}, оплачено={body.paid_amount}",
     )
     await db.refresh(lead, ["stage"])
     await process_lead_automation(db, lead_id, success_stage_id)

@@ -557,47 +557,57 @@ export interface SalesKpiPipelineMeta {
   expert_name: string | null;
 }
 
-export interface SalesKpiServiceSlice {
+export interface SalesKpiDirectionMeta {
   direction_id: number;
   direction_name: string;
-  paid_amount: string;
-  percent_of_plan: number | null;
+  unit_price: string;
 }
 
-export interface SalesKpiManagerOwnerRow {
-  manager_id: number;
-  manager_name: string;
+export interface SalesKpiManagerCell {
+  direction_id: number;
+  plan_qty: number;
   plan_amount: string;
   actual_paid: string;
-  month_progress_percent: number | null;
-  linear_target_to_date: string;
-  pace_percent: number | null;
-  by_service: SalesKpiServiceSlice[];
+  actual_count: number;
+  progress_percent: number | null;
 }
 
-export interface SalesKpiOwnerDashboard {
-  pipeline_id: number;
-  pipeline_name: string;
-  expert_user_id: number | null;
-  expert_name: string | null;
-  year_month: string;
-  days_in_month: number;
-  elapsed_days_for_pacing: number;
-  managers: SalesKpiManagerOwnerRow[];
+export interface SalesKpiManagerRow {
+  manager_id: number;
+  manager_name: string;
+  total_plan_amount: string;
+  total_actual_paid: string;
+  total_progress_percent: number | null;
+  cells: SalesKpiManagerCell[];
 }
 
-export interface SalesKpiManagerSnapshot {
+export interface SalesKpiOwnerMatrix {
   pipeline_id: number;
   pipeline_name: string;
-  expert_user_id: number | null;
-  expert_name: string | null;
   year_month: string;
-  days_in_month: number;
-  elapsed_days_for_pacing: number;
-  daily_plan: string;
-  plan_amount: string | null;
-  actual_paid: string;
-  month_progress_percent: number | null;
-  linear_target_to_date: string;
-  pace_percent: number | null;
+  directions: SalesKpiDirectionMeta[];
+  managers: SalesKpiManagerRow[];
+}
+
+export interface SalesKpiManagerMatrix {
+  pipeline_id: number;
+  pipeline_name: string;
+  year_month: string;
+  directions: SalesKpiDirectionMeta[];
+  manager: SalesKpiManagerRow;
+}
+
+export interface SalesKpiPriceHint {
+  fixed_price: string | null;
+  year_month: string;
+  direction_id: number;
+  direction_name: string | null;
+  start_at: string;
+}
+
+export interface SalesKpiLeadPriceHint {
+  fixed_price: string | null;
+  year_month: string;
+  direction_id: number | null;
+  direction_name: string | null;
 }
