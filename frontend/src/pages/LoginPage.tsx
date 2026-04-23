@@ -60,7 +60,7 @@ export function LoginPage() {
       });
       setStoredToken(token.access_token);
     },
-    onSuccess: () => navigate("/", { replace: true }),
+    onSuccess: () => navigate("/app", { replace: true }),
     onError: (e: Error) => {
       const m = e.message || "";
       if (mode === "login" && (m.includes("приостановлен") || m.includes("Компания временно"))) {

@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = "metoditj@gmail.com"
+    demo_request_to_email: str = "metoditj@gmail.com"
     build_version: str = "dev"
 
     # Тариф (0 = без лимита). Задаётся в окружении для SaaS / демо.
