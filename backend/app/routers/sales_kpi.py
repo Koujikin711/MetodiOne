@@ -167,14 +167,13 @@ async def _load_facts(
     company_id: int,
     pipeline_id: int,
     ym: date,
-) -> dict[tuple[int, int], tuple[Decimal, int]]:
+) -> dict[tuple[int, int], int]:
     start, end = _month_bounds(ym)
     rows = (
         await db.execute(
             select(
                 _manager_expr(),
                 BookingAppointment.direction_id,
-                func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
                 func.count(BookingAppointment.id),
             )
             .select_from(BookingAppointment)
@@ -192,11 +191,11 @@ async def _load_facts(
             .group_by(_manager_expr(), BookingAppointment.direction_id),
         )
     ).all()
-    out: dict[tuple[int, int], tuple[Decimal, int]] = {}
-    for manager_id, direction_id, paid_sum, cnt in rows:
+    out: dict[tuple[int, int], int] = {}
+    for manager_id, direction_id, cnt in rows:
         if manager_id is None:
             continue
-        out[(int(manager_id), int(direction_id))] = (Decimal(str(paid_sum or 0)), int(cnt or 0))
+        out[(int(manager_id), int(direction_id))] = int(cnt or 0)
     return out
 
 
@@ -272,7 +271,8 @@ async def owner_matrix(
         for d in directions:
             plan_qty = plan_qty_map.get((mid, d.direction_id), 0)
             plan_amount = (Decimal(plan_qty) * d.unit_price).quantize(Decimal("0.01"))
-            actual_paid, actual_count = fact_map.get((mid, d.direction_id), (Decimal("0"), 0))
+            actual_count = fact_map.get((mid, d.direction_id), 0)
+            actual_paid = (Decimal(actual_count) * d.unit_price).quantize(Decimal("0.01"))
             total_plan += plan_amount
             total_actual += actual_paid
             cells.append(
@@ -333,7 +333,8 @@ async def manager_matrix(
     for d in directions:
         plan_qty = plan_qty_map.get((current_user.id, d.direction_id), 0)
         plan_amount = (Decimal(plan_qty) * d.unit_price).quantize(Decimal("0.01"))
-        actual_paid, actual_count = fact_map.get((current_user.id, d.direction_id), (Decimal("0"), 0))
+        actual_count = fact_map.get((current_user.id, d.direction_id), 0)
+        actual_paid = (Decimal(actual_count) * d.unit_price).quantize(Decimal("0.01"))
         total_plan += plan_amount
         total_actual += actual_paid
         cells.append(
