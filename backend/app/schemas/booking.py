@@ -14,6 +14,8 @@ class BookingDirectionRead(BaseModel):
     name: str
     duration_min: int
     is_active: bool
+    pipeline_id: int | None = None
+    pipeline_name: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -21,6 +23,14 @@ class BookingDirectionRead(BaseModel):
 class BookingDirectionCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     duration_min: int = Field(30, ge=10, le=480)
+    pipeline_id: int = Field(..., ge=1)
+
+
+class BookingDirectionUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=255)
+    duration_min: int | None = Field(None, ge=10, le=480)
+    pipeline_id: int | None = Field(None, ge=1)
+    is_active: bool | None = None
 
 
 class BookingSpecialistRead(BaseModel):

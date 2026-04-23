@@ -135,7 +135,11 @@ async def _load_directions_for_pipeline(
     all_dir_rows = (
         await db.execute(
             select(BookingDirection.id, BookingDirection.name)
-            .where(BookingDirection.company_id == company_id, BookingDirection.is_active.is_(True))
+            .where(
+                BookingDirection.company_id == company_id,
+                BookingDirection.is_active.is_(True),
+                BookingDirection.pipeline_id == pipeline_id,
+            )
             .order_by(BookingDirection.name.asc()),
         )
     ).all()

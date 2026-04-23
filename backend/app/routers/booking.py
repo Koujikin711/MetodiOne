@@ -32,6 +32,7 @@ from app.schemas.booking import (
     BookingAppointmentStatusUpdate,
     BookingDirectionCreate,
     BookingDirectionRead,
+    BookingDirectionUpdate,
     BookingSpecialistCreate,
     BookingSpecialistRead,
     BookingSpecialistUpdate,
@@ -337,11 +338,29 @@ async def list_directions(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
     company_id: CurrentCompanyId,
-) -> list[BookingDirection]:
-    result = await db.execute(
-        select(BookingDirection).where(BookingDirection.company_id == company_id).order_by(BookingDirection.id.desc())
+    pipeline_id: int | None = None,
+) -> list[BookingDirectionRead]:
+    q = (
+        select(BookingDirection, Pipeline.name)
+        .join(Pipeline, Pipeline.id == BookingDirection.pipeline_id, isouter=True)
+        .where(BookingDirection.company_id == company_id)
+        .order_by(BookingDirection.id.desc())
     )
-    return list(result.scalars().all())
+    if pipeline_id is not None:
+        q = q.where(BookingDirection.pipeline_id == pipeline_id)
+    result = await db.execute(q)
+    rows = result.all()
+    return [
+        BookingDirectionRead(
+            id=d.id,
+            name=d.name,
+            duration_min=d.duration_min,
+            is_active=d.is_active,
+            pipeline_id=d.pipeline_id,
+            pipeline_name=pname,
+        )
+        for d, pname in rows
+    ]
 
 
 @router.post("/directions", response_model=BookingDirectionRead, status_code=status.HTTP_201_CREATED)
@@ -350,9 +369,18 @@ async def create_direction(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
-) -> BookingDirection:
+) -> BookingDirectionRead:
     _assert_expert_readonly_for_booking(current_user)
-    row = BookingDirection(name=body.name.strip(), duration_min=body.duration_min, is_active=True, company_id=company_id)
+    pipe = await db.get(Pipeline, body.pipeline_id)
+    if pipe is None or pipe.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная воронка")
+    row = BookingDirection(
+        name=body.name.strip(),
+        duration_min=body.duration_min,
+        is_active=True,
+        company_id=company_id,
+        pipeline_id=body.pipeline_id,
+    )
     db.add(row)
     try:
         await db.flush()
@@ -367,7 +395,71 @@ async def create_direction(
         )
     except IntegrityError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Направление с таким именем уже есть")
-    return row
+    return BookingDirectionRead(
+        id=row.id,
+        name=row.name,
+        duration_min=row.duration_min,
+        is_active=row.is_active,
+        pipeline_id=row.pipeline_id,
+        pipeline_name=pipe.name,
+    )
+
+
+@router.patch("/directions/{direction_id}", response_model=BookingDirectionRead)
+async def patch_direction(
+    direction_id: int,
+    body: BookingDirectionUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> BookingDirectionRead:
+    _assert_expert_readonly_for_booking(current_user)
+    d = await db.get(BookingDirection, direction_id)
+    if d is None or d.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
+    patch = body.model_dump(exclude_unset=True)
+    if not patch:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет полей для обновления")
+    if "name" in patch and body.name is not None:
+        d.name = body.name.strip()
+    if "duration_min" in patch and body.duration_min is not None:
+        d.duration_min = body.duration_min
+    if "is_active" in patch and body.is_active is not None:
+        d.is_active = body.is_active
+    if "pipeline_id" in patch and body.pipeline_id is not None:
+        p = await db.get(Pipeline, body.pipeline_id)
+        if p is None or p.company_id != company_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная воронка")
+        d.pipeline_id = body.pipeline_id
+    await db.flush()
+    p_name: str | None = None
+    if d.pipeline_id is not None:
+        p = await db.get(Pipeline, d.pipeline_id)
+        p_name = p.name if p is not None else None
+    return BookingDirectionRead(
+        id=d.id,
+        name=d.name,
+        duration_min=d.duration_min,
+        is_active=d.is_active,
+        pipeline_id=d.pipeline_id,
+        pipeline_name=p_name,
+    )
+
+
+@router.delete("/directions/{direction_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_direction(
+    direction_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> Response:
+    _assert_expert_readonly_for_booking(current_user)
+    d = await db.get(BookingDirection, direction_id)
+    if d is None or d.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
+    d.is_active = False
+    await db.flush()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/specialists", response_model=list[BookingSpecialistRead])
@@ -734,6 +826,15 @@ async def create_appointment(
             if lead is not None:
                 await db.refresh(lead, ["stage"])
                 appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
+
+    if direction.pipeline_id is not None:
+        if appointment_pipeline_id is None:
+            appointment_pipeline_id = int(direction.pipeline_id)
+        elif int(direction.pipeline_id) != int(appointment_pipeline_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Услуга относится к другой воронке",
+            )
 
     service_amount_value = float(body.service_amount)
     if appointment_pipeline_id is not None:
