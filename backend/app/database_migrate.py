@@ -247,6 +247,24 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
                    WHERE pipeline_id IS NULL""",
             ),
         )
+        r = await conn.execute(text("PRAGMA table_info(booking_directions)"))
+        bd_cols = {row[1] for row in r.fetchall()}
+        if bd_cols and "pipeline_id" not in bd_cols:
+            await conn.execute(
+                text("ALTER TABLE booking_directions ADD COLUMN pipeline_id INTEGER REFERENCES pipelines(id) ON DELETE SET NULL"),
+            )
+        await conn.execute(
+            text(
+                """UPDATE booking_directions
+                   SET pipeline_id = (
+                       SELECT id FROM pipelines p
+                       WHERE p.company_id = booking_directions.company_id
+                       ORDER BY p.id ASC
+                       LIMIT 1
+                   )
+                   WHERE pipeline_id IS NULL""",
+            ),
+        )
         return
 
     if "postgresql" in database_url or "asyncpg" in database_url:
@@ -449,6 +467,25 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
                      AND ba.pipeline_id IS NULL""",
             ),
         )
+        await conn.execute(
+            text(
+                "ALTER TABLE booking_directions ADD COLUMN IF NOT EXISTS pipeline_id INTEGER REFERENCES pipelines(id) ON DELETE SET NULL",
+            ),
+        )
+        await conn.execute(
+            text(
+                """UPDATE booking_directions bd
+                   SET pipeline_id = p.id
+                   FROM LATERAL (
+                       SELECT id
+                       FROM pipelines p2
+                       WHERE p2.company_id = bd.company_id
+                       ORDER BY p2.id ASC
+                       LIMIT 1
+                   ) p
+                   WHERE bd.pipeline_id IS NULL""",
+            ),
+        )
         return
 
 
@@ -582,6 +619,23 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
                 text(f"UPDATE {tn} SET company_id = :cid WHERE company_id IS NULL"),
                 {"cid": default_company_id},
             )
+        bd_info = await conn.execute(text("PRAGMA table_info(booking_directions)"))
+        bd_cols = {row[1] for row in bd_info.fetchall()}
+        if bd_cols and "pipeline_id" not in bd_cols:
+            await conn.execute(text("ALTER TABLE booking_directions ADD COLUMN pipeline_id INTEGER"))
+        await conn.execute(
+            text(
+                """UPDATE booking_directions
+                   SET pipeline_id = (
+                       SELECT id
+                       FROM pipelines p
+                       WHERE p.company_id = booking_directions.company_id
+                       ORDER BY p.id ASC
+                       LIMIT 1
+                   )
+                   WHERE pipeline_id IS NULL""",
+            ),
+        )
         task_info = await conn.execute(text("PRAGMA table_info(tasks)"))
         task_cols = {row[1] for row in task_info.fetchall()}
         if task_cols and "created_by_user_id" not in task_cols:
@@ -633,6 +687,7 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
             "ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS company_id INTEGER",
             "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS company_id INTEGER",
             "ALTER TABLE booking_directions ADD COLUMN IF NOT EXISTS company_id INTEGER",
+            "ALTER TABLE booking_directions ADD COLUMN IF NOT EXISTS pipeline_id INTEGER REFERENCES pipelines(id) ON DELETE SET NULL",
             "ALTER TABLE booking_specialists ADD COLUMN IF NOT EXISTS company_id INTEGER",
             "ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS company_id INTEGER",
             "ALTER TABLE deals ADD COLUMN IF NOT EXISTS company_id INTEGER",
@@ -668,6 +723,20 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
                 text(f"UPDATE {tn} SET company_id = :cid WHERE company_id IS NULL"),
                 {"cid": default_company_id},
             )
+        await conn.execute(
+            text(
+                """UPDATE booking_directions bd
+                   SET pipeline_id = p.id
+                   FROM LATERAL (
+                       SELECT id
+                       FROM pipelines p2
+                       WHERE p2.company_id = bd.company_id
+                       ORDER BY p2.id ASC
+                       LIMIT 1
+                   ) p
+                   WHERE bd.pipeline_id IS NULL""",
+            ),
+        )
 
         return
 

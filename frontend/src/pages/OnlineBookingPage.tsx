@@ -53,6 +53,7 @@ export function OnlineBookingPage() {
   const [leadId, setLeadId] = useState<number | null>(null);
   const [newLeadPipelineId, setNewLeadPipelineId] = useState<number | null>(null);
   const [newLeadStageId, setNewLeadStageId] = useState<number | null>(null);
+  const [directionPipelineId, setDirectionPipelineId] = useState<number | null>(null);
   const [patientName, setPatientName] = useState("");
   const [patientPhone, setPatientPhone] = useState("");
   const [directionId, setDirectionId] = useState(0);
@@ -87,8 +88,11 @@ export function OnlineBookingPage() {
   }, [startAt]);
 
   const directionsQuery = useQuery({
-    queryKey: ["booking-directions"],
-    queryFn: () => apiFetch<BookingDirection[]>("/api/booking/directions"),
+    queryKey: ["booking-directions", directionPipelineId],
+    queryFn: () =>
+      directionPipelineId
+        ? apiFetch<BookingDirection[]>(`/api/booking/directions?pipeline_id=${directionPipelineId}`)
+        : apiFetch<BookingDirection[]>("/api/booking/directions"),
   });
 
   const specialistsQuery = useQuery({
@@ -248,11 +252,38 @@ export function OnlineBookingPage() {
     mutationFn: () =>
       apiFetch("/api/booking/directions", {
         method: "POST",
-        body: JSON.stringify({ name: dirName.trim(), duration_min: dirDuration }),
+        body: JSON.stringify({
+          name: dirName.trim(),
+          duration_min: dirDuration,
+          pipeline_id: directionPipelineId,
+        }),
       }),
     onSuccess: () => {
       toast.success("Направление добавлено");
       setDirName("");
+      void queryClient.invalidateQueries({ queryKey: ["booking-directions"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const patchDirectionMutation = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      apiFetch<BookingDirection>(`/api/booking/directions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      toast.success("Услуга обновлена");
+      void queryClient.invalidateQueries({ queryKey: ["booking-directions"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const deleteDirectionMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/booking/directions/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      toast.success("Услуга скрыта");
       void queryClient.invalidateQueries({ queryKey: ["booking-directions"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -398,6 +429,16 @@ export function OnlineBookingPage() {
     const first = pipelinesQuery.data?.[0];
     if (first) setNewLeadPipelineId(first.id);
   }, [newLeadPipelineId, pipelinesQuery.data]);
+  useEffect(() => {
+    if (directionPipelineId != null) return;
+    const first = pipelinesQuery.data?.[0];
+    if (first) setDirectionPipelineId(first.id);
+  }, [directionPipelineId, pipelinesQuery.data]);
+  useEffect(() => {
+    if (!leadId && newLeadPipelineId != null) {
+      setDirectionPipelineId(newLeadPipelineId);
+    }
+  }, [leadId, newLeadPipelineId]);
 
   useEffect(() => {
     if (!canEditBooking && tab === "dicts") {
@@ -515,7 +556,7 @@ export function OnlineBookingPage() {
       toast.error("Эксперт может только просматривать свои записи");
       return;
     }
-    if (!directionId || !specialistId || !startAt) {
+    if (!directionPipelineId || !directionId || !specialistId || !startAt) {
       toast.error("Заполните направление, специалиста и дату.");
       return;
     }
@@ -713,6 +754,21 @@ export function OnlineBookingPage() {
                   </>
                 )}
                 <label className="block text-sm text-slate-300">
+                  Воронка услуги
+                  <select
+                    required
+                    value={directionPipelineId ?? ""}
+                    onChange={(e) => setDirectionPipelineId(Number(e.target.value))}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  >
+                    {(pipelinesQuery.data ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm text-slate-300">
                   Направление
                   <select
                     required
@@ -836,10 +892,21 @@ export function OnlineBookingPage() {
               className="mb-4 flex flex-wrap gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!dirName.trim()) return;
+                if (!dirName.trim() || !directionPipelineId) return;
                 addDirectionMutation.mutate();
               }}
             >
+              <select
+                value={directionPipelineId ?? ""}
+                onChange={(e) => setDirectionPipelineId(Number(e.target.value))}
+                className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+              >
+                {(pipelinesQuery.data ?? []).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
               <input
                 placeholder="Название"
                 value={dirName}
@@ -864,7 +931,46 @@ export function OnlineBookingPage() {
             <ul className="space-y-2 text-sm text-slate-300">
               {(directionsQuery.data ?? []).map((d) => (
                 <li key={d.id} className="rounded-lg border border-slate-700/50 px-3 py-2">
-                  {d.name} — {d.duration_min} мин {d.is_active ? "" : "(выкл.)"}
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      {d.name} — {d.duration_min} мин {d.is_active ? "" : "(выкл.)"}
+                      {d.pipeline_name ? (
+                        <span className="ml-2 text-xs text-slate-500">[{d.pipeline_name}]</span>
+                      ) : null}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="rounded border border-slate-600 px-2 py-0.5 text-xs text-slate-200 hover:bg-white/10"
+                        onClick={() => {
+                          const name = window.prompt("Название услуги", d.name)?.trim();
+                          if (!name) return;
+                          const durRaw = window.prompt("Длительность (мин)", String(d.duration_min));
+                          const duration = Number(durRaw ?? "");
+                          if (!Number.isFinite(duration) || duration < 10) {
+                            toast.error("Некорректная длительность");
+                            return;
+                          }
+                          patchDirectionMutation.mutate({
+                            id: d.id,
+                            body: { name, duration_min: duration, pipeline_id: directionPipelineId },
+                          });
+                        }}
+                      >
+                        Изм.
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded border border-rose-500/50 px-2 py-0.5 text-xs text-rose-300 hover:bg-rose-500/20"
+                        onClick={() => {
+                          if (!window.confirm("Скрыть эту услугу?")) return;
+                          deleteDirectionMutation.mutate(d.id);
+                        }}
+                      >
+                        Удал.
+                      </button>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>

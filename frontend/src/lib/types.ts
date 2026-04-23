@@ -213,6 +213,8 @@ export interface BookingDirection {
   name: string;
   duration_min: number;
   is_active: boolean;
+  pipeline_id: number | null;
+  pipeline_name?: string | null;
 }
 
 export interface BookingSpecialist {

@@ -338,6 +338,7 @@ class BookingDirection(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255), unique=True)
+    pipeline_id: Mapped[int | None] = mapped_column(ForeignKey("pipelines.id", ondelete="SET NULL"), nullable=True, index=True)
     duration_min: Mapped[int] = mapped_column(default=30)
     is_active: Mapped[bool] = mapped_column(default=True)
 
