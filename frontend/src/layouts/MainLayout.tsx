@@ -347,20 +347,18 @@ export function MainLayout() {
                 ) : null}
               </>
             )}
-          </nav>
-          <div className="shrink-0 border-t border-slate-700/40 px-1.5 pt-4">
             <button
               type="button"
               onClick={logout}
               title="Выход"
-              className="flex w-full flex-col items-center gap-2 rounded-2xl py-3 text-slate-500 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-300"
+              className="mt-2 flex w-full flex-col items-center gap-2 rounded-2xl border-t border-slate-700/40 py-3 pt-4 text-slate-500 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-300"
             >
               <GradientIconBox variant="pink" className="h-9 w-9 opacity-80 [&_svg]:h-4 [&_svg]:w-4">
                 <LogOut className="h-4 w-4" />
               </GradientIconBox>
               <span className="text-[10px] font-medium">Выход</span>
             </button>
-          </div>
+          </nav>
         </aside>
 
         <main className="relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-24 sm:px-10 sm:py-10 sm:pb-10 lg:px-14">
