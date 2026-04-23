@@ -314,6 +314,8 @@ async def list_threads(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
     q: str | None = Query(default=None, max_length=120),
+    limit: int | None = Query(default=None, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
 ) -> list[ChatThreadRead]:
     if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.expert):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
@@ -359,6 +361,10 @@ async def list_threads(
             )
         query = query.where(or_(*conds))
     query = query.order_by(ChatThread.updated_at.desc(), ChatThread.id.desc())
+    if offset > 0:
+        query = query.offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
     rows = (await db.execute(query)).scalars().unique().all()
     thread_ids = [t.id for t in rows]
     first_map: dict[int, datetime] = {}

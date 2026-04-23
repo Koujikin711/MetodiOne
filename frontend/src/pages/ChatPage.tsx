@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -104,6 +104,7 @@ function MicIcon({ className }: { className?: string }) {
 }
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+const THREADS_PAGE_SIZE = 20;
 
 /** Зелёный: последнее сообщение от клиента (ждём ответ). Голубой: в пределах 3 суток с первого сообщения в чате. */
 type ThreadAttention = "waiting_reply" | "recent_window" | "normal";
@@ -156,14 +157,20 @@ export function ChatPage() {
     return () => window.clearTimeout(t);
   }, [threadSearch]);
 
-  const threadsQuery = useQuery({
+  const threadsQuery = useInfiniteQuery({
     queryKey: ["chat-threads", threadSearchDebounced],
-    queryFn: () =>
-      apiFetch<ChatThread[]>(
-        threadSearchDebounced
-          ? `/api/chat/threads?q=${encodeURIComponent(threadSearchDebounced)}`
-          : "/api/chat/threads",
-      ),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const p = new URLSearchParams();
+      if (threadSearchDebounced) p.set("q", threadSearchDebounced);
+      p.set("limit", String(THREADS_PAGE_SIZE));
+      p.set("offset", String(pageParam));
+      return apiFetch<ChatThread[]>(`/api/chat/threads?${p.toString()}`);
+    },
+    getNextPageParam: (lastPage, _pages, lastPageParam) => {
+      if (lastPage.length < THREADS_PAGE_SIZE) return undefined;
+      return Number(lastPageParam) + lastPage.length;
+    },
     refetchInterval: tabVisible ? 2500 : false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
@@ -174,7 +181,8 @@ export function ChatPage() {
   useEffect(() => {
     if (!Number.isFinite(leadFromQuery) || leadFromQuery <= 0) return;
     if (threadId != null) return;
-    const match = (threadsQuery.data ?? []).find((t) => t.lead_id === leadFromQuery);
+    const all = threadsQuery.data?.pages.flatMap((x) => x) ?? [];
+    const match = all.find((t) => t.lead_id === leadFromQuery);
     if (match) setThreadId(match.id);
   }, [leadFromQuery, threadId, threadsQuery.data]);
 
@@ -193,12 +201,12 @@ export function ChatPage() {
   }, [threadId]);
 
   const selectedThread = useMemo(
-    () => (threadsQuery.data ?? []).find((t) => t.id === threadId) ?? null,
+    () => (threadsQuery.data?.pages.flatMap((x) => x) ?? []).find((t) => t.id === threadId) ?? null,
     [threadsQuery.data, threadId],
   );
 
   const sortedThreads = useMemo(() => {
-    const list = [...(threadsQuery.data ?? [])];
+    const list = [...(threadsQuery.data?.pages.flatMap((x) => x) ?? [])];
     const score = (t: ChatThread) => {
       const a = threadAttention(t);
       if (a === "waiting_reply") return 3;
@@ -426,7 +434,15 @@ export function ChatPage() {
           {threadsQuery.isError && (
             <p className="text-sm text-red-300">{(threadsQuery.error as Error).message}</p>
           )}
-          <div className="space-y-2">
+          <div
+            className="max-h-[62vh] space-y-2 overflow-y-auto pr-1"
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              if (!threadsQuery.hasNextPage || threadsQuery.isFetchingNextPage) return;
+              if (el.scrollTop + el.clientHeight < el.scrollHeight - 80) return;
+              void threadsQuery.fetchNextPage();
+            }}
+          >
             {sortedThreads.map((t) => {
               const unread = t.unread_count ?? 0;
               return (
@@ -455,8 +471,11 @@ export function ChatPage() {
                 </button>
               );
             })}
-            {!threadsQuery.isLoading && (threadsQuery.data ?? []).length === 0 && (
+            {!threadsQuery.isLoading && sortedThreads.length === 0 && (
               <p className="text-sm text-slate-500">Пока нет диалогов</p>
+            )}
+            {threadsQuery.isFetchingNextPage && (
+              <p className="py-1 text-center text-xs text-slate-500">Загрузка ещё…</p>
             )}
           </div>
         </section>
