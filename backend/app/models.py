@@ -261,6 +261,7 @@ class IntegrationProvider(str, enum.Enum):
     telegram = "telegram"  # Telegram bot webhook
     instagram = "instagram"  # Meta webhook (placeholder)
     google_sheets = "google_sheets"  # Pull leads from Google Sheets
+    gmail = "gmail"  # Gmail mailbox integration
 
 
 class Integration(Base):

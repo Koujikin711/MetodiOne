@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { apiFetch } from "@/lib/api";
 import type { Integration, Pipeline, PipelineStage } from "@/lib/types";
 
-type IntegrationProvider = "green_api" | "telegram" | "google_sheets" | "instagram";
+type IntegrationProvider = "green_api" | "telegram" | "google_sheets" | "instagram" | "gmail";
 
 function IconWhatsApp({ className }: { className?: string }) {
   return (
@@ -50,6 +50,17 @@ function IconSheets({ className }: { className?: string }) {
   );
 }
 
+function IconGmail({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <path fill="#EA4335" d="M2 6.5 12 14l10-7.5V18a2 2 0 0 1-2 2h-3V10.7L12 14.3 7 10.7V20H4a2 2 0 0 1-2-2V6.5z" />
+      <path fill="#FBBC05" d="M2 6.5V7l10 7.3L22 7v-.5A2.5 2.5 0 0 0 19.5 4h-15A2.5 2.5 0 0 0 2 6.5z" />
+      <path fill="#34A853" d="M7 10.7V20h10v-9.3L12 14.3 7 10.7z" />
+      <path fill="#4285F4" d="M2 7v11a2 2 0 0 0 2 2h1v-9.3L2 7zm20 0-3 3.7V20h1a2 2 0 0 0 2-2V7z" />
+    </svg>
+  );
+}
+
 const CHANNELS: Array<{
   id: IntegrationProvider;
   title: string;
@@ -90,6 +101,14 @@ const CHANNELS: Array<{
     ring: "ring-fuchsia-500/50 hover:border-fuchsia-500/40",
     bg: "bg-gradient-to-br from-amber-500/25 via-rose-500/20 to-purple-600/25 text-pink-200",
   },
+  {
+    id: "gmail",
+    title: "Gmail",
+    subtitle: "Почта и письма",
+    Icon: IconGmail,
+    ring: "ring-red-500/50 hover:border-red-500/40",
+    bg: "bg-red-500/15 text-red-300",
+  },
 ];
 
 function IntegrationCard({
@@ -114,6 +133,7 @@ function IntegrationCard({
             {it.provider === "telegram" && <IconTelegram className="text-sky-400" />}
             {it.provider === "google_sheets" && <IconSheets className="h-6 w-6" />}
             {it.provider === "instagram" && <IconInstagram className="h-7 w-7" />}
+            {it.provider === "gmail" && <IconGmail className="h-7 w-7" />}
           </span>
           <div className="min-w-0 text-sm font-semibold text-slate-100">{it.name}</div>
         </div>
@@ -185,6 +205,11 @@ function IntegrationCard({
           </button>
         </div>
       )}
+      {it.provider === "gmail" && (
+        <div className="mt-2 text-[11px] leading-relaxed text-red-200/90">
+          Gmail подключение через IMAP. Укажите почту и пароль приложения Google (App Password).
+        </div>
+      )}
     </div>
   );
 }
@@ -228,6 +253,9 @@ export function IntegrationSetupPanel() {
   const [tplReactivation, setTplReactivation] = useState("");
   const [igPageToken, setIgPageToken] = useState("");
   const [igAppSecret, setIgAppSecret] = useState("");
+  const [gmailEmail, setGmailEmail] = useState("");
+  const [gmailAppPassword, setGmailAppPassword] = useState("");
+  const [gmailImapHost, setGmailImapHost] = useState("imap.gmail.com");
 
   function resetIntegrationForm(provider: IntegrationProvider = "green_api") {
     setEditingIntegrationId(null);
@@ -255,6 +283,9 @@ export function IntegrationSetupPanel() {
     setIntegrationCloseDealEnabled(false);
     setIgPageToken("");
     setIgAppSecret("");
+    setGmailEmail("");
+    setGmailAppPassword("");
+    setGmailImapHost("imap.gmail.com");
   }
 
   function beginEditIntegration(it: Integration) {
@@ -268,6 +299,8 @@ export function IntegrationSetupPanel() {
           ? "google_sheets"
           : it.provider === "instagram"
             ? "instagram"
+            : it.provider === "gmail"
+              ? "gmail"
             : "green_api",
     );
     setIntegrationPipelineId(it.pipeline_id);
@@ -276,6 +309,9 @@ export function IntegrationSetupPanel() {
     setIntegrationSecret("");
     setIgPageToken("");
     setIgAppSecret("");
+    setGmailEmail("");
+    setGmailAppPassword("");
+    setGmailImapHost("imap.gmail.com");
     if (it.provider === "telegram") {
       setIntegrationConfigText(JSON.stringify(it.config ?? {}, null, 2));
       setGreenInstanceId("");
@@ -300,6 +336,22 @@ export function IntegrationSetupPanel() {
       setSheetsEmailColumn("email");
       setSheetsHeaderRow("1");
       setSheetsStartRow("2");
+    } else if (it.provider === "gmail") {
+      const c = it.config as Record<string, unknown> | null;
+      setIntegrationConfigText("{}");
+      setGreenInstanceId("");
+      setGreenApiToken("");
+      setGreenApiBaseUrl("");
+      setSheetsUrl("");
+      setSheetsTabName("");
+      setSheetsNameColumn("full_name");
+      setSheetsPhoneColumn("phone_number");
+      setSheetsEmailColumn("email");
+      setSheetsHeaderRow("1");
+      setSheetsStartRow("2");
+      setGmailEmail(String(c?.email ?? c?.gmail_email ?? ""));
+      setGmailAppPassword("");
+      setGmailImapHost(String(c?.imap_host ?? "imap.gmail.com"));
     } else if (it.provider === "google_sheets") {
       const c = it.config as Record<string, unknown> | null;
       setSheetsUrl(String(c?.sheet_url ?? c?.spreadsheet_id ?? ""));
@@ -450,6 +502,13 @@ export function IntegrationSetupPanel() {
           ...(igAppSecret.trim() ? { app_secret: igAppSecret.trim() } : {}),
           templates,
         };
+      } else if (integrationProvider === "gmail") {
+        body.config = {
+          ...(gmailEmail.trim() ? { email: gmailEmail.trim() } : {}),
+          ...(gmailAppPassword.trim() ? { app_password: gmailAppPassword.trim() } : {}),
+          ...(gmailImapHost.trim() ? { imap_host: gmailImapHost.trim() } : {}),
+          templates,
+        };
       } else {
         try {
           const parsed = integrationConfigText.trim()
@@ -508,6 +567,15 @@ export function IntegrationSetupPanel() {
       cfg = {
         page_access_token: igPageToken.trim(),
         ...(igAppSecret.trim() ? { app_secret: igAppSecret.trim() } : {}),
+        templates,
+      };
+    } else if (integrationProvider === "gmail") {
+      if (!gmailEmail.trim()) return toast.error("Укажите Gmail адрес");
+      if (!gmailAppPassword.trim()) return toast.error("Укажите App Password для Gmail");
+      cfg = {
+        email: gmailEmail.trim(),
+        app_password: gmailAppPassword.trim(),
+        ...(gmailImapHost.trim() ? { imap_host: gmailImapHost.trim() } : {}),
         templates,
       };
     } else {
@@ -570,7 +638,7 @@ export function IntegrationSetupPanel() {
 
       {!integrationFormOpen ? (
         <>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {CHANNELS.map((ch) => (
               <button
                 key={ch.id}
@@ -648,6 +716,7 @@ export function IntegrationSetupPanel() {
                     {integrationProvider === "telegram" && <IconTelegram />}
                     {integrationProvider === "google_sheets" && <IconSheets className="h-8 w-8" />}
                     {integrationProvider === "instagram" && <IconInstagram className="h-8 w-8" />}
+                    {integrationProvider === "gmail" && <IconGmail className="h-8 w-8" />}
                   </div>
                   <div className="text-xs text-slate-400">
                     Тип канала выбран по иконке. Чтобы сменить — нажмите «Другой канал».
@@ -666,6 +735,7 @@ export function IntegrationSetupPanel() {
                     <option value="telegram">Telegram Bot</option>
                     <option value="google_sheets">Google Sheets</option>
                     <option value="instagram">Instagram / Meta</option>
+                    <option value="gmail">Gmail</option>
                   </select>
                 </label>
               )}
@@ -913,6 +983,45 @@ export function IntegrationSetupPanel() {
                       />
                     </label>
                   </div>
+                ) : integrationProvider === "gmail" ? (
+                  <div className="grid gap-3">
+                    <p className="text-[11px] leading-relaxed text-slate-400">
+                      Подключение Gmail по IMAP. В Google-аккаунте включите двухфакторную аутентификацию и создайте{" "}
+                      <span className="text-red-200/90">App Password</span>.
+                    </p>
+                    <label className="text-sm text-slate-300">
+                      Email
+                      <input
+                        value={gmailEmail}
+                        onChange={(e) => setGmailEmail(e.target.value)}
+                        placeholder="name@gmail.com"
+                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                      />
+                    </label>
+                    <label className="text-sm text-slate-300">
+                      App Password
+                      {editingIntegrationId != null && (
+                        <span className="ml-1 text-[11px] font-normal text-slate-500">— пусто = оставить текущий</span>
+                      )}
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        value={gmailAppPassword}
+                        onChange={(e) => setGmailAppPassword(e.target.value)}
+                        placeholder={editingIntegrationId != null ? "Оставьте пустым, чтобы не менять" : "16-символьный пароль приложения"}
+                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                      />
+                    </label>
+                    <label className="text-sm text-slate-300">
+                      IMAP host
+                      <input
+                        value={gmailImapHost}
+                        onChange={(e) => setGmailImapHost(e.target.value)}
+                        placeholder="imap.gmail.com"
+                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                      />
+                    </label>
+                  </div>
                 ) : (
                   <label className="text-sm text-slate-300">
                     Config (JSON)
@@ -1015,6 +1124,10 @@ export function IntegrationSetupPanel() {
                   <p className="text-[11px] text-slate-500">
                     В подписках webhook укажите этот Callback URL, verify token = секрет выше. Лиды с форм и новые
                     директ-сообщения подтянутся в CRM автоматически.
+                  </p>
+                ) : integrationProvider === "gmail" ? (
+                  <p className="text-[11px] text-slate-500">
+                    Используйте только пароль приложения Google. Обычный пароль аккаунта не подойдет.
                   </p>
                 ) : (
                   <p className="text-[11px] text-slate-500">

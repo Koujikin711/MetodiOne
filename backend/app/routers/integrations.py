@@ -52,6 +52,8 @@ _SECRET_CFG_KEYS = frozenset(
         "pageAccessToken",
         "app_secret",
         "appSecret",
+        "app_password",
+        "appPassword",
     },
 )
 
@@ -87,6 +89,8 @@ def _integration_read(row: Integration, *, setup_note: str | None = None) -> Int
             or cfg.get("apiTokenInstance")
             or cfg.get("page_access_token")
             or cfg.get("pageAccessToken")
+            or cfg.get("app_password")
+            or cfg.get("appPassword")
         )
         has_token = bool(t)
         safe_cfg = {k: v for k, v in cfg.items() if k not in _SECRET_CFG_KEYS}
@@ -114,6 +118,18 @@ def _merge_instagram_config(old: dict | None, new: dict | None) -> dict:
     if not new:
         return merged
     skip_empty = ("page_access_token", "pageAccessToken", "app_secret", "appSecret")
+    for k, v in new.items():
+        if k in skip_empty and (v is None or str(v).strip() == ""):
+            continue
+        merged[k] = v
+    return merged
+
+
+def _merge_gmail_config(old: dict | None, new: dict | None) -> dict:
+    merged = dict(old or {})
+    if not new:
+        return merged
+    skip_empty = ("app_password", "appPassword")
     for k, v in new.items():
         if k in skip_empty and (v is None or str(v).strip() == ""):
             continue
@@ -223,6 +239,21 @@ async def create_integration(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Укажите Page Access Token (Meta → инструменты Graph API или настройки Lead Ads)",
             )
+    elif provider == IntegrationProvider.gmail:
+        if not sec:
+            sec = secrets.token_urlsafe(24)
+        email = str(cfg.get("email") or cfg.get("gmail_email") or "").strip()
+        app_password = str(cfg.get("app_password") or cfg.get("appPassword") or "").strip()
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Для Gmail укажите email (или gmail_email) в config",
+            )
+        if not app_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Для Gmail укажите app_password (пароль приложения)",
+            )
     else:
         if len(sec) < 8:
             raise HTTPException(
@@ -297,6 +328,12 @@ async def create_integration(
             "App Secret в config — для проверки подписи X-Hub-Signature-256 (рекомендуется)."
         )
         return _integration_read(row, setup_note=note)
+    if provider == IntegrationProvider.gmail:
+        note = (
+            "Gmail подключён. Укажите email и app_password (пароль приложения Google). "
+            "Для безопасного доступа включите IMAP в Gmail и используйте отдельный пароль приложения."
+        )
+        return _integration_read(row, setup_note=note)
 
     return _integration_read(row)
 
@@ -360,6 +397,21 @@ async def patch_integration(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Нужен page_access_token в config (или оставьте прежний, не отправляя пустое поле)",
+                )
+            row.config = merged
+        elif row.provider == IntegrationProvider.gmail:
+            merged = _merge_gmail_config(row.config, body.config)
+            email = str(merged.get("email") or merged.get("gmail_email") or "").strip()
+            app_password = str(merged.get("app_password") or merged.get("appPassword") or "").strip()
+            if not email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Для Gmail укажите email (или gmail_email) в config",
+                )
+            if not app_password:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Для Gmail нужен app_password (или оставьте прежний, не отправляя пустое поле)",
                 )
             row.config = merged
         else:
@@ -833,6 +885,11 @@ async def integration_webhook(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Google Sheets: используйте синхронизацию из панели интеграций, webhook не применяется",
+        )
+    if integ.provider == IntegrationProvider.gmail:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Gmail: webhook не используется, подключение настраивается через config в панели интеграций",
         )
 
     raise HTTPException(
