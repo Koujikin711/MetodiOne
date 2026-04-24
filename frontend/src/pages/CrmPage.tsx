@@ -284,7 +284,7 @@ function LeadCard({
       {...listeners}
       {...attributes}
       className={[
-        "min-w-0 max-w-full cursor-grab touch-none rounded-xl border border-slate-600/50 bg-slate-800/70 p-4 shadow-lg backdrop-blur-sm transition-shadow duration-200 active:cursor-grabbing",
+        "min-w-0 max-w-full cursor-grab touch-pan-y rounded-xl border border-slate-600/50 bg-slate-800/70 p-4 shadow-lg backdrop-blur-sm transition-shadow duration-200 active:cursor-grabbing",
         isDragging ? "opacity-50" : "hover:border-slate-500/60 hover:shadow-xl",
       ].join(" ")}
     >
@@ -525,7 +525,7 @@ export function CrmPage() {
   const tasksQuery = useQuery({
     queryKey: ["tasks"],
     queryFn: () => apiFetch<Task[] | TaskListResponse>("/api/tasks"),
-    refetchInterval: 4000,
+    refetchInterval: 15000,
   });
   const tasks = useMemo(() => {
     const d = tasksQuery.data;

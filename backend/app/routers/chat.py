@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import case, exists, func, or_, select
+from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -432,13 +432,43 @@ async def list_threads(
                     continue
                 last_dir_map[int(tid)] = id_to_dir.get(int(mid))
 
+    lead_name_map: dict[int, str | None] = {}
+    lead_ids = [int(t.lead_id) for t in rows if t.lead_id is not None]
+    if lead_ids:
+        lead_rows = (
+            await db.execute(select(Lead.id, Lead.name).where(Lead.id.in_(set(lead_ids))))
+        ).all()
+        lead_name_map = {int(lid): name for lid, name in lead_rows if lid is not None}
+
+    unread_map: dict[int, int] = {tid: 0 for tid in thread_ids}
+    if thread_ids:
+        unread_rows = (
+            await db.execute(
+                select(ChatMessage.thread_id, func.count(ChatMessage.id))
+                .join(
+                    ChatThreadUserRead,
+                    and_(
+                        ChatThreadUserRead.thread_id == ChatMessage.thread_id,
+                        ChatThreadUserRead.user_id == current_user.id,
+                    ),
+                )
+                .where(
+                    ChatMessage.thread_id.in_(thread_ids),
+                    ChatMessage.direction == "in",
+                    ChatMessage.id > ChatThreadUserRead.last_read_message_id,
+                )
+                .group_by(ChatMessage.thread_id)
+            )
+        ).all()
+        for tid, cnt in unread_rows:
+            if tid is None:
+                continue
+            unread_map[int(tid)] = int(cnt or 0)
+
     out: list[ChatThreadRead] = []
     for t in rows:
-        lead_name = None
-        if t.lead_id:
-            lead = await db.get(Lead, t.lead_id)
-            lead_name = lead.name if lead else None
-        unread = await _unread_incoming_count(db, user_id=current_user.id, thread_id=t.id)
+        lead_name = lead_name_map.get(int(t.lead_id)) if t.lead_id is not None else None
+        unread = unread_map.get(t.id, 0)
         out.append(
             ChatThreadRead(
                 id=t.id,
