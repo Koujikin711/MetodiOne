@@ -524,7 +524,7 @@ export function CrmPage() {
 
   const tasksQuery = useQuery({
     queryKey: ["tasks"],
-    queryFn: () => apiFetch<Task[] | TaskListResponse>("/api/tasks"),
+    queryFn: () => apiFetch<Task[] | TaskListResponse>("/api/tasks?limit=120&offset=0&include_total=false"),
     refetchInterval: 15000,
   });
   const tasks = useMemo(() => {

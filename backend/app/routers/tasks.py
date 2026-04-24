@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -181,6 +181,9 @@ async def list_tasks(
     deadline_from: str | None = Query(default=None),
     deadline_to: str | None = Query(default=None),
     q: str | None = Query(default=None, max_length=120),
+    limit: int | None = Query(default=None, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    include_total: bool = Query(default=True),
 ) -> TaskListResponse:
     assignee_u = aliased(User)
     creator_u = aliased(User)
@@ -237,9 +240,20 @@ async def list_tasks(
         like = f"%{term}%"
         query = query.where(or_(Task.title.ilike(like), Task.description.ilike(like)))
 
-    rows = (await db.execute(query.order_by(Task.id.desc()))).all()
+    total = 0
+    if include_total:
+        total_q = select(func.count()).select_from(query.subquery())
+        total = int((await db.scalar(total_q)) or 0)
+    query = query.order_by(Task.id.desc())
+    if offset > 0:
+        query = query.offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    rows = (await db.execute(query)).all()
     items = [_to_task_read(task=t, assignee=assignee, creator=creator) for t, assignee, creator in rows]
-    return TaskListResponse(items=items, total=len(items))
+    if not include_total:
+        total = len(items)
+    return TaskListResponse(items=items, total=total)
 
 
 @router.get("/{task_id}", response_model=TaskRead)

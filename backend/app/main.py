@@ -14,6 +14,7 @@ from app.config import settings
 from app.database import AsyncSessionLocal, engine
 from app.database_migrate import (
     ensure_booking_specialist_columns,
+    ensure_chat_performance_indexes,
     ensure_finance_extensions,
     ensure_integration_provider_migration,
     ensure_multi_tenant_migration,
@@ -178,6 +179,7 @@ async def lifespan(_: FastAPI):
         await ensure_multi_tenant_migration(conn, settings.database_url)
         await ensure_finance_extensions(conn, settings.database_url)
         await ensure_sales_kpi_plans(conn, settings.database_url)
+        await ensure_chat_performance_indexes(conn, settings.database_url)
     # enum-миграции PostgreSQL нельзя выполнять внутри begin-транзакции.
     # Для надёжности запускаем каждую миграцию на отдельном "свежем" connection.
     async with engine.connect() as conn:
