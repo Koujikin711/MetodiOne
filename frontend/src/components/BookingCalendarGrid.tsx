@@ -15,7 +15,14 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type DragEvent,
+  type SetStateAction,
+} from "react";
 
 import { GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "@/components/icons";
 import {
@@ -162,6 +169,8 @@ type Props = {
   dateYmd: string;
   specialists: BookingSpecialist[];
   appointments: BookingAppointment[];
+  /** Если задано, новые слоты (клик по пустому времени) только для этих специалистов; перенос записей не блокируется. */
+  slotClickSpecialistIds?: ReadonlySet<number>;
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: SlotClickPayload) => void;
   onMoveAppointment?: (payload: { appointmentId: number; specialistId: number; minuteOfDay: number }) => void;
@@ -187,6 +196,7 @@ type SortableColProps = {
   onMoveAppointment?: (payload: { appointmentId: number; specialistId: number; minuteOfDay: number }) => void;
   dragEnabled: boolean;
   nowTopPct: number | null;
+  slotClickSpecialistIds?: ReadonlySet<number>;
 };
 
 function SortableSpecialistColumn({
@@ -205,6 +215,7 @@ function SortableSpecialistColumn({
   onMoveAppointment,
   dragEnabled,
   nowTopPct,
+  slotClickSpecialistIds,
 }: SortableColProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: spec.id,
@@ -345,38 +356,59 @@ function SortableSpecialistColumn({
           SLOT_MINUTES.map((minuteOfDay) => {
             const ok = isSlotBookable(dateYmd, spec, minuteOfDay);
             if (!ok) return null;
+            const allowSlotClick =
+              !slotClickSpecialistIds || slotClickSpecialistIds.size === 0 || slotClickSpecialistIds.has(spec.id);
             const topPct = ((minuteOfDay - GRID_START_HOUR * 60) / ((GRID_END_HOUR - GRID_START_HOUR) * 60)) * 100;
-            return (
-              <button
-                key={`slot-${spec.id}-${minuteOfDay}`}
-                type="button"
-                onClick={() =>
-                  onSlotClick?.({
-                    specialistId: spec.id,
-                    directionId: spec.direction_id,
-                    minuteOfDay,
-                  })
-                }
-                onDragOver={(e) => {
-                  if (!onMoveAppointment) return;
-                  e.preventDefault();
-                }}
-                onDrop={(e) => {
-                  if (!onMoveAppointment) return;
-                  e.preventDefault();
-                  const raw = e.dataTransfer.getData("text/appointment-id");
-                  const id = Number(raw);
-                  if (!Number.isFinite(id)) return;
-                  onMoveAppointment({ appointmentId: id, specialistId: spec.id, minuteOfDay });
-                }}
-                className="absolute inset-x-1 z-[5] cursor-pointer rounded-md border border-transparent transition-colors hover:border-purple-500/35 hover:bg-purple-500/10"
-                style={{
-                  top: `${topPct}%`,
-                  height: `${(SLOT_STEP_MIN / 60 / totalHours) * 100}%`,
-                }}
-                aria-label={`Свободный слот ${Math.floor(minuteOfDay / 60)}:${String(minuteOfDay % 60).padStart(2, "0")}, ${spec.full_name}`}
-              />
-            );
+            const slotStyle = {
+              top: `${topPct}%`,
+              height: `${(SLOT_STEP_MIN / 60 / totalHours) * 100}%`,
+            } as const;
+            const dragHandlers =
+              onMoveAppointment != null
+                ? {
+                    onDragOver: (e: DragEvent) => {
+                      e.preventDefault();
+                    },
+                    onDrop: (e: DragEvent) => {
+                      e.preventDefault();
+                      const raw = e.dataTransfer.getData("text/appointment-id");
+                      const id = Number(raw);
+                      if (!Number.isFinite(id)) return;
+                      onMoveAppointment({ appointmentId: id, specialistId: spec.id, minuteOfDay });
+                    },
+                  }
+                : {};
+            if (allowSlotClick && onSlotClick) {
+              return (
+                <button
+                  key={`slot-${spec.id}-${minuteOfDay}`}
+                  type="button"
+                  onClick={() =>
+                    onSlotClick({
+                      specialistId: spec.id,
+                      directionId: spec.direction_id,
+                      minuteOfDay,
+                    })
+                  }
+                  {...dragHandlers}
+                  className="absolute inset-x-1 z-[5] cursor-pointer rounded-md border border-transparent transition-colors hover:border-purple-500/35 hover:bg-purple-500/10"
+                  style={slotStyle}
+                  aria-label={`Свободный слот ${Math.floor(minuteOfDay / 60)}:${String(minuteOfDay % 60).padStart(2, "0")}, ${spec.full_name}`}
+                />
+              );
+            }
+            if (onMoveAppointment) {
+              return (
+                <div
+                  key={`slot-drop-${spec.id}-${minuteOfDay}`}
+                  {...dragHandlers}
+                  className="absolute inset-x-1 z-[5]"
+                  style={slotStyle}
+                  aria-hidden
+                />
+              );
+            }
+            return null;
           })}
 
         {(bySpec.get(spec.id) ?? []).map((a) => {
@@ -438,6 +470,7 @@ export function BookingCalendarGrid({
   dateYmd,
   specialists,
   appointments,
+  slotClickSpecialistIds,
   onAppointmentClick,
   onSlotClick,
   onAddSpecialist,
@@ -452,7 +485,7 @@ export function BookingCalendarGrid({
   const [nowTick, setNowTick] = useState(() => Date.now());
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 12 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -512,6 +545,7 @@ export function BookingCalendarGrid({
     onMoveAppointment,
     dragEnabled,
     nowTopPct: nowLineTopPct(dateYmd, nowTick),
+    slotClickSpecialistIds,
   };
 
   if (specialists.length === 0) {

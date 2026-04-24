@@ -283,7 +283,7 @@ export function OnlineBookingPage() {
         method: "DELETE",
       }),
     onSuccess: () => {
-      toast.success("Услуга удалена");
+      toast.success("Услуга скрыта из новых записей; старые записи сохранены");
       void queryClient.invalidateQueries({ queryKey: ["booking-directions"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -370,7 +370,10 @@ export function OnlineBookingPage() {
     },
   });
 
-  const directionsActive = useMemo(() => directionsQuery.data?.filter((d) => d.is_active) ?? [], [directionsQuery.data]);
+  const directionsAll = useMemo(() => directionsQuery.data ?? [], [directionsQuery.data]);
+  const directionsById = useMemo(() => new Map(directionsAll.map((d) => [d.id, d])), [directionsAll]);
+
+  const directionsActive = useMemo(() => directionsAll.filter((d) => d.is_active), [directionsAll]);
   const directionsForPipeline = useMemo(() => {
     if (directionPipelineId == null) return directionsActive;
     return directionsActive.filter((d) => d.pipeline_id === directionPipelineId);
@@ -383,6 +386,39 @@ export function OnlineBookingPage() {
       return o !== 0 ? o : a.id - b.id;
     });
   }, [specialistsQuery.data]);
+
+  const gridAppointmentSpecIds = useMemo(() => {
+    const set = new Set<number>();
+    for (const a of gridAppointmentsQuery.data ?? []) set.add(a.specialist_id);
+    return set;
+  }, [gridAppointmentsQuery.data]);
+
+  const specialistsForCalendar = useMemo(() => {
+    const fromActive = specialistsActive.filter((s) => {
+      const dir = directionsById.get(s.direction_id);
+      if (!dir) return gridAppointmentSpecIds.has(s.id);
+      if (dir.is_active) return true;
+      return gridAppointmentSpecIds.has(s.id);
+    });
+    const ids = new Set(fromActive.map((s) => s.id));
+    const inactiveWithAppts = (specialistsQuery.data ?? []).filter(
+      (s) => !s.is_active && gridAppointmentSpecIds.has(s.id) && !ids.has(s.id),
+    );
+    const merged = [...fromActive, ...inactiveWithAppts];
+    merged.sort((a, b) => {
+      const o = (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      return o !== 0 ? o : a.id - b.id;
+    });
+    return merged;
+  }, [specialistsActive, specialistsQuery.data, directionsById, gridAppointmentSpecIds]);
+
+  const slotClickSpecialistIds = useMemo(() => {
+    return new Set(
+      specialistsActive
+        .filter((s) => directionsById.get(s.direction_id)?.is_active)
+        .map((s) => s.id),
+    );
+  }, [specialistsActive, directionsById]);
 
   const reorderSpecialistsMutation = useMutation({
     mutationFn: (ordered_ids: number[]) =>
@@ -445,31 +481,6 @@ export function OnlineBookingPage() {
     }
   }, [leadId, newLeadPipelineId]);
   useEffect(() => {
-    if (!specialistId) return;
-    const specialist = specialistsActive.find((s) => s.id === specialistId);
-    if (!specialist) return;
-    const specialistDirection = directionsActive.find((d) => d.id === specialist.direction_id);
-    if (!specialistDirection || specialistDirection.pipeline_id == null) return;
-    if (specialistDirection.pipeline_id !== directionPipelineId) {
-      setDirectionPipelineId(specialistDirection.pipeline_id);
-    }
-    if (!leadId && specialistDirection.pipeline_id !== newLeadPipelineId) {
-      setNewLeadPipelineId(specialistDirection.pipeline_id);
-    }
-    if (directionId !== specialistDirection.id) {
-      setDirectionId(specialistDirection.id);
-    }
-  }, [
-    specialistId,
-    specialistsActive,
-    directionsActive,
-    directionPipelineId,
-    leadId,
-    newLeadPipelineId,
-    directionId,
-  ]);
-
-  useEffect(() => {
     if (!canEditBooking && tab === "dicts") {
       setTab("online");
     }
@@ -485,6 +496,38 @@ export function OnlineBookingPage() {
     if (fixedServiceAmount == null) return;
     setServiceAmount(fixedServiceAmount);
   }, [fixedServiceAmount]);
+
+  function syncFormFromSpecialistId(specId: number) {
+    const specialist = specialistsActive.find((s) => s.id === specId);
+    if (!specialist) return;
+    const dir = directionsAll.find((d) => d.id === specialist.direction_id);
+    if (!dir || dir.pipeline_id == null) return;
+    setDirectionPipelineId(dir.pipeline_id);
+    if (!leadId) setNewLeadPipelineId(dir.pipeline_id);
+    setDirectionId(dir.id);
+    setSpecialistId(specialist.id);
+  }
+
+  function handleFormPipelineChange(pid: number) {
+    setDirectionPipelineId(pid);
+    if (!leadId) setNewLeadPipelineId(pid);
+    const dirs = directionsActive.filter((d) => d.pipeline_id === pid);
+    const firstDir = dirs[0];
+    if (!firstDir) {
+      setDirectionId(0);
+      setSpecialistId(0);
+      return;
+    }
+    setDirectionId(firstDir.id);
+    const specs = specialistsActive.filter((s) => s.direction_id === firstDir.id);
+    setSpecialistId(specs[0]?.id ?? 0);
+  }
+
+  function handleFormDirectionChange(dirId: number) {
+    setDirectionId(dirId);
+    const specs = specialistsActive.filter((s) => s.direction_id === dirId);
+    setSpecialistId(specs[0]?.id ?? 0);
+  }
 
   function onCalendarAppointmentClick(a: BookingAppointment) {
     if (a.lead_id) {
@@ -550,13 +593,7 @@ export function OnlineBookingPage() {
   }
 
   function handleSlotClick(payload: { specialistId: number; directionId: number; minuteOfDay: number }) {
-    const slotDirection = directionsActive.find((d) => d.id === payload.directionId);
-    if (slotDirection?.pipeline_id != null) {
-      setDirectionPipelineId(slotDirection.pipeline_id);
-      if (!leadId) setNewLeadPipelineId(slotDirection.pipeline_id);
-    }
-    setDirectionId(payload.directionId);
-    setSpecialistId(payload.specialistId);
+    syncFormFromSpecialistId(payload.specialistId);
     const hh = Math.floor(payload.minuteOfDay / 60);
     const mm = payload.minuteOfDay % 60;
     setStartAt(`${filterDate}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
@@ -666,7 +703,7 @@ export function OnlineBookingPage() {
             «Успешно реализован», при отмене / неявке — «Потерян».
           </p>
           <Link
-            to="/"
+            to="/app"
             className="inline-flex text-sm font-medium text-purple-300 underline-offset-4 hover:text-purple-200 hover:underline"
           >
             ← К канбану
@@ -701,7 +738,8 @@ export function OnlineBookingPage() {
             <div className="min-w-0">
               <BookingCalendarGrid
                 dateYmd={filterDate}
-                specialists={specialistsActive}
+                specialists={specialistsForCalendar}
+                slotClickSpecialistIds={slotClickSpecialistIds}
                 appointments={gridAppointmentsQuery.data ?? []}
                 onAppointmentClick={onCalendarAppointmentClick}
                 onSlotClick={canEditBooking ? handleSlotClick : undefined}
@@ -790,7 +828,7 @@ export function OnlineBookingPage() {
                   <select
                     required
                     value={directionPipelineId ?? ""}
-                    onChange={(e) => setDirectionPipelineId(Number(e.target.value))}
+                    onChange={(e) => handleFormPipelineChange(Number(e.target.value))}
                     className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
                   >
                     {(pipelinesQuery.data ?? []).map((p) => (
@@ -805,7 +843,7 @@ export function OnlineBookingPage() {
                   <select
                     required
                     value={directionId || ""}
-                    onChange={(e) => setDirectionId(Number(e.target.value))}
+                    onChange={(e) => handleFormDirectionChange(Number(e.target.value))}
                     className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
                   >
                     {directionsForPipeline.map((d) => (
@@ -820,7 +858,7 @@ export function OnlineBookingPage() {
                   <select
                     required
                     value={specialistId || ""}
-                    onChange={(e) => setSpecialistId(Number(e.target.value))}
+                    onChange={(e) => syncFormFromSpecialistId(Number(e.target.value))}
                     className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
                   >
                     {specialistsForDirection.map((s) => (
@@ -999,7 +1037,12 @@ export function OnlineBookingPage() {
                         type="button"
                         className="rounded border border-rose-500/50 px-2 py-0.5 text-xs text-rose-300 hover:bg-rose-500/20"
                         onClick={() => {
-                          if (!window.confirm("Удалить услугу полностью?")) return;
+                          if (
+                            !window.confirm(
+                              "Скрыть услугу из новых записей? Существующие записи и история сохранятся.",
+                            )
+                          )
+                            return;
                           deleteDirectionMutation.mutate(d.id);
                         }}
                       >

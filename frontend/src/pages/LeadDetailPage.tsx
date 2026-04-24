@@ -121,7 +121,7 @@ export function LeadDetailPage() {
   const canEditLeadProfile = role === "owner" || role === "admin";
   const canDeleteLead = role === "owner";
   const canEditBooking = role !== "expert";
-  const homeLink = role === "manager" || role === "admin" ? "/crm" : "/";
+  const homeLink = role === "manager" || role === "admin" ? "/crm" : "/app";
   const homeLabel = "Канбан";
 
   const appointmentFromUrl = Number(searchParams.get("appointment"));

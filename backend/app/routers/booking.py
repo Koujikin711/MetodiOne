@@ -457,14 +457,19 @@ async def delete_direction(
     d = await db.get(BookingDirection, direction_id)
     if d is None or d.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
-    await db.delete(d)
-    try:
-        await db.flush()
-    except IntegrityError:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Нельзя удалить услугу: есть связанные записи/специалисты. Сначала удалите или перенесите их.",
-        )
+    # Мягкое «удаление»: услуга скрывается из новых записей, но строка остаётся —
+    # существующие записи и FK не ломаются (в отличие от физического DELETE с RESTRICT).
+    if not d.is_active:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    suffix = f" [архив #{d.id}]"
+    if "[архив #" not in d.name:
+        base = d.name.strip()
+        new_name = f"{base}{suffix}"
+        if len(new_name) > 255:
+            new_name = f"{base[: max(1, 255 - len(suffix))]}{suffix}"
+        d.name = new_name
+    d.is_active = False
+    await db.flush()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
