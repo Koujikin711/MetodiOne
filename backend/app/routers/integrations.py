@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import re
 import secrets
@@ -22,6 +23,7 @@ from app.services.green_api_settings import (
     resolve_public_api_base,
 )
 from app.services.google_sheets_sync import sync_google_sheet_integration
+from app.services.instagram_webhook import handle_instagram_webhook, meta_hub_challenge_response
 from datetime import UTC, datetime
 
 from app.models import (
@@ -41,7 +43,17 @@ from app.schemas.lead import LeadRead
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 logger = logging.getLogger(__name__)
 
-_SECRET_CFG_KEYS = frozenset({"api_token", "apiToken", "apiTokenInstance"})
+_SECRET_CFG_KEYS = frozenset(
+    {
+        "api_token",
+        "apiToken",
+        "apiTokenInstance",
+        "page_access_token",
+        "pageAccessToken",
+        "app_secret",
+        "appSecret",
+    },
+)
 
 
 def _webhook_token_matches(provided: str | None, expected: str) -> bool:
@@ -69,7 +81,13 @@ def _integration_read(row: Integration, *, setup_note: str | None = None) -> Int
     has_token = False
     safe_cfg: dict | None = None
     if cfg and isinstance(cfg, dict):
-        t = cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance")
+        t = (
+            cfg.get("api_token")
+            or cfg.get("apiToken")
+            or cfg.get("apiTokenInstance")
+            or cfg.get("page_access_token")
+            or cfg.get("pageAccessToken")
+        )
         has_token = bool(t)
         safe_cfg = {k: v for k, v in cfg.items() if k not in _SECRET_CFG_KEYS}
         if not safe_cfg and not has_token:
@@ -89,6 +107,18 @@ def _integration_read(row: Integration, *, setup_note: str | None = None) -> Int
         has_api_token=has_token,
         setup_note=setup_note,
     )
+
+
+def _merge_instagram_config(old: dict | None, new: dict | None) -> dict:
+    merged = dict(old or {})
+    if not new:
+        return merged
+    skip_empty = ("page_access_token", "pageAccessToken", "app_secret", "appSecret")
+    for k, v in new.items():
+        if k in skip_empty and (v is None or str(v).strip() == ""):
+            continue
+        merged[k] = v
+    return merged
 
 
 def _merge_green_api_config(old: dict | None, new: dict | None) -> dict:
@@ -181,6 +211,18 @@ async def create_integration(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Для Google Sheets укажите config.sheet_url (или spreadsheet_id)",
             )
+    elif provider == IntegrationProvider.instagram:
+        if len(sec) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Verify token (webhook-секрет) не короче 8 символов — сгенерируйте в форме или введите свой",
+            )
+        page_token = str(cfg.get("page_access_token") or cfg.get("pageAccessToken") or "").strip()
+        if not page_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Укажите Page Access Token (Meta → инструменты Graph API или настройки Lead Ads)",
+            )
     else:
         if len(sec) < 8:
             raise HTTPException(
@@ -246,6 +288,16 @@ async def create_integration(
         )
         return _integration_read(row, setup_note=note)
 
+    if provider == IntegrationProvider.instagram:
+        pub = resolve_public_api_base(request, settings.public_api_base_url)
+        hook = f"{pub}/api/integrations/webhook/{row.id}" if pub else f"/api/integrations/webhook/{row.id}"
+        note = (
+            f"Callback URL в Meta: {hook}. "
+            "Verify token: тот же секрет, что в форме. Подписки: leadgen (страница), instagram, при необходимости messages. "
+            "App Secret в config — для проверки подписи X-Hub-Signature-256 (рекомендуется)."
+        )
+        return _integration_read(row, setup_note=note)
+
     return _integration_read(row)
 
 
@@ -299,6 +351,15 @@ async def patch_integration(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Для Google Sheets укажите config.sheet_url (или spreadsheet_id)",
+                )
+            row.config = merged
+        elif row.provider == IntegrationProvider.instagram:
+            merged = _merge_instagram_config(row.config, body.config)
+            page_token = str(merged.get("page_access_token") or merged.get("pageAccessToken") or "").strip()
+            if not page_token:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Нужен page_access_token в config (или оставьте прежний, не отправляя пустое поле)",
                 )
             row.config = merged
         else:
@@ -570,7 +631,31 @@ async def _add_incoming_message(
     await db.flush()
 
 
-@router.post("/webhook/{integration_id}", response_model=LeadRead)
+@router.get("/webhook/{integration_id}")
+async def integration_webhook_verify(
+    integration_id: int,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Meta при подписке webhook шлёт GET с hub.mode / hub.verify_token / hub.challenge."""
+    integ = await db.get(Integration, integration_id)
+    if integ is None or not integ.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+    if integ.provider != IntegrationProvider.instagram:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Use this URL only for Instagram / Meta")
+    qp = request.query_params
+    challenge = meta_hub_challenge_response(
+        verify_token=integ.secret,
+        hub_mode=qp.get("hub.mode"),
+        hub_verify_token=qp.get("hub.verify_token"),
+        hub_challenge=qp.get("hub.challenge"),
+    )
+    if challenge is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Verification failed")
+    return challenge
+
+
+@router.post("/webhook/{integration_id}")
 async def integration_webhook(
     integration_id: int,
     request: Request,
@@ -578,7 +663,8 @@ async def integration_webhook(
     token: str | None = Query(default=None),
     x_webhook_token: str | None = Header(default=None),
     authorization: Annotated[str | None, Header()] = None,
-) -> LeadRead:
+) -> LeadRead | Response:
+    raw_body = await request.body()
     integ = await db.get(Integration, integration_id)
     if integ is None or not integ.is_active:
         logger.warning("integration webhook: integration_id=%s not found or inactive", integration_id)
@@ -586,6 +672,28 @@ async def integration_webhook(
     if integ.company_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Integration has no company scope")
     company_id = int(integ.company_id)
+
+    if integ.provider == IntegrationProvider.instagram:
+        sig = request.headers.get("X-Hub-Signature-256")
+        try:
+            payload: Any = json.loads(raw_body.decode("utf-8") or "{}") if raw_body else {}
+        except Exception:
+            logger.exception("integration webhook: integration_id=%s invalid JSON body (instagram)", integration_id)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Expected JSON body")
+        if not isinstance(payload, dict):
+            payload = {}
+        return await handle_instagram_webhook(
+            db,
+            integ=integ,
+            company_id=company_id,
+            raw_body=raw_body,
+            payload=payload,
+            signature_header=sig,
+            create_lead_fn=_create_lead_from_integration,
+            upsert_thread_fn=_upsert_thread,
+            add_message_fn=_add_incoming_message,
+            lead_read_fn=_lead_read,
+        )
 
     provided = token or x_webhook_token or _token_from_authorization_header(authorization)
     if not _webhook_token_matches(provided, integ.secret):
@@ -597,7 +705,7 @@ async def integration_webhook(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bad token")
 
     try:
-        payload: Any = await request.json()
+        payload = json.loads(raw_body.decode("utf-8") or "{}") if raw_body else {}
     except Exception:
         logger.exception("integration webhook: integration_id=%s invalid JSON body", integration_id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Expected JSON body")
@@ -721,6 +829,14 @@ async def integration_webhook(
         logger.info("integration webhook: ok lead_id=%s thread_id=%s", lead.id, thread.id)
         return _lead_read(lead)
 
-    # instagram placeholder
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provider webhook not implemented yet")
+    if integ.provider == IntegrationProvider.google_sheets:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google Sheets: используйте синхронизацию из панели интеграций, webhook не применяется",
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=f"Webhook для провайдера не поддерживается: {integ.provider}",
+    )
 
