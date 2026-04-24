@@ -563,16 +563,6 @@ export function OnlineBookingPage() {
 
       {tab === "online" && (
         <div className="space-y-3">
-          <button
-            type="button"
-            onClick={() => setCalendarDrawerOpen(true)}
-            className="fixed left-2 top-1/2 z-30 hidden -translate-y-1/2 flex-col items-center gap-1 rounded-2xl border border-white/15 bg-slate-900/90 px-2 py-3 text-[10px] font-medium text-slate-200 shadow-lg shadow-black/40 backdrop-blur-sm transition hover:bg-slate-800/95 hover:text-white xl:flex"
-            title="Календарь и дата"
-          >
-            <Calendar className="h-5 w-5 text-purple-300" />
-            <span className="max-w-[3rem] text-center leading-tight">Месяц</span>
-          </button>
-
           {calendarDrawerOpen && (
             <>
               <button
@@ -655,6 +645,19 @@ export function OnlineBookingPage() {
               )}
             </div>
             <aside className="flex w-full min-w-0 flex-col gap-2 xl:sticky xl:top-4 xl:max-h-[calc(100vh-3rem)] xl:max-w-[280px] xl:overflow-y-auto">
+              <section className="hidden rounded-2xl border border-slate-700/40 bg-slate-800/30 p-3 shadow-inner backdrop-blur-sm xl:block">
+                <h2 className="mb-2 text-sm font-semibold text-white">Дата записи</h2>
+                <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
+                <label className="mt-3 block text-xs text-slate-400">
+                  День (точно)
+                  <input
+                    type="date"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-950/50 px-2 py-2 text-sm text-white"
+                  />
+                </label>
+              </section>
               {canEditBooking ? (
                 <section
                   ref={formPanelRef}
