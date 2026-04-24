@@ -655,7 +655,7 @@ async def integration_webhook_verify(
     return challenge
 
 
-@router.post("/webhook/{integration_id}")
+@router.post("/webhook/{integration_id}", response_model=None)
 async def integration_webhook(
     integration_id: int,
     request: Request,
@@ -663,7 +663,7 @@ async def integration_webhook(
     token: str | None = Query(default=None),
     x_webhook_token: str | None = Header(default=None),
     authorization: Annotated[str | None, Header()] = None,
-) -> LeadRead | Response:
+) -> Any:
     raw_body = await request.body()
     integ = await db.get(Integration, integration_id)
     if integ is None or not integ.is_active:
