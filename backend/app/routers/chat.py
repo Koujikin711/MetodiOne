@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import case, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -388,7 +388,17 @@ async def list_threads(
                 ]
             )
         query = query.where(or_(*conds))
-    query = query.order_by(ChatThread.updated_at.desc(), ChatThread.id.desc())
+    # Сначала диалоги, где последнее сообщение от клиента (ждём ответ), затем по свежести.
+    last_direction_sq = (
+        select(ChatMessage.direction)
+        .where(ChatMessage.thread_id == ChatThread.id)
+        .order_by(ChatMessage.id.desc())
+        .limit(1)
+        .correlate(ChatThread)
+        .scalar_subquery()
+    )
+    needs_reply = case((last_direction_sq == "in", 1), else_=0)
+    query = query.order_by(needs_reply.desc(), ChatThread.updated_at.desc(), ChatThread.id.desc())
     if offset > 0:
         query = query.offset(offset)
     if limit is not None:
