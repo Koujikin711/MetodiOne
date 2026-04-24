@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { apiFetch } from "@/lib/api";
 import type { Integration, Pipeline, PipelineStage } from "@/lib/types";
 
-type IntegrationProvider = "green_api" | "telegram" | "google_sheets";
+type IntegrationProvider = "green_api" | "telegram" | "google_sheets" | "instagram";
 
 function IconWhatsApp({ className }: { className?: string }) {
   return (
@@ -19,6 +19,17 @@ function IconTelegram({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
       <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+    </svg>
+  );
+}
+
+function IconInstagram({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <path
+        fill="currentColor"
+        d="M7.8 2h8.4C19.4 2 22 4.6 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8C4.6 22 2 19.4 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2m-.2 2A3.6 3.6 0 0 0 4 7.6v8.8A3.6 3.6 0 0 0 7.6 20h8.8A3.6 3.6 0 0 0 20 16.4V7.6A3.6 3.6 0 0 0 16.4 4H7.6m8.65 1.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5M12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10m0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"
+      />
     </svg>
   );
 }
@@ -71,6 +82,14 @@ const CHANNELS: Array<{
     ring: "ring-green-500/50 hover:border-green-500/40",
     bg: "bg-green-600/15 text-green-300",
   },
+  {
+    id: "instagram",
+    title: "Instagram",
+    subtitle: "Meta — лиды и Direct",
+    Icon: IconInstagram,
+    ring: "ring-fuchsia-500/50 hover:border-fuchsia-500/40",
+    bg: "bg-gradient-to-br from-amber-500/25 via-rose-500/20 to-purple-600/25 text-pink-200",
+  },
 ];
 
 function IntegrationCard({
@@ -94,6 +113,7 @@ function IntegrationCard({
             {it.provider === "green_api" && <IconWhatsApp className="text-emerald-400" />}
             {it.provider === "telegram" && <IconTelegram className="text-sky-400" />}
             {it.provider === "google_sheets" && <IconSheets className="h-6 w-6" />}
+            {it.provider === "instagram" && <IconInstagram className="h-7 w-7" />}
           </span>
           <div className="min-w-0 text-sm font-semibold text-slate-100">{it.name}</div>
         </div>
@@ -128,6 +148,27 @@ function IntegrationCard({
           {!apiBase && (
             <div className="mt-1 text-[11px] text-amber-300/90">Задайте VITE_API_BASE_URL для полного URL.</div>
           )}
+        </div>
+      )}
+      {it.provider === "instagram" && (
+        <div className="mt-2 space-y-2 text-[11px] leading-relaxed text-fuchsia-200/90">
+          <p>
+            Lead Ads (webhook <span className="font-mono text-fuchsia-100/90">leadgen</span>) и сообщения Instagram /
+            Facebook Page. Новые заявки и диалоги попадают в выбранную воронку.
+          </p>
+          <div>
+            <span className="text-slate-400">Callback URL (один и тот же для GET и POST в Meta):</span>
+            <div className="mt-1 break-all rounded-lg border border-fuchsia-900/40 bg-slate-950/50 px-2 py-1 font-mono text-[10px] text-fuchsia-100/95">
+              {hookPath}
+            </div>
+            <p className="mt-1 text-[10px] text-slate-500">
+              Verify token в Meta = секрет из формы интеграции. Подписки: <span className="text-slate-400">leadgen</span>,{" "}
+              <span className="text-slate-400">instagram</span>, при необходимости <span className="text-slate-400">messages</span>.
+            </p>
+            {!apiBase && (
+              <div className="mt-1 text-[10px] text-amber-300/90">Задайте VITE_API_BASE_URL для полного URL.</div>
+            )}
+          </div>
         </div>
       )}
       {it.provider === "google_sheets" && (
@@ -185,6 +226,8 @@ export function IntegrationSetupPanel() {
   const [tplReminder24h, setTplReminder24h] = useState("");
   const [tplReminder2h, setTplReminder2h] = useState("");
   const [tplReactivation, setTplReactivation] = useState("");
+  const [igPageToken, setIgPageToken] = useState("");
+  const [igAppSecret, setIgAppSecret] = useState("");
 
   function resetIntegrationForm(provider: IntegrationProvider = "green_api") {
     setEditingIntegrationId(null);
@@ -210,6 +253,8 @@ export function IntegrationSetupPanel() {
     setTplReminder2h("");
     setTplReactivation("");
     setIntegrationCloseDealEnabled(false);
+    setIgPageToken("");
+    setIgAppSecret("");
   }
 
   function beginEditIntegration(it: Integration) {
@@ -217,14 +262,34 @@ export function IntegrationSetupPanel() {
     setEditingIntegrationId(it.id);
     setIntegrationName(it.name);
     setIntegrationProvider(
-      it.provider === "telegram" ? "telegram" : it.provider === "google_sheets" ? "google_sheets" : "green_api",
+      it.provider === "telegram"
+        ? "telegram"
+        : it.provider === "google_sheets"
+          ? "google_sheets"
+          : it.provider === "instagram"
+            ? "instagram"
+            : "green_api",
     );
     setIntegrationPipelineId(it.pipeline_id);
     setIntegrationStageId(it.stage_id);
     setIntegrationCloseDealEnabled(Boolean(it.manager_close_deal_enabled));
     setIntegrationSecret("");
+    setIgPageToken("");
+    setIgAppSecret("");
     if (it.provider === "telegram") {
       setIntegrationConfigText(JSON.stringify(it.config ?? {}, null, 2));
+      setGreenInstanceId("");
+      setGreenApiToken("");
+      setGreenApiBaseUrl("");
+      setSheetsUrl("");
+      setSheetsTabName("");
+      setSheetsNameColumn("full_name");
+      setSheetsPhoneColumn("phone_number");
+      setSheetsEmailColumn("email");
+      setSheetsHeaderRow("1");
+      setSheetsStartRow("2");
+    } else if (it.provider === "instagram") {
+      setIntegrationConfigText("{}");
       setGreenInstanceId("");
       setGreenApiToken("");
       setGreenApiBaseUrl("");
@@ -350,6 +415,9 @@ export function IntegrationSetupPanel() {
       if (integrationProvider === "telegram" && integrationSecret.trim()) {
         body.secret = integrationSecret.trim();
       }
+      if (integrationProvider === "instagram" && integrationSecret.trim()) {
+        body.secret = integrationSecret.trim();
+      }
       if (integrationProvider === "green_api") {
         if (!greenInstanceId.trim()) {
           toast.error("Укажите idInstance из кабинета Green API");
@@ -361,32 +429,36 @@ export function IntegrationSetupPanel() {
           ...(greenApiBaseUrl.trim() ? { api_base_url: greenApiBaseUrl.trim() } : {}),
           templates,
         };
+      } else if (integrationProvider === "google_sheets") {
+        if (!sheetsUrl.trim()) {
+          toast.error("Укажите URL Google таблицы");
+          return;
+        }
+        body.config = {
+          sheet_url: sheetsUrl.trim(),
+          ...(sheetsTabName.trim() ? { sheet_name: sheetsTabName.trim() } : {}),
+          full_name_column: sheetsNameColumn.trim() || "full_name",
+          phone_column: sheetsPhoneColumn.trim() || "phone_number",
+          ...(sheetsEmailColumn.trim() ? { email_column: sheetsEmailColumn.trim() } : {}),
+          header_row: Number(sheetsHeaderRow) || 1,
+          start_row: Number(sheetsStartRow) || 2,
+          templates,
+        };
+      } else if (integrationProvider === "instagram") {
+        body.config = {
+          ...(igPageToken.trim() ? { page_access_token: igPageToken.trim() } : {}),
+          ...(igAppSecret.trim() ? { app_secret: igAppSecret.trim() } : {}),
+          templates,
+        };
       } else {
-        if (integrationProvider === "google_sheets") {
-          if (!sheetsUrl.trim()) {
-            toast.error("Укажите URL Google таблицы");
-            return;
-          }
-          body.config = {
-            sheet_url: sheetsUrl.trim(),
-            ...(sheetsTabName.trim() ? { sheet_name: sheetsTabName.trim() } : {}),
-            full_name_column: sheetsNameColumn.trim() || "full_name",
-            phone_column: sheetsPhoneColumn.trim() || "phone_number",
-            ...(sheetsEmailColumn.trim() ? { email_column: sheetsEmailColumn.trim() } : {}),
-            header_row: Number(sheetsHeaderRow) || 1,
-            start_row: Number(sheetsStartRow) || 2,
-            templates,
-          };
-        } else {
-          try {
-            const parsed = integrationConfigText.trim()
-              ? (JSON.parse(integrationConfigText) as Record<string, unknown>)
-              : {};
-            body.config = { ...parsed, templates };
-          } catch {
-            toast.error("Config должен быть валидным JSON");
-            return;
-          }
+        try {
+          const parsed = integrationConfigText.trim()
+            ? (JSON.parse(integrationConfigText) as Record<string, unknown>)
+            : {};
+          body.config = { ...parsed, templates };
+        } catch {
+          toast.error("Config должен быть валидным JSON");
+          return;
         }
       }
       try {
@@ -428,6 +500,16 @@ export function IntegrationSetupPanel() {
         start_row: Number(sheetsStartRow) || 2,
         templates,
       };
+    } else if (integrationProvider === "instagram") {
+      if (!integrationSecret.trim() || integrationSecret.trim().length < 8) {
+        return toast.error("Verify token не короче 8 символов — нажмите «Сгенерировать» или введите свой");
+      }
+      if (!igPageToken.trim()) return toast.error("Укажите Page Access Token");
+      cfg = {
+        page_access_token: igPageToken.trim(),
+        ...(igAppSecret.trim() ? { app_secret: igAppSecret.trim() } : {}),
+        templates,
+      };
     } else {
       if (!integrationSecret.trim())
         return toast.error("Для Telegram укажите webhook-секрет (или нажмите «Сгенерировать»)");
@@ -450,7 +532,7 @@ export function IntegrationSetupPanel() {
       manager_close_deal_enabled: integrationCloseDealEnabled,
       config: cfg,
     };
-    if (integrationProvider === "telegram") {
+    if (integrationProvider === "telegram" || integrationProvider === "instagram") {
       createPayload.secret = integrationSecret.trim();
     }
 
@@ -488,7 +570,7 @@ export function IntegrationSetupPanel() {
 
       {!integrationFormOpen ? (
         <>
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {CHANNELS.map((ch) => (
               <button
                 key={ch.id}
@@ -565,6 +647,7 @@ export function IntegrationSetupPanel() {
                     {integrationProvider === "green_api" && <IconWhatsApp />}
                     {integrationProvider === "telegram" && <IconTelegram />}
                     {integrationProvider === "google_sheets" && <IconSheets className="h-8 w-8" />}
+                    {integrationProvider === "instagram" && <IconInstagram className="h-8 w-8" />}
                   </div>
                   <div className="text-xs text-slate-400">
                     Тип канала выбран по иконке. Чтобы сменить — нажмите «Другой канал».
@@ -582,6 +665,7 @@ export function IntegrationSetupPanel() {
                     <option value="green_api">GREEN API (WhatsApp)</option>
                     <option value="telegram">Telegram Bot</option>
                     <option value="google_sheets">Google Sheets</option>
+                    <option value="instagram">Instagram / Meta</option>
                   </select>
                 </label>
               )}
@@ -647,9 +731,9 @@ export function IntegrationSetupPanel() {
                   </span>
                 </label>
 
-                {integrationProvider === "telegram" && (
+                {(integrationProvider === "telegram" || integrationProvider === "instagram") && (
                   <label className="text-sm text-slate-300">
-                    Webhook секрет (token)
+                    Verify token (секрет webhook)
                     {editingIntegrationId != null && (
                       <span className="ml-1 text-[11px] font-normal text-slate-500">— оставьте пустым, чтобы не менять</span>
                     )}
@@ -784,6 +868,51 @@ export function IntegrationSetupPanel() {
                       />
                     </label>
                   </div>
+                ) : integrationProvider === "instagram" ? (
+                  <div className="grid gap-3">
+                    <p className="text-[11px] leading-relaxed text-slate-400">
+                      В Meta for Developers создайте приложение, привяжите Instagram и Страницу. Сгенерируйте{" "}
+                      <span className="text-fuchsia-200/90">Page Access Token</span> с правами на leads и сообщения. После
+                      сохранения скопируйте Callback URL из списка интеграций справа — тот же путь для проверки и для
+                      событий.
+                    </p>
+                    <label className="text-sm text-slate-300">
+                      Page Access Token
+                      {editingIntegrationId != null && (
+                        <span className="ml-1 text-[11px] font-normal text-slate-500">
+                          — пусто = оставить сохранённый токен
+                        </span>
+                      )}
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        value={igPageToken}
+                        onChange={(e) => setIgPageToken(e.target.value)}
+                        placeholder={
+                          editingIntegrationId != null
+                            ? "Оставьте пустым, чтобы не менять"
+                            : "EAA… из Graph API Explorer или системного пользователя"
+                        }
+                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                      />
+                    </label>
+                    <label className="text-sm text-slate-300">
+                      App Secret (рекомендуется)
+                      {editingIntegrationId != null && (
+                        <span className="ml-1 text-[11px] font-normal text-slate-500">
+                          — пусто = не менять; для проверки подписи X-Hub-Signature-256
+                        </span>
+                      )}
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        value={igAppSecret}
+                        onChange={(e) => setIgAppSecret(e.target.value)}
+                        placeholder="Из настроек приложения Meta"
+                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                      />
+                    </label>
+                  </div>
                 ) : (
                   <label className="text-sm text-slate-300">
                     Config (JSON)
@@ -881,6 +1010,11 @@ export function IntegrationSetupPanel() {
                 ) : integrationProvider === "google_sheets" ? (
                   <p className="text-[11px] text-slate-500">
                     После сохранения нажмите «Синхронизировать» в списке для первой загрузки строк.
+                  </p>
+                ) : integrationProvider === "instagram" ? (
+                  <p className="text-[11px] text-slate-500">
+                    В подписках webhook укажите этот Callback URL, verify token = секрет выше. Лиды с форм и новые
+                    директ-сообщения подтянутся в CRM автоматически.
                   </p>
                 ) : (
                   <p className="text-[11px] text-slate-500">

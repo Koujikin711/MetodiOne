@@ -560,6 +560,9 @@ async def ensure_integration_provider_migration(conn: AsyncConnection, database_
     exists = await ac.scalar(exists_q, {"val": "google_sheets"})
     if exists is None:
         await ac.execute(text("ALTER TYPE integration_provider ADD VALUE 'google_sheets'"))
+    exists_ig = await ac.scalar(exists_q, {"val": "instagram"})
+    if exists_ig is None:
+        await ac.execute(text("ALTER TYPE integration_provider ADD VALUE 'instagram'"))
 
 
 async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str) -> None:
