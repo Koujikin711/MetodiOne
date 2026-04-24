@@ -30,8 +30,16 @@ def _effective_database_url() -> str:
 
 def _engine_kwargs() -> dict:
     url = _effective_database_url()
-    kw: dict = {"echo": False, "pool_pre_ping": True, "pool_timeout": 15}
+    kw: dict = {"echo": False, "pool_pre_ping": True}
     if "asyncpg" in url or url.startswith("postgresql"):
+        kw.update(
+            {
+                "pool_size": max(1, int(settings.db_pool_size)),
+                "max_overflow": max(0, int(settings.db_max_overflow)),
+                "pool_timeout": max(1, int(settings.db_pool_timeout)),
+                "pool_recycle": max(60, int(settings.db_pool_recycle_seconds)),
+            }
+        )
         kw["connect_args"] = {"timeout": 12}
     return kw
 
