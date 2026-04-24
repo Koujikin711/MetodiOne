@@ -500,7 +500,11 @@ export function LeadDetailPage() {
                           <p className="mt-0.5 text-slate-300">
                             {formatTimeRangeInBookingTz(a.start_at, a.end_at)}
                             {a.specialist_name ? ` · ${a.specialist_name}` : ""}
-                            {a.direction_name ? ` · ${a.direction_name}` : ""}
+                            {(a.service_title || "").trim()
+                              ? ` · ${(a.service_title || "").trim()}`
+                              : a.direction_name
+                                ? ` · ${a.direction_name}`
+                                : ""}
                           </p>
                           <p className="mt-1 text-xs text-slate-500">
                             Статус:{" "}

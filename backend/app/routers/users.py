@@ -6,10 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import BookingDirection, BookingSpecialist
-from app.routers.booking import _specialist_read
+from app.routers.booking import _specialist_read, resolve_default_booking_direction_id
 from app.schemas.booking import BookingSpecialistRead
 from app.schemas.specialist_users import SpecialistUserCreate, SpecialistUserUpdate
 from app.services.audit import write_audit_event
@@ -22,16 +22,21 @@ async def create_specialist_user(
     body: SpecialistUserCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> BookingSpecialistRead:
-    d = await db.get(BookingDirection, body.direction_id)
-    if d is None:
+    dir_id = body.direction_id
+    if dir_id is None:
+        dir_id = await resolve_default_booking_direction_id(db, company_id)
+    d = await db.get(BookingDirection, dir_id)
+    if d is None or d.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное направление")
     spec = (body.specialization or "").strip() or None
     mx = await db.execute(select(func.coalesce(func.max(BookingSpecialist.sort_order), -1)))
     next_sort = int(mx.scalar_one()) + 1
     s = BookingSpecialist(
+        company_id=company_id,
         full_name=body.full_name.strip(),
-        direction_id=body.direction_id,
+        direction_id=dir_id,
         phone=(body.phone or "").strip() or None,
         specialization=spec,
         is_active=True,

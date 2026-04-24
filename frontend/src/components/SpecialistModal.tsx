@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import type { BookingDirection, BookingSpecialist } from "@/lib/types";
+import type { BookingSpecialist } from "@/lib/types";
 
 const GRID_START = 7;
 const GRID_END = 20;
@@ -15,12 +15,10 @@ type Props = {
   open: boolean;
   mode: "add" | "edit";
   initial: BookingSpecialist | null;
-  directions: BookingDirection[];
   isSubmitting: boolean;
   onClose: () => void;
   onSubmit: (values: {
     full_name: string;
-    direction_id: number;
     phone: string;
     specialization: string;
     slot_duration_min: number;
@@ -39,13 +37,11 @@ export function SpecialistModal({
   open,
   mode,
   initial,
-  directions,
   isSubmitting,
   onClose,
   onSubmit,
 }: Props) {
   const [fullName, setFullName] = useState("");
-  const [directionId, setDirectionId] = useState(0);
   const [phone, setPhone] = useState("");
   const [specialization, setSpecialization] = useState("");
   const [slotDurationMin, setSlotDurationMin] = useState(30);
@@ -57,7 +53,6 @@ export function SpecialistModal({
     if (!open) return;
     if (mode === "edit" && initial) {
       setFullName(initial.full_name);
-      setDirectionId(initial.direction_id);
       setPhone(initial.phone ?? "");
       setSpecialization(initial.specialization ?? "");
       setSlotDurationMin(initial.slot_duration_min ?? 30);
@@ -72,10 +67,8 @@ export function SpecialistModal({
       setWorkStart(9);
       setWorkEnd(18);
       setWorkWeekdays([...DEFAULT_WEEKDAYS]);
-      const first = directions[0];
-      setDirectionId(first?.id ?? 0);
     }
-  }, [open, mode, initial, directions]);
+  }, [open, mode, initial]);
 
   useEffect(() => {
     if (!open) return;
@@ -100,12 +93,11 @@ export function SpecialistModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!fullName.trim() || !directionId) return;
+    if (!fullName.trim()) return;
     if (workStart >= workEnd) return;
     if (!workWeekdays.length) return;
     onSubmit({
       full_name: fullName.trim(),
-      direction_id: directionId,
       phone: phone.trim(),
       specialization: specialization.trim(),
       slot_duration_min: slotDurationMin,
@@ -137,12 +129,6 @@ export function SpecialistModal({
           (по умолчанию Asia/Dushanbe, как на сервере; можно задать VITE_BOOKING_TIMEZONE на фронте).
         </p>
 
-        {directions.length === 0 && (
-          <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100/90">
-            Сначала добавьте хотя бы одно направление во вкладке «Справочники», затем создайте специалиста.
-          </p>
-        )}
-
         <form onSubmit={handleSubmit} className="mt-5 space-y-3">
           <label className="block text-sm text-slate-300">
             Имя
@@ -153,27 +139,6 @@ export function SpecialistModal({
               className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-950/50 px-3 py-2 text-white placeholder:text-slate-500"
               placeholder="ФИО"
             />
-          </label>
-
-          <label className="block text-sm text-slate-300">
-            Услуга по умолчанию
-            <select
-              required
-              disabled={directions.length === 0}
-              value={directionId || ""}
-              onChange={(e) => setDirectionId(Number(e.target.value))}
-              className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-950/50 px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {directions.length === 0 ? (
-                <option value="">Нет направлений</option>
-              ) : (
-                directions.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} ({d.duration_min} мин)
-                  </option>
-                ))
-              )}
-            </select>
           </label>
 
           <label className="block text-sm text-slate-300">
@@ -287,7 +252,7 @@ export function SpecialistModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || directions.length === 0 || workStart >= workEnd || !workWeekdays.length}
+              disabled={isSubmitting || workStart >= workEnd || !workWeekdays.length}
               className="flex-1 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95 disabled:opacity-50"
             >
               {isSubmitting ? "Сохранение…" : mode === "add" ? "Добавить" : "Сохранить"}

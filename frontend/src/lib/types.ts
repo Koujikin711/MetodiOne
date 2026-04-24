@@ -247,6 +247,7 @@ export interface BookingAppointment {
   service_amount: number;
   paid_amount: number;
   responsible_manager_id: number | null;
+  service_title?: string | null;
   direction_name: string | null;
   specialist_name: string | null;
   comment: string | null;

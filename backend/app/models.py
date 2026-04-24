@@ -395,6 +395,8 @@ class BookingAppointment(Base):
     )
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Текст услуги с формы (без справочника направлений в UI).
+    service_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
 
