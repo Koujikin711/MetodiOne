@@ -136,6 +136,38 @@ function layoutBlock(
   };
 }
 
+/** Раскладка пересекающихся записей в одной колонке: несколько «дорожек» по ширине, без налезания текста. */
+function assignAppointmentLanes(appointments: BookingAppointment[]): Map<number, { lane: number; laneCount: number }> {
+  const out = new Map<number, { lane: number; laneCount: number }>();
+  if (!appointments.length) return out;
+  const dayItems = appointments
+    .map((a) => ({ a, t0: new Date(a.start_at).getTime(), t1: new Date(a.end_at).getTime() }))
+    .sort((x, y) => x.t0 - y.t0 || x.t1 - y.t1);
+  const laneEnd: number[] = [];
+  for (const { a, t0, t1 } of dayItems) {
+    let lane = -1;
+    for (let i = 0; i < laneEnd.length; i++) {
+      if (laneEnd[i] <= t0) {
+        lane = i;
+        break;
+      }
+    }
+    if (lane < 0) {
+      lane = laneEnd.length;
+      laneEnd.push(t1);
+    } else {
+      laneEnd[lane] = Math.max(laneEnd[lane], t1);
+    }
+    out.set(a.id, { lane, laneCount: 0 });
+  }
+  const laneCount = laneEnd.length;
+  for (const { a } of dayItems) {
+    const cur = out.get(a.id)!;
+    out.set(a.id, { lane: cur.lane, laneCount });
+  }
+  return out;
+}
+
 function nowLineTopPct(dateYmd: string, nowMs: number): number | null {
   if (ymdInBookingTz(nowMs) !== dateYmd) return null;
   const { h, min } = utcMsToHourMinuteInBookingTz(nowMs);
@@ -228,6 +260,8 @@ function SortableSpecialistColumn({
   };
 
   const hatch = hatchForSpec(dateYmd, spec);
+  const specAppointments = bySpec.get(spec.id) ?? [];
+  const laneLayout = assignAppointmentLanes(specAppointments);
 
   return (
     <div
@@ -411,10 +445,14 @@ function SortableSpecialistColumn({
             return null;
           })}
 
-        {(bySpec.get(spec.id) ?? []).map((a) => {
+        {specAppointments.map((a) => {
           const { topPct, heightPct, visible } = layoutBlock(dateYmd, a.start_at, a.end_at);
           if (!visible) return null;
+          const laneInfo = laneLayout.get(a.id);
+          const lane = laneInfo?.lane ?? 0;
+          const laneCount = Math.max(1, laneInfo?.laneCount ?? 1);
           const cls = appointmentVisualClass(a);
+          const narrow = laneCount > 1;
           return (
             <button
               key={a.id}
@@ -426,19 +464,28 @@ function SortableSpecialistColumn({
               }}
               onClick={() => onAppointmentClick(a)}
               className={[
-                "absolute inset-x-1 z-20 overflow-hidden rounded-lg border bg-gradient-to-br from-white/[0.04] to-transparent px-2 py-1.5 text-left text-xs",
+                "absolute z-20 overflow-hidden rounded-lg border bg-gradient-to-br from-white/[0.04] to-transparent text-left text-xs",
+                narrow ? "px-1 py-0.5" : "px-2 py-1.5",
                 cls,
                 appointmentHoverClass,
               ].join(" ")}
               style={{
                 top: `${topPct}%`,
                 height: `${heightPct}%`,
-                minHeight: 36,
+                left: `calc(4px + ${lane} * (100% - 8px) / ${laneCount})`,
+                width: `calc((100% - 8px) / ${laneCount})`,
+                right: "auto",
+                zIndex: 20 + lane,
               }}
               title={a.lead_id ? "Открыть карточку клиента (лид)" : "Нет лида в MetodiOne"}
             >
               <div className="flex items-start justify-between gap-1">
-                <span className="line-clamp-2 break-words pr-1 text-[13px] font-semibold leading-[1.25]">
+                <span
+                  className={[
+                    "line-clamp-2 break-words pr-1 font-semibold leading-[1.25]",
+                    narrow ? "line-clamp-2 text-[10px]" : "line-clamp-2 text-[13px]",
+                  ].join(" ")}
+                >
                   {a.patient_name}
                 </span>
                 {a.status === "completed" && (

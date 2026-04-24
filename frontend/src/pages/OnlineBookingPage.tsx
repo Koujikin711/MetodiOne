@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { SpecialistModal } from "@/components/SpecialistModal";
+import { Calendar } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import { BOOKING_TIME_ZONE, datetimeLocalBookingToIsoUtc, ymdInBookingTz } from "@/lib/bookingTz";
@@ -48,6 +49,7 @@ export function OnlineBookingPage() {
   const [tab, setTab] = useState<Tab>("online");
   const [filterDate, setFilterDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalDate, setJournalDate] = useState(() => ymdInBookingTz(Date.now()));
+  const [calendarDrawerOpen, setCalendarDrawerOpen] = useState(false);
   const formPanelRef = useRef<HTMLDivElement>(null);
 
   const [leadId, setLeadId] = useState<number | null>(null);
@@ -393,13 +395,9 @@ export function OnlineBookingPage() {
     return set;
   }, [gridAppointmentsQuery.data]);
 
+  /** Все активные специалисты в сетке; неактивное «направление» не скрывает колонку (иначе пропадают врачи без записей на этот день). Неактивные специалисты — только если есть запись на дату. */
   const specialistsForCalendar = useMemo(() => {
-    const fromActive = specialistsActive.filter((s) => {
-      const dir = directionsById.get(s.direction_id);
-      if (!dir) return gridAppointmentSpecIds.has(s.id);
-      if (dir.is_active) return true;
-      return gridAppointmentSpecIds.has(s.id);
-    });
+    const fromActive = [...specialistsActive];
     const ids = new Set(fromActive.map((s) => s.id));
     const inactiveWithAppts = (specialistsQuery.data ?? []).filter(
       (s) => !s.is_active && gridAppointmentSpecIds.has(s.id) && !ids.has(s.id),
@@ -410,7 +408,7 @@ export function OnlineBookingPage() {
       return o !== 0 ? o : a.id - b.id;
     });
     return merged;
-  }, [specialistsActive, specialistsQuery.data, directionsById, gridAppointmentSpecIds]);
+  }, [specialistsActive, specialistsQuery.data, gridAppointmentSpecIds]);
 
   const slotClickSpecialistIds = useMemo(() => {
     return new Set(
@@ -496,6 +494,15 @@ export function OnlineBookingPage() {
     if (fixedServiceAmount == null) return;
     setServiceAmount(fixedServiceAmount);
   }, [fixedServiceAmount]);
+
+  useEffect(() => {
+    if (!calendarDrawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCalendarDrawerOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [calendarDrawerOpen]);
 
   function syncFormFromSpecialistId(specId: number) {
     const specialist = specialistsActive.find((s) => s.id === specId);
@@ -693,15 +700,10 @@ export function OnlineBookingPage() {
   );
 
   return (
-    <div className="relative mx-auto max-w-[1600px] space-y-4 pb-8">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-white">Онлайн-записи</h1>
-          <p className="max-w-2xl text-base text-slate-400">
-            Сетка по специалистам: клик по свободному часу открывает форму справа; клик по карточке записи с
-            лидом — карточка клиента. После записи лид переходит в «В работе»; при завершении приёма —
-            «Успешно реализован», при отмене / неявке — «Потерян».
-          </p>
+    <div className="relative mx-auto max-w-[min(1920px,calc(100%-1rem))] space-y-3 pb-8">
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Онлайн-записи</h1>
           <Link
             to="/app"
             className="inline-flex text-sm font-medium text-purple-300 underline-offset-4 hover:text-purple-200 hover:underline"
@@ -717,7 +719,56 @@ export function OnlineBookingPage() {
       </header>
 
       {tab === "online" && (
-        <div className="space-y-4">
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setCalendarDrawerOpen(true)}
+            className="fixed left-2 top-1/2 z-30 hidden -translate-y-1/2 flex-col items-center gap-1 rounded-2xl border border-white/15 bg-slate-900/90 px-2 py-3 text-[10px] font-medium text-slate-200 shadow-lg shadow-black/40 backdrop-blur-sm transition hover:bg-slate-800/95 hover:text-white xl:flex"
+            title="Календарь и дата"
+          >
+            <Calendar className="h-5 w-5 text-purple-300" />
+            <span className="max-w-[3rem] text-center leading-tight">Месяц</span>
+          </button>
+
+          {calendarDrawerOpen && (
+            <>
+              <button
+                type="button"
+                className="fixed inset-0 z-40 block bg-slate-950/70"
+                aria-label="Закрыть календарь"
+                onClick={() => setCalendarDrawerOpen(false)}
+              />
+              <aside className="fixed left-0 top-0 z-50 flex h-full w-[min(100vw,18rem)] flex-col border-r border-white/10 bg-slate-900/98 p-4 shadow-2xl shadow-black/50 backdrop-blur-md">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-white">Дата записи</h2>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarDrawerOpen(false)}
+                    className="rounded-lg border border-white/15 px-2 py-1 text-xs text-slate-300 hover:bg-white/10"
+                  >
+                    Закрыть
+                  </button>
+                </div>
+                <MiniMonthCalendar
+                  value={filterDate}
+                  onChange={(d) => {
+                    setFilterDate(d);
+                    setCalendarDrawerOpen(false);
+                  }}
+                />
+                <label className="mt-4 block text-xs text-slate-400">
+                  День (точно)
+                  <input
+                    type="date"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-950/50 px-2 py-2 text-sm text-white"
+                  />
+                </label>
+              </aside>
+            </>
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
             <label className="text-sm text-slate-300">
               Дата
@@ -728,13 +779,21 @@ export function OnlineBookingPage() {
                 className="ml-2 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-white"
               />
             </label>
+            <button
+              type="button"
+              onClick={() => setCalendarDrawerOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-800 xl:hidden"
+            >
+              <Calendar className="h-4 w-4 text-purple-300" />
+              Месяц
+            </button>
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
               <span className="rounded border border-sky-300/40 bg-sky-500/15 px-2 py-0.5 text-sky-100">Записан</span>
               <span className="rounded border border-amber-300/50 bg-amber-500/15 px-2 py-0.5 text-amber-100">Уведомление отправлено</span>
               <span className="rounded border border-violet-300/50 bg-violet-500/20 px-2 py-0.5 text-violet-100">Клиент ответил</span>
             </div>
           </div>
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_min(100%,280px)] xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">
             <div className="min-w-0">
               <BookingCalendarGrid
                 dateYmd={filterDate}
@@ -753,19 +812,14 @@ export function OnlineBookingPage() {
                 <p className="mt-3 text-sm text-slate-400">Загрузка записей…</p>
               )}
             </div>
-            <aside className="flex w-full min-w-0 max-w-[340px] flex-col gap-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
-              <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
-
+            <aside className="flex w-full min-w-0 flex-col gap-2 xl:sticky xl:top-4 xl:max-h-[calc(100vh-3rem)] xl:max-w-[280px] xl:overflow-y-auto">
               {canEditBooking ? (
                 <section
                   ref={formPanelRef}
-                  className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 shadow-inner backdrop-blur-sm ring-1 ring-purple-500/15"
+                  className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm ring-1 ring-purple-500/15"
                 >
-                  <h2 className="mb-1 text-lg font-semibold text-white">Новая запись</h2>
-                  <p className="mb-4 text-[11px] text-slate-500">
-                    Кликните по слоту в сетке и заполните данные клиента.
-                  </p>
-                  <form onSubmit={onSubmit} className="space-y-3">
+                  <h2 className="mb-3 text-base font-semibold text-white">Новая запись</h2>
+                  <form onSubmit={onSubmit} className="space-y-2.5">
                 {leadId != null && (
                   <p className="text-xs text-emerald-400/90">
                     Привязан лид #{leadId} — после сохранения он перейдёт в «В работе».
