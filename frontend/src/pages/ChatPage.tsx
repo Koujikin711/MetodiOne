@@ -220,6 +220,9 @@ export function ChatPage() {
   const displayThreads = useMemo(() => {
     const list = [...allThreads];
     list.sort((a, b) => {
+      const aw = a.last_message_direction === "in" ? 1 : 0;
+      const bw = b.last_message_direction === "in" ? 1 : 0;
+      if (bw !== aw) return bw - aw;
       const ts = new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
       if (ts !== 0) return ts;
       return b.id - a.id;
