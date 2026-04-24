@@ -30,6 +30,18 @@ export function LayoutDashboard(props: IconProps) {
   );
 }
 
+/** CRM / воронка */
+export function Funnel(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M3 5h18" />
+      <path d="M6 10h12" />
+      <path d="M10 15h4" />
+      <path d="M11 15v5h2v-5" />
+    </svg>
+  );
+}
+
 export function CheckSquare(props: IconProps) {
   return (
     <svg {...iconProps(props)}>

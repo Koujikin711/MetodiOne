@@ -3,7 +3,7 @@ import {
   Calendar,
   Target,
   CheckSquare,
-  LayoutDashboard,
+  Funnel,
   LogOut,
   MessageCircle,
   Plug,
@@ -252,7 +252,7 @@ export function MainLayout() {
                 </NavLink>
                 <NavLink to="/crm" className={navLinkClass} title="Канбан">
                   <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <LayoutDashboard className="h-[18px] w-[18px]" />
+                    <Funnel className="h-[18px] w-[18px]" />
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Канбан</span>
                 </NavLink>
@@ -438,7 +438,7 @@ export function MainLayout() {
             <>
               <NavLink to="/crm" className={navLinkClass} title="Канбан">
                 <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <LayoutDashboard className="h-4 w-4" />
+                  <Funnel className="h-4 w-4" />
                 </GradientIconBox>
                 <span className="text-[9px]">Канбан</span>
               </NavLink>

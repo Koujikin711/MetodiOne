@@ -1,7 +1,8 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, type ComponentType } from "react";
 import { toast } from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
+import { BarChart3, Calendar, CheckSquare, Funnel, MessageCircle, Plug, Target, Wallet } from "@/components/icons";
 
 const shots = [
   { src: "/landing/01-finance-charts.png", title: "Финансовые графики" },
@@ -99,18 +100,78 @@ const quickStats = [
   { value: "0", label: "лишних сервисов для базового процесса продаж" },
 ];
 
-const integrationBadges = [
-  "WhatsApp",
-  "Telegram",
-  "Instagram",
-  "Gmail",
-  "Google Sheets",
-  "KPI",
-  "Финансы",
-  "Онлайн-запись",
-  "Kanban",
-  "Аудит",
-];
+function IconWhatsApp({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+    </svg>
+  );
+}
+
+function IconTelegram({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+    </svg>
+  );
+}
+
+function IconInstagram({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <path
+        fill="currentColor"
+        d="M7.8 2h8.4C19.4 2 22 4.6 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8C4.6 22 2 19.4 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2m-.2 2A3.6 3.6 0 0 0 4 7.6v8.8A3.6 3.6 0 0 0 7.6 20h8.8A3.6 3.6 0 0 0 20 16.4V7.6A3.6 3.6 0 0 0 16.4 4H7.6m8.65 1.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5M12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10m0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"
+      />
+    </svg>
+  );
+}
+
+function IconSheets({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path fill="#0F9D58" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" />
+      <path fill="#87CEAC" d="M14 2v6h6" />
+      <path fill="#F1F8E9" d="M8 12h8v2H8v-2zm0 3h8v2H8v-2zm0 3h5v2H8v-2z" />
+    </svg>
+  );
+}
+
+function IconGmail({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <path fill="#EA4335" d="M2 6.5 12 14l10-7.5V18a2 2 0 0 1-2 2h-3V10.7L12 14.3 7 10.7V20H4a2 2 0 0 1-2-2V6.5z" />
+      <path fill="#FBBC05" d="M2 6.5V7l10 7.3L22 7v-.5A2.5 2.5 0 0 0 19.5 4h-15A2.5 2.5 0 0 0 2 6.5z" />
+      <path fill="#34A853" d="M7 10.7V20h10v-9.3L12 14.3 7 10.7z" />
+      <path fill="#4285F4" d="M2 7v11a2 2 0 0 0 2 2h1v-9.3L2 7zm20 0-3 3.7V20h1a2 2 0 0 0 2-2V7z" />
+    </svg>
+  );
+}
+
+const integrationBadges: Array<{
+  label: string;
+  Icon: ComponentType<{ className?: string }>;
+  iconClass: string;
+}> = [
+  { label: "WhatsApp", Icon: IconWhatsApp, iconClass: "text-emerald-400" },
+  { label: "Telegram", Icon: IconTelegram, iconClass: "text-sky-400" },
+  { label: "Google Sheets", Icon: IconSheets, iconClass: "" },
+  { label: "Instagram", Icon: IconInstagram, iconClass: "text-pink-200" },
+  { label: "Gmail", Icon: IconGmail, iconClass: "" },
+] as const;
+
+const featureCatalogBadges: Array<{ label: string; Icon: ComponentType<{ className?: string }> }> = [
+  { label: "CRM и воронки", Icon: Funnel },
+  { label: "Kanban", Icon: Funnel },
+  { label: "Чаты", Icon: MessageCircle },
+  { label: "Онлайн-запись", Icon: Calendar },
+  { label: "Задачи", Icon: CheckSquare },
+  { label: "KPI", Icon: Target },
+  { label: "Финансы", Icon: Wallet },
+  { label: "Аналитика", Icon: BarChart3 },
+  { label: "Аудит", Icon: Plug },
+  { label: "Роли и права", Icon: Plug },
+] as const;
 
 type BillingCycle = "monthly" | "yearly";
 
@@ -333,12 +394,41 @@ export function LandingPage() {
 
       <section className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-          <p className="mb-3 text-xs uppercase tracking-wider text-slate-400">Платформа закрывает ключевые процессы</p>
-          <div className="flex flex-wrap gap-2">
+          <p className="mb-3 text-xs uppercase tracking-wider text-slate-400">Интеграции</p>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
             {integrationBadges.map((item) => (
-              <span key={item} className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-slate-200">
-                {item}
-              </span>
+              <div
+                key={item.label}
+                className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-slate-950/30 p-3 text-center"
+              >
+                <span
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 [&>svg]:h-6 [&>svg]:w-6"
+                  aria-hidden
+                >
+                  <item.Icon className={item.iconClass || "text-slate-100"} />
+                </span>
+                <span className="text-[11px] leading-tight text-slate-300">{item.label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="my-4 h-px bg-white/10" />
+          <p className="mb-3 inline-flex rounded-full border border-fuchsia-300/35 bg-fuchsia-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-fuchsia-100">
+            Каталог Возможностей
+          </p>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-10">
+            {featureCatalogBadges.map((item) => (
+              <div
+                key={item.label}
+                className="flex flex-col items-center gap-2 rounded-xl border border-fuchsia-300/20 bg-fuchsia-500/10 p-3 text-center"
+              >
+                <span
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-fuchsia-500/10 text-fuchsia-100 [&>svg]:h-6 [&>svg]:w-6"
+                  aria-hidden
+                >
+                  <item.Icon className="h-6 w-6" />
+                </span>
+                <span className="text-[11px] leading-tight text-slate-200">{item.label}</span>
+              </div>
             ))}
           </div>
         </div>
@@ -394,9 +484,12 @@ export function LandingPage() {
         <p className="mb-6 text-sm text-slate-300">
           Реальные экраны MetodiOne: CRM-доска, чат, KPI, финансы, задачи, онлайн-запись и интеграции.
         </p>
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <div className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2">
           {shots.map((item) => (
-            <article key={item.src} className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-lg shadow-black/20">
+            <article
+              key={item.src}
+              className="w-[88%] shrink-0 snap-start overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-lg shadow-black/20 sm:w-[70%] lg:w-[48%]"
+            >
               <img src={item.src} alt={item.title} className="h-auto w-full object-cover" loading="lazy" />
               <div className="border-t border-white/10 px-4 py-3 text-sm text-slate-200">{item.title}</div>
             </article>
@@ -429,20 +522,16 @@ export function LandingPage() {
 
       <section id="pricing" className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
         <div className="rounded-3xl border border-white/10 bg-slate-900/45 p-6 shadow-lg shadow-black/20 sm:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h2 className="text-3xl font-semibold sm:text-4xl">Тарифы</h2>
-              <p className="mt-2 text-sm text-slate-300">
-                Выберите формат оплаты: помесячно или на год со скидкой 15%.
-              </p>
-            </div>
-            <div className="inline-flex rounded-xl border border-white/15 bg-slate-950/60 p-1 text-sm">
+          <div className="mb-5 flex justify-center">
+            <div className="inline-flex rounded-2xl border border-fuchsia-300/40 bg-slate-950/80 p-1.5 text-sm shadow-lg shadow-fuchsia-900/30">
               <button
                 type="button"
                 onClick={() => setBillingCycle("monthly")}
                 className={[
-                  "rounded-lg px-3 py-1.5 transition",
-                  billingCycle === "monthly" ? "bg-fuchsia-500/25 text-white" : "text-slate-300 hover:text-white",
+                  "rounded-xl px-4 py-2 font-semibold transition",
+                  billingCycle === "monthly"
+                    ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-fuchsia-900/40"
+                    : "text-slate-300 hover:text-white",
                 ].join(" ")}
               >
                 Ежемесячная
@@ -451,12 +540,22 @@ export function LandingPage() {
                 type="button"
                 onClick={() => setBillingCycle("yearly")}
                 className={[
-                  "rounded-lg px-3 py-1.5 transition",
-                  billingCycle === "yearly" ? "bg-fuchsia-500/25 text-white" : "text-slate-300 hover:text-white",
+                  "rounded-xl px-4 py-2 font-semibold transition",
+                  billingCycle === "yearly"
+                    ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-fuchsia-900/40"
+                    : "text-slate-300 hover:text-white",
                 ].join(" ")}
               >
                 Годовая (−15%)
               </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-3xl font-semibold sm:text-4xl">Тарифы</h2>
+              <p className="mt-2 text-sm text-slate-300">
+                Выберите формат оплаты: помесячно или на год со скидкой 15%.
+              </p>
             </div>
           </div>
 
@@ -469,7 +568,8 @@ export function LandingPage() {
                 <article
                   key={plan.id}
                   className={[
-                    "rounded-2xl border p-5 shadow-lg shadow-black/20",
+                    "relative flex h-full flex-col rounded-2xl border p-5 shadow-lg shadow-black/20 transition duration-300",
+                    "hover:z-10 hover:-translate-y-1.5 hover:scale-[1.02] hover:shadow-2xl hover:shadow-fuchsia-900/35",
                     plan.recommended
                       ? "border-fuchsia-300/50 bg-fuchsia-500/10 ring-1 ring-fuchsia-300/35"
                       : "border-white/10 bg-slate-950/45",
@@ -500,7 +600,7 @@ export function LandingPage() {
                   <button
                     type="button"
                     onClick={() => setDemoOpen(true)}
-                    className="mt-5 w-full rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95"
+                    className="mt-auto w-full rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95"
                   >
                     Выбрать тариф
                   </button>
