@@ -48,6 +48,32 @@ from app.services.whatsapp_automation import send_booking_confirmation_if_needed
 router = APIRouter(prefix="/booking", tags=["booking"])
 
 
+async def resolve_default_booking_direction_id(db: AsyncSession, company_id: int) -> int:
+    """Первая активная строка booking_directions компании (внутренняя привязка специалиста без UI-справочника)."""
+    r = await db.execute(
+        select(BookingDirection.id)
+        .where(BookingDirection.company_id == company_id, BookingDirection.is_active.is_(True))
+        .order_by(BookingDirection.id.asc())
+        .limit(1),
+    )
+    row = r.scalar_one_or_none()
+    if row is not None:
+        return int(row)
+    r2 = await db.execute(
+        select(BookingDirection.id)
+        .where(BookingDirection.company_id == company_id)
+        .order_by(BookingDirection.id.asc())
+        .limit(1),
+    )
+    row2 = r2.scalar_one_or_none()
+    if row2 is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Не настроены направления онлайн-записи — обратитесь к администратору",
+        )
+    return int(row2)
+
+
 async def _user_assigned_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
     user = await db.get(User, user_id)
     if user is None or user.company_id is None:
@@ -122,15 +148,10 @@ def _assert_expert_readonly_for_booking(current_user: User) -> None:
         )
 
 
-def _appointment_duration_minutes(specialist: BookingSpecialist, direction: BookingDirection) -> int:
-    """
-    Длина приёма: берём максимум из слота специалиста и длительности направления,
-    чтобы учитывались и «Длительность записи» в карточке специалиста, и услуга в справочнике.
-    """
+def _appointment_duration_minutes(specialist: BookingSpecialist, _direction: BookingDirection | None = None) -> int:
+    """Длительность приёма — по настройке специалиста (слот), без справочника услуг."""
     spec_slot = int(specialist.slot_duration_min or 0)
-    dir_dur = int(direction.duration_min or 0)
-    best = max((x for x in (spec_slot, dir_dur) if x >= 15), default=0)
-    return best if best > 0 else 30
+    return spec_slot if spec_slot >= 15 else 30
 
 
 async def _booking_appointment_read(
@@ -144,6 +165,7 @@ async def _booking_appointment_read(
     can = False
     if viewer is not None:
         can = await compute_can_manage_journal(db, a, viewer)
+    st = (a.service_title or "").strip() or None
     return BookingAppointmentRead(
         id=a.id,
         lead_id=a.lead_id,
@@ -157,6 +179,7 @@ async def _booking_appointment_read(
         service_amount=float(a.service_amount or 0),
         paid_amount=float(a.paid_amount or 0),
         responsible_manager_id=a.responsible_manager_id,
+        service_title=st,
         direction_name=direction_name,
         specialist_name=specialist_name,
         comment=a.comment,
@@ -497,7 +520,10 @@ async def create_specialist(
     company_id: CurrentCompanyId,
 ) -> BookingSpecialistRead:
     _assert_expert_readonly_for_booking(current_user)
-    d = await db.get(BookingDirection, body.direction_id)
+    dir_id = body.direction_id
+    if dir_id is None:
+        dir_id = await resolve_default_booking_direction_id(db, company_id)
+    d = await db.get(BookingDirection, dir_id)
     if d is None or d.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное направление")
     spec = (body.specialization or "").strip() or None
@@ -506,7 +532,7 @@ async def create_specialist(
     s = BookingSpecialist(
         company_id=company_id,
         full_name=body.full_name.strip(),
-        direction_id=body.direction_id,
+        direction_id=dir_id,
         phone=(body.phone or "").strip() or None,
         specialization=spec,
         is_active=True,
@@ -776,15 +802,19 @@ async def create_appointment(
     company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
     _assert_expert_readonly_for_booking(current_user)
-    direction = await db.get(BookingDirection, body.direction_id)
-    if direction is None or direction.company_id != company_id or not direction.is_active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
     specialist = await db.get(BookingSpecialist, body.specialist_id)
     if specialist is None or specialist.company_id != company_id or not specialist.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
     _assert_expert_specialist_access(current_user, specialist)
-    if specialist.direction_id != body.direction_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Специалист не относится к выбранному направлению")
+    resolved_direction_id = int(specialist.direction_id)
+    if body.direction_id is not None and int(body.direction_id) != resolved_direction_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="direction_id не совпадает с направлением выбранного специалиста",
+        )
+    direction = await db.get(BookingDirection, resolved_direction_id)
+    if direction is None or direction.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
 
     start_at = _from_payload_to_utc(body.start_at)
     _assert_slot_in_specialist_schedule(specialist, start_at)
@@ -838,22 +868,13 @@ async def create_appointment(
                 await db.refresh(lead, ["stage"])
                 appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
 
-    if direction.pipeline_id is not None:
-        if appointment_pipeline_id is None:
-            appointment_pipeline_id = int(direction.pipeline_id)
-        elif int(direction.pipeline_id) != int(appointment_pipeline_id):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Услуга относится к другой воронке",
-            )
-
     service_amount_value = float(body.service_amount)
     if appointment_pipeline_id is not None:
         fixed_price = await get_kpi_service_price(
             db,
             company_id=company_id,
             pipeline_id=int(appointment_pipeline_id),
-            direction_id=body.direction_id,
+            direction_id=resolved_direction_id,
             at_datetime=start_at,
         )
         if fixed_price is not None:
@@ -862,13 +883,14 @@ async def create_appointment(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Оплата не может быть больше стоимости услуги")
 
     now = datetime.now(UTC)
+    service_title = (body.service_title or "").strip()
     appt = BookingAppointment(
         company_id=company_id,
         lead_id=lead_id,
         pipeline_id=appointment_pipeline_id,
         patient_name=body.patient_name.strip(),
         patient_phone=body.patient_phone.strip(),
-        direction_id=body.direction_id,
+        direction_id=resolved_direction_id,
         specialist_id=body.specialist_id,
         start_at=start_at,
         end_at=end_at,
@@ -878,6 +900,7 @@ async def create_appointment(
         responsible_manager_id=body.responsible_manager_id,
         created_by_user_id=current_user.id,
         comment=(body.comment or "").strip() or None,
+        service_title=service_title,
         created_at=now,
         updated_at=now,
     )
@@ -933,11 +956,9 @@ async def move_appointment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
     _assert_expert_specialist_access(current_user, specialist)
 
-    direction = await db.get(BookingDirection, appt.direction_id)
-    if direction is None or not direction.is_active:
+    direction = await db.get(BookingDirection, specialist.direction_id)
+    if direction is None or direction.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
-    if specialist.direction_id != appt.direction_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Специалист не относится к направлению записи")
 
     start_at = _from_payload_to_utc(body.start_at)
     _assert_slot_in_specialist_schedule(specialist, start_at)
@@ -959,6 +980,7 @@ async def move_appointment(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже занят")
 
     appt.specialist_id = specialist.id
+    appt.direction_id = specialist.direction_id
     appt.start_at = start_at
     appt.end_at = end_at
     appt.updated_at = datetime.now(UTC)

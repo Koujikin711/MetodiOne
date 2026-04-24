@@ -12,7 +12,6 @@ import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken 
 import { BOOKING_TIME_ZONE, datetimeLocalBookingToIsoUtc, ymdInBookingTz } from "@/lib/bookingTz";
 import type {
   BookingAppointment,
-  BookingDirection,
   BookingSpecialist,
   LeadSource,
   Pipeline,
@@ -20,7 +19,7 @@ import type {
   SalesKpiPriceHint,
 } from "@/lib/types";
 
-type Tab = "online" | "dicts" | "journal";
+type Tab = "online" | "journal";
 
 const statusLabels: Record<string, string> = {
   booked: "Записан",
@@ -55,11 +54,10 @@ export function OnlineBookingPage() {
   const [leadId, setLeadId] = useState<number | null>(null);
   const [newLeadPipelineId, setNewLeadPipelineId] = useState<number | null>(null);
   const [newLeadStageId, setNewLeadStageId] = useState<number | null>(null);
-  const [directionPipelineId, setDirectionPipelineId] = useState<number | null>(null);
   const [patientName, setPatientName] = useState("");
   const [patientPhone, setPatientPhone] = useState("");
-  const [directionId, setDirectionId] = useState(0);
   const [specialistId, setSpecialistId] = useState(0);
+  const [serviceTitle, setServiceTitle] = useState("");
   const [startAt, setStartAt] = useState("");
   const [serviceAmount, setServiceAmount] = useState<number>(0);
   const [paidAmount, setPaidAmount] = useState<number>(0);
@@ -71,13 +69,6 @@ export function OnlineBookingPage() {
   const isExpert = currentRole === "expert";
   const isManagerOrAdmin = currentRole === "manager" || currentRole === "admin";
   const canEditBooking = !isExpert;
-
-  const [dirName, setDirName] = useState("");
-  const [dirDuration, setDirDuration] = useState(30);
-  const [specName, setSpecName] = useState("");
-  const [specDirId, setSpecDirId] = useState(0);
-  const [specPhone, setSpecPhone] = useState("");
-  const [specSpecialization, setSpecSpecialization] = useState("");
 
   const [specialistModalOpen, setSpecialistModalOpen] = useState(false);
   const [specialistModalMode, setSpecialistModalMode] = useState<"add" | "edit">("add");
@@ -91,11 +82,6 @@ export function OnlineBookingPage() {
       return null;
     }
   }, [startAt]);
-
-  const directionsQuery = useQuery({
-    queryKey: ["booking-directions"],
-    queryFn: () => apiFetch<BookingDirection[]>("/api/booking/directions"),
-  });
 
   const specialistsQuery = useQuery({
     queryKey: ["booking-specialists"],
@@ -116,13 +102,18 @@ export function OnlineBookingPage() {
       newLeadPipelineId ? apiFetch<PipelineStage[]>(`/api/stages?pipeline_id=${newLeadPipelineId}`) : Promise.resolve([]),
     enabled: newLeadPipelineId != null,
   });
+  const specialistDirectionForKpi = useMemo(() => {
+    const list = specialistsQuery.data?.filter((s) => s.is_active) ?? [];
+    const s = list.find((x) => x.id === specialistId);
+    return s?.direction_id ?? 0;
+  }, [specialistsQuery.data, specialistId]);
   const kpiPriceHintQuery = useQuery({
-    queryKey: ["sales-kpi-price-hint", pipelineForKpiPrice, directionId, startAtIsoForKpi],
+    queryKey: ["sales-kpi-price-hint", pipelineForKpiPrice, specialistDirectionForKpi, startAtIsoForKpi],
     queryFn: () =>
       apiFetch<SalesKpiPriceHint>(
-        `/api/sales-kpi/price-hint?pipeline_id=${pipelineForKpiPrice}&direction_id=${directionId}&start_at=${encodeURIComponent(startAtIsoForKpi!)}`,
+        `/api/sales-kpi/price-hint?pipeline_id=${pipelineForKpiPrice}&direction_id=${specialistDirectionForKpi}&start_at=${encodeURIComponent(startAtIsoForKpi!)}`,
       ),
-    enabled: Boolean(pipelineForKpiPrice && directionId && startAtIsoForKpi),
+    enabled: Boolean(pipelineForKpiPrice && specialistDirectionForKpi > 0 && startAtIsoForKpi),
   });
   const fixedServiceAmount =
     kpiPriceHintQuery.data?.fixed_price != null ? Number(kpiPriceHintQuery.data.fixed_price) : null;
@@ -173,6 +164,7 @@ export function OnlineBookingPage() {
       setPatientName("");
       setPatientPhone("");
       setComment("");
+      setServiceTitle("");
       setServiceAmount(0);
       setPaidAmount(0);
       setLeadId(null);
@@ -250,71 +242,6 @@ export function OnlineBookingPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const addDirectionMutation = useMutation({
-    mutationFn: () =>
-      apiFetch("/api/booking/directions", {
-        method: "POST",
-        body: JSON.stringify({
-          name: dirName.trim(),
-          duration_min: dirDuration,
-          pipeline_id: directionPipelineId,
-        }),
-      }),
-    onSuccess: () => {
-      toast.success("Направление добавлено");
-      setDirName("");
-      void queryClient.invalidateQueries({ queryKey: ["booking-directions"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-  const patchDirectionMutation = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
-      apiFetch<BookingDirection>(`/api/booking/directions/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      toast.success("Услуга обновлена");
-      void queryClient.invalidateQueries({ queryKey: ["booking-directions"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-  const deleteDirectionMutation = useMutation({
-    mutationFn: (id: number) =>
-      apiFetch<void>(`/api/booking/directions/${id}`, {
-        method: "DELETE",
-      }),
-    onSuccess: () => {
-      toast.success("Услуга скрыта из новых записей; старые записи сохранены");
-      void queryClient.invalidateQueries({ queryKey: ["booking-directions"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const addSpecialistMutation = useMutation({
-    mutationFn: () =>
-      apiFetch("/api/booking/specialists", {
-        method: "POST",
-        body: JSON.stringify({
-          full_name: specName.trim(),
-          direction_id: specDirId,
-          phone: specPhone.trim() || null,
-          specialization: specSpecialization.trim() || null,
-          work_start_hour: 9,
-          work_end_hour: 18,
-          work_weekdays: [0, 1, 2, 3, 4],
-        }),
-      }),
-    onSuccess: () => {
-      toast.success("Специалист добавлен");
-      setSpecName("");
-      setSpecPhone("");
-      setSpecSpecialization("");
-      void queryClient.invalidateQueries({ queryKey: ["booking-specialists"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const createSpecialistUserMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       apiFetch<BookingSpecialist>("/api/users", {
@@ -372,15 +299,6 @@ export function OnlineBookingPage() {
     },
   });
 
-  const directionsAll = useMemo(() => directionsQuery.data ?? [], [directionsQuery.data]);
-  const directionsById = useMemo(() => new Map(directionsAll.map((d) => [d.id, d])), [directionsAll]);
-
-  const directionsActive = useMemo(() => directionsAll.filter((d) => d.is_active), [directionsAll]);
-  const directionsForPipeline = useMemo(() => {
-    if (directionPipelineId == null) return directionsActive;
-    return directionsActive.filter((d) => d.pipeline_id === directionPipelineId);
-  }, [directionsActive, directionPipelineId]);
-
   const specialistsActive = useMemo(() => {
     const list = specialistsQuery.data?.filter((s) => s.is_active) ?? [];
     return [...list].sort((a, b) => {
@@ -410,13 +328,15 @@ export function OnlineBookingPage() {
     return merged;
   }, [specialistsActive, specialistsQuery.data, gridAppointmentSpecIds]);
 
-  const slotClickSpecialistIds = useMemo(() => {
-    return new Set(
-      specialistsActive
-        .filter((s) => directionsById.get(s.direction_id)?.is_active)
-        .map((s) => s.id),
-    );
-  }, [specialistsActive, directionsById]);
+  /** Слот мог быть выбран в колонке неактивного специалиста — оставляем его в списке формы. */
+  const specialistsForFormSelect = useMemo(() => {
+    const list = [...specialistsActive];
+    if (specialistId && !list.some((s) => s.id === specialistId)) {
+      const extra = specialistsQuery.data?.find((s) => s.id === specialistId);
+      if (extra) list.push(extra);
+    }
+    return list;
+  }, [specialistsActive, specialistsQuery.data, specialistId]);
 
   const reorderSpecialistsMutation = useMutation({
     mutationFn: (ordered_ids: number[]) =>
@@ -431,58 +351,17 @@ export function OnlineBookingPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const specialistsForDirection = useMemo(() => {
-    if (!directionId) return [];
-    return specialistsActive.filter((s) => s.direction_id === directionId);
-  }, [specialistsActive, directionId]);
-
   useEffect(() => {
-    if (directionsForPipeline.length === 0) {
-      setDirectionId(0);
-      return;
-    }
-    if (!directionsForPipeline.some((d) => d.id === directionId)) {
-      setDirectionId(directionsForPipeline[0].id);
-    }
-  }, [directionsForPipeline, directionId]);
-
-  useEffect(() => {
-    if (!directionId) {
-      setSpecialistId(0);
-      return;
-    }
-    const first = specialistsForDirection[0];
-    if (first && !specialistsForDirection.some((s) => s.id === specialistId)) {
-      setSpecialistId(first.id);
-    }
-  }, [directionId, specialistsForDirection, specialistId]);
-
-  useEffect(() => {
-    if (directionsActive.length && !specDirId) {
-      setSpecDirId(directionsActive[0].id);
-    }
-  }, [directionsActive, specDirId]);
+    if (specialistId !== 0 && specialistsActive.some((s) => s.id === specialistId)) return;
+    const first = specialistsActive[0];
+    setSpecialistId(first?.id ?? 0);
+  }, [specialistsActive, specialistId]);
 
   useEffect(() => {
     if (newLeadPipelineId != null) return;
     const first = pipelinesQuery.data?.[0];
     if (first) setNewLeadPipelineId(first.id);
   }, [newLeadPipelineId, pipelinesQuery.data]);
-  useEffect(() => {
-    if (directionPipelineId != null) return;
-    const first = pipelinesQuery.data?.[0];
-    if (first) setDirectionPipelineId(first.id);
-  }, [directionPipelineId, pipelinesQuery.data]);
-  useEffect(() => {
-    if (!leadId && newLeadPipelineId != null) {
-      setDirectionPipelineId(newLeadPipelineId);
-    }
-  }, [leadId, newLeadPipelineId]);
-  useEffect(() => {
-    if (!canEditBooking && tab === "dicts") {
-      setTab("online");
-    }
-  }, [canEditBooking, tab]);
 
   useEffect(() => {
     const first = leadStagesQuery.data?.[0];
@@ -503,38 +382,6 @@ export function OnlineBookingPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [calendarDrawerOpen]);
-
-  function syncFormFromSpecialistId(specId: number) {
-    const specialist = specialistsActive.find((s) => s.id === specId);
-    if (!specialist) return;
-    const dir = directionsAll.find((d) => d.id === specialist.direction_id);
-    if (!dir || dir.pipeline_id == null) return;
-    setDirectionPipelineId(dir.pipeline_id);
-    if (!leadId) setNewLeadPipelineId(dir.pipeline_id);
-    setDirectionId(dir.id);
-    setSpecialistId(specialist.id);
-  }
-
-  function handleFormPipelineChange(pid: number) {
-    setDirectionPipelineId(pid);
-    if (!leadId) setNewLeadPipelineId(pid);
-    const dirs = directionsActive.filter((d) => d.pipeline_id === pid);
-    const firstDir = dirs[0];
-    if (!firstDir) {
-      setDirectionId(0);
-      setSpecialistId(0);
-      return;
-    }
-    setDirectionId(firstDir.id);
-    const specs = specialistsActive.filter((s) => s.direction_id === firstDir.id);
-    setSpecialistId(specs[0]?.id ?? 0);
-  }
-
-  function handleFormDirectionChange(dirId: number) {
-    setDirectionId(dirId);
-    const specs = specialistsActive.filter((s) => s.direction_id === dirId);
-    setSpecialistId(specs[0]?.id ?? 0);
-  }
 
   function onCalendarAppointmentClick(a: BookingAppointment) {
     if (a.lead_id) {
@@ -558,7 +405,6 @@ export function OnlineBookingPage() {
 
   function handleSpecialistModalSubmit(values: {
     full_name: string;
-    direction_id: number;
     phone: string;
     specialization: string;
     slot_duration_min: number;
@@ -571,7 +417,6 @@ export function OnlineBookingPage() {
     if (specialistModalMode === "add") {
       createSpecialistUserMutation.mutate({
         full_name: values.full_name,
-        direction_id: values.direction_id,
         phone,
         specialization,
         slot_duration_min: values.slot_duration_min,
@@ -587,7 +432,6 @@ export function OnlineBookingPage() {
         id: specialistModalTarget.id,
         body: {
           full_name: values.full_name,
-          direction_id: values.direction_id,
           phone,
           specialization,
           slot_duration_min: values.slot_duration_min,
@@ -600,7 +444,7 @@ export function OnlineBookingPage() {
   }
 
   function handleSlotClick(payload: { specialistId: number; directionId: number; minuteOfDay: number }) {
-    syncFormFromSpecialistId(payload.specialistId);
+    setSpecialistId(payload.specialistId);
     const hh = Math.floor(payload.minuteOfDay / 60);
     const mm = payload.minuteOfDay % 60;
     setStartAt(`${filterDate}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
@@ -634,12 +478,12 @@ export function OnlineBookingPage() {
       toast.error("Эксперт может только просматривать свои записи");
       return;
     }
-    if (!directionPipelineId || !directionId || !specialistId || !startAt) {
-      toast.error("Заполните направление, специалиста и дату.");
+    if (!specialistId || !startAt || !serviceTitle.trim()) {
+      toast.error("Укажите услугу (текст), специалиста, дату и время.");
       return;
     }
-    if (!specialistsForDirection.length) {
-      toast.error("Для этого направления нет специалистов — добавьте в «Справочники».");
+    if (!specialistsActive.length) {
+      toast.error("Нет специалистов в сетке — добавьте специалиста через меню колонки.");
       return;
     }
     let startIso: string;
@@ -653,8 +497,8 @@ export function OnlineBookingPage() {
     const payload: Record<string, unknown> = {
       patient_name: patientName.trim(),
       patient_phone: patientPhone.trim(),
-      direction_id: directionId,
       specialist_id: specialistId,
+      service_title: serviceTitle.trim(),
       start_at: startIso,
       service_amount: resolvedServiceAmount,
       paid_amount: paidAmount,
@@ -713,7 +557,6 @@ export function OnlineBookingPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {tabBtn("online", "Онлайн-записи")}
-          {canEditBooking ? tabBtn("dicts", "Справочники") : null}
           {tabBtn("journal", "Журнал")}
         </div>
       </header>
@@ -798,7 +641,6 @@ export function OnlineBookingPage() {
               <BookingCalendarGrid
                 dateYmd={filterDate}
                 specialists={specialistsForCalendar}
-                slotClickSpecialistIds={slotClickSpecialistIds}
                 appointments={gridAppointmentsQuery.data ?? []}
                 onAppointmentClick={onCalendarAppointmentClick}
                 onSlotClick={canEditBooking ? handleSlotClick : undefined}
@@ -878,44 +720,24 @@ export function OnlineBookingPage() {
                   </>
                 )}
                 <label className="block text-sm text-slate-300">
-                  Воронка услуги
-                  <select
+                  Услуга (вручную)
+                  <input
                     required
-                    value={directionPipelineId ?? ""}
-                    onChange={(e) => handleFormPipelineChange(Number(e.target.value))}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-                  >
-                    {(pipelinesQuery.data ?? []).map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-sm text-slate-300">
-                  Направление
-                  <select
-                    required
-                    value={directionId || ""}
-                    onChange={(e) => handleFormDirectionChange(Number(e.target.value))}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-                  >
-                    {directionsForPipeline.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name} ({d.duration_min} мин)
-                      </option>
-                    ))}
-                  </select>
+                    value={serviceTitle}
+                    onChange={(e) => setServiceTitle(e.target.value)}
+                    placeholder="Например: консультация, массаж…"
+                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white placeholder:text-slate-500"
+                  />
                 </label>
                 <label className="block text-sm text-slate-300">
                   Специалист
                   <select
                     required
                     value={specialistId || ""}
-                    onChange={(e) => syncFormFromSpecialistId(Number(e.target.value))}
+                    onChange={(e) => setSpecialistId(Number(e.target.value))}
                     className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
                   >
-                    {specialistsForDirection.map((s) => (
+                    {specialistsForFormSelect.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.full_name}
                       </option>
@@ -1009,199 +831,42 @@ export function OnlineBookingPage() {
               )}
             </aside>
           </div>
-        </div>
-      )}
-
-      {tab === "dicts" && canEditBooking && (
-        <div className="grid gap-6 md:grid-cols-2">
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="mb-4 text-lg font-semibold text-white">Направления</h2>
-            <form
-              className="mb-4 flex flex-wrap gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!dirName.trim() || !directionPipelineId) return;
-                addDirectionMutation.mutate();
-              }}
-            >
-              <select
-                value={directionPipelineId ?? ""}
-                onChange={(e) => setDirectionPipelineId(Number(e.target.value))}
-                className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+          {canEditBooking ? (
+            <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
+              <h2 className="mb-3 text-sm font-semibold text-white">Источники заявок</h2>
+              <form
+                className="mb-3 flex flex-wrap gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!sourceName.trim()) return;
+                  addSourceMutation.mutate();
+                }}
               >
-                {(pipelinesQuery.data ?? []).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
+                <input
+                  placeholder="Напр. Instagram / Рекомендация / Сайт"
+                  value={sourceName}
+                  onChange={(e) => setSourceName(e.target.value)}
+                  className="min-w-[200px] flex-1 rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white"
+                />
+                <button
+                  type="submit"
+                  className="rounded-xl bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
+                >
+                  Добавить
+                </button>
+              </form>
+              <ul className="max-h-40 space-y-1 overflow-y-auto text-sm text-slate-300">
+                {(sourcesQuery.data ?? []).map((s) => (
+                  <li key={s.id} className="rounded-lg border border-slate-700/50 px-2 py-1.5">
+                    {s.name} {!s.is_active ? <span className="text-xs text-amber-500/90">(выкл.)</span> : null}
+                  </li>
                 ))}
-              </select>
-              <input
-                placeholder="Название"
-                value={dirName}
-                onChange={(e) => setDirName(e.target.value)}
-                className="min-w-[140px] flex-1 rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-              />
-              <input
-                type="number"
-                min={10}
-                step={5}
-                value={dirDuration}
-                onChange={(e) => setDirDuration(Number(e.target.value))}
-                className="w-24 rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-              />
-              <button
-                type="submit"
-                className="rounded-xl bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
-              >
-                Добавить
-              </button>
-            </form>
-            <ul className="space-y-2 text-sm text-slate-300">
-              {(directionsQuery.data ?? []).map((d) => (
-                <li key={d.id} className="rounded-lg border border-slate-700/50 px-3 py-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      {d.name} — {d.duration_min} мин {d.is_active ? "" : "(выкл.)"}
-                      {d.pipeline_name ? (
-                        <span className="ml-2 text-xs text-slate-500">[{d.pipeline_name}]</span>
-                      ) : null}
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        className="rounded border border-slate-600 px-2 py-0.5 text-xs text-slate-200 hover:bg-white/10"
-                        onClick={() => {
-                          const name = window.prompt("Название услуги", d.name)?.trim();
-                          if (!name) return;
-                          const durRaw = window.prompt("Длительность (мин)", String(d.duration_min));
-                          const duration = Number(durRaw ?? "");
-                          if (!Number.isFinite(duration) || duration < 10) {
-                            toast.error("Некорректная длительность");
-                            return;
-                          }
-                          patchDirectionMutation.mutate({
-                            id: d.id,
-                            body: { name, duration_min: duration, pipeline_id: directionPipelineId },
-                          });
-                        }}
-                      >
-                        Изм.
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded border border-rose-500/50 px-2 py-0.5 text-xs text-rose-300 hover:bg-rose-500/20"
-                        onClick={() => {
-                          if (
-                            !window.confirm(
-                              "Скрыть услугу из новых записей? Существующие записи и история сохранятся.",
-                            )
-                          )
-                            return;
-                          deleteDirectionMutation.mutate(d.id);
-                        }}
-                      >
-                        Удал.
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="mb-4 text-lg font-semibold text-white">Специалисты</h2>
-            <form
-              className="mb-4 flex flex-col gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!specName.trim() || !specDirId) return;
-                addSpecialistMutation.mutate();
-              }}
-            >
-              <input
-                placeholder="ФИО"
-                value={specName}
-                onChange={(e) => setSpecName(e.target.value)}
-                className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-              />
-              <select
-                value={specDirId || ""}
-                onChange={(e) => setSpecDirId(Number(e.target.value))}
-                className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-              >
-                {directionsActive.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                placeholder="Телефон"
-                value={specPhone}
-                onChange={(e) => setSpecPhone(e.target.value)}
-                className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-              />
-              <input
-                placeholder="Специализация (необязательно)"
-                value={specSpecialization}
-                onChange={(e) => setSpecSpecialization(e.target.value)}
-                className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-              />
-              <button
-                type="submit"
-                className="rounded-xl bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
-              >
-                Добавить
-              </button>
-            </form>
-            <ul className="space-y-2 text-sm text-slate-300">
-              {(specialistsQuery.data ?? []).map((s) => (
-                <li key={s.id} className="rounded-lg border border-slate-700/50 px-3 py-2">
-                  {s.full_name} — {s.direction_name ?? s.direction_id}
-                  {s.specialization ? (
-                    <span className="mt-0.5 block text-xs text-slate-500">{s.specialization}</span>
-                  ) : null}
-                  {!s.is_active && (
-                    <span className="ml-2 text-xs text-amber-500/90">(скрыт)</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 md:col-span-2">
-            <h2 className="mb-4 text-lg font-semibold text-white">Источники</h2>
-            <form
-              className="mb-4 flex flex-wrap gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!sourceName.trim()) return;
-                addSourceMutation.mutate();
-              }}
-            >
-              <input
-                placeholder="Напр. Instagram / Рекомендация / Сайт"
-                value={sourceName}
-                onChange={(e) => setSourceName(e.target.value)}
-                className="min-w-[220px] flex-1 rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
-              />
-              <button
-                type="submit"
-                className="rounded-xl bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
-              >
-                Добавить
-              </button>
-            </form>
-            <ul className="space-y-2 text-sm text-slate-300">
-              {(sourcesQuery.data ?? []).map((s) => (
-                <li key={s.id} className="rounded-lg border border-slate-700/50 px-3 py-2">
-                  {s.name} {!s.is_active ? <span className="text-xs text-amber-500/90">(выкл.)</span> : null}
-                </li>
-              ))}
-              {!sourcesQuery.isLoading && (sourcesQuery.data ?? []).length === 0 && (
-                <li className="text-sm text-slate-500">Источников пока нет</li>
-              )}
-            </ul>
-          </section>
+                {!sourcesQuery.isLoading && (sourcesQuery.data ?? []).length === 0 && (
+                  <li className="text-sm text-slate-500">Источников пока нет</li>
+                )}
+              </ul>
+            </section>
+          ) : null}
         </div>
       )}
 
@@ -1209,7 +874,6 @@ export function OnlineBookingPage() {
         open={specialistModalOpen}
         mode={specialistModalMode}
         initial={specialistModalTarget}
-        directions={directionsActive}
         isSubmitting={
           createSpecialistUserMutation.isPending || patchSpecialistUserMutation.isPending
         }
@@ -1234,11 +898,12 @@ export function OnlineBookingPage() {
             </label>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] border-collapse text-left text-sm text-slate-200">
+            <table className="w-full min-w-[1200px] border-collapse text-left text-sm text-slate-200">
               <thead>
                 <tr className="border-b border-slate-700 text-slate-400">
                   <th className="py-2 pr-4">Время</th>
                   <th className="py-2 pr-4">Пациент</th>
+                  <th className="py-2 pr-4">Услуга</th>
                   <th className="py-2 pr-4">Специалист</th>
                   <th className="py-2 pr-4">Стоимость</th>
                   <th className="py-2 pr-4">Оплачено</th>
@@ -1262,6 +927,9 @@ export function OnlineBookingPage() {
                     <td className="py-2 pr-4">
                       {a.patient_name}
                       <span className="block text-xs text-slate-500">{a.patient_phone}</span>
+                    </td>
+                    <td className="py-2 pr-4 text-slate-300">
+                      {(a.service_title || "").trim() || a.direction_name || "—"}
                     </td>
                     <td className="py-2 pr-4 text-slate-400">{a.specialist_name}</td>
                     <td className="py-2 pr-4">{a.service_amount ?? 0}</td>

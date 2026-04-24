@@ -494,6 +494,11 @@ function SortableSpecialistColumn({
                   </span>
                 )}
               </div>
+              {(a.service_title || "").trim() ? (
+                <div className="mt-0.5 line-clamp-2 text-[10px] font-medium text-purple-200/90">
+                  {(a.service_title || "").trim()}
+                </div>
+              ) : null}
               <div className="mt-1 text-[9px] opacity-80">
                 {formatTimeRangeInBookingTz(a.start_at, a.end_at)}
               </div>
