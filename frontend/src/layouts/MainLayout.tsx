@@ -67,6 +67,8 @@ export function MainLayout() {
   const prevMyTaskIdsRef = useRef<Set<number>>(new Set());
   const prevCreatedStatusesRef = useRef<Record<number, string>>({});
   const notificationsInitializedRef = useRef(false);
+  const notificationsInFlightRef = useRef(false);
+  const isPageVisibleRef = useRef(typeof document !== "undefined" ? document.visibilityState === "visible" : true);
 
   useEffect(() => {
     function pushBrowserNotification(title: string, body: string) {
@@ -83,13 +85,23 @@ export function MainLayout() {
       }
     }
 
+    const canUseTeamTasks = role === "owner" || role === "admin" || role === "manager";
+    const canUseChatNotifications = role === "owner" || role === "admin" || role === "manager" || role === "expert";
+
     async function pollNotifications() {
+      if (notificationsInFlightRef.current) return;
+      if (!isPageVisibleRef.current) return;
       try {
+        notificationsInFlightRef.current = true;
         const [threads, myActiveTasks, createdActiveTasks, createdJournalTasks] = await Promise.all([
-          apiFetch<ChatThread[]>("/api/chat/threads"),
+          canUseChatNotifications ? apiFetch<ChatThread[]>("/api/chat/threads?limit=60&offset=0") : Promise.resolve([]),
           apiFetch<TaskListResponse>("/api/tasks?scope=my&journal=false"),
-          apiFetch<TaskListResponse>("/api/tasks?scope=team&journal=false"),
-          apiFetch<TaskListResponse>("/api/tasks?scope=team&journal=true"),
+          canUseTeamTasks
+            ? apiFetch<TaskListResponse>("/api/tasks?scope=team&journal=false")
+            : Promise.resolve({ items: [] } as TaskListResponse),
+          canUseTeamTasks
+            ? apiFetch<TaskListResponse>("/api/tasks?scope=team&journal=true")
+            : Promise.resolve({ items: [] } as TaskListResponse),
         ]);
 
         const nextUnread: Record<number, number> = {};
@@ -143,16 +155,28 @@ export function MainLayout() {
         notificationsInitializedRef.current = true;
       } catch {
         // silent: notifications should not break UI
+      } finally {
+        notificationsInFlightRef.current = false;
       }
     }
 
+    const onVisibilityChange = () => {
+      isPageVisibleRef.current = document.visibilityState === "visible";
+      if (isPageVisibleRef.current && location.pathname !== "/login") {
+        void pollNotifications();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
     void pollNotifications();
     const timer = window.setInterval(() => {
       if (location.pathname === "/login") return;
       void pollNotifications();
-    }, 8000);
-    return () => window.clearInterval(timer);
-  }, [location.pathname, userId]);
+    }, 15000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.clearInterval(timer);
+    };
+  }, [location.pathname, role, userId]);
 
   return (
     <div className="relative h-screen overflow-hidden bg-slate-900">

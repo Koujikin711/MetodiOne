@@ -143,6 +143,8 @@ export function ChatPage() {
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const threadsListRef = useRef<HTMLDivElement>(null);
+  const threadsLoadMoreRef = useRef<HTMLDivElement>(null);
   const [tabVisible, setTabVisible] = useState(
     () => typeof document !== "undefined" && document.visibilityState === "visible",
   );
@@ -174,7 +176,7 @@ export function ChatPage() {
       if (lastPage.length < THREADS_PAGE_SIZE) return undefined;
       return Number(lastPageParam) + lastPage.length;
     },
-    refetchInterval: tabVisible ? 2500 : false,
+    refetchInterval: tabVisible ? 6000 : false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
@@ -234,10 +236,28 @@ export function ChatPage() {
     queryKey: ["chat-messages", threadId],
     queryFn: () => apiFetch<ChatMessage[]>(`/api/chat/threads/${threadId}/messages`),
     enabled: !!threadId,
-    refetchInterval: tabVisible && threadId ? 2000 : false,
+    refetchInterval: tabVisible && threadId ? 5000 : false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
+
+  useEffect(() => {
+    if (!threadsQuery.hasNextPage || threadsQuery.isFetchingNextPage) return;
+    const root = threadsListRef.current;
+    const target = threadsLoadMoreRef.current;
+    if (!root || !target) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const hit = entries.some((e) => e.isIntersecting);
+        if (!hit) return;
+        if (!threadsQuery.hasNextPage || threadsQuery.isFetchingNextPage) return;
+        void threadsQuery.fetchNextPage();
+      },
+      { root, rootMargin: "120px" },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [threadsQuery.hasNextPage, threadsQuery.isFetchingNextPage, threadsQuery.fetchNextPage, displayThreads.length]);
 
   const lastMsgId = messagesQuery.data?.at(-1)?.id;
   const msgCount = messagesQuery.data?.length ?? 0;
@@ -444,7 +464,8 @@ export function ChatPage() {
             <p className="text-sm text-red-300">{(threadsQuery.error as Error).message}</p>
           )}
           <div
-            className="max-h-[62vh] space-y-2 overflow-y-auto pr-1"
+            ref={threadsListRef}
+            className="max-h-[56vh] space-y-2 overflow-y-auto overscroll-contain pr-1 sm:max-h-[62vh]"
             onScroll={(e) => {
               const el = e.currentTarget;
               if (!threadsQuery.hasNextPage || threadsQuery.isFetchingNextPage) return;
@@ -486,6 +507,7 @@ export function ChatPage() {
             {threadsQuery.isFetchingNextPage && (
               <p className="py-1 text-center text-xs text-slate-500">Загрузка ещё…</p>
             )}
+            <div ref={threadsLoadMoreRef} className="h-1 w-full" aria-hidden />
           </div>
         </section>
 
