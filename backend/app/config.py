@@ -7,6 +7,10 @@ class Settings(BaseSettings):
     # Для прода задайте DATABASE_URL (PostgreSQL) в окружении платформы.
     # Если не задано — безопасный fallback на SQLite, чтобы приложение не падало при старте.
     database_url: str = ""
+    db_pool_size: int = 20
+    db_max_overflow: int = 20
+    db_pool_timeout: int = 30
+    db_pool_recycle_seconds: int = 1800
     secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
