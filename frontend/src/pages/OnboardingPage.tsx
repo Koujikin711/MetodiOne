@@ -14,7 +14,7 @@ export function OnboardingPage() {
 
   function finish() {
     setOnboardingDone();
-    navigate("/", { replace: true });
+    navigate("/app", { replace: true });
   }
 
   return (

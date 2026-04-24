@@ -62,7 +62,7 @@ export function CompaniesPage() {
     onSuccess: (res, companyId) => {
       setStoredToken(res.access_token);
       setActiveCompanyId(companyId);
-      navigate("/", { replace: true });
+      navigate("/app", { replace: true });
       toast.success("Контекст компании переключён");
     },
     onError: (e: Error) => toast.error(e.message),

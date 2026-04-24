@@ -283,7 +283,7 @@ export function MainLayout() {
               </>
             ) : (
               <>
-                <NavLink to="/" end className={navLinkClass} title="MetodiOne">
+                <NavLink to="/app" end className={navLinkClass} title="MetodiOne">
                   <MetodiBrandMark className="h-9 w-9" />
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">MetodiOne</span>
                 </NavLink>
@@ -497,7 +497,7 @@ export function MainLayout() {
             </>
           ) : (
             <>
-              <NavLink to="/" end className={navLinkClass} title="MetodiOne">
+              <NavLink to="/app" end className={navLinkClass} title="MetodiOne">
                 <MetodiBrandMark className="h-8 w-8" />
                 <span className="text-[9px]">MetodiOne</span>
               </NavLink>

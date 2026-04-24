@@ -11,7 +11,7 @@ export function AccessDenied({ title = "Нет доступа", message }: Props
       <h1 className="text-xl font-semibold text-white">{title}</h1>
       <p className="text-sm text-slate-300">{message}</p>
       <Link
-        to="/"
+        to="/app"
         className="inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/15 hover:bg-white/15"
       >
         На главную
