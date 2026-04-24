@@ -38,3 +38,4 @@ git push -u origin main
 - БД: `docker compose up -d`
 - API: `cd backend && python -m uvicorn app.main:app --reload --port 8000`
 - UI: `cd frontend && npm install && npm run dev`
+

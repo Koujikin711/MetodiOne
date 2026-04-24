@@ -177,7 +177,7 @@ export function ChatPage() {
       return Number(lastPageParam) + lastPage.length;
     },
     refetchInterval: tabVisible ? 6000 : false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
   });
   const [threadId, setThreadId] = useState<number | null>(null);
@@ -234,10 +234,10 @@ export function ChatPage() {
 
   const messagesQuery = useQuery({
     queryKey: ["chat-messages", threadId],
-    queryFn: () => apiFetch<ChatMessage[]>(`/api/chat/threads/${threadId}/messages`),
+    queryFn: () => apiFetch<ChatMessage[]>(`/api/chat/threads/${threadId}/messages?limit=120&offset=0`),
     enabled: !!threadId,
     refetchInterval: tabVisible && threadId ? 5000 : false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
   });
 
@@ -466,12 +466,6 @@ export function ChatPage() {
           <div
             ref={threadsListRef}
             className="max-h-[56vh] space-y-2 overflow-y-auto overscroll-contain pr-1 sm:max-h-[62vh]"
-            onScroll={(e) => {
-              const el = e.currentTarget;
-              if (!threadsQuery.hasNextPage || threadsQuery.isFetchingNextPage) return;
-              if (el.scrollTop + el.clientHeight < el.scrollHeight - 80) return;
-              void threadsQuery.fetchNextPage();
-            }}
           >
             {displayThreads.map((t) => {
               const unread = t.unread_count ?? 0;

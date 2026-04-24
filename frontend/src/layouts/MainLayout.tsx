@@ -87,6 +87,9 @@ export function MainLayout() {
 
     const canUseTeamTasks = role === "owner" || role === "admin" || role === "manager";
     const canUseChatNotifications = role === "owner" || role === "admin" || role === "manager" || role === "expert";
+    const isChatPage = location.pathname.startsWith("/chat");
+    const isTasksPage = location.pathname.startsWith("/tasks");
+    const isCrmPage = location.pathname.startsWith("/crm");
 
     async function pollNotifications() {
       if (notificationsInFlightRef.current) return;
@@ -94,13 +97,17 @@ export function MainLayout() {
       try {
         notificationsInFlightRef.current = true;
         const [threads, myActiveTasks, createdActiveTasks, createdJournalTasks] = await Promise.all([
-          canUseChatNotifications ? apiFetch<ChatThread[]>("/api/chat/threads?limit=60&offset=0") : Promise.resolve([]),
-          apiFetch<TaskListResponse>("/api/tasks?scope=my&journal=false"),
-          canUseTeamTasks
-            ? apiFetch<TaskListResponse>("/api/tasks?scope=team&journal=false")
+          canUseChatNotifications && !isChatPage
+            ? apiFetch<ChatThread[]>("/api/chat/threads?limit=60&offset=0")
+            : Promise.resolve([]),
+          !isTasksPage && !isCrmPage
+            ? apiFetch<TaskListResponse>("/api/tasks?scope=my&journal=false&limit=80&offset=0&include_total=false")
             : Promise.resolve({ items: [] } as TaskListResponse),
-          canUseTeamTasks
-            ? apiFetch<TaskListResponse>("/api/tasks?scope=team&journal=true")
+          canUseTeamTasks && !isTasksPage && !isCrmPage
+            ? apiFetch<TaskListResponse>("/api/tasks?scope=team&journal=false&limit=120&offset=0&include_total=false")
+            : Promise.resolve({ items: [] } as TaskListResponse),
+          canUseTeamTasks && !isTasksPage && !isCrmPage
+            ? apiFetch<TaskListResponse>("/api/tasks?scope=team&journal=true&limit=120&offset=0&include_total=false")
             : Promise.resolve({ items: [] } as TaskListResponse),
         ]);
 

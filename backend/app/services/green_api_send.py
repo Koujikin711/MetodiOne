@@ -33,6 +33,26 @@ def send_green_text(config: dict | None, chat_id: str, text: str) -> tuple[bool,
         return False, str(e), None
 
 
+async def send_green_text_async(config: dict | None, chat_id: str, text: str) -> tuple[bool, str | None, str | None]:
+    cfg = config or {}
+    instance_id = cfg.get("instance_id") or cfg.get("instanceId")
+    api_token = cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance")
+    if not instance_id or not api_token:
+        return False, "Нет instance_id/api_token в интеграции", None
+    base = green_api_base_from_config(cfg)
+    url = f"{base}/waInstance{instance_id}/sendMessage/{api_token}"
+    body: dict[str, Any] = {"chatId": chat_id, "message": text}
+    try:
+        async with httpx.AsyncClient(timeout=40.0) as client:
+            r = await client.post(url, json=body)
+            if r.status_code >= 400:
+                return False, f"GREEN API HTTP {r.status_code}", None
+            data = r.json() if r.text else {}
+            return True, None, str(data.get("idMessage") or "")
+    except Exception as e:
+        return False, str(e), None
+
+
 async def send_green_file_upload(
     config: dict | None,
     chat_id: str,

@@ -929,6 +929,70 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
                 )""",
             ),
         )
+
+
+async def ensure_chat_performance_indexes(conn: AsyncConnection, database_url: str) -> None:
+    low = database_url.lower()
+    if "sqlite" in low:
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_chat_threads_company_pipeline_updated ON chat_threads(company_id, pipeline_id, updated_at, id)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_chat_threads_company_lead ON chat_threads(company_id, lead_id)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_id_id ON chat_messages(thread_id, id)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_direction_id ON chat_messages(thread_id, direction, id)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_created_at ON chat_messages(thread_id, created_at)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_chat_thread_reads_user_thread ON chat_thread_user_reads(user_id, thread_id)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_tasks_company_status_id ON tasks(company_id, status, id)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_tasks_company_assigned_status_id ON tasks(company_id, assigned_to, status, id)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_tasks_company_created_status_id ON tasks(company_id, created_by_user_id, status, id)"),
+        )
+        return
+
+    if "postgresql" in low or "asyncpg" in low:
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_chat_threads_company_pipeline_updated ON chat_threads(company_id, pipeline_id, updated_at DESC, id DESC)",
+            ),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_chat_threads_company_lead ON chat_threads(company_id, lead_id)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_id_id ON chat_messages(thread_id, id DESC)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_direction_id ON chat_messages(thread_id, direction, id DESC)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_created_at ON chat_messages(thread_id, created_at)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_chat_thread_reads_user_thread ON chat_thread_user_reads(user_id, thread_id)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_tasks_company_status_id ON tasks(company_id, status, id DESC)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_tasks_company_assigned_status_id ON tasks(company_id, assigned_to, status, id DESC)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_tasks_company_created_status_id ON tasks(company_id, created_by_user_id, status, id DESC)"),
+        )
         return
     if "postgresql" in low or "asyncpg" in low:
         await conn.execute(

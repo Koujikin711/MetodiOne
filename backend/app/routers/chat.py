@@ -26,7 +26,7 @@ from app.models import (
 )
 from app.services.audio_prepare import prepare_file_for_green_whatsapp
 from app.services.chat_media_store import resolve_outgoing_chat_media, save_outgoing_chat_media
-from app.services.green_api_send import send_green_file_upload, send_green_text
+from app.services.green_api_send import send_green_file_upload, send_green_text_async
 
 logger = logging.getLogger(__name__)
 
@@ -348,7 +348,55 @@ async def list_threads(
     if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.expert):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
     term = (q or "").strip()
-    query = select(ChatThread).outerjoin(Lead, Lead.id == ChatThread.lead_id).where(ChatThread.company_id == company_id)
+    first_message_at_sq = (
+        select(func.min(ChatMessage.created_at))
+        .where(ChatMessage.thread_id == ChatThread.id)
+        .correlate(ChatThread)
+        .scalar_subquery()
+    )
+    last_direction_sq = (
+        select(ChatMessage.direction)
+        .where(ChatMessage.thread_id == ChatThread.id)
+        .order_by(ChatMessage.id.desc())
+        .limit(1)
+        .correlate(ChatThread)
+        .scalar_subquery()
+    )
+    unread_count_sq = (
+        select(func.count(ChatMessage.id))
+        .select_from(ChatMessage)
+        .outerjoin(
+            ChatThreadUserRead,
+            and_(
+                ChatThreadUserRead.thread_id == ChatThread.id,
+                ChatThreadUserRead.user_id == current_user.id,
+            ),
+        )
+        .where(
+            ChatMessage.thread_id == ChatThread.id,
+            ChatMessage.direction == "in",
+            ChatMessage.id > func.coalesce(ChatThreadUserRead.last_read_message_id, 0),
+        )
+        .correlate(ChatThread)
+        .scalar_subquery()
+    )
+    query = (
+        select(
+            ChatThread.id,
+            ChatThread.lead_id,
+            Lead.name,
+            ChatThread.provider,
+            ChatThread.external_chat_id,
+            ChatThread.title,
+            ChatThread.pipeline_id,
+            ChatThread.updated_at,
+            first_message_at_sq.label("first_message_at"),
+            last_direction_sq.label("last_message_direction"),
+            unread_count_sq.label("unread_count"),
+        )
+        .outerjoin(Lead, Lead.id == ChatThread.lead_id)
+        .where(ChatThread.company_id == company_id)
+    )
     if current_user.role in (UserRole.manager, UserRole.admin):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if not allowed:
@@ -389,99 +437,28 @@ async def list_threads(
             )
         query = query.where(or_(*conds))
     # Сначала диалоги, где последнее сообщение от клиента (ждём ответ), затем по свежести.
-    last_direction_sq = (
-        select(ChatMessage.direction)
-        .where(ChatMessage.thread_id == ChatThread.id)
-        .order_by(ChatMessage.id.desc())
-        .limit(1)
-        .correlate(ChatThread)
-        .scalar_subquery()
-    )
     needs_reply = case((last_direction_sq == "in", 1), else_=0)
     query = query.order_by(needs_reply.desc(), ChatThread.updated_at.desc(), ChatThread.id.desc())
     if offset > 0:
         query = query.offset(offset)
     if limit is not None:
         query = query.limit(limit)
-    rows = (await db.execute(query)).scalars().unique().all()
-    thread_ids = [t.id for t in rows]
-    first_map: dict[int, datetime] = {}
-    last_dir_map: dict[int, str | None] = {}
-    if thread_ids:
-        fr = await db.execute(
-            select(ChatMessage.thread_id, func.min(ChatMessage.created_at))
-            .where(ChatMessage.thread_id.in_(thread_ids))
-            .group_by(ChatMessage.thread_id)
-        )
-        first_map = {int(tid): ts for tid, ts in fr.all() if tid is not None and ts is not None}
-        mx_rows = (
-            await db.execute(
-                select(ChatMessage.thread_id, func.max(ChatMessage.id))
-                .where(ChatMessage.thread_id.in_(thread_ids))
-                .group_by(ChatMessage.thread_id)
-            )
-        ).all()
-        max_ids = [mid for _tid, mid in mx_rows if mid is not None]
-        if max_ids:
-            dir_rows = (
-                await db.execute(select(ChatMessage.id, ChatMessage.direction).where(ChatMessage.id.in_(max_ids)))
-            ).all()
-            id_to_dir = {int(mid): d for mid, d in dir_rows}
-            for tid, mid in mx_rows:
-                if tid is None or mid is None:
-                    continue
-                last_dir_map[int(tid)] = id_to_dir.get(int(mid))
-
-    lead_name_map: dict[int, str | None] = {}
-    lead_ids = [int(t.lead_id) for t in rows if t.lead_id is not None]
-    if lead_ids:
-        lead_rows = (
-            await db.execute(select(Lead.id, Lead.name).where(Lead.id.in_(set(lead_ids))))
-        ).all()
-        lead_name_map = {int(lid): name for lid, name in lead_rows if lid is not None}
-
-    unread_map: dict[int, int] = {tid: 0 for tid in thread_ids}
-    if thread_ids:
-        unread_rows = (
-            await db.execute(
-                select(ChatMessage.thread_id, func.count(ChatMessage.id))
-                .join(
-                    ChatThreadUserRead,
-                    and_(
-                        ChatThreadUserRead.thread_id == ChatMessage.thread_id,
-                        ChatThreadUserRead.user_id == current_user.id,
-                    ),
-                )
-                .where(
-                    ChatMessage.thread_id.in_(thread_ids),
-                    ChatMessage.direction == "in",
-                    ChatMessage.id > ChatThreadUserRead.last_read_message_id,
-                )
-                .group_by(ChatMessage.thread_id)
-            )
-        ).all()
-        for tid, cnt in unread_rows:
-            if tid is None:
-                continue
-            unread_map[int(tid)] = int(cnt or 0)
-
+    rows = (await db.execute(query)).all()
     out: list[ChatThreadRead] = []
-    for t in rows:
-        lead_name = lead_name_map.get(int(t.lead_id)) if t.lead_id is not None else None
-        unread = unread_map.get(t.id, 0)
+    for row in rows:
         out.append(
             ChatThreadRead(
-                id=t.id,
-                lead_id=t.lead_id,
-                lead_name=lead_name,
-                provider=t.provider,
-                external_chat_id=t.external_chat_id,
-                title=t.title,
-                pipeline_id=t.pipeline_id,
-                updated_at=t.updated_at,
-                unread_count=unread,
-                first_message_at=first_map.get(t.id),
-                last_message_direction=last_dir_map.get(t.id),
+                id=int(row.id),
+                lead_id=row.lead_id,
+                lead_name=row.name,
+                provider=row.provider,
+                external_chat_id=row.external_chat_id,
+                title=row.title,
+                pipeline_id=row.pipeline_id,
+                updated_at=row.updated_at,
+                unread_count=int(row.unread_count or 0),
+                first_message_at=row.first_message_at,
+                last_message_direction=row.last_message_direction,
             )
         )
     return out
@@ -493,6 +470,8 @@ async def list_messages(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
+    limit: int = Query(default=120, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[ChatMessageRead]:
     thread = await db.get(ChatThread, thread_id)
     if thread is None or thread.company_id != company_id:
@@ -503,6 +482,8 @@ async def list_messages(
             select(ChatMessage)
             .where(ChatMessage.company_id == company_id, ChatMessage.thread_id == thread_id)
             .order_by(ChatMessage.id.asc())
+            .offset(offset)
+            .limit(limit)
         )
     ).scalars().all()
     await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread_id)
@@ -633,7 +614,7 @@ async def send_message(
     if not plain_text:
         logger.warning("chat empty text thread=%s", thread_id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пустое сообщение")
-    ok, err, provider_msg_id = send_green_text(cfg, chat_id, plain_text)
+    ok, err, provider_msg_id = await send_green_text_async(cfg, chat_id, plain_text)
     if not ok:
         msg = ChatMessage(
             company_id=thread.company_id,
