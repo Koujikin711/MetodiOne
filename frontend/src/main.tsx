@@ -7,6 +7,7 @@ import metodiMarkUrl from "@/assets/metodione-mark.svg?url";
 
 import App from "./App";
 import "./index.css";
+import "leaflet/dist/leaflet.css";
 
 function applyMetodiFavicons() {
   for (const rel of ["icon", "apple-touch-icon"] as const) {

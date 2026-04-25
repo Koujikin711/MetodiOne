@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import { Circle, MapContainer, TileLayer, useMapEvents } from "react-leaflet";
 import toast from "react-hot-toast";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
@@ -16,6 +17,45 @@ function secToHuman(total: number): string {
 
 function isoDate(v: Date): string {
   return v.toISOString().slice(0, 10);
+}
+
+function MiniMapPicker({
+  lat,
+  lon,
+  radiusM,
+  onPick,
+}: {
+  lat: number;
+  lon: number;
+  radiusM: number;
+  onPick: (lat: number, lon: number) => void;
+}) {
+  function ClickHandler() {
+    useMapEvents({
+      click(e) {
+        onPick(e.latlng.lat, e.latlng.lng);
+      },
+    });
+    return null;
+  }
+
+  return (
+    <MapContainer
+      center={[lat, lon]}
+      zoom={16}
+      scrollWheelZoom
+      className="h-48 w-full rounded-xl border border-white/10"
+      key={`${lat.toFixed(6)}:${lon.toFixed(6)}:${radiusM}`}
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      <Circle center={[lat, lon]} radius={Math.max(30, radiusM)} pathOptions={{ color: "#818cf8", fillOpacity: 0.25 }} />
+      <Circle center={[lat, lon]} radius={10} pathOptions={{ color: "#22d3ee", fillOpacity: 0.9 }} />
+      <ClickHandler />
+    </MapContainer>
+  );
 }
 
 export function AttendanceTrackerPage() {
@@ -52,6 +92,15 @@ export function AttendanceTrackerPage() {
     queryFn: () => apiFetch<AttendanceReport>(`/api/attendance/report?date_from=${dateFrom}&date_to=${dateTo}`),
     enabled: canViewReports,
   });
+  const selectedFenceLat = Number(newFence.latitude);
+  const selectedFenceLon = Number(newFence.longitude);
+  const selectedRadius = Number(newFence.radius_m);
+  const mapLat = Number.isFinite(selectedFenceLat)
+    ? selectedFenceLat
+    : point?.latitude ?? geofencesQuery.data?.[0]?.latitude ?? 55.7558;
+  const mapLon = Number.isFinite(selectedFenceLon)
+    ? selectedFenceLon
+    : point?.longitude ?? geofencesQuery.data?.[0]?.longitude ?? 37.6173;
 
   const startShiftMutation = useMutation({
     mutationFn: (payload: { geofence_id?: number | null } & GeoPoint) =>
@@ -157,6 +206,14 @@ export function AttendanceTrackerPage() {
     void endShiftMutation.mutateAsync({ shift_id: shiftId, ...point });
   }
 
+  function setFencePoint(lat: number, lon: number) {
+    setNewFence((x) => ({
+      ...x,
+      latitude: lat.toFixed(6),
+      longitude: lon.toFixed(6),
+    }));
+  }
+
   return (
     <section className="space-y-5 text-slate-100">
       <div className="rounded-2xl border border-white/10 bg-slate-900/45 p-5">
@@ -255,6 +312,30 @@ export function AttendanceTrackerPage() {
           </div>
           {canManageGeofences ? (
             <div className="mt-4 grid gap-2">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                  <span>Кликните по карте, чтобы выбрать точку офиса</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!point) {
+                        toast.error("Сначала нажмите «Обновить геолокацию» в блоке смены");
+                        return;
+                      }
+                      setFencePoint(point.latitude, point.longitude);
+                    }}
+                    className="rounded-md border border-white/20 bg-slate-800 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700"
+                  >
+                    Взять мою геолокацию
+                  </button>
+                </div>
+                <MiniMapPicker
+                  lat={mapLat}
+                  lon={mapLon}
+                  radiusM={Number.isFinite(selectedRadius) ? selectedRadius : 120}
+                  onPick={setFencePoint}
+                />
+              </div>
               <input
                 className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm"
                 placeholder="Название геозоны"
