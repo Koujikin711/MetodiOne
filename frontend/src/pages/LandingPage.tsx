@@ -1,8 +1,8 @@
-import { FormEvent, useState, type ComponentType } from "react";
+import { FormEvent, useEffect, useRef, useState, type ComponentType } from "react";
 import { toast } from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
-import { BarChart3, Calendar, CheckSquare, Funnel, MessageCircle, Plug, Target, Wallet } from "@/components/icons";
+import { BarChart3, Calendar, CheckSquare, Funnel, MessageCircle, Target, Users, Wallet } from "@/components/icons";
 
 const shots = [
   { src: "/landing/01-finance-charts.png", title: "Финансовые графики" },
@@ -93,12 +93,43 @@ const targetGroups = [
   },
 ];
 
-const quickStats = [
-  { value: "5+", label: "основных модулей в одной системе" },
-  { value: "1", label: "единый контур для лидов, чатов, записи и финансов" },
-  { value: "24/7", label: "прозрачность работы команды и воронок" },
-  { value: "0", label: "лишних сервисов для базового процесса продаж" },
-];
+/** Плитки: в покое — по орбите вокруг заголовка/лида, при скролле — к слотам секций */
+const FLY_ICON_BOX = 52;
+const FLY_SCATTER_SCALE_MAX = 1.08;
+const FLY_SCATTER_SCALE_MIN = 0.96;
+/** Зазор от края текста до центра иконки (px) */
+const FLY_ORBIT_PAD = 40;
+/** Общий сдвиг орбиты ниже блока текста (px) */
+const FLY_ORBIT_Y_SHIFT = 66;
+
+function orbitTopLeftAroundCopy(copy: DOMRect, index: number, total: number, half: number): { left: number; top: number } {
+  const n = Math.max(1, total);
+  const cx = copy.left + copy.width / 2;
+  const cy = copy.top + copy.height / 2 + FLY_ORBIT_Y_SHIFT;
+  const narrow = copy.width < 420;
+  const rx = copy.width / 2 + half + FLY_ORBIT_PAD;
+  const ry = copy.height / 2 + half + FLY_ORBIT_PAD + (narrow ? 28 : 0);
+  const angle = (index / n) * Math.PI * 2 - Math.PI / 2 + 0.14 * Math.sin(index * 1.73);
+  const rw = 1 + 0.075 * Math.sin(index * 2.31);
+  const icx = cx + Math.cos(angle) * rx * rw;
+  const icy = cy + Math.sin(angle) * ry * rw;
+  return { left: icx - half, top: icy - half };
+}
+
+function clamp01(t: number): number {
+  return Math.max(0, Math.min(1, t));
+}
+
+function easeInOutCubic(t: number): number {
+  const x = clamp01(t);
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+
+/** Плавнее куба — для полёта иконок от орбиты вокруг текста к слотам */
+function easeInOutQuint(t: number): number {
+  const x = clamp01(t);
+  return x < 0.5 ? 16 * x * x * x * x * x : 1 - Math.pow(-2 * x + 2, 5) / 2;
+}
 
 function IconWhatsApp({ className }: { className?: string }) {
   return (
@@ -162,16 +193,24 @@ const integrationBadges: Array<{
 
 const featureCatalogBadges: Array<{ label: string; Icon: ComponentType<{ className?: string }> }> = [
   { label: "CRM и воронки", Icon: Funnel },
-  { label: "Kanban", Icon: Funnel },
   { label: "Чаты", Icon: MessageCircle },
   { label: "Онлайн-запись", Icon: Calendar },
   { label: "Задачи", Icon: CheckSquare },
   { label: "KPI", Icon: Target },
   { label: "Финансы", Icon: Wallet },
   { label: "Аналитика", Icon: BarChart3 },
-  { label: "Аудит", Icon: Plug },
-  { label: "Роли и права", Icon: Plug },
+  { label: "Аудит", Icon: BarChart3 },
+  { label: "Роли и права", Icon: Users },
 ] as const;
+
+type FlyIconEntry =
+  | { kind: "integration"; label: string; Icon: ComponentType<{ className?: string }>; iconClass: string }
+  | { kind: "feature"; label: string; Icon: ComponentType<{ className?: string }> };
+
+const FLY_ICONS: FlyIconEntry[] = [
+  ...integrationBadges.map((b) => ({ kind: "integration" as const, label: b.label, Icon: b.Icon, iconClass: b.iconClass })),
+  ...featureCatalogBadges.map((b) => ({ kind: "feature" as const, label: b.label, Icon: b.Icon })),
+];
 
 type BillingCycle = "monthly" | "yearly";
 
@@ -250,6 +289,12 @@ const faq = [
   },
 ];
 
+const integrationBadgeClass =
+  "inline-flex w-[min(100%,300px)] min-h-9 shrink-0 items-center justify-center rounded-full border border-sky-300/35 bg-sky-500/10 px-3 py-1 text-center text-xs font-semibold uppercase tracking-[0.14em] text-sky-100 shadow-sm shadow-sky-900/30";
+
+const catalogBadgeClass =
+  "inline-flex w-[min(100%,300px)] min-h-9 shrink-0 items-center justify-center rounded-full border border-fuchsia-300/40 bg-gradient-to-r from-fuchsia-500/20 to-indigo-500/20 px-3 py-1 text-center text-xs font-semibold uppercase tracking-[0.14em] text-fuchsia-100 shadow-sm shadow-fuchsia-900/30";
+
 export function LandingPage() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -260,7 +305,109 @@ export function LandingPage() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<(typeof platformTabs)[number]["id"]>("crm");
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
+  const heroRef = useRef<HTMLElement | null>(null);
+  const heroCardRef = useRef<HTMLDivElement | null>(null);
+  /** Заголовок + лид — орбита иконок в покое */
+  const heroCopyRef = useRef<HTMLDivElement | null>(null);
+  const m1AnchorRef = useRef<HTMLDivElement | null>(null);
+  const integrationsCardRef = useRef<HTMLDivElement | null>(null);
+  const slotRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const [dockProgress, setDockProgress] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const activePlatform = platformTabs.find((item) => item.id === activeTab) ?? platformTabs[0];
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncMq = () => setReduceMotion(mq.matches);
+    syncMq();
+    mq.addEventListener("change", syncMq);
+    return () => mq.removeEventListener("change", syncMq);
+  }, []);
+
+  useEffect(() => {
+    const computeRaw = (): number => {
+      if (reduceMotion) return 1;
+      const card = integrationsCardRef.current;
+      if (!card) return 0;
+      const vh = window.innerHeight || 1;
+      const sy = window.scrollY || document.documentElement.scrollTop || 0;
+      const heroRect = heroRef.current?.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const heroTopAbs = (heroRect?.top ?? 0) + sy;
+      const cardTopAbs = cardRect.top + sy;
+      const start = Math.max(0, heroTopAbs + 8);
+      const end = Math.max(start + 1, cardTopAbs - vh * 0.56);
+      return clamp01((sy - start) / (end - start));
+    };
+
+    let raf = 0;
+    const tick = () => {
+      raf = 0;
+      setDockProgress(computeRaw());
+    };
+    const schedule = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(tick);
+    };
+
+    tick();
+    window.addEventListener("scroll", schedule, { passive: true, capture: true });
+    window.addEventListener("resize", schedule);
+    const ro = new ResizeObserver(schedule);
+    const intCard = integrationsCardRef.current;
+    if (intCard) ro.observe(intCard);
+    const hero = heroRef.current;
+    const heroCard = heroCardRef.current;
+    const heroCopy = heroCopyRef.current;
+    if (hero) ro.observe(hero);
+    if (heroCard) ro.observe(heroCard);
+    if (heroCopy) ro.observe(heroCopy);
+
+    return () => {
+      window.removeEventListener("scroll", schedule, { capture: true });
+      window.removeEventListener("resize", schedule);
+      ro.disconnect();
+      window.cancelAnimationFrame(raf);
+    };
+  }, [reduceMotion]);
+
+  const easedDock = easeInOutQuint(dockProgress);
+  const dockHandoff = 0.992;
+  const showFlyLayer = !reduceMotion && dockProgress < dockHandoff;
+  const showSlotIcons = reduceMotion || dockProgress >= dockHandoff;
+
+  const flyPositions = (): Array<{ left: number; top: number; spin: number; scale: number }> => {
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const half = FLY_ICON_BOX / 2;
+    const n = FLY_ICONS.length;
+    const raw = heroCopyRef.current?.getBoundingClientRect();
+    const copy =
+      raw && raw.width > 8 && raw.height > 8
+        ? raw
+        : new DOMRect((vw - Math.min(720, vw * 0.9)) / 2, vh * 0.2, Math.min(720, vw * 0.9), Math.min(320, vh * 0.3));
+
+    return FLY_ICONS.map((_, i) => {
+      const { left: orbitLeft, top: orbitTop } = orbitTopLeftAroundCopy(copy, i, n, half);
+      const spin = (((i * 23) % 62) - 31) * (1 - easedDock);
+
+      const slot = slotRefs.current[i];
+      let endX = orbitLeft;
+      let endY = orbitTop;
+      if (slot) {
+        const sr = slot.getBoundingClientRect();
+        endX = sr.left + sr.width / 2 - half;
+        endY = sr.top + sr.height / 2 - half;
+      }
+      const left = orbitLeft + (endX - orbitLeft) * easedDock;
+      const top = orbitTop + (endY - orbitTop) * easedDock;
+      const scale =
+        FLY_SCATTER_SCALE_MAX + (FLY_SCATTER_SCALE_MIN - FLY_SCATTER_SCALE_MAX) * easedDock;
+      return { left, top, spin, scale };
+    });
+  };
+
+  const flyPos = showFlyLayer ? flyPositions() : [];
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -335,20 +482,67 @@ export function LandingPage() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-6xl px-4 pb-10 pt-10 sm:px-6 lg:px-8">
-        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="rounded-3xl border border-white/10 bg-slate-900/45 p-8 shadow-2xl shadow-black/25 sm:p-10">
-            <p className="inline-flex rounded-full border border-fuchsia-300/30 bg-fuchsia-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-fuchsia-200">
-              Единая ERP-платформа
-            </p>
-            <h1 className="mt-4 max-w-4xl text-4xl font-bold leading-tight text-white sm:text-6xl">
-              MetodiOne помогает бизнесу работать быстрее и прозрачнее
-            </h1>
-            <p className="mt-5 max-w-4xl text-base text-slate-300 sm:text-lg">
-              Вместо десятка сервисов — один рабочий контур: CRM, чаты, онлайн-запись, KPI, задачи и финансовый
-              контроль. Руководитель видит реальную ситуацию по команде и выручке в режиме реального времени.
-            </p>
-            <div className="mt-7 grid max-w-4xl gap-3 text-sm text-slate-200 sm:grid-cols-2">
+      <section ref={heroRef} className="mx-auto max-w-6xl px-4 pb-10 pt-10 sm:px-6 lg:px-8">
+        <div
+          ref={heroCardRef}
+          className="relative z-[5] mx-auto max-w-4xl overflow-visible rounded-3xl border border-white/10 bg-slate-900/45 p-8 text-center shadow-2xl shadow-black/25 sm:p-10"
+        >
+          <div className="relative z-20 mx-auto flex min-h-[min(58vw,440px)] max-w-3xl flex-col items-center px-2 sm:min-h-[400px]">
+            <div
+              ref={m1AnchorRef}
+              className="relative z-10 flex min-h-[52px] w-full flex-col items-center justify-center py-2"
+            >
+              <div className="rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-500 px-3 py-1.5 text-lg font-bold tracking-tight text-white shadow-lg shadow-fuchsia-900/30 sm:px-4 sm:py-2 sm:text-xl">
+                M1
+              </div>
+            </div>
+            {showFlyLayer ? (
+              <div className="pointer-events-none fixed inset-0 z-[14]" aria-hidden>
+                {FLY_ICONS.map((entry, i) => {
+                  const pos = flyPos[i];
+                  if (!pos) return null;
+                  const Icon = entry.Icon;
+                  const box =
+                    entry.kind === "feature"
+                      ? "border-fuchsia-300/40 bg-gradient-to-br from-fuchsia-500/25 to-indigo-600/20 text-fuchsia-100 shadow-fuchsia-900/20"
+                      : "border-white/20 bg-slate-800/95 text-slate-100 shadow-black/40";
+                  return (
+                    <div
+                      key={`fly-${entry.label}-${i}`}
+                      className={[
+                        "fixed flex items-center justify-center rounded-xl border shadow-lg",
+                        box,
+                      ].join(" ")}
+                      style={{
+                        left: pos.left,
+                        top: pos.top,
+                        width: FLY_ICON_BOX,
+                        height: FLY_ICON_BOX,
+                        transform: `rotate(${pos.spin}deg) scale(${pos.scale})`,
+                      }}
+                    >
+                      <Icon
+                        className={
+                          entry.kind === "integration"
+                            ? ["h-7 w-7", entry.iconClass || "text-slate-100"].join(" ")
+                            : "h-7 w-7 text-fuchsia-100"
+                        }
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+            <div ref={heroCopyRef} className="relative z-30 flex w-full max-w-3xl flex-col items-center">
+              <h1 className="mt-8 max-w-4xl text-4xl font-bold leading-tight text-white sm:text-6xl">
+                MetodiOne помогает бизнесу работать быстрее и прозрачнее
+              </h1>
+              <p className="relative z-10 mt-5 max-w-3xl text-base text-slate-300 sm:text-lg">
+                Вместо десятка сервисов — один рабочий контур: CRM, чаты, онлайн-запись, KPI, задачи и финансовый контроль.
+                Руководитель видит реальную ситуацию по команде и выручке в режиме реального времени.
+              </p>
+            </div>
+            <div className="relative z-30 mt-7 grid w-full max-w-3xl gap-3 text-left text-sm text-slate-200 sm:grid-cols-2">
               <div className="rounded-xl border border-emerald-300/20 bg-emerald-500/10 px-4 py-3">
                 Рост скорости ответа и меньше потерь лидов
               </div>
@@ -362,47 +556,38 @@ export function LandingPage() {
                 Подходит для клиник, сервиса, продаж и сетевого бизнеса
               </div>
             </div>
-            <div className="mt-7 flex flex-wrap gap-3">
+            <div className="relative z-30 mt-7 w-full max-w-3xl">
               <button
                 type="button"
                 onClick={() => setDemoOpen(true)}
-                className="rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95"
+                className="w-full rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-5 py-3 text-base font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95"
               >
-                Получить демо за 5 минут
+                Получить бесплатно за 5 минут
               </button>
-              <a
-                href="#screens"
-                className="rounded-xl border border-white/20 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
-              >
-                Смотреть интерфейс
-              </a>
             </div>
           </div>
-          <aside className="rounded-3xl border border-white/10 bg-slate-900/45 p-6 shadow-2xl shadow-black/25">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-fuchsia-200">Ключевые показатели</h2>
-            <div className="mt-4 space-y-3">
-              {quickStats.map((item) => (
-                <div key={item.label} className="rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3">
-                  <div className="text-2xl font-bold text-white">{item.value}</div>
-                  <div className="mt-1 text-xs text-slate-300">{item.label}</div>
-                </div>
-              ))}
-            </div>
-          </aside>
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-          <p className="mb-3 text-xs uppercase tracking-wider text-slate-400">Интеграции</p>
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-            {integrationBadges.map((item) => (
+        <div ref={integrationsCardRef} className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
+          <div className="mb-3 flex justify-center px-1">
+            <p className={integrationBadgeClass}>Интеграции</p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {integrationBadges.map((item, i) => (
               <div
                 key={item.label}
-                className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-slate-950/30 p-3 text-center"
+                className="flex w-[100px] flex-col items-center gap-2 rounded-xl border border-white/10 bg-slate-950/30 p-3 text-center sm:w-[112px]"
               >
                 <span
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 [&>svg]:h-6 [&>svg]:w-6"
+                  ref={(el) => {
+                    slotRefs.current[i] = el;
+                  }}
+                  className={[
+                    "inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 transition-opacity duration-300 [&>svg]:h-6 [&>svg]:w-6",
+                    showSlotIcons ? "opacity-100" : "opacity-0",
+                  ].join(" ")}
                   aria-hidden
                 >
                   <item.Icon className={item.iconClass || "text-slate-100"} />
@@ -412,17 +597,23 @@ export function LandingPage() {
             ))}
           </div>
           <div className="my-4 h-px bg-white/10" />
-          <p className="mb-3 inline-flex rounded-full border border-fuchsia-300/35 bg-fuchsia-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-fuchsia-100">
-            Каталог Возможностей
-          </p>
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-10">
-            {featureCatalogBadges.map((item) => (
+          <div className="mb-3 flex justify-center px-1">
+            <p className={catalogBadgeClass}>Каталог Возможностей</p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {featureCatalogBadges.map((item, i) => (
               <div
                 key={item.label}
-                className="flex flex-col items-center gap-2 rounded-xl border border-fuchsia-300/20 bg-fuchsia-500/10 p-3 text-center"
+                className="flex w-[100px] flex-col items-center gap-2 rounded-xl border border-fuchsia-300/20 bg-fuchsia-500/10 p-3 text-center sm:w-[112px]"
               >
                 <span
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-fuchsia-500/10 text-fuchsia-100 [&>svg]:h-6 [&>svg]:w-6"
+                  ref={(el) => {
+                    slotRefs.current[integrationBadges.length + i] = el;
+                  }}
+                  className={[
+                    "inline-flex h-11 w-11 items-center justify-center rounded-xl bg-fuchsia-500/10 text-fuchsia-100 transition-opacity duration-300 [&>svg]:h-6 [&>svg]:w-6",
+                    showSlotIcons ? "opacity-100" : "opacity-0",
+                  ].join(" ")}
                   aria-hidden
                 >
                   <item.Icon className="h-6 w-6" />
@@ -437,9 +628,16 @@ export function LandingPage() {
       <section id="solutions" className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
         <div className="grid gap-4 md:grid-cols-3">
           {targetGroups.map((item) => (
-            <article key={item.title} className="rounded-2xl border border-white/10 bg-slate-900/40 p-5 shadow-lg shadow-black/15">
+            <article key={item.title} className="flex h-full flex-col rounded-2xl border border-white/10 bg-slate-900/40 p-5 shadow-lg shadow-black/15">
               <h3 className="text-xl font-semibold">{item.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-300">{item.text}</p>
+              <button
+                type="button"
+                onClick={() => setDemoOpen(true)}
+                className="mt-4 w-full rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95"
+              >
+                Получить бесплатно
+              </button>
             </article>
           ))}
         </div>
@@ -447,7 +645,7 @@ export function LandingPage() {
 
       <section id="features" className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
         <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-lg shadow-black/20 sm:p-8">
-          <h2 className="text-3xl font-semibold sm:text-4xl">Возможности MetodiOne</h2>
+          <h2 className="text-center text-3xl font-semibold sm:text-4xl">Возможности MetodiOne</h2>
           <div className="mt-5 flex flex-wrap gap-2">
             {platformTabs.map((item) => (
               <button
@@ -475,13 +673,20 @@ export function LandingPage() {
                 </div>
               ))}
             </div>
+            <button
+              type="button"
+              onClick={() => setDemoOpen(true)}
+              className="mt-5 w-full rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95 sm:w-auto"
+            >
+              Получить бесплатно
+            </button>
           </div>
         </div>
       </section>
 
       <section id="screens" className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
-        <h2 className="mb-2 text-3xl font-semibold sm:text-4xl">Интерфейс в работе</h2>
-        <p className="mb-6 text-sm text-slate-300">
+        <h2 className="mb-2 text-center text-3xl font-semibold sm:text-4xl">Интерфейс в работе</h2>
+        <p className="mb-6 text-center text-sm text-slate-300">
           Реальные экраны MetodiOne: CRM-доска, чат, KPI, финансы, задачи, онлайн-запись и интеграции.
         </p>
         <div className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2">
@@ -499,7 +704,7 @@ export function LandingPage() {
 
       <section className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
         <div className="rounded-3xl border border-white/10 bg-gradient-to-r from-indigo-500/15 via-fuchsia-500/10 to-sky-500/15 p-7 shadow-lg shadow-black/20">
-          <h2 className="text-3xl font-semibold sm:text-4xl">Запуск за короткий цикл</h2>
+          <h2 className="text-center text-3xl font-semibold sm:text-4xl">Запуск за короткий цикл</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-fuchsia-300">Этап 1</p>
@@ -550,7 +755,7 @@ export function LandingPage() {
               </button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-4 text-center">
             <div>
               <h2 className="text-3xl font-semibold sm:text-4xl">Тарифы</h2>
               <p className="mt-2 text-sm text-slate-300">
