@@ -39,3 +39,13 @@ git push -u origin main
 - API: `cd backend && python -m uvicorn app.main:app --reload --port 8000`
 - UI: `cd frontend && npm install && npm run dev`
 
+## Valuation readiness (для оценки стоимости)
+
+Подготовленные артефакты для инвестора/оценщика находятся в `docs/valuation-readiness`:
+
+- `01-production-metrics.md` — как снимать продакшн baseline (`/health/metrics`)
+- `02-case-study-template.md` — шаблон кейсов "до/после"
+- `03-implementation-playbook.md` — упакованный процесс внедрения
+- `04-support-sla.md` — регламент поддержки и SLA
+- `05-qa-and-tests.md` — базовый QA/test контур и DoD
+
