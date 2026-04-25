@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, time, timedelta
+from decimal import Decimal
 import re
 from typing import Annotated
 from zoneinfo import ZoneInfo
@@ -41,6 +42,7 @@ from app.schemas.booking import (
 from app.schemas.lead import LeadRead
 from app.services.automation import process_lead_automation
 from app.services.audit import write_audit_event
+from app.services.finance_crm_bridge import sync_booking_payment_revenue
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.sales_kpi import get_kpi_service_price
 from app.services.whatsapp_automation import send_booking_confirmation_if_needed
@@ -1076,6 +1078,14 @@ async def patch_appointment_payment(
     appt.paid_amount = body.paid_amount
     appt.updated_at = datetime.now(UTC)
     await db.flush()
+    await sync_booking_payment_revenue(
+        db,
+        company_id=company_id,
+        lead_id=appt.lead_id,
+        appointment_id=appt.id,
+        target_paid_amount=Decimal(str(body.paid_amount or 0)),
+        user_id=current_user.id,
+    )
     await write_audit_event(
         db,
         entity_type="booking_appointment",

@@ -41,6 +41,7 @@ from app.schemas.lead import (
     LeadUpdate,
 )
 from app.services.automation import process_lead_automation
+from app.services.finance_crm_bridge import post_crm_deal_payment_once
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.sales_kpi import get_kpi_service_price
 from app.services.lead_import import decode_csv_text, normalize_email_strict, parse_csv_rows, row_to_parsed_lead
@@ -1076,6 +1077,14 @@ async def close_deal_from_integration_pipeline(
     db.add(deal)
     lead.status_id = success_stage_id
     await db.flush()
+    await post_crm_deal_payment_once(
+        db,
+        company_id=company_id,
+        lead_id=lead.id,
+        deal_id=deal.id,
+        amount=body.paid_amount,
+        user_id=current_user.id,
+    )
     await _audit_lead(
         db,
         lead_id=lead.id,
