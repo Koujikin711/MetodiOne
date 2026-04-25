@@ -272,9 +272,14 @@ async def analytics_overview(
 
     appt_rows = (
         await db.execute(
-            select(BookingAppointment.lead_id, BookingAppointment.service_amount, BookingAppointment.paid_amount).where(
+            select(BookingAppointment.lead_id, BookingAppointment.service_amount, BookingAppointment.paid_amount)
+            .select_from(BookingAppointment)
+            .join(Lead, Lead.id == BookingAppointment.lead_id)
+            .where(
                 BookingAppointment.company_id == company_id,
-                BookingAppointment.lead_id.in_(lead_ids) if lead_ids else BookingAppointment.lead_id.is_(None),
+                Lead.company_id == company_id,
+                Lead.created_at >= start,
+                Lead.created_at < end,
             )
         )
     ).all()
@@ -297,10 +302,14 @@ async def analytics_overview(
     status_events = (
         await db.execute(
             select(LeadAuditEvent.lead_id, LeadAuditEvent.created_at)
+            .select_from(LeadAuditEvent)
+            .join(Lead, Lead.id == LeadAuditEvent.lead_id)
             .where(
                 LeadAuditEvent.company_id == company_id,
                 LeadAuditEvent.action == "status_changed",
-                LeadAuditEvent.lead_id.in_(lead_ids) if lead_ids else LeadAuditEvent.lead_id.is_(None),
+                Lead.company_id == company_id,
+                Lead.created_at >= start,
+                Lead.created_at < end,
             )
             .order_by(LeadAuditEvent.created_at.asc())
         )
@@ -428,9 +437,13 @@ async def analytics_overview(
     audit_rows = (
         await db.execute(
             select(LeadAuditEvent.lead_id, LeadAuditEvent.action, LeadAuditEvent.created_at)
+            .select_from(LeadAuditEvent)
+            .join(Lead, Lead.id == LeadAuditEvent.lead_id)
             .where(
                 LeadAuditEvent.company_id == company_id,
-                LeadAuditEvent.lead_id.in_(lead_ids) if lead_ids else LeadAuditEvent.lead_id.is_(None),
+                Lead.company_id == company_id,
+                Lead.created_at >= start,
+                Lead.created_at < end,
             )
             .order_by(LeadAuditEvent.created_at.asc())
         )
