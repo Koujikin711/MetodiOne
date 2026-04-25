@@ -338,6 +338,51 @@ export interface BookingPatientHistoryItem {
   visits: BookingPatientVisit[];
 }
 
+export interface AttendanceGeofence {
+  id: number;
+  name: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  radius_m: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AttendanceShift {
+  id: number;
+  user_id: number;
+  geofence_id: number | null;
+  start_at: string;
+  end_at: string | null;
+  started_in_geofence: boolean;
+  ended_in_geofence: boolean | null;
+  suspicious: boolean;
+  suspicious_reason: string | null;
+  duration_sec: number | null;
+}
+
+export interface AttendanceMyStatus {
+  active_shift: AttendanceShift | null;
+  today_total_sec: number;
+}
+
+export interface AttendanceEmployeeSummary {
+  user_id: number;
+  full_name: string | null;
+  email: string;
+  total_sec: number;
+  shifts_count: number;
+  suspicious_events: number;
+}
+
+export interface AttendanceReport {
+  date_from: string;
+  date_to: string;
+  employees: AttendanceEmployeeSummary[];
+}
+
 export interface ExpertBookingItem {
   specialist_id: number;
   specialist_name: string;

@@ -268,6 +268,12 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
                 </NavLink>
+                <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <Target className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Трекер</span>
+                </NavLink>
                 {showKpi ? (
                   <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
                     <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
@@ -311,6 +317,12 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
                 </NavLink>
+                <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <Target className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Трекер</span>
+                </NavLink>
               </>
             ) : (
               <>
@@ -329,6 +341,12 @@ export function MainLayout() {
                     <CheckSquare className="h-[18px] w-[18px]" />
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
+                </NavLink>
+                <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <Target className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Трекер</span>
                 </NavLink>
                 <NavLink to="/analytics" className={navLinkClass} title="Аналитика">
                   <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
@@ -460,6 +478,12 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Чат</span>
               </NavLink>
+              <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <Target className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Трекер</span>
+              </NavLink>
               {showKpi ? (
                 <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
                   <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
@@ -514,6 +538,12 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Задачи</span>
               </NavLink>
+              <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <Target className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Трекер</span>
+              </NavLink>
               <button
                 type="button"
                 onClick={logout}
@@ -557,6 +587,12 @@ export function MainLayout() {
                   <MessageCircle className="h-4 w-4" />
                 </GradientIconBox>
                 <span className="text-[9px]">Чат</span>
+              </NavLink>
+              <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <Target className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Трекер</span>
               </NavLink>
               <button
                 type="button"
