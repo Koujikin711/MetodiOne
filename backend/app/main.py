@@ -59,6 +59,39 @@ def _install_asyncio_dns_exception_handler() -> None:
     loop.set_exception_handler(_handler)
 
 
+async def _run_startup_migrations_with_retry() -> None:
+    """
+    На некоторых платформах после деплоя DNS/сеть к PostgreSQL
+    могут быть недоступны первые секунды. Делаем несколько попыток,
+    чтобы не падать мгновенно при временном сбое резолва.
+    """
+    max_attempts = 8
+    base_delay_sec = 1.5
+    for attempt in range(1, max_attempts + 1):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+                await ensure_booking_specialist_columns(conn, settings.database_url)
+                await ensure_multi_tenant_migration(conn, settings.database_url)
+                await ensure_finance_extensions(conn, settings.database_url)
+                await ensure_sales_kpi_plans(conn, settings.database_url)
+                await ensure_chat_performance_indexes(conn, settings.database_url)
+            return
+        except Exception as exc:
+            is_last = attempt == max_attempts
+            if is_last:
+                raise
+            delay = base_delay_sec * attempt
+            logger.warning(
+                "DB startup attempt %s/%s failed: %s. Retrying in %.1fs",
+                attempt,
+                max_attempts,
+                exc,
+                delay,
+            )
+            await asyncio.sleep(delay)
+
+
 async def seed_pipelines_and_stages() -> None:
     async with AsyncSessionLocal() as session:
         cid = await _ensure_default_company(session)
@@ -173,13 +206,7 @@ async def _ensure_default_company(session: AsyncSession) -> int:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     _install_asyncio_dns_exception_handler()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await ensure_booking_specialist_columns(conn, settings.database_url)
-        await ensure_multi_tenant_migration(conn, settings.database_url)
-        await ensure_finance_extensions(conn, settings.database_url)
-        await ensure_sales_kpi_plans(conn, settings.database_url)
-        await ensure_chat_performance_indexes(conn, settings.database_url)
+    await _run_startup_migrations_with_retry()
     # enum-миграции PostgreSQL нельзя выполнять внутри begin-транзакции.
     # Для надёжности запускаем каждую миграцию на отдельном "свежем" connection.
     async with engine.connect() as conn:
