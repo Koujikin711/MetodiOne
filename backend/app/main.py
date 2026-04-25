@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import logging
 import socket
+import time
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,6 +29,7 @@ from app.services.default_pipeline_stages import default_pipeline_stage_creates
 from app.routers import attendance, analytics, audit, auth, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tasks, users
 from app.services.background_events import record_background_event
 from app.services.google_sheets_sync import run_google_sheets_import_tick
+from app.services.runtime_metrics import runtime_metrics
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
 
 logger = logging.getLogger(__name__)
@@ -296,6 +298,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def collect_runtime_metrics(request, call_next):  # type: ignore[no-untyped-def]
+    started = time.perf_counter()
+    runtime_metrics.request_started()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = int(response.status_code)
+        return response
+    finally:
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        runtime_metrics.request_finished(
+            path=request.url.path,
+            status_code=status_code,
+            duration_ms=elapsed_ms,
+        )
+
 app.include_router(auth.router, prefix="/api")
 app.include_router(leads.router, prefix="/api")
 app.include_router(pipelines.router, prefix="/api")
@@ -321,3 +341,18 @@ app.include_router(attendance.router, prefix="/api")
 @app.get("/health")
 async def health():
     return {"status": "ok", "build": settings.build_version}
+
+
+@app.get("/health/metrics")
+async def health_metrics():
+    pool_status = ""
+    try:
+        pool_status = engine.sync_engine.pool.status()
+    except Exception:
+        pool_status = "pool-status-unavailable"
+    return runtime_metrics.snapshot(
+        extra={
+            "build": settings.build_version,
+            "db_pool": pool_status,
+        }
+    )

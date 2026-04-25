@@ -24,3 +24,14 @@ def test_openapi_contract():
     data = r.json()
     assert "paths" in data
     assert "/health" in data["paths"]
+
+
+def test_health_metrics_contract():
+    client = TestClient(app)
+    _ = client.get("/health")
+    r = client.get("/health/metrics")
+    assert r.status_code == 200
+    body = r.json()
+    assert "total_requests" in body
+    assert "latency" in body
+    assert "p95_ms" in body["latency"]
