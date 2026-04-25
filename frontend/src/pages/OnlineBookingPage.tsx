@@ -12,6 +12,7 @@ import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken 
 import { BOOKING_TIME_ZONE, datetimeLocalBookingToIsoUtc, ymdInBookingTz } from "@/lib/bookingTz";
 import type {
   BookingAppointment,
+  BookingPatientHistoryItem,
   BookingSpecialist,
   LeadSource,
   Pipeline,
@@ -48,6 +49,7 @@ export function OnlineBookingPage() {
   const [tab, setTab] = useState<Tab>("online");
   const [filterDate, setFilterDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalDate, setJournalDate] = useState(() => ymdInBookingTz(Date.now()));
+  const [journalSearch, setJournalSearch] = useState("");
   const [calendarDrawerOpen, setCalendarDrawerOpen] = useState(false);
   const formPanelRef = useRef<HTMLDivElement>(null);
 
@@ -151,6 +153,15 @@ export function OnlineBookingPage() {
       return apiFetch<BookingAppointment[]>(`/api/booking/appointments?${qs.toString()}`);
     },
     enabled: tab === "journal",
+  });
+
+  const patientHistoryQuery = useQuery({
+    queryKey: ["booking-patient-history", journalSearch.trim()],
+    queryFn: () =>
+      apiFetch<BookingPatientHistoryItem[]>(
+        `/api/booking/patient-history?q=${encodeURIComponent(journalSearch.trim())}&limit=20`,
+      ),
+    enabled: tab === "journal" && journalSearch.trim().length >= 2,
   });
 
   const createMutation = useMutation({
@@ -899,7 +910,71 @@ export function OnlineBookingPage() {
                 className="ml-2 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-white"
               />
             </label>
+            <label className="text-sm text-slate-300">
+              Поиск клиента (ФИО / телефон)
+              <input
+                type="text"
+                value={journalSearch}
+                onChange={(e) => setJournalSearch(e.target.value)}
+                placeholder="Напр. Ганчина или 992..."
+                className="ml-2 w-72 rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-1.5 text-white placeholder:text-slate-500"
+              />
+            </label>
           </div>
+          {journalSearch.trim().length >= 2 ? (
+            <div className="mb-4 rounded-xl border border-slate-700/50 bg-slate-900/35 p-3">
+              <h3 className="mb-2 text-sm font-semibold text-white">История клиента</h3>
+              {patientHistoryQuery.isLoading && <p className="text-sm text-slate-400">Ищем историю...</p>}
+              {patientHistoryQuery.isError && (
+                <p className="text-sm text-red-300">{(patientHistoryQuery.error as Error).message}</p>
+              )}
+              {patientHistoryQuery.data && patientHistoryQuery.data.length === 0 && (
+                <p className="text-sm text-slate-400">Ничего не найдено по запросу.</p>
+              )}
+              {patientHistoryQuery.data && patientHistoryQuery.data.length > 0 && (
+                <div className="space-y-3">
+                  {patientHistoryQuery.data.map((item) => (
+                    <div key={`${item.patient_name}-${item.patient_phone}`} className="rounded-lg border border-slate-700/60 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{item.patient_name}</p>
+                          <p className="text-xs text-slate-400">{item.patient_phone}</p>
+                        </div>
+                        <div className="text-right text-xs text-slate-300">
+                          <p>Всего записей: <b>{item.total_visits}</b></p>
+                          <p>Последняя: <b>{item.last_visit_at ? formatDt(item.last_visit_at) : "—"}</b></p>
+                        </div>
+                      </div>
+                      <div className="mt-2 overflow-x-auto">
+                        <table className="w-full min-w-[620px] text-left text-xs text-slate-300">
+                          <thead className="text-slate-500">
+                            <tr>
+                              <th className="py-1 pr-3">Когда</th>
+                              <th className="py-1 pr-3">Специалист</th>
+                              <th className="py-1 pr-3">Услуга</th>
+                              <th className="py-1 pr-3">Статус</th>
+                              <th className="py-1 pr-3">Оплата</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {item.visits.map((v) => (
+                              <tr key={v.appointment_id} className="border-t border-slate-800">
+                                <td className="py-1 pr-3 whitespace-nowrap">{formatDt(v.start_at)}</td>
+                                <td className="py-1 pr-3">{v.specialist_name || "—"}</td>
+                                <td className="py-1 pr-3">{(v.service_title || "").trim() || "—"}</td>
+                                <td className="py-1 pr-3">{statusLabels[v.status] ?? v.status}</td>
+                                <td className="py-1 pr-3">{v.paid_amount} / {v.service_amount}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1200px] border-collapse text-left text-sm text-slate-200">
               <thead>

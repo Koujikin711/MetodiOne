@@ -66,6 +66,15 @@ def _safe_pct(num: float, den: float) -> float:
     return round((num / den) * 100, 2)
 
 
+async def _ensure_pipeline_scope(db: AsyncSession, company_id: int, pipeline_id: int | None) -> int | None:
+    if pipeline_id is None:
+        return None
+    pipe = await db.get(Pipeline, pipeline_id)
+    if pipe is None or pipe.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown pipeline_id")
+    return pipeline_id
+
+
 @router.get("/full", response_model=FullAnalyticsRead)
 async def analytics_full(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -74,20 +83,20 @@ async def analytics_full(
     period: str = Query("day"),
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
+    pipeline_id: int | None = Query(default=None, ge=1),
 ) -> FullAnalyticsRead:
     _assert_owner(current_user)
+    pipeline_id = await _ensure_pipeline_scope(db, company_id, pipeline_id)
     start, end = _period_bounds(period, date_from, date_to)
 
-    total_leads = int(
-        await db.scalar(
-            select(func.count(Lead.id)).where(
-                Lead.company_id == company_id,
-                Lead.created_at >= start,
-                Lead.created_at < end,
-            ),
-        )
-        or 0
+    total_q = select(func.count(Lead.id)).select_from(Lead).join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True).where(
+        Lead.company_id == company_id,
+        Lead.created_at >= start,
+        Lead.created_at < end,
     )
+    if pipeline_id is not None:
+        total_q = total_q.where(PipelineStage.pipeline_id == pipeline_id)
+    total_leads = int(await db.scalar(total_q) or 0)
 
     leads_with_manager_expr = case((Lead.manager_id.is_not(None), Lead.id), else_=None)
     rows = (
@@ -112,6 +121,7 @@ async def analytics_full(
                 Lead.company_id == company_id,
                 Lead.created_at >= start,
                 Lead.created_at < end,
+                PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
             .group_by(Pipeline.id, Pipeline.name)
             .order_by(Pipeline.name.asc().nulls_last()),
@@ -152,20 +162,20 @@ async def analytics_detailed(
     period: str = Query("day"),
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
+    pipeline_id: int | None = Query(default=None, ge=1),
 ) -> DetailedAnalyticsRead:
     _assert_owner(current_user)
+    pipeline_id = await _ensure_pipeline_scope(db, company_id, pipeline_id)
     start, end = _period_bounds(period, date_from, date_to)
 
-    total_leads = int(
-        await db.scalar(
-            select(func.count(Lead.id)).where(
-                Lead.company_id == company_id,
-                Lead.created_at >= start,
-                Lead.created_at < end,
-            ),
-        )
-        or 0
+    total_q = select(func.count(Lead.id)).select_from(Lead).join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True).where(
+        Lead.company_id == company_id,
+        Lead.created_at >= start,
+        Lead.created_at < end,
     )
+    if pipeline_id is not None:
+        total_q = total_q.where(PipelineStage.pipeline_id == pipeline_id)
+    total_leads = int(await db.scalar(total_q) or 0)
 
     rows = (
         await db.execute(
@@ -178,6 +188,7 @@ async def analytics_detailed(
                 func.coalesce(func.sum(BookingAppointment.service_amount - BookingAppointment.paid_amount), 0),
             )
             .select_from(Lead)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
             .join(User, User.id == Lead.manager_id, isouter=True)
             .join(
                 BookingAppointment,
@@ -188,6 +199,7 @@ async def analytics_detailed(
                 Lead.company_id == company_id,
                 Lead.created_at >= start,
                 Lead.created_at < end,
+                PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
             .group_by(User.id, User.full_name, User.email)
             .order_by(User.full_name.asc().nulls_last(), User.email.asc().nulls_last()),
@@ -227,19 +239,25 @@ async def analytics_overview(
     period: str = Query("day"),
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
+    pipeline_id: int | None = Query(default=None, ge=1),
 ) -> AnalyticsOverviewRead:
     _assert_owner(current_user)
+    pipeline_id = await _ensure_pipeline_scope(db, company_id, pipeline_id)
     start, end = _period_bounds(period, date_from, date_to)
 
-    leads = (
-        await db.execute(
-            select(Lead.id, Lead.status_id, Lead.source, Lead.refusal_reason, Lead.manager_id, Lead.created_at).where(
-                Lead.company_id == company_id,
-                Lead.created_at >= start,
-                Lead.created_at < end,
-            )
+    leads_q = (
+        select(Lead.id, Lead.status_id, Lead.source, Lead.refusal_reason, Lead.manager_id, Lead.created_at)
+        .select_from(Lead)
+        .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+        .where(
+            Lead.company_id == company_id,
+            Lead.created_at >= start,
+            Lead.created_at < end,
         )
-    ).all()
+    )
+    if pipeline_id is not None:
+        leads_q = leads_q.where(PipelineStage.pipeline_id == pipeline_id)
+    leads = (await db.execute(leads_q)).all()
     lead_ids = [int(row[0]) for row in leads]
     lead_ids_set = set(lead_ids)
     total_leads = len(lead_ids)
@@ -247,7 +265,10 @@ async def analytics_overview(
     stage_rows = (
         await db.execute(
             select(PipelineStage.id, PipelineStage.name, PipelineStage.order)
-            .where(PipelineStage.company_id == company_id)
+            .where(
+                PipelineStage.company_id == company_id,
+                PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
+            )
             .order_by(PipelineStage.order.asc(), PipelineStage.id.asc())
         )
     ).all()
@@ -275,11 +296,13 @@ async def analytics_overview(
             select(BookingAppointment.lead_id, BookingAppointment.service_amount, BookingAppointment.paid_amount)
             .select_from(BookingAppointment)
             .join(Lead, Lead.id == BookingAppointment.lead_id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
             .where(
                 BookingAppointment.company_id == company_id,
                 Lead.company_id == company_id,
                 Lead.created_at >= start,
                 Lead.created_at < end,
+                PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
         )
     ).all()
@@ -304,12 +327,14 @@ async def analytics_overview(
             select(LeadAuditEvent.lead_id, LeadAuditEvent.created_at)
             .select_from(LeadAuditEvent)
             .join(Lead, Lead.id == LeadAuditEvent.lead_id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
             .where(
                 LeadAuditEvent.company_id == company_id,
                 LeadAuditEvent.action == "status_changed",
                 Lead.company_id == company_id,
                 Lead.created_at >= start,
                 Lead.created_at < end,
+                PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
             .order_by(LeadAuditEvent.created_at.asc())
         )
@@ -408,10 +433,12 @@ async def analytics_overview(
         await db.execute(
             select(Lead.manager_id, func.coalesce(func.sum(BookingAppointment.paid_amount), 0))
             .join(BookingAppointment, BookingAppointment.lead_id == Lead.id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
             .where(
                 Lead.company_id == company_id,
                 Lead.created_at >= start,
                 Lead.created_at < end,
+                PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
             .group_by(Lead.manager_id)
         )
@@ -439,11 +466,13 @@ async def analytics_overview(
             select(LeadAuditEvent.lead_id, LeadAuditEvent.action, LeadAuditEvent.created_at)
             .select_from(LeadAuditEvent)
             .join(Lead, Lead.id == LeadAuditEvent.lead_id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
             .where(
                 LeadAuditEvent.company_id == company_id,
                 Lead.company_id == company_id,
                 Lead.created_at >= start,
                 Lead.created_at < end,
+                PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
             .order_by(LeadAuditEvent.created_at.asc())
         )

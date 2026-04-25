@@ -319,6 +319,25 @@ export interface BookingAppointment {
   notification_replied_at?: string | null;
 }
 
+export interface BookingPatientVisit {
+  appointment_id: number;
+  start_at: string;
+  specialist_name: string | null;
+  status: string;
+  service_title: string | null;
+  service_amount: number;
+  paid_amount: number;
+}
+
+export interface BookingPatientHistoryItem {
+  patient_name: string;
+  patient_phone: string;
+  total_visits: number;
+  first_visit_at: string | null;
+  last_visit_at: string | null;
+  visits: BookingPatientVisit[];
+}
+
 export interface ExpertBookingItem {
   specialist_id: number;
   specialist_name: string;

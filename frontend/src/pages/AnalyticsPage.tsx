@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
-import type { AnalyticsOverviewRead, DetailedAnalyticsRead, FullAnalyticsRead } from "@/lib/types";
+import type { AnalyticsOverviewRead, DetailedAnalyticsRead, FullAnalyticsRead, Pipeline } from "@/lib/types";
 
 const moneyFmt = new Intl.NumberFormat("ru-RU", {
   style: "currency",
@@ -29,16 +29,23 @@ export function AnalyticsPage() {
   const [period, setPeriod] = useState<"day" | "month" | "custom">("day");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [pipelineId, setPipelineId] = useState<number | "all">("all");
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
     p.set("period", period);
+    if (pipelineId !== "all") p.set("pipeline_id", String(pipelineId));
     if (period === "custom") {
       if (dateFrom) p.set("date_from", dateFrom);
       if (dateTo) p.set("date_to", dateTo);
     }
     return p.toString();
-  }, [period, dateFrom, dateTo]);
+  }, [period, dateFrom, dateTo, pipelineId]);
+
+  const pipelinesQuery = useQuery({
+    queryKey: ["pipelines-for-analytics"],
+    queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
+  });
 
   const fullQuery = useQuery({
     queryKey: ["analytics-full", qs],
@@ -65,7 +72,7 @@ export function AnalyticsPage() {
       </header>
 
       <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
-        <div className="grid gap-3 md:grid-cols-[170px_170px_1fr_1fr_auto]">
+        <div className="grid gap-3 md:grid-cols-[170px_170px_200px_1fr_1fr_auto]">
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as "overview" | "full" | "detailed")}
@@ -83,6 +90,18 @@ export function AnalyticsPage() {
             <option value="day">За день</option>
             <option value="month">За месяц</option>
             <option value="custom">За период</option>
+          </select>
+          <select
+            value={pipelineId === "all" ? "all" : String(pipelineId)}
+            onChange={(e) => setPipelineId(e.target.value === "all" ? "all" : Number(e.target.value))}
+            className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+          >
+            <option value="all">Все воронки</option>
+            {(pipelinesQuery.data ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
           </select>
           <input
             type="date"
