@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { HomeEntry, RequireFinance, RequireOwner, RequireNotManager, RequireSuperOwner } from "@/components/RoleRoutes";
 import { MainLayout } from "@/layouts/MainLayout";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
+import { AttendanceTrackerPage } from "@/pages/AttendanceTrackerPage";
 import { AuditPage } from "@/pages/AuditPage";
 import { ChatPage } from "@/pages/ChatPage";
 import { EmployeesPage } from "@/pages/EmployeesPage";
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/integrations" element={<IntegrationsHubPage />} />
             <Route path="/audit" element={<AuditPage />} />
+            <Route path="/attendance" element={<AttendanceTrackerPage />} />
             <Route
               path="/companies"
               element={

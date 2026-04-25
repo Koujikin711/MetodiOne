@@ -883,6 +883,139 @@ async def ensure_finance_extensions(conn: AsyncConnection, database_url: str) ->
         )
 
 
+async def ensure_attendance_tracker_tables(conn: AsyncConnection, database_url: str) -> None:
+    low = database_url.lower()
+    if "sqlite" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS attendance_geofences (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    address VARCHAR(500),
+                    latitude NUMERIC(10,7) NOT NULL,
+                    longitude NUMERIC(10,7) NOT NULL,
+                    radius_m INTEGER NOT NULL DEFAULT 120,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS attendance_shifts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    geofence_id INTEGER,
+                    start_at DATETIME,
+                    end_at DATETIME,
+                    start_latitude NUMERIC(10,7),
+                    start_longitude NUMERIC(10,7),
+                    end_latitude NUMERIC(10,7),
+                    end_longitude NUMERIC(10,7),
+                    start_accuracy_m INTEGER,
+                    end_accuracy_m INTEGER,
+                    started_in_geofence INTEGER NOT NULL DEFAULT 0,
+                    ended_in_geofence INTEGER,
+                    suspicious INTEGER NOT NULL DEFAULT 0,
+                    suspicious_reason TEXT
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS attendance_pings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    shift_id INTEGER,
+                    geofence_id INTEGER,
+                    latitude NUMERIC(10,7) NOT NULL,
+                    longitude NUMERIC(10,7) NOT NULL,
+                    accuracy_m INTEGER,
+                    distance_to_geofence_m INTEGER,
+                    inside_geofence INTEGER NOT NULL DEFAULT 0,
+                    suspicious INTEGER NOT NULL DEFAULT 0,
+                    suspicious_reason TEXT,
+                    created_at DATETIME
+                )""",
+            ),
+        )
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_att_geo_company ON attendance_geofences(company_id, is_active, id)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_att_shifts_company_user_start ON attendance_shifts(company_id, user_id, start_at)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_att_shifts_company_user_open ON attendance_shifts(company_id, user_id, end_at)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_att_pings_company_user_created ON attendance_pings(company_id, user_id, created_at)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_att_pings_company_shift_created ON attendance_pings(company_id, shift_id, created_at)"))
+        return
+
+    if "postgresql" in low or "asyncpg" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS attendance_geofences (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    name VARCHAR(255) NOT NULL,
+                    address VARCHAR(500),
+                    latitude NUMERIC(10,7) NOT NULL,
+                    longitude NUMERIC(10,7) NOT NULL,
+                    radius_m INTEGER NOT NULL DEFAULT 120,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS attendance_shifts (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    geofence_id INTEGER REFERENCES attendance_geofences(id) ON DELETE SET NULL,
+                    start_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    end_at TIMESTAMPTZ,
+                    start_latitude NUMERIC(10,7),
+                    start_longitude NUMERIC(10,7),
+                    end_latitude NUMERIC(10,7),
+                    end_longitude NUMERIC(10,7),
+                    start_accuracy_m INTEGER,
+                    end_accuracy_m INTEGER,
+                    started_in_geofence BOOLEAN NOT NULL DEFAULT FALSE,
+                    ended_in_geofence BOOLEAN,
+                    suspicious BOOLEAN NOT NULL DEFAULT FALSE,
+                    suspicious_reason TEXT
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS attendance_pings (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    shift_id INTEGER REFERENCES attendance_shifts(id) ON DELETE SET NULL,
+                    geofence_id INTEGER REFERENCES attendance_geofences(id) ON DELETE SET NULL,
+                    latitude NUMERIC(10,7) NOT NULL,
+                    longitude NUMERIC(10,7) NOT NULL,
+                    accuracy_m INTEGER,
+                    distance_to_geofence_m INTEGER,
+                    inside_geofence BOOLEAN NOT NULL DEFAULT FALSE,
+                    suspicious BOOLEAN NOT NULL DEFAULT FALSE,
+                    suspicious_reason TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""",
+            ),
+        )
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_att_geo_company ON attendance_geofences(company_id, is_active, id)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_att_shifts_company_user_start ON attendance_shifts(company_id, user_id, start_at DESC)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_att_shifts_company_user_open ON attendance_shifts(company_id, user_id, end_at)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_att_pings_company_user_created ON attendance_pings(company_id, user_id, created_at DESC)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_att_pings_company_shift_created ON attendance_pings(company_id, shift_id, created_at DESC)"))
+        return
+
+
 async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> None:
     """Таблицы KPI: цены услуг и планы по количеству/менеджерам."""
     low = database_url.lower()

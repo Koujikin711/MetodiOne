@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import AsyncSessionLocal, engine
 from app.database_migrate import (
+    ensure_attendance_tracker_tables,
     ensure_booking_specialist_columns,
     ensure_chat_performance_indexes,
     ensure_finance_extensions,
@@ -24,7 +25,7 @@ from app.database_migrate import (
 from app.core.security import hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
-from app.routers import analytics, audit, auth, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tasks, users
+from app.routers import attendance, analytics, audit, auth, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tasks, users
 from app.services.background_events import record_background_event
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
@@ -76,6 +77,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_finance_extensions(conn, settings.database_url)
                 await ensure_sales_kpi_plans(conn, settings.database_url)
                 await ensure_chat_performance_indexes(conn, settings.database_url)
+                await ensure_attendance_tracker_tables(conn, settings.database_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
@@ -313,6 +315,7 @@ app.include_router(audit.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(companies.router, prefix="/api")
 app.include_router(finance.router, prefix="/api")
+app.include_router(attendance.router, prefix="/api")
 
 
 @app.get("/health")

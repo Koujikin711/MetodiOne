@@ -459,6 +459,77 @@ class Task(Base):
     )
 
 
+class AttendanceGeofence(Base):
+    __tablename__ = "attendance_geofences"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    latitude: Mapped[Decimal] = mapped_column(Numeric(10, 7))
+    longitude: Mapped[Decimal] = mapped_column(Numeric(10, 7))
+    radius_m: Mapped[int] = mapped_column(default=120)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=_utc_now,
+        insert_default=_utc_now,
+        onupdate=_utc_now,
+    )
+
+
+class AttendanceShift(Base):
+    __tablename__ = "attendance_shifts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    geofence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("attendance_geofences.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, index=True)
+    end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    start_latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
+    start_longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
+    end_latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
+    end_longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
+    start_accuracy_m: Mapped[int | None] = mapped_column(nullable=True)
+    end_accuracy_m: Mapped[int | None] = mapped_column(nullable=True)
+    started_in_geofence: Mapped[bool] = mapped_column(default=False)
+    ended_in_geofence: Mapped[bool | None] = mapped_column(nullable=True)
+    suspicious: Mapped[bool] = mapped_column(default=False)
+    suspicious_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class AttendancePing(Base):
+    __tablename__ = "attendance_pings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    shift_id: Mapped[int | None] = mapped_column(
+        ForeignKey("attendance_shifts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    geofence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("attendance_geofences.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    latitude: Mapped[Decimal] = mapped_column(Numeric(10, 7))
+    longitude: Mapped[Decimal] = mapped_column(Numeric(10, 7))
+    accuracy_m: Mapped[int | None] = mapped_column(nullable=True)
+    distance_to_geofence_m: Mapped[int | None] = mapped_column(nullable=True)
+    inside_geofence: Mapped[bool] = mapped_column(default=False)
+    suspicious: Mapped[bool] = mapped_column(default=False)
+    suspicious_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, index=True)
+
+
 # --- ERP Finance (без налогового блока): настройки, GL, склады, товар, отложенная выручка ---
 
 
