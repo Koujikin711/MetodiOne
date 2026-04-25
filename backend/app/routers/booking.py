@@ -4,9 +4,9 @@ import re
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -31,6 +31,8 @@ from app.schemas.booking import (
     BookingAppointmentPaymentUpdate,
     BookingAppointmentRead,
     BookingAppointmentStatusUpdate,
+    BookingPatientHistoryItem,
+    BookingPatientVisitRead,
     BookingDirectionCreate,
     BookingDirectionRead,
     BookingDirectionUpdate,
@@ -794,6 +796,101 @@ async def list_appointments(
             ),
         )
     return out
+
+
+@router.get("/patient-history", response_model=list[BookingPatientHistoryItem])
+async def booking_patient_history(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    q: str = Query(..., min_length=2, max_length=120),
+    limit: int = Query(20, ge=1, le=100),
+) -> list[BookingPatientHistoryItem]:
+    term = q.strip()
+    if not term:
+        return []
+
+    like = f"%{term}%"
+    rows = (
+        await db.execute(
+            select(
+                BookingAppointment.id,
+                BookingAppointment.patient_name,
+                BookingAppointment.patient_phone,
+                BookingAppointment.start_at,
+                BookingAppointment.status,
+                BookingAppointment.service_title,
+                BookingAppointment.service_amount,
+                BookingAppointment.paid_amount,
+                BookingSpecialist.full_name,
+                BookingSpecialist.crm_user_id,
+            )
+            .select_from(BookingAppointment)
+            .join(BookingSpecialist, BookingAppointment.specialist_id == BookingSpecialist.id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                or_(
+                    BookingAppointment.patient_name.ilike(like),
+                    BookingAppointment.patient_phone.ilike(like),
+                ),
+            )
+            .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc())
+            .limit(limit * 20)
+        )
+    ).all()
+
+    if current_user.role == UserRole.expert:
+        rows = [r for r in rows if r[9] and int(r[9]) == current_user.id]
+
+    grouped: dict[tuple[str, str], BookingPatientHistoryItem] = {}
+    for (
+        appt_id,
+        patient_name,
+        patient_phone,
+        start_at,
+        status_value,
+        service_title,
+        service_amount,
+        paid_amount,
+        specialist_name,
+        _specialist_crm_user_id,
+    ) in rows:
+        name = (patient_name or "").strip() or "Клиент"
+        phone = (patient_phone or "").strip() or "—"
+        key = (name.lower(), phone)
+        item = grouped.get(key)
+        if item is None:
+            item = BookingPatientHistoryItem(
+                patient_name=name,
+                patient_phone=phone,
+                total_visits=0,
+                first_visit_at=None,
+                last_visit_at=None,
+                visits=[],
+            )
+            grouped[key] = item
+        item.total_visits += 1
+        if item.first_visit_at is None or start_at < item.first_visit_at:
+            item.first_visit_at = start_at
+        if item.last_visit_at is None or start_at > item.last_visit_at:
+            item.last_visit_at = start_at
+        item.visits.append(
+            BookingPatientVisitRead(
+                appointment_id=int(appt_id),
+                start_at=start_at,
+                specialist_name=specialist_name,
+                status=str(status_value),
+                service_title=(service_title or "").strip() or None,
+                service_amount=float(service_amount or 0),
+                paid_amount=float(paid_amount or 0),
+            )
+        )
+
+    out = list(grouped.values())
+    out.sort(key=lambda x: (x.last_visit_at or datetime.min.replace(tzinfo=UTC)), reverse=True)
+    for item in out:
+        item.visits.sort(key=lambda v: v.start_at, reverse=True)
+    return out[:limit]
 
 
 @router.post("/appointments", response_model=BookingAppointmentRead, status_code=status.HTTP_201_CREATED)

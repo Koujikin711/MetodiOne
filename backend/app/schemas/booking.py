@@ -173,3 +173,22 @@ class BookingAppointmentMove(BaseModel):
 
 class BookingAppointmentPaymentUpdate(BaseModel):
     paid_amount: float = Field(..., ge=0)
+
+
+class BookingPatientVisitRead(BaseModel):
+    appointment_id: int
+    start_at: datetime
+    specialist_name: str | None = None
+    status: str
+    service_title: str | None = None
+    service_amount: float = 0
+    paid_amount: float = 0
+
+
+class BookingPatientHistoryItem(BaseModel):
+    patient_name: str
+    patient_phone: str
+    total_visits: int = 0
+    first_visit_at: datetime | None = None
+    last_visit_at: datetime | None = None
+    visits: list[BookingPatientVisitRead] = Field(default_factory=list)
