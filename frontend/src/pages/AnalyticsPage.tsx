@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
-import type { DetailedAnalyticsRead, FullAnalyticsRead } from "@/lib/types";
+import type { AnalyticsOverviewRead, DetailedAnalyticsRead, FullAnalyticsRead } from "@/lib/types";
 
 const moneyFmt = new Intl.NumberFormat("ru-RU", {
   style: "currency",
@@ -25,7 +25,7 @@ function downloadCsv(filename: string, headers: string[], rows: Array<Array<stri
 }
 
 export function AnalyticsPage() {
-  const [mode, setMode] = useState<"full" | "detailed">("full");
+  const [mode, setMode] = useState<"overview" | "full" | "detailed">("overview");
   const [period, setPeriod] = useState<"day" | "month" | "custom">("day");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -50,6 +50,11 @@ export function AnalyticsPage() {
     queryFn: () => apiFetch<DetailedAnalyticsRead>(`/api/analytics/detailed?${qs}`),
   });
 
+  const overviewQuery = useQuery({
+    queryKey: ["analytics-overview", qs],
+    queryFn: () => apiFetch<AnalyticsOverviewRead>(`/api/analytics/overview?${qs}`),
+  });
+
   return (
     <div className="relative mx-auto max-w-6xl space-y-6 pb-8">
       <header className="space-y-2">
@@ -63,9 +68,10 @@ export function AnalyticsPage() {
         <div className="grid gap-3 md:grid-cols-[170px_170px_1fr_1fr_auto]">
           <select
             value={mode}
-            onChange={(e) => setMode(e.target.value as "full" | "detailed")}
+            onChange={(e) => setMode(e.target.value as "overview" | "full" | "detailed")}
             className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
           >
+            <option value="overview">Обзор 360</option>
             <option value="full">Полная</option>
             <option value="detailed">Детальная</option>
           </select>
@@ -95,6 +101,20 @@ export function AnalyticsPage() {
           <button
             type="button"
             onClick={() => {
+              if (mode === "overview" && overviewQuery.data) {
+                downloadCsv(
+                  "analytics_overview_sources.csv",
+                  ["Источник", "Лидов", "Доля лидов %", "Продано", "Оплачено", "Не оплачено"],
+                  overviewQuery.data.by_source.map((r) => [
+                    r.source,
+                    r.leads_count,
+                    r.lead_share_pct,
+                    Number(r.sold_amount),
+                    Number(r.paid_amount),
+                    Number(r.unpaid_amount),
+                  ]),
+                );
+              }
               if (mode === "full" && fullQuery.data) {
                 downloadCsv(
                   "analytics_full.csv",
@@ -127,6 +147,168 @@ export function AnalyticsPage() {
           </button>
         </div>
       </section>
+
+      {mode === "overview" && (
+        <section className="space-y-4 rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
+          {overviewQuery.isError && <p className="text-sm text-red-300">{(overviewQuery.error as Error).message}</p>}
+          {overviewQuery.isLoading && <p className="text-sm text-slate-400">Загрузка...</p>}
+          {overviewQuery.data && (
+            <>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                  Лиды: <b>{overviewQuery.data.executive.leads_total}</b>
+                </div>
+                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                  Win Rate: <b>{overviewQuery.data.executive.win_rate_pct}%</b>
+                </div>
+                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                  Оплачено: <b>{moneyFmt.format(Number(overviewQuery.data.executive.paid_amount))}</b>
+                </div>
+                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                  Не оплачено: <b>{moneyFmt.format(Number(overviewQuery.data.executive.unpaid_amount))}</b>
+                </div>
+                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                  Первый ответ:{" "}
+                  <b>
+                    {overviewQuery.data.executive.avg_first_response_minutes == null
+                      ? "—"
+                      : `${overviewQuery.data.executive.avg_first_response_minutes} мин`}
+                  </b>
+                </div>
+                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                  Цикл лида:{" "}
+                  <b>
+                    {overviewQuery.data.executive.avg_lead_cycle_hours == null
+                      ? "—"
+                      : `${overviewQuery.data.executive.avg_lead_cycle_hours} ч`}
+                  </b>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-3">
+                <h3 className="mb-2 text-sm font-semibold text-white">Алерты</h3>
+                {overviewQuery.data.alerts.summary.length === 0 ? (
+                  <p className="text-sm text-emerald-300">Критичных отклонений не найдено.</p>
+                ) : (
+                  <ul className="space-y-1 text-sm text-amber-200">
+                    {overviewQuery.data.alerts.summary.map((item) => (
+                      <li key={item}>• {item}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-3">
+                  <h3 className="mb-2 text-sm font-semibold text-white">Конверсия по стадиям</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[520px] text-left text-sm text-slate-200">
+                      <thead className="text-slate-400">
+                        <tr>
+                          <th className="py-2 pr-3">Стадия</th>
+                          <th className="py-2 pr-3">Лидов</th>
+                          <th className="py-2 pr-3">В след. стадию</th>
+                          <th className="py-2 pr-3">Ср. время</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overviewQuery.data.stage_conversion.map((r) => (
+                          <tr key={r.stage_id} className="border-t border-slate-800">
+                            <td className="py-2 pr-3">{r.stage_name}</td>
+                            <td className="py-2 pr-3">{r.leads_count}</td>
+                            <td className="py-2 pr-3">{r.conversion_to_next_pct == null ? "—" : `${r.conversion_to_next_pct}%`}</td>
+                            <td className="py-2 pr-3">{r.avg_time_in_stage_hours == null ? "—" : `${r.avg_time_in_stage_hours} ч`}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-3">
+                  <h3 className="mb-2 text-sm font-semibold text-white">Причины потерь</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[420px] text-left text-sm text-slate-200">
+                      <thead className="text-slate-400">
+                        <tr>
+                          <th className="py-2 pr-3">Причина</th>
+                          <th className="py-2 pr-3">Кол-во</th>
+                          <th className="py-2 pr-3">Доля</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overviewQuery.data.loss_reasons.map((r) => (
+                          <tr key={r.reason} className="border-t border-slate-800">
+                            <td className="py-2 pr-3">{r.reason}</td>
+                            <td className="py-2 pr-3">{r.count}</td>
+                            <td className="py-2 pr-3">{r.share_pct}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-3">
+                <h3 className="mb-2 text-sm font-semibold text-white">Источники лидов и деньги</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left text-sm text-slate-200">
+                    <thead className="text-slate-400">
+                      <tr>
+                        <th className="py-2 pr-3">Источник</th>
+                        <th className="py-2 pr-3">Лидов</th>
+                        <th className="py-2 pr-3">Доля</th>
+                        <th className="py-2 pr-3">Продано</th>
+                        <th className="py-2 pr-3">Оплачено</th>
+                        <th className="py-2 pr-3">Не оплачено</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overviewQuery.data.by_source.map((r) => (
+                        <tr key={r.source} className="border-t border-slate-800">
+                          <td className="py-2 pr-3">{r.source}</td>
+                          <td className="py-2 pr-3">{r.leads_count}</td>
+                          <td className="py-2 pr-3">{r.lead_share_pct}%</td>
+                          <td className="py-2 pr-3">{moneyFmt.format(Number(r.sold_amount))}</td>
+                          <td className="py-2 pr-3">{moneyFmt.format(Number(r.paid_amount))}</td>
+                          <td className="py-2 pr-3">{moneyFmt.format(Number(r.unpaid_amount))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-3">
+                <h3 className="mb-2 text-sm font-semibold text-white">План / факт по менеджерам</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-left text-sm text-slate-200">
+                    <thead className="text-slate-400">
+                      <tr>
+                        <th className="py-2 pr-3">Менеджер</th>
+                        <th className="py-2 pr-3">План</th>
+                        <th className="py-2 pr-3">Факт</th>
+                        <th className="py-2 pr-3">Выполнение</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overviewQuery.data.manager_plan_fact.map((r) => (
+                        <tr key={`${r.manager_id ?? "none"}-${r.manager_name}`} className="border-t border-slate-800">
+                          <td className="py-2 pr-3">{r.manager_name}</td>
+                          <td className="py-2 pr-3">{moneyFmt.format(Number(r.plan_amount))}</td>
+                          <td className="py-2 pr-3">{moneyFmt.format(Number(r.fact_paid_amount))}</td>
+                          <td className="py-2 pr-3">{r.plan_completion_pct}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       {mode === "full" && (
         <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">

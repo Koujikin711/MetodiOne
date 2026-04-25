@@ -208,6 +208,66 @@ export interface DetailedAnalyticsRead {
   by_manager: ManagerDetailedAnalyticsItem[];
 }
 
+export interface StageConversionItem {
+  stage_id: number;
+  stage_name: string;
+  order: number;
+  leads_count: number;
+  conversion_to_next_pct: number | null;
+  avg_time_in_stage_hours: number | null;
+}
+
+export interface SourceAnalyticsItem {
+  source: string;
+  leads_count: number;
+  sold_amount: string;
+  paid_amount: string;
+  unpaid_amount: string;
+  lead_share_pct: number;
+}
+
+export interface LossReasonItem {
+  reason: string;
+  count: number;
+  share_pct: number;
+}
+
+export interface ManagerPlanFactItem {
+  manager_id: number | null;
+  manager_name: string;
+  plan_amount: string;
+  fact_paid_amount: string;
+  plan_completion_pct: number;
+}
+
+export interface AnalyticsAlertsRead {
+  low_first_response: boolean;
+  high_unpaid_share: boolean;
+  low_stage_conversion: boolean;
+  summary: string[];
+}
+
+export interface ExecutiveKpiRead {
+  leads_total: number;
+  won_leads: number;
+  win_rate_pct: number;
+  paid_amount: string;
+  unpaid_amount: string;
+  avg_first_response_minutes: number | null;
+  avg_lead_cycle_hours: number | null;
+}
+
+export interface AnalyticsOverviewRead {
+  period_start: string;
+  period_end: string;
+  executive: ExecutiveKpiRead;
+  stage_conversion: StageConversionItem[];
+  by_source: SourceAnalyticsItem[];
+  loss_reasons: LossReasonItem[];
+  manager_plan_fact: ManagerPlanFactItem[];
+  alerts: AnalyticsAlertsRead;
+}
+
 export interface BookingDirection {
   id: number;
   name: string;
