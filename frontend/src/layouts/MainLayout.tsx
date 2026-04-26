@@ -7,15 +7,17 @@ import {
   LogOut,
   MessageCircle,
   Plug,
+  TrendingUp,
   UserRound,
   Users,
   Wallet,
 } from "@/components/icons";
 import { AppBanners } from "@/components/AppBanners";
+import { TariffFeatureOutletGate } from "@/components/TariffFeatureOutletGate";
 import { GradientIconBox } from "@/components/GradientIconBox";
 import { useEffect, useRef } from "react";
 import toast from "react-hot-toast";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import metodiMarkUrl from "@/assets/metodione-mark.svg?url";
 import { apiFetch, getStoredToken, setStoredToken } from "@/lib/api";
@@ -219,6 +221,12 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Компании</span>
                 </NavLink>
+                <NavLink to="/tariff-plans" className={navLinkClass} title="Тарифы">
+                  <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <TrendingUp className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Тарифы</span>
+                </NavLink>
                 {showKpi ? (
                   <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
                     <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
@@ -412,7 +420,7 @@ export function MainLayout() {
 
         <main className="relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-24 sm:px-10 sm:py-10 sm:pb-10 lg:px-14">
           <AppBanners />
-          <Outlet />
+          <TariffFeatureOutletGate />
         </main>
 
         <nav className="print:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-slate-700/50 bg-slate-950/95 px-2 py-2 backdrop-blur-xl sm:hidden">
@@ -423,6 +431,12 @@ export function MainLayout() {
                   <Users className="h-4 w-4" />
                 </GradientIconBox>
                 <span className="text-[9px]">Компании</span>
+              </NavLink>
+              <NavLink to="/tariff-plans" className={navLinkClass} title="Тарифы">
+                <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <TrendingUp className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Тарифы</span>
               </NavLink>
               {showKpi ? (
                 <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">

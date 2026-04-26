@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.services.tariff import count_company_integrations
+from app.services.tariff_effective import effective_tariff_max_integrations
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.services.green_incoming import parse_green_message_data
@@ -261,7 +262,7 @@ async def create_integration(
                 detail="Webhook-секрет не короче 8 символов",
             )
 
-    mx_int = settings.tariff_max_integrations
+    mx_int = await effective_tariff_max_integrations(db, company_id)
     if mx_int > 0:
         n_int = await count_company_integrations(db, company_id)
         if n_int >= mx_int:

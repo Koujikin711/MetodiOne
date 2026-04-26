@@ -1170,3 +1170,105 @@ async def ensure_chat_performance_indexes(conn: AsyncConnection, database_url: s
                 )""",
             ),
         )
+
+
+async def ensure_super_owner_platform(conn: AsyncConnection, database_url: str) -> None:
+    """Тариф на компанию, смена пароля, аудит super_owner."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        r = await conn.execute(text("PRAGMA table_info(companies)"))
+        ccols = {row[1] for row in r.fetchall()}
+        if "tariff_max_active_users" not in ccols:
+            await conn.execute(text("ALTER TABLE companies ADD COLUMN tariff_max_active_users INTEGER"))
+        if "tariff_max_integrations" not in ccols:
+            await conn.execute(text("ALTER TABLE companies ADD COLUMN tariff_max_integrations INTEGER"))
+        r = await conn.execute(text("PRAGMA table_info(users)"))
+        ucols = {row[1] for row in r.fetchall()}
+        if "must_change_password" not in ucols:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"))
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS super_owner_audit_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    actor_user_id INTEGER NOT NULL,
+                    company_id INTEGER,
+                    action VARCHAR(160) NOT NULL,
+                    detail TEXT,
+                    created_at DATETIME
+                )""",
+            ),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_super_owner_audit_created ON super_owner_audit_events(created_at DESC, id DESC)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_super_owner_audit_actor ON super_owner_audit_events(actor_user_id, created_at DESC)"),
+        )
+        return
+
+    if "postgresql" in low or "asyncpg" in low:
+        await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS tariff_max_active_users INTEGER"))
+        await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS tariff_max_integrations INTEGER"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE"))
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS super_owner_audit_events (
+                    id SERIAL PRIMARY KEY,
+                    actor_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL,
+                    action VARCHAR(160) NOT NULL,
+                    detail TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""",
+            ),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_super_owner_audit_created ON super_owner_audit_events(created_at DESC, id DESC)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_super_owner_audit_actor ON super_owner_audit_events(actor_user_id, created_at DESC)"),
+        )
+        return
+
+
+async def ensure_tariff_plans_platform(conn: AsyncConnection, database_url: str) -> None:
+    """Таблица тарифных планов и колонка companies.tariff_plan_id."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS tariff_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(120) NOT NULL UNIQUE,
+                    max_active_users INTEGER NOT NULL DEFAULT 0,
+                    max_integrations INTEGER NOT NULL DEFAULT 0,
+                    enabled_features TEXT NOT NULL DEFAULT '[]',
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at DATETIME
+                )""",
+            ),
+        )
+        r = await conn.execute(text("PRAGMA table_info(companies)"))
+        cols = {row[1] for row in r.fetchall()}
+        if "tariff_plan_id" not in cols:
+            await conn.execute(text("ALTER TABLE companies ADD COLUMN tariff_plan_id INTEGER"))
+        return
+
+    if "postgresql" in low or "asyncpg" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS tariff_plans (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(120) NOT NULL UNIQUE,
+                    max_active_users INTEGER NOT NULL DEFAULT 0,
+                    max_integrations INTEGER NOT NULL DEFAULT 0,
+                    enabled_features JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""",
+            ),
+        )
+        await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS tariff_plan_id INTEGER"))
+        return

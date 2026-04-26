@@ -109,12 +109,18 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   if (!res.ok) {
     const d = data as { detail?: unknown } | null;
     const detail = d?.detail;
-    const message =
-      typeof detail === "string"
-        ? detail
-        : Array.isArray(detail)
-          ? detail.map((x: { msg?: string }) => x.msg).filter(Boolean).join(", ")
-          : res.statusText;
+    function formatErrorDetail(err: unknown): string {
+      if (typeof err === "string") return err;
+      if (Array.isArray(err)) {
+        return err.map((x: { msg?: string }) => x.msg).filter(Boolean).join(", ");
+      }
+      if (err && typeof err === "object") {
+        const o = err as Record<string, unknown>;
+        if (typeof o.message === "string") return o.message;
+      }
+      return "";
+    }
+    const message = formatErrorDetail(detail) || res.statusText;
 
     if (res.status === 401 && token) {
       const authLost = [
@@ -143,7 +149,102 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       throw new Error("Доступ к компании приостановлен. Войдите снова после возобновления работы.");
     }
 
+    /** JWT с `must_change_password` — middleware блокирует все пути кроме смены пароля. */
+    if (
+      res.status === 403 &&
+      token &&
+      typeof message === "string" &&
+      message.includes("Требуется смена пароля")
+    ) {
+      window.location.assign("/force-password");
+      throw new Error("Сначала смените пароль.");
+    }
+
     throw new Error(message || `Запрос не выполнен (${res.status})`);
   }
   return data as T;
+}
+
+function filenameFromContentDisposition(cd: string | null, fallback: string): string {
+  if (!cd) return fallback;
+  const quoted = /filename="([^"]+)"/i.exec(cd);
+  if (quoted?.[1]) return quoted[1].trim() || fallback;
+  const plain = /filename=([^;\s]+)/i.exec(cd);
+  if (plain?.[1]) {
+    try {
+      return decodeURIComponent(plain[1].trim());
+    } catch {
+      return plain[1].trim() || fallback;
+    }
+  }
+  return fallback;
+}
+
+/** Скачивание бинарного/текстового ответа (CSV и т.п.) с теми же заголовками авторизации. */
+export async function apiDownloadBlob(path: string, fallbackFilename: string): Promise<void> {
+  const headers = new Headers();
+  headers.set("Accept", "text/csv,*/*");
+  const token = getStoredToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const companyId = getActiveCompanyId();
+  if (companyId != null) headers.set("X-Company-Id", String(companyId));
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(resolveApiUrl(path), { method: "GET", headers, signal: controller.signal });
+  } catch (e: unknown) {
+    const aborted =
+      (e instanceof DOMException && e.name === "AbortError") ||
+      (e instanceof Error && e.name === "AbortError");
+    if (aborted) {
+      throw new Error("Сервер не ответил вовремя при скачивании файла.");
+    }
+    throw new Error("Нет связи с сервером при скачивании файла.");
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+
+  if (res.status === 401 && token) {
+    setStoredToken(null);
+    window.location.assign(`/login?session=invalid`);
+    throw new Error("Сессия недействительна. Войдите снова.");
+  }
+
+  if (!res.ok) {
+    const text = await res.text();
+    let message = res.statusText;
+    if (text) {
+      try {
+        const d = JSON.parse(text) as { detail?: unknown };
+        const detail = d?.detail;
+        message =
+          typeof detail === "string"
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((x: { msg?: string }) => x.msg).filter(Boolean).join(", ")
+              : message;
+      } catch {
+        message = text.slice(0, 200);
+      }
+    }
+    if (res.status === 403 && token && typeof message === "string" && message.includes("Требуется смена пароля")) {
+      window.location.assign("/force-password");
+      throw new Error("Сначала смените пароль.");
+    }
+    throw new Error(message || `Скачивание не выполнено (${res.status})`);
+  }
+
+  const blob = await res.blob();
+  const name = filenameFromContentDisposition(res.headers.get("Content-Disposition"), fallbackFilename);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

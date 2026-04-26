@@ -6,6 +6,8 @@ import time
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from app.core.request_id_middleware import RequestIdMiddleware
 from sqlalchemy import select
@@ -22,11 +24,13 @@ from app.database_migrate import (
     ensure_multi_tenant_migration,
     ensure_owner_role_migration,
     ensure_sales_kpi_plans,
+    ensure_super_owner_platform,
+    ensure_tariff_plans_platform,
 )
-from app.core.security import hash_password
+from app.core.security import decode_token, hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
-from app.routers import attendance, analytics, audit, auth, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tasks, users
+from app.routers import attendance, analytics, audit, auth, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tariff_plans, tasks, users
 from app.services.background_events import record_background_event
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.runtime_metrics import runtime_metrics
@@ -80,6 +84,8 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_sales_kpi_plans(conn, settings.database_url)
                 await ensure_chat_performance_indexes(conn, settings.database_url)
                 await ensure_attendance_tracker_tables(conn, settings.database_url)
+                await ensure_super_owner_platform(conn, settings.database_url)
+                await ensure_tariff_plans_platform(conn, settings.database_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
@@ -153,6 +159,7 @@ async def seed_super_owner() -> None:
                 hashed_password=hash_password("admin"),
                 role=UserRole.super_owner,
                 company_id=None,
+                must_change_password=True,
             )
         )
         await session.commit()
@@ -300,6 +307,88 @@ app.add_middleware(
 
 
 @app.middleware("http")
+async def enforce_must_change_password(request: Request, call_next):  # type: ignore[no-untyped-def]
+    """Пока в JWT must_change_password=true — доступ только к смене пароля и /me."""
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    path = request.url.path
+    if not path.startswith("/api/"):
+        return await call_next(request)
+    if path in ("/api/auth/login", "/api/auth/register"):
+        return await call_next(request)
+    auth = request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        return await call_next(request)
+    token = auth.split(" ", 1)[1].strip()
+    if not token:
+        return await call_next(request)
+    try:
+        payload = decode_token(token)
+    except Exception:
+        return await call_next(request)
+    if payload.get("must_change_password") is True:
+        allowed = {("/api/auth/me", "GET"), ("/api/auth/change-password", "POST")}
+        if (path, request.method) not in allowed:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Требуется смена пароля. Откройте форму смены пароля или вызовите POST /api/auth/change-password"},
+            )
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def enforce_tariff_feature_path(request: Request, call_next):  # type: ignore[no-untyped-def]
+    """Блокировка API по функциям тарифного плана компании (кроме super_owner)."""
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    path = request.url.path
+    if not path.startswith("/api/"):
+        return await call_next(request)
+    from app.services.tariff_catalog import tariff_feature_for_api_path
+
+    feature_key = tariff_feature_for_api_path(path)
+    if feature_key is None:
+        return await call_next(request)
+    if path.startswith("/api/auth/"):
+        return await call_next(request)
+    if path.startswith("/api/companies"):
+        return await call_next(request)
+    if path.startswith("/api/tariff-plans"):
+        return await call_next(request)
+    if path.startswith("/api/system"):
+        return await call_next(request)
+    auth = request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        return await call_next(request)
+    token = auth.split(" ", 1)[1].strip()
+    if not token:
+        return await call_next(request)
+    try:
+        payload = decode_token(token)
+    except Exception:
+        return await call_next(request)
+    if payload.get("role") == "super_owner":
+        return await call_next(request)
+    raw_cid = request.headers.get("X-Company-Id")
+    if not raw_cid:
+        return await call_next(request)
+    try:
+        company_id = int(raw_cid)
+    except ValueError:
+        return await call_next(request)
+    from app.database import AsyncSessionLocal
+    from app.services.tariff_plan_access import company_has_tariff_feature, plan_names_including_feature, tariff_block_detail
+
+    async with AsyncSessionLocal() as db:
+        ok = await company_has_tariff_feature(db, company_id, feature_key)
+        if ok:
+            return await call_next(request)
+        names = await plan_names_including_feature(db, feature_key)
+        detail = tariff_block_detail(feature_key, names)
+    return JSONResponse(status_code=403, content={"detail": detail})
+
+
+@app.middleware("http")
 async def collect_runtime_metrics(request, call_next):  # type: ignore[no-untyped-def]
     started = time.perf_counter()
     runtime_metrics.request_started()
@@ -334,6 +423,7 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(companies.router, prefix="/api")
+app.include_router(tariff_plans.router, prefix="/api")
 app.include_router(finance.router, prefix="/api")
 app.include_router(attendance.router, prefix="/api")
 

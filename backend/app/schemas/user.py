@@ -24,8 +24,18 @@ class UserRead(BaseModel):
     company_id: int | None = None
     phone: str | None = None
     full_name: str | None = None
+    must_change_password: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class UserMeRead(UserRead):
+    impersonated_by_user_id: int | None = None
+
+
+class ChangePasswordBody(BaseModel):
+    old_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 class UserBrief(BaseModel):
