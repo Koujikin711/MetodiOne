@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
+import { OwnerTerminateEmployeesModal } from "@/components/OwnerTerminateEmployeesModal";
 import { getStoredToken } from "@/lib/api";
-import { decodeRoleFromToken } from "@/lib/auth";
+import { decodeImpersonatorFromToken, decodeRoleFromToken } from "@/lib/auth";
 import { isOnboardingDone } from "@/lib/onboarding";
 
 export function AppBanners() {
   const location = useLocation();
   const [demo, setDemo] = useState(false);
-  const role = decodeRoleFromToken(getStoredToken());
+  const [terminateOpen, setTerminateOpen] = useState(false);
+  const token = getStoredToken();
+  const role = decodeRoleFromToken(token);
+  const impersonatorId = decodeImpersonatorFromToken(token);
   const showOnboardingBanner = role === "owner" && !isOnboardingDone();
 
   useEffect(() => {
@@ -27,10 +31,16 @@ export function AppBanners() {
     }
   }, [location.search]);
 
-  if (!demo && !showOnboardingBanner) return null;
+  if (!demo && !showOnboardingBanner && impersonatorId == null && !terminateOpen) return null;
 
   return (
     <div className="mb-4 space-y-2 print:hidden">
+      {impersonatorId != null ? (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-950/35 px-4 py-2 text-center text-xs text-amber-50">
+          Режим поддержки: вы вошли от имени владельца компании. Сессия помечена супер-владельцем (ID{" "}
+          {impersonatorId}). Не вносите необоснованные изменения.
+        </div>
+      ) : null}
       {demo ? (
         <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/30 px-4 py-2 text-center text-xs text-cyan-100">
           Режим демо: данные могут быть примерными. Добавьте{" "}
@@ -46,8 +56,16 @@ export function AppBanners() {
           >
             Открыть мастер
           </Link>
+          <button
+            type="button"
+            onClick={() => setTerminateOpen(true)}
+            className="rounded-lg border border-red-500/35 bg-red-950/40 px-3 py-1 font-medium text-red-100 hover:bg-red-950/55"
+          >
+            Уволить
+          </button>
         </div>
       ) : null}
+      <OwnerTerminateEmployeesModal open={terminateOpen} onClose={() => setTerminateOpen(false)} />
     </div>
   );
 }

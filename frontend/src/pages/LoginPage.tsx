@@ -40,7 +40,7 @@ export function LoginPage() {
   }, [searchParams, setSearchParams]);
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ mustChangePassword: boolean }> => {
       setError(null);
       if (mode === "login") {
         const token = await apiFetch<TokenResponse>("/api/auth/login", {
@@ -48,7 +48,7 @@ export function LoginPage() {
           body: JSON.stringify({ email, password }),
         });
         setStoredToken(token.access_token);
-        return;
+        return { mustChangePassword: token.must_change_password === true };
       }
       await apiFetch<User>("/api/auth/register", {
         method: "POST",
@@ -59,8 +59,10 @@ export function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       setStoredToken(token.access_token);
+      return { mustChangePassword: token.must_change_password === true };
     },
-    onSuccess: () => navigate("/app", { replace: true }),
+    onSuccess: ({ mustChangePassword }) =>
+      navigate(mustChangePassword ? "/force-password" : "/app", { replace: true }),
     onError: (e: Error) => {
       const m = e.message || "";
       if (mode === "login" && (m.includes("приостановлен") || m.includes("Компания временно"))) {

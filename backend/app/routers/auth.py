@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.deps import CurrentUser
+from app.core.security import create_access_token, hash_password, jwt_claims_for_user, verify_password
 from app.database import get_db
 from app.models import Company, User, UserRole
 from app.schemas.token import Token
-from app.schemas.user import UserCreate, UserLogin, UserRead
+from app.schemas.user import ChangePasswordBody, UserCreate, UserLogin, UserMeRead, UserRead
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -45,6 +46,7 @@ async def register(
         company_id=company_id,
         phone=("".join(ch for ch in (body.phone or "") if ch.isdigit()) or None),
         full_name=(body.full_name or "").strip() or None,
+        must_change_password=False,
     )
     db.add(user)
     await db.flush()
@@ -67,14 +69,54 @@ async def login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect login or password")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Аккаунт отключён")
+    if user.role == UserRole.super_owner:
+        if "@" not in identifier:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Для супер-владельца вход только по email",
+            )
     if user.company_id is not None:
         company = await db.get(Company, int(user.company_id))
         if company is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Компания не найдена")
         if not company.is_active:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Компания временно приостановлена")
-    extra = {"role": user.role.value}
-    if user.company_id is not None:
-        extra["company_id"] = int(user.company_id)
+    extra = jwt_claims_for_user(user)
     token = create_access_token(str(user.id), extra=extra)
-    return Token(access_token=token)
+    return Token(
+        access_token=token,
+        must_change_password=bool(getattr(user, "must_change_password", False)),
+    )
+
+
+@router.get("/me", response_model=UserMeRead)
+async def me(current_user: CurrentUser) -> UserMeRead:
+    payload = getattr(current_user, "_jwt_payload", {}) or {}
+    imp = payload.get("impersonated_by")
+    imp_id = int(imp) if imp is not None and str(imp).isdigit() else None
+    return UserMeRead(
+        id=current_user.id,
+        email=current_user.email,
+        role=current_user.role,
+        company_id=current_user.company_id,
+        phone=current_user.phone,
+        full_name=current_user.full_name,
+        must_change_password=bool(getattr(current_user, "must_change_password", False)),
+        impersonated_by_user_id=imp_id,
+    )
+
+
+@router.post("/change-password", response_model=Token)
+async def change_password(
+    body: ChangePasswordBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> Token:
+    if not verify_password(body.old_password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный текущий пароль")
+    current_user.hashed_password = hash_password(body.new_password)
+    current_user.must_change_password = False
+    await db.flush()
+    extra = jwt_claims_for_user(current_user)
+    token = create_access_token(str(current_user.id), extra=extra)
+    return Token(access_token=token, must_change_password=False)

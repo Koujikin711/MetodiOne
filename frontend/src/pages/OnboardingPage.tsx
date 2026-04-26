@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { OwnerTerminateEmployeesModal } from "@/components/OwnerTerminateEmployeesModal";
+import { getStoredToken } from "@/lib/api";
+import { decodeRoleFromToken } from "@/lib/auth";
 import { setOnboardingDone } from "@/lib/onboarding";
 
 const steps = [
@@ -11,6 +15,8 @@ const steps = [
 
 export function OnboardingPage() {
   const navigate = useNavigate();
+  const [terminateOpen, setTerminateOpen] = useState(false);
+  const isOwner = decodeRoleFromToken(getStoredToken()) === "owner";
 
   function finish() {
     setOnboardingDone();
@@ -26,6 +32,22 @@ export function OnboardingPage() {
           <span className="text-slate-300">/onboarding</span> — отметка «готово» сбрасывается только кнопкой ниже.
         </p>
       </div>
+
+      {isOwner ? (
+        <div className="rounded-2xl border border-slate-600/50 bg-slate-800/35 px-4 py-3">
+          <p className="text-sm text-slate-300">
+            Нужно сразу закрыть доступ сотрудникам? Выберите одного или нескольких — вход будет заблокирован.
+          </p>
+          <button
+            type="button"
+            onClick={() => setTerminateOpen(true)}
+            className="mt-3 rounded-xl border border-red-500/40 bg-red-950/35 px-4 py-2 text-sm font-medium text-red-100 hover:bg-red-950/50"
+          >
+            Уволить
+          </button>
+        </div>
+      ) : null}
+
       <ol className="space-y-4">
         {steps.map((s, i) => (
           <li
@@ -62,6 +84,8 @@ export function OnboardingPage() {
           Назад
         </button>
       </div>
+
+      <OwnerTerminateEmployeesModal open={terminateOpen} onClose={() => setTerminateOpen(false)} />
     </div>
   );
 }

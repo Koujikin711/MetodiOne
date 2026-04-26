@@ -11,6 +11,7 @@ import { ChatPage } from "@/pages/ChatPage";
 import { EmployeesPage } from "@/pages/EmployeesPage";
 import { ExpertReportsPage } from "@/pages/ExpertReportsPage";
 import { LeadDetailPage } from "@/pages/LeadDetailPage";
+import { ForcePasswordPage } from "@/pages/ForcePasswordPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { MyLeadsPage } from "@/pages/MyLeadsPage";
 import { OnlineBookingPage } from "@/pages/OnlineBookingPage";
@@ -21,6 +22,7 @@ import { IntegrationsHubPage } from "@/pages/IntegrationsHubPage";
 import { KpiPage } from "@/pages/KpiPage";
 import { LandingPage } from "@/pages/LandingPage";
 import { OnboardingPage } from "@/pages/OnboardingPage";
+import { TariffPlansPage } from "@/pages/TariffPlansPage";
 import { TasksPage } from "@/pages/TasksPage";
 
 export default function App() {
@@ -31,6 +33,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/landing" element={<LandingPage />} />
         <Route element={<ProtectedRoute />}>
+          <Route path="/force-password" element={<ForcePasswordPage />} />
           <Route element={<MainLayout />}>
             <Route path="/app" element={<HomeEntry />} />
             <Route path="/crm" element={<CrmPage />} />
@@ -74,6 +77,14 @@ export default function App() {
               element={
                 <RequireSuperOwner>
                   <CompaniesPage />
+                </RequireSuperOwner>
+              }
+            />
+            <Route
+              path="/tariff-plans"
+              element={
+                <RequireSuperOwner>
+                  <TariffPlansPage />
                 </RequireSuperOwner>
               }
             />

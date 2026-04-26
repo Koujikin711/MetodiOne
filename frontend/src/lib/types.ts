@@ -171,6 +171,70 @@ export interface TaskListResponse {
 export interface TokenResponse {
   access_token: string;
   token_type: string;
+  must_change_password?: boolean;
+}
+
+/** Сводка платформы для super_owner (`GET /api/companies/dashboard`). */
+export interface PlatformDashboardRead {
+  companies_total: number;
+  companies_active: number;
+  companies_suspended: number;
+  users_total: number;
+  leads_total: number;
+  pipelines_total: number;
+  global_tariff_max_active_users: number;
+  global_tariff_max_integrations: number;
+  recent_audit_count: number;
+  recent_background_failures: number;
+}
+
+/** Запись аудита super_owner (`GET /api/companies/audit-log`). */
+export interface SuperOwnerAuditRead {
+  id: number;
+  actor_user_id: number;
+  company_id: number | null;
+  action: string;
+  detail: string | null;
+  created_at: string;
+}
+
+/** Компания в списке super_owner (включая переопределения тарифа). */
+export interface SuperOwnerCompanyRead {
+  id: number;
+  name: string;
+  contact_email?: string | null;
+  is_active: boolean;
+  users_count: number;
+  leads_count: number;
+  pipelines_count: number;
+  tariff_plan_id?: number | null;
+  tariff_plan_name?: string | null;
+  tariff_max_active_users: number | null;
+  tariff_max_integrations: number | null;
+}
+
+export interface TariffPlanRead {
+  id: number;
+  name: string;
+  max_active_users: number;
+  max_integrations: number;
+  enabled_features: string[];
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface FeatureCatalogItem {
+  key: string;
+  label: string;
+}
+
+/** Текущий доступ по тарифу (`GET /api/system/tariff-access`). */
+export interface TariffAccessRead {
+  plan_id: number | null;
+  plan_name: string | null;
+  enabled_features: string[];
+  feature_labels: Record<string, string>;
+  upgrade_hints: Record<string, string[]>;
 }
 
 export interface LeadStatusPatchResponse extends Lead {

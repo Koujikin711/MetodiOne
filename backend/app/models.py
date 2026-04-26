@@ -31,6 +31,21 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+class TariffPlan(Base):
+    """Тарифный план платформы (набор функций и лимитов для компаний)."""
+
+    __tablename__ = "tariff_plans"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    max_active_users: Mapped[int] = mapped_column(default=0)
+    max_integrations: Mapped[int] = mapped_column(default=0)
+    enabled_features: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    sort_order: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
 class Company(Base):
     __tablename__ = "companies"
 
@@ -40,6 +55,14 @@ class Company(Base):
     external_db_dsn: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    tariff_plan_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tariff_plans.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Переопределение лимитов тарифа для компании (NULL = глобальные настройки из env)
+    tariff_max_active_users: Mapped[int | None] = mapped_column(nullable=True)
+    tariff_max_integrations: Mapped[int | None] = mapped_column(nullable=True)
 
 
 class Pipeline(Base):
@@ -78,6 +101,7 @@ class User(Base):
     invite_token: Mapped[str | None] = mapped_column(String(96), unique=True, index=True, nullable=True)
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole, name="user_role"), default=UserRole.manager)
     is_active: Mapped[bool] = mapped_column(default=True)
+    must_change_password: Mapped[bool] = mapped_column(default=False)
 
     leads: Mapped[list["Lead"]] = relationship(
         back_populates="manager",
@@ -527,6 +551,19 @@ class AttendancePing(Base):
     inside_geofence: Mapped[bool] = mapped_column(default=False)
     suspicious: Mapped[bool] = mapped_column(default=False)
     suspicious_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, index=True)
+
+
+class SuperOwnerAuditEvent(Base):
+    """Журнал действий супер-владельца платформы (компании, тарифы, вход от имени владельца)."""
+
+    __tablename__ = "super_owner_audit_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    actor_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(160))
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, index=True)
 
 
