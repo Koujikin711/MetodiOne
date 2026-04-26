@@ -20,6 +20,7 @@ export function TariffFeatureOutletGate() {
     companyId == null ||
     pathname.startsWith("/companies") ||
     pathname.startsWith("/tariff-plans") ||
+    pathname.startsWith("/billing") ||
     pathname === "/force-password";
 
   const q = useQuery({

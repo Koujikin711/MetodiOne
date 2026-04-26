@@ -211,6 +211,10 @@ export interface SuperOwnerCompanyRead {
   tariff_plan_name?: string | null;
   tariff_max_active_users: number | null;
   tariff_max_integrations: number | null;
+  billing_status?: string;
+  trial_ends_at?: string | null;
+  pending_tariff_plan_id?: number | null;
+  pending_tariff_plan_name?: string | null;
 }
 
 export interface TariffPlanRead {
@@ -219,8 +223,42 @@ export interface TariffPlanRead {
   max_active_users: number;
   max_integrations: number;
   enabled_features: string[];
+  warehouse_enabled?: boolean;
   is_active: boolean;
   sort_order: number;
+}
+
+export interface BillingTariffChoice {
+  id: number;
+  name: string;
+  max_active_users: number;
+  max_integrations: number;
+  warehouse_enabled: boolean;
+}
+
+export interface BillingStatusRead {
+  billing_status: string;
+  trial_ends_at: string | null;
+  pending_tariff_plan_id: number | null;
+  pending_tariff_plan_name: string | null;
+  current_tariff_plan_id: number | null;
+  current_tariff_plan_name: string | null;
+  plans: BillingTariffChoice[];
+}
+
+export interface PendingPaymentCompanyRead {
+  id: number;
+  name: string;
+  contact_email?: string | null;
+  billing_status: string;
+  pending_tariff_plan_id: number | null;
+  pending_tariff_plan_name: string | null;
+  tariff_plan_id: number | null;
+  tariff_plan_name: string | null;
+}
+
+export interface PlatformBillingSettingsRead {
+  demo_trial_days: number;
 }
 
 export interface FeatureCatalogItem {

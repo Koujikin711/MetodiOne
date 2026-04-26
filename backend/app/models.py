@@ -41,6 +41,8 @@ class TariffPlan(Base):
     max_active_users: Mapped[int] = mapped_column(default=0)
     max_integrations: Mapped[int] = mapped_column(default=0)
     enabled_features: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    """Склад (остатки, приход/расход): можно отключить в тарифе при включённом модуле «Финансы»."""
+    warehouse_enabled: Mapped[bool] = mapped_column(default=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     sort_order: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
@@ -63,6 +65,14 @@ class Company(Base):
     # Переопределение лимитов тарифа для компании (NULL = глобальные настройки из env)
     tariff_max_active_users: Mapped[int | None] = mapped_column(nullable=True)
     tariff_max_integrations: Mapped[int | None] = mapped_column(nullable=True)
+    # Биллинг: active | demo_trial | demo_expired | payment_pending | subscribed
+    billing_status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    pending_tariff_plan_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tariff_plans.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
 
 class Pipeline(Base):
@@ -565,6 +575,15 @@ class SuperOwnerAuditEvent(Base):
     action: Mapped[str] = mapped_column(String(160))
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, index=True)
+
+
+class PlatformSettings(Base):
+    """Глобальные настройки платформы (одна строка id=1)."""
+
+    __tablename__ = "platform_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    demo_trial_days: Mapped[int] = mapped_column(default=14)
 
 
 # --- ERP Finance (без налогового блока): настройки, GL, склады, товар, отложенная выручка ---

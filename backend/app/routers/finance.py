@@ -161,6 +161,16 @@ async def _require_finance_write(user: CurrentUser) -> None:
         )
 
 
+async def _require_tariff_warehouse(db: AsyncSession, company_id: int) -> None:
+    from app.services.tariff_plan_access import company_tariff_warehouse_enabled
+
+    if not await company_tariff_warehouse_enabled(db, company_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Склад отключён в вашем тарифе. Обратитесь к администратору платформы или выберите тариф со складом.",
+        )
+
+
 async def _ready_finance(db: AsyncSession, company_id: int) -> FinanceCompanySettings:
     s = await ensure_finance_settings(db, company_id)
     await ensure_default_chart(db, company_id)
@@ -329,6 +339,7 @@ async def list_warehouses(
     company_id: CurrentCompanyId,
 ) -> list[FinanceWarehouse]:
     await _require_finance(current_user)
+    await _require_tariff_warehouse(db, company_id)
     await _ready_finance(db, company_id)
     r = await db.execute(
         select(FinanceWarehouse).where(FinanceWarehouse.company_id == company_id).order_by(FinanceWarehouse.sort_order, FinanceWarehouse.id),
@@ -344,6 +355,7 @@ async def create_warehouse(
     company_id: CurrentCompanyId,
 ) -> FinanceWarehouse:
     await _require_finance_write(current_user)
+    await _require_tariff_warehouse(db, company_id)
     await _ready_finance(db, company_id)
     if body.is_default:
         rows = (await db.execute(select(FinanceWarehouse).where(FinanceWarehouse.company_id == company_id))).scalars().all()
@@ -372,6 +384,7 @@ async def patch_warehouse(
     company_id: CurrentCompanyId,
 ) -> FinanceWarehouse:
     await _require_finance_write(current_user)
+    await _require_tariff_warehouse(db, company_id)
     w = await db.get(FinanceWarehouse, warehouse_id)
     if w is None or w.company_id != company_id:
         raise HTTPException(404, detail="Склад не найден")
@@ -792,6 +805,7 @@ async def list_stock_movements(
     limit: int = Query(100, ge=1, le=500),
 ) -> list[StockMovementRead]:
     await _require_finance(current_user)
+    await _require_tariff_warehouse(db, company_id)
     settings = await _ready_finance(db, company_id)
     if not settings.inventory_enabled:
         return []
@@ -1137,6 +1151,7 @@ async def list_stock_balances(
     company_id: CurrentCompanyId,
 ) -> list[StockBalanceRead]:
     await _require_finance(current_user)
+    await _require_tariff_warehouse(db, company_id)
     settings = await _ready_finance(db, company_id)
     if not settings.inventory_enabled:
         return []
@@ -1171,6 +1186,7 @@ async def stock_receipt(
     company_id: CurrentCompanyId,
 ) -> dict[str, int]:
     await _require_finance_write(current_user)
+    await _require_tariff_warehouse(db, company_id)
     settings = await _ready_finance(db, company_id)
     if not settings.inventory_enabled:
         raise HTTPException(400, detail="Склад выключен в настройках финансов")
@@ -1252,6 +1268,7 @@ async def stock_issue(
     company_id: CurrentCompanyId,
 ) -> dict[str, str]:
     await _require_finance_write(current_user)
+    await _require_tariff_warehouse(db, company_id)
     settings = await _ready_finance(db, company_id)
     if not settings.inventory_enabled:
         raise HTTPException(400, detail="Склад выключен в настройках финансов")

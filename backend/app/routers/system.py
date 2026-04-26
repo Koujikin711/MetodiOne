@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models import Company, TariffPlan, UserRole
 from app.services.background_events import list_background_events
 from app.services.mail import send_email
+from app.services.demo_provision import provision_demo_account
 from app.schemas.email_types import RelaxedEmailStr
 from app.services.tariff import count_company_active_users, count_company_integrations
 
@@ -70,42 +71,32 @@ async def smtp_test(body: SmtpTestBody, current_user: CurrentUser) -> dict:
 
 
 @router.post("/demo-request")
-async def demo_request(body: DemoRequestBody) -> dict:
-    target = (settings.demo_request_to_email or "").strip().lower()
-    if not target:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="DEMO_REQUEST_TO_EMAIL is not configured",
-        )
+async def demo_request(
+    body: DemoRequestBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
     phone_norm = "".join(ch for ch in body.phone if ch.isdigit())
     if len(phone_norm) < 7:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректный телефон")
-
-    subject = "Новая заявка на демо MetodiOne"
-    text = (
-        "Получена заявка с лендинга.\n\n"
-        f"ФИО: {body.full_name.strip()}\n"
-        f"Телефон: {body.phone.strip()}\n"
-        f"Email: {body.email}\n"
-        f"Сообщение: {(body.message or '').strip() or '-'}\n"
-    )
-    html_body = (
-        "<h2>Новая заявка на демо MetodiOne</h2>"
-        f"<p><b>ФИО:</b> {body.full_name.strip()}</p>"
-        f"<p><b>Телефон:</b> {body.phone.strip()}</p>"
-        f"<p><b>Email:</b> {body.email}</p>"
-        f"<p><b>Сообщение:</b> {(body.message or '').strip() or '-'}</p>"
-    )
-    ok = send_email(target, subject, text, html_body=html_body)
-    if not ok:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Не удалось отправить заявку. Проверьте SMTP_HOST/PORT/USER/PASSWORD/FROM "
-                "и доступ сервера к smtp.gmail.com."
-            ),
+    try:
+        await provision_demo_account(
+            db,
+            full_name=body.full_name.strip(),
+            phone=body.phone.strip(),
+            email=str(body.email).strip(),
+            message=(body.message or "").strip() or None,
         )
-    return {"ok": True}
+        await db.commit()
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    except RuntimeError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    except Exception:
+        await db.rollback()
+        raise
+    return {"ok": True, "message": "На указанный email отправлены логин и пароль для входа в демо."}
 
 
 class BackgroundEventRead(BaseModel):
