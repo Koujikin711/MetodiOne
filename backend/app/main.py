@@ -178,7 +178,7 @@ async def seed_booking_defaults() -> None:
         await session.flush()
         session.add(
             BookingSpecialist(
-                full_name="Ганчина",
+                full_name="Специалист (пример)",
                 company_id=cid,
                 direction_id=d.id,
                 phone=None,
