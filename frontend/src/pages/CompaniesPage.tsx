@@ -45,6 +45,8 @@ export function CompaniesPage() {
   const [tariffUsersDraft, setTariffUsersDraft] = useState("");
   const [tariffIntsDraft, setTariffIntsDraft] = useState("");
   const [createTariffPlanId, setCreateTariffPlanId] = useState<number | "">("");
+  const [createBillingDiscount, setCreateBillingDiscount] = useState("");
+  const [billingDiscountDraft, setBillingDiscountDraft] = useState("");
   const [demoDaysDraft, setDemoDaysDraft] = useState("14");
 
   useEffect(() => {
@@ -54,6 +56,9 @@ export function CompaniesPage() {
     );
     setTariffIntsDraft(
       tariffCompany.tariff_max_integrations == null ? "" : String(tariffCompany.tariff_max_integrations),
+    );
+    setBillingDiscountDraft(
+      tariffCompany.billing_discount_percent == null ? "" : String(tariffCompany.billing_discount_percent),
     );
   }, [tariffCompany]);
 
@@ -158,6 +163,7 @@ export function CompaniesPage() {
       setOwnerName("");
       setExternalDbDsn("");
       setCreateTariffPlanId("");
+      setCreateBillingDiscount("");
       void companiesQuery.refetch();
       void dashboardQuery.refetch();
       void auditQuery.refetch();
@@ -206,6 +212,19 @@ export function CompaniesPage() {
       void dashboardQuery.refetch();
       void auditQuery.refetch();
       toast.success("Статус компании обновлён");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const billingDiscountMutation = useMutation({
+    mutationFn: ({ companyId, percent }: { companyId: number; percent: number | null }) =>
+      apiFetch<SuperOwnerCompanyRead>(`/api/companies/${companyId}/billing-discount`, {
+        method: "PATCH",
+        body: JSON.stringify({ billing_discount_percent: percent }),
+      }),
+    onSuccess: () => {
+      void companiesQuery.refetch();
+      toast.success("Скидка на подписку обновлена");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -469,6 +488,15 @@ export function CompaniesPage() {
                 ))}
             </select>
           </label>
+          <label className="min-w-[140px] text-sm text-slate-300">
+            Скидка к подписке, % (опц.)
+            <input
+              value={createBillingDiscount}
+              onChange={(e) => setCreateBillingDiscount(e.target.value)}
+              placeholder="0"
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+            />
+          </label>
           <button
             type="button"
             onClick={() => createMutation.mutate()}
@@ -506,7 +534,15 @@ export function CompaniesPage() {
               {c.pending_tariff_plan_name
                 ? ` · ожидает тариф: ${c.pending_tariff_plan_name}`
                 : ""}
+              {c.billing_discount_percent != null && c.billing_discount_percent > 0
+                ? ` · скидка ${c.billing_discount_percent}%`
+                : ""}
             </p>
+            {c.scheduled_tariff_plan_name && c.scheduled_tariff_effective_at ? (
+              <p className="mt-1 text-xs text-amber-200/90">
+                Смена тарифа с {new Date(c.scheduled_tariff_effective_at).toLocaleString()}: {c.scheduled_tariff_plan_name}
+              </p>
+            ) : null}
             <label className="mt-2 block text-xs text-slate-400">
               Сменить тариф
               <select
@@ -609,6 +645,18 @@ export function CompaniesPage() {
                   className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
                 />
               </label>
+              <label className="block text-sm text-slate-300">
+                Скидка к подписке, % (перекрывает скидку тарифа; пусто — сброс)
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={billingDiscountDraft}
+                  onChange={(e) => setBillingDiscountDraft(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+                />
+              </label>
             </div>
             <div className="mt-6 flex flex-wrap gap-2">
               <button
@@ -645,6 +693,26 @@ export function CompaniesPage() {
                 className="rounded-xl border border-slate-500 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800/60 disabled:opacity-50"
               >
                 Сбросить на платформу
+              </button>
+              <button
+                type="button"
+                disabled={billingDiscountMutation.isPending}
+                onClick={() => {
+                  const t = billingDiscountDraft.trim();
+                  if (t === "") {
+                    billingDiscountMutation.mutate({ companyId: tariffCompany.id, percent: null });
+                    return;
+                  }
+                  const n = Number(t);
+                  if (!Number.isFinite(n) || n < 0 || n > 100) {
+                    toast.error("Скидка: 0–100 или пусто");
+                    return;
+                  }
+                  billingDiscountMutation.mutate({ companyId: tariffCompany.id, percent: n });
+                }}
+                className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
+              >
+                Сохранить скидку
               </button>
             </div>
           </div>

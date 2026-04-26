@@ -27,11 +27,12 @@ from app.database_migrate import (
     ensure_super_owner_platform,
     ensure_tariff_plans_platform,
     ensure_demo_billing_platform,
+    ensure_tariff_constructor_billing,
 )
 from app.core.security import decode_token, hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
-from app.routers import attendance, analytics, audit, auth, billing, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tariff_plans, tasks, users
+from app.routers import attendance, analytics, audit, auth, billing, booking, chat, companies, deals, employees, finance, horeca, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tariff_plans, tasks, users
 from app.services.background_events import record_background_event
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.runtime_metrics import runtime_metrics
@@ -88,6 +89,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_super_owner_platform(conn, settings.database_url)
                 await ensure_tariff_plans_platform(conn, settings.database_url)
                 await ensure_demo_billing_platform(conn, settings.database_url)
+                await ensure_tariff_constructor_billing(conn, settings.database_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
@@ -500,6 +502,7 @@ app.include_router(companies.router, prefix="/api")
 app.include_router(tariff_plans.router, prefix="/api")
 app.include_router(finance.router, prefix="/api")
 app.include_router(attendance.router, prefix="/api")
+app.include_router(horeca.router, prefix="/api")
 
 
 @app.get("/health")

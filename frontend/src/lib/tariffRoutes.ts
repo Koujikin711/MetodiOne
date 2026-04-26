@@ -12,6 +12,7 @@ const ROUTE_FEATURE: [string, string][] = [
   ["/tasks", "tasks"],
   ["/chat", "chat"],
   ["/kpi", "kpi"],
+  ["/horeca", "horeca"],
   ["/my-leads", "crm"],
   ["/crm", "crm"],
   ["/leads", "crm"],

@@ -1320,3 +1320,76 @@ async def ensure_demo_billing_platform(conn: AsyncConnection, database_url: str)
         await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ"))
         await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS pending_tariff_plan_id INTEGER"))
         return
+
+
+async def ensure_tariff_constructor_billing(conn: AsyncConnection, database_url: str) -> None:
+    """Конструктор тарифов: цены функций/лимитов, валюта/скидка в плане, скидка/отложенный тариф у компании."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS platform_feature_prices (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    feature_key VARCHAR(48) NOT NULL,
+                    currency VARCHAR(3) NOT NULL,
+                    monthly_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    UNIQUE(feature_key, currency)
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS platform_limit_prices (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    limit_kind VARCHAR(32) NOT NULL,
+                    currency VARCHAR(3) NOT NULL,
+                    monthly_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    UNIQUE(limit_kind, currency)
+                )""",
+            ),
+        )
+        r = await conn.execute(text("PRAGMA table_info(tariff_plans)"))
+        tcols = {row[1] for row in r.fetchall()}
+        if tcols and "billing_currency" not in tcols:
+            await conn.execute(text("ALTER TABLE tariff_plans ADD COLUMN billing_currency VARCHAR(3) NOT NULL DEFAULT 'TJS'"))
+        if tcols and "discount_percent" not in tcols:
+            await conn.execute(text("ALTER TABLE tariff_plans ADD COLUMN discount_percent NUMERIC(6, 2) NOT NULL DEFAULT 0"))
+        r2 = await conn.execute(text("PRAGMA table_info(companies)"))
+        ccols = {row[1] for row in r2.fetchall()}
+        if ccols and "billing_discount_percent" not in ccols:
+            await conn.execute(text("ALTER TABLE companies ADD COLUMN billing_discount_percent NUMERIC(6, 2)"))
+        if ccols and "scheduled_tariff_plan_id" not in ccols:
+            await conn.execute(text("ALTER TABLE companies ADD COLUMN scheduled_tariff_plan_id INTEGER"))
+        if ccols and "scheduled_tariff_effective_at" not in ccols:
+            await conn.execute(text("ALTER TABLE companies ADD COLUMN scheduled_tariff_effective_at DATETIME"))
+        return
+
+    if "postgresql" in low or "asyncpg" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS platform_feature_prices (
+                    id SERIAL PRIMARY KEY,
+                    feature_key VARCHAR(48) NOT NULL,
+                    currency VARCHAR(3) NOT NULL,
+                    monthly_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    CONSTRAINT uq_platform_feature_price_key_currency UNIQUE (feature_key, currency)
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS platform_limit_prices (
+                    id SERIAL PRIMARY KEY,
+                    limit_kind VARCHAR(32) NOT NULL,
+                    currency VARCHAR(3) NOT NULL,
+                    monthly_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    CONSTRAINT uq_platform_limit_price_kind_currency UNIQUE (limit_kind, currency)
+                )""",
+            ),
+        )
+        await conn.execute(text("ALTER TABLE tariff_plans ADD COLUMN IF NOT EXISTS billing_currency VARCHAR(3) NOT NULL DEFAULT 'TJS'"))
+        await conn.execute(text("ALTER TABLE tariff_plans ADD COLUMN IF NOT EXISTS discount_percent NUMERIC(6, 2) NOT NULL DEFAULT 0"))
+        await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS billing_discount_percent NUMERIC(6, 2)"))
+        await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS scheduled_tariff_plan_id INTEGER"))
+        await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS scheduled_tariff_effective_at TIMESTAMPTZ"))
+        return

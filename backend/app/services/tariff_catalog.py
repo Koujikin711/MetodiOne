@@ -15,6 +15,7 @@ FEATURE_LABELS: dict[str, str] = {
     "employees": "Сотрудники и приглашения",
     "audit": "Журнал аудита",
     "attendance": "Учёт посещаемости",
+    "horeca": "HoReCa (ресторан: зал, кухня, себестоимость)",
 }
 
 ALL_FEATURE_KEYS: frozenset[str] = frozenset(FEATURE_LABELS)
@@ -40,10 +41,19 @@ _ROUTE_FEATURE_PAIRS: list[tuple[str, str]] = sorted(
         ("/api/stages", "crm"),
         ("/api/sources", "crm"),
         ("/api/deals", "crm"),
+        ("/api/horeca", "horeca"),
     ],
     key=lambda x: len(x[0]),
     reverse=True,
 )
+
+
+def validate_enabled_features(feature_keys: list[str]) -> tuple[bool, str | None]:
+    """Проверка совместимости набора функций. Конфликтующие комбинации — запрещены."""
+    keys = {str(x).strip() for x in feature_keys if str(x).strip() in ALL_FEATURE_KEYS}
+    if "horeca" in keys and "finance" not in keys:
+        return False, "Модуль HoReCa требует включённую функцию «Финансы» (своя производственно-складская логика)."
+    return True, None
 
 
 def tariff_feature_for_api_path(path: str) -> str | None:

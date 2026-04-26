@@ -215,6 +215,10 @@ export interface SuperOwnerCompanyRead {
   trial_ends_at?: string | null;
   pending_tariff_plan_id?: number | null;
   pending_tariff_plan_name?: string | null;
+  billing_discount_percent?: number | null;
+  scheduled_tariff_plan_id?: number | null;
+  scheduled_tariff_plan_name?: string | null;
+  scheduled_tariff_effective_at?: string | null;
 }
 
 export interface TariffPlanRead {
@@ -236,6 +240,15 @@ export interface BillingTariffChoice {
   warehouse_enabled: boolean;
 }
 
+export interface BillingCompositionLine {
+  kind: string;
+  key?: string;
+  label: string;
+  amount: string;
+  quantity?: number;
+  unit_amount?: string;
+}
+
 export interface BillingStatusRead {
   billing_status: string;
   trial_ends_at: string | null;
@@ -244,6 +257,17 @@ export interface BillingStatusRead {
   current_tariff_plan_id: number | null;
   current_tariff_plan_name: string | null;
   plans: BillingTariffChoice[];
+  billing_currency?: string | null;
+  monthly_subtotal?: string | null;
+  monthly_discount_percent?: string | null;
+  monthly_discount_amount?: string | null;
+  monthly_total?: string | null;
+  composition?: BillingCompositionLine[] | null;
+}
+
+export interface TariffPricingTableRead {
+  feature_prices: { feature_key: string; currency: string; monthly_amount: number }[];
+  limit_prices: { limit_kind: string; currency: string; monthly_amount: number }[];
 }
 
 export interface PendingPaymentCompanyRead {

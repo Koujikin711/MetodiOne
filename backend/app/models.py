@@ -46,6 +46,9 @@ class TariffPlan(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     sort_order: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    # Биллинг конструктора: валюта пакета и скидка к сумме функций+лимитов (до переопределения на компании).
+    billing_currency: Mapped[str] = mapped_column(String(3), default="TJS")
+    discount_percent: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("0"))
 
 
 class Company(Base):
@@ -73,6 +76,15 @@ class Company(Base):
         nullable=True,
         index=True,
     )
+    # Скидка к подписке (перекрывает скидку тарифа, если задана). Проценты 0–100.
+    billing_discount_percent: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True, default=None)
+    # Отложенная смена тарифа (например урезание — с 1-го числа следующего месяца).
+    scheduled_tariff_plan_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tariff_plans.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    scheduled_tariff_effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Pipeline(Base):
@@ -584,6 +596,31 @@ class PlatformSettings(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     demo_trial_days: Mapped[int] = mapped_column(default=14)
+
+
+class PlatformFeaturePrice(Base):
+    """Цена функции в месяц по валюте (задаёт super_owner)."""
+
+    __tablename__ = "platform_feature_prices"
+    __table_args__ = (UniqueConstraint("feature_key", "currency", name="uq_platform_feature_price_key_currency"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    feature_key: Mapped[str] = mapped_column(String(48), index=True)
+    currency: Mapped[str] = mapped_column(String(3), index=True)
+    monthly_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+
+
+class PlatformLimitPrice(Base):
+    """Цена лимитов в месяц: за единицу слота пользователя/интеграции или фикс за склад."""
+
+    __tablename__ = "platform_limit_prices"
+    __table_args__ = (UniqueConstraint("limit_kind", "currency", name="uq_platform_limit_price_kind_currency"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    # user_slot — за одного пользователя в лимите; integration_slot — за одну интеграцию; warehouse_monthly — фикс если склад включён.
+    limit_kind: Mapped[str] = mapped_column(String(32), index=True)
+    currency: Mapped[str] = mapped_column(String(3), index=True)
+    monthly_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
 
 
 # --- ERP Finance (без налогового блока): настройки, GL, склады, товар, отложенная выручка ---

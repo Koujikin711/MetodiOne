@@ -14,7 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
+from typing import Any
+
 from app.models import Company, PlatformSettings, TariffPlan, UserRole
+from app.services.tariff_pricing import compute_subscription_breakdown
 from app.services.company_billing import refresh_company_billing_state
 from app.services.mail import send_email
 
@@ -37,6 +40,13 @@ class BillingStatusRead(BaseModel):
     current_tariff_plan_id: int | None
     current_tariff_plan_name: str | None
     plans: list[TariffChoiceRead]
+    # Сводка подписки (для владельца: одна сумма; детализация — composition).
+    billing_currency: str | None = None
+    monthly_subtotal: str | None = None
+    monthly_discount_percent: str | None = None
+    monthly_discount_amount: str | None = None
+    monthly_total: str | None = None
+    composition: list[dict[str, Any]] | None = None
 
 
 class SelectTariffBody(BaseModel):
@@ -121,6 +131,13 @@ async def billing_status(
         cp = await db.get(TariffPlan, c.tariff_plan_id)
         cur_name = cp.name if cp else None
 
+    preview_plan_id = c.pending_tariff_plan_id or c.tariff_plan_id
+    bd_preview: dict[str, Any] | None = None
+    if preview_plan_id:
+        pr = await db.get(TariffPlan, int(preview_plan_id))
+        if pr is not None and pr.is_active:
+            bd_preview = await compute_subscription_breakdown(db, pr, company=c)
+
     return BillingStatusRead(
         billing_status=str(c.billing_status or "active"),
         trial_ends_at=c.trial_ends_at,
@@ -129,6 +146,12 @@ async def billing_status(
         current_tariff_plan_id=c.tariff_plan_id,
         current_tariff_plan_name=cur_name,
         plans=plans,
+        billing_currency=bd_preview["currency"] if bd_preview else None,
+        monthly_subtotal=bd_preview.get("subtotal") if bd_preview else None,
+        monthly_discount_percent=bd_preview.get("discount_percent") if bd_preview else None,
+        monthly_discount_amount=bd_preview.get("discount_amount") if bd_preview else None,
+        monthly_total=bd_preview.get("total") if bd_preview else None,
+        composition=bd_preview.get("lines") if bd_preview else None,
     )
 
 
@@ -143,10 +166,15 @@ async def select_tariff(
     c = await refresh_company_billing_state(db, company_id)
     if c is None:
         raise HTTPException(status_code=404, detail="Компания не найдена")
-    if c.billing_status not in ("demo_expired", "payment_pending"):
+    if c.billing_status == "demo_trial":
         raise HTTPException(
             status_code=400,
-            detail="Выбор тарифа доступен после окончания демо или при ожидании оплаты.",
+            detail="Во время демо смена тарифа недоступна. Дождитесь окончания периода или обратитесь к администратору.",
+        )
+    if c.billing_status not in ("demo_expired", "payment_pending", "subscribed", "active"):
+        raise HTTPException(
+            status_code=400,
+            detail="Заявка на тариф недоступна в текущем статусе биллинга.",
         )
     pl = await db.get(TariffPlan, body.tariff_plan_id)
     if pl is None or not pl.is_active:
@@ -160,13 +188,13 @@ async def select_tariff(
     admin = (settings.demo_request_to_email or "").strip().lower()
     if admin:
         plain = (
-            f"Компания запросила тариф после демо.\n\n"
+            f"Компания запросила смену/подключение тарифа.\n\n"
             f"Компания: {c.name} (id={c.id})\n"
-            f"Выбранный тариф: {pl.name} (id={pl.id})\n"
+            f"Запрошенный тариф: {pl.name} (id={pl.id})\n"
             f"Email компании: {c.contact_email or '-'}\n\n"
             "Проверьте оплату и подтвердите в админке: POST /api/billing/confirm-payment\n"
         )
-        subj = f"[MetodiOne] Выбор тарифа: {c.name} → {pl.name}"
+        subj = f"[MetodiOne] Заявка на тариф: {c.name} → {pl.name}"
         html_body = f"""<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;">
 <h2>Выбор тарифа</h2>
 <p><b>Компания:</b> {html.escape(c.name)} (id={c.id})</p>
@@ -190,6 +218,12 @@ async def select_tariff(
     if c.tariff_plan_id:
         cp = await db.get(TariffPlan, c.tariff_plan_id)
         cur_name = cp.name if cp else None
+    preview_plan_id = c.pending_tariff_plan_id or c.tariff_plan_id
+    bd_preview: dict[str, Any] | None = None
+    if preview_plan_id:
+        pr = await db.get(TariffPlan, int(preview_plan_id))
+        if pr is not None and pr.is_active:
+            bd_preview = await compute_subscription_breakdown(db, pr, company=c)
     return BillingStatusRead(
         billing_status=str(c.billing_status or "active"),
         trial_ends_at=c.trial_ends_at,
@@ -198,6 +232,12 @@ async def select_tariff(
         current_tariff_plan_id=c.tariff_plan_id,
         current_tariff_plan_name=cur_name,
         plans=plans,
+        billing_currency=bd_preview["currency"] if bd_preview else None,
+        monthly_subtotal=bd_preview.get("subtotal") if bd_preview else None,
+        monthly_discount_percent=bd_preview.get("discount_percent") if bd_preview else None,
+        monthly_discount_amount=bd_preview.get("discount_amount") if bd_preview else None,
+        monthly_total=bd_preview.get("total") if bd_preview else None,
+        composition=bd_preview.get("lines") if bd_preview else None,
     )
 
 
