@@ -14,7 +14,7 @@ function trialDaysLeft(trialEndsAt: string | null): number | null {
   return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
 }
 
-export function BillingPage() {
+export function BillingTariffPage() {
   const qc = useQueryClient();
   const token = getStoredToken();
   const role = decodeRoleFromToken(token);
@@ -158,3 +158,5 @@ export function BillingPage() {
     </div>
   );
 }
+
+export const BillingPage = BillingTariffPage;

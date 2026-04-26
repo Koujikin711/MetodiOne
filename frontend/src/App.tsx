@@ -14,6 +14,7 @@ import { MainLayout } from "@/layouts/MainLayout";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { AttendanceTrackerPage } from "@/pages/AttendanceTrackerPage";
 import { AuditPage } from "@/pages/AuditPage";
+import { BillingTariffPage } from "@/pages/BillingPage";
 import { ChatPage } from "@/pages/ChatPage";
 import { EmployeesPage } from "@/pages/EmployeesPage";
 import { ExpertReportsPage } from "@/pages/ExpertReportsPage";
@@ -52,7 +53,7 @@ export default function App() {
               path="/billing"
               element={
                 <RequireOwnerOrAdmin>
-                  <BillingPage />
+                  <BillingTariffPage />
                 </RequireOwnerOrAdmin>
               }
             />
