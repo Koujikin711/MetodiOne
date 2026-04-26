@@ -1272,3 +1272,51 @@ async def ensure_tariff_plans_platform(conn: AsyncConnection, database_url: str)
         )
         await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS tariff_plan_id INTEGER"))
         return
+
+
+async def ensure_demo_billing_platform(conn: AsyncConnection, database_url: str) -> None:
+    """Биллинг демо, ожидание оплаты, склад в тарифе, platform_settings."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS platform_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    demo_trial_days INTEGER NOT NULL DEFAULT 14
+                )""",
+            ),
+        )
+        await conn.execute(text("INSERT OR IGNORE INTO platform_settings (id, demo_trial_days) VALUES (1, 14)"))
+        r = await conn.execute(text("PRAGMA table_info(tariff_plans)"))
+        tcols = {row[1] for row in r.fetchall()}
+        if tcols and "warehouse_enabled" not in tcols:
+            await conn.execute(text("ALTER TABLE tariff_plans ADD COLUMN warehouse_enabled INTEGER NOT NULL DEFAULT 1"))
+        r2 = await conn.execute(text("PRAGMA table_info(companies)"))
+        ccols = {row[1] for row in r2.fetchall()}
+        if "billing_status" not in ccols:
+            await conn.execute(
+                text("ALTER TABLE companies ADD COLUMN billing_status TEXT NOT NULL DEFAULT 'active'"),
+            )
+        if "trial_ends_at" not in ccols:
+            await conn.execute(text("ALTER TABLE companies ADD COLUMN trial_ends_at DATETIME"))
+        if "pending_tariff_plan_id" not in ccols:
+            await conn.execute(text("ALTER TABLE companies ADD COLUMN pending_tariff_plan_id INTEGER"))
+        return
+
+    if "postgresql" in low or "asyncpg" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS platform_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    demo_trial_days INTEGER NOT NULL DEFAULT 14
+                )""",
+            ),
+        )
+        await conn.execute(text("INSERT INTO platform_settings (id, demo_trial_days) VALUES (1, 14) ON CONFLICT (id) DO NOTHING"))
+        await conn.execute(text("ALTER TABLE tariff_plans ADD COLUMN IF NOT EXISTS warehouse_enabled BOOLEAN NOT NULL DEFAULT TRUE"))
+        await conn.execute(
+            text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS billing_status VARCHAR(32) NOT NULL DEFAULT 'active'"),
+        )
+        await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ"))
+        await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS pending_tariff_plan_id INTEGER"))
+        return

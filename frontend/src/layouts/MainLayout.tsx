@@ -59,6 +59,7 @@ export function MainLayout() {
     role === "owner" || role === "admin" || role === "super_owner" || role === "finance_analyst";
   const showIntegrationsHub = role === "owner";
   const showKpi = role === "owner" || role === "super_owner" || role === "manager" || role === "admin";
+  const showBillingNav = role === "owner" || role === "admin";
 
   function logout() {
     setStoredToken(null);
@@ -298,6 +299,14 @@ export function MainLayout() {
                     <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Финансы</span>
                   </NavLink>
                 ) : null}
+                {role === "admin" ? (
+                  <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
+                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <TrendingUp className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Тариф</span>
+                  </NavLink>
+                ) : null}
               </>
             ) : isExpert ? (
               <>
@@ -338,6 +347,14 @@ export function MainLayout() {
                   <MetodiBrandMark className="h-9 w-9" />
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">MetodiOne</span>
                 </NavLink>
+                {showBillingNav ? (
+                  <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
+                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <TrendingUp className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Тариф</span>
+                  </NavLink>
+                ) : null}
                 <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
                   <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
                     <Calendar className="h-[18px] w-[18px]" />
@@ -514,6 +531,14 @@ export function MainLayout() {
                   <span className="text-[9px]">Финансы</span>
                 </NavLink>
               ) : null}
+              {role === "admin" ? (
+                <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
+                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <TrendingUp className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Тариф</span>
+                </NavLink>
+              ) : null}
               <button
                 type="button"
                 onClick={logout}
@@ -576,6 +601,14 @@ export function MainLayout() {
                 <MetodiBrandMark className="h-8 w-8" />
                 <span className="text-[9px]">MetodiOne</span>
               </NavLink>
+              {showBillingNav ? (
+                <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
+                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <TrendingUp className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Тариф</span>
+                </NavLink>
+              ) : null}
               <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
                 <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <Calendar className="h-4 w-4" />

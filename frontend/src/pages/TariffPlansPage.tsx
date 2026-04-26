@@ -10,6 +10,7 @@ export type TariffPlanSaveBody = {
   max_active_users: number;
   max_integrations: number;
   enabled_features: string[];
+  warehouse_enabled: boolean;
   is_active: boolean;
   sort_order: number;
 };
@@ -34,6 +35,7 @@ function PlanEditorModal({
   const [maxInt, setMaxInt] = useState(String(initial?.max_integrations ?? 0));
   const [sortOrder, setSortOrder] = useState(String(initial?.sort_order ?? 0));
   const [isActive, setIsActive] = useState(initial?.is_active !== false);
+  const [warehouseEnabled, setWarehouseEnabled] = useState(initial?.warehouse_enabled !== false);
   const [feats, setFeats] = useState<Set<string>>(() => new Set(initial?.enabled_features ?? []));
 
   function toggleFeat(k: string) {
@@ -66,6 +68,7 @@ function PlanEditorModal({
       max_active_users: nu,
       max_integrations: ni,
       enabled_features: [...feats],
+      warehouse_enabled: warehouseEnabled,
       is_active: isActive,
       sort_order: Number.isFinite(so) ? so : 0,
     });
@@ -127,6 +130,10 @@ function PlanEditorModal({
           <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
             Тариф активен (можно назначать компаниям)
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={warehouseEnabled} onChange={(e) => setWarehouseEnabled(e.target.checked)} />
+            Склад в финансах (остатки, приход/расход)
           </label>
         </div>
         <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">Функции в тарифе</p>
@@ -248,6 +255,7 @@ export function TariffPlansPage() {
                 <p className="mt-1 text-xs text-slate-400">
                   Сотрудники до {p.max_active_users === 0 ? "∞" : p.max_active_users} · интеграции до{" "}
                   {p.max_integrations === 0 ? "∞" : p.max_integrations} · порядок {p.sort_order}
+                  {p.warehouse_enabled === false ? " · без склада" : " · склад"}
                   {p.is_active ? "" : " · отключён"}
                 </p>
                 <p className="mt-2 text-xs text-slate-300">
@@ -315,6 +323,7 @@ export function TariffPlansPage() {
                 max_active_users: body.max_active_users,
                 max_integrations: body.max_integrations,
                 enabled_features: body.enabled_features,
+                warehouse_enabled: body.warehouse_enabled,
                 is_active: body.is_active,
                 sort_order: body.sort_order,
               },

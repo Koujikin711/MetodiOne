@@ -53,6 +53,17 @@ async def plan_names_including_feature(db: AsyncSession, feature_key: str) -> li
     return names
 
 
+async def company_tariff_warehouse_enabled(db: AsyncSession, company_id: int) -> bool:
+    """Без тарифа или без колонки — склад разрешён (совместимость и демо без плана)."""
+    c = await db.get(Company, company_id)
+    if c is None or c.tariff_plan_id is None:
+        return True
+    plan = await db.get(TariffPlan, c.tariff_plan_id)
+    if plan is None:
+        return True
+    return bool(getattr(plan, "warehouse_enabled", True))
+
+
 async def company_has_tariff_feature(db: AsyncSession, company_id: int, feature_key: str) -> bool:
     if feature_key not in ALL_FEATURE_KEYS:
         return True

@@ -414,7 +414,7 @@ export function LandingPage() {
     if (sending) return;
     setSending(true);
     try {
-      await apiFetch("/api/system/demo-request", {
+      const res = await apiFetch<{ ok?: boolean; message?: string }>("/api/system/demo-request", {
         method: "POST",
         body: JSON.stringify({
           full_name: fullName.trim(),
@@ -423,7 +423,11 @@ export function LandingPage() {
           message: message.trim() || null,
         }),
       });
-      toast.success("Заявка отправлена. Мы свяжемся с вами в ближайшее время.");
+      toast.success(
+        typeof res?.message === "string" && res.message
+          ? res.message
+          : "Проверьте почту: мы отправили логин и пароль для входа в демо.",
+      );
       setFullName("");
       setPhone("");
       setEmail("");

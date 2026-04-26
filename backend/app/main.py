@@ -26,11 +26,12 @@ from app.database_migrate import (
     ensure_sales_kpi_plans,
     ensure_super_owner_platform,
     ensure_tariff_plans_platform,
+    ensure_demo_billing_platform,
 )
 from app.core.security import decode_token, hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
-from app.routers import attendance, analytics, audit, auth, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tariff_plans, tasks, users
+from app.routers import attendance, analytics, audit, auth, billing, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tariff_plans, tasks, users
 from app.services.background_events import record_background_event
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.runtime_metrics import runtime_metrics
@@ -86,6 +87,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_attendance_tracker_tables(conn, settings.database_url)
                 await ensure_super_owner_platform(conn, settings.database_url)
                 await ensure_tariff_plans_platform(conn, settings.database_url)
+                await ensure_demo_billing_platform(conn, settings.database_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
@@ -357,6 +359,8 @@ async def enforce_tariff_feature_path(request: Request, call_next):  # type: ign
         return await call_next(request)
     if path.startswith("/api/system"):
         return await call_next(request)
+    if path.startswith("/api/billing"):
+        return await call_next(request)
     auth = request.headers.get("Authorization")
     if not auth or not auth.lower().startswith("bearer "):
         return await call_next(request)
@@ -386,6 +390,75 @@ async def enforce_tariff_feature_path(request: Request, call_next):  # type: ign
         names = await plan_names_including_feature(db, feature_key)
         detail = tariff_block_detail(feature_key, names)
     return JSONResponse(status_code=403, content={"detail": detail})
+
+
+@app.middleware("http")
+async def enforce_company_billing(request: Request, call_next):  # type: ignore[no-untyped-def]
+    """После демо / до подтверждения оплаты — только auth, billing и чтение тарифа (раньше проверки функций тарифа)."""
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    path = request.url.path
+    if not path.startswith("/api/"):
+        return await call_next(request)
+
+    def _billing_allowed() -> bool:
+        if path.startswith("/api/auth/"):
+            return True
+        if path.startswith("/api/billing/"):
+            return True
+        if path == "/api/system/tariff-access" and request.method == "GET":
+            return True
+        if path == "/api/system/tariff" and request.method == "GET":
+            return True
+        if path == "/api/companies/current" and request.method == "GET":
+            return True
+        return False
+
+    auth = request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        return await call_next(request)
+    token = auth.split(" ", 1)[1].strip()
+    if not token:
+        return await call_next(request)
+    try:
+        payload = decode_token(token)
+    except Exception:
+        return await call_next(request)
+    if payload.get("role") == "super_owner":
+        return await call_next(request)
+    raw_cid = request.headers.get("X-Company-Id")
+    if not raw_cid:
+        return await call_next(request)
+    try:
+        company_id = int(raw_cid)
+    except ValueError:
+        return await call_next(request)
+
+    from app.database import AsyncSessionLocal
+    from app.services.company_billing import company_api_blocked_by_billing, refresh_company_billing_state
+
+    async with AsyncSessionLocal() as db:
+        c = await refresh_company_billing_state(db, company_id)
+        if c is None:
+            await db.rollback()
+            return await call_next(request)
+        blocked = company_api_blocked_by_billing(c)
+        await db.commit()
+
+    if not blocked:
+        return await call_next(request)
+    if _billing_allowed():
+        return await call_next(request)
+    return JSONResponse(
+        status_code=403,
+        content={
+            "detail": (
+                "Доступ ограничен: срок демо истёк или ожидается подтверждение оплаты. "
+                "Откройте раздел «Оплата и тариф» и выберите тариф."
+            ),
+            "code": "billing_blocked",
+        },
+    )
 
 
 @app.middleware("http")
@@ -419,6 +492,7 @@ app.include_router(sources.router, prefix="/api")
 app.include_router(integrations.router, prefix="/api")
 app.include_router(employees.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
+app.include_router(billing.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")

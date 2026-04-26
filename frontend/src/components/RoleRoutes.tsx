@@ -64,6 +64,14 @@ export function RequireOwner({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+export function RequireOwnerOrAdmin({ children }: { children: ReactNode }) {
+  const r = decodeRoleFromToken(getStoredToken());
+  if (r !== "owner" && r !== "admin") {
+    return <AccessDenied message="Раздел доступен владельцу или администратору компании." />;
+  }
+  return <>{children}</>;
+}
+
 export function RequireSuperOwner({ children }: { children: ReactNode }) {
   if (decodeRoleFromToken(getStoredToken()) !== "super_owner") {
     return <AccessDenied message="Раздел «Компании» доступен только супер-владельцу платформы." />;

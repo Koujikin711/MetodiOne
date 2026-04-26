@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 
 import { apiDownloadBlob, apiFetch, setActiveCompanyId, setStoredToken } from "@/lib/api";
 import type {
+  PendingPaymentCompanyRead,
+  PlatformBillingSettingsRead,
   PlatformDashboardRead,
   SuperOwnerAuditRead,
   SuperOwnerCompanyRead,
@@ -43,6 +45,7 @@ export function CompaniesPage() {
   const [tariffUsersDraft, setTariffUsersDraft] = useState("");
   const [tariffIntsDraft, setTariffIntsDraft] = useState("");
   const [createTariffPlanId, setCreateTariffPlanId] = useState<number | "">("");
+  const [demoDaysDraft, setDemoDaysDraft] = useState("14");
 
   useEffect(() => {
     if (!tariffCompany) return;
@@ -74,6 +77,49 @@ export function CompaniesPage() {
     queryFn: () => apiFetch<TariffPlanRead[]>("/api/tariff-plans"),
   });
 
+  const platformBillingQuery = useQuery({
+    queryKey: ["billing", "platform-settings"],
+    queryFn: () => apiFetch<PlatformBillingSettingsRead>("/api/billing/platform-settings"),
+  });
+
+  useEffect(() => {
+    const d = platformBillingQuery.data?.demo_trial_days;
+    if (d != null) setDemoDaysDraft(String(d));
+  }, [platformBillingQuery.data?.demo_trial_days]);
+
+  const platformBillingMutation = useMutation({
+    mutationFn: (demo_trial_days: number) =>
+      apiFetch<PlatformBillingSettingsRead>("/api/billing/platform-settings", {
+        method: "PATCH",
+        body: JSON.stringify({ demo_trial_days }),
+      }),
+    onSuccess: () => {
+      void platformBillingQuery.refetch();
+      toast.success("Срок демо для новых заявок обновлён");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const pendingPaymentsQuery = useQuery({
+    queryKey: ["billing", "pending-payments"],
+    queryFn: () => apiFetch<PendingPaymentCompanyRead[]>("/api/billing/pending-payments"),
+  });
+
+  const confirmPaymentMutation = useMutation({
+    mutationFn: (companyId: number) =>
+      apiFetch<PendingPaymentCompanyRead>("/api/billing/confirm-payment", {
+        method: "POST",
+        body: JSON.stringify({ company_id: companyId }),
+      }),
+    onSuccess: () => {
+      void pendingPaymentsQuery.refetch();
+      void companiesQuery.refetch();
+      void qc.invalidateQueries({ queryKey: ["billing-status"] });
+      toast.success("Тариф включён, компания получила доступ");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const assignPlanMutation = useMutation({
     mutationFn: ({ companyId, planId }: { companyId: number; planId: number | null }) =>
       apiFetch<SuperOwnerCompanyRead>(`/api/companies/${companyId}/tariff-plan`, {
@@ -83,6 +129,8 @@ export function CompaniesPage() {
     onSuccess: () => {
       void companiesQuery.refetch();
       void qc.invalidateQueries({ queryKey: ["tariff-access"] });
+      void qc.invalidateQueries({ queryKey: ["billing-status"] });
+      void pendingPaymentsQuery.refetch();
       toast.success("Тариф компании обновлён");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -234,12 +282,97 @@ export function CompaniesPage() {
           onClick={() => {
             void auditQuery.refetch();
             void dashboardQuery.refetch();
+            void pendingPaymentsQuery.refetch();
+            void platformBillingQuery.refetch();
           }}
           className="rounded-xl border border-slate-600 bg-slate-900/50 px-4 py-2 text-sm text-slate-100 hover:bg-slate-800/70"
         >
           Обновить сводку и аудит
         </button>
       </div>
+
+      <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm">
+        <h2 className="text-lg font-semibold text-white">Демо и оплаты</h2>
+        <p className="mt-1 text-xs text-slate-400">
+          Длительность автодемо с лендинга для новых компаний. Заявки на тариф после демо — подтвердите оплату и
+          включите доступ.
+        </p>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="text-sm text-slate-300">
+            Дней демо (новые заявки с сайта)
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={demoDaysDraft}
+              onChange={(e) => setDemoDaysDraft(e.target.value)}
+              className="mt-1 w-32 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={platformBillingMutation.isPending}
+            onClick={() => {
+              const n = Number(demoDaysDraft);
+              if (!Number.isFinite(n) || n < 1 || n > 365) {
+                toast.error("Укажите число от 1 до 365");
+                return;
+              }
+              platformBillingMutation.mutate(n);
+            }}
+            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+          >
+            Сохранить срок демо
+          </button>
+        </div>
+        {pendingPaymentsQuery.isLoading && <p className="mt-3 text-sm text-slate-400">Загрузка заявок…</p>}
+        {pendingPaymentsQuery.isError && (
+          <p className="mt-3 text-sm text-red-300">{(pendingPaymentsQuery.error as Error).message}</p>
+        )}
+        {(pendingPaymentsQuery.data ?? []).length > 0 ? (
+          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-700/50">
+            <table className="w-full min-w-[520px] text-left text-xs text-slate-300">
+              <thead className="bg-slate-900/90 text-slate-400">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Компания</th>
+                  <th className="px-3 py-2 font-medium">Контакт</th>
+                  <th className="px-3 py-2 font-medium">Выбранный тариф</th>
+                  <th className="px-3 py-2 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {(pendingPaymentsQuery.data ?? []).map((row) => (
+                  <tr key={row.id} className="border-t border-slate-700/40">
+                    <td className="px-3 py-2 font-medium text-white">
+                      {row.name} <span className="text-slate-500">#{row.id}</span>
+                    </td>
+                    <td className="px-3 py-2">{row.contact_email ?? "—"}</td>
+                    <td className="px-3 py-2 text-violet-200">{row.pending_tariff_plan_name ?? "—"}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        disabled={confirmPaymentMutation.isPending}
+                        onClick={() => {
+                          if (window.confirm(`Подтвердить оплату и включить тариф для «${row.name}»?`)) {
+                            confirmPaymentMutation.mutate(row.id);
+                          }
+                        }}
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                      >
+                        Оплата получена — включить
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          !pendingPaymentsQuery.isLoading && (
+            <p className="mt-3 text-sm text-slate-500">Нет компаний в ожидании оплаты.</p>
+          )
+        )}
+      </section>
 
       <section className="rounded-2xl border border-slate-700/40 bg-slate-800/20 p-4">
         <h2 className="text-lg font-semibold text-white">Журнал действий super_owner</h2>
@@ -366,6 +499,13 @@ export function CompaniesPage() {
             </p>
             <p className="mt-2 text-xs text-violet-200/90">
               Тарифный план: {c.tariff_plan_name ?? "не назначен (все функции)"}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Биллинг: {c.billing_status ?? "active"}
+              {c.trial_ends_at ? ` · демо до ${new Date(c.trial_ends_at).toLocaleDateString()}` : ""}
+              {c.pending_tariff_plan_name
+                ? ` · ожидает тариф: ${c.pending_tariff_plan_name}`
+                : ""}
             </p>
             <label className="mt-2 block text-xs text-slate-400">
               Сменить тариф

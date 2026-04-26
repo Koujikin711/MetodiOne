@@ -21,6 +21,7 @@ class TariffPlanRead(BaseModel):
     max_active_users: int
     max_integrations: int
     enabled_features: list[str]
+    warehouse_enabled: bool
     is_active: bool
     sort_order: int
 
@@ -30,6 +31,7 @@ class TariffPlanCreate(BaseModel):
     max_active_users: int = Field(default=0, ge=0, le=50000)
     max_integrations: int = Field(default=0, ge=0, le=50000)
     enabled_features: list[str] = Field(default_factory=list)
+    warehouse_enabled: bool = True
     is_active: bool = True
     sort_order: int = Field(default=0, ge=0, le=9999)
 
@@ -39,6 +41,7 @@ class TariffPlanUpdate(BaseModel):
     max_active_users: int | None = Field(default=None, ge=0, le=50000)
     max_integrations: int | None = Field(default=None, ge=0, le=50000)
     enabled_features: list[str] | None = None
+    warehouse_enabled: bool | None = None
     is_active: bool | None = None
     sort_order: int | None = Field(default=None, ge=0, le=9999)
 
@@ -65,6 +68,7 @@ def _read(p: TariffPlan) -> TariffPlanRead:
         max_active_users=int(p.max_active_users),
         max_integrations=int(p.max_integrations),
         enabled_features=[str(x) for x in feats if str(x) in ALL_FEATURE_KEYS],
+        warehouse_enabled=bool(getattr(p, "warehouse_enabled", True)),
         is_active=bool(p.is_active),
         sort_order=int(p.sort_order),
     )
@@ -101,6 +105,7 @@ async def create_plan(
         max_active_users=int(body.max_active_users),
         max_integrations=int(body.max_integrations),
         enabled_features=_norm_features(list(body.enabled_features)),
+        warehouse_enabled=bool(body.warehouse_enabled),
         is_active=body.is_active,
         sort_order=int(body.sort_order),
     )
@@ -137,6 +142,8 @@ async def update_plan(
         p.is_active = bool(body.is_active)
     if "sort_order" in data and body.sort_order is not None:
         p.sort_order = int(body.sort_order)
+    if "warehouse_enabled" in data and body.warehouse_enabled is not None:
+        p.warehouse_enabled = bool(body.warehouse_enabled)
     await db.flush()
     await db.refresh(p)
     return _read(p)

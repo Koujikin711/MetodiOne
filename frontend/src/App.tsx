@@ -2,7 +2,14 @@ import { Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { HomeEntry, RequireFinance, RequireOwner, RequireNotManager, RequireSuperOwner } from "@/components/RoleRoutes";
+import {
+  HomeEntry,
+  RequireFinance,
+  RequireNotManager,
+  RequireOwner,
+  RequireOwnerOrAdmin,
+  RequireSuperOwner,
+} from "@/components/RoleRoutes";
 import { MainLayout } from "@/layouts/MainLayout";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { AttendanceTrackerPage } from "@/pages/AttendanceTrackerPage";
@@ -41,6 +48,14 @@ export default function App() {
             <Route path="/booking" element={<OnlineBookingPage />} />
             <Route path="/leads/:id" element={<LeadDetailPage />} />
             <Route path="/tasks" element={<TasksPage />} />
+            <Route
+              path="/billing"
+              element={
+                <RequireOwnerOrAdmin>
+                  <BillingPage />
+                </RequireOwnerOrAdmin>
+              }
+            />
             <Route
               path="/analytics"
               element={
