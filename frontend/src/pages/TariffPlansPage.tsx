@@ -1,9 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
-import type { FeatureCatalogItem, TariffPlanRead } from "@/lib/types";
+import type { FeatureCatalogItem, TariffPlanRead, TariffPricingTableRead } from "@/lib/types";
+
+const CURS = ["TJS", "USD", "RUB"] as const;
+const LIMIT_KINDS = [
+  { key: "user_slot", label: "Лимит: цена за 1 пользователя в месяц" },
+  { key: "integration_slot", label: "Лимит: цена за 1 интеграцию в месяц" },
+  { key: "warehouse_monthly", label: "Лимит: склад в финансах (фикс в месяц)" },
+] as const;
 
 export type TariffPlanSaveBody = {
   name: string;
@@ -13,6 +20,8 @@ export type TariffPlanSaveBody = {
   warehouse_enabled: boolean;
   is_active: boolean;
   sort_order: number;
+  billing_currency: string;
+  discount_percent: number;
 };
 
 function PlanEditorModal({
@@ -37,6 +46,8 @@ function PlanEditorModal({
   const [isActive, setIsActive] = useState(initial?.is_active !== false);
   const [warehouseEnabled, setWarehouseEnabled] = useState(initial?.warehouse_enabled !== false);
   const [feats, setFeats] = useState<Set<string>>(() => new Set(initial?.enabled_features ?? []));
+  const [billingCurrency, setBillingCurrency] = useState((initial?.billing_currency ?? "TJS").toUpperCase().slice(0, 3));
+  const [discountPct, setDiscountPct] = useState(String(initial?.discount_percent ?? 0));
 
   function toggleFeat(k: string) {
     setFeats((prev) => {
@@ -63,6 +74,15 @@ function PlanEditorModal({
       toast.error("Выберите хотя бы одну функцию");
       return;
     }
+    const dp = Number(discountPct);
+    if (!Number.isFinite(dp) || dp < 0 || dp > 100) {
+      toast.error("Скидка: число от 0 до 100");
+      return;
+    }
+    if (feats.has("horeca") && !feats.has("finance")) {
+      toast.error("HoReCa требует включённую функцию «Финансы»");
+      return;
+    }
     onSave({
       name: name.trim(),
       max_active_users: nu,
@@ -71,6 +91,8 @@ function PlanEditorModal({
       warehouse_enabled: warehouseEnabled,
       is_active: isActive,
       sort_order: Number.isFinite(so) ? so : 0,
+      billing_currency: billingCurrency.trim().toUpperCase().slice(0, 3) || "TJS",
+      discount_percent: dp,
     });
   }
 
@@ -135,6 +157,34 @@ function PlanEditorModal({
             <input type="checkbox" checked={warehouseEnabled} onChange={(e) => setWarehouseEnabled(e.target.checked)} />
             Склад в финансах (остатки, приход/расход)
           </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm text-slate-300">
+              Валюта счёта пакета
+              <select
+                value={billingCurrency}
+                onChange={(e) => setBillingCurrency(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+              >
+                {CURS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm text-slate-300">
+              Скидка к сумме функций+лимитов, %
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={discountPct}
+                onChange={(e) => setDiscountPct(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+              />
+            </label>
+          </div>
         </div>
         <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">Функции в тарифе</p>
         <ul className="mt-2 max-h-52 space-y-1 overflow-y-auto rounded-xl border border-slate-700/60 p-2">
@@ -256,7 +306,8 @@ export function TariffPlansPage() {
                   Сотрудники до {p.max_active_users === 0 ? "∞" : p.max_active_users} · интеграции до{" "}
                   {p.max_integrations === 0 ? "∞" : p.max_integrations} · порядок {p.sort_order}
                   {p.warehouse_enabled === false ? " · без склада" : " · склад"}
-                  {p.is_active ? "" : " · отключён"}
+                  {p.is_active ? "" : " · отключён"} · валюта {p.billing_currency ?? "TJS"}
+                  {p.discount_percent != null && p.discount_percent > 0 ? ` · скидка ${p.discount_percent}%` : ""}
                 </p>
                 <p className="mt-2 text-xs text-slate-300">
                   Функции:{" "}
@@ -326,11 +377,150 @@ export function TariffPlansPage() {
                 warehouse_enabled: body.warehouse_enabled,
                 is_active: body.is_active,
                 sort_order: body.sort_order,
+                billing_currency: body.billing_currency,
+                discount_percent: body.discount_percent,
               },
             })
           }
         />
       ) : null}
+
+      <PricingCatalogSection catalog={catalog} />
     </div>
+  );
+}
+
+function cellKey(featureKey: string, cur: string) {
+  return `${featureKey}|${cur}`;
+}
+
+function PricingCatalogSection({ catalog }: { catalog: FeatureCatalogItem[] }) {
+  const qc = useQueryClient();
+  const pricingQuery = useQuery({
+    queryKey: ["tariff-plans", "pricing-table"],
+    queryFn: () => apiFetch<TariffPricingTableRead>("/api/tariff-plans/pricing-table"),
+  });
+  const [cells, setCells] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const d = pricingQuery.data;
+    if (!d) return;
+    const next: Record<string, string> = {};
+    for (const r of d.feature_prices) {
+      next[cellKey(r.feature_key, r.currency)] = String(r.monthly_amount ?? 0);
+    }
+    for (const r of d.limit_prices) {
+      next[cellKey(r.limit_kind, r.currency)] = String(r.monthly_amount ?? 0);
+    }
+    setCells((prev) => (Object.keys(prev).length === 0 ? next : prev));
+  }, [pricingQuery.data]);
+
+  const saveMut = useMutation({
+    mutationFn: (body: TariffPricingTableRead) =>
+      apiFetch<TariffPricingTableRead>("/api/tariff-plans/pricing-table", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["tariff-plans", "pricing-table"] });
+      toast.success("Каталог цен сохранён");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function buildPayload(): TariffPricingTableRead {
+    const feature_prices: { feature_key: string; currency: string; monthly_amount: number }[] = [];
+    const limit_prices: { limit_kind: string; currency: string; monthly_amount: number }[] = [];
+    for (const c of catalog) {
+      for (const cur of CURS) {
+        const raw = cells[cellKey(c.key, cur)] ?? "0";
+        const n = Number(raw);
+        feature_prices.push({
+          feature_key: c.key,
+          currency: cur,
+          monthly_amount: Number.isFinite(n) && n >= 0 ? n : 0,
+        });
+      }
+    }
+    for (const lk of LIMIT_KINDS) {
+      for (const cur of CURS) {
+        const raw = cells[cellKey(lk.key, cur)] ?? "0";
+        const n = Number(raw);
+        limit_prices.push({
+          limit_kind: lk.key,
+          currency: cur,
+          monthly_amount: Number.isFinite(n) && n >= 0 ? n : 0,
+        });
+      }
+    }
+    return { feature_prices, limit_prices };
+  }
+
+  return (
+    <section className="rounded-2xl border border-slate-700/40 bg-slate-800/20 p-4">
+      <h2 className="text-lg font-semibold text-white">Каталог цен (конструктор)</h2>
+      <p className="mt-1 text-xs text-slate-400">
+        Цены функций и лимитов в месяц по валютам. Сумма тарифа = функции + лимиты (пользователи × ставка, интеграции ×
+        ставка, склад при включении) минус скидка на тарифе или на компании.
+      </p>
+      {pricingQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+      {pricingQuery.isError && <p className="mt-2 text-sm text-red-300">{(pricingQuery.error as Error).message}</p>}
+      {pricingQuery.data && catalog.length > 0 ? (
+        <>
+          <div className="mt-4 max-h-[50vh] overflow-auto rounded-xl border border-slate-700/50">
+            <table className="w-full min-w-[520px] text-left text-xs text-slate-300">
+              <thead className="sticky top-0 bg-slate-900/95 text-slate-400">
+                <tr>
+                  <th className="px-2 py-2">Позиция</th>
+                  {CURS.map((cur) => (
+                    <th key={cur} className="px-2 py-2">
+                      {cur}/мес
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {catalog.map((c) => (
+                  <tr key={c.key} className="border-t border-slate-700/40">
+                    <td className="px-2 py-1.5 text-slate-200">{c.label}</td>
+                    {CURS.map((cur) => (
+                      <td key={cur} className="px-2 py-1.5">
+                        <input
+                          value={cells[cellKey(c.key, cur)] ?? ""}
+                          onChange={(e) => setCells((prev) => ({ ...prev, [cellKey(c.key, cur)]: e.target.value }))}
+                          className="w-full rounded border border-slate-600 bg-slate-950/60 px-1 py-1 text-white"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {LIMIT_KINDS.map((lk) => (
+                  <tr key={lk.key} className="border-t border-slate-700/40">
+                    <td className="px-2 py-1.5 text-amber-100/90">{lk.label}</td>
+                    {CURS.map((cur) => (
+                      <td key={cur} className="px-2 py-1.5">
+                        <input
+                          value={cells[cellKey(lk.key, cur)] ?? ""}
+                          onChange={(e) => setCells((prev) => ({ ...prev, [cellKey(lk.key, cur)]: e.target.value }))}
+                          className="w-full rounded border border-slate-600 bg-slate-950/60 px-1 py-1 text-white"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button
+            type="button"
+            disabled={saveMut.isPending}
+            onClick={() => saveMut.mutate(buildPayload())}
+            className="mt-3 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+          >
+            {saveMut.isPending ? "Сохранение…" : "Сохранить каталог цен"}
+          </button>
+        </>
+      ) : null}
+    </section>
   );
 }

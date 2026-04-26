@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { apiFetch, getActiveCompanyId, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
-import type { BillingStatusRead } from "@/lib/types";
+import type { BillingCompositionLine, BillingStatusRead } from "@/lib/types";
 
 function trialDaysLeft(trialEndsAt: string | null): number | null {
   if (!trialEndsAt) return null;
@@ -16,6 +17,7 @@ function trialDaysLeft(trialEndsAt: string | null): number | null {
 
 export function BillingTariffPage() {
   const qc = useQueryClient();
+  const [showComposition, setShowComposition] = useState(false);
   const token = getStoredToken();
   const role = decodeRoleFromToken(token);
   const companyId = getActiveCompanyId();
@@ -57,7 +59,16 @@ export function BillingTariffPage() {
 
   const s = q.data;
   const daysLeft = trialDaysLeft(s.trial_ends_at);
-  const canPick = isOwner && (s.billing_status === "demo_expired" || s.billing_status === "payment_pending");
+  const canPick =
+    isOwner &&
+    (s.billing_status === "demo_expired" ||
+      s.billing_status === "payment_pending" ||
+      s.billing_status === "subscribed" ||
+      s.billing_status === "active");
+
+  const cur = s.billing_currency ?? "TJS";
+  const total = s.monthly_total;
+  const lines = (s.composition ?? []) as BillingCompositionLine[];
 
   return (
     <div className="relative mx-auto max-w-[720px] space-y-6 pb-10">
@@ -154,6 +165,47 @@ export function BillingTariffPage() {
             <p className="mt-3 text-sm text-amber-200/90">Нет активных тарифов на платформе. Обратитесь к поддержке.</p>
           ) : null}
         </section>
+      ) : null}
+
+      {showComposition && lines.length > 0 ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal
+          onClick={(e) => e.target === e.currentTarget && setShowComposition(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-600 bg-slate-900 p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-white">Состав подписки</h2>
+            <ul className="mt-3 space-y-2 text-sm text-slate-300">
+              {lines.map((ln, i) => (
+                <li key={i} className="flex justify-between gap-2 border-b border-slate-700/50 pb-2">
+                  <span>{ln.label}</span>
+                  <span className="shrink-0 font-mono text-slate-100">
+                    {ln.amount} {cur}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {s.monthly_subtotal != null ? (
+              <p className="mt-3 text-xs text-slate-500">
+                Промежуточно: {s.monthly_subtotal} {cur}
+                {s.monthly_discount_percent != null && Number(s.monthly_discount_percent) > 0
+                  ? ` · скидка ${s.monthly_discount_percent}% (−${s.monthly_discount_amount ?? "0"} ${cur})`
+                  : ""}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setShowComposition(false)}
+              className="mt-4 w-full rounded-xl border border-slate-600 py-2 text-sm text-slate-200 hover:bg-slate-800/60"
+            >
+              Закрыть
+            </button>
+          </div>
+        </div>
       ) : null}
     </div>
   );

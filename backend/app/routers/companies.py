@@ -3,6 +3,7 @@ import html
 import io
 import secrets
 import string
+from decimal import Decimal
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from urllib.parse import urlparse, urlunparse
@@ -41,6 +42,10 @@ class CompanyRead(BaseModel):
     trial_ends_at: datetime | None = None
     pending_tariff_plan_id: int | None = None
     pending_tariff_plan_name: str | None = None
+    billing_discount_percent: float | None = None
+    scheduled_tariff_plan_id: int | None = None
+    scheduled_tariff_plan_name: str | None = None
+    scheduled_tariff_effective_at: datetime | None = None
 
 
 class CompanyCreate(BaseModel):
@@ -49,6 +54,7 @@ class CompanyCreate(BaseModel):
     owner_full_name: str | None = Field(default=None, min_length=2, max_length=255)
     external_db_dsn: str | None = Field(default=None, max_length=2000)
     tariff_plan_id: int | None = None
+    billing_discount_percent: float | None = Field(default=None, ge=0.0, le=100.0)
 
 
 class UpdateCompanyStatusBody(BaseModel):
@@ -68,6 +74,16 @@ class CompanyTariffPatchBody(BaseModel):
 class CompanyTariffPlanPatchBody(BaseModel):
     """Назначить тарифный план компании или сбросить (`null`)."""
     tariff_plan_id: int | None = None
+
+
+class CompanyBillingDiscountPatchBody(BaseModel):
+    billing_discount_percent: float | None = Field(default=None, ge=0.0, le=100.0)
+
+
+class CompanyScheduledTariffPatchBody(BaseModel):
+    """Отложенная смена тарифа (например урезание — с указанной даты, обычно 1-е число месяца)."""
+    scheduled_tariff_plan_id: int | None = None
+    scheduled_tariff_effective_at: datetime | None = None
 
 
 class SuperOwnerAuditRead(BaseModel):
@@ -132,7 +148,10 @@ def _company_read_from_row(
     pipelines_count: int,
     tariff_plan_name: str | None = None,
     pending_tariff_plan_name: str | None = None,
+    scheduled_tariff_plan_name: str | None = None,
 ) -> CompanyRead:
+    bd = getattr(c, "billing_discount_percent", None)
+    bd_f = float(bd) if bd is not None else None
     return CompanyRead(
         id=c.id,
         name=c.name,
@@ -149,6 +168,10 @@ def _company_read_from_row(
         trial_ends_at=getattr(c, "trial_ends_at", None),
         pending_tariff_plan_id=getattr(c, "pending_tariff_plan_id", None),
         pending_tariff_plan_name=pending_tariff_plan_name,
+        billing_discount_percent=bd_f,
+        scheduled_tariff_plan_id=getattr(c, "scheduled_tariff_plan_id", None),
+        scheduled_tariff_plan_name=scheduled_tariff_plan_name,
+        scheduled_tariff_effective_at=getattr(c, "scheduled_tariff_effective_at", None),
     )
 
 
@@ -163,6 +186,13 @@ async def _pending_tariff_plan_label(db: AsyncSession, pending_id: int | None) -
     if pending_id is None:
         return None
     pln = await db.get(TariffPlan, pending_id)
+    return pln.name if pln else None
+
+
+async def _scheduled_tariff_plan_label(db: AsyncSession, scheduled_id: int | None) -> str | None:
+    if scheduled_id is None:
+        return None
+    pln = await db.get(TariffPlan, scheduled_id)
     return pln.name if pln else None
 
 
@@ -291,7 +321,7 @@ async def list_companies(
     rows = (await db.execute(select(Company).order_by(Company.id.asc()))).scalars().all()
     plan_ids = {c.tariff_plan_id for c in rows if c.tariff_plan_id} | {
         c.pending_tariff_plan_id for c in rows if getattr(c, "pending_tariff_plan_id", None)
-    }
+    } | {getattr(c, "scheduled_tariff_plan_id", None) for c in rows if getattr(c, "scheduled_tariff_plan_id", None)}
     plan_by_id: dict[int, str] = {}
     if plan_ids:
         pr = await db.execute(select(TariffPlan).where(TariffPlan.id.in_(plan_ids)))
@@ -304,6 +334,7 @@ async def list_companies(
         pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
         pn = plan_by_id.get(int(c.tariff_plan_id)) if c.tariff_plan_id else None
         ppend = plan_by_id.get(int(c.pending_tariff_plan_id)) if getattr(c, "pending_tariff_plan_id", None) else None
+        psch = plan_by_id.get(int(c.scheduled_tariff_plan_id)) if getattr(c, "scheduled_tariff_plan_id", None) else None
         out.append(
             _company_read_from_row(
                 c,
@@ -312,6 +343,7 @@ async def list_companies(
                 pipelines_count=pipelines_count,
                 tariff_plan_name=pn,
                 pending_tariff_plan_name=ppend,
+                scheduled_tariff_plan_name=psch,
             ),
         )
     return out
@@ -352,6 +384,8 @@ async def create_company(
                 detail="Тариф не найден или отключён",
             )
         c.tariff_plan_id = pl.id
+    if body.billing_discount_percent is not None:
+        c.billing_discount_percent = Decimal(str(body.billing_discount_percent))
     db.add(c)
     await db.flush()
     owner = User(
@@ -416,6 +450,7 @@ async def create_company(
     pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
     plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
     pend_name = await _pending_tariff_plan_label(db, getattr(c, "pending_tariff_plan_id", None))
+    sch_name = await _scheduled_tariff_plan_label(db, getattr(c, "scheduled_tariff_plan_id", None))
     return _company_read_from_row(
         c,
         users_count=users_count,
@@ -423,6 +458,7 @@ async def create_company(
         pipelines_count=pipelines_count,
         tariff_plan_name=plan_name,
         pending_tariff_plan_name=pend_name,
+        scheduled_tariff_plan_name=sch_name,
     )
 
 
@@ -441,6 +477,7 @@ async def current_company(
     pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
     plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
     pend_name = await _pending_tariff_plan_label(db, getattr(c, "pending_tariff_plan_id", None))
+    sch_name = await _scheduled_tariff_plan_label(db, getattr(c, "scheduled_tariff_plan_id", None))
     return _company_read_from_row(
         c,
         users_count=users_count,
@@ -448,6 +485,7 @@ async def current_company(
         pipelines_count=pipelines_count,
         tariff_plan_name=plan_name,
         pending_tariff_plan_name=pend_name,
+        scheduled_tariff_plan_name=sch_name,
     )
 
 
@@ -476,6 +514,7 @@ async def update_company_status(
     pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
     plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
     pend_name = await _pending_tariff_plan_label(db, getattr(c, "pending_tariff_plan_id", None))
+    sch_name = await _scheduled_tariff_plan_label(db, getattr(c, "scheduled_tariff_plan_id", None))
     return _company_read_from_row(
         c,
         users_count=users_count,
@@ -483,6 +522,7 @@ async def update_company_status(
         pipelines_count=pipelines_count,
         tariff_plan_name=plan_name,
         pending_tariff_plan_name=pend_name,
+        scheduled_tariff_plan_name=sch_name,
     )
 
 
@@ -518,6 +558,7 @@ async def patch_company_tariff(
     pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
     plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
     pend_name = await _pending_tariff_plan_label(db, getattr(c, "pending_tariff_plan_id", None))
+    sch_name = await _scheduled_tariff_plan_label(db, getattr(c, "scheduled_tariff_plan_id", None))
     return _company_read_from_row(
         c,
         users_count=users_count,
@@ -525,6 +566,7 @@ async def patch_company_tariff(
         pipelines_count=pipelines_count,
         tariff_plan_name=plan_name,
         pending_tariff_plan_name=pend_name,
+        scheduled_tariff_plan_name=sch_name,
     )
 
 
@@ -546,6 +588,8 @@ async def patch_company_tariff_plan(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Тариф не найден или отключён")
     c.tariff_plan_id = tid
     c.pending_tariff_plan_id = None
+    c.scheduled_tariff_plan_id = None
+    c.scheduled_tariff_effective_at = None
     if tid is not None:
         c.billing_status = "subscribed"
     else:
@@ -563,6 +607,7 @@ async def patch_company_tariff_plan(
     pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
     plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
     pend_name = await _pending_tariff_plan_label(db, getattr(c, "pending_tariff_plan_id", None))
+    sch_name = await _scheduled_tariff_plan_label(db, getattr(c, "scheduled_tariff_plan_id", None))
     return _company_read_from_row(
         c,
         users_count=users_count,
@@ -570,6 +615,94 @@ async def patch_company_tariff_plan(
         pipelines_count=pipelines_count,
         tariff_plan_name=plan_name,
         pending_tariff_plan_name=pend_name,
+        scheduled_tariff_plan_name=sch_name,
+    )
+
+
+@router.patch("/{company_id}/billing-discount", response_model=CompanyRead)
+async def patch_company_billing_discount(
+    company_id: int,
+    body: CompanyBillingDiscountPatchBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> CompanyRead:
+    _ensure_super_owner(current_user)
+    c = await db.get(Company, company_id)
+    if c is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Компания не найдена")
+    c.billing_discount_percent = None if body.billing_discount_percent is None else Decimal(str(body.billing_discount_percent))
+    await db.flush()
+    await record_super_owner_audit(
+        db,
+        actor_user_id=current_user.id,
+        action="company_billing_discount",
+        company_id=c.id,
+        detail={"billing_discount_percent": body.billing_discount_percent},
+    )
+    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id)) or 0)
+    leads_count = int(await db.scalar(select(func.count(Lead.id)).where(Lead.company_id == c.id)) or 0)
+    pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
+    plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
+    pend_name = await _pending_tariff_plan_label(db, getattr(c, "pending_tariff_plan_id", None))
+    sch_name = await _scheduled_tariff_plan_label(db, getattr(c, "scheduled_tariff_plan_id", None))
+    return _company_read_from_row(
+        c,
+        users_count=users_count,
+        leads_count=leads_count,
+        pipelines_count=pipelines_count,
+        tariff_plan_name=plan_name,
+        pending_tariff_plan_name=pend_name,
+        scheduled_tariff_plan_name=sch_name,
+    )
+
+
+@router.patch("/{company_id}/scheduled-tariff", response_model=CompanyRead)
+async def patch_company_scheduled_tariff(
+    company_id: int,
+    body: CompanyScheduledTariffPatchBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> CompanyRead:
+    _ensure_super_owner(current_user)
+    c = await db.get(Company, company_id)
+    if c is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Компания не найдена")
+    if body.scheduled_tariff_plan_id is not None:
+        pl = await db.get(TariffPlan, body.scheduled_tariff_plan_id)
+        if pl is None or not pl.is_active:
+            raise HTTPException(status_code=400, detail="Отложенный тариф не найден или отключён")
+        if body.scheduled_tariff_effective_at is None:
+            raise HTTPException(status_code=400, detail="Укажите дату/время вступления отложенного тарифа")
+        c.scheduled_tariff_plan_id = pl.id
+        c.scheduled_tariff_effective_at = body.scheduled_tariff_effective_at
+    else:
+        c.scheduled_tariff_plan_id = None
+        c.scheduled_tariff_effective_at = None
+    await db.flush()
+    await record_super_owner_audit(
+        db,
+        actor_user_id=current_user.id,
+        action="company_scheduled_tariff",
+        company_id=c.id,
+        detail={
+            "scheduled_tariff_plan_id": c.scheduled_tariff_plan_id,
+            "scheduled_tariff_effective_at": c.scheduled_tariff_effective_at.isoformat() if c.scheduled_tariff_effective_at else None,
+        },
+    )
+    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id)) or 0)
+    leads_count = int(await db.scalar(select(func.count(Lead.id)).where(Lead.company_id == c.id)) or 0)
+    pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
+    plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
+    pend_name = await _pending_tariff_plan_label(db, getattr(c, "pending_tariff_plan_id", None))
+    sch_name = await _scheduled_tariff_plan_label(db, getattr(c, "scheduled_tariff_plan_id", None))
+    return _company_read_from_row(
+        c,
+        users_count=users_count,
+        leads_count=leads_count,
+        pipelines_count=pipelines_count,
+        tariff_plan_name=plan_name,
+        pending_tariff_plan_name=pend_name,
+        scheduled_tariff_plan_name=sch_name,
     )
 
 
