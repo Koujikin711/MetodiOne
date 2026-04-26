@@ -916,7 +916,7 @@ export function OnlineBookingPage() {
                 type="text"
                 value={journalSearch}
                 onChange={(e) => setJournalSearch(e.target.value)}
-                placeholder="Напр. Ганчина или 992..."
+                placeholder="Напр. Иванов или 992..."
                 className="ml-2 w-72 rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-1.5 text-white placeholder:text-slate-500"
               />
             </label>

@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState, type ComponentType } from "reac
 import { toast } from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
-import { BarChart3, Calendar, CheckSquare, Funnel, MessageCircle, Target, Users, Wallet } from "@/components/icons";
+import { BarChart3, Calendar, CheckSquare, Funnel, MapPin, MessageCircle, Target, Users, Wallet } from "@/components/icons";
 
 const shots = [
   { src: "/landing/01-finance-charts.png", title: "Финансовые графики" },
@@ -14,6 +14,7 @@ const shots = [
   { src: "/landing/07-booking.png", title: "Онлайн-запись" },
   { src: "/landing/08-integrations.png", title: "Интеграции и каналы" },
   { src: "/landing/09-tasks.png", title: "Командные задачи" },
+  { src: "/landing/09-tasks.png", title: "Geo-трекер посещаемости" },
   { src: "/landing/10-analytics-detail.png", title: "Детальная аналитика" },
   { src: "/landing/11-analytics-funnel.png", title: "Аналитика по воронкам" },
   { src: "/landing/12-crm-settings.png", title: "Настройки воронки" },
@@ -74,6 +75,17 @@ const platformTabs = [
       "Google Sheets синхронизация лидов в CRM",
       "Gmail-подключение через app password и IMAP",
       "Панель интеграций с подсказками, секретами и проверкой настроек",
+    ],
+  },
+  {
+    id: "tracker",
+    title: "Geo-трекер",
+    lead: "Контроль выездов и присутствия команды на объектах и в офисе.",
+    bullets: [
+      "Учёт посещений по геозоне офиса и маршрутам выездов к клиентам",
+      "История фиксаций и прозрачность для руководителя и владельца",
+      "Снижение спорных ситуаций: факт присутствия привязан ко времени и месту",
+      "Работает вместе с задачами и CRM: видно, кто где и что делает",
     ],
   },
 ] as const;
@@ -195,6 +207,7 @@ const featureCatalogBadges: Array<{ label: string; Icon: ComponentType<{ classNa
   { label: "CRM и воронки", Icon: Funnel },
   { label: "Чаты", Icon: MessageCircle },
   { label: "Онлайн-запись", Icon: Calendar },
+  { label: "Geo-трекер", Icon: MapPin },
   { label: "Задачи", Icon: CheckSquare },
   { label: "KPI", Icon: Target },
   { label: "Финансы", Icon: Wallet },
@@ -691,12 +704,12 @@ export function LandingPage() {
       <section id="screens" className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
         <h2 className="mb-2 text-center text-3xl font-semibold sm:text-4xl">Интерфейс в работе</h2>
         <p className="mb-6 text-center text-sm text-slate-300">
-          Реальные экраны MetodiOne: CRM-доска, чат, KPI, финансы, задачи, онлайн-запись и интеграции.
+          Реальные экраны MetodiOne: CRM-доска, чат, KPI, финансы, задачи, geo-трекер, онлайн-запись и интеграции.
         </p>
         <div className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2">
-          {shots.map((item) => (
+          {shots.map((item, idx) => (
             <article
-              key={item.src}
+              key={`${item.src}-${item.title}-${idx}`}
               className="w-[88%] shrink-0 snap-start overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-lg shadow-black/20 sm:w-[70%] lg:w-[48%]"
             >
               <img src={item.src} alt={item.title} className="h-auto w-full object-cover" loading="lazy" />
