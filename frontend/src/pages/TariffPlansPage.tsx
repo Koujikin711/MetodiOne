@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
+import { TARIFF_FEATURE_CATALOG_FALLBACK } from "@/lib/tariffFeatureCatalogFallback";
 import type { FeatureCatalogItem, TariffPlanRead, TariffPricingTableRead } from "@/lib/types";
 
 const CURS = ["TJS", "USD", "RUB"] as const;
@@ -292,6 +293,12 @@ export function TariffPlansPage() {
 
       {plansQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
       {plansQuery.isError && <p className="text-sm text-red-300">{(plansQuery.error as Error).message}</p>}
+      {catalogQuery.isError ? (
+        <p className="text-xs text-amber-200/90">
+          Каталог функций с сервера недоступен — показан локальный список для редактирования тарифа. Проверьте сеть и
+          права super_owner.
+        </p>
+      ) : null}
 
       <div className="space-y-3">
         {(plansQuery.data ?? []).map((p) => (
@@ -345,7 +352,7 @@ export function TariffPlansPage() {
         ))}
       </div>
 
-      {modal === "create" && catalog.length > 0 ? (
+      {modal === "create" ? (
         <PlanEditorModal
           title="Новый тариф"
           initial={null}
@@ -356,7 +363,7 @@ export function TariffPlansPage() {
         />
       ) : null}
 
-      {modal === "edit" && editing && catalog.length > 0 ? (
+      {modal === "edit" && editing ? (
         <PlanEditorModal
           title={`Редактирование: ${editing.name}`}
           initial={editing}

@@ -219,9 +219,7 @@ export function MainLayout() {
         <aside className="print:hidden hidden h-screen min-h-0 w-[5.5rem] shrink-0 border-r border-slate-700/40 bg-slate-950/55 py-6 shadow-2xl backdrop-blur-xl sm:flex sm:flex-col">
           <div className="mr-2 shrink-0 flex flex-col items-center gap-1 px-1 sm:mb-6 sm:mr-0">
             <MetodiBrandMark className="h-10 w-10" />
-            <span className="hidden max-w-[4.5rem] text-center text-[9px] font-medium leading-tight text-slate-500 sm:block">
-              MetodiOne
-            </span>
+            <span className="sr-only">MetodiOne</span>
           </div>
           <nav className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1.5">
             {isSuperOwner ? (
@@ -238,26 +236,6 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Тарифы</span>
                 </NavLink>
-                {showKpi ? (
-                  <NavIf show={showNavForFeature("kpi")}>
-                    <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
-                      <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Target className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">KPI</span>
-                    </NavLink>
-                  </NavIf>
-                ) : null}
-                {showFinance ? (
-                  <NavIf show={showNavForFeature("finance")}>
-                    <NavLink to="/finance" className={navLinkClass} title="Финансы">
-                      <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Wallet className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Финансы</span>
-                    </NavLink>
-                  </NavIf>
-                ) : null}
               </>
             ) : isManagerNav ? (
               <>
@@ -391,10 +369,14 @@ export function MainLayout() {
               </>
             ) : (
               <>
-                <NavLink to="/app" end className={navLinkClass} title="MetodiOne">
-                  <MetodiBrandMark className="h-9 w-9" />
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">MetodiOne</span>
-                </NavLink>
+                <NavIf show={showNavForFeature("crm")}>
+                  <NavLink to="/app" end className={navLinkClass} title={navLex.navOwnerHomeTitle}>
+                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Funnel className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">{navLex.navOwnerHomeShort}</span>
+                  </NavLink>
+                </NavIf>
                 {showBillingNav ? (
                   <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
                     <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
@@ -531,26 +513,6 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Тарифы</span>
               </NavLink>
-              {showKpi ? (
-                <NavIf show={showNavForFeature("kpi")}>
-                  <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
-                    <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Target className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">KPI</span>
-                  </NavLink>
-                </NavIf>
-              ) : null}
-              {showFinance ? (
-                <NavIf show={showNavForFeature("finance")}>
-                  <NavLink to="/finance" className={navLinkClass} title="Финансы">
-                    <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Wallet className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Финансы</span>
-                  </NavLink>
-                </NavIf>
-              ) : null}
               <button
                 type="button"
                 onClick={logout}
@@ -717,10 +679,14 @@ export function MainLayout() {
             </>
           ) : (
             <>
-              <NavLink to="/app" end className={navLinkClass} title="MetodiOne">
-                <MetodiBrandMark className="h-8 w-8" />
-                <span className="text-[9px]">MetodiOne</span>
-              </NavLink>
+              <NavIf show={showNavForFeature("crm")}>
+                <NavLink to="/app" end className={navLinkClass} title={navLex.navOwnerHomeTitle}>
+                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Funnel className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">{navLex.navOwnerHomeShort}</span>
+                </NavLink>
+              </NavIf>
               {showBillingNav ? (
                 <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
                   <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">

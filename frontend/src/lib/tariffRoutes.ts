@@ -1,6 +1,7 @@
 /** Соответствие пути SPA ключу функции тарифа (как на бэкенде). */
 
 const ROUTE_FEATURE: [string, string][] = [
+  ["/app", "crm"],
   ["/finance", "finance"],
   ["/integrations", "integrations"],
   ["/employees", "employees"],

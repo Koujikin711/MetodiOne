@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
-import { OwnerTerminateEmployeesModal } from "@/components/OwnerTerminateEmployeesModal";
 import { apiFetch, getActiveCompanyId, getStoredToken } from "@/lib/api";
 import { decodeImpersonatorFromToken, decodeRoleFromToken } from "@/lib/auth";
 import { isOnboardingDone } from "@/lib/onboarding";
@@ -18,7 +17,6 @@ function trialDaysLeft(trialEndsAt: string | null): number | null {
 export function AppBanners() {
   const location = useLocation();
   const [demo, setDemo] = useState(false);
-  const [terminateOpen, setTerminateOpen] = useState(false);
   const token = getStoredToken();
   const role = decodeRoleFromToken(token);
   const companyId = getActiveCompanyId();
@@ -61,7 +59,6 @@ export function AppBanners() {
     !demo &&
     !showOnboardingBanner &&
     impersonatorId == null &&
-    !terminateOpen &&
     !showBillingUrgent
   ) {
     return null;
@@ -133,16 +130,8 @@ export function AppBanners() {
           >
             Открыть мастер
           </Link>
-          <button
-            type="button"
-            onClick={() => setTerminateOpen(true)}
-            className="rounded-lg border border-red-500/35 bg-red-950/40 px-3 py-1 font-medium text-red-100 hover:bg-red-950/55"
-          >
-            Уволить
-          </button>
         </div>
       ) : null}
-      <OwnerTerminateEmployeesModal open={terminateOpen} onClose={() => setTerminateOpen(false)} />
     </div>
   );
 }

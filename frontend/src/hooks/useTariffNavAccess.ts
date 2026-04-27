@@ -29,7 +29,8 @@ export function useTariffNavAccess() {
       if (role === "super_owner") return true;
       if (featureKey == null) return true;
       if (companyId == null) return true;
-      if (q.isLoading || !q.data) return true;
+      // Пока тариф не загружен — не показываем «лишние» разделы (раньше всё мелькало как доступное).
+      if (q.isLoading || !q.data) return false;
       return enabledSet.has(featureKey);
     },
     [role, companyId, q.isLoading, q.data, enabledSet],

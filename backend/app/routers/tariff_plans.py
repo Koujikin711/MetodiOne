@@ -90,8 +90,13 @@ class FeatureCatalogItem(BaseModel):
 
 
 def _ensure_super_owner(user: User) -> None:
-    if user.role != UserRole.super_owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только super_owner")
+    """Доступ к архитектору тарифов: super_owner или сессия «войти как владелец» (JWT с impersonated_by)."""
+    if user.role == UserRole.super_owner:
+        return
+    payload = getattr(user, "_jwt_payload", {}) or {}
+    if payload.get("impersonated_by") is not None:
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только super_owner")
 
 
 def _norm_features(raw: list[str]) -> list[str]:
