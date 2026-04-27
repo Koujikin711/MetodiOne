@@ -299,6 +299,39 @@ export interface TariffAccessRead {
   upgrade_hints: Record<string, string[]>;
 }
 
+export interface HorecaShiftOverview {
+  bookings_today: number;
+  revenue_today: string;
+  avg_check_today: string;
+  open_tasks: number;
+  low_stock_items: number;
+  cogs_7d: string;
+}
+
+export interface HorecaAbcItem {
+  item_name: string;
+  revenue: string;
+  share_pct: number;
+  abc_class: "A" | "B" | "C" | string;
+}
+
+export interface HorecaFoodCostItem {
+  product_id: number;
+  product_name: string;
+  quantity: string;
+  avg_unit_cost: string;
+  stock_value: string;
+  share_pct: number;
+  risk: "ok" | "low" | "out" | string;
+}
+
+export interface HorecaOverviewRead {
+  generated_at: string;
+  shift: HorecaShiftOverview;
+  abc_menu: HorecaAbcItem[];
+  food_cost_top: HorecaFoodCostItem[];
+}
+
 export interface LeadStatusPatchResponse extends Lead {
   automation_task_created: boolean;
 }

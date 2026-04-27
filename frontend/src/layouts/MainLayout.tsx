@@ -10,18 +10,21 @@ import {
   TrendingUp,
   UserRound,
   Users,
+  UtensilsCrossed,
   Wallet,
 } from "@/components/icons";
 import { AppBanners } from "@/components/AppBanners";
 import { TariffFeatureOutletGate } from "@/components/TariffFeatureOutletGate";
 import { GradientIconBox } from "@/components/GradientIconBox";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import toast from "react-hot-toast";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import metodiMarkUrl from "@/assets/metodione-mark.svg?url";
 import { apiFetch, getStoredToken, setStoredToken } from "@/lib/api";
 import { decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
+import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
+import { restaurantLexicon } from "@/lib/restaurantLexicon";
 import type { ChatThread, Task, TaskListResponse } from "@/lib/types";
 
 const navLinkBase =
@@ -34,6 +37,11 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
       ? "bg-white/[0.06] text-white shadow-[0_0_15px_rgba(168,85,247,0.4)] ring-1 ring-purple-500/30"
       : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200",
   ].join(" ");
+}
+
+function NavIf({ show, children }: { show: boolean; children: ReactNode }) {
+  if (!show) return null;
+  return <>{children}</>;
 }
 
 function MetodiBrandMark({ className = "h-10 w-10" }: { className?: string }) {
@@ -60,6 +68,8 @@ export function MainLayout() {
   const showIntegrationsHub = role === "owner";
   const showKpi = role === "owner" || role === "super_owner" || role === "manager" || role === "admin";
   const showBillingNav = role === "owner" || role === "admin";
+  const { showNavForFeature, restaurantMode } = useTariffNavAccess();
+  const navLex = restaurantLexicon(restaurantMode);
 
   function logout() {
     setStoredToken(null);
@@ -229,75 +239,103 @@ export function MainLayout() {
                   <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Тарифы</span>
                 </NavLink>
                 {showKpi ? (
-                  <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
-                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Target className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">KPI</span>
-                  </NavLink>
+                  <NavIf show={showNavForFeature("kpi")}>
+                    <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
+                      <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                        <Target className="h-[18px] w-[18px]" />
+                      </GradientIconBox>
+                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">KPI</span>
+                    </NavLink>
+                  </NavIf>
                 ) : null}
                 {showFinance ? (
-                  <NavLink to="/finance" className={navLinkClass} title="Финансы">
-                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Wallet className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Финансы</span>
-                  </NavLink>
+                  <NavIf show={showNavForFeature("finance")}>
+                    <NavLink to="/finance" className={navLinkClass} title="Финансы">
+                      <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                        <Wallet className="h-[18px] w-[18px]" />
+                      </GradientIconBox>
+                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Финансы</span>
+                    </NavLink>
+                  </NavIf>
                 ) : null}
               </>
             ) : isManagerNav ? (
               <>
-                <NavLink to="/chat" className={navLinkClass} title="Чат">
-                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <MessageCircle className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
-                </NavLink>
-                <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
-                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <Calendar className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Онлайн</span>
-                </NavLink>
-                <NavLink to="/crm" className={navLinkClass} title="Канбан">
-                  <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <Funnel className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Канбан</span>
-                </NavLink>
-                <NavLink to="/my-leads" className={navLinkClass} title="Мои лиды">
-                  <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <UserRound className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Мои лиды</span>
-                </NavLink>
-                <NavLink to="/tasks" className={navLinkClass} title="Задачи">
-                  <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <CheckSquare className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
-                </NavLink>
-                <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
-                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <Target className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Трекер</span>
-                </NavLink>
-                {showKpi ? (
-                  <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
+                <NavIf show={showNavForFeature("chat")}>
+                  <NavLink to="/chat" className={navLinkClass} title="Чат">
+                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <MessageCircle className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("booking")}>
+                  <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Calendar className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Онлайн</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("horeca")}>
+                  <NavLink to="/horeca" className={navLinkClass} title={navLex.navHorecaTitle}>
+                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <UtensilsCrossed className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">{navLex.navHoreca}</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("crm")}>
+                  <NavLink to="/crm" className={navLinkClass} title={navLex.navKanbanTitle}>
                     <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Funnel className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">{navLex.navKanban}</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("crm")}>
+                  <NavLink to="/my-leads" className={navLinkClass} title={navLex.navGuestsTitle}>
+                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <UserRound className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">{navLex.navGuests}</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("tasks")}>
+                  <NavLink to="/tasks" className={navLinkClass} title="Задачи">
+                    <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <CheckSquare className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("attendance")}>
+                  <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
                       <Target className="h-[18px] w-[18px]" />
                     </GradientIconBox>
-                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">KPI</span>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Трекер</span>
                   </NavLink>
+                </NavIf>
+                {showKpi ? (
+                  <NavIf show={showNavForFeature("kpi")}>
+                    <NavLink to="/kpi" className={navLinkClass} title={navLex.navKpiTitle}>
+                      <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                        <Target className="h-[18px] w-[18px]" />
+                      </GradientIconBox>
+                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">{navLex.navKpi}</span>
+                    </NavLink>
+                  </NavIf>
                 ) : null}
                 {role === "admin" ? (
-                  <NavLink to="/finance" className={navLinkClass} title="Финансы">
-                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Wallet className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Финансы</span>
-                  </NavLink>
+                  <NavIf show={showNavForFeature("finance")}>
+                    <NavLink to="/finance" className={navLinkClass} title={navLex.navFinanceTitle}>
+                      <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                        <Wallet className="h-[18px] w-[18px]" />
+                      </GradientIconBox>
+                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">{navLex.navFinance}</span>
+                    </NavLink>
+                  </NavIf>
                 ) : null}
                 {role === "admin" ? (
                   <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
@@ -310,36 +348,46 @@ export function MainLayout() {
               </>
             ) : isExpert ? (
               <>
-                <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
-                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <Calendar className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Онлайн</span>
-                </NavLink>
-                <NavLink to="/reports" className={navLinkClass} title="Отчёты">
-                  <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <BarChart3 className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Отчёты</span>
-                </NavLink>
-                <NavLink to="/chat" className={navLinkClass} title="Чат">
-                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <MessageCircle className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
-                </NavLink>
-                <NavLink to="/tasks" className={navLinkClass} title="Задачи">
-                  <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <CheckSquare className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
-                </NavLink>
-                <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
-                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <Target className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Трекер</span>
-                </NavLink>
+                <NavIf show={showNavForFeature("booking")}>
+                  <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Calendar className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Онлайн</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("reports")}>
+                  <NavLink to="/reports" className={navLinkClass} title="Отчёты">
+                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <BarChart3 className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Отчёты</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("chat")}>
+                  <NavLink to="/chat" className={navLinkClass} title="Чат">
+                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <MessageCircle className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("tasks")}>
+                  <NavLink to="/tasks" className={navLinkClass} title="Задачи">
+                    <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <CheckSquare className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("attendance")}>
+                  <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Target className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Трекер</span>
+                  </NavLink>
+                </NavIf>
               </>
             ) : (
               <>
@@ -355,69 +403,97 @@ export function MainLayout() {
                     <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Тариф</span>
                   </NavLink>
                 ) : null}
-                <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
-                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <Calendar className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Онлайн</span>
-                </NavLink>
-                <NavLink to="/tasks" className={navLinkClass} title="Задачи">
-                  <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <CheckSquare className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
-                </NavLink>
-                <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
-                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <Target className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Трекер</span>
-                </NavLink>
-                <NavLink to="/analytics" className={navLinkClass} title="Аналитика">
-                  <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <BarChart3 className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Аналит.</span>
-                </NavLink>
-                {showKpi ? (
-                  <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
-                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                <NavIf show={showNavForFeature("horeca")}>
+                  <NavLink to="/horeca" className={navLinkClass} title={navLex.navHorecaTitle}>
+                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <UtensilsCrossed className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">{navLex.navHoreca}</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("booking")}>
+                  <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Calendar className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Онлайн</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("tasks")}>
+                  <NavLink to="/tasks" className={navLinkClass} title="Задачи">
+                    <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <CheckSquare className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Задачи</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("attendance")}>
+                  <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
                       <Target className="h-[18px] w-[18px]" />
                     </GradientIconBox>
-                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">KPI</span>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Трекер</span>
                   </NavLink>
-                ) : null}
-                <NavLink to="/finance" className={navLinkClass} title="Финансы">
-                  <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <Wallet className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Финансы</span>
-                </NavLink>
-                <NavLink to="/employees" className={navLinkClass} title="Сотрудники">
-                  <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <Users className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Сотр.</span>
-                </NavLink>
-                <NavLink to="/chat" className={navLinkClass} title="Чат">
-                  <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <MessageCircle className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
-                </NavLink>
-                <NavLink to="/audit" className={navLinkClass} title="Аудит">
-                  <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <BarChart3 className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Аудит</span>
-                </NavLink>
-                {showIntegrationsHub ? (
-                  <NavLink to="/integrations" className={navLinkClass} title="Интеграции">
-                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Plug className="h-[18px] w-[18px]" />
+                </NavIf>
+                <NavIf show={showNavForFeature("analytics")}>
+                  <NavLink to="/analytics" className={navLinkClass} title={navLex.navAnalyticsTitle}>
+                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <BarChart3 className="h-[18px] w-[18px]" />
                     </GradientIconBox>
-                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Интегр.</span>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">{navLex.navAnalytics}</span>
                   </NavLink>
+                </NavIf>
+                {showKpi ? (
+                  <NavIf show={showNavForFeature("kpi")}>
+                    <NavLink to="/kpi" className={navLinkClass} title={navLex.navKpiTitle}>
+                      <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                        <Target className="h-[18px] w-[18px]" />
+                      </GradientIconBox>
+                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">{navLex.navKpi}</span>
+                    </NavLink>
+                  </NavIf>
+                ) : null}
+                <NavIf show={showNavForFeature("finance")}>
+                  <NavLink to="/finance" className={navLinkClass} title={navLex.navFinanceTitle}>
+                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Wallet className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">{navLex.navFinance}</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("employees")}>
+                  <NavLink to="/employees" className={navLinkClass} title="Сотрудники">
+                    <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Users className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Сотр.</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("chat")}>
+                  <NavLink to="/chat" className={navLinkClass} title="Чат">
+                    <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <MessageCircle className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Чат</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("audit")}>
+                  <NavLink to="/audit" className={navLinkClass} title="Аудит">
+                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <BarChart3 className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Аудит</span>
+                  </NavLink>
+                </NavIf>
+                {showIntegrationsHub ? (
+                  <NavIf show={showNavForFeature("integrations")}>
+                    <NavLink to="/integrations" className={navLinkClass} title="Интеграции">
+                      <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                        <Plug className="h-[18px] w-[18px]" />
+                      </GradientIconBox>
+                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Интегр.</span>
+                    </NavLink>
+                  </NavIf>
                 ) : null}
               </>
             )}
@@ -456,20 +532,24 @@ export function MainLayout() {
                 <span className="text-[9px]">Тарифы</span>
               </NavLink>
               {showKpi ? (
-                <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Target className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">KPI</span>
-                </NavLink>
+                <NavIf show={showNavForFeature("kpi")}>
+                  <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
+                    <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <Target className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">KPI</span>
+                  </NavLink>
+                </NavIf>
               ) : null}
               {showFinance ? (
-                <NavLink to="/finance" className={navLinkClass} title="Финансы">
-                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Wallet className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Финансы</span>
-                </NavLink>
+                <NavIf show={showNavForFeature("finance")}>
+                  <NavLink to="/finance" className={navLinkClass} title="Финансы">
+                    <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <Wallet className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">Финансы</span>
+                  </NavLink>
+                </NavIf>
               ) : null}
               <button
                 type="button"
@@ -485,51 +565,81 @@ export function MainLayout() {
             </>
           ) : isManagerNav ? (
             <>
-              <NavLink to="/crm" className={navLinkClass} title="Канбан">
-                <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <Funnel className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Канбан</span>
-              </NavLink>
-              <NavLink to="/my-leads" className={navLinkClass} title="Мои лиды">
-                <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <UserRound className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Лиды</span>
-              </NavLink>
-              <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
-                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <Calendar className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Онлайн</span>
-              </NavLink>
-              <NavLink to="/chat" className={navLinkClass} title="Чат">
-                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <MessageCircle className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Чат</span>
-              </NavLink>
-              <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
-                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <Target className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Трекер</span>
-              </NavLink>
-              {showKpi ? (
-                <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
+              <NavIf show={showNavForFeature("crm")}>
+                <NavLink to="/crm" className={navLinkClass} title={navLex.navKanbanTitle}>
                   <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Funnel className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">{navLex.navKanban}</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("crm")}>
+                <NavLink to="/my-leads" className={navLinkClass} title={navLex.navGuestsTitle}>
+                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <UserRound className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">{navLex.navGuestsShort}</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("horeca")}>
+                <NavLink to="/horeca" className={navLinkClass} title={navLex.navHorecaTitle}>
+                  <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <UtensilsCrossed className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">{navLex.navHoreca}</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("booking")}>
+                <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                  <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Calendar className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Онлайн</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("chat")}>
+                <NavLink to="/chat" className={navLinkClass} title="Чат">
+                  <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <MessageCircle className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Чат</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("tasks")}>
+                <NavLink to="/tasks" className={navLinkClass} title="Задачи">
+                  <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <CheckSquare className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Задачи</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("attendance")}>
+                <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                  <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Target className="h-4 w-4" />
                   </GradientIconBox>
-                  <span className="text-[9px]">KPI</span>
+                  <span className="text-[9px]">Трекер</span>
                 </NavLink>
+              </NavIf>
+              {showKpi ? (
+                <NavIf show={showNavForFeature("kpi")}>
+                  <NavLink to="/kpi" className={navLinkClass} title={navLex.navKpiTitle}>
+                    <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <Target className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">{navLex.navKpi}</span>
+                  </NavLink>
+                </NavIf>
               ) : null}
               {role === "admin" ? (
-                <NavLink to="/finance" className={navLinkClass} title="Финансы">
-                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Wallet className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Финансы</span>
-                </NavLink>
+                <NavIf show={showNavForFeature("finance")}>
+                  <NavLink to="/finance" className={navLinkClass} title={navLex.navFinanceTitle}>
+                    <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <Wallet className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">{navLex.navFinance}</span>
+                  </NavLink>
+                </NavIf>
               ) : null}
               {role === "admin" ? (
                 <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
@@ -553,36 +663,46 @@ export function MainLayout() {
             </>
           ) : isExpert ? (
             <>
-              <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
-                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <Calendar className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Онлайн</span>
-              </NavLink>
-              <NavLink to="/reports" className={navLinkClass} title="Отчёты">
-                <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <BarChart3 className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Отчёты</span>
-              </NavLink>
-              <NavLink to="/chat" className={navLinkClass} title="Чат">
-                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <MessageCircle className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Чат</span>
-              </NavLink>
-              <NavLink to="/tasks" className={navLinkClass} title="Задачи">
-                <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <CheckSquare className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Задачи</span>
-              </NavLink>
-              <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
-                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <Target className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Трекер</span>
-              </NavLink>
+              <NavIf show={showNavForFeature("booking")}>
+                <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                  <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Calendar className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Онлайн</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("reports")}>
+                <NavLink to="/reports" className={navLinkClass} title="Отчёты">
+                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <BarChart3 className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Отчёты</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("chat")}>
+                <NavLink to="/chat" className={navLinkClass} title="Чат">
+                  <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <MessageCircle className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Чат</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("tasks")}>
+                <NavLink to="/tasks" className={navLinkClass} title="Задачи">
+                  <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <CheckSquare className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Задачи</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("attendance")}>
+                <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                  <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Target className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Трекер</span>
+                </NavLink>
+              </NavIf>
               <button
                 type="button"
                 onClick={logout}
@@ -609,38 +729,56 @@ export function MainLayout() {
                   <span className="text-[9px]">Тариф</span>
                 </NavLink>
               ) : null}
-              <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
-                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <Calendar className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Онлайн</span>
-              </NavLink>
+              <NavIf show={showNavForFeature("horeca")}>
+                <NavLink to="/horeca" className={navLinkClass} title={navLex.navHorecaTitle}>
+                  <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <UtensilsCrossed className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">{navLex.navHoreca}</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("booking")}>
+                <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                  <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Calendar className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Онлайн</span>
+                </NavLink>
+              </NavIf>
               {showKpi ? (
-                <NavLink to="/kpi" className={navLinkClass} title="KPI продаж">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                <NavIf show={showNavForFeature("kpi")}>
+                  <NavLink to="/kpi" className={navLinkClass} title={navLex.navKpiTitle}>
+                    <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <Target className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">{navLex.navKpi}</span>
+                  </NavLink>
+                </NavIf>
+              ) : null}
+              <NavIf show={showNavForFeature("finance")}>
+                <NavLink to="/finance" className={navLinkClass} title={navLex.navFinanceTitle}>
+                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Wallet className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">{navLex.navFinance}</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("chat")}>
+                <NavLink to="/chat" className={navLinkClass} title="Чат">
+                  <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <MessageCircle className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Чат</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("attendance")}>
+                <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                  <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Target className="h-4 w-4" />
                   </GradientIconBox>
-                  <span className="text-[9px]">KPI</span>
+                  <span className="text-[9px]">Трекер</span>
                 </NavLink>
-              ) : null}
-              <NavLink to="/finance" className={navLinkClass} title="Финансы">
-                <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <Wallet className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Финансы</span>
-              </NavLink>
-              <NavLink to="/chat" className={navLinkClass} title="Чат">
-                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <MessageCircle className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Чат</span>
-              </NavLink>
-              <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
-                <GradientIconBox variant="teal" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <Target className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Трекер</span>
-              </NavLink>
+              </NavIf>
               <button
                 type="button"
                 onClick={logout}

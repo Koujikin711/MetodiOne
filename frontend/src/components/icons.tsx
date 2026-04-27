@@ -216,3 +216,15 @@ export function Plug(props: IconProps) {
     </svg>
   );
 }
+
+/** HoReCa / ресторан */
+export function UtensilsCrossed(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8" />
+      <path d="M15 15 3 3" />
+      <path d="m9 9-6 6 2 2 2-2 2 2 4-4-2-2 2-2Z" />
+      <path d="m22 22-5-5" />
+    </svg>
+  );
+}

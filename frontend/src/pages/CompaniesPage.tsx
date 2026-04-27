@@ -48,6 +48,9 @@ export function CompaniesPage() {
   const [createBillingDiscount, setCreateBillingDiscount] = useState("");
   const [billingDiscountDraft, setBillingDiscountDraft] = useState("");
   const [demoDaysDraft, setDemoDaysDraft] = useState("14");
+  const [scheduleCompany, setScheduleCompany] = useState<SuperOwnerCompanyRead | null>(null);
+  const [schedulePlanDraft, setSchedulePlanDraft] = useState<number | "">("");
+  const [scheduleAtDraft, setScheduleAtDraft] = useState("");
 
   useEffect(() => {
     if (!tariffCompany) return;
@@ -61,6 +64,20 @@ export function CompaniesPage() {
       tariffCompany.billing_discount_percent == null ? "" : String(tariffCompany.billing_discount_percent),
     );
   }, [tariffCompany]);
+
+  function isoToDatetimeLocal(iso: string | null | undefined): string {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  useEffect(() => {
+    if (!scheduleCompany) return;
+    setSchedulePlanDraft(scheduleCompany.scheduled_tariff_plan_id ?? "");
+    setScheduleAtDraft(isoToDatetimeLocal(scheduleCompany.scheduled_tariff_effective_at));
+  }, [scheduleCompany]);
 
   const dashboardQuery = useQuery({
     queryKey: ["companies", "dashboard"],
@@ -240,6 +257,29 @@ export function CompaniesPage() {
       void auditQuery.refetch();
       setTariffCompany(null);
       toast.success("Лимиты тарифа обновлены");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const scheduledTariffMutation = useMutation({
+    mutationFn: ({
+      companyId,
+      body,
+    }: {
+      companyId: number;
+      body: { scheduled_tariff_plan_id: number | null; scheduled_tariff_effective_at: string | null };
+    }) =>
+      apiFetch<SuperOwnerCompanyRead>(`/api/companies/${companyId}/scheduled-tariff`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      void companiesQuery.refetch();
+      void auditQuery.refetch();
+      void qc.invalidateQueries({ queryKey: ["tariff-access"] });
+      void qc.invalidateQueries({ queryKey: ["billing-status"] });
+      setScheduleCompany(null);
+      toast.success("Отложенная смена тарифа сохранена");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -599,6 +639,14 @@ export function CompaniesPage() {
               </button>
               <button
                 type="button"
+                onClick={() => setScheduleCompany(c)}
+                disabled={scheduledTariffMutation.isPending}
+                className="rounded-xl border border-amber-700/40 bg-amber-950/25 px-3 py-1.5 text-sm text-amber-100 hover:bg-amber-950/45 disabled:opacity-40"
+              >
+                Отложенный тариф
+              </button>
+              <button
+                type="button"
                 onClick={() => statusMutation.mutate({ companyId: c.id, isActive: !c.is_active })}
                 disabled={statusMutation.isPending}
                 className="rounded-xl border border-slate-600 bg-slate-900/40 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-800/60 disabled:opacity-40"
@@ -713,6 +761,96 @@ export function CompaniesPage() {
                 className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
               >
                 Сохранить скидку
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {scheduleCompany ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal
+          aria-labelledby="schedule-tariff-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-slate-600 bg-slate-900 p-6 shadow-2xl">
+            <h2 id="schedule-tariff-title" className="text-lg font-semibold text-white">
+              Отложенная смена тарифа: {scheduleCompany.name}
+            </h2>
+            <p className="mt-1 text-xs text-slate-400">
+              Текущий план остаётся до указанного времени, затем подставится выбранный тариф (например с 1-го числа).
+            </p>
+            <div className="mt-4 space-y-3">
+              <label className="block text-sm text-slate-300">
+                Новый тариф
+                <select
+                  value={schedulePlanDraft === "" ? "" : String(schedulePlanDraft)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSchedulePlanDraft(v === "" ? "" : Number(v));
+                  }}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+                >
+                  <option value="">— сбросить отложенную смену —</option>
+                  {(plansQuery.data ?? [])
+                    .filter((p) => p.is_active)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className="block text-sm text-slate-300">
+                Дата и время вступления (локальное)
+                <input
+                  type="datetime-local"
+                  value={scheduleAtDraft}
+                  onChange={(e) => setScheduleAtDraft(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+                />
+              </label>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setScheduleCompany(null)}
+                className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800/60"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                disabled={scheduledTariffMutation.isPending}
+                onClick={() => {
+                  if (schedulePlanDraft === "") {
+                    scheduledTariffMutation.mutate({
+                      companyId: scheduleCompany.id,
+                      body: { scheduled_tariff_plan_id: null, scheduled_tariff_effective_at: null },
+                    });
+                    return;
+                  }
+                  if (!scheduleAtDraft.trim()) {
+                    toast.error("Укажите дату и время вступления отложенного тарифа");
+                    return;
+                  }
+                  const at = new Date(scheduleAtDraft);
+                  if (Number.isNaN(at.getTime())) {
+                    toast.error("Некорректная дата");
+                    return;
+                  }
+                  scheduledTariffMutation.mutate({
+                    companyId: scheduleCompany.id,
+                    body: {
+                      scheduled_tariff_plan_id: Number(schedulePlanDraft),
+                      scheduled_tariff_effective_at: at.toISOString(),
+                    },
+                  });
+                }}
+                className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500 disabled:opacity-50"
+              >
+                Сохранить
               </button>
             </div>
           </div>

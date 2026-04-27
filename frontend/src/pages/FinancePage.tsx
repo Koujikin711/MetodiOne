@@ -7,6 +7,8 @@ import { PeriodDelta, PlanFactBar } from "@/components/finance/FinanceReportsCha
 import { FinanceReportsChartsLazy } from "@/components/finance/FinanceReportsChartsLazy";
 import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl } from "@/lib/api";
 import { decodeCompanyIdFromToken, decodeRoleFromToken } from "@/lib/auth";
+import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
+import { restaurantLexicon } from "@/lib/restaurantLexicon";
 import { previousPeriodRange } from "@/lib/financePeriod";
 import { printFinanceZone } from "@/lib/printFinance";
 import type {
@@ -121,6 +123,8 @@ export function FinancePage() {
   const role = decodeRoleFromToken(token);
   const superNeedsCompany = role === "super_owner" && decodeCompanyIdFromToken(token) == null;
   const readOnlyFinance = role === "finance_analyst";
+  const { restaurantMode } = useTariffNavAccess();
+  const financeLex = restaurantLexicon(restaurantMode);
 
   function assertFinanceCanEdit() {
     if (readOnlyFinance) {
@@ -836,11 +840,8 @@ export function FinancePage() {
     <div className="relative mx-auto max-w-5xl space-y-6 pb-12">
       <header className="flex flex-col gap-3 print:hidden sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-white">Финансы</h1>
-          <p className="text-sm text-slate-400">
-            Учётные политики, склад, журнал проводок и отложенная выручка. Доступ: владелец, админ, супер-владелец;
-            финансовый аналитик — просмотр и отчёты без изменений.
-          </p>
+          <h1 className="text-3xl font-semibold tracking-tight text-white">{financeLex.navFinanceTitle}</h1>
+          <p className="text-sm text-slate-400">{financeLex.financePageIntro}</p>
         </div>
         <div className="flex items-end gap-2">
           <label className="flex flex-col gap-1 text-xs text-slate-400">
@@ -864,6 +865,12 @@ export function FinancePage() {
           </button>
         </div>
       </header>
+      {financeLex.financeBannerTitle ? (
+        <div className="rounded-2xl border border-teal-500/35 bg-teal-950/25 px-4 py-3 print:hidden">
+          <p className="text-sm font-semibold text-teal-100">{financeLex.financeBannerTitle}</p>
+          <p className="mt-1 text-sm text-slate-300">{financeLex.financeBannerBody}</p>
+        </div>
+      ) : null}
       {displayCurrency !== "TJS" ? (
         <p className="text-xs text-slate-500">
           Курс для отображения: 1 TJS = {Number(fxRateQuery.data ?? 1).toFixed(4)} {displayCurrency}
