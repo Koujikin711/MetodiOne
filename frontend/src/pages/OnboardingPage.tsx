@@ -1,7 +1,5 @@
-import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { OwnerTerminateEmployeesModal } from "@/components/OwnerTerminateEmployeesModal";
 import { getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { setOnboardingDone } from "@/lib/onboarding";
@@ -15,7 +13,6 @@ const steps = [
 
 export function OnboardingPage() {
   const navigate = useNavigate();
-  const [terminateOpen, setTerminateOpen] = useState(false);
   const isOwner = decodeRoleFromToken(getStoredToken()) === "owner";
 
   function finish() {
@@ -36,15 +33,8 @@ export function OnboardingPage() {
       {isOwner ? (
         <div className="rounded-2xl border border-slate-600/50 bg-slate-800/35 px-4 py-3">
           <p className="text-sm text-slate-300">
-            Нужно сразу закрыть доступ сотрудникам? Выберите одного или нескольких — вход будет заблокирован.
+            Управление доступом сотрудников — в разделе «Сотрудники»: приглашения, роли и отключение учётных записей.
           </p>
-          <button
-            type="button"
-            onClick={() => setTerminateOpen(true)}
-            className="mt-3 rounded-xl border border-red-500/40 bg-red-950/35 px-4 py-2 text-sm font-medium text-red-100 hover:bg-red-950/50"
-          >
-            Уволить
-          </button>
         </div>
       ) : null}
 
@@ -84,8 +74,6 @@ export function OnboardingPage() {
           Назад
         </button>
       </div>
-
-      <OwnerTerminateEmployeesModal open={terminateOpen} onClose={() => setTerminateOpen(false)} />
     </div>
   );
 }

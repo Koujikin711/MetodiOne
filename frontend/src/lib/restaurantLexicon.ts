@@ -14,6 +14,9 @@ export type RestaurantLexicon = {
   financePageIntro: string;
   navKanban: string;
   navKanbanTitle: string;
+  /** Первый пункт меню владельца: ведёт на /app (экран CRM) */
+  navOwnerHomeShort: string;
+  navOwnerHomeTitle: string;
   navGuests: string;
   navGuestsTitle: string;
   /** Короткая подпись в нижней мобильной навигации */
@@ -62,6 +65,8 @@ export function restaurantLexicon(restaurantMode: boolean): RestaurantLexicon {
         "Учётные политики, склад, журнал проводок и отложенная выручка. Доступ: владелец, админ, супер-владелец; финансовый аналитик — просмотр и отчёты без изменений.",
       navKanban: "Канбан",
       navKanbanTitle: "Канбан",
+      navOwnerHomeShort: "CRM",
+      navOwnerHomeTitle: "CRM и канбан",
       navGuests: "Мои лиды",
       navGuestsTitle: "Мои лиды",
       navGuestsShort: "Лиды",
@@ -101,6 +106,8 @@ export function restaurantLexicon(restaurantMode: boolean): RestaurantLexicon {
       "Склад, проводки, отчёность и контроль маржи — как в сети: один экран для владельца и бухгалтерии. Финансовый аналитик по-прежнему только смотрит.",
     navKanban: "Зал",
     navKanbanTitle: "Зал и заказы (канбан)",
+    navOwnerHomeShort: "Зал / CRM",
+    navOwnerHomeTitle: "Зал, CRM и канбан",
     navGuests: "Гости",
     navGuestsTitle: "База гостей",
     navGuestsShort: "Гости",

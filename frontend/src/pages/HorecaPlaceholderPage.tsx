@@ -15,7 +15,8 @@ import {
   Wallet,
 } from "@/components/icons";
 import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getActiveCompanyId, getStoredToken } from "@/lib/api";
+import { decodeRoleFromToken } from "@/lib/auth";
 import { restaurantLexicon } from "@/lib/restaurantLexicon";
 import type { HorecaOverviewRead } from "@/lib/types";
 
@@ -106,9 +107,17 @@ export function HorecaPlaceholderPage() {
   const { showNavForFeature, restaurantMode } = useTariffNavAccess();
   const lex = restaurantLexicon(restaurantMode);
 
+  const token = getStoredToken();
+  const role = decodeRoleFromToken(token);
+  const activeCid = getActiveCompanyId();
+  const canLoadHorecaOverview =
+    Boolean(token) &&
+    (role !== "super_owner" || activeCid != null);
+
   const overviewQuery = useQuery({
-    queryKey: ["horeca-overview"],
+    queryKey: ["horeca-overview", activeCid, role],
     queryFn: () => apiFetch<HorecaOverviewRead>("/api/horeca/overview"),
+    enabled: canLoadHorecaOverview,
     staleTime: 30_000,
   });
 
@@ -223,10 +232,19 @@ export function HorecaPlaceholderPage() {
           </div>
           {overviewQuery.isFetching ? <span className="text-xs text-slate-500">обновление…</span> : null}
         </div>
+        {!canLoadHorecaOverview ? (
+          <p className="text-sm text-slate-400">
+            Блок «Смена сейчас» и ABC по данным компании недоступны без контекста компании. Супер-владелец: откройте{" "}
+            <Link to="/companies" className="text-teal-200 underline hover:text-white">
+              Компании
+            </Link>{" "}
+            и нажмите «Войти в компанию».
+          </p>
+        ) : null}
         {overviewQuery.isError ? (
           <p className="text-sm text-red-300">{(overviewQuery.error as Error).message}</p>
         ) : null}
-        {overviewQuery.isLoading ? <p className="text-sm text-slate-400">Загрузка KPI…</p> : null}
+        {canLoadHorecaOverview && overviewQuery.isLoading ? <p className="text-sm text-slate-400">Загрузка KPI…</p> : null}
         {ov ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 p-3">
