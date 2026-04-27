@@ -18,7 +18,7 @@ import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
 import { apiFetch, getActiveCompanyId, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { restaurantLexicon } from "@/lib/restaurantLexicon";
-import type { HorecaOverviewRead } from "@/lib/types";
+import type { HorecaFinanceSummaryRead, HorecaOverviewRead } from "@/lib/types";
 
 type HubCard = {
   feature: string | null;
@@ -120,6 +120,12 @@ export function HorecaPlaceholderPage() {
     enabled: canLoadHorecaOverview,
     staleTime: 30_000,
   });
+  const financeSummaryQuery = useQuery({
+    queryKey: ["horeca-finance-summary", activeCid, role],
+    queryFn: () => apiFetch<HorecaFinanceSummaryRead>("/api/horeca/finance/summary?days=30"),
+    enabled: canLoadHorecaOverview,
+    staleTime: 60_000,
+  });
 
   const cards: HubCard[] = [
     {
@@ -196,6 +202,7 @@ export function HorecaPlaceholderPage() {
   ];
 
   const ov = overviewQuery.data;
+  const fin = financeSummaryQuery.data;
 
   return (
     <div className="relative mx-auto max-w-5xl space-y-8 pb-12 pt-2">
@@ -372,6 +379,86 @@ export function HorecaPlaceholderPage() {
           ) : null}
         </section>
       </div>
+
+      <section className="space-y-3 rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Финансы HoReCa (30 дней)</h2>
+            <p className="text-xs text-slate-400">
+              Ресторанный финконтур: выручка, COGS, food cost и валовая маржа по позициям меню. COGS рассчитывается по
+              техкартам и средним складским ценам.
+            </p>
+          </div>
+          {financeSummaryQuery.isFetching ? <span className="text-xs text-slate-500">обновление…</span> : null}
+        </div>
+        {!canLoadHorecaOverview ? (
+          <p className="text-sm text-slate-400">Финансы HoReCa доступны в контексте выбранной компании.</p>
+        ) : null}
+        {financeSummaryQuery.isError ? (
+          <p className="text-sm text-red-300">{(financeSummaryQuery.error as Error).message}</p>
+        ) : null}
+        {canLoadHorecaOverview && financeSummaryQuery.isLoading ? (
+          <p className="text-sm text-slate-400">Загрузка ресторанных финансов…</p>
+        ) : null}
+        {fin ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Выручка</p>
+                <p className="mt-1 text-2xl font-semibold text-white">{formatMoney(fin.revenue)}</p>
+              </div>
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">COGS</p>
+                <p className="mt-1 text-2xl font-semibold text-white">{formatMoney(fin.cogs)}</p>
+              </div>
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Валовая маржа</p>
+                <p className="mt-1 text-2xl font-semibold text-white">{formatMoney(fin.gross_profit)}</p>
+                <p className="mt-1 text-xs text-slate-400">{fin.gross_margin_pct}%</p>
+              </div>
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Food cost</p>
+                <p className="mt-1 text-2xl font-semibold text-white">{fin.food_cost_pct}%</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Продаж: {fin.sales_count}, без техкарт: {fin.unmapped_sales_count}
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm text-slate-200">
+                <thead className="text-slate-400">
+                  <tr>
+                    <th className="py-2 pr-3">Позиция</th>
+                    <th className="py-2 pr-3">ABC</th>
+                    <th className="py-2 pr-3">Кол-во</th>
+                    <th className="py-2 pr-3">Выручка</th>
+                    <th className="py-2 pr-3">COGS</th>
+                    <th className="py-2 pr-3">Валовая прибыль</th>
+                    <th className="py-2 pr-3">Food cost %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fin.items.map((r) => (
+                    <tr key={r.menu_item_name} className="border-t border-slate-800">
+                      <td className="py-2 pr-3">
+                        {r.menu_item_name}
+                        {r.unmapped ? <span className="ml-2 text-xs text-amber-300">нет техкарты</span> : null}
+                      </td>
+                      <td className="py-2 pr-3">{r.abc_class}</td>
+                      <td className="py-2 pr-3">{r.qty}</td>
+                      <td className="py-2 pr-3">{formatMoney(r.revenue)}</td>
+                      <td className="py-2 pr-3">{formatMoney(r.cogs)}</td>
+                      <td className="py-2 pr-3">{formatMoney(r.gross_profit)}</td>
+                      <td className="py-2 pr-3">{r.food_cost_pct}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : null}
+      </section>
 
       <div>
         <h2 className="mb-3 text-lg font-semibold text-white">Модули</h2>
