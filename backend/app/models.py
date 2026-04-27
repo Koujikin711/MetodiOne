@@ -776,6 +776,32 @@ class FinanceProduct(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
 
 
+class HorecaMenuItem(Base):
+    """Блюдо/позиция меню HoReCa (продаётся в зале/доставке)."""
+
+    __tablename__ = "horeca_menu_items"
+    __table_args__ = (UniqueConstraint("company_id", "name", name="uq_horeca_menu_item_company_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    sale_price: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
+class HorecaTechCardLine(Base):
+    """Строка техкарты: ингредиент и расход на 1 порцию блюда."""
+
+    __tablename__ = "horeca_tech_card_lines"
+    __table_args__ = (UniqueConstraint("menu_item_id", "product_id", name="uq_horeca_tech_menu_product"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    menu_item_id: Mapped[int] = mapped_column(ForeignKey("horeca_menu_items.id", ondelete="CASCADE"), index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("finance_products.id", ondelete="CASCADE"), index=True)
+    qty_per_portion: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
+
+
 class FinanceStockBalance(Base):
     __tablename__ = "finance_stock_balances"
 

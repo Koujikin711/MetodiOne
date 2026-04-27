@@ -332,6 +332,56 @@ export interface HorecaOverviewRead {
   food_cost_top: HorecaFoodCostItem[];
 }
 
+export interface HorecaMenuItem {
+  id: number;
+  name: string;
+  sale_price: string;
+  is_active: boolean;
+}
+
+export interface HorecaTechCardLine {
+  product_id: number;
+  product_name: string;
+  qty_per_portion: string;
+  avg_unit_cost: string;
+  line_cost: string;
+}
+
+export interface HorecaTechCardRead {
+  menu_item_id: number;
+  menu_item_name: string;
+  sale_price: string;
+  recipe_cost: string;
+  gross_per_portion: string;
+  food_cost_pct: number;
+  lines: HorecaTechCardLine[];
+}
+
+export interface HorecaFinanceItem {
+  menu_item_name: string;
+  qty: number;
+  revenue: string;
+  cogs: string;
+  gross_profit: string;
+  food_cost_pct: number;
+  abc_class: string;
+  unmapped: boolean;
+}
+
+export interface HorecaFinanceSummaryRead {
+  date_from: string;
+  date_to: string;
+  revenue: string;
+  cogs: string;
+  gross_profit: string;
+  gross_margin_pct: number;
+  food_cost_pct: number;
+  sales_count: number;
+  mapped_sales_count: number;
+  unmapped_sales_count: number;
+  items: HorecaFinanceItem[];
+}
+
 export interface LeadStatusPatchResponse extends Lead {
   automation_task_created: boolean;
 }

@@ -20,6 +20,8 @@ from app.models import (
     FinanceStockBalance,
     FinanceStockMovement,
     FinanceWarehouse,
+    HorecaMenuItem,
+    HorecaTechCardLine,
     Task,
     TaskStatus,
     User,
@@ -122,6 +124,10 @@ async def _seed(session_maker: async_sessionmaker[AsyncSession]) -> int:
         p2 = FinanceProduct(company_id=c.id, name="Соус", sku="SAU", product_type="good", unit="l", is_active=True)
         session.add_all([p1, p2])
         await session.flush()
+        menu1 = HorecaMenuItem(company_id=c.id, name="Салат Цезарь", sale_price=Decimal("400"), is_active=True)
+        session.add(menu1)
+        await session.flush()
+        session.add(HorecaTechCardLine(menu_item_id=menu1.id, product_id=p1.id, qty_per_portion=Decimal("1.0")))
 
         session.add_all(
             [
@@ -192,6 +198,15 @@ def test_horeca_overview_contract(tmp_path: Path):
         risks = {x["product_name"]: x["risk"] for x in body["food_cost_top"]}
         assert risks.get("Помидоры") == "ok"
         assert risks.get("Соус") == "low"
+
+        rf = client.get("/api/horeca/finance/summary?days=30")
+        assert rf.status_code == 200, rf.text
+        fin = rf.json()
+        assert float(fin["revenue"]) == 500.0
+        assert float(fin["cogs"]) == 20.0
+        assert float(fin["gross_profit"]) == 480.0
+        assert fin["sales_count"] == 2
+        assert fin["unmapped_sales_count"] == 1
     finally:
         import asyncio
 
