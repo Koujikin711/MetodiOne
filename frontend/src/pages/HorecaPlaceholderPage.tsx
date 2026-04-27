@@ -17,7 +17,6 @@ import {
 import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
 import { apiFetch, getActiveCompanyId, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
-import { restaurantLexicon } from "@/lib/restaurantLexicon";
 import type { HorecaFinanceSummaryRead, HorecaOverviewRead } from "@/lib/types";
 
 type HubCard = {
@@ -104,8 +103,7 @@ function riskLabel(risk: string) {
 
 /** Центр HoReCa: смена, ABC меню, food-cost и быстрый доступ к модулям тарифа. */
 export function HorecaPlaceholderPage() {
-  const { showNavForFeature, restaurantMode } = useTariffNavAccess();
-  const lex = restaurantLexicon(restaurantMode);
+  const { showNavForFeature } = useTariffNavAccess();
 
   const token = getStoredToken();
   const role = decodeRoleFromToken(token);
@@ -129,64 +127,64 @@ export function HorecaPlaceholderPage() {
 
   const cards: HubCard[] = [
     {
-      feature: "crm",
-      to: "/crm",
-      title: lex.navKanbanTitle,
-      body: "Зал и очередь заказов: от брони до «счёт оплачен» — без потерянных столиков и хаоса на пике.",
+      feature: "horeca",
+      to: "/horeca",
+      title: "Зал и посадка",
+      body: "Столы, брони, статусы, скорость обслуживания и контроль загрузки зала в одном контуре.",
       icon: <Funnel className="h-5 w-5" />,
     },
     {
-      feature: "crm",
-      to: "/my-leads",
-      title: lex.navGuestsTitle,
-      body: "Постоянные гости, аллергии, предпочтения и история визитов — основа сервиса и повторных продаж.",
+      feature: "horeca",
+      to: "/horeca",
+      title: "База гостей",
+      body: "История визитов, предпочтения, аллергии, VIP-статусы и повторные продажи без CRM-шума.",
       icon: <UserRound className="h-5 w-5" />,
     },
     {
-      feature: "booking",
-      to: "/booking",
-      title: "Бронь и предзаказ",
-      body: "Снижайте no-show: напоминания, слоты, депозиты. Связка с залом и кухней — в одном контуре.",
+      feature: "horeca",
+      to: "/horeca",
+      title: "Кухня и техкарты",
+      body: "Техкарты, нормы закладки, себестоимость порции и контроль отклонений по ингредиентам.",
       icon: <Calendar className="h-5 w-5" />,
     },
     {
-      feature: "finance",
-      to: "/finance",
-      title: lex.navFinanceTitle,
-      body: "Склад, списания, food cost и касса по сменам. Маржа по точке продаж, а не абстрактные «лиды».",
+      feature: "horeca",
+      to: "/horeca",
+      title: "Склад и списания",
+      body: "Остатки, приход/расход, стоп-лист и списания, чтобы не было «закончились продукты на пике».",
       icon: <Wallet className="h-5 w-5" />,
     },
     {
-      feature: "kpi",
-      to: "/kpi",
-      title: lex.navKpiTitle,
-      body: "Выручка на смену, средний чек, скорость обслуживания — KPI, которые владелец реально смотрит каждый день.",
+      feature: "horeca",
+      to: "/horeca",
+      title: "Финансы HoReCa",
+      body: "Выручка, COGS, food cost, валовая прибыль и маржа в ресторанной логике, а не в CRM-метриках.",
       icon: <Target className="h-5 w-5" />,
     },
     {
-      feature: "analytics",
-      to: "/analytics",
-      title: lex.navAnalyticsTitle,
-      body: "Каналы привлечения гостей, загрузка зала и дебиторка по направлениям — те же отчёты, ресторанная подача.",
+      feature: "horeca",
+      to: "/horeca",
+      title: "Аналитика HoReCa",
+      body: "ABC-меню, средний чек, оборачиваемость столов, загрузка смен и эффективность команды.",
       icon: <BarChart3 className="h-5 w-5" />,
     },
     {
-      feature: "tasks",
-      to: "/tasks",
+      feature: "horeca",
+      to: "/horeca",
       title: "Задачи смены",
       body: "Открытие/закрытие, инвентаризация, чек-листы HACCP — чтобы ничего не уехало в чатах.",
       icon: <CheckSquare className="h-5 w-5" />,
     },
     {
-      feature: "chat",
-      to: "/chat",
+      feature: "horeca",
+      to: "/horeca",
       title: "Связь зал ↔ кухня",
       body: "Оперативные уточнения по блюдам и столам без «телефона трубку» на линии.",
       icon: <MessageCircle className="h-5 w-5" />,
     },
     {
-      feature: "integrations",
-      to: "/integrations",
+      feature: "horeca",
+      to: "/horeca",
       title: "Доставка и агрегаторы",
       body: "Подключение каналов (Яндекс, Wolt, собственная доставка) — единая картина заказов.",
       icon: <Plug className="h-5 w-5" />,
@@ -211,7 +209,11 @@ export function HorecaPlaceholderPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-white">Центр управления заведением</h1>
         <p className="max-w-3xl text-sm leading-relaxed text-slate-400">
           Мы закрываем типичные боли: просадка маржи из-за списаний, непрозрачный склад, разрозненные брони и доставка,
-          слабая дисциплина смены. Ниже — модули вашего тарифа; недоступные блоки можно добавить в{" "}
+          слабая дисциплина смены. Ниже — внутренняя структура отдельного HoReCa-модуля. Доступ управляется одной
+          тарифной функцией <code className="text-slate-300">horeca</code>.
+        </p>
+        <p className="max-w-3xl text-sm leading-relaxed text-slate-400">
+          Для коммерции и лимитов тарифов переходите в{" "}
           <Link to="/billing" className="text-teal-200 underline hover:text-white">
             оплате и тарифе
           </Link>
@@ -367,16 +369,9 @@ export function HorecaPlaceholderPage() {
               </table>
             </div>
           ) : null}
-          {showNavForFeature("finance") ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Link
-                to="/finance"
-                className="rounded-xl border border-teal-600/50 bg-teal-950/30 px-3 py-2 text-xs font-medium text-teal-50 hover:bg-teal-950/50"
-              >
-                Открыть финансы и склад
-              </Link>
-            </div>
-          ) : null}
+          <div className="mt-3 rounded-xl border border-slate-700/40 bg-slate-900/30 px-3 py-2 text-xs text-slate-400">
+            Это данные отдельного HoReCa-контура. Общие CRM-разделы здесь не используются.
+          </div>
         </section>
       </div>
 
