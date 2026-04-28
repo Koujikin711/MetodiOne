@@ -8,6 +8,32 @@ import type { ChatMessage, ChatThread } from "@/lib/types";
 
 const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|bmp|svg|avif|heic|heif)(\?|#|$)/i;
 
+function formatChatTime(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(d);
+  } catch {
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+}
+
+type DeliveryTone = "neutral" | "good" | "seen" | "bad";
+
+function deliveryMeta(statusRaw: string | null | undefined): { label: string; tone: DeliveryTone } {
+  const s = (statusRaw || "").trim().toLowerCase();
+  if (!s) return { label: "", tone: "neutral" };
+  if (s === "read" || s === "seen" || s === "viewed") return { label: "Просмотрено", tone: "seen" };
+  if (s === "delivered") return { label: "Доставлено", tone: "good" };
+  if (s === "sent") return { label: "Отправлено", tone: "neutral" };
+  if (s === "sending") return { label: "Отправка…", tone: "neutral" };
+  if (s === "failed" || s === "error") return { label: "Не отправлено", tone: "bad" };
+  return { label: statusRaw || "", tone: "neutral" };
+}
+
 function looksLikeImageAttachment(m: ChatMessage): boolean {
   const mime = (m.media_mime || "").toLowerCase();
   if (mime.startsWith("image/")) return true;
@@ -219,6 +245,11 @@ export function ChatPage() {
   }, [threadId]);
 
   const selectedThread = useMemo(() => allThreads.find((t) => t.id === threadId) ?? null, [allThreads, threadId]);
+  const selectedManagerLabel = useMemo(() => {
+    const raw = (selectedThread?.manager_name || "").trim();
+    if (raw) return raw;
+    return "—";
+  }, [selectedThread?.manager_name]);
   const displayThreads = useMemo(() => {
     const list = [...allThreads];
     list.sort((a, b) => {
@@ -469,6 +500,7 @@ export function ChatPage() {
           >
             {displayThreads.map((t) => {
               const unread = t.unread_count ?? 0;
+              const manager = (t.manager_name || "").trim();
               return (
                 <button
                   key={t.id}
@@ -483,6 +515,9 @@ export function ChatPage() {
                     <div className="mt-1 truncate text-xs text-slate-400">
                       {t.provider} {t.external_chat_id ? `· ${t.external_chat_id}` : ""}
                     </div>
+                    {manager ? (
+                      <div className="mt-1 truncate text-[11px] text-slate-300/80">Ответственный: {manager}</div>
+                    ) : null}
                   </div>
                   {unread > 0 ? (
                     <span
@@ -513,28 +548,55 @@ export function ChatPage() {
                 <div className="text-sm font-semibold text-white">
                   {selectedThread.lead_name || selectedThread.title || `Диалог #${selectedThread.id}`}
                 </div>
-                <div className="text-xs text-slate-400">
-                  {selectedThread.provider}{" "}
-                  {selectedThread.external_chat_id ? `· ${selectedThread.external_chat_id}` : ""}
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+                  <span>
+                    {selectedThread.provider} {selectedThread.external_chat_id ? `· ${selectedThread.external_chat_id}` : ""}
+                  </span>
+                  <span className="opacity-60">·</span>
+                  <span>
+                    Ответственный: <span className="text-slate-200/90">{selectedManagerLabel}</span>
+                  </span>
                 </div>
               </div>
 
               <div className="max-h-[56vh] space-y-2 overflow-y-auto pr-1">
                 {messagesQuery.isLoading && <p className="text-sm text-slate-400">Загрузка сообщений…</p>}
-                {(messagesQuery.data ?? []).map((m) => (
-                  <div
-                    key={m.id}
-                    className={[
-                      "max-w-[85%] rounded-xl px-3 py-2 text-sm",
-                      m.direction === "out"
-                        ? "ml-auto bg-indigo-600/40 text-slate-100"
-                        : "bg-slate-900/50 text-slate-200",
-                    ].join(" ")}
-                  >
-                    <MessageBody m={m} />
-                    <div className="mt-1 text-[10px] text-slate-400">{m.delivery_status}</div>
-                  </div>
-                ))}
+                {(messagesQuery.data ?? []).map((m, idx, arr) => {
+                  const isOut = m.direction === "out";
+                  const time = formatChatTime(m.created_at);
+                  const meta = isOut ? deliveryMeta(m.delivery_status) : null;
+                  const isLastOut = isOut && arr.slice(idx + 1).every((x) => x.direction !== "out");
+
+                  const metaToneClass =
+                    meta?.tone === "seen"
+                      ? "text-sky-200/95"
+                      : meta?.tone === "good"
+                        ? "text-emerald-200/90"
+                        : meta?.tone === "bad"
+                          ? "text-rose-200/95"
+                          : "text-slate-400";
+
+                  return (
+                    <div
+                      key={m.id}
+                      className={[
+                        "max-w-[85%] rounded-xl px-3 py-2 text-sm",
+                        isOut ? "ml-auto bg-indigo-600/40 text-slate-100" : "bg-slate-900/50 text-slate-200",
+                      ].join(" ")}
+                    >
+                      <MessageBody m={m} />
+                      <div className="mt-1 flex items-center justify-end gap-2 text-[10px] tabular-nums text-slate-400">
+                        {time ? <span>{time}</span> : null}
+                        {isOut && meta?.label ? <span className={metaToneClass}>{meta.label}</span> : null}
+                      </div>
+                      {isLastOut && isOut && meta?.label === "Просмотрено" && time ? (
+                        <div className="mt-0.5 text-right text-[10px] tabular-nums text-sky-200/95">
+                          {meta.label} · {time}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
                 {!messagesQuery.isLoading && (messagesQuery.data ?? []).length === 0 && (
                   <p className="text-sm text-slate-500">Нет сообщений.</p>
                 )}

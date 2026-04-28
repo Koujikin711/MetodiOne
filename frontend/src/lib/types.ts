@@ -49,6 +49,8 @@ export interface ChatThread {
   id: number;
   lead_id: number | null;
   lead_name: string | null;
+  manager_id?: number | null;
+  manager_name?: string | null;
   provider: string;
   external_chat_id: string | null;
   title: string | null;
