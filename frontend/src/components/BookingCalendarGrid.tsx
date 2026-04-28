@@ -494,13 +494,13 @@ function SortableSpecialistColumn({
                   </span>
                 )}
               </div>
-              {(a.service_title || "").trim() ? (
-                <div className="mt-0.5 line-clamp-2 text-[10px] font-medium text-purple-200/90">
-                  {(a.service_title || "").trim()}
+              <div className="mt-0.5 flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1 truncate text-[10px] font-medium text-purple-200/90">
+                  {(a.service_title || "").trim() || "—"}
                 </div>
-              ) : null}
-              <div className="mt-1 text-[9px] opacity-80">
-                {formatTimeRangeInBookingTz(a.start_at, a.end_at)}
+                <div className="shrink-0 text-[9px] opacity-80">
+                  {formatTimeRangeInBookingTz(a.start_at, a.end_at)}
+                </div>
               </div>
               <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-400">
                 <span className="rounded bg-slate-900/50 px-1 py-0.5">MetodiOne</span>
