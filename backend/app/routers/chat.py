@@ -37,6 +37,8 @@ class ChatThreadRead(BaseModel):
     id: int
     lead_id: int | None = None
     lead_name: str | None = None
+    manager_id: int | None = None
+    manager_name: str | None = None
     provider: str
     external_chat_id: str | None = None
     title: str | None = None
@@ -385,6 +387,8 @@ async def list_threads(
             ChatThread.id,
             ChatThread.lead_id,
             Lead.name,
+            Lead.manager_id.label("manager_id"),
+            func.coalesce(User.full_name, User.email).label("manager_name"),
             ChatThread.provider,
             ChatThread.external_chat_id,
             ChatThread.title,
@@ -395,6 +399,7 @@ async def list_threads(
             unread_count_sq.label("unread_count"),
         )
         .outerjoin(Lead, Lead.id == ChatThread.lead_id)
+        .outerjoin(User, User.id == Lead.manager_id)
         .where(ChatThread.company_id == company_id)
     )
     if current_user.role in (UserRole.manager, UserRole.admin):
@@ -451,6 +456,8 @@ async def list_threads(
                 id=int(row.id),
                 lead_id=row.lead_id,
                 lead_name=row.name,
+                manager_id=getattr(row, "manager_id", None),
+                manager_name=getattr(row, "manager_name", None),
                 provider=row.provider,
                 external_chat_id=row.external_chat_id,
                 title=row.title,
