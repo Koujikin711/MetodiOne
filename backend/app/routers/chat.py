@@ -294,6 +294,7 @@ async def _send_green_file_message(
     )
     if not ok:
         msg = ChatMessage(
+            company_id=thread.company_id,
             thread_id=thread.id,
             author_user_id=current_user.id,
             direction="out",
@@ -484,17 +485,23 @@ async def list_messages(
     if thread is None or thread.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
     await _assert_thread_access(db, thread, current_user)
+    # Последние `limit` сообщений (offset от самых новых), в ответе — по возрастанию id для UI.
+    # Раньше брались самые старые записи: при >limit сообщений в чате новые не попадали в выборку.
     rows = (
         await db.execute(
             select(ChatMessage)
-            .where(ChatMessage.company_id == company_id, ChatMessage.thread_id == thread_id)
-            .order_by(ChatMessage.id.asc())
+            .where(
+                ChatMessage.thread_id == thread_id,
+                or_(ChatMessage.company_id == company_id, ChatMessage.company_id.is_(None)),
+            )
+            .order_by(ChatMessage.id.desc())
             .offset(offset)
             .limit(limit)
         )
     ).scalars().all()
+    rows_chronological = list(reversed(rows))
     await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread_id)
-    return [_msg_read(m) for m in rows]
+    return [_msg_read(m) for m in rows_chronological]
 
 
 @router.get("/messages/{message_id}/media")
