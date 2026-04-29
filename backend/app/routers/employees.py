@@ -27,6 +27,7 @@ class EmployeeRead(BaseModel):
     phone: str | None = None
     full_name: str | None = None
     role: UserRole
+    horeca_role: str | None = None
     pipeline_ids: list[int] = Field(default_factory=list)
     specialization: str | None = None
     booking_direction_id: int | None = None
@@ -37,6 +38,11 @@ class InviteEmployeeBody(BaseModel):
     phone: str = Field(..., min_length=7, max_length=32)
     full_name: str = Field(..., min_length=2, max_length=255)
     role: UserRole = UserRole.manager
+    horeca_role: str | None = Field(
+        default=None,
+        description="Роль внутри HoReCa: waiter | hall_admin | cook | cashier",
+        max_length=32,
+    )
     pipeline_ids: list[int] = Field(default_factory=list)
     """Для эксперта: подпись в календаре под ФИО (например Невролог)."""
     specialization: str | None = Field(default=None, max_length=255)
@@ -78,6 +84,7 @@ async def _employee_read(db: AsyncSession, u: User) -> EmployeeRead:
         phone=u.phone,
         full_name=u.full_name,
         role=u.role,
+        horeca_role=(u.horeca_role or None),
         pipeline_ids=pids,
         specialization=sp_text or None,
         booking_direction_id=spec_row.direction_id if spec_row else None,
@@ -204,6 +211,24 @@ async def invite_employee(
 ) -> InviteEmployeeResult:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+
+    allowed_horeca_roles = {"waiter", "hall_admin", "cook", "cashier"}
+    requested_horeca_role = (body.horeca_role or "").strip().lower() or None
+    if requested_horeca_role is not None and requested_horeca_role not in allowed_horeca_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="horeca_role должен быть одним из: waiter, hall_admin, cook, cashier",
+        )
+
+    default_horeca_role: str | None = None
+    if body.role == UserRole.manager:
+        default_horeca_role = "waiter"
+    elif body.role == UserRole.admin:
+        default_horeca_role = "hall_admin"
+    elif body.role == UserRole.expert:
+        default_horeca_role = "cook"
+    horeca_role = requested_horeca_role or default_horeca_role
+
     if body.role == UserRole.admin and not body.pipeline_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -281,6 +306,7 @@ async def invite_employee(
         u.phone = phone
         u.full_name = body.full_name.strip()
         u.role = body.role
+        u.horeca_role = horeca_role
         u.hashed_password = hash_password(temp_password)
         u.invite_token = invite_token
         u.is_active = True
@@ -292,6 +318,7 @@ async def invite_employee(
             phone=phone,
             full_name=body.full_name.strip(),
             role=body.role,
+            horeca_role=horeca_role,
             hashed_password=hash_password(temp_password),
             invite_token=invite_token,
             is_active=True,

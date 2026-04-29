@@ -1451,3 +1451,18 @@ async def ensure_horeca_finance_tables(conn: AsyncConnection, database_url: str)
             ),
         )
         return
+
+
+async def ensure_horeca_staff_roles(conn: AsyncConnection, database_url: str) -> None:
+    """Добавляет users.horeca_role для ролевого HoReCa-контура."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        r = await conn.execute(text("PRAGMA table_info(users)"))
+        cols = {row[1] for row in r.fetchall()}
+        if cols and "horeca_role" not in cols:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN horeca_role VARCHAR(32)"))
+        return
+
+    if "postgresql" in low or "asyncpg" in low:
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS horeca_role VARCHAR(32)"))
+        return

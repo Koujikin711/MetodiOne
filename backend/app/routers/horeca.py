@@ -27,15 +27,19 @@ router = APIRouter(prefix="/horeca", tags=["horeca"])
 
 _HORECA_READ_ROLES = frozenset({UserRole.owner, UserRole.admin, UserRole.super_owner, UserRole.finance_analyst})
 _HORECA_WRITE_ROLES = frozenset({UserRole.owner, UserRole.admin, UserRole.super_owner})
+_HORECA_READ_STAFF_ROLES = frozenset({"waiter", "hall_admin", "cook", "cashier"})
+_HORECA_WRITE_STAFF_ROLES = frozenset({"hall_admin", "cashier"})
 
 
 def _require_horeca_read(user: CurrentUser) -> None:
-    if user.role not in _HORECA_READ_ROLES:
+    staff_role = str(getattr(user, "horeca_role", "") or "").strip().lower()
+    if user.role not in _HORECA_READ_ROLES and staff_role not in _HORECA_READ_STAFF_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к HoReCa")
 
 
 def _require_horeca_write(user: CurrentUser) -> None:
-    if user.role not in _HORECA_WRITE_ROLES:
+    staff_role = str(getattr(user, "horeca_role", "") or "").strip().lower()
+    if user.role not in _HORECA_WRITE_ROLES and staff_role not in _HORECA_WRITE_STAFF_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав для изменения HoReCa")
 
 
