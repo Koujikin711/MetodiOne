@@ -384,6 +384,31 @@ export interface HorecaFinanceSummaryRead {
   items: HorecaFinanceItem[];
 }
 
+export interface HorecaOrderBoardItem {
+  id: number;
+  stage: "new" | "in_work" | "ready" | "closed" | string;
+  status: string;
+  table_id: number | null;
+  table_name: string | null;
+  guest_name: string;
+  item_name: string;
+  start_at: string;
+  end_at: string;
+  paid_amount: string;
+}
+
+export interface HorecaTableStatus {
+  table_id: number;
+  table_name: string;
+  table_number: number;
+  is_busy: boolean;
+  current_order_id: number | null;
+  current_guest_name: string | null;
+  current_item_name: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+}
+
 export interface LeadStatusPatchResponse extends Lead {
   automation_task_created: boolean;
 }

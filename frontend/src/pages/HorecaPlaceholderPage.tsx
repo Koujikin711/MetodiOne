@@ -146,6 +146,7 @@ export function HorecaPlaceholderPage() {
       title: "База гостей",
       body: "История визитов, предпочтения, аллергии, VIP-статусы и повторные продажи без CRM-шума.",
       icon: <UserRound className="h-5 w-5" />,
+      soon: true,
     },
     {
       feature: "horeca",
@@ -153,6 +154,7 @@ export function HorecaPlaceholderPage() {
       title: "Кухня и техкарты",
       body: "Техкарты, нормы закладки, себестоимость порции и контроль отклонений по ингредиентам.",
       icon: <Calendar className="h-5 w-5" />,
+      soon: true,
     },
     {
       feature: "horeca",
@@ -160,17 +162,18 @@ export function HorecaPlaceholderPage() {
       title: "Склад и списания",
       body: "Остатки, приход/расход, стоп-лист и списания, чтобы не было «закончились продукты на пике».",
       icon: <Wallet className="h-5 w-5" />,
+      soon: true,
     },
     {
       feature: "horeca",
-      to: "/horeca",
+      to: "/horeca/finance",
       title: "Финансы HoReCa",
       body: "Выручка, COGS, food cost, валовая прибыль и маржа в ресторанной логике, а не в CRM-метриках.",
       icon: <Target className="h-5 w-5" />,
     },
     {
       feature: "horeca",
-      to: "/horeca",
+      to: "/horeca/analytics",
       title: "Аналитика HoReCa",
       body: "ABC-меню, средний чек, оборачиваемость столов, загрузка смен и эффективность команды.",
       icon: <BarChart3 className="h-5 w-5" />,
@@ -181,6 +184,7 @@ export function HorecaPlaceholderPage() {
       title: "Задачи смены",
       body: "Открытие/закрытие, инвентаризация, чек-листы HACCP — чтобы ничего не уехало в чатах.",
       icon: <CheckSquare className="h-5 w-5" />,
+      soon: true,
     },
     {
       feature: "horeca",
@@ -188,6 +192,7 @@ export function HorecaPlaceholderPage() {
       title: "Связь зал ↔ кухня",
       body: "Оперативные уточнения по блюдам и столам без «телефона трубку» на линии.",
       icon: <MessageCircle className="h-5 w-5" />,
+      soon: true,
     },
     {
       feature: "horeca",
@@ -195,13 +200,6 @@ export function HorecaPlaceholderPage() {
       title: "Доставка и агрегаторы",
       body: "Подключение каналов (Яндекс, Wolt, собственная доставка) — единая картина заказов.",
       icon: <Plug className="h-5 w-5" />,
-    },
-    {
-      feature: "horeca",
-      to: "/horeca",
-      title: "Кухня и техкарты",
-      body: "Нормы закладки, списания по продажам, полуфабрикаты — следующий этап интеграции с вашим финблоком.",
-      icon: <UtensilsCrossed className="h-5 w-5" />,
       soon: true,
     },
   ];

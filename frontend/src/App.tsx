@@ -29,6 +29,8 @@ import { FinancePage } from "@/pages/FinancePage";
 import { HorecaPlaceholderPage } from "@/pages/HorecaPlaceholderPage";
 import { HorecaOrdersPage } from "@/pages/HorecaOrdersPage";
 import { HorecaTablesPage } from "@/pages/HorecaTablesPage";
+import { HorecaFinancePage } from "@/pages/HorecaFinancePage";
+import { HorecaAnalyticsPage } from "@/pages/HorecaAnalyticsPage";
 import { IntegrationsHubPage } from "@/pages/IntegrationsHubPage";
 import { KpiPage } from "@/pages/KpiPage";
 import { LandingPage } from "@/pages/LandingPage";
@@ -93,6 +95,8 @@ export default function App() {
             <Route path="/horeca" element={<HorecaPlaceholderPage />} />
             <Route path="/horeca/orders" element={<HorecaOrdersPage />} />
             <Route path="/horeca/tables" element={<HorecaTablesPage />} />
+            <Route path="/horeca/finance" element={<HorecaFinancePage />} />
+            <Route path="/horeca/analytics" element={<HorecaAnalyticsPage />} />
             <Route path="/attendance" element={<AttendanceTrackerPage />} />
             <Route
               path="/companies"
