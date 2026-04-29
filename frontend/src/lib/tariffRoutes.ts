@@ -16,6 +16,8 @@ const ROUTE_FEATURE: [string, string][] = [
   ["/horeca", "horeca"],
   ["/horeca/orders", "horeca"],
   ["/horeca/tables", "horeca"],
+  ["/horeca/finance", "horeca"],
+  ["/horeca/analytics", "horeca"],
   ["/my-leads", "crm"],
   ["/crm", "crm"],
   ["/leads", "crm"],

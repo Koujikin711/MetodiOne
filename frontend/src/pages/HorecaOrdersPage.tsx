@@ -3,9 +3,8 @@ import { Link } from "react-router-dom";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeHorecaRoleFromToken, decodeRoleFromToken } from "@/lib/auth";
-import { ymdInBookingTz } from "@/lib/bookingTz";
-import { bookingStatusToHorecaStage, HORECA_STAGE_META, type HorecaOrderStage } from "@/lib/horecaOrderFlow";
-import type { BookingAppointment } from "@/lib/types";
+import { HORECA_STAGE_META, type HorecaOrderStage } from "@/lib/horecaOrderFlow";
+import type { HorecaOrderBoardItem } from "@/lib/types";
 
 function shortTime(iso: string): string {
   const d = new Date(iso);
@@ -17,16 +16,16 @@ export function HorecaOrdersPage() {
   const token = getStoredToken();
   const role = decodeRoleFromToken(token);
   const horecaRole = decodeHorecaRoleFromToken(token);
-  const date = ymdInBookingTz(Date.now());
   const ordersQuery = useQuery({
-    queryKey: ["horeca-orders", date],
-    queryFn: () => apiFetch<BookingAppointment[]>(`/api/booking/appointments?date=${encodeURIComponent(date)}`),
+    queryKey: ["horeca-orders-board"],
+    queryFn: () => apiFetch<HorecaOrderBoardItem[]>("/api/horeca/orders/board?days=2"),
     refetchInterval: 10_000,
   });
 
-  const grouped: Record<HorecaOrderStage, BookingAppointment[]> = { new: [], in_work: [], ready: [], closed: [] };
+  const grouped: Record<HorecaOrderStage, HorecaOrderBoardItem[]> = { new: [], in_work: [], ready: [], closed: [] };
   for (const item of ordersQuery.data ?? []) {
-    grouped[bookingStatusToHorecaStage(item.status)].push(item);
+    const stage = (item.stage as HorecaOrderStage) || "closed";
+    if (stage in grouped) grouped[stage].push(item);
   }
 
   const visibleStages: HorecaOrderStage[] =
@@ -80,11 +79,11 @@ export function HorecaOrdersPage() {
               {grouped[k].map((o) => (
                 <div key={o.id} className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm text-slate-100">{(o.service_title || "").trim() || "Заказ"}</span>
+                    <span className="truncate text-sm text-slate-100">{(o.item_name || "").trim() || "Заказ"}</span>
                     <span className="text-xs text-slate-400">{shortTime(o.start_at)}</span>
                   </div>
                   <div className="mt-1 text-xs text-slate-400">
-                    {(o.patient_name || "").trim() || "Гость"} · {(o.specialist_name || "").trim() || "Зал"}
+                    {(o.guest_name || "").trim() || "Гость"} · {(o.table_name || "").trim() || "Стол"}
                   </div>
                 </div>
               ))}

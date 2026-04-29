@@ -13,6 +13,7 @@ from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import (
     BookingAppointment,
+    BookingSpecialist,
     FinanceProduct,
     FinanceStockBalance,
     FinanceStockMovement,
@@ -25,7 +26,9 @@ from app.models import (
 
 router = APIRouter(prefix="/horeca", tags=["horeca"])
 
-_HORECA_READ_ROLES = frozenset({UserRole.owner, UserRole.admin, UserRole.super_owner, UserRole.finance_analyst})
+_HORECA_READ_ROLES = frozenset(
+    {UserRole.owner, UserRole.admin, UserRole.manager, UserRole.super_owner, UserRole.finance_analyst}
+)
 _HORECA_WRITE_ROLES = frozenset({UserRole.owner, UserRole.admin, UserRole.super_owner})
 _HORECA_READ_STAFF_ROLES = frozenset({"waiter", "hall_admin", "cook", "cashier"})
 _HORECA_WRITE_STAFF_ROLES = frozenset({"hall_admin", "cashier"})
@@ -143,12 +146,48 @@ class HorecaFinanceSummaryRead(BaseModel):
     items: list[HorecaFinanceItemRead]
 
 
+class HorecaOrderBoardItemRead(BaseModel):
+    id: int
+    stage: str
+    status: str
+    table_id: int | None = None
+    table_name: str | None = None
+    guest_name: str
+    item_name: str
+    start_at: datetime
+    end_at: datetime
+    paid_amount: Decimal
+
+
+class HorecaTableStatusRead(BaseModel):
+    table_id: int
+    table_name: str
+    table_number: int
+    is_busy: bool
+    current_order_id: int | None = None
+    current_guest_name: str | None = None
+    current_item_name: str | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+
+
 def _risk_by_qty(qty: Decimal) -> str:
     if qty <= 0:
         return "out"
     if qty < Decimal("3"):
         return "low"
     return "ok"
+
+
+def _booking_status_to_order_stage(status_raw: str) -> str:
+    s = (status_raw or "").strip().lower()
+    if s == "booked":
+        return "new"
+    if s in {"arrived", "in_service", "confirmed"}:
+        return "in_work"
+    if s in {"ready", "awaiting_payment"}:
+        return "ready"
+    return "closed"
 
 
 async def _product_avg_cost_map(db: AsyncSession, company_id: int) -> dict[int, Decimal]:
@@ -412,6 +451,125 @@ async def horeca_finance_summary(
         unmapped_sales_count=unmapped,
         items=items,
     )
+
+
+@router.get("/orders/board", response_model=list[HorecaOrderBoardItemRead])
+async def horeca_orders_board(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    days: int = Query(default=1, ge=1, le=30),
+) -> list[HorecaOrderBoardItemRead]:
+    _require_horeca_read(current_user)
+    date_from = datetime.now(UTC) - timedelta(days=days)
+    rows = (
+        await db.execute(
+            select(
+                BookingAppointment.id,
+                BookingAppointment.status,
+                BookingAppointment.patient_name,
+                BookingAppointment.service_title,
+                BookingAppointment.start_at,
+                BookingAppointment.end_at,
+                BookingAppointment.paid_amount,
+                BookingSpecialist.id,
+                BookingSpecialist.full_name,
+            )
+            .outerjoin(BookingSpecialist, BookingSpecialist.id == BookingAppointment.specialist_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.created_at >= date_from,
+            )
+            .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc())
+            .limit(400)
+        )
+    ).all()
+    out: list[HorecaOrderBoardItemRead] = []
+    for oid, status_raw, guest, item, start_at, end_at, paid_amount, tid, tname in rows:
+        out.append(
+            HorecaOrderBoardItemRead(
+                id=int(oid),
+                stage=_booking_status_to_order_stage(str(status_raw or "")),
+                status=str(status_raw or ""),
+                table_id=int(tid) if tid is not None else None,
+                table_name=str(tname or "") or None,
+                guest_name=(str(guest or "").strip() or "Гость"),
+                item_name=(str(item or "").strip() or "Заказ"),
+                start_at=start_at,
+                end_at=end_at,
+                paid_amount=Decimal(paid_amount or 0),
+            )
+        )
+    return out
+
+
+@router.get("/tables/status", response_model=list[HorecaTableStatusRead])
+async def horeca_tables_status(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[HorecaTableStatusRead]:
+    _require_horeca_read(current_user)
+    now = datetime.now(UTC)
+    specs = (
+        await db.execute(
+            select(BookingSpecialist.id, BookingSpecialist.full_name, BookingSpecialist.sort_order)
+            .where(BookingSpecialist.company_id == company_id, BookingSpecialist.is_active.is_(True))
+            .order_by(BookingSpecialist.sort_order.asc(), BookingSpecialist.id.asc())
+        )
+    ).all()
+    active_rows = (
+        await db.execute(
+            select(
+                BookingAppointment.id,
+                BookingAppointment.specialist_id,
+                BookingAppointment.patient_name,
+                BookingAppointment.service_title,
+                BookingAppointment.start_at,
+                BookingAppointment.end_at,
+                BookingAppointment.status,
+            )
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.start_at <= now,
+                BookingAppointment.end_at > now,
+            )
+            .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc())
+        )
+    ).all()
+    active_by_table: dict[int, tuple[int, str, str, datetime, datetime, str]] = {}
+    for oid, sid, guest, item, st, en, status_raw in active_rows:
+        if sid is None:
+            continue
+        if _booking_status_to_order_stage(str(status_raw or "")) == "closed":
+            continue
+        if int(sid) not in active_by_table:
+            active_by_table[int(sid)] = (
+                int(oid),
+                str(guest or "").strip() or "Гость",
+                str(item or "").strip() or "Заказ",
+                st,
+                en,
+                str(status_raw or ""),
+            )
+
+    out: list[HorecaTableStatusRead] = []
+    for idx, (sid, full_name, _) in enumerate(specs, start=1):
+        cur = active_by_table.get(int(sid))
+        out.append(
+            HorecaTableStatusRead(
+                table_id=int(sid),
+                table_name=str(full_name or "") or f"Стол {idx}",
+                table_number=idx,
+                is_busy=cur is not None,
+                current_order_id=cur[0] if cur else None,
+                current_guest_name=cur[1] if cur else None,
+                current_item_name=cur[2] if cur else None,
+                starts_at=cur[3] if cur else None,
+                ends_at=cur[4] if cur else None,
+            )
+        )
+    return out
 
 
 @router.get("/overview", response_model=HorecaOverviewRead)

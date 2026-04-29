@@ -257,6 +257,22 @@ export function MainLayout() {
                     </NavLink>
                   </NavIf>
                   <NavIf show={showNavForFeature("horeca")}>
+                    <NavLink to="/horeca/finance" className={navLinkClass} title="Финансы HoReCa">
+                      <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                        <Wallet className="h-[18px] w-[18px]" />
+                      </GradientIconBox>
+                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Финансы</span>
+                    </NavLink>
+                  </NavIf>
+                  <NavIf show={showNavForFeature("horeca")}>
+                    <NavLink to="/horeca/analytics" className={navLinkClass} title="Аналитика HoReCa">
+                      <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                        <BarChart3 className="h-[18px] w-[18px]" />
+                      </GradientIconBox>
+                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Аналитика</span>
+                    </NavLink>
+                  </NavIf>
+                  <NavIf show={showNavForFeature("horeca")}>
                     <NavLink to="/horeca" className={navLinkClass} title="Центр HoReCa">
                       <GradientIconBox variant="teal" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
                         <UtensilsCrossed className="h-[18px] w-[18px]" />
@@ -421,6 +437,30 @@ export function MainLayout() {
                         <Calendar className="h-[18px] w-[18px]" />
                       </GradientIconBox>
                       <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Столики</span>
+                    </NavLink>
+                  </NavIf>
+                  <NavIf show={showNavForFeature("horeca")}>
+                    <NavLink to="/horeca/finance" className={navLinkClass} title="Финансы HoReCa">
+                      <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                        <Wallet className="h-[18px] w-[18px]" />
+                      </GradientIconBox>
+                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Финансы</span>
+                    </NavLink>
+                  </NavIf>
+                  <NavIf show={showNavForFeature("horeca")}>
+                    <NavLink to="/horeca/analytics" className={navLinkClass} title="Аналитика HoReCa">
+                      <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                        <BarChart3 className="h-[18px] w-[18px]" />
+                      </GradientIconBox>
+                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Аналитика</span>
+                    </NavLink>
+                  </NavIf>
+                  <NavIf show={showNavForFeature("employees")}>
+                    <NavLink to="/employees" className={navLinkClass} title="Сотрудники HoReCa">
+                      <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                        <Users className="h-[18px] w-[18px]" />
+                      </GradientIconBox>
+                      <span className="max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide">Персонал</span>
                     </NavLink>
                   </NavIf>
                   {showBillingNav ? (
@@ -616,6 +656,22 @@ export function MainLayout() {
                       <Calendar className="h-4 w-4" />
                     </GradientIconBox>
                     <span className="text-[9px]">Столики</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("horeca")}>
+                  <NavLink to="/horeca/finance" className={navLinkClass} title="Финансы HoReCa">
+                    <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <Wallet className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">Финансы</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("horeca")}>
+                  <NavLink to="/horeca/analytics" className={navLinkClass} title="Аналитика HoReCa">
+                    <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <BarChart3 className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">Анал.</span>
                   </NavLink>
                 </NavIf>
                 <NavIf show={showNavForFeature("horeca")}>
@@ -816,6 +872,30 @@ export function MainLayout() {
                       <Calendar className="h-4 w-4" />
                     </GradientIconBox>
                     <span className="text-[9px]">Столики</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("horeca")}>
+                  <NavLink to="/horeca/finance" className={navLinkClass} title="Финансы HoReCa">
+                    <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <Wallet className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">Финансы</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("horeca")}>
+                  <NavLink to="/horeca/analytics" className={navLinkClass} title="Аналитика HoReCa">
+                    <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <BarChart3 className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">Анал.</span>
+                  </NavLink>
+                </NavIf>
+                <NavIf show={showNavForFeature("employees")}>
+                  <NavLink to="/employees" className={navLinkClass} title="Сотрудники HoReCa">
+                    <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <Users className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">Персонал</span>
                   </NavLink>
                 </NavIf>
                 {showBillingNav ? (

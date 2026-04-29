@@ -3,44 +3,19 @@ import { Link } from "react-router-dom";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeHorecaRoleFromToken, decodeRoleFromToken } from "@/lib/auth";
-import { ymdInBookingTz } from "@/lib/bookingTz";
-import { bookingStatusToHorecaStage } from "@/lib/horecaOrderFlow";
-import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
-
-function isBusyNow(a: BookingAppointment, nowMs: number): boolean {
-  const stage = bookingStatusToHorecaStage(a.status);
-  if (stage === "closed") return false;
-  const s = new Date(a.start_at).getTime();
-  const e = new Date(a.end_at).getTime();
-  if (Number.isNaN(s) || Number.isNaN(e)) return false;
-  return nowMs >= s && nowMs < e;
-}
+import type { HorecaTableStatus } from "@/lib/types";
 
 export function HorecaTablesPage() {
   const token = getStoredToken();
   const role = decodeRoleFromToken(token);
   const horecaRole = decodeHorecaRoleFromToken(token);
-  const date = ymdInBookingTz(Date.now());
-  const specialistsQuery = useQuery({
-    queryKey: ["booking-specialists", "horeca-tables"],
-    queryFn: () => apiFetch<BookingSpecialist[]>("/api/booking/specialists"),
-    refetchInterval: 15_000,
-  });
-  const appointmentsQuery = useQuery({
-    queryKey: ["booking-appointments-grid", date, "horeca-tables"],
-    queryFn: () => apiFetch<BookingAppointment[]>(`/api/booking/appointments?date=${encodeURIComponent(date)}`),
+  const tablesQuery = useQuery({
+    queryKey: ["horeca-tables-status"],
+    queryFn: () => apiFetch<HorecaTableStatus[]>("/api/horeca/tables/status"),
     refetchInterval: 10_000,
   });
 
-  const activeTables = (specialistsQuery.data ?? [])
-    .filter((s) => s.is_active)
-    .sort((a, b) => {
-      const ao = a.sort_order ?? 0;
-      const bo = b.sort_order ?? 0;
-      if (ao !== bo) return ao - bo;
-      return a.id - b.id;
-    });
-  const nowMs = Date.now();
+  const activeTables = [...(tablesQuery.data ?? [])].sort((a, b) => a.table_number - b.table_number);
   const roleLabel =
     horecaRole === "cook" || role === "expert"
       ? "Режим кухни: контроль загрузки стола и готовности"
@@ -68,17 +43,15 @@ export function HorecaTablesPage() {
         </Link>
       </div>
 
-      {specialistsQuery.isLoading || appointmentsQuery.isLoading ? <p className="text-sm text-slate-400">Загрузка зала…</p> : null}
-      {specialistsQuery.isError ? <p className="text-sm text-rose-300">{(specialistsQuery.error as Error).message}</p> : null}
-      {appointmentsQuery.isError ? <p className="text-sm text-rose-300">{(appointmentsQuery.error as Error).message}</p> : null}
+      {tablesQuery.isLoading ? <p className="text-sm text-slate-400">Загрузка зала…</p> : null}
+      {tablesQuery.isError ? <p className="text-sm text-rose-300">{(tablesQuery.error as Error).message}</p> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {activeTables.map((t, idx) => {
-          const slot = (appointmentsQuery.data ?? []).find((a) => a.specialist_id === t.id && isBusyNow(a, nowMs));
-          const busy = Boolean(slot);
+        {activeTables.map((t) => {
+          const busy = Boolean(t.is_busy);
           return (
             <div
-              key={t.id}
+              key={t.table_id}
               className={[
                 "rounded-2xl border p-4",
                 busy
@@ -87,7 +60,7 @@ export function HorecaTablesPage() {
               ].join(" ")}
             >
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-white">Стол #{idx + 1}</h2>
+                <h2 className="text-lg font-semibold text-white">Стол #{t.table_number}</h2>
                 <span
                   className={[
                     "rounded-full px-2 py-0.5 text-xs",
@@ -97,13 +70,16 @@ export function HorecaTablesPage() {
                   {busy ? "Занят" : "Свободен"}
                 </span>
               </div>
-              <p className="mt-2 text-sm text-slate-300">{t.full_name}</p>
+              <p className="mt-2 text-sm text-slate-300">{t.table_name}</p>
               <p className="mt-1 text-xs text-slate-400">
-                {slot ? `Гость: ${(slot.patient_name || "").trim() || "—"}` : "Ожидает посадку"}
+                {busy ? `Гость: ${(t.current_guest_name || "").trim() || "—"}` : "Ожидает посадку"}
               </p>
             </div>
           );
         })}
+        {!tablesQuery.isLoading && activeTables.length === 0 ? (
+          <p className="text-sm text-slate-500">Нет столиков. Добавьте персонал зала/столики в модуле записи.</p>
+        ) : null}
       </section>
     </div>
   );
