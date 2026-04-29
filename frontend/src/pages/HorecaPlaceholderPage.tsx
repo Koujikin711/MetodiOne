@@ -128,10 +128,17 @@ export function HorecaPlaceholderPage() {
   const cards: HubCard[] = [
     {
       feature: "horeca",
-      to: "/horeca",
+      to: "/horeca/tables",
       title: "Зал и посадка",
       body: "Столы, брони, статусы, скорость обслуживания и контроль загрузки зала в одном контуре.",
       icon: <Funnel className="h-5 w-5" />,
+    },
+    {
+      feature: "horeca",
+      to: "/horeca/orders",
+      title: "Заказы и стадии",
+      body: "Отдельная доска заказов по стадиям смены: новые, в работе, готово и закрытые.",
+      icon: <UtensilsCrossed className="h-5 w-5" />,
     },
     {
       feature: "horeca",

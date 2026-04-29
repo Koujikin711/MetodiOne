@@ -120,6 +120,8 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255))
     phone: Mapped[str | None] = mapped_column(String(32), unique=True, index=True, nullable=True)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Отдельная роль внутри HoReCa-контура (не ломает базовые CRM-роли).
+    horeca_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
     invite_token: Mapped[str | None] = mapped_column(String(96), unique=True, index=True, nullable=True)
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole, name="user_role"), default=UserRole.manager)
     is_active: Mapped[bool] = mapped_column(default=True)

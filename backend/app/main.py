@@ -29,6 +29,7 @@ from app.database_migrate import (
     ensure_demo_billing_platform,
     ensure_tariff_constructor_billing,
     ensure_horeca_finance_tables,
+    ensure_horeca_staff_roles,
 )
 from app.core.security import decode_token, hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -92,6 +93,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_demo_billing_platform(conn, settings.database_url)
                 await ensure_tariff_constructor_billing(conn, settings.database_url)
                 await ensure_horeca_finance_tables(conn, settings.database_url)
+                await ensure_horeca_staff_roles(conn, settings.database_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts

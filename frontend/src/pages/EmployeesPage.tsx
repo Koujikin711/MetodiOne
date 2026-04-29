@@ -6,12 +6,21 @@ import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeUserIdFromToken } from "@/lib/auth";
 import type { BookingDirection, Pipeline, UserRole } from "@/lib/types";
 
+type HorecaRole = "waiter" | "hall_admin" | "cook" | "cashier";
+const HORECA_ROLE_LABEL: Record<HorecaRole, string> = {
+  waiter: "Официант",
+  hall_admin: "Админ зала",
+  cook: "Повар",
+  cashier: "Кассир",
+};
+
 interface Employee {
   id: number;
   email: string;
   phone: string | null;
   full_name: string | null;
   role: UserRole;
+  horeca_role?: HorecaRole | null;
   pipeline_ids: number[];
   specialization?: string | null;
   booking_direction_id?: number | null;
@@ -67,6 +76,7 @@ export function EmployeesPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<UserRole>("manager");
+  const [horecaRole, setHorecaRole] = useState<HorecaRole | "">("");
   const [pipelineIds, setPipelineIds] = useState<number[]>([]);
   const [expertSpecialization, setExpertSpecialization] = useState("");
   const [bookingDirectionId, setBookingDirectionId] = useState<number | "">("");
@@ -113,6 +123,7 @@ export function EmployeesPage() {
         role,
         pipeline_ids: pipelineIds,
       };
+      if (horecaRole) payload.horeca_role = horecaRole;
       if (role === "expert") {
         payload.specialization = expertSpecialization.trim();
         payload.booking_direction_id =
@@ -129,6 +140,7 @@ export function EmployeesPage() {
       setEmail("");
       setPhone("");
       setRole("manager");
+      setHorecaRole("");
       setPipelineIds([]);
       setExpertSpecialization("");
       setBookingDirectionId("");
@@ -181,6 +193,7 @@ export function EmployeesPage() {
                 </div>
                 <div className="mt-1 text-sm text-slate-400">
                   {e.email} {e.phone ? `· ${e.phone}` : ""} · роль: {e.role}
+                  {e.horeca_role ? ` · HoReCa: ${HORECA_ROLE_LABEL[e.horeca_role] ?? e.horeca_role}` : ""}
                   {e.role === "expert" && e.specialization ? ` · ${e.specialization}` : ""}
                 </div>
               </div>
@@ -311,6 +324,10 @@ export function EmployeesPage() {
                   onChange={(e) => {
                     const next = e.target.value as UserRole;
                     setRole(next);
+                    if (next === "manager") setHorecaRole("waiter");
+                    else if (next === "admin") setHorecaRole("hall_admin");
+                    else if (next === "expert") setHorecaRole("cook");
+                    else setHorecaRole("");
                     if (next !== "expert") {
                       setExpertSpecialization("");
                       setBookingDirectionId("");
@@ -325,6 +342,20 @@ export function EmployeesPage() {
                   <option value="expert">Эксперт</option>
                   <option value="admin">Админ воронки</option>
                   <option value="finance_analyst">Финансовый аналитик</option>
+                </select>
+              </label>
+              <label className="text-sm text-slate-300">
+                Роль в HoReCa
+                <select
+                  value={horecaRole}
+                  onChange={(e) => setHorecaRole((e.target.value || "") as HorecaRole | "")}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                >
+                  <option value="">— не назначать —</option>
+                  <option value="waiter">Официант</option>
+                  <option value="hall_admin">Администратор зала</option>
+                  <option value="cook">Повар / кухня</option>
+                  <option value="cashier">Кассир</option>
                 </select>
               </label>
 
