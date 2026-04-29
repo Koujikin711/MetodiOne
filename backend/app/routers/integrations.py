@@ -813,7 +813,8 @@ async def integration_webhook(
     if integ.provider == IntegrationProvider.green_api:
         # Иначе на каждый stateInstance/outgoingStatus и т.д. создавались бы новые лиды
         tw = str(payload.get("typeWebhook") or "").strip()
-        if tw != "incomingMessageReceived":
+        # Green API обычно шлёт `incomingMessageReceived`; регистр в редких случаях может отличаться.
+        if tw.lower() != "incomingmessagereceived":
             logger.info(
                 "integration webhook: integration_id=%s green_api skip typeWebhook=%s",
                 integration_id,
