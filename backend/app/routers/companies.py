@@ -205,7 +205,12 @@ async def platform_dashboard(
     companies_total = int(await db.scalar(select(func.count(Company.id))) or 0)
     companies_active = int(await db.scalar(select(func.count(Company.id)).where(Company.is_active.is_(True))) or 0)
     companies_suspended = max(companies_total - companies_active, 0)
-    users_total = int(await db.scalar(select(func.count(User.id)).where(User.company_id.isnot(None))) or 0)
+    users_total = int(
+        await db.scalar(
+            select(func.count(User.id)).where(User.company_id.isnot(None), User.is_active.is_(True)),
+        )
+        or 0
+    )
     leads_total = int(await db.scalar(select(func.count(Lead.id))) or 0)
     pipelines_total = int(await db.scalar(select(func.count(Pipeline.id))) or 0)
     since = datetime.now(UTC) - timedelta(days=7)
@@ -329,7 +334,9 @@ async def list_companies(
             plan_by_id[pl.id] = pl.name
     out: list[CompanyRead] = []
     for c in rows:
-        users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id)) or 0)
+        users_count = int(
+            await db.scalar(select(func.count(User.id)).where(User.company_id == c.id, User.is_active.is_(True))) or 0
+        )
         leads_count = int(await db.scalar(select(func.count(Lead.id)).where(Lead.company_id == c.id)) or 0)
         pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
         pn = plan_by_id.get(int(c.tariff_plan_id)) if c.tariff_plan_id else None
@@ -445,7 +452,7 @@ async def create_company(
         company_id=c.id,
         detail={"name": c.name, "owner_email": owner_email},
     )
-    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id)) or 0)
+    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id, User.is_active.is_(True))) or 0)
     leads_count = int(await db.scalar(select(func.count(Lead.id)).where(Lead.company_id == c.id)) or 0)
     pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
     plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
@@ -472,7 +479,7 @@ async def current_company(
     c = await db.get(Company, company_id)
     if c is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Компания не найдена")
-    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id)) or 0)
+    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id, User.is_active.is_(True))) or 0)
     leads_count = int(await db.scalar(select(func.count(Lead.id)).where(Lead.company_id == c.id)) or 0)
     pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
     plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
@@ -509,7 +516,7 @@ async def update_company_status(
         company_id=c.id,
         detail={"is_active": body.is_active},
     )
-    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id)) or 0)
+    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id, User.is_active.is_(True))) or 0)
     leads_count = int(await db.scalar(select(func.count(Lead.id)).where(Lead.company_id == c.id)) or 0)
     pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
     plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
@@ -553,7 +560,7 @@ async def patch_company_tariff(
             "tariff_max_integrations": c.tariff_max_integrations,
         },
     )
-    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id)) or 0)
+    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id, User.is_active.is_(True))) or 0)
     leads_count = int(await db.scalar(select(func.count(Lead.id)).where(Lead.company_id == c.id)) or 0)
     pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
     plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
@@ -602,7 +609,7 @@ async def patch_company_tariff_plan(
         company_id=c.id,
         detail={"tariff_plan_id": tid},
     )
-    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id)) or 0)
+    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id, User.is_active.is_(True))) or 0)
     leads_count = int(await db.scalar(select(func.count(Lead.id)).where(Lead.company_id == c.id)) or 0)
     pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
     plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
@@ -639,7 +646,7 @@ async def patch_company_billing_discount(
         company_id=c.id,
         detail={"billing_discount_percent": body.billing_discount_percent},
     )
-    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id)) or 0)
+    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id, User.is_active.is_(True))) or 0)
     leads_count = int(await db.scalar(select(func.count(Lead.id)).where(Lead.company_id == c.id)) or 0)
     pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
     plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
@@ -689,7 +696,7 @@ async def patch_company_scheduled_tariff(
             "scheduled_tariff_effective_at": c.scheduled_tariff_effective_at.isoformat() if c.scheduled_tariff_effective_at else None,
         },
     )
-    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id)) or 0)
+    users_count = int(await db.scalar(select(func.count(User.id)).where(User.company_id == c.id, User.is_active.is_(True))) or 0)
     leads_count = int(await db.scalar(select(func.count(Lead.id)).where(Lead.company_id == c.id)) or 0)
     pipelines_count = int(await db.scalar(select(func.count(Pipeline.id)).where(Pipeline.company_id == c.id)) or 0)
     plan_name = await _tariff_plan_label(db, c.tariff_plan_id)
