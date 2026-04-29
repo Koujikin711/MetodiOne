@@ -31,6 +31,12 @@ import { HorecaOrdersPage } from "@/pages/HorecaOrdersPage";
 import { HorecaTablesPage } from "@/pages/HorecaTablesPage";
 import { HorecaFinancePage } from "@/pages/HorecaFinancePage";
 import { HorecaAnalyticsPage } from "@/pages/HorecaAnalyticsPage";
+import { HorecaGuestsPage } from "@/pages/HorecaGuestsPage";
+import { HorecaKitchenPage } from "@/pages/HorecaKitchenPage";
+import { HorecaStockPage } from "@/pages/HorecaStockPage";
+import { HorecaShiftTasksPage } from "@/pages/HorecaShiftTasksPage";
+import { HorecaCommsPage } from "@/pages/HorecaCommsPage";
+import { HorecaDeliveryPage } from "@/pages/HorecaDeliveryPage";
 import { IntegrationsHubPage } from "@/pages/IntegrationsHubPage";
 import { KpiPage } from "@/pages/KpiPage";
 import { LandingPage } from "@/pages/LandingPage";
@@ -97,6 +103,12 @@ export default function App() {
             <Route path="/horeca/tables" element={<HorecaTablesPage />} />
             <Route path="/horeca/finance" element={<HorecaFinancePage />} />
             <Route path="/horeca/analytics" element={<HorecaAnalyticsPage />} />
+            <Route path="/horeca/guests" element={<HorecaGuestsPage />} />
+            <Route path="/horeca/kitchen" element={<HorecaKitchenPage />} />
+            <Route path="/horeca/stock" element={<HorecaStockPage />} />
+            <Route path="/horeca/shift-tasks" element={<HorecaShiftTasksPage />} />
+            <Route path="/horeca/comms" element={<HorecaCommsPage />} />
+            <Route path="/horeca/delivery" element={<HorecaDeliveryPage />} />
             <Route path="/attendance" element={<AttendanceTrackerPage />} />
             <Route
               path="/companies"
