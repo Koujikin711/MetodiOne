@@ -409,6 +409,33 @@ export interface HorecaTableStatus {
   ends_at: string | null;
 }
 
+export interface HorecaProductOption {
+  id: number;
+  name: string;
+  unit: string;
+  is_active: boolean;
+}
+
+export interface HorecaStockBalance {
+  product_id: number;
+  product_name: string;
+  quantity: string;
+  avg_unit_cost: string;
+  stock_value: string;
+  risk: "ok" | "low" | "out" | string;
+}
+
+export interface HorecaStockMovement {
+  id: number;
+  created_at: string;
+  movement_type: string;
+  product_id: number;
+  product_name: string;
+  qty_delta: string;
+  unit_cost: string | null;
+  memo: string | null;
+}
+
 export interface LeadStatusPatchResponse extends Lead {
   automation_task_created: boolean;
 }

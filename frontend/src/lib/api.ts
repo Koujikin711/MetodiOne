@@ -9,14 +9,19 @@ export function resolveApiUrl(path: string): string {
   const raw = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
   const base = raw.replace(/\/$/, "");
   if (!base) {
-    if (import.meta.env.PROD) {
-      throw new Error(
-        "Не задан VITE_API_BASE_URL. В Vercel → Settings → Environment Variables укажите URL бэкенда Amvera (без / в конце) и сделайте Redeploy.",
-      );
-    }
+    // Для same-origin деплоев (nginx/vercel rewrites) используем /api без отдельного base URL.
     return path;
   }
   return path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
+}
+
+function resolveApiCandidates(path: string): string[] {
+  const primary = resolveApiUrl(path);
+  if (!import.meta.env.VITE_API_BASE_URL) return [primary];
+  if (!path.startsWith("/")) return [primary];
+  if (primary === path) return [primary];
+  // Fallback для reverse-proxy деплоев: если внешний API URL недоступен, пробуем same-origin /api.
+  return [primary, path];
 }
 
 export function getStoredToken(): string | null {
@@ -70,7 +75,19 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
   let res: Response;
   try {
-    res = await fetch(resolveApiUrl(path), { ...init, headers, signal: controller.signal });
+    const candidates = resolveApiCandidates(path);
+    let lastErr: unknown = null;
+    let response: Response | null = null;
+    for (const url of candidates) {
+      try {
+        response = await fetch(url, { ...init, headers, signal: controller.signal });
+        break;
+      } catch (e: unknown) {
+        lastErr = e;
+      }
+    }
+    if (!response) throw lastErr ?? new Error("Network error");
+    res = response;
   } catch (e: unknown) {
     const aborted =
       (e instanceof DOMException && e.name === "AbortError") ||
@@ -81,11 +98,11 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
         `Сервер не ответил за ${sec} с. Запустите API: в папке backend выполните python -m uvicorn app.main:app --reload --port 8000 (и поднимите БД или задайте SQLite: DATABASE_URL=sqlite+aiosqlite:///./crm.db).`,
       );
     }
-      throw new Error(
-        import.meta.env.VITE_API_BASE_URL
-          ? "Нет связи с API. Проверьте VITE_API_BASE_URL и доступность бэкенда."
-          : "Нет связи с сервером. Убедитесь, что бэкенд слушает http://127.0.0.1:8000 и dev-сервер Vite запущен (прокси /api).",
-      );
+    throw new Error(
+      import.meta.env.VITE_API_BASE_URL
+        ? "Нет связи с API. Проверьте URL бэкенда, CORS и доступность reverse-proxy для /api."
+        : "Нет связи с сервером. Убедитесь, что бэкенд слушает http://127.0.0.1:8000 и dev-сервер Vite запущен (прокси /api).",
+    );
   } finally {
     window.clearTimeout(timeoutId);
   }

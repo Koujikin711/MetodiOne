@@ -171,6 +171,33 @@ class HorecaTableStatusRead(BaseModel):
     ends_at: datetime | None = None
 
 
+class HorecaProductOptionRead(BaseModel):
+    id: int
+    name: str
+    unit: str
+    is_active: bool
+
+
+class HorecaStockBalanceRead(BaseModel):
+    product_id: int
+    product_name: str
+    quantity: Decimal
+    avg_unit_cost: Decimal
+    stock_value: Decimal
+    risk: str
+
+
+class HorecaStockMovementRead(BaseModel):
+    id: int
+    created_at: datetime
+    movement_type: str
+    product_id: int
+    product_name: str
+    qty_delta: Decimal
+    unit_cost: Decimal | None = None
+    memo: str | None = None
+
+
 def _risk_by_qty(qty: Decimal) -> str:
     if qty <= 0:
         return "out"
@@ -386,16 +413,18 @@ async def horeca_finance_summary(
     _require_horeca_read(current_user)
     now = datetime.now(UTC)
     date_from = now - timedelta(days=days)
+    menu_title_expr = func.coalesce(func.trim(BookingAppointment.service_title), "Без названия")
+    revenue_sum_expr = func.coalesce(func.sum(BookingAppointment.paid_amount), 0)
     sales = (
         await db.execute(
             select(
-                func.coalesce(func.trim(BookingAppointment.service_title), "Без названия"),
+                menu_title_expr,
                 func.count(BookingAppointment.id),
-                func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
+                revenue_sum_expr,
             )
             .where(BookingAppointment.company_id == company_id, BookingAppointment.created_at >= date_from)
-            .group_by(func.coalesce(func.trim(BookingAppointment.service_title), "Без названия"))
-            .order_by(func.coalesce(func.sum(BookingAppointment.paid_amount), 0).desc())
+            .group_by(menu_title_expr)
+            .order_by(revenue_sum_expr.desc())
         )
     ).all()
     cost_map = await _menu_cost_map(db, company_id)
@@ -572,6 +601,104 @@ async def horeca_tables_status(
     return out
 
 
+@router.get("/products/options", response_model=list[HorecaProductOptionRead])
+async def horeca_products_options(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[HorecaProductOptionRead]:
+    _require_horeca_read(current_user)
+    rows = (
+        await db.execute(
+            select(FinanceProduct.id, FinanceProduct.name, FinanceProduct.unit, FinanceProduct.is_active)
+            .where(FinanceProduct.company_id == company_id)
+            .order_by(FinanceProduct.is_active.desc(), FinanceProduct.name.asc())
+            .limit(500)
+        )
+    ).all()
+    return [
+        HorecaProductOptionRead(id=int(pid), name=str(name), unit=str(unit or "шт"), is_active=bool(is_active))
+        for pid, name, unit, is_active in rows
+    ]
+
+
+@router.get("/stock/balances", response_model=list[HorecaStockBalanceRead])
+async def horeca_stock_balances(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[HorecaStockBalanceRead]:
+    _require_horeca_read(current_user)
+    rows = (
+        await db.execute(
+            select(
+                FinanceProduct.id,
+                FinanceProduct.name,
+                func.coalesce(func.sum(FinanceStockBalance.quantity), 0),
+                func.coalesce(func.avg(FinanceStockBalance.avg_unit_cost), 0),
+                func.coalesce(func.sum(FinanceStockBalance.quantity * FinanceStockBalance.avg_unit_cost), 0),
+            )
+            .join(FinanceProduct, FinanceProduct.id == FinanceStockBalance.product_id)
+            .where(FinanceProduct.company_id == company_id, FinanceProduct.is_active.is_(True))
+            .group_by(FinanceProduct.id, FinanceProduct.name)
+            .order_by(func.coalesce(func.sum(FinanceStockBalance.quantity * FinanceStockBalance.avg_unit_cost), 0).desc())
+            .limit(300)
+        )
+    ).all()
+    return [
+        HorecaStockBalanceRead(
+            product_id=int(pid),
+            product_name=str(name),
+            quantity=Decimal(qty or 0),
+            avg_unit_cost=Decimal(avg_cost or 0),
+            stock_value=Decimal(stock_value or 0),
+            risk=_risk_by_qty(Decimal(qty or 0)),
+        )
+        for pid, name, qty, avg_cost, stock_value in rows
+    ]
+
+
+@router.get("/stock/movements", response_model=list[HorecaStockMovementRead])
+async def horeca_stock_movements(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    limit: int = Query(default=80, ge=1, le=300),
+) -> list[HorecaStockMovementRead]:
+    _require_horeca_read(current_user)
+    rows = (
+        await db.execute(
+            select(
+                FinanceStockMovement.id,
+                FinanceStockMovement.created_at,
+                FinanceStockMovement.movement_type,
+                FinanceStockMovement.product_id,
+                FinanceProduct.name,
+                FinanceStockMovement.qty_delta,
+                FinanceStockMovement.unit_cost,
+                FinanceStockMovement.memo,
+            )
+            .join(FinanceProduct, FinanceProduct.id == FinanceStockMovement.product_id)
+            .where(FinanceStockMovement.company_id == company_id)
+            .order_by(FinanceStockMovement.created_at.desc(), FinanceStockMovement.id.desc())
+            .limit(limit)
+        )
+    ).all()
+    return [
+        HorecaStockMovementRead(
+            id=int(mid),
+            created_at=created_at,
+            movement_type=str(mtype or ""),
+            product_id=int(product_id),
+            product_name=str(product_name),
+            qty_delta=Decimal(qty_delta or 0),
+            unit_cost=Decimal(unit_cost or 0) if unit_cost is not None else None,
+            memo=str(memo) if memo else None,
+        )
+        for mid, created_at, mtype, product_id, product_name, qty_delta, unit_cost, memo in rows
+    ]
+
+
 @router.get("/overview", response_model=HorecaOverviewRead)
 async def overview(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -628,15 +755,17 @@ async def overview(
         )
         or Decimal("0")
     )
+    abc_title_expr = func.coalesce(func.trim(BookingAppointment.service_title), "Без названия")
+    abc_revenue_expr = func.coalesce(func.sum(BookingAppointment.paid_amount), 0)
     abc_rows = (
         await db.execute(
             select(
-                func.coalesce(BookingAppointment.service_title, "Без названия"),
-                func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
+                abc_title_expr,
+                abc_revenue_expr,
             )
             .where(BookingAppointment.company_id == company_id, BookingAppointment.created_at >= month_ago)
-            .group_by(func.coalesce(BookingAppointment.service_title, "Без названия"))
-            .order_by(func.coalesce(func.sum(BookingAppointment.paid_amount), 0).desc())
+            .group_by(abc_title_expr)
+            .order_by(abc_revenue_expr.desc())
             .limit(30)
         )
     ).all()
