@@ -80,10 +80,6 @@ function PlanEditorModal({
       toast.error("Скидка: число от 0 до 100");
       return;
     }
-    if (feats.has("horeca") && !feats.has("finance")) {
-      toast.error("HoReCa требует включённую функцию «Финансы»");
-      return;
-    }
     onSave({
       name: name.trim(),
       max_active_users: nu,

@@ -51,8 +51,7 @@ _ROUTE_FEATURE_PAIRS: list[tuple[str, str]] = sorted(
 def validate_enabled_features(feature_keys: list[str]) -> tuple[bool, str | None]:
     """Проверка совместимости набора функций. Конфликтующие комбинации — запрещены."""
     keys = {str(x).strip() for x in feature_keys if str(x).strip() in ALL_FEATURE_KEYS}
-    if "horeca" in keys and "finance" not in keys:
-        return False, "Модуль HoReCa требует включённую функцию «Финансы» (своя производственно-складская логика)."
+    _ = keys
     return True, None
 
 
