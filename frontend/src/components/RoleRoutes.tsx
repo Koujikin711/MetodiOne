@@ -4,7 +4,7 @@ import { Navigate } from "react-router-dom";
 
 import { AccessDenied } from "@/components/AccessDenied";
 import { apiFetch, getStoredToken } from "@/lib/api";
-import { decodeRoleFromToken } from "@/lib/auth";
+import { decodeHorecaRoleFromToken, decodeRoleFromToken } from "@/lib/auth";
 import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
 import type { Pipeline } from "@/lib/types";
 import { CrmPage } from "@/pages/CrmPage";
@@ -44,7 +44,9 @@ function ManagerNavHomeEntry({ role }: { role: "manager" | "admin" }) {
 }
 
 export function HomeEntry() {
-  const role = decodeRoleFromToken(getStoredToken());
+  const token = getStoredToken();
+  const role = decodeRoleFromToken(token);
+  const horecaRole = decodeHorecaRoleFromToken(token);
   const { restaurantMode } = useTariffNavAccess();
   if (role === "super_owner") {
     return <Navigate to="/companies" replace />;
@@ -53,6 +55,15 @@ export function HomeEntry() {
     return <ManagerNavHomeEntry role={role} />;
   }
   if (role === "owner" && restaurantMode) {
+    return <Navigate to="/horeca/team" replace />;
+  }
+  if (restaurantMode && horecaRole === "cook") {
+    return <Navigate to="/horeca/prep" replace />;
+  }
+  if (restaurantMode && horecaRole === "waiter") {
+    return <Navigate to="/horeca/tables" replace />;
+  }
+  if (restaurantMode && horecaRole === "hall_admin") {
     return <Navigate to="/horeca/orders" replace />;
   }
   return <CrmPage />;

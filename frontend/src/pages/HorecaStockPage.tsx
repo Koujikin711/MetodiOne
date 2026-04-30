@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
-import type { HorecaStockBalance, HorecaStockMovement } from "@/lib/types";
+import type { HorecaStockAlert, HorecaStockBalance, HorecaStockMovement, HorecaStockReportRead } from "@/lib/types";
 
 function fmt(iso: string): string {
   const d = new Date(iso);
@@ -19,6 +19,16 @@ export function HorecaStockPage() {
     queryFn: () => apiFetch<HorecaStockMovement[]>("/api/horeca/stock/movements?limit=80"),
     refetchInterval: 20_000,
   });
+  const alerts = useQuery({
+    queryKey: ["horeca-stock-alerts"],
+    queryFn: () => apiFetch<HorecaStockAlert[]>("/api/horeca/stock/alerts"),
+    refetchInterval: 20_000,
+  });
+  const report = useQuery({
+    queryKey: ["horeca-stock-report"],
+    queryFn: () => apiFetch<HorecaStockReportRead>("/api/horeca/stock/report?days=14"),
+    refetchInterval: 60_000,
+  });
 
   return (
     <div className="mx-auto max-w-[1200px] space-y-4 pb-10">
@@ -30,6 +40,31 @@ export function HorecaStockPage() {
       {(balances.isLoading || movements.isLoading) && <p className="text-sm text-slate-400">Загрузка склада…</p>}
       {balances.isError ? <p className="text-sm text-rose-300">{(balances.error as Error).message}</p> : null}
       {movements.isError ? <p className="text-sm text-rose-300">{(movements.error as Error).message}</p> : null}
+      {alerts.isError ? <p className="text-sm text-rose-300">{(alerts.error as Error).message}</p> : null}
+
+      <section className="grid gap-3 lg:grid-cols-2">
+        <article className="rounded-2xl border border-amber-500/35 bg-amber-950/20 p-4">
+          <h2 className="mb-2 text-base font-semibold text-white">Алерты кухни: заканчиваются продукты</h2>
+          <div className="space-y-2">
+            {(alerts.data ?? []).slice(0, 8).map((a) => (
+              <div key={a.product_id} className="flex items-center justify-between rounded-lg border border-slate-700/60 px-3 py-2 text-sm">
+                <span>{a.product_name}</span>
+                <span className="text-amber-200">{a.quantity}</span>
+              </div>
+            ))}
+            {!alerts.isLoading && (alerts.data?.length ?? 0) === 0 ? <p className="text-sm text-slate-400">Критических остатков нет.</p> : null}
+          </div>
+        </article>
+        <article className="rounded-2xl border border-slate-700/40 bg-slate-900/40 p-4">
+          <h2 className="mb-2 text-base font-semibold text-white">Авто-отчет списаний (14 дней)</h2>
+          <p className="text-sm text-slate-300">Итого списано по себестоимости: <span className="font-semibold text-white">{report.data?.total_issue_value ?? "0"}</span></p>
+          <div className="mt-2 space-y-1 text-sm text-slate-400">
+            {(report.data?.lines ?? []).slice(0, 5).map((line) => (
+              <p key={line.product_id}>{line.product_name}: {line.issue_qty} / {line.issue_value}</p>
+            ))}
+          </div>
+        </article>
+      </section>
 
       <section className="overflow-x-auto rounded-2xl border border-slate-700/40 bg-slate-900/40 p-4">
         <h2 className="mb-2 text-base font-semibold text-white">Остатки</h2>

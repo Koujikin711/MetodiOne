@@ -804,6 +804,19 @@ class HorecaTechCardLine(Base):
     qty_per_portion: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
 
 
+class HorecaPrepPortion(Base):
+    """Заготовки на дату: сколько порций блюда готово / заложено на смену."""
+
+    __tablename__ = "horeca_prep_portions"
+    __table_args__ = (UniqueConstraint("company_id", "prep_date", "menu_item_id", name="uq_horeca_prep_company_date_menu"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    prep_date: Mapped[date] = mapped_column(Date, index=True)
+    menu_item_id: Mapped[int] = mapped_column(ForeignKey("horeca_menu_items.id", ondelete="CASCADE"), index=True)
+    portions_ready: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+
+
 class FinanceStockBalance(Base):
     __tablename__ = "finance_stock_balances"
 

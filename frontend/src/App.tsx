@@ -37,12 +37,15 @@ import { HorecaStockPage } from "@/pages/HorecaStockPage";
 import { HorecaShiftTasksPage } from "@/pages/HorecaShiftTasksPage";
 import { HorecaCommsPage } from "@/pages/HorecaCommsPage";
 import { HorecaDeliveryPage } from "@/pages/HorecaDeliveryPage";
+import { HorecaForecastPage } from "@/pages/HorecaForecastPage";
 import { IntegrationsHubPage } from "@/pages/IntegrationsHubPage";
 import { KpiPage } from "@/pages/KpiPage";
 import { LandingPage } from "@/pages/LandingPage";
 import { OnboardingPage } from "@/pages/OnboardingPage";
 import { TariffPlansPage } from "@/pages/TariffPlansPage";
 import { TasksPage } from "@/pages/TasksPage";
+import { HorecaPrepPage } from "@/pages/HorecaPrepPage";
+import { HorecaTeamPage } from "@/pages/HorecaTeamPage";
 
 export default function App() {
   return (
@@ -109,6 +112,9 @@ export default function App() {
             <Route path="/horeca/shift-tasks" element={<HorecaShiftTasksPage />} />
             <Route path="/horeca/comms" element={<HorecaCommsPage />} />
             <Route path="/horeca/delivery" element={<HorecaDeliveryPage />} />
+            <Route path="/horeca/prep" element={<HorecaPrepPage />} />
+            <Route path="/horeca/forecast" element={<HorecaForecastPage />} />
+            <Route path="/horeca/team" element={<HorecaTeamPage />} />
             <Route path="/attendance" element={<AttendanceTrackerPage />} />
             <Route
               path="/companies"

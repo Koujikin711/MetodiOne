@@ -196,6 +196,27 @@ export function HorecaPlaceholderPage() {
       body: "Подключение каналов (Яндекс, Wolt, собственная доставка) — единая картина заказов.",
       icon: <Plug className="h-5 w-5" />,
     },
+    {
+      feature: "horeca",
+      to: "/horeca/prep",
+      title: "Заготовки повара",
+      body: "Фиксация заготовок по блюдам и расчёт доступных к продаже порций на текущую смену.",
+      icon: <CheckSquare className="h-5 w-5" />,
+    },
+    {
+      feature: "horeca",
+      to: "/horeca/forecast",
+      title: "Прогноз мощности",
+      body: "Оценка максимальной производительности ресторана по столам, команде и длительности визитов.",
+      icon: <BarChart3 className="h-5 w-5" />,
+    },
+    {
+      feature: "horeca",
+      to: "/horeca/team",
+      title: "Роли и команда",
+      body: "Ролевые рабочие зоны (официанты, кухня, админ) и быстрый доступ к добавлению сотрудников.",
+      icon: <UserRound className="h-5 w-5" />,
+    },
   ];
 
   const ov = overviewQuery.data;
