@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { Link } from "react-router-dom";
 
 import { apiFetch } from "@/lib/api";
 import type { HorecaMenuItem, HorecaProductOption, HorecaTechCardRead } from "@/lib/types";
@@ -81,6 +82,14 @@ export function HorecaKitchenPage() {
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-widest text-teal-300/90">HoReCa / Кухня и техкарты</p>
         <h1 className="text-3xl font-semibold text-white">Кухня и техкарты</h1>
+        <div className="flex gap-2 text-xs">
+          <Link to="/horeca/prep" className="rounded-lg border border-slate-600/60 px-3 py-1.5 text-slate-200 hover:bg-slate-800/50">
+            Заготовки и продаваемые порции
+          </Link>
+          <Link to="/horeca/stock" className="rounded-lg border border-slate-600/60 px-3 py-1.5 text-slate-200 hover:bg-slate-800/50">
+            Алерты по складу
+          </Link>
+        </div>
       </header>
 
       <section className="grid gap-3 rounded-2xl border border-slate-700/40 bg-slate-900/40 p-4 md:grid-cols-3">

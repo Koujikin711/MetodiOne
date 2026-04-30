@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentCompanyId, CurrentUser
@@ -18,9 +18,11 @@ from app.models import (
     FinanceStockBalance,
     FinanceStockMovement,
     HorecaMenuItem,
+    HorecaPrepPortion,
     HorecaTechCardLine,
     Task,
     TaskStatus,
+    User,
     UserRole,
 )
 
@@ -32,6 +34,7 @@ _HORECA_READ_ROLES = frozenset(
 _HORECA_WRITE_ROLES = frozenset({UserRole.owner, UserRole.admin, UserRole.super_owner})
 _HORECA_READ_STAFF_ROLES = frozenset({"waiter", "hall_admin", "cook", "cashier"})
 _HORECA_WRITE_STAFF_ROLES = frozenset({"hall_admin", "cashier"})
+_HORECA_PREP_WRITE_STAFF = frozenset({"cook", "hall_admin"})
 
 
 def _require_horeca_read(user: CurrentUser) -> None:
@@ -44,6 +47,12 @@ def _require_horeca_write(user: CurrentUser) -> None:
     staff_role = str(getattr(user, "horeca_role", "") or "").strip().lower()
     if user.role not in _HORECA_WRITE_ROLES and staff_role not in _HORECA_WRITE_STAFF_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав для изменения HoReCa")
+
+
+def _require_horeca_prep_write(user: CurrentUser) -> None:
+    staff_role = str(getattr(user, "horeca_role", "") or "").strip().lower()
+    if user.role not in _HORECA_WRITE_ROLES and staff_role not in _HORECA_PREP_WRITE_STAFF:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав для заготовок HoReCa")
 
 
 class HorecaShiftOverviewRead(BaseModel):
@@ -196,6 +205,60 @@ class HorecaStockMovementRead(BaseModel):
     qty_delta: Decimal
     unit_cost: Decimal | None = None
     memo: str | None = None
+
+
+class HorecaStockAlertRead(BaseModel):
+    product_id: int
+    product_name: str
+    quantity: Decimal
+    risk: str
+
+
+class HorecaStockReportLineRead(BaseModel):
+    product_id: int
+    product_name: str
+    issue_qty: Decimal
+    issue_value: Decimal
+
+
+class HorecaStockReportRead(BaseModel):
+    date_from: datetime
+    date_to: datetime
+    total_issue_value: Decimal
+    lines: list[HorecaStockReportLineRead]
+
+
+class HorecaPrepLineRead(BaseModel):
+    menu_item_id: int
+    menu_item_name: str
+    portions_ready: Decimal
+
+
+class HorecaPrepTodayPutLine(BaseModel):
+    menu_item_id: int
+    portions_ready: Decimal = Field(..., ge=Decimal("0"))
+
+
+class HorecaPrepTodayPut(BaseModel):
+    lines: list[HorecaPrepTodayPutLine]
+
+
+class HorecaSellableItemRead(BaseModel):
+    menu_item_id: int
+    menu_item_name: str
+    max_from_stock: int | None
+    portions_prepared_today: Decimal | None
+    sellable_portions: int | None
+
+
+class HorecaCapacityForecastRead(BaseModel):
+    generated_at: datetime
+    tables_count: int
+    staff_horeca_count: int
+    avg_visit_minutes: float
+    turns_per_table_per_4h: int
+    estimated_max_covers_4h: int
+    notes: str
 
 
 def _risk_by_qty(qty: Decimal) -> str:
@@ -697,6 +760,325 @@ async def horeca_stock_movements(
         )
         for mid, created_at, mtype, product_id, product_name, qty_delta, unit_cost, memo in rows
     ]
+
+
+@router.get("/stock/alerts", response_model=list[HorecaStockAlertRead])
+async def horeca_stock_alerts(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[HorecaStockAlertRead]:
+    _require_horeca_read(current_user)
+    rows = (
+        await db.execute(
+            select(
+                FinanceProduct.id,
+                FinanceProduct.name,
+                func.coalesce(func.sum(FinanceStockBalance.quantity), 0),
+            )
+            .join(FinanceProduct, FinanceProduct.id == FinanceStockBalance.product_id)
+            .where(FinanceProduct.company_id == company_id, FinanceProduct.is_active.is_(True))
+            .group_by(FinanceProduct.id, FinanceProduct.name)
+            .having(func.coalesce(func.sum(FinanceStockBalance.quantity), 0) < 3)
+            .order_by(func.coalesce(func.sum(FinanceStockBalance.quantity), 0).asc())
+            .limit(200)
+        )
+    ).all()
+    out: list[HorecaStockAlertRead] = []
+    for pid, name, qty in rows:
+        q = Decimal(qty or 0)
+        out.append(
+            HorecaStockAlertRead(
+                product_id=int(pid),
+                product_name=str(name),
+                quantity=q,
+                risk=_risk_by_qty(q),
+            )
+        )
+    return out
+
+
+@router.get("/stock/report", response_model=HorecaStockReportRead)
+async def horeca_stock_report(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    days: int = Query(default=7, ge=1, le=90),
+) -> HorecaStockReportRead:
+    _require_horeca_read(current_user)
+    now = datetime.now(UTC)
+    start = now - timedelta(days=days)
+    issue_qty_expr = func.sum(
+        case(
+            (FinanceStockMovement.qty_delta < 0, -FinanceStockMovement.qty_delta),
+            else_=Decimal("0"),
+        )
+    )
+    issue_val_expr = func.sum(
+        case(
+            (
+                FinanceStockMovement.qty_delta < 0,
+                func.abs(FinanceStockMovement.qty_delta) * func.coalesce(FinanceStockMovement.unit_cost, 0),
+            ),
+            else_=Decimal("0"),
+        )
+    )
+    rows = (
+        await db.execute(
+            select(
+                FinanceProduct.id,
+                FinanceProduct.name,
+                issue_qty_expr,
+                issue_val_expr,
+            )
+            .join(FinanceProduct, FinanceProduct.id == FinanceStockMovement.product_id)
+            .where(
+                FinanceStockMovement.company_id == company_id,
+                FinanceStockMovement.created_at >= start,
+                FinanceStockMovement.movement_type.in_(["issue", "transfer_out"]),
+            )
+            .group_by(FinanceProduct.id, FinanceProduct.name)
+            .having(issue_qty_expr > 0)
+            .order_by(issue_val_expr.desc())
+            .limit(200)
+        )
+    ).all()
+    lines = [
+        HorecaStockReportLineRead(
+            product_id=int(pid),
+            product_name=str(name),
+            issue_qty=Decimal(iq or 0),
+            issue_value=Decimal(iv or 0),
+        )
+        for pid, name, iq, iv in rows
+    ]
+    total = sum((l.issue_value for l in lines), start=Decimal("0"))
+    return HorecaStockReportRead(date_from=start, date_to=now, total_issue_value=total, lines=lines)
+
+
+def _floor_portions_from_stock(qty: Decimal, per: Decimal) -> int:
+    if per <= 0:
+        return 10**9
+    return int(qty // per)
+
+
+@router.get("/prep/today", response_model=list[HorecaPrepLineRead])
+async def horeca_prep_today(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[HorecaPrepLineRead]:
+    _require_horeca_read(current_user)
+    today = datetime.now(UTC).date()
+    prep_rows = (
+        await db.execute(
+            select(HorecaPrepPortion.menu_item_id, HorecaPrepPortion.portions_ready)
+            .where(HorecaPrepPortion.company_id == company_id, HorecaPrepPortion.prep_date == today)
+        )
+    ).all()
+    prep_map = {int(mid): Decimal(pr or 0) for mid, pr in prep_rows}
+    menu_rows = (
+        await db.execute(
+            select(HorecaMenuItem.id, HorecaMenuItem.name)
+            .where(HorecaMenuItem.company_id == company_id, HorecaMenuItem.is_active.is_(True))
+            .order_by(HorecaMenuItem.name.asc())
+        )
+    ).all()
+    return [
+        HorecaPrepLineRead(
+            menu_item_id=int(mid),
+            menu_item_name=str(mname),
+            portions_ready=prep_map.get(int(mid), Decimal("0")),
+        )
+        for mid, mname in menu_rows
+    ]
+
+
+@router.put("/prep/today", response_model=list[HorecaPrepLineRead])
+async def horeca_prep_today_put(
+    body: HorecaPrepTodayPut,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[HorecaPrepLineRead]:
+    _require_horeca_prep_write(current_user)
+    today = datetime.now(UTC).date()
+    menu_ids = {line.menu_item_id for line in body.lines}
+    if menu_ids:
+        ok = (
+            await db.execute(
+                select(HorecaMenuItem.id).where(
+                    HorecaMenuItem.company_id == company_id,
+                    HorecaMenuItem.id.in_(menu_ids),
+                )
+            )
+        ).all()
+        ok_set = {int(r[0]) for r in ok}
+        if ok_set != menu_ids:
+            raise HTTPException(status_code=400, detail="Неизвестная позиция меню для компании")
+    for line in body.lines:
+        existing = (
+            await db.execute(
+                select(HorecaPrepPortion).where(
+                    HorecaPrepPortion.company_id == company_id,
+                    HorecaPrepPortion.prep_date == today,
+                    HorecaPrepPortion.menu_item_id == line.menu_item_id,
+                )
+            )
+        ).scalars().first()
+        if existing is not None:
+            existing.portions_ready = line.portions_ready
+        else:
+            db.add(
+                HorecaPrepPortion(
+                    company_id=company_id,
+                    prep_date=today,
+                    menu_item_id=line.menu_item_id,
+                    portions_ready=line.portions_ready,
+                )
+            )
+    await db.flush()
+    return await horeca_prep_today(db, current_user, company_id)
+
+
+@router.get("/menu/sellable-today", response_model=list[HorecaSellableItemRead])
+async def horeca_menu_sellable_today(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[HorecaSellableItemRead]:
+    _require_horeca_read(current_user)
+    today = datetime.now(UTC).date()
+    bal_rows = (
+        await db.execute(
+            select(FinanceStockBalance.product_id, func.coalesce(func.sum(FinanceStockBalance.quantity), 0))
+            .join(FinanceProduct, FinanceProduct.id == FinanceStockBalance.product_id)
+            .where(FinanceProduct.company_id == company_id)
+            .group_by(FinanceStockBalance.product_id)
+        )
+    ).all()
+    qty_by_product = {int(pid): Decimal(q or 0) for pid, q in bal_rows}
+    prep_rows = (
+        await db.execute(
+            select(HorecaPrepPortion.menu_item_id, HorecaPrepPortion.portions_ready).where(
+                HorecaPrepPortion.company_id == company_id,
+                HorecaPrepPortion.prep_date == today,
+            )
+        )
+    ).all()
+    prep_map = {int(mid): Decimal(pr or 0) for mid, pr in prep_rows}
+    tech_rows = (
+        await db.execute(
+            select(HorecaTechCardLine.menu_item_id, HorecaTechCardLine.product_id, HorecaTechCardLine.qty_per_portion)
+            .join(HorecaMenuItem, HorecaMenuItem.id == HorecaTechCardLine.menu_item_id)
+            .where(HorecaMenuItem.company_id == company_id, HorecaMenuItem.is_active.is_(True))
+        )
+    ).all()
+    lines_by_menu: dict[int, list[tuple[int, Decimal]]] = {}
+    for mid, pid, qpp in tech_rows:
+        lines_by_menu.setdefault(int(mid), []).append((int(pid), Decimal(qpp or 0)))
+    menu_rows = (
+        await db.execute(
+            select(HorecaMenuItem.id, HorecaMenuItem.name)
+            .where(HorecaMenuItem.company_id == company_id, HorecaMenuItem.is_active.is_(True))
+            .order_by(HorecaMenuItem.name.asc())
+        )
+    ).all()
+    out: list[HorecaSellableItemRead] = []
+    for mid, mname in menu_rows:
+        mid_i = int(mid)
+        recipe = lines_by_menu.get(mid_i)
+        max_from_stock: int | None
+        if not recipe:
+            max_from_stock = None
+        else:
+            caps = []
+            for pid, per in recipe:
+                caps.append(_floor_portions_from_stock(qty_by_product.get(pid, Decimal("0")), per))
+            max_from_stock = min(caps) if caps else 0
+        prep_val = prep_map.get(mid_i)
+        portions_prepared = prep_val if mid_i in prep_map else None
+        sellable: int | None
+        if max_from_stock is None:
+            sellable = int(prep_val) if mid_i in prep_map else None
+        elif mid_i in prep_map:
+            sellable = min(max_from_stock, int(prep_val))
+        else:
+            sellable = max_from_stock
+        out.append(
+            HorecaSellableItemRead(
+                menu_item_id=mid_i,
+                menu_item_name=str(mname),
+                max_from_stock=max_from_stock,
+                portions_prepared_today=portions_prepared,
+                sellable_portions=sellable,
+            )
+        )
+    return out
+
+
+@router.get("/forecast/capacity", response_model=HorecaCapacityForecastRead)
+async def horeca_forecast_capacity(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> HorecaCapacityForecastRead:
+    _require_horeca_read(current_user)
+    now = datetime.now(UTC)
+    month_ago = now - timedelta(days=30)
+    tables_count = int(
+        await db.scalar(
+            select(func.count(BookingSpecialist.id)).where(
+                BookingSpecialist.company_id == company_id,
+                BookingSpecialist.is_active.is_(True),
+            )
+        )
+        or 0
+    )
+    staff_horeca_count = int(
+        await db.scalar(
+            select(func.count(User.id)).where(
+                User.company_id == company_id,
+                User.is_active.is_(True),
+                User.horeca_role.in_(["waiter", "hall_admin", "cook", "cashier"]),
+            )
+        )
+        or 0
+    )
+    dur_rows = (
+        await db.execute(
+            select(BookingAppointment.start_at, BookingAppointment.end_at).where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.created_at >= month_ago,
+                BookingAppointment.end_at > BookingAppointment.start_at,
+            )
+        )
+    ).all()
+    durations_min: list[float] = []
+    for st, en in dur_rows:
+        if st is None or en is None:
+            continue
+        delta = (en - st).total_seconds() / 60.0
+        if 5 <= delta <= 600:
+            durations_min.append(delta)
+    avg_visit = sum(durations_min) / len(durations_min) if durations_min else 90.0
+    turn_min = max(30.0, float(avg_visit))
+    turns_4h = int((4 * 60) // turn_min) if turn_min > 0 else 0
+    est_covers = tables_count * max(turns_4h, 0) if tables_count else 0
+    notes = (
+        f"Оценка по столикам из онлайн-записи ({tables_count}) и средней длительности визита за 30 дней "
+        f"({avg_visit:.0f} мин). Пиковая «ёмкость» на 4 ч — условные {est_covers} посадок при полной загрузке; "
+        f"учтите кухню ({staff_horeca_count} сотрудников с ролью HoReCa) и реальное меню."
+    )
+    return HorecaCapacityForecastRead(
+        generated_at=now,
+        tables_count=tables_count,
+        staff_horeca_count=staff_horeca_count,
+        avg_visit_minutes=round(avg_visit, 1),
+        turns_per_table_per_4h=max(turns_4h, 0),
+        estimated_max_covers_4h=est_covers,
+        notes=notes,
+    )
 
 
 @router.get("/overview", response_model=HorecaOverviewRead)

@@ -16,6 +16,8 @@ export function HorecaTablesPage() {
   });
 
   const activeTables = [...(tablesQuery.data ?? [])].sort((a, b) => a.table_number - b.table_number);
+  const busyCount = activeTables.filter((t) => t.is_busy).length;
+  const freeCount = Math.max(activeTables.length - busyCount, 0);
   const roleLabel =
     horecaRole === "cook" || role === "expert"
       ? "Режим кухни: контроль загрузки стола и готовности"
@@ -46,6 +48,21 @@ export function HorecaTablesPage() {
       {tablesQuery.isLoading ? <p className="text-sm text-slate-400">Загрузка зала…</p> : null}
       {tablesQuery.isError ? <p className="text-sm text-rose-300">{(tablesQuery.error as Error).message}</p> : null}
 
+      <section className="grid gap-3 sm:grid-cols-3">
+        <article className="rounded-2xl border border-slate-700/40 bg-slate-900/40 p-4">
+          <p className="text-xs text-slate-400">Всего столиков</p>
+          <p className="mt-2 text-3xl font-semibold text-white">{activeTables.length}</p>
+        </article>
+        <article className="rounded-2xl border border-rose-500/35 bg-rose-950/20 p-4">
+          <p className="text-xs text-rose-200/80">Занято сейчас</p>
+          <p className="mt-2 text-3xl font-semibold text-rose-200">{busyCount}</p>
+        </article>
+        <article className="rounded-2xl border border-emerald-500/35 bg-emerald-950/20 p-4">
+          <p className="text-xs text-emerald-200/80">Свободно</p>
+          <p className="mt-2 text-3xl font-semibold text-emerald-200">{freeCount}</p>
+        </article>
+      </section>
+
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {activeTables.map((t) => {
           const busy = Boolean(t.is_busy);
@@ -53,7 +70,7 @@ export function HorecaTablesPage() {
             <div
               key={t.table_id}
               className={[
-                "rounded-2xl border p-4",
+                "rounded-2xl border p-4 shadow-inner",
                 busy
                   ? "border-rose-500/45 bg-rose-950/25"
                   : "border-emerald-500/40 bg-emerald-950/20",
@@ -74,6 +91,7 @@ export function HorecaTablesPage() {
               <p className="mt-1 text-xs text-slate-400">
                 {busy ? `Гость: ${(t.current_guest_name || "").trim() || "—"}` : "Ожидает посадку"}
               </p>
+              {busy ? <p className="mt-1 text-xs text-slate-500">Блюдо: {(t.current_item_name || "").trim() || "—"}</p> : null}
             </div>
           );
         })}

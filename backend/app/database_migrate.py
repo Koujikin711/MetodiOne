@@ -1423,6 +1423,18 @@ async def ensure_horeca_finance_tables(conn: AsyncConnection, database_url: str)
                 )""",
             ),
         )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS horeca_prep_portions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    prep_date DATE NOT NULL,
+                    menu_item_id INTEGER NOT NULL,
+                    portions_ready NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    UNIQUE(company_id, prep_date, menu_item_id)
+                )""",
+            ),
+        )
         return
 
     if "postgresql" in low or "asyncpg" in low:
@@ -1447,6 +1459,18 @@ async def ensure_horeca_finance_tables(conn: AsyncConnection, database_url: str)
                     product_id INTEGER NOT NULL REFERENCES finance_products(id) ON DELETE CASCADE,
                     qty_per_portion NUMERIC(18, 4) NOT NULL DEFAULT 0,
                     CONSTRAINT uq_horeca_tech_menu_product UNIQUE (menu_item_id, product_id)
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS horeca_prep_portions (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    prep_date DATE NOT NULL,
+                    menu_item_id INTEGER NOT NULL REFERENCES horeca_menu_items(id) ON DELETE CASCADE,
+                    portions_ready NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    CONSTRAINT uq_horeca_prep_company_date_menu UNIQUE (company_id, prep_date, menu_item_id)
                 )""",
             ),
         )

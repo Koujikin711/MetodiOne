@@ -436,6 +436,51 @@ export interface HorecaStockMovement {
   memo: string | null;
 }
 
+export interface HorecaStockAlert {
+  product_id: number;
+  product_name: string;
+  quantity: string;
+  risk: "ok" | "low" | "out" | string;
+}
+
+export interface HorecaStockReportLine {
+  product_id: number;
+  product_name: string;
+  issue_qty: string;
+  issue_value: string;
+}
+
+export interface HorecaStockReportRead {
+  date_from: string;
+  date_to: string;
+  total_issue_value: string;
+  lines: HorecaStockReportLine[];
+}
+
+export interface HorecaPrepLine {
+  menu_item_id: number;
+  menu_item_name: string;
+  portions_ready: string;
+}
+
+export interface HorecaSellableItem {
+  menu_item_id: number;
+  menu_item_name: string;
+  max_from_stock: number | null;
+  portions_prepared_today: string | null;
+  sellable_portions: number | null;
+}
+
+export interface HorecaCapacityForecastRead {
+  generated_at: string;
+  tables_count: number;
+  staff_horeca_count: number;
+  avg_visit_minutes: number;
+  turns_per_table_per_4h: number;
+  estimated_max_covers_4h: number;
+  notes: string;
+}
+
 export interface LeadStatusPatchResponse extends Lead {
   automation_task_created: boolean;
 }
