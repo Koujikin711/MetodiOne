@@ -45,6 +45,19 @@ export interface Integration {
   setup_note?: string | null;
 }
 
+export interface GreenBroadcastResult {
+  requested_count: number;
+  sent_count: number;
+  failed_count: number;
+  failed_numbers: string[];
+}
+
+export interface GreenBroadcastPreviewRead {
+  found_count: number;
+  unique_count: number;
+  limited_count: number;
+}
+
 export interface ChatThread {
   id: number;
   lead_id: number | null;
