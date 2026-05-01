@@ -1,11 +1,15 @@
 import asyncio
+import csv
+import io
 import json
 import logging
 import re
 import secrets
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile, status
+from openpyxl import load_workbook
+from pydantic import BaseModel, Field
 from starlette.responses import Response
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +20,7 @@ from app.services.tariff_effective import effective_tariff_max_integrations
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.services.green_incoming import parse_green_message_data
+from app.services.green_api_send import send_green_text_async
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.whatsapp_automation import send_welcome_if_first_incoming
 from app.services.green_api_settings import (
@@ -480,6 +485,144 @@ async def sync_integration_now(
     return stats
 
 
+class GreenBroadcastResult(BaseModel):
+    requested_count: int
+    sent_count: int
+    failed_count: int
+    failed_numbers: list[str] = Field(default_factory=list)
+
+
+class GreenBroadcastPreviewRead(BaseModel):
+    found_count: int
+    unique_count: int
+    limited_count: int
+
+
+async def _collect_green_broadcast_phones(
+    *,
+    db: AsyncSession,
+    company_id: int,
+    source: str,
+    excel_phone_column: str,
+    file: UploadFile | None,
+) -> list[str]:
+    src = source.strip().lower()
+    phones: list[str] = []
+    if src == "database":
+        phone_rows = (
+            await db.execute(
+                select(Lead.phone)
+                .where(Lead.company_id == company_id, Lead.phone.is_not(None))
+                .order_by(Lead.id.desc())
+                .limit(5000)
+            )
+        ).all()
+        phones = [_norm_phone(str(x[0] or "")) for x in phone_rows]
+        phones = [p for p in phones if p]
+    elif src == "excel":
+        if file is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="При source=excel прикрепите файл")
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Файл пуст")
+        filename = (file.filename or "").lower()
+        if filename.endswith(".xlsx"):
+            phones = _extract_phones_from_excel(content, phone_column=excel_phone_column)
+        elif filename.endswith(".csv") or not filename:
+            phones = _extract_phones_from_csv(content)
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Поддерживаются только .xlsx и .csv")
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="source должен быть database или excel")
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for p in phones:
+        if p and p not in seen:
+            seen.add(p)
+            uniq.append(p)
+    return uniq
+
+
+@router.post("/{integration_id}/green-broadcast/preview", response_model=GreenBroadcastPreviewRead)
+async def green_broadcast_preview(
+    integration_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    source: Annotated[str, Form()] = "database",
+    excel_phone_column: Annotated[str, Form()] = "phone",
+    file: UploadFile | None = File(default=None),
+) -> GreenBroadcastPreviewRead:
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    row = await db.get(Integration, integration_id)
+    if row is None or row.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+    if row.provider != IntegrationProvider.green_api:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Предпросмотр доступен только для Green API")
+    phones = await _collect_green_broadcast_phones(
+        db=db,
+        company_id=company_id,
+        source=source,
+        excel_phone_column=excel_phone_column,
+        file=file,
+    )
+    return GreenBroadcastPreviewRead(
+        found_count=len(phones),
+        unique_count=len(phones),
+        limited_count=min(len(phones), 2000),
+    )
+
+
+@router.post("/{integration_id}/green-broadcast", response_model=GreenBroadcastResult)
+async def green_broadcast(
+    integration_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    message: Annotated[str, Form(min_length=1, max_length=4096)],
+    source: Annotated[str, Form()] = "database",
+    excel_phone_column: Annotated[str, Form()] = "phone",
+    file: UploadFile | None = File(default=None),
+) -> GreenBroadcastResult:
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    row = await db.get(Integration, integration_id)
+    if row is None or row.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+    if row.provider != IntegrationProvider.green_api:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Рассылка доступна только для Green API")
+    if not row.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Интеграция выключена")
+    phones = await _collect_green_broadcast_phones(
+        db=db,
+        company_id=company_id,
+        source=source,
+        excel_phone_column=excel_phone_column,
+        file=file,
+    )
+    phones = phones[:2000]
+    if not phones:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Не найдено валидных номеров для рассылки")
+
+    text = message.strip()
+    sent = 0
+    failed: list[str] = []
+    for phone in phones:
+        ok, err, _ = await send_green_text_async(row.config, _to_green_chat_id(phone), text)
+        if ok:
+            sent += 1
+        else:
+            logger.warning("green broadcast failed integration_id=%s phone=%s err=%s", integration_id, phone, err)
+            failed.append(phone)
+    return GreenBroadcastResult(
+        requested_count=len(phones),
+        sent_count=sent,
+        failed_count=len(failed),
+        failed_numbers=failed[:100],
+    )
+
+
 @router.post("/generate-secret")
 async def generate_secret(
     current_user: CurrentUser,
@@ -501,6 +644,43 @@ def _norm_phone(raw: str | None) -> str | None:
         return None
     digits = re.sub(r"\D+", "", raw)
     return digits or None
+
+
+def _to_green_chat_id(phone: str) -> str:
+    return f"{phone}@c.us"
+
+
+def _extract_phones_from_excel(content: bytes, *, phone_column: str) -> list[str]:
+    wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+    ws = wb.active
+    rows = ws.iter_rows(values_only=True)
+    first = next(rows, None)
+    if not first:
+        return []
+    header = [str(x).strip().lower() if x is not None else "" for x in first]
+    wanted = phone_column.strip().lower()
+    idx = header.index(wanted) if wanted in header else 0
+    out: list[str] = []
+    for r in rows:
+        if r is None or idx >= len(r):
+            continue
+        p = _norm_phone(str(r[idx] or ""))
+        if p:
+            out.append(p)
+    return out
+
+
+def _extract_phones_from_csv(content: bytes) -> list[str]:
+    text = content.decode("utf-8-sig", errors="ignore")
+    reader = csv.reader(io.StringIO(text))
+    out: list[str] = []
+    for row in reader:
+        if not row:
+            continue
+        p = _norm_phone(row[0])
+        if p:
+            out.append(p)
+    return out
 
 
 async def _find_existing_lead(
