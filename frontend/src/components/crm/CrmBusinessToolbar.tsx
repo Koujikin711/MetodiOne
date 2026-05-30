@@ -46,7 +46,7 @@ export function CrmBusinessToolbar({
           <span>Первый день в CRM: пройдите короткий мастер настройки воронки и команды.</span>
           <Link
             to="/onboarding"
-            className="rounded-lg border border-white/25 bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/18"
+            className="rounded-lg border border-white/25 bg-white/10 px-3 py-1 text-xs font-semibold text-[var(--mo-text)] hover:bg-white/18"
           >
             Открыть мастер
           </Link>

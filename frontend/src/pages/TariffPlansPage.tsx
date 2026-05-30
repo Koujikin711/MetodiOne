@@ -272,7 +272,7 @@ export function TariffPlansPage() {
     <div className="relative mx-auto max-w-[960px] space-y-6 pb-10">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-white">Архитектор тарифов</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Архитектор тарифов</h1>
           <p className="mt-1 text-sm lux-caption">
             Создайте тарифы с набором функций и лимитами. При создании компании выберите тариф — владелец увидит
             недоступные разделы с подсказкой об апгрейде.
@@ -281,7 +281,7 @@ export function TariffPlansPage() {
         <button
           type="button"
           onClick={() => setModal("create")}
-          className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white"
+          className="btn-primary"
         >
           Новый тариф
         </button>
@@ -491,7 +491,7 @@ function PricingCatalogSection({ catalog }: { catalog: FeatureCatalogItem[] }) {
                         <input
                           value={cells[cellKey(c.key, cur)] ?? ""}
                           onChange={(e) => setCells((prev) => ({ ...prev, [cellKey(c.key, cur)]: e.target.value }))}
-                          className="w-full rounded border border-[var(--mo-border-strong)] bg-[var(--mo-surface)] px-1 py-1 text-white"
+                          className="w-full rounded border border-[var(--mo-border-strong)] bg-[var(--mo-surface)] px-1 py-1 text-[var(--mo-text)]"
                         />
                       </td>
                     ))}
@@ -505,7 +505,7 @@ function PricingCatalogSection({ catalog }: { catalog: FeatureCatalogItem[] }) {
                         <input
                           value={cells[cellKey(lk.key, cur)] ?? ""}
                           onChange={(e) => setCells((prev) => ({ ...prev, [cellKey(lk.key, cur)]: e.target.value }))}
-                          className="w-full rounded border border-[var(--mo-border-strong)] bg-[var(--mo-surface)] px-1 py-1 text-white"
+                          className="w-full rounded border border-[var(--mo-border-strong)] bg-[var(--mo-surface)] px-1 py-1 text-[var(--mo-text)]"
                         />
                       </td>
                     ))}
@@ -518,7 +518,7 @@ function PricingCatalogSection({ catalog }: { catalog: FeatureCatalogItem[] }) {
             type="button"
             disabled={saveMut.isPending}
             onClick={() => saveMut.mutate(buildPayload())}
-            className="mt-3 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+            className="mt-3 rounded-xl bg-indigo-600 px-4 py-2 lux-subheading text-sm hover:bg-indigo-500 disabled:opacity-50"
           >
             {saveMut.isPending ? "Сохранение…" : "Сохранить каталог цен"}
           </button>

@@ -348,7 +348,7 @@ export function LeadDetailPage() {
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center lux-caption">
         Некорректный идентификатор лида.
-        <Link to="/booking" className="mt-4 block text-purple-300 hover:underline">
+        <Link to="/booking" className="mt-4 block text-[var(--mo-accent-hover)] hover:underline">
           ← К онлайн-записи
         </Link>
       </div>
@@ -360,7 +360,7 @@ export function LeadDetailPage() {
       <div className="flex flex-wrap items-center gap-4 text-sm">
         <Link
           to="/booking"
-          className="font-medium text-purple-300 underline-offset-4 hover:text-[#614b70] hover:underline"
+          className="font-medium text-[var(--mo-accent-hover)] underline-offset-4 hover:text-[#614b70] hover:underline"
         >
           ← Онлайн запись
         </Link>
@@ -462,7 +462,7 @@ export function LeadDetailPage() {
 
           {(leadAppointmentsQuery.data ?? []).length > 0 && (
             <section className="mt-8 border-t border-[var(--mo-border)] pt-6">
-              <h2 className="text-sm font-semibold text-white">Онлайн-запись</h2>
+              <h2 className="lux-subheading text-sm">Онлайн-запись</h2>
               <p className="mt-1 text-xs mo-muted">
                 Активные записи по этому лиду. «Перенос» открывает выбор даты и времени в календаре записи.
               </p>
@@ -550,10 +550,10 @@ export function LeadDetailPage() {
           {canSeeFinanceJournal ? (
             <section className="mt-8 border-t border-[var(--mo-border)] pt-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-white">Финансы: проводки по лиду</h2>
+                <h2 className="lux-subheading text-sm">Финансы: проводки по лиду</h2>
                 <Link
                   to="/finance"
-                  className="text-xs font-medium text-purple-300 hover:text-[#614b70] hover:underline"
+                  className="text-xs font-medium text-[var(--mo-accent-hover)] hover:text-[#614b70] hover:underline"
                 >
                   Открыть финансы →
                 </Link>
@@ -681,7 +681,7 @@ export function LeadDetailPage() {
                   }
                   closeDealMutation.mutate({ amount, paid_amount: paid });
                 }}
-                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                className="rounded-xl bg-emerald-600 px-4 py-2 lux-subheading text-sm hover:bg-emerald-500 disabled:opacity-50"
               >
                 Подтвердить
               </button>
@@ -754,7 +754,7 @@ export function LeadDetailPage() {
                 type="button"
                 disabled={patchLeadMutation.isPending}
                 onClick={submitLeadEdit}
-                className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-50"
+                className="rounded-xl bg-sky-600 px-4 py-2 lux-subheading text-sm hover:bg-sky-500 disabled:opacity-50"
               >
                 {patchLeadMutation.isPending ? "Сохранение..." : "Сохранить"}
               </button>
@@ -849,7 +849,7 @@ export function LeadDetailPage() {
                   moveMinuteOfDay == null
                 }
                 onClick={handleMoveAppointmentSubmit}
-                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+                className="rounded-xl bg-indigo-600 px-4 py-2 lux-subheading text-sm hover:bg-indigo-500 disabled:opacity-50"
               >
                 {moveAppointmentMutation.isPending ? "Перенос..." : "Перенести"}
               </button>
@@ -868,7 +868,7 @@ export function LeadDetailPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-[var(--mo-border)]/70 px-4 py-3">
-              <h3 className="text-sm font-semibold text-white">Аудит карточки лида #{leadId}</h3>
+              <h3 className="lux-subheading text-sm">Аудит карточки лида #{leadId}</h3>
               <button
                 type="button"
                 onClick={() => setAuditOpen(false)}

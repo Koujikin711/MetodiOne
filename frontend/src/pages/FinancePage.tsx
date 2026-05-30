@@ -1279,7 +1279,7 @@ export function FinancePage() {
                   max={2100}
                   value={osvDefaultYear}
                   onChange={(e) => setOsvDefaultYear(e.target.value)}
-                  className="ml-2 w-24 rounded-lg border border-[var(--mo-border-strong)]/60 bg-white/50 px-2 py-1 text-white"
+                  className="ml-2 w-24 rounded-lg border border-[var(--mo-border-strong)]/60 bg-white/50 px-2 py-1 text-[var(--mo-text)]"
                 />
               </label>
             </div>
@@ -1399,7 +1399,7 @@ export function FinancePage() {
                 <select
                   value={journalSource}
                   onChange={(e) => setJournalSource(e.target.value)}
-                  className="ml-2 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-1.5 text-white"
+                  className="ml-2 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-1.5 text-[var(--mo-text)]"
                 >
                   <option value="">Все</option>
                   <option value="manual">Ручные</option>
@@ -1422,7 +1422,7 @@ export function FinancePage() {
                     <span className="font-medium text-[var(--mo-text)]">
                       №{ent.id} · {ent.entry_date?.slice(0, 19)?.replace("T", " ")}
                     </span>
-                    <span className="text-xs text-purple-300">{sourceTypeLabel(ent.source_type)}</span>
+                    <span className="text-xs text-[var(--mo-accent-hover)]">{sourceTypeLabel(ent.source_type)}</span>
                   </div>
                   {ent.memo ? <p className="mt-1 text-xs lux-caption">{ent.memo}</p> : null}
                   <table className="mt-2 w-full text-xs">
@@ -1483,7 +1483,7 @@ export function FinancePage() {
                         const v = Number(e.target.value);
                         setManualLines((prev) => prev.map((r, i) => (i === idx ? { ...r, accountId: v } : r)));
                       }}
-                      className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-sm text-white"
+                      className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-sm text-[var(--mo-text)]"
                     >
                       <option value={0}>— выберите —</option>
                       {accountsForSelect.map((a) => (
@@ -1500,7 +1500,7 @@ export function FinancePage() {
                       onChange={(e) =>
                         setManualLines((prev) => prev.map((r, i) => (i === idx ? { ...r, debit: e.target.value } : r)))
                       }
-                      className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-sm text-white"
+                      className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-sm text-[var(--mo-text)]"
                     />
                   </label>
                   <label className="w-28 text-xs mo-muted">
@@ -1510,7 +1510,7 @@ export function FinancePage() {
                       onChange={(e) =>
                         setManualLines((prev) => prev.map((r, i) => (i === idx ? { ...r, credit: e.target.value } : r)))
                       }
-                      className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-sm text-white"
+                      className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-sm text-[var(--mo-text)]"
                     />
                   </label>
                   {manualLines.length > 2 ? (
@@ -1564,7 +1564,7 @@ export function FinancePage() {
                 <tbody>
                   {(balancesQuery.data ?? []).map((row, i) => (
                     <tr key={i} className="border-b border-[var(--mo-border)]/30">
-                      <td className="py-2 pr-2 text-white">{row.product_name}</td>
+                      <td className="py-2 pr-2 text-[var(--mo-text)]">{row.product_name}</td>
                       <td className="py-2 pr-2">{row.warehouse_name}</td>
                       <td className="py-2 pr-2">{row.quantity}</td>
                       <td className="py-2 pr-2">{parseMoney(row.avg_unit_cost)}</td>
@@ -1694,7 +1694,7 @@ export function FinancePage() {
                         {m.created_at?.slice(0, 19)?.replace("T", " ")}
                       </td>
                       <td className="px-2 py-1.5">{movementTypeLabel(m.movement_type)}</td>
-                      <td className="px-2 py-1.5 text-white">{m.product_name}</td>
+                      <td className="px-2 py-1.5 text-[var(--mo-text)]">{m.product_name}</td>
                       <td className="px-2 py-1.5">{m.warehouse_name}</td>
                       <td className="px-2 py-1.5 text-right font-mono">{m.qty_delta}</td>
                     </tr>
@@ -1801,7 +1801,7 @@ export function FinancePage() {
                     className={[
                       "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
                       statementsTab === t.id
-                        ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md"
+                        ? "border border-[#d4af37] bg-[#f7f2e8] text-[var(--mo-text)] shadow-[var(--mo-shadow-luxury)]"
                         : "lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]",
                     ].join(" ")}
                   >
@@ -1817,19 +1817,19 @@ export function FinancePage() {
                   <div className="grid gap-3 sm:grid-cols-3">
                     <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/25 px-4 py-4">
                       <div className="text-xs uppercase tracking-wide text-emerald-200/80">Выручка (период)</div>
-                      <div className="mt-2 text-2xl font-semibold text-white">
+                      <div className="mt-2 lux-heading-page text-2xl">
                         {parseMoney(periodSummaryQuery.data.revenue_total)}
                       </div>
                     </div>
                     <div className="rounded-xl border border-rose-500/25 bg-rose-950/25 px-4 py-4">
                       <div className="text-xs uppercase tracking-wide text-rose-200/80">Расходы (период)</div>
-                      <div className="mt-2 text-2xl font-semibold text-white">
+                      <div className="mt-2 lux-heading-page text-2xl">
                         {parseMoney(periodSummaryQuery.data.expense_total)}
                       </div>
                     </div>
                     <div className="rounded-xl border border-violet-500/25 bg-violet-950/25 px-4 py-4">
                       <div className="text-xs uppercase tracking-wide text-violet-200/80">Чистая прибыль</div>
-                      <div className="mt-2 text-2xl font-semibold text-white">
+                      <div className="mt-2 lux-heading-page text-2xl">
                         {parseMoney(periodSummaryQuery.data.net_income)}
                       </div>
                     </div>
@@ -1888,16 +1888,16 @@ export function FinancePage() {
                               className={[
                                 "border-t border-[var(--mo-border)]",
                                 row.line_kind === "header" ? "bg-white/60" : "",
-                                row.line_kind === "total" ? "bg-white font-semibold text-white" : "",
+                                row.line_kind === "total" ? "bg-white font-semibold text-[var(--mo-text)]" : "",
                               ].join(" ")}
                             >
                               <td className="px-4 py-2 pl-5 mo-muted">
                                 <span
                                   className={
                                     row.line_kind === "header"
-                                      ? "font-semibold text-white"
+                                      ? "font-semibold text-[var(--mo-text)]"
                                       : row.line_kind === "total"
-                                        ? "text-white"
+                                        ? "text-[var(--mo-text)]"
                                         : ""
                                   }
                                 >
@@ -1932,19 +1932,19 @@ export function FinancePage() {
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div className="rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-4">
                         <div className="text-xs uppercase tracking-wide text-cyan-200/80">Остаток ДС на начало</div>
-                        <div className="mt-2 text-xl font-semibold text-white">
+                        <div className="mt-2 text-xl font-semibold text-[var(--mo-text)]">
                           {parseMoney(cashFlowQuery.data.opening_cash)}
                         </div>
                       </div>
                       <div className="rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-4">
                         <div className="text-xs uppercase tracking-wide text-cyan-200/80">Изменение за период</div>
-                        <div className="mt-2 text-xl font-semibold text-white">
+                        <div className="mt-2 text-xl font-semibold text-[var(--mo-text)]">
                           {parseMoney(cashFlowQuery.data.net_change)}
                         </div>
                       </div>
                       <div className="rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-4">
                         <div className="text-xs uppercase tracking-wide text-cyan-200/80">Остаток ДС на конец</div>
-                        <div className="mt-2 text-xl font-semibold text-white">
+                        <div className="mt-2 text-xl font-semibold text-[var(--mo-text)]">
                           {parseMoney(cashFlowQuery.data.closing_cash)}
                         </div>
                       </div>
@@ -2008,8 +2008,8 @@ export function FinancePage() {
                 <li>
                   Счёт запасов <span className="font-mono lux-caption">{consistencyQuery.data.inventory_account_code}</span>
                   : в журнале (нетто){" "}
-                  <span className="text-white">{parseMoney(consistencyQuery.data.inventory_gl_net)}</span>, по складу{" "}
-                  <span className="text-white">{parseMoney(consistencyQuery.data.inventory_stock_value)}</span>
+                  <span className="text-[var(--mo-text)]">{parseMoney(consistencyQuery.data.inventory_gl_net)}</span>, по складу{" "}
+                  <span className="text-[var(--mo-text)]">{parseMoney(consistencyQuery.data.inventory_stock_value)}</span>
                 </li>
               </ul>
             )}
@@ -2206,7 +2206,7 @@ export function FinancePage() {
                   {(plLinesQuery.data ?? []).map((r, idx) => (
                     <tr key={`${r.account_code}-${r.account_type}-${idx}`} className="border-t border-[var(--mo-border)]">
                       <td className="px-3 py-2 font-mono lux-caption">{r.account_code}</td>
-                      <td className="px-3 py-2 text-white">{r.account_name}</td>
+                      <td className="px-3 py-2 text-[var(--mo-text)]">{r.account_name}</td>
                       <td className="px-3 py-2 mo-muted">{r.account_type}</td>
                       <td className="px-3 py-2 text-right">{parseMoney(r.amount)}</td>
                     </tr>
@@ -2268,7 +2268,7 @@ export function FinancePage() {
                       <td className="px-2 py-1.5">{r.account_name}</td>
                       <td className="px-2 py-1.5 text-right">{parseMoney(r.debit_total)}</td>
                       <td className="px-2 py-1.5 text-right">{parseMoney(r.credit_total)}</td>
-                      <td className="px-2 py-1.5 text-right text-white">{parseMoney(r.net_balance)}</td>
+                      <td className="px-2 py-1.5 text-right text-[var(--mo-text)]">{parseMoney(r.net_balance)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2293,7 +2293,7 @@ export function FinancePage() {
                 <tbody>
                   {(typeRollupQuery.data ?? []).map((r) => (
                     <tr key={r.account_type} className="border-t border-[var(--mo-border)]">
-                      <td className="px-3 py-2 text-white">{r.account_type}</td>
+                      <td className="px-3 py-2 text-[var(--mo-text)]">{r.account_type}</td>
                       <td className="px-3 py-2 text-right">{parseMoney(r.debit_total)}</td>
                       <td className="px-3 py-2 text-right">{parseMoney(r.credit_total)}</td>
                       <td className="px-3 py-2 text-right">{parseMoney(r.net_balance)}</td>
@@ -2315,7 +2315,7 @@ export function FinancePage() {
                 <select
                   value={drillAccountId}
                   onChange={(e) => setDrillAccountId(Number(e.target.value))}
-                  className="mt-1 block w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
+                  className="mt-1 block w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
                 >
                   <option value={0}>— выберите —</option>
                   {(accountsQuery.data ?? []).map((a) => (
@@ -2338,7 +2338,7 @@ export function FinancePage() {
                 >
                   <div className="flex flex-wrap justify-between gap-2">
                     <span className="font-medium text-[var(--mo-text)]">№{ent.id}</span>
-                    <span className="text-purple-300">{sourceTypeLabel(ent.source_type)}</span>
+                    <span className="text-[var(--mo-accent-hover)]">{sourceTypeLabel(ent.source_type)}</span>
                   </div>
                   <div className="mo-muted">{ent.entry_date?.slice(0, 19)?.replace("T", " ")}</div>
                   {ent.memo ? <div className="mo-muted">{ent.memo}</div> : null}
@@ -2434,7 +2434,7 @@ export function FinancePage() {
                     const dv = Number(row.revenue_actual) - Number(row.revenue_plan);
                     return (
                       <tr key={row.month} className="border-t border-[var(--mo-border)]">
-                        <td className="px-2 py-1.5 text-white">{row.month}</td>
+                        <td className="px-2 py-1.5 text-[var(--mo-text)]">{row.month}</td>
                         <td className="px-2 py-1.5 text-right">{parseMoney(row.revenue_actual)}</td>
                         <td className="px-2 py-1.5 text-right mo-muted">{parseMoney(row.revenue_plan)}</td>
                         <td className="px-2 py-1.5 align-middle">
@@ -2487,7 +2487,7 @@ export function FinancePage() {
                 <select
                   value={budgetMonth}
                   onChange={(e) => setBudgetMonth(Number(e.target.value))}
-                  className="mt-1 block rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
+                  className="mt-1 block rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
                 >
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                     <option key={m} value={m}>
@@ -2501,7 +2501,7 @@ export function FinancePage() {
                 <input
                   value={budgetRev}
                   onChange={(e) => setBudgetRev(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
+                  className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
                   placeholder="0"
                 />
               </label>
@@ -2510,7 +2510,7 @@ export function FinancePage() {
                 <input
                   value={budgetExp}
                   onChange={(e) => setBudgetExp(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
+                  className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
                   placeholder="0"
                 />
               </label>
@@ -2538,7 +2538,7 @@ export function FinancePage() {
                   type="number"
                   value={fcYear}
                   onChange={(e) => setFcYear(Number(e.target.value) || fcYear)}
-                  className="mt-1 block w-24 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
+                  className="mt-1 block w-24 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
                 />
               </label>
               <label className="text-sm mo-muted">
@@ -2546,7 +2546,7 @@ export function FinancePage() {
                 <select
                   value={fcMonth}
                   onChange={(e) => setFcMonth(Number(e.target.value))}
-                  className="mt-1 block rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
+                  className="mt-1 block rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
                 >
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                     <option key={m} value={m}>
@@ -2563,7 +2563,7 @@ export function FinancePage() {
                   max={24}
                   value={fcHorizon}
                   onChange={(e) => setFcHorizon(Number(e.target.value) || 3)}
-                  className="mt-1 block w-20 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
+                  className="mt-1 block w-20 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
                 />
               </label>
             </div>

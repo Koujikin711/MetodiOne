@@ -270,7 +270,7 @@ export function EmployeesPage() {
     <div className="relative mx-auto max-w-[1200px] space-y-6 pb-10">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-white">Сотрудники</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Сотрудники</h1>
           <p className="mt-1 text-sm lux-caption">
             Приглашение создаёт логин (email/телефон) и временный пароль.
           </p>
@@ -345,7 +345,7 @@ export function EmployeesPage() {
 
           {redistributeFromId !== "" && (
             <div className="mt-4 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
-              <div className="text-sm font-semibold text-white">Кому передать</div>
+              <div className="lux-subheading text-sm">Кому передать</div>
               <p className="mt-1 text-[11px] mo-muted">
                 Только активные менеджеры. Лиды делятся поровну (round-robin).
               </p>
@@ -393,7 +393,7 @@ export function EmployeesPage() {
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
-                <div className="truncate text-base font-semibold text-white">
+                <div className="truncate lux-subheading">
                   {e.full_name ?? "—"}
                 </div>
                 <div className="mt-1 text-sm lux-caption">
@@ -613,7 +613,7 @@ export function EmployeesPage() {
               )}
 
               <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
-                <div className="text-sm font-semibold text-white">Направления (воронки)</div>
+                <div className="lux-subheading text-sm">Направления (воронки)</div>
                 <p className="mt-1 text-[11px] mo-muted">
                   Для владельца направления не обязательны. Для менеджера и админа воронки: направления CRM. Для админа воронки обязательна хотя бы одна
                   (журнал записей и лиды). Для эксперта — тоже хотя бы одна воронка CRM плюс специальность и направление

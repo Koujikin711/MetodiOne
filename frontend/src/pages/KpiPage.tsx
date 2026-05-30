@@ -123,7 +123,7 @@ export function KpiPage() {
   return (
     <div className="relative mx-auto max-w-[1500px] space-y-6 pb-10">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-white">KPI продаж</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">KPI продаж</h1>
         <p className="text-sm lux-caption">
           Месячная матрица по выбранной воронке: сверху услуги (специальности), справа менеджеры, план задаётся в
           количестве, цена задаётся отдельно, факт-сумма считается как факт-количество × цена услуги.
@@ -165,7 +165,7 @@ export function KpiPage() {
               type="button"
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending}
-              className="rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-500 disabled:opacity-50"
+              className="rounded-xl bg-purple-600 px-4 py-2 lux-subheading text-sm hover:bg-purple-500 disabled:opacity-50"
             >
               Сохранить
             </button>
@@ -232,7 +232,7 @@ function OwnerMatrixTable({
           </tr>
         </thead>
         <tbody>
-          <tr className="border-b border-slate-800 bg-white">
+          <tr className="border-b border-[var(--mo-border)] bg-white">
             <td className="py-2 pr-3 font-medium mo-muted">Цена услуги</td>
             {directions.map((d) => (
               <td key={d.direction_id} className="py-2 pr-3">
@@ -247,14 +247,14 @@ function OwnerMatrixTable({
                       [d.direction_id]: e.target.value,
                     })
                   }
-                  className="w-24 rounded-lg border border-[var(--mo-border-strong)]/60 bg-white px-2 py-1 text-white"
+                  className="w-24 rounded-lg border border-[var(--mo-border-strong)]/60 bg-white px-2 py-1 text-[var(--mo-text)]"
                 />
               </td>
             ))}
             <td colSpan={3} />
           </tr>
           {data.managers.map((m) => (
-            <tr key={m.manager_id} className="border-b border-slate-800/70">
+            <tr key={m.manager_id} className="border-b border-[var(--mo-border)]/70">
               <td className="py-2 pr-3 font-medium">{m.manager_name}</td>
               {directions.map((d) => {
                 const cell = m.cells.find((x) => x.direction_id === d.direction_id);
@@ -268,14 +268,14 @@ function OwnerMatrixTable({
                         step={1}
                         value={qtyDraft[key] ?? ""}
                         onChange={(e) => onQtyChange({ ...qtyDraft, [key]: e.target.value })}
-                        className="w-20 rounded-lg border border-[var(--mo-border-strong)]/60 bg-white px-2 py-1 text-white"
+                        className="w-20 rounded-lg border border-[var(--mo-border-strong)]/60 bg-white px-2 py-1 text-[var(--mo-text)]"
                         title="Плановое количество"
                       />
                       <div className="text-xs mo-muted">
                         факт {cell?.actual_count ?? 0} шт · {moneyFmt.format(Number(cell?.actual_paid ?? 0))} /{" "}
                         {moneyFmt.format(Number(cell?.plan_amount ?? 0))}
                       </div>
-                      <div className="text-xs text-purple-300">
+                      <div className="text-xs text-[var(--mo-accent-hover)]">
                         {cell?.progress_percent != null ? `${cell.progress_percent.toFixed(1)}%` : "—"}
                       </div>
                     </div>
@@ -314,7 +314,7 @@ function ManagerMatrixTable({ data }: { data: SalesKpiManagerMatrix }) {
         </thead>
         <tbody>
           {data.manager.cells.map((c) => (
-            <tr key={c.direction_id} className="border-b border-slate-800/70">
+            <tr key={c.direction_id} className="border-b border-[var(--mo-border)]/70">
               <td className="py-2 pr-3">{byDirection[c.direction_id]?.direction_name ?? c.direction_id}</td>
               <td className="py-2 pr-3">{moneyFmt.format(Number(byDirection[c.direction_id]?.unit_price ?? 0))}</td>
               <td className="py-2 pr-3">{c.plan_qty}</td>

@@ -27,7 +27,7 @@ export function ExpertReportsPage() {
   return (
     <div className="relative mx-auto max-w-6xl space-y-6 pb-8">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-white">Отчёты</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Отчёты</h1>
         <p className="text-sm lux-caption">
           Воронка(и), где вы назначены экспертом. Данные по лидам и онлайн‑записи за период.
         </p>
@@ -92,7 +92,7 @@ export function ExpertReportsPage() {
               </thead>
               <tbody>
                 {(p.experts ?? []).map((x) => (
-                  <tr key={x.specialist_id} className="border-b border-slate-800/80">
+                  <tr key={x.specialist_id} className="border-b border-[var(--mo-border)]">
                     <td className="py-2 pr-4">
                       {x.specialist_name}
                       {x.specialization ? (

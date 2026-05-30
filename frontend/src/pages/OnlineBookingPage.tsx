@@ -544,10 +544,10 @@ export function OnlineBookingPage() {
       type="button"
       onClick={() => setTab(id)}
       className={[
-        "rounded-xl px-4 py-2 text-sm font-medium transition-all",
+        "rounded-xl border px-4 py-2 text-sm font-medium transition-all",
         tab === id
-          ? "bg-white/10 text-white ring-1 ring-purple-500/40"
-          : "lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]",
+          ? "border-[#d4af37] bg-[#f7f2e8] text-[var(--mo-text)] shadow-[var(--mo-shadow-luxury)]"
+          : "border-transparent mo-muted hover:border-[var(--mo-border)] hover:bg-[var(--mo-accent-soft)] hover:text-[var(--mo-text)]",
       ].join(" ")}
     >
       {label}
@@ -555,14 +555,11 @@ export function OnlineBookingPage() {
   );
 
   return (
-    <div className="relative mx-auto max-w-[min(1920px,calc(100%-1rem))] space-y-3 pb-8">
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mo-page relative max-w-[min(1920px,calc(100%-1rem))] space-y-3">
+      <header className="mo-page-header">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Онлайн-записи</h1>
-          <Link
-            to="/app"
-            className="inline-flex text-sm font-medium text-purple-300 underline-offset-4 hover:text-[#614b70] hover:underline"
-          >
+          <h1 className="lux-heading-page">Онлайн-записи</h1>
+          <Link to="/app" className="mo-link text-sm font-medium">
             ← К канбану
           </Link>
         </div>
@@ -582,9 +579,9 @@ export function OnlineBookingPage() {
                 aria-label="Закрыть календарь"
                 onClick={() => setCalendarDrawerOpen(false)}
               />
-              <aside className="fixed left-0 top-0 z-50 flex h-full w-[min(100vw,18rem)] flex-col border-r border-[var(--mo-border)] bg-white/98 p-4 shadow-2xl shadow-[var(--mo-shadow-luxury)] backdrop-blur-md">
+              <aside className="fixed left-0 top-0 z-50 flex h-full w-[min(100vw,18rem)] flex-col border-r border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4 shadow-2xl shadow-[var(--mo-shadow-luxury)] backdrop-blur-md">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-semibold text-white">Дата записи</h2>
+                  <h2 className="lux-subheading text-sm">Дата записи</h2>
                   <button
                     type="button"
                     onClick={() => setCalendarDrawerOpen(false)}
@@ -606,7 +603,7 @@ export function OnlineBookingPage() {
                     type="date"
                     value={filterDate}
                     onChange={(e) => setFilterDate(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-surface)] px-2 py-2 text-sm text-white"
+                    className="mo-input mt-1 w-full text-sm"
                   />
                 </label>
               </aside>
@@ -620,21 +617,21 @@ export function OnlineBookingPage() {
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
-                className="ml-2 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-1.5 text-white"
+                className="mo-input ml-2 inline-block w-auto py-1.5"
               />
             </label>
             <button
               type="button"
               onClick={() => setCalendarDrawerOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-[var(--mo-border-strong)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)] xl:hidden"
+              className="btn-secondary inline-flex items-center gap-2 px-3 py-1.5 text-xs xl:hidden"
             >
-              <Calendar className="h-4 w-4 text-purple-300" />
+              <Calendar className="h-4 w-4 text-[var(--mo-accent-hover)]" />
               Месяц
             </button>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] lux-caption">
-              <span className="rounded border border-sky-300/40 bg-sky-500/15 px-2 py-0.5 text-sky-100">Записан</span>
-              <span className="rounded border border-amber-300/50 bg-amber-500/15 px-2 py-0.5 text-amber-100">Уведомление отправлено</span>
-              <span className="rounded border border-violet-300/50 bg-violet-500/20 px-2 py-0.5 text-violet-100">Клиент ответил</span>
+            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="booking-appt booking-appt--booked rounded px-2 py-0.5 font-semibold">Записан</span>
+              <span className="booking-appt booking-appt--notify rounded px-2 py-0.5 font-semibold">Уведомление отправлено</span>
+              <span className="booking-appt booking-appt--replied rounded px-2 py-0.5 font-semibold">Клиент ответил</span>
             </div>
           </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_min(100%,280px)] xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">
@@ -657,7 +654,7 @@ export function OnlineBookingPage() {
             </div>
             <aside className="flex w-full min-w-0 flex-col gap-2 xl:sticky xl:top-4 xl:max-h-[calc(100vh-3rem)] xl:max-w-[280px] xl:overflow-y-auto">
               <section className="hidden mo-section p-3 shadow-inner backdrop-blur-sm xl:block">
-                <h2 className="mb-2 text-sm font-semibold text-white">Дата записи</h2>
+                <h2 className="mb-2 lux-subheading text-sm">Дата записи</h2>
                 <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
                 <label className="mt-3 block text-xs lux-caption">
                   День (точно)
@@ -665,19 +662,19 @@ export function OnlineBookingPage() {
                     type="date"
                     value={filterDate}
                     onChange={(e) => setFilterDate(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-surface)] px-2 py-2 text-sm text-white"
+                    className="mo-input mt-1 w-full text-sm"
                   />
                 </label>
               </section>
               {canEditBooking ? (
                 <section
                   ref={formPanelRef}
-                  className="mo-section p-4 shadow-inner backdrop-blur-sm ring-1 ring-purple-500/15"
+                  className="mo-section p-4 ring-1 ring-[#d4af37]/20"
                 >
-                  <h2 className="mb-3 text-base font-semibold text-white">Новая запись</h2>
+                  <h2 className="mb-3 lux-subheading">Новая запись</h2>
                   <form onSubmit={onSubmit} className="space-y-2.5">
                 {leadId != null && (
-                  <p className="text-xs text-emerald-400/90">
+                  <p className="text-xs text-[var(--mo-success)]">
                     Привязан лид #{leadId} — после сохранения он перейдёт в «В работе».
                   </p>
                 )}
@@ -831,7 +828,7 @@ export function OnlineBookingPage() {
                     <button
                       type="submit"
                       disabled={createMutation.isPending}
-                      className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 transition hover:opacity-95 disabled:opacity-50"
+                      className="btn-primary w-full py-3 disabled:opacity-50"
                     >
                       {createMutation.isPending ? "Сохранение…" : "Записать"}
                     </button>
@@ -847,7 +844,7 @@ export function OnlineBookingPage() {
           </div>
           {canEditBooking ? (
             <section className="mo-section p-4">
-              <h2 className="mb-3 text-sm font-semibold text-white">Источники заявок</h2>
+              <h2 className="mb-3 lux-subheading text-sm">Источники заявок</h2>
               <form
                 className="mb-3 flex flex-wrap gap-2"
                 onSubmit={(e) => {
@@ -860,11 +857,11 @@ export function OnlineBookingPage() {
                   placeholder="Напр. Instagram / Рекомендация / Сайт"
                   value={sourceName}
                   onChange={(e) => setSourceName(e.target.value)}
-                  className="min-w-[200px] flex-1 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+                  className="mo-input min-w-[200px] flex-1 text-sm"
                 />
                 <button
                   type="submit"
-                  className="rounded-xl bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
+                  className="btn-primary text-sm"
                 >
                   Добавить
                 </button>
@@ -907,7 +904,7 @@ export function OnlineBookingPage() {
                 type="date"
                 value={journalDate}
                 onChange={(e) => setJournalDate(e.target.value)}
-                className="ml-2 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-1.5 text-white"
+                className="ml-2 mo-input ml-2 py-1.5"
               />
             </label>
             <label className="text-sm mo-muted">
@@ -917,13 +914,13 @@ export function OnlineBookingPage() {
                 value={journalSearch}
                 onChange={(e) => setJournalSearch(e.target.value)}
                 placeholder="Напр. Иванов или 992..."
-                className="ml-2 w-72 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-1.5 text-white placeholder:mo-muted"
+                className="mo-input ml-2 w-72 py-1.5 placeholder:mo-muted"
               />
             </label>
           </div>
           {journalSearch.trim().length >= 2 ? (
-            <div className="mb-4 rounded-xl border border-[var(--mo-border)] bg-white/35 p-3">
-              <h3 className="mb-2 text-sm font-semibold text-white">История клиента</h3>
+            <div className="mb-4 mo-section p-3">
+              <h3 className="mb-2 lux-subheading text-sm">История клиента</h3>
               {patientHistoryQuery.isLoading && <p className="text-sm lux-caption">Ищем историю...</p>}
               {patientHistoryQuery.isError && (
                 <p className="text-sm text-red-300">{(patientHistoryQuery.error as Error).message}</p>
@@ -937,7 +934,7 @@ export function OnlineBookingPage() {
                     <div key={`${item.patient_name}-${item.patient_phone}`} className="rounded-lg border border-[var(--mo-border)] p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold text-white">{item.patient_name}</p>
+                          <p className="lux-subheading text-sm">{item.patient_name}</p>
                           <p className="text-xs lux-caption">{item.patient_phone}</p>
                         </div>
                         <div className="text-right text-xs mo-muted">
@@ -958,7 +955,7 @@ export function OnlineBookingPage() {
                           </thead>
                           <tbody>
                             {item.visits.map((v) => (
-                              <tr key={v.appointment_id} className="border-t border-slate-800">
+                              <tr key={v.appointment_id} className="border-t border-[var(--mo-border)]">
                                 <td className="py-1 pr-3 whitespace-nowrap">{formatDt(v.start_at)}</td>
                                 <td className="py-1 pr-3">{v.specialist_name || "—"}</td>
                                 <td className="py-1 pr-3">{(v.service_title || "").trim() || "—"}</td>
@@ -997,7 +994,7 @@ export function OnlineBookingPage() {
                   <tr
                     key={a.id}
                     className={[
-                      "border-b border-slate-800/80",
+                      "border-b border-[var(--mo-border)]",
                       Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? "bg-amber-500/5" : "",
                     ].join(" ")}
                   >
@@ -1024,7 +1021,7 @@ export function OnlineBookingPage() {
                             if (next === Number(a.paid_amount ?? 0)) return;
                             paymentMutation.mutate({ id: a.id, paid_amount: next });
                           }}
-                          className="w-28 rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/80 px-2 py-1 text-white"
+                          className="mo-input w-28 py-1"
                         />
                       ) : (
                         <span>{a.paid_amount ?? 0}</span>
@@ -1044,7 +1041,7 @@ export function OnlineBookingPage() {
                           onChange={(e) =>
                             statusMutation.mutate({ id: a.id, status: e.target.value })
                           }
-                          className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/80 px-2 py-1 text-white"
+                          className="mo-input py-1"
                         >
                           {Object.entries(statusLabels).map(([k, v]) => (
                             <option key={k} value={k}>

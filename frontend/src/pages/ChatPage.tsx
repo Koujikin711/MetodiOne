@@ -558,7 +558,7 @@ export function ChatPage() {
             value={threadSearch}
             onChange={(e) => setThreadSearch(e.target.value)}
             placeholder="Поиск: имя, телефон, чат, ключевое слово…"
-            className="mb-2 w-full rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm text-white placeholder:mo-muted"
+            className="mb-2 w-full rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm text-[var(--mo-text)] placeholder:mo-muted"
           />
           <p className="mb-2 text-[10px] leading-relaxed mo-muted">
             {showManagerChatBuckets
@@ -631,7 +631,7 @@ export function ChatPage() {
           {selectedThread && (
             <>
               <div className="mb-3 border-b border-[var(--mo-border)] pb-2">
-                <div className="text-sm font-semibold text-white">
+                <div className="lux-subheading text-sm">
                   {selectedThread.lead_name || selectedThread.title || `Диалог #${selectedThread.id}`}
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs lux-caption">
@@ -735,7 +735,7 @@ export function ChatPage() {
                           : "Сообщение клиенту…"
                   }
                   readOnly={isRecording || voiceFinishing}
-                  className="min-w-0 flex-1 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm text-white read-only:opacity-80"
+                  className="min-w-0 flex-1 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm text-[var(--mo-text)] read-only:opacity-80"
                 />
                 <button
                   type="button"
@@ -788,7 +788,7 @@ export function ChatPage() {
                       type="button"
                       onClick={sendVoiceDraft}
                       disabled={sendMutation.isPending}
-                      className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                      className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-[var(--mo-text)] disabled:opacity-50"
                     >
                       Отправить
                     </button>

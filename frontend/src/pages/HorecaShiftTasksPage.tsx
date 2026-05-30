@@ -46,11 +46,11 @@ export function HorecaShiftTasksPage() {
       </header>
 
       <section className="grid gap-3 rounded-2xl mo-section p-4 md:grid-cols-3">
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Что сделать в смене" className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-white" />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Что сделать в смене" className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-[var(--mo-text)]" />
         <select
           value={assignedTo}
           onChange={(e) => setAssignedTo(e.target.value ? Number(e.target.value) : "")}
-          className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-white"
+          className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-[var(--mo-text)]"
         >
           <option value="">Исполнитель</option>
           {(assignees.data ?? []).map((u) => (
@@ -65,7 +65,7 @@ export function HorecaShiftTasksPage() {
             if (!title.trim()) return toast.error("Введите задачу");
             create.mutate();
           }}
-          className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
+          className="rounded-xl bg-indigo-600 px-3 py-2 lux-subheading text-sm"
         >
           Добавить
         </button>

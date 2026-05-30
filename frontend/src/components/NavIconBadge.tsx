@@ -34,7 +34,7 @@ export function NavIconBadge({ children, variant = "crm", className = "" }: Prop
   return (
     <div
       className={[
-        "shell-nav-icon flex shrink-0 items-center justify-center rounded-lg text-white",
+        "shell-nav-icon flex shrink-0 items-center justify-center rounded-lg text-[var(--mo-text)]",
         variants[variant],
         className,
       ].join(" ")}

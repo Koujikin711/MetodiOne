@@ -49,19 +49,19 @@ export function HorecaAnalyticsPage() {
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
           <p className="text-xs mo-muted">Загрузка столов</p>
-          <p className="mt-1 text-2xl font-semibold text-white">{tableLoadPct}%</p>
+          <p className="mt-1 lux-heading-page text-2xl">{tableLoadPct}%</p>
         </div>
         <div className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
           <p className="text-xs mo-muted">Заказы в работе</p>
-          <p className="mt-1 text-2xl font-semibold text-white">{inWorkCount}</p>
+          <p className="mt-1 lux-heading-page text-2xl">{inWorkCount}</p>
         </div>
         <div className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
           <p className="text-xs mo-muted">Готово к выдаче</p>
-          <p className="mt-1 text-2xl font-semibold text-white">{readyCount}</p>
+          <p className="mt-1 lux-heading-page text-2xl">{readyCount}</p>
         </div>
         <div className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
           <p className="text-xs mo-muted">Риск по складу</p>
-          <p className="mt-1 text-2xl font-semibold text-white">{overview.data?.shift.low_stock_items ?? 0}</p>
+          <p className="mt-1 lux-heading-page text-2xl">{overview.data?.shift.low_stock_items ?? 0}</p>
         </div>
       </section>
     </div>

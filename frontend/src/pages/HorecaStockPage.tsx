@@ -44,7 +44,7 @@ export function HorecaStockPage() {
 
       <section className="grid gap-3 lg:grid-cols-2">
         <article className="rounded-2xl border border-amber-500/35 bg-amber-950/20 p-4">
-          <h2 className="mb-2 text-base font-semibold text-white">Алерты кухни: заканчиваются продукты</h2>
+          <h2 className="mb-2 lux-subheading">Алерты кухни: заканчиваются продукты</h2>
           <div className="space-y-2">
             {(alerts.data ?? []).slice(0, 8).map((a) => (
               <div key={a.product_id} className="flex items-center justify-between rounded-lg border border-[var(--mo-border)] px-3 py-2 text-sm">
@@ -56,8 +56,8 @@ export function HorecaStockPage() {
           </div>
         </article>
         <article className="rounded-2xl mo-section p-4">
-          <h2 className="mb-2 text-base font-semibold text-white">Авто-отчет списаний (14 дней)</h2>
-          <p className="text-sm mo-muted">Итого списано по себестоимости: <span className="font-semibold text-white">{report.data?.total_issue_value ?? "0"}</span></p>
+          <h2 className="mb-2 lux-subheading">Авто-отчет списаний (14 дней)</h2>
+          <p className="text-sm mo-muted">Итого списано по себестоимости: <span className="font-semibold text-[var(--mo-text)]">{report.data?.total_issue_value ?? "0"}</span></p>
           <div className="mt-2 space-y-1 text-sm lux-caption">
             {(report.data?.lines ?? []).slice(0, 5).map((line) => (
               <p key={line.product_id}>{line.product_name}: {line.issue_qty} / {line.issue_value}</p>
@@ -67,7 +67,7 @@ export function HorecaStockPage() {
       </section>
 
       <section className="overflow-x-auto rounded-2xl mo-section p-4">
-        <h2 className="mb-2 text-base font-semibold text-white">Остатки</h2>
+        <h2 className="mb-2 lux-subheading">Остатки</h2>
         <table className="w-full min-w-[740px] text-left text-sm text-[var(--mo-text)]">
           <thead className="lux-caption">
             <tr>
@@ -80,7 +80,7 @@ export function HorecaStockPage() {
           </thead>
           <tbody>
             {(balances.data ?? []).map((r) => (
-              <tr key={r.product_id} className="border-t border-slate-800">
+              <tr key={r.product_id} className="border-t border-[var(--mo-border)]">
                 <td className="py-2 pr-3">{r.product_name}</td>
                 <td className="py-2 pr-3">{r.quantity}</td>
                 <td className="py-2 pr-3">{r.avg_unit_cost}</td>
@@ -93,7 +93,7 @@ export function HorecaStockPage() {
       </section>
 
       <section className="overflow-x-auto rounded-2xl mo-section p-4">
-        <h2 className="mb-2 text-base font-semibold text-white">Движения</h2>
+        <h2 className="mb-2 lux-subheading">Движения</h2>
         <table className="w-full min-w-[840px] text-left text-sm text-[var(--mo-text)]">
           <thead className="lux-caption">
             <tr>
@@ -106,7 +106,7 @@ export function HorecaStockPage() {
           </thead>
           <tbody>
             {(movements.data ?? []).map((m) => (
-              <tr key={m.id} className="border-t border-slate-800">
+              <tr key={m.id} className="border-t border-[var(--mo-border)]">
                 <td className="py-2 pr-3">{fmt(m.created_at)}</td>
                 <td className="py-2 pr-3">{m.movement_type}</td>
                 <td className="py-2 pr-3">{m.product_name}</td>

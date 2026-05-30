@@ -59,11 +59,11 @@ export function HorecaPrepPage() {
 
       <section className="rounded-2xl mo-section p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-white">План заготовок на сегодня</h2>
+          <h2 className="lux-subheading">План заготовок на сегодня</h2>
           <button
             type="button"
             onClick={() => savePrep.mutate()}
-            className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white"
+            className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-[var(--mo-text)]"
           >
             Сохранить
           </button>
@@ -75,7 +75,7 @@ export function HorecaPrepPage() {
               <input
                 value={draft[row.menu_item_id] ?? row.portions_ready}
                 onChange={(e) => setDraft((prev) => ({ ...prev, [row.menu_item_id]: e.target.value }))}
-                className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white px-2 py-1.5 text-sm text-white"
+                className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white px-2 py-1.5 text-sm text-[var(--mo-text)]"
                 inputMode="decimal"
               />
             </label>
@@ -87,7 +87,7 @@ export function HorecaPrepPage() {
       </section>
 
       <section className="overflow-x-auto rounded-2xl mo-section p-4">
-        <h2 className="mb-2 text-base font-semibold text-white">Сколько порций можно продать сегодня</h2>
+        <h2 className="mb-2 lux-subheading">Сколько порций можно продать сегодня</h2>
         <table className="w-full min-w-[780px] text-left text-sm text-[var(--mo-text)]">
           <thead className="lux-caption">
             <tr>
@@ -99,7 +99,7 @@ export function HorecaPrepPage() {
           </thead>
           <tbody>
             {(sellableQuery.data ?? []).map((row) => (
-              <tr key={row.menu_item_id} className="border-t border-slate-800">
+              <tr key={row.menu_item_id} className="border-t border-[var(--mo-border)]">
                 <td className="py-2 pr-3">{row.menu_item_name}</td>
                 <td className="py-2 pr-3">{row.max_from_stock ?? "—"}</td>
                 <td className="py-2 pr-3">{prepById.get(row.menu_item_id)?.portions_ready ?? row.portions_prepared_today ?? "—"}</td>

@@ -39,19 +39,19 @@ export function HorecaFinancePage() {
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
               <p className="text-xs mo-muted">Выручка</p>
-              <p className="mt-1 text-2xl font-semibold text-white">{fm(q.data.revenue)}</p>
+              <p className="mt-1 lux-heading-page text-2xl">{fm(q.data.revenue)}</p>
             </div>
             <div className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
               <p className="text-xs mo-muted">COGS</p>
-              <p className="mt-1 text-2xl font-semibold text-white">{fm(q.data.cogs)}</p>
+              <p className="mt-1 lux-heading-page text-2xl">{fm(q.data.cogs)}</p>
             </div>
             <div className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
               <p className="text-xs mo-muted">Валовая прибыль</p>
-              <p className="mt-1 text-2xl font-semibold text-white">{fm(q.data.gross_profit)}</p>
+              <p className="mt-1 lux-heading-page text-2xl">{fm(q.data.gross_profit)}</p>
             </div>
             <div className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
               <p className="text-xs mo-muted">Food cost</p>
-              <p className="mt-1 text-2xl font-semibold text-white">{q.data.food_cost_pct}%</p>
+              <p className="mt-1 lux-heading-page text-2xl">{q.data.food_cost_pct}%</p>
             </div>
           </section>
           <section className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-white p-4">
@@ -68,7 +68,7 @@ export function HorecaFinancePage() {
               </thead>
               <tbody>
                 {q.data.items.map((r) => (
-                  <tr key={r.menu_item_name} className="border-t border-slate-800">
+                  <tr key={r.menu_item_name} className="border-t border-[var(--mo-border)]">
                     <td className="py-2 pr-3">{r.menu_item_name}</td>
                     <td className="py-2 pr-3">{r.abc_class}</td>
                     <td className="py-2 pr-3">{r.qty}</td>
