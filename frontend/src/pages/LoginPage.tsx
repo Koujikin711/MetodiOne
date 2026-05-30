@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { LayoutDashboard } from "@/components/icons";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { apiFetch, setStoredToken } from "@/lib/api";
 import { theme } from "@/lib/theme";
 import type { TokenResponse, User, UserRole } from "@/lib/types";
@@ -70,7 +71,10 @@ export function LoginPage() {
   });
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-16">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-16 text-[var(--mo-text)]">
+      <div className="absolute right-4 top-4 z-20">
+        <ThemeToggle compact />
+      </div>
       <div className="auth-gradient-bg absolute inset-0" aria-hidden />
       <div
         className="pointer-events-none absolute -right-16 bottom-0 h-80 w-80 rounded-full bg-[#2f5f85]/10 blur-[100px]"

@@ -15,6 +15,7 @@ import {
   Wallet,
 } from "@/components/icons";
 import { AppBanners } from "@/components/AppBanners";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { TariffFeatureOutletGate } from "@/components/TariffFeatureOutletGate";
 import { GradientIconBox } from "@/components/GradientIconBox";
 import { useEffect, useRef, type ReactNode } from "react";
@@ -580,11 +581,14 @@ export function MainLayout() {
                 </>
               )
             )}
+            <div className="mt-2 border-t border-[var(--mo-border)] pt-3">
+              <ThemeToggle />
+            </div>
             <button
               type="button"
               onClick={logout}
               title="Выход"
-              className="mt-2 flex w-full flex-col items-center gap-2 rounded-2xl border-t border-[var(--mo-border)] py-3 pt-4 mo-muted transition-all duration-500 hover:bg-white/[0.04] hover:mo-muted"
+              className="mt-2 flex w-full flex-col items-center gap-2 rounded-2xl py-2 mo-muted transition-all duration-500 hover:bg-[var(--mo-nav-hover)] hover:text-[var(--mo-text)]"
             >
               <GradientIconBox variant="pink" className="h-9 w-9 opacity-80 [&_svg]:h-4 [&_svg]:w-4">
                 <LogOut className="h-4 w-4" />
@@ -594,12 +598,17 @@ export function MainLayout() {
           </nav>
         </aside>
 
-        <main className="relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-24 sm:px-10 sm:py-10 sm:pb-10 lg:px-14 text-[#1e3348]">
+        <main className="relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-24 sm:px-10 sm:py-10 sm:pb-10 lg:px-14 text-[var(--mo-text)]">
+          <div className="pointer-events-none fixed right-3 top-3 z-40 sm:hidden">
+            <div className="pointer-events-auto">
+              <ThemeToggle compact />
+            </div>
+          </div>
           <AppBanners />
           <TariffFeatureOutletGate />
         </main>
 
-        <nav className="print:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-[#d8d2c6] bg-[#faf8f4]/95 px-2 py-2 backdrop-blur-xl sm:hidden">
+        <nav className="print:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-2 py-2 backdrop-blur-xl sm:hidden">
           {isSuperOwner ? (
             <>
               <NavLink to="/companies" className={navLinkClass} title="Компании">
