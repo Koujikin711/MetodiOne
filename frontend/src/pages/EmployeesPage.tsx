@@ -42,6 +42,18 @@ interface SmtpConfig {
   public_api_base_url: string;
 }
 
+interface RedistributionPreview {
+  from_manager_id: number;
+  from_manager_name: string;
+  lead_count: number;
+}
+
+interface RedistributeResult {
+  total: number;
+  reassigned: number;
+  per_manager: Record<string, number>;
+}
+
 export function EmployeesPage() {
   const qc = useQueryClient();
   const employeesQuery = useQuery({
@@ -86,6 +98,90 @@ export function EmployeesPage() {
   const pipelineById = useMemo(() => new Map(pipelines.map((p) => [p.id, p])), [pipelines]);
 
   const myUserId = useMemo(() => decodeUserIdFromToken(getStoredToken()), []);
+
+  const salesManagers = useMemo(
+    () =>
+      (employeesQuery.data ?? []).filter((e) => e.role === "manager" || e.role === "admin"),
+    [employeesQuery.data],
+  );
+
+  const [redistributeFromId, setRedistributeFromId] = useState<number | "">("");
+  const [redistributeToIds, setRedistributeToIds] = useState<number[]>([]);
+
+  const redistributionPreviewQuery = useQuery({
+    queryKey: ["leads-redistribution-preview", redistributeFromId],
+    queryFn: () =>
+      apiFetch<RedistributionPreview>(
+        `/api/leads/redistribution/preview?from_manager_id=${redistributeFromId}`,
+      ),
+    enabled: redistributeFromId !== "",
+  });
+
+  const redistributeMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<RedistributeResult>("/api/leads/redistribute", {
+        method: "POST",
+        body: JSON.stringify({
+          from_manager_id: redistributeFromId,
+          to_manager_ids: redistributeToIds,
+        }),
+      }),
+    onSuccess: (r) => {
+      const parts = Object.entries(r.per_manager)
+        .map(([id, cnt]) => {
+          const emp = salesManagers.find((e) => e.id === Number(id));
+          const label = emp?.full_name ?? emp?.email ?? `#${id}`;
+          return `${label}: ${cnt}`;
+        })
+        .join(", ");
+      toast.success(
+        parts
+          ? `Перераспределено ${r.reassigned} лид(ов). ${parts}`
+          : `Перераспределено ${r.reassigned} лид(ов)`,
+      );
+      setRedistributeFromId("");
+      setRedistributeToIds([]);
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+      void qc.invalidateQueries({ queryKey: ["leads-table"] });
+      void qc.invalidateQueries({ queryKey: ["chat-threads"] });
+      void qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function toggleRedistributeTarget(id: number) {
+    setRedistributeToIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function confirmRedistribute() {
+    if (redistributeFromId === "" || redistributeToIds.length === 0) {
+      toast.error("Выберите менеджера-источник и хотя бы одного получателя");
+      return;
+    }
+    const src = salesManagers.find((e) => e.id === redistributeFromId);
+    const srcLabel = src?.full_name ?? src?.email ?? `#${redistributeFromId}`;
+    const cnt = redistributionPreviewQuery.data?.lead_count ?? 0;
+    if (cnt <= 0) {
+      toast.error("У выбранного менеджера нет лидов для передачи");
+      return;
+    }
+    const targets = redistributeToIds
+      .map((id) => {
+        const e = salesManagers.find((x) => x.id === id);
+        return e?.full_name ?? e?.email ?? `#${id}`;
+      })
+      .join(", ");
+    if (
+      !window.confirm(
+        `Передать все ${cnt} лид(ов) от «${srcLabel}» менеджерам: ${targets}?\n\nЧат и открытые задачи по этим клиентам перейдут к новым ответственным; им придёт уведомление.`,
+      )
+    ) {
+      return;
+    }
+    redistributeMutation.mutate();
+  }
 
   useEffect(() => {
     if (!open || role !== "expert" || bookingDirections.length === 0 || bookingDirectionId !== "") return;
@@ -178,6 +274,94 @@ export function EmployeesPage() {
       {employeesQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
       {employeesQuery.isError && (
         <p className="text-sm text-red-300">{(employeesQuery.error as Error).message}</p>
+      )}
+
+      {salesManagers.length >= 2 && (
+        <section className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5 shadow-inner backdrop-blur-sm">
+          <h2 className="text-lg font-semibold text-white">Перераспределение лидов</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Все лиды выбранного менеджера равномерно передаются другим менеджерам. Входящие сообщения
+            в чате и карточки клиентов откроются у новых ответственных; им создаётся задача-уведомление.
+          </p>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="text-sm text-slate-300">
+              От кого забрать лиды
+              <select
+                value={redistributeFromId === "" ? "" : String(redistributeFromId)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setRedistributeFromId(v === "" ? "" : Number(v));
+                  setRedistributeToIds([]);
+                }}
+                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+              >
+                <option value="">— выберите менеджера —</option>
+                {salesManagers.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.full_name ?? m.email} ({m.role})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="text-sm text-slate-300">
+              <span className="text-slate-500">Лидов у менеджера:</span>{" "}
+              {redistributeFromId === "" ? (
+                <span className="text-slate-500">—</span>
+              ) : redistributionPreviewQuery.isLoading ? (
+                <span className="text-slate-500">загрузка…</span>
+              ) : redistributionPreviewQuery.isError ? (
+                <span className="text-red-300">ошибка</span>
+              ) : (
+                <span className="font-semibold text-amber-200">
+                  {redistributionPreviewQuery.data?.lead_count ?? 0}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {redistributeFromId !== "" && (
+            <div className="mt-4 rounded-xl border border-slate-700/50 bg-slate-950/30 p-3">
+              <div className="text-sm font-semibold text-white">Кому передать</div>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Отметьте одного или нескольких менеджеров (источник исключён). Лиды делятся поровну по
+                round-robin.
+              </p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {salesManagers
+                  .filter((m) => m.id !== redistributeFromId)
+                  .map((m) => (
+                    <label key={m.id} className="flex items-center gap-2 text-sm text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={redistributeToIds.includes(m.id)}
+                        onChange={() => toggleRedistributeTarget(m.id)}
+                      />
+                      <span className="truncate">
+                        {m.full_name ?? m.email}
+                        <span className="text-slate-500"> · {m.role}</span>
+                      </span>
+                    </label>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={confirmRedistribute}
+            disabled={
+              redistributeMutation.isPending ||
+              redistributeFromId === "" ||
+              redistributeToIds.length === 0 ||
+              (redistributionPreviewQuery.data?.lead_count ?? 0) <= 0
+            }
+            className="mt-4 rounded-xl border border-amber-500/40 bg-amber-600/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-600/30 disabled:opacity-50"
+          >
+            {redistributeMutation.isPending ? "Перераспределение…" : "Перераспределить лиды"}
+          </button>
+        </section>
       )}
 
       <div className="grid gap-3">
