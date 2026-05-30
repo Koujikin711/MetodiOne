@@ -274,6 +274,8 @@ export function IntegrationSetupPanel() {
   const [broadcastFile, setBroadcastFile] = useState<File | null>(null);
   const [broadcastPreview, setBroadcastPreview] = useState<GreenBroadcastPreviewRead | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastLastResult, setBroadcastLastResult] = useState<GreenBroadcastResult | null>(null);
 
   function resetIntegrationForm(provider: IntegrationProvider = "green_api") {
     setEditingIntegrationId(null);
@@ -648,6 +650,7 @@ export function IntegrationSetupPanel() {
 
   async function sendGreenBroadcast() {
     if (!broadcastIntegrationId) return;
+    if (broadcastSending) return;
     if (!broadcastText.trim()) {
       toast.error("Введите текст рассылки");
       return;
@@ -662,10 +665,13 @@ export function IntegrationSetupPanel() {
     fd.append("excel_phone_column", broadcastExcelColumn.trim() || "phone");
     if (broadcastFile) fd.append("file", broadcastFile);
     try {
+      setBroadcastSending(true);
+      setBroadcastLastResult(null);
       const r = await apiFetch<GreenBroadcastResult>(`/api/integrations/${broadcastIntegrationId}/green-broadcast`, {
         method: "POST",
         body: fd,
       });
+      setBroadcastLastResult(r);
       toast.success(`Отправлено ${r.sent_count} из ${r.requested_count}`);
       if (r.failed_count > 0) {
         toast.error(`Ошибок: ${r.failed_count}`);
@@ -676,6 +682,8 @@ export function IntegrationSetupPanel() {
       setBroadcastPreview(null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Ошибка рассылки");
+    } finally {
+      setBroadcastSending(false);
     }
   }
 
@@ -1273,6 +1281,7 @@ export function IntegrationSetupPanel() {
                 onChange={(e) => {
                   setBroadcastSource(e.target.value === "excel" ? "excel" : "database");
                   setBroadcastPreview(null);
+                  setBroadcastLastResult(null);
                 }}
                 className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
               >
@@ -1290,6 +1299,7 @@ export function IntegrationSetupPanel() {
                     onChange={(e) => {
                       setBroadcastFile(e.target.files?.[0] ?? null);
                       setBroadcastPreview(null);
+                      setBroadcastLastResult(null);
                     }}
                     className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
                   />
@@ -1301,6 +1311,7 @@ export function IntegrationSetupPanel() {
                     onChange={(e) => {
                       setBroadcastExcelColumn(e.target.value);
                       setBroadcastPreview(null);
+                      setBroadcastLastResult(null);
                     }}
                     placeholder="phone"
                     className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
@@ -1322,20 +1333,28 @@ export function IntegrationSetupPanel() {
                 Найдено номеров: {broadcastPreview.found_count}. К отправке (с лимитом): {broadcastPreview.limited_count}.
               </div>
             ) : null}
+            {broadcastLastResult ? (
+              <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 px-3 py-2 text-xs text-sky-100">
+                Рассылка завершена: отправлено {broadcastLastResult.sent_count} из {broadcastLastResult.requested_count}
+                {broadcastLastResult.failed_count > 0 ? `, ошибок ${broadcastLastResult.failed_count}` : ", без ошибок"}.
+              </div>
+            ) : null}
             <div className="grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={() => void previewGreenBroadcast()}
-                className="rounded-xl border border-emerald-400/40 px-3 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/10"
+                disabled={broadcastSending}
+                className="rounded-xl border border-emerald-400/40 px-3 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {previewLoading ? "Считаем..." : "Предпросмотр"}
               </button>
               <button
                 type="button"
                 onClick={() => void sendGreenBroadcast()}
-                className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+                disabled={broadcastSending}
+                className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Отправить всем
+                {broadcastSending ? "Отправляем..." : "Отправить всем"}
               </button>
             </div>
           </div>
