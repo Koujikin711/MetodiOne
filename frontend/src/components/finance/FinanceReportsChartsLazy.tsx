@@ -15,7 +15,7 @@ type Props = {
 
 export function FinanceReportsChartsLazy(props: Props) {
   return (
-    <Suspense fallback={<p className="text-sm text-slate-400">Загрузка графиков…</p>}>
+    <Suspense fallback={<p className="text-sm lux-caption">Загрузка графиков…</p>}>
       <LazyCharts {...props} />
     </Suspense>
   );

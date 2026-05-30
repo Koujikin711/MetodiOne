@@ -34,7 +34,7 @@ export function TariffFeatureOutletGate() {
 
   if (q.isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-400">Проверка тарифа…</div>
+      <div className="flex min-h-[40vh] items-center justify-center text-sm lux-caption">Проверка тарифа…</div>
     );
   }
 
@@ -57,17 +57,17 @@ export function TariffFeatureOutletGate() {
         {currentPlan ? (
           <>
             {" "}
-            (<span className="font-medium text-white">{currentPlan}</span>)
+            (<span className="font-medium text-[var(--mo-text)]">{currentPlan}</span>)
           </>
         ) : null}
         .
       </p>
       {upgrade.length > 0 ? (
-        <p className="mt-4 text-sm text-slate-200">
+        <p className="mt-4 text-sm text-[var(--mo-text)]">
           Для доступа приобретите тариф: <span className="font-semibold text-white">{upgrade.join(", ")}</span>.
         </p>
       ) : (
-        <p className="mt-4 text-sm text-slate-300">
+        <p className="mt-4 text-sm mo-muted">
           Для доступа приобретите тариф, в который входит эта функция, или обратитесь к администратору платформы.
         </p>
       )}

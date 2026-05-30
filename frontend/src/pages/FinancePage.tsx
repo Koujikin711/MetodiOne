@@ -818,10 +818,10 @@ export function FinancePage() {
   if (superNeedsCompany) {
     return (
       <div className="relative mx-auto max-w-2xl space-y-4 pb-10">
-        <h1 className="text-3xl font-semibold text-white">Финансы</h1>
+        <h1 className="lux-heading-page">Финансы</h1>
         <p className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           Для супер-владельца нужен контекст компании. Перейдите в{" "}
-          <Link to="/companies" className="font-medium text-white underline">
+          <Link to="/companies" className="font-medium text-[var(--mo-text)] underline">
             Компании
           </Link>
           , нажмите «Войти в компанию», затем откройте раздел Финансы снова.
@@ -883,9 +883,9 @@ export function FinancePage() {
       ) : null}
 
       {remindersQuery.data?.messages?.length ? (
-        <div className="rounded-2xl border border-slate-600/40 bg-slate-950/40 px-4 py-3 text-sm text-slate-200">
-          <div className="font-medium text-white">Напоминания</div>
-          <ul className="mt-2 list-inside list-disc space-y-1 text-slate-300">
+        <div className="rounded-2xl border border-[var(--mo-border-strong)]/40 bg-[var(--mo-surface)] px-4 py-3 text-sm text-[var(--mo-text)]">
+          <div className="font-medium text-[var(--mo-text)]">Напоминания</div>
+          <ul className="mt-2 list-inside list-disc space-y-1 mo-muted">
             {remindersQuery.data.messages.map((m) => (
               <li key={`${m.kind}-${m.text.slice(0, 40)}`}>{m.text}</li>
             ))}
@@ -895,7 +895,7 @@ export function FinancePage() {
 
       {settingsQuery.isLoading && <p className="text-sm text-[#5c6b7a]">Загрузка…</p>}
       {settingsQuery.isError && (
-        <p className="text-sm text-rose-300">{(settingsQuery.error as Error).message}</p>
+        <p className="text-sm text-[#6b1d2f]">{(settingsQuery.error as Error).message}</p>
       )}
 
       {tab === "overview" && effective && (
@@ -928,39 +928,39 @@ export function FinancePage() {
                   <option value="fifo">FIFO по партиям</option>
                 </select>
               </label>
-              <label className="flex flex-col gap-1 text-sm text-slate-300">
+              <label className="flex flex-col gap-1 text-sm mo-muted">
                 Выручка: товары (политика)
                 <select
                   value={gPol}
                   onChange={(e) => setDraftGoodsPol(e.target.value)}
-                  className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mo-input"
                 >
                   <option value="shipment">Отгрузка</option>
                   <option value="payment">Оплата</option>
                   <option value="invoice">Акт / счёт</option>
                 </select>
               </label>
-              <label className="flex flex-col gap-1 text-sm text-slate-300">
+              <label className="flex flex-col gap-1 text-sm mo-muted">
                 Выручка: услуги (политика)
                 <select
                   value={sPol}
                   onChange={(e) => setDraftServPol(e.target.value)}
-                  className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mo-input"
                 >
                   <option value="deferred_period">По периодам (отложенная)</option>
                   <option value="payment">По оплате</option>
                   <option value="shipment">По отгрузке / оказанию</option>
                 </select>
               </label>
-              <label className="sm:col-span-2 flex flex-col gap-1 text-sm text-slate-300">
+              <label className="sm:col-span-2 flex flex-col gap-1 text-sm mo-muted">
                 Блокировка проводок до (включительно)
                 <input
                   type="date"
                   value={draftPostingLock}
                   onChange={(e) => setDraftPostingLock(e.target.value)}
-                  className="max-w-xs rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="max-w-xs mo-input"
                 />
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] mo-muted">
                   Пусто — без блокировки. Проводки с датой ≤ выбранной даты будут запрещены (импорт ОСВ, ручные, склад,
                   признание отложенной выручки).
                 </span>
@@ -996,11 +996,11 @@ export function FinancePage() {
                   {dashboardQuery.data.warehouses.map((w) => (
                     <div
                       key={w.warehouse_id}
-                      className="rounded-xl border border-slate-600/40 bg-slate-900/40 px-4 py-3"
+                      className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white px-4 py-3"
                     >
-                      <div className="text-sm font-medium text-white">{w.warehouse_name}</div>
-                      <div className="mt-1 text-xs text-slate-400">Позиций: {w.sku_positions}</div>
-                      <div className="mt-1 text-sm text-emerald-300">{parseMoney(w.inventory_value)}</div>
+                      <div className="text-sm font-medium text-[var(--mo-text)]">{w.warehouse_name}</div>
+                      <div className="mt-1 text-xs lux-caption">Позиций: {w.sku_positions}</div>
+                      <div className="mt-1 text-sm text-[#0f4c3a]">{parseMoney(w.inventory_value)}</div>
                     </div>
                   ))}
                 </div>
@@ -1008,23 +1008,23 @@ export function FinancePage() {
             </section>
           )}
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Склады</h2>
-            <ul className="mt-3 space-y-2 text-sm text-slate-300">
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Склады</h2>
+            <ul className="mt-3 space-y-2 text-sm mo-muted">
               {(warehousesQuery.data ?? []).map((w) => (
-                <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/30 py-2 last:border-0">
+                <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--mo-border)]/30 py-2 last:border-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-white">{w.name}</span>
+                    <span className="font-medium text-[var(--mo-text)]">{w.name}</span>
                     {w.is_default && (
-                      <span className="rounded bg-purple-500/20 px-2 py-0.5 text-xs text-purple-200">по умолчанию</span>
+                      <span className="rounded bg-[#ece6f0] px-2 py-0.5 text-xs text-[#614b70]">по умолчанию</span>
                     )}
-                    {!w.is_active && <span className="text-xs text-rose-300">неактивен</span>}
+                    {!w.is_active && <span className="text-xs text-[#6b1d2f]">неактивен</span>}
                   </div>
                   <button
                     type="button"
                     disabled={patchWarehouse.isPending}
                     onClick={() => patchWarehouse.mutate({ id: w.id, is_active: !w.is_active })}
-                    className="rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-white/5"
+                    className="rounded-lg border border-[var(--mo-border-strong)] px-2 py-1 text-xs text-[var(--mo-text)] hover:bg-white/5"
                   >
                     {w.is_active ? "Отключить" : "Включить"}
                   </button>
@@ -1032,16 +1032,16 @@ export function FinancePage() {
               ))}
             </ul>
             <div className="mt-4 flex flex-wrap items-end gap-2">
-              <label className="min-w-[200px] flex-1 text-sm text-slate-300">
+              <label className="min-w-[200px] flex-1 text-sm mo-muted">
                 Новый склад
                 <input
                   value={whName}
                   onChange={(e) => setWhName(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 w-full mo-input"
                   placeholder="Название"
                 />
               </label>
-              <label className="flex items-center gap-2 text-sm text-slate-300">
+              <label className="flex items-center gap-2 text-sm mo-muted">
                 <input type="checkbox" checked={whDefault} onChange={(e) => setWhDefault(e.target.checked)} />
                 по умолчанию
               </label>
@@ -1049,30 +1049,30 @@ export function FinancePage() {
                 type="button"
                 disabled={!whName.trim() || createWh.isPending}
                 onClick={() => createWh.mutate()}
-                className="rounded-xl border border-slate-500/50 px-4 py-2 text-sm text-white hover:bg-white/5 disabled:opacity-40"
+                className="btn-secondary text-sm disabled:opacity-40"
               >
                 Добавить
               </button>
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Номенклатура</h2>
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Номенклатура</h2>
             <div className="mt-4 flex flex-wrap items-end gap-2">
-              <label className="min-w-[200px] flex-1 text-sm text-slate-300">
+              <label className="min-w-[200px] flex-1 text-sm mo-muted">
                 Название
                 <input
                   value={prodName}
                   onChange={(e) => setProdName(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 w-full mo-input"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Тип
                 <select
                   value={prodType}
                   onChange={(e) => setProdType(e.target.value as "good" | "service")}
-                  className="mt-1 block rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 block mo-input"
                 >
                   <option value="good">Товар</option>
                   <option value="service">Услуга</option>
@@ -1082,12 +1082,12 @@ export function FinancePage() {
                 type="button"
                 disabled={!prodName.trim() || createProd.isPending}
                 onClick={() => createProd.mutate()}
-                className="rounded-xl border border-slate-500/50 px-4 py-2 text-sm text-white hover:bg-white/5 disabled:opacity-40"
+                className="btn-secondary text-sm disabled:opacity-40"
               >
                 Создать
               </button>
             </div>
-            <ul className="mt-4 max-h-48 space-y-1 overflow-auto text-sm text-slate-400">
+            <ul className="mt-4 max-h-48 space-y-1 overflow-auto text-sm lux-caption">
               {(productsQuery.data ?? []).map((p) => (
                 <li key={p.id}>
                   {p.name} — {p.product_type === "good" ? "товар" : "услуга"}
@@ -1096,12 +1096,12 @@ export function FinancePage() {
             </ul>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">План счетов (кратко)</h2>
-            <p className="mt-1 text-xs text-slate-500">Полный список и журнал — во вкладке «Бухгалтерия».</p>
-            <div className="mt-3 max-h-52 overflow-auto rounded-xl border border-slate-700/40">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="sticky top-0 bg-slate-900/95 text-slate-500">
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">План счетов (кратко)</h2>
+            <p className="mt-1 text-xs mo-muted">Полный список и журнал — во вкладке «Бухгалтерия».</p>
+            <div className="mt-3 max-h-52 overflow-auto rounded-xl border border-[var(--mo-border)]">
+              <table className="w-full text-left text-xs mo-muted">
+                <thead className="sticky top-0 bg-white/95 mo-muted">
                   <tr>
                     <th className="px-3 py-2">Код</th>
                     <th className="px-3 py-2">Наименование</th>
@@ -1110,10 +1110,10 @@ export function FinancePage() {
                 </thead>
                 <tbody>
                   {(accountsQuery.data ?? []).slice(0, 24).map((a) => (
-                    <tr key={a.id} className="border-t border-slate-700/40">
-                      <td className="px-3 py-1.5 font-mono text-white">{a.code}</td>
+                    <tr key={a.id} className="border-t border-[var(--mo-border)]">
+                      <td className="px-3 py-1.5 font-mono text-[var(--mo-text)]">{a.code}</td>
                       <td className="px-3 py-1.5">{a.name}</td>
-                      <td className="px-3 py-1.5 text-slate-500">{a.account_type}</td>
+                      <td className="px-3 py-1.5 mo-muted">{a.account_type}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1121,59 +1121,59 @@ export function FinancePage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Отложенная выручка (услуги по периодам)</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Отложенная выручка (услуги по периодам)</h2>
+            <p className="mt-1 text-xs mo-muted">
               Создайте договор — периоды распределятся автоматически. «Признать» — проводка Дт 2090 / Кт 4010.
             </p>
             <div className="mt-4 flex flex-wrap items-end gap-2">
-              <label className="min-w-[180px] flex-1 text-sm text-slate-300">
+              <label className="min-w-[180px] flex-1 text-sm mo-muted">
                 Название
                 <input
                   value={defTitle}
                   onChange={(e) => setDefTitle(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 w-full mo-input"
                 />
               </label>
-              <label className="w-28 text-sm text-slate-300">
+              <label className="w-28 text-sm mo-muted">
                 Сумма
                 <input
                   value={defAmount}
                   onChange={(e) => setDefAmount(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 w-full mo-input"
                 />
               </label>
-              <label className="w-20 text-sm text-slate-300">
+              <label className="w-20 text-sm mo-muted">
                 Периодов
                 <input
                   value={defPeriods}
                   onChange={(e) => setDefPeriods(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 w-full mo-input"
                 />
               </label>
-              <label className="w-36 text-sm text-slate-300">
+              <label className="w-36 text-sm mo-muted">
                 Начало
                 <input
                   type="date"
                   value={defStart}
                   onChange={(e) => setDefStart(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 w-full mo-input"
                 />
               </label>
-              <label className="w-36 text-sm text-slate-300">
+              <label className="w-36 text-sm mo-muted">
                 Конец
                 <input
                   type="date"
                   value={defEnd}
                   onChange={(e) => setDefEnd(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 w-full mo-input"
                 />
               </label>
               <button
                 type="button"
                 disabled={!defTitle.trim() || createDef.isPending}
                 onClick={() => createDef.mutate()}
-                className="rounded-xl border border-slate-500/50 px-4 py-2 text-sm text-white hover:bg-white/5 disabled:opacity-40"
+                className="btn-secondary text-sm disabled:opacity-40"
               >
                 Создать договор
               </button>
@@ -1181,10 +1181,10 @@ export function FinancePage() {
 
             <ul className="mt-6 space-y-2">
               {(deferredQuery.data ?? []).map((c) => (
-                <li key={c.id} className="rounded-xl border border-slate-600/40 bg-slate-900/30 px-3 py-2 text-sm">
+                <li key={c.id} className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white/30 px-3 py-2 text-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium text-white">{c.title}</span>
-                    <span className="text-emerald-300">{parseMoney(c.total_amount)}</span>
+                    <span className="font-medium text-[var(--mo-text)]">{c.title}</span>
+                    <span className="text-[#0f4c3a]">{parseMoney(c.total_amount)}</span>
                   </div>
                   <button
                     type="button"
@@ -1194,7 +1194,7 @@ export function FinancePage() {
                     {periodsFor === c.id ? "Скрыть периоды" : "Периоды"}
                   </button>
                   {periodsFor === c.id && periodsQuery.data && (
-                    <ul className="mt-2 space-y-1 border-t border-slate-700/50 pt-2 text-xs text-slate-400">
+                    <ul className="mt-2 space-y-1 border-t border-[var(--mo-border)] pt-2 text-xs lux-caption">
                       {periodsQuery.data.map((p) => (
                         <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
                           <span>
@@ -1206,7 +1206,7 @@ export function FinancePage() {
                               type="button"
                               disabled={recognizeMut.isPending}
                               onClick={() => recognizeMut.mutate({ contractId: c.id, periodNo: p.period_no })}
-                              className="rounded-lg bg-indigo-600/60 px-2 py-1 text-white"
+                              className="btn-primary text-xs px-2 py-1"
                             >
                               Признать
                             </button>
@@ -1224,12 +1224,12 @@ export function FinancePage() {
 
       {tab === "accounting" && (
         <>
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">План счетов</h2>
-            {accountsQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
-            <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-slate-700/40">
-              <table className="w-full text-left text-sm text-slate-300">
-                <thead className="sticky top-0 bg-slate-900/95 text-xs uppercase text-slate-500">
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">План счетов</h2>
+            {accountsQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
+            <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-[var(--mo-border)]">
+              <table className="w-full text-left text-sm mo-muted">
+                <thead className="sticky top-0 bg-white/95 text-xs uppercase mo-muted">
                   <tr>
                     <th className="px-3 py-2">Код</th>
                     <th className="px-3 py-2">Наименование</th>
@@ -1238,10 +1238,10 @@ export function FinancePage() {
                 </thead>
                 <tbody>
                   {(accountsQuery.data ?? []).map((a) => (
-                    <tr key={a.id} className="border-t border-slate-700/40">
-                      <td className="px-3 py-2 font-mono text-white">{a.code}</td>
+                    <tr key={a.id} className="border-t border-[var(--mo-border)]">
+                      <td className="px-3 py-2 font-mono text-[var(--mo-text)]">{a.code}</td>
                       <td className="px-3 py-2">{a.name}</td>
-                      <td className="px-3 py-2 text-slate-500">{a.account_type}</td>
+                      <td className="px-3 py-2 mo-muted">{a.account_type}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1249,12 +1249,12 @@ export function FinancePage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Импорт ОСВ (CSV)</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Импорт ОСВ (CSV)</h2>
+            <p className="mt-1 text-xs mo-muted">
               UTF-8; разделитель «;» или «,». Поддерживаются 2 формата: классическая ОСВ (счет/дебет/кредит) и
               кассовая таблица с колонками Дата/Банк/Статья/Кратко. В начале файла можно указать{" "}
-              <code className="font-mono text-slate-400">#PERIOD=YYYY-MM-DD..YYYY-MM-DD</code> — тогда во вкладке
+              <code className="font-mono lux-caption">#PERIOD=YYYY-MM-DD..YYYY-MM-DD</code> — тогда во вкладке
               «Отчёты» автоматически подставятся даты периода. Колонки: код счёта, оборот по дебету, по кредиту
               (допустимы русские или английские заголовки).
             </p>
@@ -1263,23 +1263,23 @@ export function FinancePage() {
               <button
                 type="button"
                 onClick={() => osvFileRef.current?.click()}
-                className="rounded-xl border border-slate-500/50 px-4 py-2 text-sm text-white hover:bg-white/5"
+                className="btn-secondary text-sm"
               >
                 Выбрать файл…
               </button>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+              <label className="flex cursor-pointer items-center gap-2 text-sm mo-muted">
                 <input type="checkbox" checked={osvReplace} onChange={(e) => setOsvReplace(e.target.checked)} />
                 Удалить прежние проводки импорта ОСВ за этот период перед записью
               </label>
-              <label className="text-sm text-slate-300">
-                Год для дат вида <span className="font-mono text-slate-400">2 янв.</span>
+              <label className="text-sm mo-muted">
+                Год для дат вида <span className="font-mono lux-caption">2 янв.</span>
                 <input
                   type="number"
                   min={2000}
                   max={2100}
                   value={osvDefaultYear}
                   onChange={(e) => setOsvDefaultYear(e.target.value)}
-                  className="ml-2 w-24 rounded-lg border border-slate-600/60 bg-slate-900/50 px-2 py-1 text-white"
+                  className="ml-2 w-24 rounded-lg border border-[var(--mo-border-strong)]/60 bg-white/50 px-2 py-1 text-white"
                 />
               </label>
             </div>
@@ -1312,31 +1312,31 @@ export function FinancePage() {
                   }
                   osvImportMut.mutate({ file: f, apply: true });
                 }}
-                className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-medium text-[var(--mo-text)] disabled:opacity-50"
               >
                 Записать в журнал
               </button>
             </div>
-            <p className="mt-2 text-[11px] text-slate-500">
+            <p className="mt-2 text-[11px] mo-muted">
               Несбалансированный файл доводится техническим счётом 2999 (если есть в плане). Заблокированный период
               настроек учёта импорт не пройдёт.
             </p>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Шаблоны проводок</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              JSON-массив строк <code className="text-slate-400">account_code</code>, <code className="text-slate-400">debit</code>,{" "}
-              <code className="text-slate-400">credit</code>. «Провести» спросит дату — как в ручной проводке, берётся
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Шаблоны проводок</h2>
+            <p className="mt-1 text-xs mo-muted">
+              JSON-массив строк <code className="lux-caption">account_code</code>, <code className="lux-caption">debit</code>,{" "}
+              <code className="lux-caption">credit</code>. «Провести» спросит дату — как в ручной проводке, берётся
               подсказка из поля даты ниже.
             </p>
             <div className="mt-3 flex flex-wrap items-end gap-2">
-              <label className="min-w-[180px] flex-1 text-sm text-slate-300">
+              <label className="min-w-[180px] flex-1 text-sm mo-muted">
                 Название
                 <input
                   value={tplName}
                   onChange={(e) => setTplName(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 w-full mo-input"
                   placeholder="Например, аренда"
                 />
               </label>
@@ -1344,7 +1344,7 @@ export function FinancePage() {
                 type="button"
                 disabled={!tplName.trim() || createTemplateMut.isPending}
                 onClick={() => createTemplateMut.mutate()}
-                className="rounded-xl border border-slate-500/50 px-4 py-2 text-sm text-white hover:bg-white/5 disabled:opacity-40"
+                className="btn-secondary text-sm disabled:opacity-40"
               >
                 Сохранить шаблон
               </button>
@@ -1353,15 +1353,15 @@ export function FinancePage() {
               value={tplJson}
               onChange={(e) => setTplJson(e.target.value)}
               rows={6}
-              className="mt-3 w-full rounded-xl border border-slate-600/50 bg-slate-950/50 p-3 font-mono text-xs text-slate-200"
+              className="mt-3 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-surface)] p-3 font-mono text-xs text-[var(--mo-text)]"
             />
-            <ul className="mt-4 space-y-2 text-sm text-slate-300">
+            <ul className="mt-4 space-y-2 text-sm mo-muted">
               {(templatesQuery.data ?? []).map((t) => (
                 <li
                   key={t.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-700/40 bg-slate-900/30 px-3 py-2"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--mo-border)] bg-white/30 px-3 py-2"
                 >
-                  <span className="font-medium text-white">{t.name}</span>
+                  <span className="font-medium text-[var(--mo-text)]">{t.name}</span>
                   <div className="flex gap-2">
                     <button
                       type="button"
@@ -1387,19 +1387,19 @@ export function FinancePage() {
               ))}
             </ul>
             {!templatesQuery.isLoading && (templatesQuery.data ?? []).length === 0 && (
-              <p className="mt-2 text-sm text-slate-500">Шаблонов пока нет.</p>
+              <p className="mt-2 text-sm mo-muted">Шаблонов пока нет.</p>
             )}
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+          <section className="mo-section p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-lg font-medium text-white">Журнал проводок</h2>
-              <label className="text-sm text-slate-300">
+              <h2 className="lux-subheading">Журнал проводок</h2>
+              <label className="text-sm mo-muted">
                 Источник
                 <select
                   value={journalSource}
                   onChange={(e) => setJournalSource(e.target.value)}
-                  className="ml-2 rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-1.5 text-white"
+                  className="ml-2 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-1.5 text-white"
                 >
                   <option value="">Все</option>
                   <option value="manual">Ручные</option>
@@ -1411,25 +1411,25 @@ export function FinancePage() {
                 </select>
               </label>
             </div>
-            {journalQuery.isLoading && <p className="mt-3 text-sm text-slate-400">Загрузка…</p>}
+            {journalQuery.isLoading && <p className="mt-3 text-sm lux-caption">Загрузка…</p>}
             <div className="mt-4 space-y-4">
               {(journalQuery.data ?? []).map((ent) => (
                 <article
                   key={ent.id}
-                  className="rounded-xl border border-slate-600/40 bg-slate-900/35 px-4 py-3 text-sm text-slate-300"
+                  className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white/35 px-4 py-3 text-sm mo-muted"
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-medium text-white">
+                    <span className="font-medium text-[var(--mo-text)]">
                       №{ent.id} · {ent.entry_date?.slice(0, 19)?.replace("T", " ")}
                     </span>
                     <span className="text-xs text-purple-300">{sourceTypeLabel(ent.source_type)}</span>
                   </div>
-                  {ent.memo ? <p className="mt-1 text-xs text-slate-400">{ent.memo}</p> : null}
+                  {ent.memo ? <p className="mt-1 text-xs lux-caption">{ent.memo}</p> : null}
                   <table className="mt-2 w-full text-xs">
                     <tbody>
                       {ent.lines.map((ln, i) => (
                         <tr key={i}>
-                          <td className="py-0.5 pr-2 font-mono text-slate-400">{ln.account_code}</td>
+                          <td className="py-0.5 pr-2 font-mono lux-caption">{ln.account_code}</td>
                           <td className="py-0.5 pr-2">{ln.account_name}</td>
                           <td className="py-0.5 text-right text-amber-200/90">
                             {Number(ln.debit) > 0 ? parseMoney(ln.debit) : "—"}
@@ -1445,29 +1445,29 @@ export function FinancePage() {
               ))}
             </div>
             {(journalQuery.data ?? []).length === 0 && !journalQuery.isLoading && (
-              <p className="mt-3 text-sm text-slate-500">Проводок пока нет.</p>
+              <p className="mt-3 text-sm mo-muted">Проводок пока нет.</p>
             )}
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Ручная проводка</h2>
-            <p className="mt-1 text-xs text-slate-500">Сумма дебета по строкам должна равняться сумме кредита.</p>
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Ручная проводка</h2>
+            <p className="mt-1 text-xs mo-muted">Сумма дебета по строкам должна равняться сумме кредита.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Дата и время
                 <input
                   type="datetime-local"
                   value={manualDate}
                   onChange={(e) => setManualDate(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 w-full mo-input"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Комментарий
                 <input
                   value={manualMemo}
                   onChange={(e) => setManualMemo(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 w-full mo-input"
                   placeholder="Необязательно"
                 />
               </label>
@@ -1475,7 +1475,7 @@ export function FinancePage() {
             <div className="mt-4 space-y-2">
               {manualLines.map((row, idx) => (
                 <div key={idx} className="flex flex-wrap items-end gap-2">
-                  <label className="min-w-[200px] flex-1 text-xs text-slate-300">
+                  <label className="min-w-[200px] flex-1 text-xs mo-muted">
                     Счёт
                     <select
                       value={row.accountId}
@@ -1483,7 +1483,7 @@ export function FinancePage() {
                         const v = Number(e.target.value);
                         setManualLines((prev) => prev.map((r, i) => (i === idx ? { ...r, accountId: v } : r)));
                       }}
-                      className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-sm text-white"
+                      className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-sm text-white"
                     >
                       <option value={0}>— выберите —</option>
                       {accountsForSelect.map((a) => (
@@ -1493,30 +1493,30 @@ export function FinancePage() {
                       ))}
                     </select>
                   </label>
-                  <label className="w-28 text-xs text-slate-300">
+                  <label className="w-28 text-xs mo-muted">
                     Дебет
                     <input
                       value={row.debit}
                       onChange={(e) =>
                         setManualLines((prev) => prev.map((r, i) => (i === idx ? { ...r, debit: e.target.value } : r)))
                       }
-                      className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-sm text-white"
+                      className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-sm text-white"
                     />
                   </label>
-                  <label className="w-28 text-xs text-slate-300">
+                  <label className="w-28 text-xs mo-muted">
                     Кредит
                     <input
                       value={row.credit}
                       onChange={(e) =>
                         setManualLines((prev) => prev.map((r, i) => (i === idx ? { ...r, credit: e.target.value } : r)))
                       }
-                      className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-sm text-white"
+                      className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-sm text-white"
                     />
                   </label>
                   {manualLines.length > 2 ? (
                     <button
                       type="button"
-                      className="rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-400 hover:bg-white/5"
+                      className="rounded-lg border border-[var(--mo-border-strong)] px-2 py-1 text-xs lux-caption hover:bg-white/5"
                       onClick={() => setManualLines((prev) => prev.filter((_, i) => i !== idx))}
                     >
                       Удалить
@@ -1528,7 +1528,7 @@ export function FinancePage() {
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
-                className="rounded-xl border border-slate-500/50 px-4 py-2 text-sm text-white hover:bg-white/5"
+                className="btn-secondary text-sm"
                 onClick={() => setManualLines((prev) => [...prev, { accountId: 0, debit: "", credit: "" }])}
               >
                 Добавить строку
@@ -1537,7 +1537,7 @@ export function FinancePage() {
                 type="button"
                 disabled={postManualJournal.isPending}
                 onClick={() => postManualJournal.mutate()}
-                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-[var(--mo-text)] disabled:opacity-50"
               >
                 Провести
               </button>
@@ -1548,12 +1548,12 @@ export function FinancePage() {
 
       {tab === "inventory" && effective?.inventory_enabled && (
         <>
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Остатки</h2>
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Остатки</h2>
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[480px] text-left text-sm text-slate-300">
+              <table className="w-full min-w-[480px] text-left text-sm mo-muted">
                 <thead>
-                  <tr className="border-b border-slate-600/50 text-xs uppercase text-slate-500">
+                  <tr className="border-b border-[var(--mo-border-strong)]/50 text-xs uppercase mo-muted">
                     <th className="py-2 pr-2">Товар</th>
                     <th className="py-2 pr-2">Склад</th>
                     <th className="py-2 pr-2">Кол-во</th>
@@ -1563,7 +1563,7 @@ export function FinancePage() {
                 </thead>
                 <tbody>
                   {(balancesQuery.data ?? []).map((row, i) => (
-                    <tr key={i} className="border-b border-slate-700/30">
+                    <tr key={i} className="border-b border-[var(--mo-border)]/30">
                       <td className="py-2 pr-2 text-white">{row.product_name}</td>
                       <td className="py-2 pr-2">{row.warehouse_name}</td>
                       <td className="py-2 pr-2">{row.quantity}</td>
@@ -1577,12 +1577,12 @@ export function FinancePage() {
 
             <div className="mt-6 grid gap-6 md:grid-cols-2">
               <div>
-                <h3 className="text-sm font-medium text-slate-200">Приход</h3>
+                <h3 className="text-sm font-medium text-[var(--mo-text)]">Приход</h3>
                 <div className="mt-2 space-y-2">
                   <select
                     value={rcpWh || defaultWhId}
                     onChange={(e) => setRcpWh(Number(e.target.value))}
-                    className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="w-full mo-input"
                   >
                     {(warehousesQuery.data ?? []).filter((w) => w.is_active).map((w) => (
                       <option key={w.id} value={w.id}>
@@ -1593,7 +1593,7 @@ export function FinancePage() {
                   <select
                     value={rcpProd}
                     onChange={(e) => setRcpProd(Number(e.target.value))}
-                    className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="w-full mo-input"
                   >
                     <option value={0}>— товар —</option>
                     {(productsQuery.data ?? [])
@@ -1608,31 +1608,31 @@ export function FinancePage() {
                     value={rcpQty}
                     onChange={(e) => setRcpQty(e.target.value)}
                     placeholder="Кол-во"
-                    className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="w-full mo-input"
                   />
                   <input
                     value={rcpCost}
                     onChange={(e) => setRcpCost(e.target.value)}
                     placeholder="Цена за ед."
-                    className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="w-full mo-input"
                   />
                   <button
                     type="button"
                     disabled={receiptMut.isPending || !rcpProd}
                     onClick={() => receiptMut.mutate()}
-                    className="w-full rounded-xl bg-emerald-600/80 py-2 text-sm font-medium text-white disabled:opacity-40"
+                    className="w-full rounded-xl bg-emerald-600/80 py-2 text-sm font-medium text-[var(--mo-text)] disabled:opacity-40"
                   >
                     Провести приход
                   </button>
                 </div>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-slate-200">Списание</h3>
+                <h3 className="text-sm font-medium text-[var(--mo-text)]">Списание</h3>
                 <div className="mt-2 space-y-2">
                   <select
                     value={issWh || defaultWhId}
                     onChange={(e) => setIssWh(Number(e.target.value))}
-                    className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="w-full mo-input"
                   >
                     {(warehousesQuery.data ?? []).filter((w) => w.is_active).map((w) => (
                       <option key={w.id} value={w.id}>
@@ -1643,7 +1643,7 @@ export function FinancePage() {
                   <select
                     value={issProd}
                     onChange={(e) => setIssProd(Number(e.target.value))}
-                    className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="w-full mo-input"
                   >
                     <option value={0}>— товар —</option>
                     {(productsQuery.data ?? [])
@@ -1658,13 +1658,13 @@ export function FinancePage() {
                     value={issQty}
                     onChange={(e) => setIssQty(e.target.value)}
                     placeholder="Кол-во"
-                    className="w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="w-full mo-input"
                   />
                   <button
                     type="button"
                     disabled={issueMut.isPending || !issProd}
                     onClick={() => issueMut.mutate()}
-                    className="w-full rounded-xl bg-rose-600/70 py-2 text-sm font-medium text-white disabled:opacity-40"
+                    className="w-full rounded-xl bg-rose-600/70 py-2 text-sm font-medium text-[var(--mo-text)] disabled:opacity-40"
                   >
                     Провести списание
                   </button>
@@ -1673,12 +1673,12 @@ export function FinancePage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Движения по складу</h2>
-            {movementsQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
-            <div className="mt-3 max-h-80 overflow-auto rounded-xl border border-slate-700/40">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="sticky top-0 bg-slate-900/95 text-slate-500">
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Движения по складу</h2>
+            {movementsQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
+            <div className="mt-3 max-h-80 overflow-auto rounded-xl border border-[var(--mo-border)]">
+              <table className="w-full text-left text-xs mo-muted">
+                <thead className="sticky top-0 bg-white/95 mo-muted">
                   <tr>
                     <th className="px-2 py-2">Время</th>
                     <th className="px-2 py-2">Тип</th>
@@ -1689,8 +1689,8 @@ export function FinancePage() {
                 </thead>
                 <tbody>
                   {(movementsQuery.data ?? []).map((m) => (
-                    <tr key={m.id} className="border-t border-slate-700/40">
-                      <td className="px-2 py-1.5 whitespace-nowrap text-slate-400">
+                    <tr key={m.id} className="border-t border-[var(--mo-border)]">
+                      <td className="px-2 py-1.5 whitespace-nowrap lux-caption">
                         {m.created_at?.slice(0, 19)?.replace("T", " ")}
                       </td>
                       <td className="px-2 py-1.5">{movementTypeLabel(m.movement_type)}</td>
@@ -1708,37 +1708,37 @@ export function FinancePage() {
 
       {tab === "reports" && (
         <>
-          <section className="rounded-2xl border border-indigo-500/25 bg-gradient-to-br from-indigo-950/40 via-slate-900/40 to-slate-900/30 p-5">
-            <h2 className="text-lg font-medium text-white">Финансы: просто и по делу</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-300">
-              Ниже — три ключевые формы в духе управленческой отчётности: <strong className="font-medium text-white">ОПиУ</strong>{" "}
-              (прибыли и убытки), <strong className="font-medium text-white">баланс</strong> на дату окончания периода и{" "}
-              <strong className="font-medium text-white">ДДС</strong> по движению денег на счетах «Касса» и «Расчётный счёт».
+          <section className="rounded-2xl border border-indigo-500/25 bg-gradient-to-br from-[#f7f2e8] via-white to-[var(--mo-surface)] p-5">
+            <h2 className="lux-subheading">Финансы: просто и по делу</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed mo-muted">
+              Ниже — три ключевые формы в духе управленческой отчётности: <strong className="font-medium text-[var(--mo-text)]">ОПиУ</strong>{" "}
+              (прибыли и убытки), <strong className="font-medium text-[var(--mo-text)]">баланс</strong> на дату окончания периода и{" "}
+              <strong className="font-medium text-[var(--mo-text)]">ДДС</strong> по движению денег на счетах «Касса» и «Расчётный счёт».
               Данные берутся из журнала проводок и импорта ОСВ — как в вашей кассовой таблице, но без ручной сводки в
               Google Sheets.
             </p>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Период</h2>
-            <p className="mt-1 text-xs text-slate-500">Сводка, отчёт по счетам и ОСВ считаются по дате проводки в журнале.</p>
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Период</h2>
+            <p className="mt-1 text-xs mo-muted">Сводка, отчёт по счетам и ОСВ считаются по дате проводки в журнале.</p>
             <div className="mt-3 flex flex-wrap items-end gap-3">
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 С
                 <input
                   type="date"
                   value={reportFrom}
                   onChange={(e) => setReportFrom(e.target.value)}
-                  className="mt-1 block rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 block mo-input"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 По
                 <input
                   type="date"
                   value={reportTo}
                   onChange={(e) => setReportTo(e.target.value)}
-                  className="mt-1 block rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 block mo-input"
                 />
               </label>
               {effective?.last_osv_import_from && effective?.last_osv_import_to ? (
@@ -1749,7 +1749,7 @@ export function FinancePage() {
                     setReportTo(effective.last_osv_import_to!.slice(0, 10));
                     toast.success("Подставлен период последнего импорта ОСВ");
                   }}
-                  className="rounded-xl border border-purple-500/40 px-3 py-2 text-xs text-purple-200 hover:bg-purple-950/30"
+                  className="rounded-xl border border-purple-500/40 px-3 py-2 text-xs text-[#614b70] hover:bg-purple-950/30"
                 >
                   Период последнего ОСВ
                 </button>
@@ -1777,16 +1777,16 @@ export function FinancePage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/20 p-5 shadow-lg shadow-black/10">
+          <section className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-accent-soft)]/20 p-5 shadow-lg shadow-black/10">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h2 className="text-lg font-medium text-white">ОПиУ, баланс и ДДС</h2>
-                <p className="mt-1 max-w-xl text-xs text-slate-500">
+                <h2 className="lux-subheading">ОПиУ, баланс и ДДС</h2>
+                <p className="mt-1 max-w-xl text-xs mo-muted">
                   Переключатель форм. ОПиУ за выбранный период; баланс — на конец даты «По»; ДДС — движение денег на 1010
                   и 1020 за период (оценка статей по корреспондирующим счетам проводок).
                 </p>
               </div>
-              <div className="flex shrink-0 flex-wrap gap-1 rounded-xl border border-slate-600/40 bg-slate-950/50 p-1">
+              <div className="flex shrink-0 flex-wrap gap-1 rounded-xl border border-[var(--mo-border-strong)]/40 bg-[var(--mo-surface)] p-1">
                 {(
                   [
                     { id: "opiu" as const, label: "ОПиУ" },
@@ -1802,7 +1802,7 @@ export function FinancePage() {
                       "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
                       statementsTab === t.id
                         ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md"
-                        : "text-slate-400 hover:bg-white/5 hover:text-slate-200",
+                        : "lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]",
                     ].join(" ")}
                   >
                     {t.label}
@@ -1835,8 +1835,8 @@ export function FinancePage() {
                     </div>
                   </div>
                 )}
-                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-600/40 bg-slate-900/40 px-4 py-3">
-                  <p className="text-sm text-slate-300">
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--mo-border-strong)]/40 bg-white px-4 py-3">
+                  <p className="text-sm mo-muted">
                     Разбивка по счетам выручки и расходов — в таблице ниже на этой странице.
                   </p>
                   <button
@@ -1852,30 +1852,30 @@ export function FinancePage() {
 
             {statementsTab === "balance" && (
               <div className="mt-6">
-                {balanceSheetQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+                {balanceSheetQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
                 {balanceSheetQuery.isError && (
-                  <p className="text-sm text-rose-300">{(balanceSheetQuery.error as Error).message}</p>
+                  <p className="text-sm text-[#6b1d2f]">{(balanceSheetQuery.error as Error).message}</p>
                 )}
                 {balanceSheetQuery.data && (
                   <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                    <div className="flex flex-wrap items-center gap-3 text-xs lux-caption">
                       <span>
                         На дату:{" "}
-                        <span className="font-mono text-slate-200">
+                        <span className="font-mono text-[var(--mo-text)]">
                           {balanceSheetQuery.data.as_of_date?.slice(0, 10)}
                         </span>
                       </span>
                       {balanceSheetQuery.data.balanced ? (
-                        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-emerald-300">Актив ≈ пассив</span>
+                        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[#0f4c3a]">Актив ≈ пассив</span>
                       ) : (
                         <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-amber-200">
                           Контроль: расхождение актив и пассива (проверьте полноту импорта ОСВ и проводок)
                         </span>
                       )}
                     </div>
-                    <div className="overflow-x-auto rounded-xl border border-slate-700/50">
-                      <table className="w-full min-w-[480px] text-left text-sm text-slate-200">
-                        <thead className="bg-slate-950/80 text-xs uppercase text-slate-500">
+                    <div className="overflow-x-auto rounded-xl border border-[var(--mo-border)]">
+                      <table className="w-full min-w-[480px] text-left text-sm text-[var(--mo-text)]">
+                        <thead className="bg-[var(--mo-surface-elevated)] text-xs uppercase mo-muted">
                           <tr>
                             <th className="px-4 py-2">Показатель</th>
                             <th className="px-4 py-2 text-right">Сумма</th>
@@ -1886,12 +1886,12 @@ export function FinancePage() {
                             <tr
                               key={`${row.section}-${idx}-${row.label}`}
                               className={[
-                                "border-t border-slate-700/40",
-                                row.line_kind === "header" ? "bg-slate-900/60" : "",
-                                row.line_kind === "total" ? "bg-slate-900/40 font-semibold text-white" : "",
+                                "border-t border-[var(--mo-border)]",
+                                row.line_kind === "header" ? "bg-white/60" : "",
+                                row.line_kind === "total" ? "bg-white font-semibold text-white" : "",
                               ].join(" ")}
                             >
-                              <td className="px-4 py-2 pl-5 text-slate-300">
+                              <td className="px-4 py-2 pl-5 mo-muted">
                                 <span
                                   className={
                                     row.line_kind === "header"
@@ -1912,7 +1912,7 @@ export function FinancePage() {
                         </tbody>
                       </table>
                     </div>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[11px] mo-muted">
                       Итого пассив включает обязательства, счета капитала (если есть) и накопленную прибыль по ОПиУ с
                       начала учёта. Упрощённая модель для SMB; при необходимости доработайте план счетов.
                     </p>
@@ -1923,9 +1923,9 @@ export function FinancePage() {
 
             {statementsTab === "dds" && (
               <div className="mt-6 space-y-4">
-                {cashFlowQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+                {cashFlowQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
                 {cashFlowQuery.isError && (
-                  <p className="text-sm text-rose-300">{(cashFlowQuery.error as Error).message}</p>
+                  <p className="text-sm text-[#6b1d2f]">{(cashFlowQuery.error as Error).message}</p>
                 )}
                 {cashFlowQuery.data && (
                   <>
@@ -1949,9 +1949,9 @@ export function FinancePage() {
                         </div>
                       </div>
                     </div>
-                    <div className="overflow-x-auto rounded-xl border border-slate-700/50">
-                      <table className="w-full min-w-[480px] text-left text-sm text-slate-200">
-                        <thead className="bg-slate-950/80 text-xs uppercase text-slate-500">
+                    <div className="overflow-x-auto rounded-xl border border-[var(--mo-border)]">
+                      <table className="w-full min-w-[480px] text-left text-sm text-[var(--mo-text)]">
+                        <thead className="bg-[var(--mo-surface-elevated)] text-xs uppercase mo-muted">
                           <tr>
                             <th className="px-4 py-2">Статья движения (оценка)</th>
                             <th className="px-4 py-2 text-right">Влияние на деньги</th>
@@ -1959,12 +1959,12 @@ export function FinancePage() {
                         </thead>
                         <tbody>
                           {cashFlowQuery.data.buckets.map((b) => (
-                            <tr key={b.bucket_key} className="border-t border-slate-700/40">
-                              <td className="px-4 py-2 text-slate-300">{b.label}</td>
+                            <tr key={b.bucket_key} className="border-t border-[var(--mo-border)]">
+                              <td className="px-4 py-2 mo-muted">{b.label}</td>
                               <td
                                 className={[
                                   "px-4 py-2 text-right font-mono",
-                                  Number(b.amount) < 0 ? "text-rose-300" : Number(b.amount) > 0 ? "text-emerald-300" : "text-slate-500",
+                                  Number(b.amount) < 0 ? "text-[#6b1d2f]" : Number(b.amount) > 0 ? "text-[#0f4c3a]" : "mo-muted",
                                 ].join(" ")}
                               >
                                 {parseMoney(b.amount)}
@@ -1974,7 +1974,7 @@ export function FinancePage() {
                         </tbody>
                       </table>
                     </div>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[11px] mo-muted">
                       Положительное значение — приток денег на кассу/р/с, отрицательное — отток. Классификация по
                       доминирующей некассовой строке проводки (как упрощённый аналог вашей «кассы» по статьям).
                     </p>
@@ -1984,19 +1984,19 @@ export function FinancePage() {
             )}
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Сверка журнала и запасов</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Сверка журнала и запасов</h2>
+            <p className="mt-1 text-xs mo-muted">
               Сумма дебета и кредита за период; сравнение сальдо по счёту запасов в журнале с оценкой запасов из модуля
               склада.
             </p>
-            {consistencyQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+            {consistencyQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
             {consistencyQuery.data && (
-              <ul className="mt-3 space-y-2 text-sm text-slate-300">
+              <ul className="mt-3 space-y-2 text-sm mo-muted">
                 <li>
-                  Обороты: Дт <span className="font-mono text-white">{parseMoney(consistencyQuery.data.debit_total)}</span>
+                  Обороты: Дт <span className="font-mono text-[var(--mo-text)]">{parseMoney(consistencyQuery.data.debit_total)}</span>
                   {" · "}
-                  Кт <span className="font-mono text-white">{parseMoney(consistencyQuery.data.credit_total)}</span>
+                  Кт <span className="font-mono text-[var(--mo-text)]">{parseMoney(consistencyQuery.data.credit_total)}</span>
                   {consistencyQuery.data.balanced ? (
                     <span className="ml-2 text-emerald-400">· сходится</span>
                   ) : (
@@ -2006,7 +2006,7 @@ export function FinancePage() {
                   )}
                 </li>
                 <li>
-                  Счёт запасов <span className="font-mono text-slate-400">{consistencyQuery.data.inventory_account_code}</span>
+                  Счёт запасов <span className="font-mono lux-caption">{consistencyQuery.data.inventory_account_code}</span>
                   : в журнале (нетто){" "}
                   <span className="text-white">{parseMoney(consistencyQuery.data.inventory_gl_net)}</span>, по складу{" "}
                   <span className="text-white">{parseMoney(consistencyQuery.data.inventory_stock_value)}</span>
@@ -2015,27 +2015,27 @@ export function FinancePage() {
             )}
           </section>
 
-          <section className="relative rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Дашборд за период</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Текущий период отчёта: <span className="text-slate-300">{reportFrom}</span> —{" "}
-              <span className="text-slate-300">{reportTo}</span>
+          <section className="relative mo-section p-5">
+            <h2 className="lux-subheading">Дашборд за период</h2>
+            <p className="mt-1 text-xs mo-muted">
+              Текущий период отчёта: <span className="mo-muted">{reportFrom}</span> —{" "}
+              <span className="mo-muted">{reportTo}</span>
             </p>
             {prevRange ? (
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs mo-muted">
                 Сравнение с предыдущим периодом: {prevRange.from} — {prevRange.to}
                 {prevPeriodSummaryQuery.isLoading ? " · загрузка базы…" : null}
               </p>
             ) : null}
             {periodSummaryQuery.isFetching && !periodSummaryQuery.isLoading ? (
               <div
-                className="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-slate-900/35 backdrop-blur-[1px]"
+                className="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-white/35 backdrop-blur-[1px]"
                 aria-busy
               />
             ) : null}
-            {periodSummaryQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+            {periodSummaryQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
             {periodSummaryQuery.isError && (
-              <p className="mt-2 text-sm text-rose-300">{(periodSummaryQuery.error as Error).message}</p>
+              <p className="mt-2 text-sm text-[#6b1d2f]">{(periodSummaryQuery.error as Error).message}</p>
             )}
             {periodSummaryQuery.data && periodSummaryQuery.data.budget_alert ? (
               <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-950/25 px-4 py-2 text-sm text-amber-100">
@@ -2047,7 +2047,7 @@ export function FinancePage() {
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 px-4 py-3">
                   <div className="text-xs text-emerald-200/80">Выручка</div>
-                  <div className="mt-1 text-lg font-semibold text-white">
+                  <div className="mt-1 lux-subheading">
                     {parseMoney(periodSummaryQuery.data.revenue_total)}
                   </div>
                   <PeriodDelta
@@ -2057,7 +2057,7 @@ export function FinancePage() {
                 </div>
                 <div className="rounded-xl border border-rose-500/20 bg-rose-950/20 px-4 py-3">
                   <div className="text-xs text-rose-200/80">Расходы (в т.ч. себестоимость)</div>
-                  <div className="mt-1 text-lg font-semibold text-white">
+                  <div className="mt-1 lux-subheading">
                     {parseMoney(periodSummaryQuery.data.expense_total)}
                   </div>
                   <PeriodDelta
@@ -2067,8 +2067,8 @@ export function FinancePage() {
                   />
                 </div>
                 <div className="rounded-xl border border-purple-500/20 bg-purple-950/20 px-4 py-3">
-                  <div className="text-xs text-purple-200/80">Чистый результат</div>
-                  <div className="mt-1 text-lg font-semibold text-white">
+                  <div className="text-xs text-[#614b70]/80">Чистый результат</div>
+                  <div className="mt-1 lux-subheading">
                     {parseMoney(periodSummaryQuery.data.net_income)}
                   </div>
                   <PeriodDelta
@@ -2079,7 +2079,7 @@ export function FinancePage() {
                 {periodSummaryQuery.data.net_margin_pct != null && (
                   <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/20 px-4 py-3">
                     <div className="text-xs text-cyan-200/80">Чистая маржа к выручке</div>
-                    <div className="mt-1 text-lg font-semibold text-white">
+                    <div className="mt-1 lux-subheading">
                       {periodSummaryQuery.data.net_margin_pct}%
                     </div>
                     {prevPeriodSummaryQuery.data?.net_margin_pct != null ? (
@@ -2090,50 +2090,50 @@ export function FinancePage() {
                     ) : null}
                   </div>
                 )}
-                <div className="rounded-xl border border-slate-600/40 bg-slate-900/40 px-4 py-3">
-                  <div className="text-xs text-slate-400">Оценка запасов</div>
-                  <div className="mt-1 text-sm font-medium text-white">
+                <div className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white px-4 py-3">
+                  <div className="text-xs lux-caption">Оценка запасов</div>
+                  <div className="mt-1 text-sm font-medium text-[var(--mo-text)]">
                     {parseMoney(periodSummaryQuery.data.inventory_value)}
                   </div>
                 </div>
-                <div className="rounded-xl border border-slate-600/40 bg-slate-900/40 px-4 py-3">
-                  <div className="text-xs text-slate-400">Отложенная выручка (не признана)</div>
+                <div className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white px-4 py-3">
+                  <div className="text-xs lux-caption">Отложенная выручка (не признана)</div>
                   <div className="mt-1 text-sm font-medium text-amber-200">
                     {parseMoney(periodSummaryQuery.data.deferred_unrecognized)}
                   </div>
                 </div>
-                <div className="rounded-xl border border-slate-600/40 bg-slate-900/40 px-4 py-3">
-                  <div className="text-xs text-slate-400">Проводок за период</div>
-                  <div className="mt-1 text-sm font-medium text-white">{periodSummaryQuery.data.journal_entries_count}</div>
+                <div className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white px-4 py-3">
+                  <div className="text-xs lux-caption">Проводок за период</div>
+                  <div className="mt-1 text-sm font-medium text-[var(--mo-text)]">{periodSummaryQuery.data.journal_entries_count}</div>
                 </div>
                 {periodSummaryQuery.data.budget_revenue_plan != null &&
                 periodSummaryQuery.data.budget_revenue_plan !== "" ? (
                   <>
                     <div className="rounded-xl border border-indigo-500/25 bg-indigo-950/30 px-4 py-3 sm:col-span-2">
                       <div className="text-xs text-indigo-200/80">Бюджет месяца (план)</div>
-                      <div className="mt-1 flex flex-wrap gap-4 text-sm text-slate-200">
+                      <div className="mt-1 flex flex-wrap gap-4 text-sm text-[var(--mo-text)]">
                         <span>
                           Выручка план:{" "}
-                          <span className="font-medium text-white">
+                          <span className="font-medium text-[var(--mo-text)]">
                             {parseMoney(periodSummaryQuery.data.budget_revenue_plan)}
                           </span>
                         </span>
                         <span>
                           Расходы план:{" "}
-                          <span className="font-medium text-white">
+                          <span className="font-medium text-[var(--mo-text)]">
                             {parseMoney(periodSummaryQuery.data.budget_expense_plan ?? "0")}
                           </span>
                         </span>
                       </div>
                       {(periodSummaryQuery.data.budget_revenue_variance_pct != null ||
                         periodSummaryQuery.data.budget_expense_variance_pct != null) && (
-                        <div className="mt-2 text-xs text-slate-400">
+                        <div className="mt-2 text-xs lux-caption">
                           Отклонение факта от плана: выручка{" "}
-                          <span className="text-slate-200">
+                          <span className="text-[var(--mo-text)]">
                             {periodSummaryQuery.data.budget_revenue_variance_pct ?? "—"}%
                           </span>
                           , расходы{" "}
-                          <span className="text-slate-200">
+                          <span className="text-[var(--mo-text)]">
                             {periodSummaryQuery.data.budget_expense_variance_pct ?? "—"}%
                           </span>
                         </div>
@@ -2145,9 +2145,9 @@ export function FinancePage() {
             )}
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Графики</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Графики</h2>
+            <p className="mt-1 text-xs mo-muted">
               По году из блока «План–факт» и прогнозу из блока «Прогноз» ниже (параметры года и горизонта там же).
             </p>
             <div className="mt-4">
@@ -2162,15 +2162,15 @@ export function FinancePage() {
 
           <section
             id="finance-opiu-pl"
-            className="print-zone print-zone-pl relative rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5"
+            className="print-zone print-zone-pl relative mo-section p-5"
           >
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-              <h2 className="text-lg font-medium text-white">ОПиУ — прибыли и убытки по счетам (выручка и расходы)</h2>
+              <h2 className="lux-subheading">ОПиУ — прибыли и убытки по счетам (выручка и расходы)</h2>
               <div className="flex flex-wrap gap-2 print:hidden">
                 <button
                   type="button"
                   onClick={() => printFinanceZone("pl")}
-                  className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
+                  className="btn-secondary text-xs"
                 >
                   Печать
                 </button>
@@ -2185,16 +2185,16 @@ export function FinancePage() {
                     ]);
                     downloadCsv(`pl_${reportFrom}_${reportTo}.csv`, ["Код", "Счёт", "Тип", "Сумма"], rows);
                   }}
-                  className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
+                  className="btn-secondary text-xs"
                 >
                   CSV
                 </button>
               </div>
             </div>
-            {plLinesQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
-            <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-slate-700/40">
-              <table className="w-full text-left text-sm text-slate-300">
-                <thead className="sticky top-0 bg-slate-900/95 text-xs text-slate-500">
+            {plLinesQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
+            <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-[var(--mo-border)]">
+              <table className="w-full text-left text-sm mo-muted">
+                <thead className="sticky top-0 bg-white/95 text-xs mo-muted">
                   <tr>
                     <th className="px-3 py-2">Код</th>
                     <th className="px-3 py-2">Счёт</th>
@@ -2204,10 +2204,10 @@ export function FinancePage() {
                 </thead>
                 <tbody>
                   {(plLinesQuery.data ?? []).map((r, idx) => (
-                    <tr key={`${r.account_code}-${r.account_type}-${idx}`} className="border-t border-slate-700/40">
-                      <td className="px-3 py-2 font-mono text-slate-400">{r.account_code}</td>
+                    <tr key={`${r.account_code}-${r.account_type}-${idx}`} className="border-t border-[var(--mo-border)]">
+                      <td className="px-3 py-2 font-mono lux-caption">{r.account_code}</td>
                       <td className="px-3 py-2 text-white">{r.account_name}</td>
-                      <td className="px-3 py-2 text-slate-500">{r.account_type}</td>
+                      <td className="px-3 py-2 mo-muted">{r.account_type}</td>
                       <td className="px-3 py-2 text-right">{parseMoney(r.amount)}</td>
                     </tr>
                   ))}
@@ -2215,18 +2215,18 @@ export function FinancePage() {
               </table>
             </div>
             {(plLinesQuery.data ?? []).length === 0 && !plLinesQuery.isLoading && (
-              <p className="mt-2 text-sm text-slate-500">Нет движений по счетам выручки и расходов за период.</p>
+              <p className="mt-2 text-sm mo-muted">Нет движений по счетам выручки и расходов за период.</p>
             )}
           </section>
 
-          <section className="print-zone print-zone-tb relative rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+          <section className="print-zone print-zone-tb relative mo-section p-5">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-              <h2 className="text-lg font-medium text-white">Оборотно-сальдовая ведомость (по журналу)</h2>
+              <h2 className="lux-subheading">Оборотно-сальдовая ведомость (по журналу)</h2>
               <div className="flex flex-wrap gap-2 print:hidden">
                 <button
                   type="button"
                   onClick={() => printFinanceZone("tb")}
-                  className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
+                  className="btn-secondary text-xs"
                 >
                   Печать
                 </button>
@@ -2243,16 +2243,16 @@ export function FinancePage() {
                     ]);
                     downloadCsv(`trial_balance_${reportFrom}_${reportTo}.csv`, ["Код", "Счёт", "Тип", "Дт", "Кт", "Сальдо"], rows);
                   }}
-                  className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
+                  className="btn-secondary text-xs"
                 >
                   CSV
                 </button>
               </div>
             </div>
-            {trialBalanceQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
-            <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-slate-700/40">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="sticky top-0 bg-slate-900/95 text-slate-500">
+            {trialBalanceQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
+            <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-[var(--mo-border)]">
+              <table className="w-full text-left text-xs mo-muted">
+                <thead className="sticky top-0 bg-white/95 mo-muted">
                   <tr>
                     <th className="px-2 py-2">Код</th>
                     <th className="px-2 py-2">Счёт</th>
@@ -2263,8 +2263,8 @@ export function FinancePage() {
                 </thead>
                 <tbody>
                   {(trialBalanceQuery.data ?? []).map((r) => (
-                    <tr key={r.account_code} className="border-t border-slate-700/40">
-                      <td className="px-2 py-1.5 font-mono text-slate-400">{r.account_code}</td>
+                    <tr key={r.account_code} className="border-t border-[var(--mo-border)]">
+                      <td className="px-2 py-1.5 font-mono lux-caption">{r.account_code}</td>
                       <td className="px-2 py-1.5">{r.account_name}</td>
                       <td className="px-2 py-1.5 text-right">{parseMoney(r.debit_total)}</td>
                       <td className="px-2 py-1.5 text-right">{parseMoney(r.credit_total)}</td>
@@ -2276,13 +2276,13 @@ export function FinancePage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Свертка по типам счетов</h2>
-            <p className="mt-1 text-xs text-slate-500">Обороты за выбранный период по классу (asset, liability, revenue, …).</p>
-            {typeRollupQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
-            <div className="mt-3 overflow-x-auto rounded-xl border border-slate-700/40">
-              <table className="w-full text-left text-sm text-slate-300">
-                <thead className="bg-slate-900/95 text-xs text-slate-500">
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Свертка по типам счетов</h2>
+            <p className="mt-1 text-xs mo-muted">Обороты за выбранный период по классу (asset, liability, revenue, …).</p>
+            {typeRollupQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
+            <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--mo-border)]">
+              <table className="w-full text-left text-sm mo-muted">
+                <thead className="bg-white/95 text-xs mo-muted">
                   <tr>
                     <th className="px-3 py-2">Тип</th>
                     <th className="px-3 py-2 text-right">Дт</th>
@@ -2292,7 +2292,7 @@ export function FinancePage() {
                 </thead>
                 <tbody>
                   {(typeRollupQuery.data ?? []).map((r) => (
-                    <tr key={r.account_type} className="border-t border-slate-700/40">
+                    <tr key={r.account_type} className="border-t border-[var(--mo-border)]">
                       <td className="px-3 py-2 text-white">{r.account_type}</td>
                       <td className="px-3 py-2 text-right">{parseMoney(r.debit_total)}</td>
                       <td className="px-3 py-2 text-right">{parseMoney(r.credit_total)}</td>
@@ -2304,18 +2304,18 @@ export function FinancePage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Проводки по счёту</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Проводки по счёту</h2>
+            <p className="mt-1 text-xs mo-muted">
               Фильтр по периоду отчёта (сверху) и счёту из плана счетов. Полный журнал — вкладка «Бухгалтерия».
             </p>
             <div className="mt-3 flex flex-wrap items-end gap-3">
-              <label className="min-w-[220px] text-sm text-slate-300">
+              <label className="min-w-[220px] text-sm mo-muted">
                 Счёт
                 <select
                   value={drillAccountId}
                   onChange={(e) => setDrillAccountId(Number(e.target.value))}
-                  className="mt-1 block w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                  className="mt-1 block w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
                 >
                   <option value={0}>— выберите —</option>
                   {(accountsQuery.data ?? []).map((a) => (
@@ -2326,27 +2326,27 @@ export function FinancePage() {
                 </select>
               </label>
             </div>
-            {drillAccountId > 0 && drillJournalQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+            {drillAccountId > 0 && drillJournalQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
             {drillAccountId > 0 && (drillJournalQuery.data ?? []).length === 0 && !drillJournalQuery.isLoading && (
-              <p className="mt-2 text-sm text-slate-500">Нет проводок за период.</p>
+              <p className="mt-2 text-sm mo-muted">Нет проводок за период.</p>
             )}
             <div className="mt-4 space-y-3">
               {(drillJournalQuery.data ?? []).map((ent) => (
                 <article
                   key={ent.id}
-                  className="rounded-xl border border-slate-600/40 bg-slate-900/35 px-3 py-2 text-xs text-slate-300"
+                  className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white/35 px-3 py-2 text-xs mo-muted"
                 >
                   <div className="flex flex-wrap justify-between gap-2">
-                    <span className="font-medium text-white">№{ent.id}</span>
+                    <span className="font-medium text-[var(--mo-text)]">№{ent.id}</span>
                     <span className="text-purple-300">{sourceTypeLabel(ent.source_type)}</span>
                   </div>
-                  <div className="text-slate-500">{ent.entry_date?.slice(0, 19)?.replace("T", " ")}</div>
-                  {ent.memo ? <div className="text-slate-500">{ent.memo}</div> : null}
+                  <div className="mo-muted">{ent.entry_date?.slice(0, 19)?.replace("T", " ")}</div>
+                  {ent.memo ? <div className="mo-muted">{ent.memo}</div> : null}
                   <table className="mt-1 w-full">
                     <tbody>
                       {ent.lines.map((ln, i) => (
                         <tr key={i}>
-                          <td className="py-0.5 font-mono text-slate-400">{ln.account_code}</td>
+                          <td className="py-0.5 font-mono lux-caption">{ln.account_code}</td>
                           <td className="py-0.5">{ln.account_name}</td>
                           <td className="py-0.5 text-right">{Number(ln.debit) > 0 ? parseMoney(ln.debit) : "—"}</td>
                           <td className="py-0.5 text-right">{Number(ln.credit) > 0 ? parseMoney(ln.credit) : "—"}</td>
@@ -2359,11 +2359,11 @@ export function FinancePage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">План–факт по году</h2>
-            <p className="mt-1 text-xs text-slate-500">Факт из журнала; план — из сохранённых помесячных бюджетов.</p>
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">План–факт по году</h2>
+            <p className="mt-1 text-xs mo-muted">Факт из журнала; план — из сохранённых помесячных бюджетов.</p>
             <div className="mt-3 flex flex-wrap items-end gap-3">
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Год
                 <input
                   type="number"
@@ -2371,7 +2371,7 @@ export function FinancePage() {
                   max={2100}
                   value={overviewYear}
                   onChange={(e) => setOverviewYear(Number(e.target.value) || overviewYear)}
-                  className="mt-1 block w-28 rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mt-1 block w-28 mo-input"
                 />
               </label>
               <button
@@ -2388,13 +2388,13 @@ export function FinancePage() {
                   ]);
                   downloadCsv(`plan_fact_${overviewYear}.csv`, ["Мес", "Выр.факт", "Выр.план", "Δ выручка", "Расх.факт", "Расх.план", "Чистый"], rows);
                 }}
-                className="rounded-xl border border-slate-500/50 px-3 py-1.5 text-xs text-white hover:bg-white/5"
+                className="btn-secondary text-xs"
               >
                 CSV года
               </button>
             </div>
-            {yearOverviewQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
-            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-700/30 bg-slate-900/30 px-3 py-2 text-[11px] text-slate-400 print:hidden">
+            {yearOverviewQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--mo-border)]/30 bg-white/30 px-3 py-2 text-[11px] lux-caption print:hidden">
               <span>
                 <span className="inline-block h-2 w-6 rounded-full bg-emerald-500 align-middle" title="≥100% плана" />{" "}
                 выручка: план выполнен или перевыполнен
@@ -2406,13 +2406,13 @@ export function FinancePage() {
               <span>
                 <span className="inline-block h-2 w-6 rounded-full bg-violet-500 align-middle" /> в процессе
               </span>
-              <span className="text-slate-500" title="Полоски %% В и %% Р — факт к плану по выручке и расходам">
+              <span className="mo-muted" title="Полоски %% В и %% Р — факт к плану по выручке и расходам">
                 Колонки «%% В / %% Р»: доля факта от плана (при плане 0 — только факт).
               </span>
             </div>
-            <div className="mt-4 max-h-80 overflow-auto rounded-xl border border-slate-700/40">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="sticky top-0 bg-slate-900/95 text-slate-500">
+            <div className="mt-4 max-h-80 overflow-auto rounded-xl border border-[var(--mo-border)]">
+              <table className="w-full text-left text-xs mo-muted">
+                <thead className="sticky top-0 bg-white/95 mo-muted">
                   <tr>
                     <th className="px-2 py-2">Мес.</th>
                     <th className="px-2 py-2 text-right">Выручка факт</th>
@@ -2433,24 +2433,24 @@ export function FinancePage() {
                   {(yearOverviewQuery.data ?? []).map((row) => {
                     const dv = Number(row.revenue_actual) - Number(row.revenue_plan);
                     return (
-                      <tr key={row.month} className="border-t border-slate-700/40">
+                      <tr key={row.month} className="border-t border-[var(--mo-border)]">
                         <td className="px-2 py-1.5 text-white">{row.month}</td>
                         <td className="px-2 py-1.5 text-right">{parseMoney(row.revenue_actual)}</td>
-                        <td className="px-2 py-1.5 text-right text-slate-500">{parseMoney(row.revenue_plan)}</td>
+                        <td className="px-2 py-1.5 text-right mo-muted">{parseMoney(row.revenue_plan)}</td>
                         <td className="px-2 py-1.5 align-middle">
                           <div className="flex justify-center">
                             <PlanFactBar actual={Number(row.revenue_actual)} plan={Number(row.revenue_plan)} />
                           </div>
                         </td>
-                        <td className="px-2 py-1.5 text-right text-slate-400">{moneyFmt.format(dv)}</td>
+                        <td className="px-2 py-1.5 text-right lux-caption">{moneyFmt.format(dv)}</td>
                         <td className="px-2 py-1.5 text-right">{parseMoney(row.expense_actual)}</td>
-                        <td className="px-2 py-1.5 text-right text-slate-500">{parseMoney(row.expense_plan)}</td>
+                        <td className="px-2 py-1.5 text-right mo-muted">{parseMoney(row.expense_plan)}</td>
                         <td className="px-2 py-1.5 align-middle">
                           <div className="flex justify-center">
                             <PlanFactBar actual={Number(row.expense_actual)} plan={Number(row.expense_plan)} />
                           </div>
                         </td>
-                        <td className="px-2 py-1.5 text-right font-medium text-white">{parseMoney(row.net_actual)}</td>
+                        <td className="px-2 py-1.5 text-right font-medium text-[var(--mo-text)]">{parseMoney(row.net_actual)}</td>
                       </tr>
                     );
                   })}
@@ -2459,16 +2459,16 @@ export function FinancePage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Бюджет на месяц</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Бюджет на месяц</h2>
+            <p className="mt-1 text-xs mo-muted">
               Плановые выручка и расходы для года из блока «План–факт» ({overviewYear}). Можно подставить текущие планы
               из таблицы.
             </p>
             <div className="mt-4 flex flex-wrap items-end gap-3">
               <button
                 type="button"
-                className="rounded-xl border border-slate-500/50 px-3 py-2 text-xs text-white hover:bg-white/5"
+                className="btn-secondary text-xs"
                 onClick={() => {
                   const row = yearOverviewQuery.data?.find((x) => x.month === budgetMonth);
                   if (!row) {
@@ -2482,12 +2482,12 @@ export function FinancePage() {
               >
                 Подставить из таблицы
               </button>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Месяц
                 <select
                   value={budgetMonth}
                   onChange={(e) => setBudgetMonth(Number(e.target.value))}
-                  className="mt-1 block rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                  className="mt-1 block rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
                 >
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                     <option key={m} value={m}>
@@ -2496,21 +2496,21 @@ export function FinancePage() {
                   ))}
                 </select>
               </label>
-              <label className="min-w-[120px] text-sm text-slate-300">
+              <label className="min-w-[120px] text-sm mo-muted">
                 План выручки
                 <input
                   value={budgetRev}
                   onChange={(e) => setBudgetRev(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                  className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
                   placeholder="0"
                 />
               </label>
-              <label className="min-w-[120px] text-sm text-slate-300">
+              <label className="min-w-[120px] text-sm mo-muted">
                 План расходов
                 <input
                   value={budgetExp}
                   onChange={(e) => setBudgetExp(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                  className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
                   placeholder="0"
                 />
               </label>
@@ -2518,35 +2518,35 @@ export function FinancePage() {
                 type="button"
                 disabled={saveBudgetMutation.isPending}
                 onClick={() => saveBudgetMutation.mutate()}
-                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-[var(--mo-text)] disabled:opacity-50"
               >
                 Сохранить план
               </button>
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Прогноз выручки (простая модель)</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <section className="mo-section p-5">
+            <h2 className="lux-subheading">Прогноз выручки (простая модель)</h2>
+            <p className="mt-1 text-xs mo-muted">
               Средняя выручка за несколько месяцев до опорного месяца; далее — горизонт вперёд с той же средней (база
               для «финмодели»; сценарии «что если» добавляйте во внешнем BI).
             </p>
             <div className="mt-4 flex flex-wrap items-end gap-3">
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Год (опора)
                 <input
                   type="number"
                   value={fcYear}
                   onChange={(e) => setFcYear(Number(e.target.value) || fcYear)}
-                  className="mt-1 block w-24 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                  className="mt-1 block w-24 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Месяц
                 <select
                   value={fcMonth}
                   onChange={(e) => setFcMonth(Number(e.target.value))}
-                  className="mt-1 block rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                  className="mt-1 block rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
                 >
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                     <option key={m} value={m}>
@@ -2555,7 +2555,7 @@ export function FinancePage() {
                   ))}
                 </select>
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Горизонт, мес.
                 <input
                   type="number"
@@ -2563,19 +2563,19 @@ export function FinancePage() {
                   max={24}
                   value={fcHorizon}
                   onChange={(e) => setFcHorizon(Number(e.target.value) || 3)}
-                  className="mt-1 block w-20 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-2 text-white"
+                  className="mt-1 block w-20 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-white"
                 />
               </label>
             </div>
-            {forecastQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+            {forecastQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
             {forecastQuery.data && (
-              <div className="mt-4 space-y-2 text-sm text-slate-300">
+              <div className="mt-4 space-y-2 text-sm mo-muted">
                 <p>
                   База: средняя выручка ≈{" "}
-                  <span className="font-medium text-white">{parseMoney(forecastQuery.data.average_monthly_revenue)}</span>{" "}
+                  <span className="font-medium text-[var(--mo-text)]">{parseMoney(forecastQuery.data.average_monthly_revenue)}</span>{" "}
                   (месяцев в истории: {forecastQuery.data.baseline_months_used})
                 </p>
-                <ul className="space-y-1 rounded-xl border border-slate-700/40 bg-slate-900/30 p-3 text-xs">
+                <ul className="space-y-1 rounded-xl border border-[var(--mo-border)] bg-white/30 p-3 text-xs">
                   {forecastQuery.data.points.map((p) => (
                     <li key={`${p.year}-${p.month}`}>
                       {p.year}-{String(p.month).padStart(2, "0")}: прогноз {parseMoney(p.projected_revenue)}

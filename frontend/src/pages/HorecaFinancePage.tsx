@@ -21,42 +21,42 @@ export function HorecaFinancePage() {
     <div className="mx-auto max-w-[1200px] space-y-4 pb-10">
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-widest text-teal-300/90">HoReCa / Финансы</p>
-        <h1 className="text-3xl font-semibold text-white">Финансы ресторана</h1>
-        <p className="text-sm text-slate-400">Специализированные метрики: COGS, food cost, валовая прибыль, маржинальность.</p>
+        <h1 className="lux-heading-page">Финансы ресторана</h1>
+        <p className="text-sm lux-caption">Специализированные метрики: COGS, food cost, валовая прибыль, маржинальность.</p>
       </header>
-      <div className="flex gap-2 text-xs text-slate-300">
-        <Link to="/horeca/analytics" className="rounded-lg border border-slate-600/50 px-3 py-1.5 hover:bg-slate-800/60">
+      <div className="flex gap-2 text-xs mo-muted">
+        <Link to="/horeca/analytics" className="rounded-lg border border-[var(--mo-border-strong)]/50 px-3 py-1.5 hover:bg-[var(--mo-accent-soft)]">
           К аналитике
         </Link>
-        <Link to="/horeca" className="rounded-lg border border-slate-600/50 px-3 py-1.5 hover:bg-slate-800/60">
+        <Link to="/horeca" className="rounded-lg border border-[var(--mo-border-strong)]/50 px-3 py-1.5 hover:bg-[var(--mo-accent-soft)]">
           В центр HoReCa
         </Link>
       </div>
-      {q.isLoading ? <p className="text-sm text-slate-400">Загрузка финансов…</p> : null}
-      {q.isError ? <p className="text-sm text-rose-300">{(q.error as Error).message}</p> : null}
+      {q.isLoading ? <p className="text-sm lux-caption">Загрузка финансов…</p> : null}
+      {q.isError ? <p className="text-sm text-[#6b1d2f]">{(q.error as Error).message}</p> : null}
       {q.data ? (
         <>
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-900/45 p-3">
-              <p className="text-xs text-slate-500">Выручка</p>
+            <div className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
+              <p className="text-xs mo-muted">Выручка</p>
               <p className="mt-1 text-2xl font-semibold text-white">{fm(q.data.revenue)}</p>
             </div>
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-900/45 p-3">
-              <p className="text-xs text-slate-500">COGS</p>
+            <div className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
+              <p className="text-xs mo-muted">COGS</p>
               <p className="mt-1 text-2xl font-semibold text-white">{fm(q.data.cogs)}</p>
             </div>
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-900/45 p-3">
-              <p className="text-xs text-slate-500">Валовая прибыль</p>
+            <div className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
+              <p className="text-xs mo-muted">Валовая прибыль</p>
               <p className="mt-1 text-2xl font-semibold text-white">{fm(q.data.gross_profit)}</p>
             </div>
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-900/45 p-3">
-              <p className="text-xs text-slate-500">Food cost</p>
+            <div className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
+              <p className="text-xs mo-muted">Food cost</p>
               <p className="mt-1 text-2xl font-semibold text-white">{q.data.food_cost_pct}%</p>
             </div>
           </section>
-          <section className="overflow-x-auto rounded-2xl border border-slate-700/50 bg-slate-900/45 p-4">
-            <table className="w-full min-w-[760px] text-left text-sm text-slate-200">
-              <thead className="text-slate-400">
+          <section className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-white p-4">
+            <table className="w-full min-w-[760px] text-left text-sm text-[var(--mo-text)]">
+              <thead className="lux-caption">
                 <tr>
                   <th className="py-2 pr-3">Позиция</th>
                   <th className="py-2 pr-3">ABC</th>

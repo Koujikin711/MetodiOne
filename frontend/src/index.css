@@ -10,6 +10,18 @@
   --color-lux-bronze: #a38a53;
   --color-lux-charcoal: #2c2520;
   --color-lux-taupe: #7a7265;
+  /* Remap legacy slate-* utilities to ivory & gold palette */
+  --color-slate-50: #fdfbf7;
+  --color-slate-100: #f7f4eb;
+  --color-slate-200: #e1d9c6;
+  --color-slate-300: #dcd1b4;
+  --color-slate-400: #a89880;
+  --color-slate-500: #7a7265;
+  --color-slate-600: #6b6358;
+  --color-slate-700: #5c554c;
+  --color-slate-800: #4a433c;
+  --color-slate-900: #2c2520;
+  --color-slate-950: #1f1b17;
 }
 
 :root {
@@ -409,6 +421,92 @@ body {
   border-color: var(--mo-border);
   background: #ffffff;
   box-shadow: var(--mo-shadow-luxury);
+}
+
+/* App-wide light surfaces (replaces dark dashboard blocks) */
+.mo-page {
+  @apply mx-auto max-w-[1600px] space-y-5 pb-10;
+}
+
+.mo-page-header {
+  @apply flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
+}
+
+.mo-overlay {
+  @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+  background: rgba(44, 37, 32, 0.38);
+}
+
+.mo-badge {
+  @apply inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold;
+  border-color: var(--mo-border-strong);
+  background: var(--mo-accent-soft);
+  color: var(--mo-accent-hover);
+}
+
+.mo-table-wrap {
+  @apply overflow-x-auto rounded-2xl border;
+  border-color: var(--mo-border);
+  background: var(--mo-surface-elevated);
+  box-shadow: var(--mo-shadow-luxury);
+}
+
+.mo-table-wrap .mo-table thead th {
+  @apply px-4 py-3 text-xs font-semibold uppercase tracking-wide;
+  background: var(--mo-accent-soft);
+  color: var(--mo-text-muted);
+}
+
+.mo-table-wrap .mo-table tbody td {
+  @apply px-4 py-3;
+}
+
+.mo-stat-grid {
+  @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-4;
+}
+
+.mo-stat-card {
+  @apply rounded-2xl border p-4;
+  border-color: var(--mo-border);
+  background: var(--mo-surface-elevated);
+  box-shadow: var(--mo-shadow-luxury);
+}
+
+.mo-stat-card .label {
+  @apply text-xs font-semibold uppercase tracking-wide;
+  color: var(--mo-text-muted);
+}
+
+.mo-stat-card .value {
+  font-family: var(--font-display);
+  @apply mt-1 text-2xl font-semibold tabular-nums;
+  color: var(--mo-text);
+}
+
+.mo-tabs {
+  @apply inline-flex flex-wrap gap-1 rounded-full border p-1;
+  border-color: #d1c4a9;
+  background: linear-gradient(180deg, #f8f6f1 0%, #ece6da 100%);
+  box-shadow: inset 0 1px 3px rgba(44, 37, 32, 0.06);
+}
+
+.mo-tabs button {
+  @apply rounded-full px-3 py-1.5 text-sm font-semibold transition;
+  color: var(--mo-text-muted);
+}
+.mo-tabs button[data-active="true"],
+.mo-tabs button.active {
+  background: #fff;
+  color: var(--mo-text);
+  border: 1px solid #d1c4a9;
+  box-shadow: var(--mo-shadow-luxury);
+}
+
+.mo-empty {
+  @apply rounded-2xl border border-dashed p-8 text-center;
+  border-color: var(--mo-border-strong);
+  background: var(--mo-surface);
+  color: var(--mo-text-muted);
 }
 
 @media print {

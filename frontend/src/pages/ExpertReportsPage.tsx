@@ -28,17 +28,17 @@ export function ExpertReportsPage() {
     <div className="relative mx-auto max-w-6xl space-y-6 pb-8">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-white">Отчёты</h1>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm lux-caption">
           Воронка(и), где вы назначены экспертом. Данные по лидам и онлайн‑записи за период.
         </p>
       </header>
 
-      <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
+      <section className="mo-section p-4">
         <div className="grid gap-3 md:grid-cols-[200px_170px_170px_1fr]">
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value as "day" | "week" | "custom")}
-            className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+            className="mo-input"
           >
             <option value="day">За сегодня</option>
             <option value="week">За неделю</option>
@@ -49,42 +49,42 @@ export function ExpertReportsPage() {
             disabled={period !== "custom"}
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white disabled:opacity-50"
+            className="mo-input disabled:opacity-50"
           />
           <input
             type="date"
             disabled={period !== "custom"}
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white disabled:opacity-50"
+            className="mo-input disabled:opacity-50"
           />
         </div>
       </section>
 
-      {query.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+      {query.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
       {query.isError && <p className="text-sm text-red-300">{(query.error as Error).message}</p>}
 
       {(query.data?.items ?? []).map((p) => (
         <section
           key={p.pipeline_id}
-          className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 shadow-inner"
+          className="mo-section p-5 shadow-inner"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-white">{p.pipeline_name}</h2>
-            <div className="flex flex-wrap gap-3 text-sm text-slate-300">
+            <h2 className="lux-subheading">{p.pipeline_name}</h2>
+            <div className="flex flex-wrap gap-3 text-sm mo-muted">
               <span>
-                <span className="text-slate-500">Записано пациентов:</span> {p.patients_booked}
+                <span className="mo-muted">Записано пациентов:</span> {p.patients_booked}
               </span>
               <span>
-                <span className="text-slate-500">Пришло пациентов:</span> {p.patients_arrived}
+                <span className="mo-muted">Пришло пациентов:</span> {p.patients_arrived}
               </span>
             </div>
           </div>
 
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[860px] border-collapse text-left text-sm text-slate-200">
+            <table className="w-full min-w-[860px] border-collapse text-left text-sm text-[var(--mo-text)]">
               <thead>
-                <tr className="border-b border-slate-700 text-slate-400">
+                <tr className="border-b border-[var(--mo-border)] lux-caption">
                   <th className="py-2 pr-4">Эксперт</th>
                   <th className="py-2 pr-4">Записано пациентов</th>
                   <th className="py-2 pr-4">Пришло пациентов</th>
@@ -96,7 +96,7 @@ export function ExpertReportsPage() {
                     <td className="py-2 pr-4">
                       {x.specialist_name}
                       {x.specialization ? (
-                        <span className="block text-xs text-slate-500">{x.specialization}</span>
+                        <span className="block text-xs mo-muted">{x.specialization}</span>
                       ) : null}
                     </td>
                     <td className="py-2 pr-4">{x.patients_booked}</td>
@@ -106,14 +106,14 @@ export function ExpertReportsPage() {
               </tbody>
             </table>
             {!query.isLoading && (p.experts ?? []).length === 0 && (
-              <p className="py-5 text-center text-sm text-slate-500">Нет записей за период</p>
+              <p className="py-5 text-center text-sm mo-muted">Нет записей за период</p>
             )}
           </div>
         </section>
       ))}
 
       {!query.isLoading && (query.data?.items ?? []).length === 0 && (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm mo-muted">
           У вас нет назначенной воронки эксперта. Владелец должен привязать вас к воронке в настройках.
         </p>
       )}

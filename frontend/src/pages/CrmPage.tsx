@@ -359,35 +359,35 @@ function LeadCard({
             Продуктовая корзина
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <label className="text-[11px] text-slate-400">
+            <label className="text-[11px] lux-caption">
               Тип
               <select
                 value={managerExtraType}
                 onChange={(e) => setManagerExtraType(e.target.value as "Протокол" | "Прочее")}
-                className="mt-1 w-full rounded-lg border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-sm text-white"
+                className="mo-input mt-1 w-full text-sm"
               >
                 <option value="Протокол">Протокол</option>
                 <option value="Прочее">Прочее</option>
               </select>
             </label>
-            <label className="text-[11px] text-slate-400">
+            <label className="text-[11px] lux-caption">
               Оплачено (₽)
               <input
                 type="number"
                 value={managerPaidAmount}
                 min={0}
                 onChange={(e) => setManagerPaidAmount(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-sm text-white"
+                className="mo-input mt-1 w-full text-sm"
               />
             </label>
-            <label className="col-span-2 text-[11px] text-slate-400">
+            <label className="col-span-2 text-[11px] lux-caption">
               Сумма (₽)
               <input
                 type="number"
                 value={managerAmount}
                 min={0}
                 onChange={(e) => setManagerAmount(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-sm text-white"
+                className="mo-input mt-1 w-full text-sm"
               />
             </label>
           </div>
@@ -408,7 +408,7 @@ function LeadCard({
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => void handleProtocolConfirm(true)}
-            className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+            className="btn-primary w-full"
           >
             Да
           </button>
@@ -424,8 +424,8 @@ function LeadCard({
       )}
 
       {showProtocolUpload && (
-        <div className="mt-3 rounded-xl border border-slate-700/50 bg-slate-900/20 p-3 shadow-inner backdrop-blur-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+        <div className="mt-3 rounded-xl border border-[var(--mo-border)] bg-white/20 p-3 shadow-inner backdrop-blur-sm">
+          <div className="text-xs font-semibold uppercase tracking-wider mo-muted">
             Загрузите протокол
           </div>
           <input
@@ -435,7 +435,7 @@ function LeadCard({
               const f = e.target.files?.[0] ?? null;
               setProtocolFile(f);
             }}
-            className="mt-2 w-full text-sm text-slate-300"
+            className="mt-2 w-full text-sm mo-muted"
           />
           <button
             type="button"
@@ -445,8 +445,8 @@ function LeadCard({
             className={[
               "mt-3 w-full rounded-xl py-2 text-sm font-semibold transition",
               protocolUploading || !protocolFile
-                ? "cursor-not-allowed bg-slate-700/40 text-slate-400"
-                : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-purple-500/20 hover:opacity-95",
+                ? "cursor-not-allowed bg-slate-700/40 lux-caption"
+                : "btn-primary",
             ].join(" ")}
           >
             Завершить
@@ -1351,37 +1351,37 @@ export function CrmPage() {
 
       {createPipelineOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+          <div className="w-full max-w-xl rounded-2xl crm-modal-panel border p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-white">Создать воронку</h2>
+              <h2 className="lux-subheading">Создать воронку</h2>
               <button
                 type="button"
                 onClick={() => setCreatePipelineOpen(false)}
-                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
               >
                 Закрыть
               </button>
             </div>
 
             <div className="mt-4 grid gap-3">
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Название
                 <input
                   value={pipeName}
                   onChange={(e) => setPipeName(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Тип (необязательно)
                 <input
                   value={pipeType}
                   onChange={(e) => setPipeType(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
               {currentRole === "owner" && (
-                <label className="text-sm text-slate-300">
+                <label className="text-sm mo-muted">
                   Эксперт этой воронки
                   <select
                     value={pipeExpertUserId === "" ? "" : String(pipeExpertUserId)}
@@ -1389,7 +1389,7 @@ export function CrmPage() {
                       const v = e.target.value;
                       setPipeExpertUserId(v ? Number(v) : "");
                     }}
-                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                    className="mo-input mt-1 w-full"
                   >
                     <option value="">— не назначен —</option>
                     {(expertsQuery.data ?? []).map((u) => (
@@ -1401,11 +1401,11 @@ export function CrmPage() {
                 </label>
               )}
 
-              <div className="mt-2 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3">
-                <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-200">
+              <div className="mt-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
+                <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--mo-text)]">
                   <input
                     type="checkbox"
-                    className="mt-1 rounded border-slate-600"
+                    className="mt-1 rounded border-[var(--mo-border-strong)]"
                     checked={useCustomPipelineStages}
                     onChange={(e) => {
                       const on = e.target.checked;
@@ -1415,14 +1415,14 @@ export function CrmPage() {
                   />
                   <span>
                     <span className="font-medium">Задать стадии вручную</span>
-                    <span className="mt-1 block text-xs font-normal text-slate-500">
+                    <span className="mt-1 block text-xs font-normal mo-muted">
                       По умолчанию сервер создаёт стандартный набор из {DEFAULT_AUTO_PIPELINE_STAGES.length}{" "}
                       стадий (совместим с онлайн-записью).
                     </span>
                   </span>
                 </label>
                 {!useCustomPipelineStages && (
-                  <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                  <p className="mt-2 text-xs leading-relaxed lux-caption">
                     {DEFAULT_AUTO_PIPELINE_STAGES.map((s) => s.name).join(" → ")}
                   </p>
                 )}
@@ -1431,13 +1431,13 @@ export function CrmPage() {
               {useCustomPipelineStages && (
                 <div className="mt-2">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-slate-200">Стадии</div>
+                    <div className="text-sm font-semibold text-[var(--mo-text)]">Стадии</div>
                     <button
                       type="button"
                       onClick={() =>
                         setPipeStages((prev) => [...prev, { name: "", color: "#6366f1" }])
                       }
-                      className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-200 hover:bg-slate-800/40"
+                      className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm text-[var(--mo-text)] hover:bg-white"
                     >
                       + Стадия
                     </button>
@@ -1453,7 +1453,7 @@ export function CrmPage() {
                             )
                           }
                           placeholder={`Стадия ${idx + 1}`}
-                          className="flex-1 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          className="flex-1 mo-input"
                         />
                         <input
                           type="color"
@@ -1463,13 +1463,13 @@ export function CrmPage() {
                               prev.map((p, i) => (i === idx ? { ...p, color: e.target.value } : p)),
                             )
                           }
-                          className="h-10 w-12 rounded-lg border border-slate-700 bg-slate-950/40"
+                          className="h-10 w-12 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)]"
                         />
                         <button
                           type="button"
                           disabled={pipeStages.length <= 1}
                           onClick={() => setPipeStages((prev) => prev.filter((_, i) => i !== idx))}
-                          className="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/40 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="rounded-xl border border-[var(--mo-border)] px-3 py-2 text-sm mo-muted hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           ✕
                         </button>
@@ -1482,7 +1482,7 @@ export function CrmPage() {
               <button
                 type="button"
                 onClick={() => void submitCreatePipeline()}
-                className="mt-2 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+                className="mt-2 w-full btn-primary w-full"
               >
                 Создать
               </button>
@@ -1493,24 +1493,24 @@ export function CrmPage() {
 
       {createStageOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+          <div className="w-full max-w-lg rounded-2xl crm-modal-panel border p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-white">Создать стадию</h2>
+              <h2 className="lux-subheading">Создать стадию</h2>
               <button
                 type="button"
                 onClick={() => setCreateStageOpen(false)}
-                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
               >
                 Закрыть
               </button>
             </div>
             <div className="mt-4 grid gap-3">
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Воронка
                 <select
                   value={pipelineId ?? ""}
                   onChange={(e) => setPipelineId(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 >
                   {(pipelinesQuery.data ?? []).map((p) => (
                     <option key={p.id} value={p.id}>
@@ -1519,27 +1519,27 @@ export function CrmPage() {
                   ))}
                 </select>
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Название стадии
                 <input
                   value={newStageName}
                   onChange={(e) => setNewStageName(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Цвет
                 <input
                   type="color"
                   value={newStageColor}
                   onChange={(e) => setNewStageColor(e.target.value)}
-                  className="mt-1 h-10 w-16 rounded-lg border border-slate-700 bg-slate-950/40"
+                  className="mt-1 h-10 w-16 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)]"
                 />
               </label>
               <button
                 type="button"
                 onClick={() => void submitCreateStage()}
-                className="mt-1 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+                className="mt-1 w-full btn-primary w-full"
               >
                 Создать стадию
               </button>
@@ -1550,25 +1550,25 @@ export function CrmPage() {
 
       {distributeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+          <div className="w-full max-w-lg rounded-2xl crm-modal-panel border p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-white">Распределить лиды по менеджерам</h2>
+              <h2 className="lux-subheading">Распределить лиды по менеджерам</h2>
               <button
                 type="button"
                 onClick={() => setDistributeOpen(false)}
-                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
               >
                 Закрыть
               </button>
             </div>
 
             <div className="mt-4 grid gap-3">
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Стадия
                 <select
                   value={distributeStageId === "" ? "" : String(distributeStageId)}
                   onChange={(e) => setDistributeStageId(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 >
                   {sortedStages.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -1582,7 +1582,7 @@ export function CrmPage() {
                 Это действие назначит ответственных менеджеров всем лидам на выбранной стадии, у которых ещё нет
                 менеджера. Распределение идёт по настройке воронки (round_robin / least_loaded).
               </div>
-              <label className="flex items-start gap-3 rounded-xl border border-slate-700/60 bg-slate-950/20 px-4 py-3 text-sm text-slate-200">
+              <label className="flex items-start gap-3 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/20 px-4 py-3 text-sm text-[var(--mo-text)]">
                 <input
                   type="checkbox"
                   checked={distributeForce}
@@ -1591,7 +1591,7 @@ export function CrmPage() {
                 />
                 <span>
                   <span className="font-semibold">Перераспределить всех</span>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs mo-muted">
                     Включите, чтобы перезаписать ответственного менеджера у всех лидов на этой стадии.
                   </span>
                 </span>
@@ -1607,7 +1607,7 @@ export function CrmPage() {
                   if (!window.confirm(msg)) return;
                   distributeMutation.mutate();
                 }}
-                className="mt-1 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95 disabled:opacity-60"
+                className="mt-1 w-full btn-primary w-full disabled:opacity-60"
               >
                 {distributeMutation.isPending ? "Распределение…" : "Распределить"}
               </button>
@@ -1618,49 +1618,49 @@ export function CrmPage() {
 
       {createLeadOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+          <div className="w-full max-w-xl rounded-2xl crm-modal-panel border p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-white">Создать лид</h2>
+              <h2 className="lux-subheading">Создать лид</h2>
               <button
                 type="button"
                 onClick={() => setCreateLeadOpen(false)}
-                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
               >
                 Закрыть
               </button>
             </div>
 
             <div className="mt-4 grid gap-3">
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Имя
                 <input
                   value={leadName}
                   onChange={(e) => setLeadName(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Телефон
                 <input
                   value={leadPhone}
                   onChange={(e) => setLeadPhone(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Email (необязательно)
                 <input
                   value={leadEmail}
                   onChange={(e) => setLeadEmail(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Источник
                 <select
                   value={leadSource}
                   onChange={(e) => setLeadSource(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 >
                   <option value="">—</option>
                   {(sourcesQuery.data ?? [])
@@ -1674,7 +1674,7 @@ export function CrmPage() {
               </label>
 
               <div className="grid gap-2 sm:grid-cols-2">
-                <label className="text-sm text-slate-300">
+                <label className="text-sm mo-muted">
                   Воронка
                   <select
                     value={leadPipelineId ?? ""}
@@ -1683,7 +1683,7 @@ export function CrmPage() {
                       setLeadPipelineId(Number.isFinite(id) ? id : null);
                       setLeadStageId(null);
                     }}
-                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                    className="mo-input mt-1 w-full"
                   >
                     {(pipelinesQuery.data ?? []).map((p) => (
                       <option key={p.id} value={p.id}>
@@ -1692,12 +1692,12 @@ export function CrmPage() {
                     ))}
                   </select>
                 </label>
-                <label className="text-sm text-slate-300">
+                <label className="text-sm mo-muted">
                   Стадия
                   <select
                     value={leadStageId ?? ""}
                     onChange={(e) => setLeadStageId(Number(e.target.value))}
-                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                    className="mo-input mt-1 w-full"
                   >
                     {(createLeadStagesQuery.data ?? []).map((s) => (
                       <option key={s.id} value={s.id}>
@@ -1711,7 +1711,7 @@ export function CrmPage() {
               <button
                 type="button"
                 onClick={() => void submitCreateLead()}
-                className="mt-2 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+                className="mt-2 w-full btn-primary w-full"
               >
                 Создать
               </button>
@@ -1722,9 +1722,9 @@ export function CrmPage() {
 
       {importOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl crm-modal-panel border p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-white">Импорт лидов (CSV)</h2>
+              <h2 className="lux-subheading">Импорт лидов (CSV)</h2>
               <button
                 type="button"
                 onClick={() => {
@@ -1732,14 +1732,14 @@ export function CrmPage() {
                   setImportLastResult(null);
                   if (importFileRef.current) importFileRef.current.value = "";
                 }}
-                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
               >
                 Закрыть
               </button>
             </div>
 
-            <p className="mt-3 text-sm leading-relaxed text-slate-400">
-              Из Битрикс24: CRM → Лиды → выделите нужные → <span className="text-slate-300">Экспорт</span> в Excel.
+            <p className="mt-3 text-sm leading-relaxed lux-caption">
+              Из Битрикс24: CRM → Лиды → выделите нужные → <span className="mo-muted">Экспорт</span> в Excel.
               Сохраните файл как CSV (кодировка UTF-8). Подойдут колонки вроде «Название», «Имя», «Фамилия»,
               «Телефон», «E-mail», «Источник». Все импортируемые лиды попадут в выбранную стадию. За один раз
               можно загрузить до ~25&nbsp;000 строк; при большом файле импорт может занять несколько минут.
@@ -1749,13 +1749,13 @@ export function CrmPage() {
               <button
                 type="button"
                 onClick={() => void downloadImportTemplate()}
-                className="w-full rounded-xl border border-slate-600 py-2 text-sm text-slate-200 transition hover:bg-slate-800/50"
+                className="w-full rounded-xl border border-[var(--mo-border-strong)] py-2 text-sm text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
               >
                 Скачать шаблон CSV для MetodiOne
               </button>
 
               <div className="grid gap-2 sm:grid-cols-2">
-                <label className="text-sm text-slate-300">
+                <label className="text-sm mo-muted">
                   Воронка
                   <select
                     value={importPipelineId ?? ""}
@@ -1764,7 +1764,7 @@ export function CrmPage() {
                       setImportPipelineId(Number.isFinite(id) ? id : null);
                       setImportStageId(null);
                     }}
-                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                    className="mo-input mt-1 w-full"
                   >
                     {(pipelinesQuery.data ?? []).map((p) => (
                       <option key={p.id} value={p.id}>
@@ -1773,12 +1773,12 @@ export function CrmPage() {
                     ))}
                   </select>
                 </label>
-                <label className="text-sm text-slate-300">
+                <label className="text-sm mo-muted">
                   Стадия (все строки файла)
                   <select
                     value={importStageId ?? ""}
                     onChange={(e) => setImportStageId(Number(e.target.value))}
-                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                    className="mo-input mt-1 w-full"
                   >
                     {(importStagesQuery.data ?? []).map((s) => (
                       <option key={s.id} value={s.id}>
@@ -1789,20 +1789,20 @@ export function CrmPage() {
                 </label>
               </div>
 
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Файл .csv
                 <input
                   ref={importFileRef}
                   type="file"
                   accept=".csv,text/csv,.txt"
-                  className="mt-1 block w-full text-sm text-slate-300 file:mr-3 file:rounded-lg file:border file:border-slate-600 file:bg-slate-800 file:px-3 file:py-1.5 file:text-slate-200"
+                  className="mt-1 block w-full text-sm mo-muted file:mr-3 file:rounded-lg file:border file:border-[var(--mo-border-strong)] file:bg-[var(--mo-accent-soft)] file:px-3 file:py-1.5 file:text-[var(--mo-text)]"
                 />
               </label>
 
               <button
                 type="button"
                 onClick={() => void submitImportLeads()}
-                className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+                className="w-full btn-primary w-full"
               >
                 Загрузить и импортировать
               </button>
@@ -1983,7 +1983,7 @@ export function CrmPage() {
       )}
 
       {crmView === "board" && sortedStages.length === 0 && !stagesQuery.isLoading && !stagesQuery.isError && (
-        <p className="text-sm text-slate-500">Этапы воронки не загружены.</p>
+        <p className="text-sm mo-muted">Этапы воронки не загружены.</p>
       )}
     </div>
   );

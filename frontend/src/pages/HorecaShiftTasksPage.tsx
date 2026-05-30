@@ -42,15 +42,15 @@ export function HorecaShiftTasksPage() {
     <div className="mx-auto max-w-[1200px] space-y-4 pb-10">
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-widest text-teal-300/90">HoReCa / Задачи смены</p>
-        <h1 className="text-3xl font-semibold text-white">Задачи смены</h1>
+        <h1 className="lux-heading-page">Задачи смены</h1>
       </header>
 
-      <section className="grid gap-3 rounded-2xl border border-slate-700/40 bg-slate-900/40 p-4 md:grid-cols-3">
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Что сделать в смене" className="rounded-xl border border-slate-600/50 bg-slate-900/70 px-3 py-2 text-sm text-white" />
+      <section className="grid gap-3 rounded-2xl mo-section p-4 md:grid-cols-3">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Что сделать в смене" className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-white" />
         <select
           value={assignedTo}
           onChange={(e) => setAssignedTo(e.target.value ? Number(e.target.value) : "")}
-          className="rounded-xl border border-slate-600/50 bg-slate-900/70 px-3 py-2 text-sm text-white"
+          className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-white"
         >
           <option value="">Исполнитель</option>
           {(assignees.data ?? []).map((u) => (
@@ -71,12 +71,12 @@ export function HorecaShiftTasksPage() {
         </button>
       </section>
 
-      {tasks.isLoading ? <p className="text-sm text-slate-400">Загрузка задач…</p> : null}
-      {tasks.isError ? <p className="text-sm text-rose-300">{(tasks.error as Error).message}</p> : null}
+      {tasks.isLoading ? <p className="text-sm lux-caption">Загрузка задач…</p> : null}
+      {tasks.isError ? <p className="text-sm text-[#6b1d2f]">{(tasks.error as Error).message}</p> : null}
       <section className="space-y-2">
         {(tasks.data?.items ?? []).map((t) => (
-          <div key={t.id} className="rounded-xl border border-slate-700/50 bg-slate-900/45 p-3 text-sm text-slate-200">
-            {t.title} · <span className="text-slate-400">{t.status}</span>
+          <div key={t.id} className="rounded-xl border border-[var(--mo-border)] bg-white p-3 text-sm text-[var(--mo-text)]">
+            {t.title} · <span className="lux-caption">{t.status}</span>
           </div>
         ))}
       </section>

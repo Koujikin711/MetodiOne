@@ -24,15 +24,15 @@ export function OnboardingPage() {
     <div className="mx-auto max-w-2xl space-y-6 pb-12">
       <div>
         <h1 className="text-2xl font-semibold text-white">Мастер первого дня</h1>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm lux-caption">
           Пройдите шаги в удобном порядке. Позже мастер можно снова открыть по ссылке{" "}
-          <span className="text-slate-300">/onboarding</span> — отметка «готово» сбрасывается только кнопкой ниже.
+          <span className="mo-muted">/onboarding</span> — отметка «готово» сбрасывается только кнопкой ниже.
         </p>
       </div>
 
       {isOwner ? (
-        <div className="rounded-2xl border border-slate-600/50 bg-slate-800/35 px-4 py-3">
-          <p className="text-sm text-slate-300">
+        <div className="rounded-2xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-accent-soft)]/35 px-4 py-3">
+          <p className="text-sm mo-muted">
             Управление доступом сотрудников — в разделе «Сотрудники»: приглашения, роли и отключение учётных записей.
           </p>
         </div>
@@ -42,16 +42,16 @@ export function OnboardingPage() {
         {steps.map((s, i) => (
           <li
             key={s.to}
-            className="flex flex-col gap-2 rounded-2xl border border-slate-700/50 bg-slate-800/40 p-4 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-2 rounded-2xl border border-[var(--mo-border)] bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
               <div className="text-xs font-medium text-purple-300">Шаг {i + 1}</div>
-              <div className="text-lg font-medium text-white">{s.title}</div>
-              <p className="mt-1 text-sm text-slate-400">{s.desc}</p>
+              <div className="lux-subheading">{s.title}</div>
+              <p className="mt-1 text-sm lux-caption">{s.desc}</p>
             </div>
             <Link
               to={s.to}
-              className="shrink-0 rounded-xl bg-white/10 px-4 py-2 text-center text-sm font-medium text-white ring-1 ring-white/15 hover:bg-white/15"
+              className="shrink-0 rounded-xl bg-white/10 px-4 py-2 text-center text-sm font-medium text-[var(--mo-text)] ring-1 ring-white/15 hover:bg-white/15"
             >
               {s.done}
             </Link>
@@ -69,7 +69,7 @@ export function OnboardingPage() {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="rounded-xl border border-slate-600/60 px-5 py-2.5 text-sm text-slate-200 hover:bg-white/5"
+          className="rounded-xl border border-[var(--mo-border-strong)]/60 px-5 py-2.5 text-sm text-[var(--mo-text)] hover:bg-white/5"
         >
           Назад
         </button>

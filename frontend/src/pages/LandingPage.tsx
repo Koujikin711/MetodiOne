@@ -455,14 +455,14 @@ export function LandingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(1200px_700px_at_10%_-10%,rgba(47,95,133,0.12),transparent_62%),radial-gradient(1200px_740px_at_90%_0%,rgba(45,106,90,0.08),transparent_60%),#ebe6dc] text-[#1e3348]">
-      <header className="sticky top-0 z-20 border-b border-[#d8d2c6] bg-[#faf8f4]/90 backdrop-blur">
+    <main className="min-h-screen app-shell-bg text-[var(--mo-text)]">
+      <header className="sticky top-0 z-20 border-b border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-[#2f5f85] px-2 py-1 text-xs font-bold text-white">
+            <div className="rounded-lg border border-[#8c6d31] bg-[#A38A53] px-2 py-1 text-xs font-bold text-white">
               M1
             </div>
-            <span className="text-sm font-semibold text-[#1e3348] sm:text-base">MetodiOne ERP</span>
+            <span className="font-display text-sm font-semibold text-[#9e844d] sm:text-base">MetodiOne ERP</span>
           </div>
           <nav className="hidden items-center gap-6 text-sm text-[#5c6b7a] md:flex">
             <a href="#features" className="transition hover:text-[#2f5f85]">
@@ -502,7 +502,7 @@ export function LandingPage() {
               ref={m1AnchorRef}
               className="relative z-10 flex min-h-[52px] w-full flex-col items-center justify-center py-2"
             >
-              <div className="rounded-lg bg-[#2f5f85] px-3 py-1.5 text-lg font-bold tracking-tight text-white shadow-sm sm:px-4 sm:py-2 sm:text-xl">
+              <div className="rounded-lg border border-[#8c6d31] bg-[#A38A53] px-3 py-1.5 font-display text-lg font-bold tracking-tight text-white shadow-sm sm:px-4 sm:py-2 sm:text-xl">
                 M1
               </div>
             </div>
@@ -515,7 +515,7 @@ export function LandingPage() {
                   const box =
                     entry.kind === "feature"
                       ? "border-fuchsia-300/40 bg-gradient-to-br from-fuchsia-500/25 to-indigo-600/20 text-fuchsia-100 shadow-fuchsia-900/20"
-                      : "border-white/20 bg-slate-800/95 text-slate-100 shadow-black/40";
+                      : "border-[var(--mo-border)] bg-white text-[var(--mo-text)] shadow-[var(--mo-shadow-luxury)]";
                   return (
                     <div
                       key={`fly-${entry.label}-${i}`}
@@ -534,7 +534,7 @@ export function LandingPage() {
                       <Icon
                         className={
                           entry.kind === "integration"
-                            ? ["h-7 w-7", entry.iconClass || "text-slate-100"].join(" ")
+                            ? ["h-7 w-7", entry.iconClass || "text-[var(--mo-text)]"].join(" ")
                             : "h-7 w-7 text-fuchsia-100"
                         }
                       />
@@ -544,15 +544,15 @@ export function LandingPage() {
               </div>
             ) : null}
             <div ref={heroCopyRef} className="relative z-30 flex w-full max-w-3xl flex-col items-center">
-              <h1 className="mt-8 max-w-4xl text-4xl font-bold leading-tight text-white sm:text-6xl">
+              <h1 className="font-display mt-8 max-w-4xl text-4xl font-semibold leading-tight text-[#9e844d] sm:text-6xl">
                 MetodiOne помогает бизнесу работать быстрее и прозрачнее
               </h1>
-              <p className="relative z-10 mt-5 max-w-3xl text-base text-slate-300 sm:text-lg">
+              <p className="relative z-10 mt-5 max-w-3xl text-base mo-muted sm:text-lg">
                 Вместо десятка сервисов — один рабочий контур: CRM, чаты, онлайн-запись, KPI, задачи и финансовый контроль.
                 Руководитель видит реальную ситуацию по команде и выручке в режиме реального времени.
               </p>
             </div>
-            <div className="relative z-30 mt-7 grid w-full max-w-3xl gap-3 text-left text-sm text-slate-200 sm:grid-cols-2">
+            <div className="relative z-30 mt-7 grid w-full max-w-3xl gap-3 text-left text-sm text-[var(--mo-text)] sm:grid-cols-2">
               <div className="rounded-xl border border-emerald-300/20 bg-emerald-500/10 px-4 py-3">
                 Рост скорости ответа и меньше потерь лидов
               </div>
@@ -570,7 +570,7 @@ export function LandingPage() {
               <button
                 type="button"
                 onClick={() => setDemoOpen(true)}
-                className="w-full rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-5 py-3 text-base font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95"
+                className="btn-primary w-full px-5 py-3 text-base"
               >
                 Получить бесплатно за 5 минут
               </button>
@@ -580,7 +580,7 @@ export function LandingPage() {
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
-        <div ref={integrationsCardRef} className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
+        <div ref={integrationsCardRef} className="rounded-2xl mo-section p-4">
           <div className="mb-3 flex justify-center px-1">
             <p className={integrationBadgeClass}>Интеграции</p>
           </div>
@@ -588,7 +588,7 @@ export function LandingPage() {
             {integrationBadges.map((item, i) => (
               <div
                 key={item.label}
-                className="flex w-[100px] flex-col items-center gap-2 rounded-xl border border-white/10 bg-slate-950/30 p-3 text-center sm:w-[112px]"
+                className="flex w-[100px] flex-col items-center gap-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3 text-center sm:w-[112px]"
               >
                 <span
                   ref={(el) => {
@@ -600,9 +600,9 @@ export function LandingPage() {
                   ].join(" ")}
                   aria-hidden
                 >
-                  <item.Icon className={item.iconClass || "text-slate-100"} />
+                  <item.Icon className={item.iconClass || "text-[var(--mo-text)]"} />
                 </span>
-                <span className="text-[11px] leading-tight text-slate-300">{item.label}</span>
+                <span className="text-[11px] leading-tight mo-muted">{item.label}</span>
               </div>
             ))}
           </div>
@@ -628,7 +628,7 @@ export function LandingPage() {
                 >
                   <item.Icon className="h-6 w-6" />
                 </span>
-                <span className="text-[11px] leading-tight text-slate-200">{item.label}</span>
+                <span className="text-[11px] leading-tight text-[var(--mo-text)]">{item.label}</span>
               </div>
             ))}
           </div>
@@ -638,13 +638,13 @@ export function LandingPage() {
       <section id="solutions" className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
         <div className="grid gap-4 md:grid-cols-3">
           {targetGroups.map((item) => (
-            <article key={item.title} className="flex h-full flex-col rounded-2xl border border-white/10 bg-slate-900/40 p-5 shadow-lg shadow-black/15">
+            <article key={item.title} className="flex h-full flex-col rounded-2xl mo-section p-5 shadow-lg shadow-[var(--mo-shadow-luxury)]">
               <h3 className="text-xl font-semibold">{item.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-300">{item.text}</p>
+              <p className="mt-2 text-sm leading-relaxed mo-muted">{item.text}</p>
               <button
                 type="button"
                 onClick={() => setDemoOpen(true)}
-                className="mt-4 w-full rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95"
+                className="btn-primary mt-4 w-full text-sm"
               >
                 Получить бесплатно
               </button>
@@ -654,7 +654,7 @@ export function LandingPage() {
       </section>
 
       <section id="features" className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
-        <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-lg shadow-black/20 sm:p-8">
+        <div className="rounded-3xl mo-section p-6 shadow-lg shadow-[var(--mo-shadow-luxury)] sm:p-8">
           <h2 className="text-center text-3xl font-semibold sm:text-4xl">Возможности MetodiOne</h2>
           <div className="mt-5 flex flex-wrap gap-2">
             {platformTabs.map((item) => (
@@ -665,20 +665,20 @@ export function LandingPage() {
                 className={[
                   "rounded-xl border px-3 py-2 text-sm transition",
                   activeTab === item.id
-                    ? "border-fuchsia-300/40 bg-fuchsia-500/20 text-white"
-                    : "border-white/15 bg-slate-950/45 text-slate-300 hover:bg-white/10 hover:text-white",
+                    ? "border-[#d4af37] bg-[#f7f2e8] text-[var(--mo-text)] shadow-[var(--mo-shadow-luxury)]"
+                    : "border-[var(--mo-border-strong)] bg-[var(--mo-surface)] mo-muted hover:border-[#d4af37]/40 hover:text-[var(--mo-text)]",
                 ].join(" ")}
               >
                 {item.title}
               </button>
             ))}
           </div>
-          <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/40 p-5">
-            <h3 className="text-xl font-semibold text-white">{activePlatform.title}</h3>
-            <p className="mt-2 text-sm text-slate-300">{activePlatform.lead}</p>
+          <div className="mt-6 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-5">
+            <h3 className="lux-subheading text-xl">{activePlatform.title}</h3>
+            <p className="mt-2 text-sm mo-muted">{activePlatform.lead}</p>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {activePlatform.bullets.map((item) => (
-                <div key={item} className="rounded-xl border border-white/10 bg-slate-900/40 px-4 py-3 text-sm text-slate-200">
+                <div key={item} className="rounded-xl mo-section px-4 py-3 text-sm text-[var(--mo-text)]">
                   {item}
                 </div>
               ))}
@@ -686,7 +686,7 @@ export function LandingPage() {
             <button
               type="button"
               onClick={() => setDemoOpen(true)}
-              className="mt-5 w-full rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95 sm:w-auto"
+              className="btn-primary mt-5 w-full text-sm sm:w-auto"
             >
               Получить бесплатно
             </button>
@@ -696,70 +696,60 @@ export function LandingPage() {
 
       <section id="screens" className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
         <h2 className="mb-2 text-center text-3xl font-semibold sm:text-4xl">Интерфейс в работе</h2>
-        <p className="mb-6 text-center text-sm text-slate-300">
+        <p className="mb-6 text-center text-sm mo-muted">
           Реальные экраны MetodiOne: CRM-доска, чат, KPI, финансы, задачи, geo-трекер, онлайн-запись и интеграции.
         </p>
         <div className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2">
           {shots.map((item, idx) => (
             <article
               key={`${item.src}-${item.title}-${idx}`}
-              className="w-[88%] shrink-0 snap-start overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-lg shadow-black/20 sm:w-[70%] lg:w-[48%]"
+              className="w-[88%] shrink-0 snap-start overflow-hidden rounded-2xl mo-section shadow-lg shadow-[var(--mo-shadow-luxury)] sm:w-[70%] lg:w-[48%]"
             >
               <img src={item.src} alt={item.title} className="h-auto w-full object-cover" loading="lazy" />
-              <div className="border-t border-white/10 px-4 py-3 text-sm text-slate-200">{item.title}</div>
+              <div className="border-t border-[var(--mo-border)] px-4 py-3 text-sm text-[var(--mo-text)]">{item.title}</div>
             </article>
           ))}
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
-        <div className="rounded-3xl border border-white/10 bg-gradient-to-r from-indigo-500/15 via-fuchsia-500/10 to-sky-500/15 p-7 shadow-lg shadow-black/20">
+        <div className="mo-section rounded-3xl bg-gradient-to-r from-[#f7f2e8] via-white to-[var(--mo-surface)] p-7">
           <h2 className="text-center text-3xl font-semibold sm:text-4xl">Запуск за короткий цикл</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-fuchsia-300">Этап 1</p>
+            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#9e844d]">Этап 1</p>
               <h3 className="mt-2 text-lg font-semibold">Диагностика процесса</h3>
-              <p className="mt-2 text-sm text-slate-300">Фиксируем текущую воронку, роли, каналы и точки потерь.</p>
+              <p className="mt-2 text-sm mo-muted">Фиксируем текущую воронку, роли, каналы и точки потерь.</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-fuchsia-300">Этап 2</p>
+            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#9e844d]">Этап 2</p>
               <h3 className="mt-2 text-lg font-semibold">Настройка системы</h3>
-              <p className="mt-2 text-sm text-slate-300">Подключаем интеграции, стадии, KPI и онлайн-запись под ваш процесс.</p>
+              <p className="mt-2 text-sm mo-muted">Подключаем интеграции, стадии, KPI и онлайн-запись под ваш процесс.</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-fuchsia-300">Этап 3</p>
+            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#9e844d]">Этап 3</p>
               <h3 className="mt-2 text-lg font-semibold">Запуск команды</h3>
-              <p className="mt-2 text-sm text-slate-300">Обучаем сотрудников, запускаем контроль и стабилизируем метрики.</p>
+              <p className="mt-2 text-sm mo-muted">Обучаем сотрудников, запускаем контроль и стабилизируем метрики.</p>
             </div>
           </div>
         </div>
       </section>
 
       <section id="pricing" className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:px-8">
-        <div className="rounded-3xl border border-white/10 bg-slate-900/45 p-6 shadow-lg shadow-black/20 sm:p-8">
+        <div className="rounded-3xl mo-section p-6 shadow-lg shadow-[var(--mo-shadow-luxury)] sm:p-8">
           <div className="mb-5 flex justify-center">
-            <div className="inline-flex rounded-2xl border border-fuchsia-300/40 bg-slate-950/80 p-1.5 text-sm shadow-lg shadow-fuchsia-900/30">
+            <div className="mo-tabs inline-flex rounded-2xl p-1.5 text-sm">
               <button
                 type="button"
                 onClick={() => setBillingCycle("monthly")}
-                className={[
-                  "rounded-xl px-4 py-2 font-semibold transition",
-                  billingCycle === "monthly"
-                    ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-fuchsia-900/40"
-                    : "text-slate-300 hover:text-white",
-                ].join(" ")}
+                className={billingCycle === "monthly" ? "active" : ""}
               >
                 Ежемесячная
               </button>
               <button
                 type="button"
                 onClick={() => setBillingCycle("yearly")}
-                className={[
-                  "rounded-xl px-4 py-2 font-semibold transition",
-                  billingCycle === "yearly"
-                    ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-fuchsia-900/40"
-                    : "text-slate-300 hover:text-white",
-                ].join(" ")}
+                className={billingCycle === "yearly" ? "active" : ""}
               >
                 Годовая (−15%)
               </button>
@@ -768,7 +758,7 @@ export function LandingPage() {
           <div className="flex flex-wrap items-center justify-center gap-4 text-center">
             <div>
               <h2 className="text-3xl font-semibold sm:text-4xl">Тарифы</h2>
-              <p className="mt-2 text-sm text-slate-300">
+              <p className="mt-2 text-sm mo-muted">
                 Выберите формат оплаты: помесячно или на год со скидкой 15%.
               </p>
             </div>
@@ -783,31 +773,31 @@ export function LandingPage() {
                 <article
                   key={plan.id}
                   className={[
-                    "relative flex h-full flex-col rounded-2xl border p-5 shadow-lg shadow-black/20 transition duration-300",
+                    "relative flex h-full flex-col rounded-2xl border p-5 shadow-lg shadow-[var(--mo-shadow-luxury)] transition duration-300",
                     "hover:z-10 hover:-translate-y-1.5 hover:scale-[1.02] hover:shadow-2xl hover:shadow-fuchsia-900/35",
                     plan.recommended
-                      ? "border-fuchsia-300/50 bg-fuchsia-500/10 ring-1 ring-fuchsia-300/35"
-                      : "border-white/10 bg-slate-950/45",
+                      ? "border-[#d4af37] bg-[#f7f2e8] ring-1 ring-[#d4af37]/35"
+                      : "border-[var(--mo-border)] bg-[var(--mo-surface)]",
                   ].join(" ")}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-xl font-semibold text-white">{plan.name}</h3>
+                    <h3 className="lux-subheading text-xl">{plan.name}</h3>
                     {plan.recommended && (
-                      <span className="rounded-full border border-fuchsia-300/40 bg-fuchsia-500/20 px-2 py-0.5 text-[11px] font-semibold text-fuchsia-100">
+                      <span className="mo-badge text-[11px]">
                         Рекомендуем
                       </span>
                     )}
                   </div>
-                  <p className="mt-3 text-3xl font-bold text-white">{formatSomoni(monthlyDisplay)}</p>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="font-display mt-3 text-3xl font-bold text-[var(--mo-text)]">{formatSomoni(monthlyDisplay)}</p>
+                  <p className="mt-1 text-xs lux-caption">
                     {isYearly ? "в месяц при оплате за год" : "в месяц"}
                   </p>
-                  {isYearly && <p className="mt-1 text-xs text-emerald-300">Итого за год: {formatSomoni(yearlyTotal)}</p>}
-                  <p className="mt-4 text-sm text-slate-200">{plan.users}</p>
-                  <p className="mt-1 text-xs text-slate-400">
+                  {isYearly && <p className="mt-1 text-xs text-[#0f4c3a]">Итого за год: {formatSomoni(yearlyTotal)}</p>}
+                  <p className="mt-4 text-sm text-[var(--mo-text)]">{plan.users}</p>
+                  <p className="mt-1 text-xs lux-caption">
                     Доп. пользователь: +{formatSomoni(plan.extraUserPrice)} / мес
                   </p>
-                  <ul className="mt-4 space-y-1.5 text-sm text-slate-200">
+                  <ul className="mt-4 space-y-1.5 text-sm text-[var(--mo-text)]">
                     {plan.features.map((feature) => (
                       <li key={feature}>• {feature}</li>
                     ))}
@@ -815,7 +805,7 @@ export function LandingPage() {
                   <button
                     type="button"
                     onClick={() => setDemoOpen(true)}
-                    className="mt-auto w-full rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95"
+                    className="btn-primary mt-auto w-full text-sm"
                   >
                     Выбрать тариф
                   </button>
@@ -832,16 +822,16 @@ export function LandingPage() {
           {faq.map((item, idx) => {
             const open = openFaq === idx;
             return (
-              <article key={item.q} className="rounded-2xl border border-white/10 bg-slate-900/40 shadow-lg shadow-black/15">
+              <article key={item.q} className="rounded-2xl mo-section shadow-lg shadow-[var(--mo-shadow-luxury)]">
                 <button
                   type="button"
                   onClick={() => setOpenFaq(open ? -1 : idx)}
                   className="flex w-full items-center justify-between px-5 py-4 text-left"
                 >
                   <span className="text-sm font-semibold sm:text-base">{item.q}</span>
-                  <span className="text-xl leading-none text-fuchsia-300">{open ? "−" : "+"}</span>
+                  <span className="text-xl leading-none text-[#9e844d]">{open ? "−" : "+"}</span>
                 </button>
-                {open && <p className="border-t border-white/10 px-5 py-4 text-sm leading-relaxed text-slate-300">{item.a}</p>}
+                {open && <p className="border-t border-[var(--mo-border)] px-5 py-4 text-sm leading-relaxed mo-muted">{item.a}</p>}
               </article>
             );
           })}
@@ -849,9 +839,9 @@ export function LandingPage() {
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6 lg:px-8">
-        <div className="rounded-3xl border border-fuchsia-300/20 bg-slate-900/45 p-8 text-center shadow-2xl shadow-black/25 sm:p-10">
-          <h2 className="text-3xl font-semibold text-white sm:text-4xl">Готовы собрать всю операционку в одной ERP?</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-300 sm:text-base">
+        <div className="rounded-3xl border border-fuchsia-300/20 bg-white p-8 text-center shadow-2xl shadow-[var(--mo-shadow-luxury)] sm:p-10">
+          <h2 className="font-display text-3xl font-semibold text-[#9e844d] sm:text-4xl">Готовы собрать всю операционку в одной ERP?</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm mo-muted sm:text-base">
             Покажем, как именно MetodiOne ляжет на ваш процесс продаж и обслуживания клиентов — без лишних модулей и
             сложного внедрения.
           </p>
@@ -859,13 +849,13 @@ export function LandingPage() {
             <button
               type="button"
               onClick={() => setDemoOpen(true)}
-              className="rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95"
+              className="btn-primary px-6 py-3 text-sm"
             >
               Получить демо
             </button>
             <a
               href="/login"
-              className="rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
+              className="btn-secondary px-6 py-3 text-sm"
             >
               Перейти в систему
             </a>
@@ -873,33 +863,33 @@ export function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-slate-200 bg-slate-900 py-10 text-slate-200">
+      <footer className="border-t border-[var(--mo-border)] bg-white py-10 text-[var(--mo-text)]">
         <div className="mx-auto grid max-w-6xl gap-6 px-4 sm:grid-cols-2 sm:px-6 lg:px-8">
           <div>
             <h3 className="text-lg font-semibold">MetodiOne ERP</h3>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-sm lux-caption">
               ERP-платформа для продаж, коммуникаций, KPI и финансового контроля.
             </p>
           </div>
           <div className="text-sm sm:text-right">
             <p>Email: metoditj@gmail.com</p>
-            <p className="mt-1 text-slate-400">© {new Date().getFullYear()} MetodiOne. Все права защищены.</p>
+            <p className="mt-1 lux-caption">© {new Date().getFullYear()} MetodiOne. Все права защищены.</p>
           </div>
         </div>
       </footer>
 
       {demoOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4">
-          <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl shadow-black/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2c2520]/45 p-4">
+          <div className="crm-modal-panel w-full max-w-xl p-6">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-semibold text-white">Запросить демо</h2>
-                <p className="mt-1 text-sm text-slate-300">Оставьте контакты, и мы отправим вам персональную демонстрацию продукта.</p>
+                <h2 className="lux-heading-page text-2xl">Запросить демо</h2>
+                <p className="mt-1 text-sm mo-muted">Оставьте контакты, и мы отправим вам персональную демонстрацию продукта.</p>
               </div>
               <button
                 type="button"
                 onClick={() => setDemoOpen(false)}
-                className="rounded-lg border border-white/20 px-3 py-1 text-sm text-slate-200 transition hover:bg-white/10"
+                className="rounded-lg border border-[var(--mo-border)] px-3 py-1 text-sm text-[var(--mo-text)] transition hover:bg-white/10"
               >
                 Закрыть
               </button>
@@ -911,7 +901,7 @@ export function LandingPage() {
                 required
                 minLength={2}
                 placeholder="ФИО"
-                className="w-full rounded-xl border border-white/15 bg-slate-950/60 px-4 py-2.5 text-sm text-slate-100 outline-none ring-fuchsia-400/40 transition focus:ring-2"
+                className="w-full rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface)] px-4 py-2.5 text-sm text-[var(--mo-text)] outline-none ring-fuchsia-400/40 transition focus:ring-2"
               />
               <input
                 value={phone}
@@ -919,7 +909,7 @@ export function LandingPage() {
                 required
                 minLength={7}
                 placeholder="Телефон"
-                className="w-full rounded-xl border border-white/15 bg-slate-950/60 px-4 py-2.5 text-sm text-slate-100 outline-none ring-fuchsia-400/40 transition focus:ring-2"
+                className="w-full rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface)] px-4 py-2.5 text-sm text-[var(--mo-text)] outline-none ring-fuchsia-400/40 transition focus:ring-2"
               />
               <input
                 type="email"
@@ -927,19 +917,19 @@ export function LandingPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="Email"
-                className="w-full rounded-xl border border-white/15 bg-slate-950/60 px-4 py-2.5 text-sm text-slate-100 outline-none ring-fuchsia-400/40 transition focus:ring-2"
+                className="w-full rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface)] px-4 py-2.5 text-sm text-[var(--mo-text)] outline-none ring-fuchsia-400/40 transition focus:ring-2"
               />
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 rows={3}
                 placeholder="Комментарий (необязательно)"
-                className="w-full resize-none rounded-xl border border-white/15 bg-slate-950/60 px-4 py-2.5 text-sm text-slate-100 outline-none ring-fuchsia-400/40 transition focus:ring-2"
+                className="w-full resize-none rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface)] px-4 py-2.5 text-sm text-[var(--mo-text)] outline-none ring-fuchsia-400/40 transition focus:ring-2"
               />
               <button
                 type="submit"
                 disabled={sending}
-                className="w-full rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70"
+                className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {sending ? "Отправка..." : "Отправить заявку"}
               </button>

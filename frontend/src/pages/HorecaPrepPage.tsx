@@ -53,11 +53,11 @@ export function HorecaPrepPage() {
     <div className="mx-auto max-w-[1200px] space-y-4 pb-10">
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-widest text-teal-300/90">HoReCa / Заготовки</p>
-        <h1 className="text-3xl font-semibold text-white">Заготовки повара и продаваемые порции</h1>
-        <p className="text-sm text-slate-400">Повар вносит готовые заготовки, система считает сколько порций реально можно продать сегодня.</p>
+        <h1 className="lux-heading-page">Заготовки повара и продаваемые порции</h1>
+        <p className="text-sm lux-caption">Повар вносит готовые заготовки, система считает сколько порций реально можно продать сегодня.</p>
       </header>
 
-      <section className="rounded-2xl border border-slate-700/40 bg-slate-900/40 p-4">
+      <section className="rounded-2xl mo-section p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-base font-semibold text-white">План заготовок на сегодня</h2>
           <button
@@ -70,26 +70,26 @@ export function HorecaPrepPage() {
         </div>
         <div className="grid gap-2">
           {(prepQuery.data ?? []).map((row) => (
-            <label key={row.menu_item_id} className="grid grid-cols-[1fr_160px] items-center gap-2 rounded-xl border border-slate-700/60 px-3 py-2">
-              <span className="text-sm text-slate-100">{row.menu_item_name}</span>
+            <label key={row.menu_item_id} className="grid grid-cols-[1fr_160px] items-center gap-2 rounded-xl border border-[var(--mo-border)] px-3 py-2">
+              <span className="text-sm text-[var(--mo-text)]">{row.menu_item_name}</span>
               <input
                 value={draft[row.menu_item_id] ?? row.portions_ready}
                 onChange={(e) => setDraft((prev) => ({ ...prev, [row.menu_item_id]: e.target.value }))}
-                className="rounded-lg border border-slate-600/50 bg-slate-900/70 px-2 py-1.5 text-sm text-white"
+                className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white px-2 py-1.5 text-sm text-white"
                 inputMode="decimal"
               />
             </label>
           ))}
           {!prepQuery.isLoading && (prepQuery.data?.length ?? 0) === 0 ? (
-            <p className="text-sm text-slate-500">Нет активного меню для заготовок.</p>
+            <p className="text-sm mo-muted">Нет активного меню для заготовок.</p>
           ) : null}
         </div>
       </section>
 
-      <section className="overflow-x-auto rounded-2xl border border-slate-700/40 bg-slate-900/40 p-4">
+      <section className="overflow-x-auto rounded-2xl mo-section p-4">
         <h2 className="mb-2 text-base font-semibold text-white">Сколько порций можно продать сегодня</h2>
-        <table className="w-full min-w-[780px] text-left text-sm text-slate-200">
-          <thead className="text-slate-400">
+        <table className="w-full min-w-[780px] text-left text-sm text-[var(--mo-text)]">
+          <thead className="lux-caption">
             <tr>
               <th className="py-2 pr-3">Блюдо</th>
               <th className="py-2 pr-3">По остаткам</th>
@@ -103,7 +103,7 @@ export function HorecaPrepPage() {
                 <td className="py-2 pr-3">{row.menu_item_name}</td>
                 <td className="py-2 pr-3">{row.max_from_stock ?? "—"}</td>
                 <td className="py-2 pr-3">{prepById.get(row.menu_item_id)?.portions_ready ?? row.portions_prepared_today ?? "—"}</td>
-                <td className="py-2 pr-3 font-semibold text-emerald-300">{row.sellable_portions ?? "—"}</td>
+                <td className="py-2 pr-3 font-semibold text-[#0f4c3a]">{row.sellable_portions ?? "—"}</td>
               </tr>
             ))}
           </tbody>

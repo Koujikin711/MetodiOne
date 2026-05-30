@@ -346,7 +346,7 @@ export function LeadDetailPage() {
 
   if (!Number.isFinite(leadId) || leadId <= 0) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-16 text-center text-slate-400">
+      <div className="mx-auto max-w-lg px-4 py-16 text-center lux-caption">
         Некорректный идентификатор лида.
         <Link to="/booking" className="mt-4 block text-purple-300 hover:underline">
           ← К онлайн-записи
@@ -360,27 +360,27 @@ export function LeadDetailPage() {
       <div className="flex flex-wrap items-center gap-4 text-sm">
         <Link
           to="/booking"
-          className="font-medium text-purple-300 underline-offset-4 hover:text-purple-200 hover:underline"
+          className="font-medium text-purple-300 underline-offset-4 hover:text-[#614b70] hover:underline"
         >
           ← Онлайн запись
         </Link>
-        <Link to={homeLink} className="text-slate-400 hover:text-slate-200">
+        <Link to={homeLink} className="lux-caption hover:text-[var(--mo-text)]">
           {homeLabel}
         </Link>
       </div>
 
-      {query.isLoading && <p className="text-slate-400">Загрузка карточки…</p>}
+      {query.isLoading && <p className="lux-caption">Загрузка карточки…</p>}
       {query.isError && (
         <p className="text-red-300">{(query.error as Error).message ?? "Ошибка загрузки"}</p>
       )}
 
       {query.data && (
-        <article className="relative rounded-3xl border border-slate-700/40 bg-slate-800/40 p-8 shadow-2xl backdrop-blur-xl">
+        <article className="mo-section relative p-8 shadow-2xl backdrop-blur-xl">
           <div className="absolute right-3 top-3 flex flex-col gap-2">
             <button
               type="button"
               onClick={() => setAuditOpen(true)}
-              className="rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-purple-400/60 hover:bg-purple-500/15"
+              className="rounded-xl border border border-[var(--mo-border-strong)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--mo-text)] transition hover:border-purple-400/60 hover:bg-purple-500/15"
             >
               Аудит
             </button>
@@ -388,14 +388,14 @@ export function LeadDetailPage() {
               <button
                 type="button"
                 onClick={openEditLeadModal}
-                className="rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-sky-400/60 hover:bg-sky-500/15"
+                className="rounded-xl border border border-[var(--mo-border-strong)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--mo-text)] transition hover:border-sky-400/60 hover:bg-sky-500/15"
               >
                 Редактировать
               </button>
             )}
             <Link
               to={`/chat?lead_id=${query.data.id}`}
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 text-sm font-semibold text-slate-100 transition hover:border-indigo-400/60 hover:bg-indigo-500/20"
+              className="inline-flex h-10 items-center justify-center rounded-xl border border border-[var(--mo-border-strong)] bg-white px-3 text-sm font-semibold text-[var(--mo-text)] transition hover:border-indigo-400/60 hover:bg-indigo-500/20"
               title="Открыть чат с клиентом"
             >
               Чат
@@ -428,47 +428,47 @@ export function LeadDetailPage() {
               </button>
             )}
           </div>
-          <header className="mb-6 border-b border-slate-700/50 pb-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Клиент / лид</p>
-            <h1 className="mt-1 text-3xl font-semibold text-white">{query.data.name}</h1>
+          <header className="mb-6 border-b border-[var(--mo-border)] pb-4">
+            <p className="text-xs font-medium uppercase tracking-wider mo-muted">Клиент / лид</p>
+            <h1 className="mt-1 lux-heading-page">{query.data.name}</h1>
             {query.data.stage_name && (
-              <p className="mt-2 inline-flex rounded-full bg-purple-500/15 px-3 py-1 text-sm text-purple-200 ring-1 ring-purple-500/30">
+              <p className="mt-2 inline-flex rounded-full bg-purple-500/15 px-3 py-1 text-sm text-[#614b70] ring-1 ring-purple-500/30">
                 {query.data.stage_name}
               </p>
             )}
           </header>
           <dl className="grid gap-4 sm:grid-cols-2">
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Телефон</dt>
-              <dd className="mt-1 text-lg text-slate-100">{query.data.phone ?? "—"}</dd>
+              <dt className="text-xs uppercase tracking-wide mo-muted">Телефон</dt>
+              <dd className="mt-1 text-lg text-[var(--mo-text)]">{query.data.phone ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Email</dt>
-              <dd className="mt-1 text-lg text-slate-100">{query.data.email ?? "—"}</dd>
+              <dt className="text-xs uppercase tracking-wide mo-muted">Email</dt>
+              <dd className="mt-1 text-lg text-[var(--mo-text)]">{query.data.email ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Источник</dt>
-              <dd className="mt-1 text-slate-200">{query.data.source ?? "—"}</dd>
+              <dt className="text-xs uppercase tracking-wide mo-muted">Источник</dt>
+              <dd className="mt-1 text-[var(--mo-text)]">{query.data.source ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Ответственный менеджер</dt>
-              <dd className="mt-1 text-slate-200">{query.data.manager_name || "—"}</dd>
+              <dt className="text-xs uppercase tracking-wide mo-muted">Ответственный менеджер</dt>
+              <dd className="mt-1 text-[var(--mo-text)]">{query.data.manager_name || "—"}</dd>
             </div>
             <div className="sm:col-span-2">
-              <dt className="text-xs uppercase tracking-wide text-slate-500">ID в MetodiOne</dt>
-              <dd className="mt-1 font-mono text-slate-300">#{query.data.id}</dd>
+              <dt className="text-xs uppercase tracking-wide mo-muted">ID в MetodiOne</dt>
+              <dd className="mt-1 font-mono mo-muted">#{query.data.id}</dd>
             </div>
           </dl>
 
           {(leadAppointmentsQuery.data ?? []).length > 0 && (
-            <section className="mt-8 border-t border-slate-700/50 pt-6">
+            <section className="mt-8 border-t border-[var(--mo-border)] pt-6">
               <h2 className="text-sm font-semibold text-white">Онлайн-запись</h2>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs mo-muted">
                 Активные записи по этому лиду. «Перенос» открывает выбор даты и времени в календаре записи.
               </p>
-              {leadAppointmentsQuery.isLoading && <p className="mt-2 text-xs text-slate-500">Загрузка…</p>}
+              {leadAppointmentsQuery.isLoading && <p className="mt-2 text-xs mo-muted">Загрузка…</p>}
               {leadAppointmentsQuery.isError && (
-                <p className="mt-2 text-xs text-rose-300">
+                <p className="mt-2 text-xs text-[#6b1d2f]">
                   {(leadAppointmentsQuery.error as Error).message ?? "Не удалось загрузить записи"}
                 </p>
               )}
@@ -484,12 +484,12 @@ export function LeadDetailPage() {
                         "rounded-xl border p-4 text-sm",
                         highlight
                           ? "border-sky-500/50 bg-sky-500/10 ring-1 ring-sky-400/30"
-                          : "border-slate-700/50 bg-slate-900/40",
+                          : "mo-section",
                       ].join(" ")}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div>
-                          <p className="font-medium text-slate-100">
+                          <p className="font-medium text-[var(--mo-text)]">
                             {new Date(a.start_at).toLocaleDateString("ru-RU", {
                               day: "2-digit",
                               month: "long",
@@ -497,7 +497,7 @@ export function LeadDetailPage() {
                               timeZone: BOOKING_TIME_ZONE,
                             })}
                           </p>
-                          <p className="mt-0.5 text-slate-300">
+                          <p className="mt-0.5 mo-muted">
                             {formatTimeRangeInBookingTz(a.start_at, a.end_at)}
                             {a.specialist_name ? ` · ${a.specialist_name}` : ""}
                             {(a.service_title || "").trim()
@@ -506,7 +506,7 @@ export function LeadDetailPage() {
                                 ? ` · ${a.direction_name}`
                                 : ""}
                           </p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="mt-1 text-xs mo-muted">
                             Статус:{" "}
                             {a.status === "booked"
                               ? "Записан"
@@ -525,7 +525,7 @@ export function LeadDetailPage() {
                               type="button"
                               disabled={moveAppointmentMutation.isPending || deleteAppointmentMutation.isPending}
                               onClick={() => openMoveAppointmentModal(a)}
-                              className="rounded-xl border border-slate-600/70 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-purple-400/60 hover:bg-purple-500/15 disabled:opacity-50"
+                              className="rounded-xl border border border-[var(--mo-border-strong)] bg-white px-3 py-2 text-xs font-semibold text-[var(--mo-text)] transition hover:border-purple-400/60 hover:bg-purple-500/15 disabled:opacity-50"
                             >
                               Перенос записи
                             </button>
@@ -548,35 +548,35 @@ export function LeadDetailPage() {
           )}
 
           {canSeeFinanceJournal ? (
-            <section className="mt-8 border-t border-slate-700/50 pt-6">
+            <section className="mt-8 border-t border-[var(--mo-border)] pt-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-white">Финансы: проводки по лиду</h2>
                 <Link
                   to="/finance"
-                  className="text-xs font-medium text-purple-300 hover:text-purple-200 hover:underline"
+                  className="text-xs font-medium text-purple-300 hover:text-[#614b70] hover:underline"
                 >
                   Открыть финансы →
                 </Link>
               </div>
-              {financeJournalQuery.isLoading && <p className="mt-2 text-xs text-slate-500">Загрузка журнала…</p>}
+              {financeJournalQuery.isLoading && <p className="mt-2 text-xs mo-muted">Загрузка журнала…</p>}
               {financeJournalQuery.isError && (
-                <p className="mt-2 text-xs text-rose-300">
+                <p className="mt-2 text-xs text-[#6b1d2f]">
                   {(financeJournalQuery.error as Error).message ?? "Нет доступа или ошибка API"}
                 </p>
               )}
               {(financeJournalQuery.data ?? []).length === 0 && !financeJournalQuery.isLoading && (
-                <p className="mt-2 text-xs text-slate-500">Проводок с привязкой к этому лиду пока нет.</p>
+                <p className="mt-2 text-xs mo-muted">Проводок с привязкой к этому лиду пока нет.</p>
               )}
               <ul className="mt-3 space-y-2">
                 {(financeJournalQuery.data ?? []).map((je) => (
-                  <li key={je.id} className="rounded-xl border border-slate-700/50 bg-slate-900/40 p-3 text-xs">
-                    <div className="flex flex-wrap gap-2 text-slate-300">
-                      <span className="font-mono text-slate-400">#{je.id}</span>
+                  <li key={je.id} className="rounded-xl mo-section p-3 text-xs">
+                    <div className="flex flex-wrap gap-2 mo-muted">
+                      <span className="font-mono lux-caption">#{je.id}</span>
                       <span>{new Date(je.entry_date).toLocaleString("ru-RU")}</span>
-                      <span className="rounded bg-slate-700/60 px-2 py-0.5 text-slate-200">{je.source_type}</span>
+                      <span className="rounded bg-slate-700/60 px-2 py-0.5 text-[var(--mo-text)]">{je.source_type}</span>
                     </div>
-                    {je.memo && <p className="mt-1 text-slate-400">{je.memo}</p>}
-                    <ul className="mt-2 space-y-1 font-mono text-[11px] text-slate-500">
+                    {je.memo && <p className="mt-1 lux-caption">{je.memo}</p>}
+                    <ul className="mt-2 space-y-1 font-mono text-[11px] mo-muted">
                       {je.lines.map((ln, i) => (
                         <li key={i}>
                           {ln.account_code} {ln.debit !== "0" ? `Дт ${ln.debit}` : ""}{" "}
@@ -590,7 +590,7 @@ export function LeadDetailPage() {
             </section>
           ) : null}
           {canDeleteLead ? (
-            <section className="mt-8 border-t border-slate-700/50 pt-6">
+            <section className="mt-8 border-t border-[var(--mo-border)] pt-6">
               <button
                 type="button"
                 disabled={deleteLeadMutation.isPending}
@@ -609,15 +609,15 @@ export function LeadDetailPage() {
 
       {closeDealOpen && query.data && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#2c2520]/40 p-4"
           onClick={() => setCloseDealOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+            className="w-full max-w-md rounded-2xl crm-modal-panel border p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-white">Закрыть сделку</h3>
-            <p className="mt-2 text-sm text-slate-400">
+            <h3 className="lux-subheading">Закрыть сделку</h3>
+            <p className="mt-2 text-sm lux-caption">
               {fixedCloseAmount != null
                 ? "Для последней услуги по этому лиду цена зафиксирована в KPI. Укажите только фактическую оплату."
                 : "Укажите стоимость услуги и фактическую оплату. Лид будет переведён на стадию успешного закрытия."}{" "}
@@ -625,11 +625,11 @@ export function LeadDetailPage() {
             </p>
             <div className="mt-4 grid gap-3">
               {fixedCloseAmount != null ? (
-                <div className="rounded-xl border border-emerald-600/40 bg-emerald-900/10 px-3 py-2 text-sm text-emerald-300">
+                <div className="rounded-xl border border-emerald-600/40 bg-emerald-900/10 px-3 py-2 text-sm text-[#0f4c3a]">
                   Цена по KPI: {fixedCloseAmount.toLocaleString("ru-RU")}
                 </div>
               ) : (
-                <label className="text-sm text-slate-300">
+                <label className="text-sm mo-muted">
                   Стоимость услуги
                   <input
                     type="number"
@@ -637,11 +637,11 @@ export function LeadDetailPage() {
                     step="0.01"
                     value={closeAmount}
                     onChange={(e) => setCloseAmount(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                    className="mo-input mt-1 w-full"
                   />
                 </label>
               )}
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Оплачено фактически
                 <input
                   type="number"
@@ -649,7 +649,7 @@ export function LeadDetailPage() {
                   step="0.01"
                   value={closePaid}
                   onChange={(e) => setClosePaid(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
             </div>
@@ -657,7 +657,7 @@ export function LeadDetailPage() {
               <button
                 type="button"
                 onClick={() => setCloseDealOpen(false)}
-                className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
+                className="rounded-xl border border-[var(--mo-border)] px-4 py-2 text-sm mo-muted hover:bg-[var(--mo-accent-soft)]"
               >
                 Отмена
               </button>
@@ -692,52 +692,52 @@ export function LeadDetailPage() {
 
       {editLeadOpen && query.data && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#2c2520]/40 p-4"
           onClick={() => {
             if (patchLeadMutation.isPending) return;
             setEditLeadOpen(false);
           }}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+            className="w-full max-w-md rounded-2xl crm-modal-panel border p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-white">Редактировать клиента</h3>
-            <p className="mt-2 text-sm text-slate-400">
+            <h3 className="lux-subheading">Редактировать клиента</h3>
+            <p className="mt-2 text-sm lux-caption">
               Можно обновить ФИО, телефон, email и источник прямо из карточки.
             </p>
             <div className="mt-4 grid gap-3">
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 ФИО
                 <input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Телефон
                 <input
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Email
                 <input
                   type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Источник
                 <input
                   value={editSource}
                   onChange={(e) => setEditSource(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
             </div>
@@ -746,7 +746,7 @@ export function LeadDetailPage() {
                 type="button"
                 disabled={patchLeadMutation.isPending}
                 onClick={() => setEditLeadOpen(false)}
-                className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-xl border border-[var(--mo-border)] px-4 py-2 text-sm mo-muted hover:bg-[var(--mo-accent-soft)] disabled:opacity-50"
               >
                 Отмена
               </button>
@@ -765,25 +765,25 @@ export function LeadDetailPage() {
 
       {moveModalAppointment && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#2c2520]/40 p-4"
           onClick={() => {
             if (moveAppointmentMutation.isPending) return;
             setMoveModalAppointment(null);
           }}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+            className="w-full max-w-md rounded-2xl crm-modal-panel border p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-white">Перенос записи</h3>
-            <p className="mt-2 text-sm text-slate-400">
+            <h3 className="lux-subheading">Перенос записи</h3>
+            <p className="mt-2 text-sm lux-caption">
               Доступны только свободные даты и свободные слоты этого специалиста.
             </p>
             {specialistsQuery.isLoading || moveAvailableDaysQuery.isLoading ? (
-              <p className="mt-4 text-sm text-slate-400">Ищем свободные слоты…</p>
+              <p className="mt-4 text-sm lux-caption">Ищем свободные слоты…</p>
             ) : null}
             {moveAvailableDaysQuery.isError && (
-              <p className="mt-4 text-sm text-rose-300">
+              <p className="mt-4 text-sm text-[#6b1d2f]">
                 {(moveAvailableDaysQuery.error as Error).message ?? "Не удалось загрузить свободные слоты"}
               </p>
             )}
@@ -796,12 +796,12 @@ export function LeadDetailPage() {
               )}
             {(moveAvailableDaysQuery.data ?? []).length > 0 && (
               <div className="mt-4 grid gap-3">
-                <label className="text-sm text-slate-300">
+                <label className="text-sm mo-muted">
                   Свободная дата
                   <select
                     value={moveDateYmd}
                     onChange={(e) => setMoveDateYmd(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                    className="mo-input mt-1 w-full"
                   >
                     {(moveAvailableDaysQuery.data ?? []).map((d) => (
                       <option key={d.dateYmd} value={d.dateYmd}>
@@ -815,12 +815,12 @@ export function LeadDetailPage() {
                     ))}
                   </select>
                 </label>
-                <label className="text-sm text-slate-300">
+                <label className="text-sm mo-muted">
                   Свободное время
                   <select
                     value={moveMinuteOfDay == null ? "" : String(moveMinuteOfDay)}
                     onChange={(e) => setMoveMinuteOfDay(Number(e.target.value))}
-                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                    className="mo-input mt-1 w-full"
                   >
                     {(selectedMoveDay?.slots ?? []).map((m) => (
                       <option key={m} value={m}>
@@ -836,7 +836,7 @@ export function LeadDetailPage() {
                 type="button"
                 disabled={moveAppointmentMutation.isPending}
                 onClick={() => setMoveModalAppointment(null)}
-                className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-xl border border-[var(--mo-border)] px-4 py-2 text-sm mo-muted hover:bg-[var(--mo-accent-soft)] disabled:opacity-50"
               >
                 Отмена
               </button>
@@ -860,42 +860,42 @@ export function LeadDetailPage() {
 
       {auditOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#2c2520]/40 p-4"
           onClick={() => setAuditOpen(false)}
         >
           <div
-            className="max-h-[80vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
+            className="max-h-[80vh] w-full max-w-3xl overflow-hidden rounded-2xl crm-modal-panel border shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-700/70 px-4 py-3">
+            <div className="flex items-center justify-between border-b border-[var(--mo-border)]/70 px-4 py-3">
               <h3 className="text-sm font-semibold text-white">Аудит карточки лида #{leadId}</h3>
               <button
                 type="button"
                 onClick={() => setAuditOpen(false)}
-                className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                className="rounded-lg border border-[var(--mo-border)] px-2 py-1 text-xs mo-muted hover:bg-[var(--mo-accent-soft)]"
               >
                 Закрыть
               </button>
             </div>
             <div className="max-h-[66vh] overflow-y-auto p-4">
-              {auditQuery.isLoading && <p className="text-sm text-slate-400">Загрузка аудита…</p>}
+              {auditQuery.isLoading && <p className="text-sm lux-caption">Загрузка аудита…</p>}
               {auditQuery.isError && (
                 <p className="text-sm text-red-300">{(auditQuery.error as Error).message ?? "Ошибка загрузки аудита"}</p>
               )}
               {(auditQuery.data ?? []).length === 0 && !auditQuery.isLoading && (
-                <p className="text-sm text-slate-500">Пока нет событий.</p>
+                <p className="text-sm mo-muted">Пока нет событий.</p>
               )}
               <ul className="space-y-2">
                 {(auditQuery.data ?? []).map((e) => (
-                  <li key={e.id} className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
+                  <li key={e.id} className="rounded-xl mo-section p-3">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="rounded bg-purple-500/20 px-2 py-0.5 text-purple-200">{e.action}</span>
-                      <span className="text-slate-300">{e.user_name ?? `user#${e.user_id ?? "-"}`}</span>
-                      <span className="text-slate-500">
+                      <span className="rounded bg-[#ece6f0] px-2 py-0.5 text-[#614b70]">{e.action}</span>
+                      <span className="mo-muted">{e.user_name ?? `user#${e.user_id ?? "-"}`}</span>
+                      <span className="mo-muted">
                         {new Date(e.created_at).toLocaleString("ru-RU")}
                       </span>
                     </div>
-                    {e.details && <p className="mt-1 text-sm text-slate-200">{e.details}</p>}
+                    {e.details && <p className="mt-1 text-sm text-[var(--mo-text)]">{e.details}</p>}
                   </li>
                 ))}
               </ul>

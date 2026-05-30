@@ -124,28 +124,28 @@ export function KpiPage() {
     <div className="relative mx-auto max-w-[1500px] space-y-6 pb-10">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-white">KPI продаж</h1>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm lux-caption">
           Месячная матрица по выбранной воронке: сверху услуги (специальности), справа менеджеры, план задаётся в
           количестве, цена задаётся отдельно, факт-сумма считается как факт-количество × цена услуги.
         </p>
       </header>
 
-      <section className="grid gap-3 rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-sm text-slate-300">
+      <section className="grid gap-3 mo-section p-4 sm:grid-cols-2">
+        <label className="flex flex-col gap-1 text-sm mo-muted">
           Месяц
           <input
             type="month"
             value={yearMonth}
             onChange={(e) => setYearMonth(e.target.value)}
-            className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+            className="mo-input"
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm text-slate-300">
+        <label className="flex flex-col gap-1 text-sm mo-muted">
           Воронка
           <select
             value={pipelineId ?? ""}
             onChange={(e) => setPipelineId(Number(e.target.value) || null)}
-            className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+            className="mo-input"
           >
             {(pipelinesQuery.data ?? []).map((p) => (
               <option key={p.id} value={p.id}>
@@ -158,9 +158,9 @@ export function KpiPage() {
       </section>
 
       {isOwner && ownerQuery.data ? (
-        <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
+        <section className="mo-section p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Матрица владельца</h2>
+            <h2 className="lux-subheading">Матрица владельца</h2>
             <button
               type="button"
               onClick={() => saveMutation.mutate()}
@@ -181,14 +181,14 @@ export function KpiPage() {
       ) : null}
 
       {isManagerLike && managerQuery.data ? (
-        <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
-          <h2 className="mb-3 text-lg font-semibold text-white">Мой KPI</h2>
+        <section className="mo-section p-4">
+          <h2 className="mb-3 lux-subheading">Мой KPI</h2>
           <ManagerMatrixTable data={managerQuery.data} />
         </section>
       ) : null}
 
       {(ownerQuery.isLoading || managerQuery.isLoading || pipelinesQuery.isLoading) && (
-        <p className="text-sm text-slate-400">Загрузка KPI…</p>
+        <p className="text-sm lux-caption">Загрузка KPI…</p>
       )}
       {(ownerQuery.isError || managerQuery.isError || pipelinesQuery.isError) && (
         <p className="text-sm text-red-300">
@@ -217,9 +217,9 @@ function OwnerMatrixTable({
   const directions = data.directions;
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1200px] border-collapse text-left text-sm text-slate-200">
+      <table className="w-full min-w-[1200px] border-collapse text-left text-sm text-[var(--mo-text)]">
         <thead>
-          <tr className="border-b border-slate-700 text-slate-400">
+          <tr className="border-b border-[var(--mo-border)] lux-caption">
             <th className="py-2 pr-3">Менеджер</th>
             {directions.map((d) => (
               <th key={d.direction_id} className="py-2 pr-3">
@@ -232,8 +232,8 @@ function OwnerMatrixTable({
           </tr>
         </thead>
         <tbody>
-          <tr className="border-b border-slate-800 bg-slate-900/40">
-            <td className="py-2 pr-3 font-medium text-slate-300">Цена услуги</td>
+          <tr className="border-b border-slate-800 bg-white">
+            <td className="py-2 pr-3 font-medium mo-muted">Цена услуги</td>
             {directions.map((d) => (
               <td key={d.direction_id} className="py-2 pr-3">
                 <input
@@ -247,7 +247,7 @@ function OwnerMatrixTable({
                       [d.direction_id]: e.target.value,
                     })
                   }
-                  className="w-24 rounded-lg border border-slate-600/60 bg-slate-900/70 px-2 py-1 text-white"
+                  className="w-24 rounded-lg border border-[var(--mo-border-strong)]/60 bg-white px-2 py-1 text-white"
                 />
               </td>
             ))}
@@ -268,10 +268,10 @@ function OwnerMatrixTable({
                         step={1}
                         value={qtyDraft[key] ?? ""}
                         onChange={(e) => onQtyChange({ ...qtyDraft, [key]: e.target.value })}
-                        className="w-20 rounded-lg border border-slate-600/60 bg-slate-900/70 px-2 py-1 text-white"
+                        className="w-20 rounded-lg border border-[var(--mo-border-strong)]/60 bg-white px-2 py-1 text-white"
                         title="Плановое количество"
                       />
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs mo-muted">
                         факт {cell?.actual_count ?? 0} шт · {moneyFmt.format(Number(cell?.actual_paid ?? 0))} /{" "}
                         {moneyFmt.format(Number(cell?.plan_amount ?? 0))}
                       </div>
@@ -283,7 +283,7 @@ function OwnerMatrixTable({
                 );
               })}
               <td className="py-2 pr-3">{moneyFmt.format(Number(m.total_plan_amount))}</td>
-              <td className="py-2 pr-3 text-emerald-300">{moneyFmt.format(Number(m.total_actual_paid))}</td>
+              <td className="py-2 pr-3 text-[#0f4c3a]">{moneyFmt.format(Number(m.total_actual_paid))}</td>
               <td className="py-2 pr-3">{m.total_progress_percent != null ? `${m.total_progress_percent.toFixed(1)}%` : "—"}</td>
             </tr>
           ))}
@@ -300,9 +300,9 @@ function ManagerMatrixTable({ data }: { data: SalesKpiManagerMatrix }) {
   });
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[900px] border-collapse text-left text-sm text-slate-200">
+      <table className="w-full min-w-[900px] border-collapse text-left text-sm text-[var(--mo-text)]">
         <thead>
-          <tr className="border-b border-slate-700 text-slate-400">
+          <tr className="border-b border-[var(--mo-border)] lux-caption">
             <th className="py-2 pr-3">Услуга</th>
             <th className="py-2 pr-3">Цена</th>
             <th className="py-2 pr-3">План (шт)</th>
@@ -320,17 +320,17 @@ function ManagerMatrixTable({ data }: { data: SalesKpiManagerMatrix }) {
               <td className="py-2 pr-3">{c.plan_qty}</td>
               <td className="py-2 pr-3">{c.actual_count}</td>
               <td className="py-2 pr-3">{moneyFmt.format(Number(c.plan_amount))}</td>
-              <td className="py-2 pr-3 text-emerald-300">{moneyFmt.format(Number(c.actual_paid))}</td>
+              <td className="py-2 pr-3 text-[#0f4c3a]">{moneyFmt.format(Number(c.actual_paid))}</td>
               <td className="py-2 pr-3">{c.progress_percent != null ? `${c.progress_percent.toFixed(1)}%` : "—"}</td>
             </tr>
           ))}
-          <tr className="bg-slate-900/40">
+          <tr className="bg-white">
             <td className="py-2 pr-3 font-semibold">Итого</td>
             <td />
             <td />
             <td />
             <td className="py-2 pr-3 font-semibold">{moneyFmt.format(Number(data.manager.total_plan_amount))}</td>
-            <td className="py-2 pr-3 font-semibold text-emerald-300">
+            <td className="py-2 pr-3 font-semibold text-[#0f4c3a]">
               {moneyFmt.format(Number(data.manager.total_actual_paid))}
             </td>
             <td className="py-2 pr-3 font-semibold">

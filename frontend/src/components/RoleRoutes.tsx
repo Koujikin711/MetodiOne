@@ -29,7 +29,7 @@ function ManagerNavHomeEntry({ role }: { role: "manager" | "admin" }) {
   }
 
   if (pipelinesQuery.isLoading) {
-    return <p className="px-4 py-10 text-sm text-slate-400">Загрузка…</p>;
+    return <p className="px-4 py-10 text-sm lux-caption">Загрузка…</p>;
   }
 
   if (pipelinesQuery.isError) {

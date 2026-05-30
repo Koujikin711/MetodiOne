@@ -101,66 +101,66 @@ function PlanEditorModal({
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-600 bg-slate-900 p-6 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl crm-modal-panel border p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-semibold text-white">{title}</h2>
+        <h2 className="lux-subheading">{title}</h2>
         <div className="mt-4 space-y-3">
-          <label className="block text-sm text-slate-300">
+          <label className="block text-sm mo-muted">
             Название
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+              className="mo-input mt-1 w-full"
             />
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm text-slate-300">
+            <label className="block text-sm mo-muted">
               Макс. активных сотрудников (0 = без лимита)
               <input
                 type="number"
                 min={0}
                 value={maxUsers}
                 onChange={(e) => setMaxUsers(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+                className="mo-input mt-1 w-full"
               />
             </label>
-            <label className="block text-sm text-slate-300">
+            <label className="block text-sm mo-muted">
               Макс. интеграций (0 = без лимита)
               <input
                 type="number"
                 min={0}
                 value={maxInt}
                 onChange={(e) => setMaxInt(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+                className="mo-input mt-1 w-full"
               />
             </label>
           </div>
-          <label className="block text-sm text-slate-300">
+          <label className="block text-sm mo-muted">
             Порядок сортировки
             <input
               type="number"
               min={0}
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+              className="mo-input mt-1 w-full"
             />
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+          <label className="flex cursor-pointer items-center gap-2 text-sm mo-muted">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
             Тариф активен (можно назначать компаниям)
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+          <label className="flex cursor-pointer items-center gap-2 text-sm mo-muted">
             <input type="checkbox" checked={warehouseEnabled} onChange={(e) => setWarehouseEnabled(e.target.checked)} />
             Склад в финансах (остатки, приход/расход)
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm text-slate-300">
+            <label className="block text-sm mo-muted">
               Валюта счёта пакета
               <select
                 value={billingCurrency}
                 onChange={(e) => setBillingCurrency(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+                className="mo-input mt-1 w-full"
               >
                 {CURS.map((c) => (
                   <option key={c} value={c}>
@@ -169,7 +169,7 @@ function PlanEditorModal({
                 ))}
               </select>
             </label>
-            <label className="block text-sm text-slate-300">
+            <label className="block text-sm mo-muted">
               Скидка к сумме функций+лимитов, %
               <input
                 type="number"
@@ -178,16 +178,16 @@ function PlanEditorModal({
                 step={0.1}
                 value={discountPct}
                 onChange={(e) => setDiscountPct(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+                className="mo-input mt-1 w-full"
               />
             </label>
           </div>
         </div>
-        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">Функции в тарифе</p>
-        <ul className="mt-2 max-h-52 space-y-1 overflow-y-auto rounded-xl border border-slate-700/60 p-2">
+        <p className="mt-4 text-xs font-medium uppercase tracking-wide mo-muted">Функции в тарифе</p>
+        <ul className="mt-2 max-h-52 space-y-1 overflow-y-auto rounded-xl border border-[var(--mo-border)] p-2">
           {catalog.map((c) => (
             <li key={c.key}>
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-200 hover:bg-slate-800/50">
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]">
                 <input type="checkbox" checked={feats.has(c.key)} onChange={() => toggleFeat(c.key)} />
                 {c.label}
               </label>
@@ -198,7 +198,7 @@ function PlanEditorModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800/60"
+            className="rounded-xl border border-[var(--mo-border-strong)] px-4 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
           >
             Отмена
           </button>
@@ -206,7 +206,7 @@ function PlanEditorModal({
             type="button"
             disabled={isPending}
             onClick={() => submit()}
-            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-[var(--mo-text)] hover:bg-indigo-500 disabled:opacity-50"
           >
             {isPending ? "Сохранение…" : "Сохранить"}
           </button>
@@ -273,7 +273,7 @@ export function TariffPlansPage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-white">Архитектор тарифов</h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm lux-caption">
             Создайте тарифы с набором функций и лимитами. При создании компании выберите тариф — владелец увидит
             недоступные разделы с подсказкой об апгрейде.
           </p>
@@ -287,7 +287,7 @@ export function TariffPlansPage() {
         </button>
       </header>
 
-      {plansQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+      {plansQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
       {plansQuery.isError && <p className="text-sm text-red-300">{(plansQuery.error as Error).message}</p>}
       {catalogQuery.isError ? (
         <p className="text-xs text-amber-200/90">
@@ -300,19 +300,19 @@ export function TariffPlansPage() {
         {(plansQuery.data ?? []).map((p) => (
           <article
             key={p.id}
-            className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 backdrop-blur-sm"
+            className="mo-section p-4 backdrop-blur-sm"
           >
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <h3 className="text-lg font-semibold text-white">{p.name}</h3>
-                <p className="mt-1 text-xs text-slate-400">
+                <h3 className="lux-subheading">{p.name}</h3>
+                <p className="mt-1 text-xs lux-caption">
                   Сотрудники до {p.max_active_users === 0 ? "∞" : p.max_active_users} · интеграции до{" "}
                   {p.max_integrations === 0 ? "∞" : p.max_integrations} · порядок {p.sort_order}
                   {p.warehouse_enabled === false ? " · без склада" : " · склад"}
                   {p.is_active ? "" : " · отключён"} · валюта {p.billing_currency ?? "TJS"}
                   {p.discount_percent != null && p.discount_percent > 0 ? ` · скидка ${p.discount_percent}%` : ""}
                 </p>
-                <p className="mt-2 text-xs text-slate-300">
+                <p className="mt-2 text-xs mo-muted">
                   Функции:{" "}
                   {p.enabled_features.length
                     ? p.enabled_features.map((k) => catalog.find((c) => c.key === k)?.label ?? k).join(", ")
@@ -326,7 +326,7 @@ export function TariffPlansPage() {
                     setEditing(p);
                     setModal("edit");
                   }}
-                  className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800/60"
+                  className="rounded-lg border border-[var(--mo-border-strong)] px-3 py-1.5 text-xs text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
                 >
                   Изменить
                 </button>
@@ -460,19 +460,19 @@ function PricingCatalogSection({ catalog }: { catalog: FeatureCatalogItem[] }) {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-700/40 bg-slate-800/20 p-4">
-      <h2 className="text-lg font-semibold text-white">Каталог цен (конструктор)</h2>
-      <p className="mt-1 text-xs text-slate-400">
+    <section className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-accent-soft)]/20 p-4">
+      <h2 className="lux-subheading">Каталог цен (конструктор)</h2>
+      <p className="mt-1 text-xs lux-caption">
         Цены функций и лимитов в месяц по валютам. Сумма тарифа = функции + лимиты (пользователи × ставка, интеграции ×
         ставка, склад при включении) минус скидка на тарифе или на компании.
       </p>
-      {pricingQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+      {pricingQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
       {pricingQuery.isError && <p className="mt-2 text-sm text-red-300">{(pricingQuery.error as Error).message}</p>}
       {pricingQuery.data && catalog.length > 0 ? (
         <>
-          <div className="mt-4 max-h-[50vh] overflow-auto rounded-xl border border-slate-700/50">
-            <table className="w-full min-w-[520px] text-left text-xs text-slate-300">
-              <thead className="sticky top-0 bg-slate-900/95 text-slate-400">
+          <div className="mt-4 max-h-[50vh] overflow-auto rounded-xl border border-[var(--mo-border)]">
+            <table className="w-full min-w-[520px] text-left text-xs mo-muted">
+              <thead className="sticky top-0 bg-white/95 lux-caption">
                 <tr>
                   <th className="px-2 py-2">Позиция</th>
                   {CURS.map((cur) => (
@@ -484,28 +484,28 @@ function PricingCatalogSection({ catalog }: { catalog: FeatureCatalogItem[] }) {
               </thead>
               <tbody>
                 {catalog.map((c) => (
-                  <tr key={c.key} className="border-t border-slate-700/40">
-                    <td className="px-2 py-1.5 text-slate-200">{c.label}</td>
+                  <tr key={c.key} className="border-t border-[var(--mo-border)]">
+                    <td className="px-2 py-1.5 text-[var(--mo-text)]">{c.label}</td>
                     {CURS.map((cur) => (
                       <td key={cur} className="px-2 py-1.5">
                         <input
                           value={cells[cellKey(c.key, cur)] ?? ""}
                           onChange={(e) => setCells((prev) => ({ ...prev, [cellKey(c.key, cur)]: e.target.value }))}
-                          className="w-full rounded border border-slate-600 bg-slate-950/60 px-1 py-1 text-white"
+                          className="w-full rounded border border-[var(--mo-border-strong)] bg-[var(--mo-surface)] px-1 py-1 text-white"
                         />
                       </td>
                     ))}
                   </tr>
                 ))}
                 {LIMIT_KINDS.map((lk) => (
-                  <tr key={lk.key} className="border-t border-slate-700/40">
+                  <tr key={lk.key} className="border-t border-[var(--mo-border)]">
                     <td className="px-2 py-1.5 text-amber-100/90">{lk.label}</td>
                     {CURS.map((cur) => (
                       <td key={cur} className="px-2 py-1.5">
                         <input
                           value={cells[cellKey(lk.key, cur)] ?? ""}
                           onChange={(e) => setCells((prev) => ({ ...prev, [cellKey(lk.key, cur)]: e.target.value }))}
-                          className="w-full rounded border border-slate-600 bg-slate-950/60 px-1 py-1 text-white"
+                          className="w-full rounded border border-[var(--mo-border-strong)] bg-[var(--mo-surface)] px-1 py-1 text-white"
                         />
                       </td>
                     ))}

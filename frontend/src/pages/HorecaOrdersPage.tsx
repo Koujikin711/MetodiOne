@@ -48,46 +48,46 @@ export function HorecaOrdersPage() {
     <div className="mx-auto max-w-[1300px] space-y-4 pb-10">
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-widest text-teal-300/90">HoReCa / Заказы</p>
-        <h1 className="text-3xl font-semibold text-white">Заказы и стадии смены</h1>
-        <p className="text-sm text-slate-400">
+        <h1 className="lux-heading-page">Заказы и стадии смены</h1>
+        <p className="text-sm lux-caption">
           Отдельный контур HoReCa: без CRM-канбана, только операционные заказы по смене.
         </p>
-        <p className="text-xs text-slate-500">{roleLabel}</p>
+        <p className="text-xs mo-muted">{roleLabel}</p>
       </header>
 
-      <div className="flex flex-wrap gap-2 text-xs text-slate-300">
-        <Link to="/horeca/tables" className="rounded-lg border border-slate-600/50 px-3 py-1.5 hover:bg-slate-800/60">
+      <div className="flex flex-wrap gap-2 text-xs mo-muted">
+        <Link to="/horeca/tables" className="rounded-lg border border-[var(--mo-border-strong)]/50 px-3 py-1.5 hover:bg-[var(--mo-accent-soft)]">
           К столикам
         </Link>
-        <Link to="/horeca" className="rounded-lg border border-slate-600/50 px-3 py-1.5 hover:bg-slate-800/60">
+        <Link to="/horeca" className="rounded-lg border border-[var(--mo-border-strong)]/50 px-3 py-1.5 hover:bg-[var(--mo-accent-soft)]">
           В центр HoReCa
         </Link>
       </div>
 
-      {ordersQuery.isLoading ? <p className="text-sm text-slate-400">Загрузка заказов…</p> : null}
-      {ordersQuery.isError ? <p className="text-sm text-rose-300">{(ordersQuery.error as Error).message}</p> : null}
+      {ordersQuery.isLoading ? <p className="text-sm lux-caption">Загрузка заказов…</p> : null}
+      {ordersQuery.isError ? <p className="text-sm text-[#6b1d2f]">{(ordersQuery.error as Error).message}</p> : null}
 
       <section className="grid gap-3 lg:grid-cols-4">
         {visibleStages.map((k) => (
-          <div key={k} className="rounded-2xl border border-slate-700/50 bg-slate-900/45 p-3">
+          <div key={k} className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-white">{HORECA_STAGE_META[k].title}</h2>
-              <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">{grouped[k].length}</span>
+              <span className="rounded-full bg-[var(--mo-accent-soft)] px-2 py-0.5 text-xs mo-muted">{grouped[k].length}</span>
             </div>
-            <p className="mb-3 text-xs text-slate-500">{HORECA_STAGE_META[k].hint}</p>
+            <p className="mb-3 text-xs mo-muted">{HORECA_STAGE_META[k].hint}</p>
             <div className="space-y-2">
               {grouped[k].map((o) => (
-                <div key={o.id} className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-2">
+                <div key={o.id} className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm text-slate-100">{(o.item_name || "").trim() || "Заказ"}</span>
-                    <span className="text-xs text-slate-400">{shortTime(o.start_at)}</span>
+                    <span className="truncate text-sm text-[var(--mo-text)]">{(o.item_name || "").trim() || "Заказ"}</span>
+                    <span className="text-xs lux-caption">{shortTime(o.start_at)}</span>
                   </div>
-                  <div className="mt-1 text-xs text-slate-400">
+                  <div className="mt-1 text-xs lux-caption">
                     {(o.guest_name || "").trim() || "Гость"} · {(o.table_name || "").trim() || "Стол"}
                   </div>
                 </div>
               ))}
-              {grouped[k].length === 0 ? <p className="text-xs text-slate-500">Нет заказов</p> : null}
+              {grouped[k].length === 0 ? <p className="text-xs mo-muted">Нет заказов</p> : null}
             </div>
           </div>
         ))}

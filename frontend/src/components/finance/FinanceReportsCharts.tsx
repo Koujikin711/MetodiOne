@@ -57,13 +57,13 @@ export function FinanceReportsCharts({ yearRows, forecast, loadingYear, loadingF
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-base font-medium text-white">Выручка: факт и план по месяцам</h3>
-        <p className="mt-1 text-xs text-slate-500">Столбцы — выбранный год из блока «План–факт».</p>
+        <h3 className="text-base font-medium text-[var(--mo-text)]">Выручка: факт и план по месяцам</h3>
+        <p className="mt-1 text-xs mo-muted">Столбцы — выбранный год из блока «План–факт».</p>
         <div className="mt-3 h-[280px] w-full min-w-0">
           {loadingYear ? (
-            <p className="text-sm text-slate-400">Загрузка графика…</p>
+            <p className="text-sm lux-caption">Загрузка графика…</p>
           ) : chartRevExp.length === 0 ? (
-            <p className="text-sm text-slate-500">Нет данных.</p>
+            <p className="text-sm mo-muted">Нет данных.</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartRevExp} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -85,12 +85,12 @@ export function FinanceReportsCharts({ yearRows, forecast, loadingYear, loadingF
       </div>
 
       <div>
-        <h3 className="text-base font-medium text-white">Расходы: факт и план</h3>
+        <h3 className="text-base font-medium text-[var(--mo-text)]">Расходы: факт и план</h3>
         <div className="mt-3 h-[260px] w-full min-w-0">
           {loadingYear ? (
-            <p className="text-sm text-slate-400">Загрузка…</p>
+            <p className="text-sm lux-caption">Загрузка…</p>
           ) : chartRevExp.length === 0 ? (
-            <p className="text-sm text-slate-500">Нет данных.</p>
+            <p className="text-sm mo-muted">Нет данных.</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartRevExp} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -111,12 +111,12 @@ export function FinanceReportsCharts({ yearRows, forecast, loadingYear, loadingF
       </div>
 
       <div>
-        <h3 className="text-base font-medium text-white">Чистый результат по месяцам</h3>
+        <h3 className="text-base font-medium text-[var(--mo-text)]">Чистый результат по месяцам</h3>
         <div className="mt-3 h-[240px] w-full min-w-0">
           {loadingYear ? (
-            <p className="text-sm text-slate-400">Загрузка…</p>
+            <p className="text-sm lux-caption">Загрузка…</p>
           ) : chartRevExp.length === 0 ? (
-            <p className="text-sm text-slate-500">Нет данных.</p>
+            <p className="text-sm mo-muted">Нет данных.</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartRevExp} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -135,13 +135,13 @@ export function FinanceReportsCharts({ yearRows, forecast, loadingYear, loadingF
       </div>
 
       <div>
-        <h3 className="text-base font-medium text-white">Прогноз выручки (линейка)</h3>
-        <p className="mt-1 text-xs text-slate-500">Точки из блока «Прогноз» (параметры года и горизонта там же).</p>
+        <h3 className="text-base font-medium text-[var(--mo-text)]">Прогноз выручки (линейка)</h3>
+        <p className="mt-1 text-xs mo-muted">Точки из блока «Прогноз» (параметры года и горизонта там же).</p>
         <div className="mt-3 h-[240px] w-full min-w-0">
           {loadingForecast ? (
-            <p className="text-sm text-slate-400">Загрузка…</p>
+            <p className="text-sm lux-caption">Загрузка…</p>
           ) : chartForecast.length === 0 ? (
-            <p className="text-sm text-slate-500">Нет точек прогноза.</p>
+            <p className="text-sm mo-muted">Нет точек прогноза.</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartForecast} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
@@ -164,7 +164,7 @@ export function FinanceReportsCharts({ yearRows, forecast, loadingYear, loadingF
 
 export function PlanFactBar({ actual, plan }: { actual: number; plan: number }) {
   if (plan <= 0 && actual <= 0) {
-    return <span className="text-slate-600">—</span>;
+    return <span className="mo-muted">—</span>;
   }
   const pct = plan > 0 ? (actual / plan) * 100 : actual > 0 ? 100 : 0;
   const w = Math.min(100, pct);
@@ -178,7 +178,7 @@ export function PlanFactBar({ actual, plan }: { actual: number; plan: number }) 
       <div className="h-2 overflow-hidden rounded-full bg-slate-700/80">
         <div className={`h-full rounded-full ${tone}`} style={{ width: `${w}%` }} title={`${Math.round(pct)}%`} />
       </div>
-      {plan > 0 ? <span className="text-[10px] text-slate-500">{Math.round(pct)}%</span> : null}
+      {plan > 0 ? <span className="text-[10px] mo-muted">{Math.round(pct)}%</span> : null}
     </div>
   );
 }
@@ -199,7 +199,7 @@ export function PeriodDelta({ current, previous, invert }: DeltaProps) {
   if (!Number.isFinite(c) || !Number.isFinite(p)) return null;
   const d = c - p;
   if (d === 0) {
-    return <p className="mt-1 text-xs text-slate-500">Без изменений к пред. периоду</p>;
+    return <p className="mt-1 text-xs mo-muted">Без изменений к пред. периоду</p>;
   }
   const better = invert ? d <= 0 : d >= 0;
   const color = better ? "text-emerald-400" : "text-rose-400";
@@ -209,7 +209,7 @@ export function PeriodDelta({ current, previous, invert }: DeltaProps) {
     <p className={`mt-1 text-xs ${color}`}>
       {arrow} {deltaFmt.format(d)}
       {pct != null ? ` (${pct}% к базе)` : null}
-      <span className="text-slate-500"> · пред. период</span>
+      <span className="mo-muted"> · пред. период</span>
     </p>
   );
 }
