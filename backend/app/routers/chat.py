@@ -1,9 +1,10 @@
+import asyncio
 import logging
 import mimetypes
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, case, exists, func, or_, select
@@ -11,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentCompanyId, CurrentUser
+from app.core.security import decode_token
 from app.database import get_db
 from app.models import (
     ChatMessage,
@@ -416,6 +418,30 @@ def _apply_manager_thread_bucket(
     if bucket == "awaiting_reply":
         return query.where(last_direction_sq == "in")
     return query
+
+
+@router.websocket("/ws")
+async def chat_websocket(websocket: WebSocket, token: str = Query(..., min_length=10)) -> None:
+    """WebSocket ping/push для обновления чата без polling."""
+    await websocket.accept()
+    try:
+        payload = decode_token(token)
+        sub = payload.get("sub")
+        if sub is None:
+            await websocket.close(code=4401)
+            return
+    except Exception:
+        await websocket.close(code=4401)
+        return
+    try:
+        while True:
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except TimeoutError:
+                pass
+            await websocket.send_json({"type": "chat_refresh", "at": datetime.now(UTC).isoformat()})
+    except WebSocketDisconnect:
+        return
 
 
 @router.get("/threads/bucket-counts", response_model=ChatThreadBucketCounts)

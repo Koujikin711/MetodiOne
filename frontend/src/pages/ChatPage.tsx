@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { apiFetch, getStoredToken, resolveMediaUrl } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import type { ChatMessage, ChatThread, ChatThreadBucket, ChatThreadBucketCounts } from "@/lib/types";
@@ -156,19 +157,19 @@ function threadRowClasses(t: ChatThread, selected: boolean) {
   const base =
     "flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition";
   if (selected) {
-    return [base, "border-purple-400/80 bg-purple-500/25 ring-1 ring-purple-300/35"].join(" ");
+    return [base, "border-[#2f5f85] bg-[#e8f0f7] ring-1 ring-[#2f5f85]/25"].join(" ");
   }
   const attn = threadAttention(t);
   if (attn === "waiting_reply") {
     return [
       base,
-      "border-emerald-300/85 bg-emerald-500/30 hover:bg-emerald-500/40 ring-1 ring-emerald-200/30",
+      "border-[#6db89a] bg-[#edf7f1] hover:bg-[#e3f3ea] ring-1 ring-[#2d6a5a]/15",
     ].join(" ");
   }
   if (attn === "recent_window") {
-    return [base, "border-sky-300/80 bg-sky-500/28 hover:bg-sky-500/38 ring-1 ring-sky-200/30"].join(" ");
+    return [base, "border-[#8eb4d4] bg-[#eef4fa] hover:bg-[#e5eff8] ring-1 ring-[#2f5f85]/10"].join(" ");
   }
-  return [base, "border-slate-600/70 bg-slate-900/45 hover:bg-slate-900/60"].join(" ");
+  return [base, "border-[#d8d2c6] bg-white hover:border-[#2f5f85]/30 hover:shadow-sm"].join(" ");
 }
 
 export function ChatPage() {
@@ -193,6 +194,8 @@ export function ChatPage() {
   const userRole = decodeRoleFromToken(getStoredToken());
   const showManagerChatBuckets = userRole === "manager" || userRole === "admin";
   const [chatBucket, setChatBucket] = useState<ChatThreadBucket>("own");
+
+  useChatRealtime(userRole === "manager" || userRole === "admin" || userRole === "owner");
 
   useEffect(() => {
     const t = window.setTimeout(() => setThreadSearchDebounced(threadSearch.trim()), 220);
@@ -503,15 +506,15 @@ export function ChatPage() {
   return (
     <div className="relative mx-auto max-w-[1400px] space-y-4 pb-10">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight text-white">Чат</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <h1 className="text-3xl font-semibold tracking-tight text-[#1e3348]">Чат</h1>
+        <p className="mt-1 text-sm text-[#5c6b7a]">
           Переписка с клиентами (WhatsApp через GREEN API): текст, фото, видео, голос, файлы.
         </p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-3 shadow-inner backdrop-blur-sm">
-          <div className="mb-2 text-sm font-semibold text-white">Диалоги</div>
+        <section className="mo-card p-3">
+          <div className="mb-2 text-sm font-semibold text-[#1e3348]">Диалоги</div>
 
           {showManagerChatBuckets ? (
             <div className="mb-3 grid grid-cols-3 gap-1.5">
@@ -525,11 +528,11 @@ export function ChatPage() {
                       : bucketCountsQuery.data?.awaiting_reply ?? 0;
                 const activeShell =
                   tab.id === "transferred"
-                    ? "border-amber-400/60 bg-amber-500/25 ring-1 ring-amber-300/40"
+                    ? "border-[#c9b07a] bg-[#faf5eb] ring-1 ring-[#c9b07a]/40"
                     : tab.id === "own"
-                      ? "border-indigo-400/60 bg-indigo-500/25 ring-1 ring-indigo-300/40"
-                      : "border-emerald-400/60 bg-emerald-500/25 ring-1 ring-emerald-300/40";
-                const idleShell = "border-slate-600/60 bg-slate-950/35 hover:bg-slate-900/55";
+                      ? "border-[#2f5f85] bg-[#e8f0f7] ring-1 ring-[#2f5f85]/30"
+                      : "border-[#2d6a5a] bg-[#edf7f1] ring-1 ring-[#2d6a5a]/30";
+                const idleShell = "border-[#d8d2c6] bg-white/80 hover:border-[#2f5f85]/30 hover:bg-white";
                 return (
                   <button
                     key={tab.id}
@@ -540,11 +543,11 @@ export function ChatPage() {
                       active ? activeShell : idleShell,
                     ].join(" ")}
                   >
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-200">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-[#5c6b7a]">
                       {tab.label}
                     </span>
-                    <span className="mt-0.5 text-xl font-bold tabular-nums text-white">{count}</span>
-                    <span className="mt-0.5 text-[9px] leading-tight text-slate-400">{tab.hint}</span>
+                    <span className="mt-0.5 text-xl font-bold tabular-nums text-[#1e3348]">{count}</span>
+                    <span className="mt-0.5 text-[9px] leading-tight text-[#8a96a3]">{tab.hint}</span>
                   </button>
                 );
               })}
@@ -765,7 +768,7 @@ export function ChatPage() {
                     voiceFinishing ||
                     (!voiceDraftFile && !text.trim() && !pendingFile)
                   }
-                  className="shrink-0 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  className="btn-primary shrink-0 px-4 py-2 disabled:opacity-60"
                 >
                   {voiceDraftFile ? "Отправить голосовое" : "Отправить"}
                 </button>

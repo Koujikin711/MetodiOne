@@ -26,6 +26,7 @@ import { OnlineBookingPage } from "@/pages/OnlineBookingPage";
 import { CompaniesPage } from "@/pages/CompaniesPage";
 import { CrmPage } from "@/pages/CrmPage";
 import { FinancePage } from "@/pages/FinancePage";
+import { FinanceShell } from "@/pages/finance/FinanceShell";
 import { HorecaPlaceholderPage } from "@/pages/HorecaPlaceholderPage";
 import { HorecaOrdersPage } from "@/pages/HorecaOrdersPage";
 import { HorecaTablesPage } from "@/pages/HorecaTablesPage";
@@ -46,6 +47,7 @@ import { TariffPlansPage } from "@/pages/TariffPlansPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { HorecaPrepPage } from "@/pages/HorecaPrepPage";
 import { HorecaTeamPage } from "@/pages/HorecaTeamPage";
+import { ManagerDeskPage } from "@/pages/ManagerDeskPage";
 
 export default function App() {
   return (
@@ -58,6 +60,7 @@ export default function App() {
           <Route path="/force-password" element={<ForcePasswordPage />} />
           <Route element={<MainLayout />}>
             <Route path="/app" element={<HomeEntry />} />
+            <Route path="/desk" element={<ManagerDeskPage />} />
             <Route path="/crm" element={<CrmPage />} />
             <Route path="/my-leads" element={<MyLeadsPage />} />
             <Route path="/booking" element={<OnlineBookingPage />} />
@@ -84,10 +87,15 @@ export default function App() {
               path="/finance"
               element={
                 <RequireFinance>
-                  <FinancePage />
+                  <FinanceShell />
                 </RequireFinance>
               }
-            />
+            >
+              <Route index element={<FinancePage />} />
+              <Route path="accounting" element={<FinancePage />} />
+              <Route path="inventory" element={<FinancePage />} />
+              <Route path="reports" element={<FinancePage />} />
+            </Route>
             <Route path="/reports" element={<ExpertReportsPage />} />
             <Route
               path="/employees"
@@ -141,12 +149,12 @@ export default function App() {
         toastOptions={{
           duration: 3800,
           style: {
-            background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #a855f7 100%)",
-            color: "#f8fafc",
+            background: "#faf8f4",
+            color: "#1e3348",
             padding: "14px 18px",
-            borderRadius: "14px",
-            boxShadow: "0 18px 40px -12px rgba(99, 102, 241, 0.55)",
-            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: "12px",
+            boxShadow: "0 8px 24px -6px rgba(30, 51, 72, 0.15)",
+            border: "1px solid #d8d2c6",
           },
         }}
       />

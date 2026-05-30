@@ -16,8 +16,11 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Wheel
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
+import { CrmBusinessToolbar } from "@/components/crm/CrmBusinessToolbar";
 import { apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
+import { theme } from "@/lib/theme";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { isOnboardingDone } from "@/lib/onboarding";
 import type {
   Lead,
   LeadImportResponse,
@@ -52,12 +55,19 @@ function cloneDefaultStages() {
   return DEFAULT_AUTO_PIPELINE_STAGES.map((s) => ({ name: s.name, color: s.color }));
 }
 
-/** Короткая дата создания лида для бейджа. */
-function leadDateBadge(createdAt?: string | null): string {
+/** Возраст лида в днях (для подписи на карточке). */
+function leadAgeLabel(createdAt?: string | null): string {
   if (!createdAt) return "—";
   const d = new Date(createdAt);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
+  if (days === 0) return "сегодня";
+  const mod10 = days % 10;
+  const mod100 = days % 100;
+  let word = "дней";
+  if (mod10 === 1 && mod100 !== 11) word = "день";
+  else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) word = "дня";
+  return `${days} ${word}`;
 }
 
 function resolveTargetStageId(
@@ -73,24 +83,26 @@ function resolveTargetStageId(
   return null;
 }
 
-function LeadCardBody({ lead }: { lead: Lead }) {
+function LeadCardBody({ lead, stageColor }: { lead: Lead; stageColor?: string }) {
   const paidNum =
     lead.paid_extras_amount == null ? 0 : typeof lead.paid_extras_amount === "number" ? lead.paid_extras_amount : Number(lead.paid_extras_amount);
+  const dotColor = stageColor ?? "#2f5f85";
 
   return (
     <>
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <p className="min-w-0 flex-1 break-words font-medium leading-snug text-white">{lead.name}</p>
-        <span className="shrink-0 rounded-full bg-slate-700/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">
-          {leadDateBadge(lead.created_at)}
-        </span>
-      </div>
-      <p className="mt-2 break-all text-sm text-slate-400">{lead.phone ?? "—"}</p>
-      <div className="mt-3 flex items-end justify-between gap-2">
-        <p className="truncate text-xs text-slate-500" title={lead.manager_name || "Не назначен"}>
-          Ответственный: {lead.manager_name || "—"}
-        </p>
-        <div className="flex items-center gap-2">
+      <p className="break-words text-base font-semibold leading-snug text-[#2C2520]">{lead.name}</p>
+      {lead.manager_name ? (
+        <p className="mt-0.5 truncate text-sm text-[#7A7265]">{lead.manager_name}</p>
+      ) : (
+        <p className="mt-0.5 text-sm italic text-[#A89880]">Без ответственного</p>
+      )}
+      <p className="mt-2 break-all text-sm text-[#7A7265]">{lead.phone ?? "—"}</p>
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#EFEBE1] pt-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="crm-stage-gem shrink-0" style={{ backgroundColor: dotColor }} />
+          <span className="truncate text-xs font-semibold text-[#7A7265]">{leadAgeLabel(lead.created_at)}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
           {lead.protocol_file_attached && <span title="Протокол прикреплён">📄</span>}
           {paidNum > 0 && <span title="Есть оплата по доп. услугам">💰</span>}
           {lead.refusal_reason && <span title="Есть отказ">❌</span>}
@@ -102,10 +114,12 @@ function LeadCardBody({ lead }: { lead: Lead }) {
 
 function LeadCard({
   lead,
+  stageColor,
   currentRole,
   onRefresh,
 }: {
   lead: Lead;
+  stageColor?: string;
   currentRole: UserRole | null;
   onRefresh: () => void;
 }) {
@@ -283,20 +297,18 @@ function LeadCard({
       style={style}
       {...listeners}
       {...attributes}
-      className={[
-        "min-w-0 max-w-full cursor-grab touch-pan-y rounded-xl border border-slate-600/50 bg-slate-800/70 p-4 shadow-lg backdrop-blur-sm transition-shadow duration-200 active:cursor-grabbing",
-        isDragging ? "opacity-50" : "hover:border-slate-500/60 hover:shadow-xl",
-      ].join(" ")}
+      className={["crm-lead-card min-w-0 max-w-full", isDragging ? "is-dragging" : ""].join(" ")}
     >
+      <div className="crm-lead-card-accent" aria-hidden />
       <button
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => navigate(`/leads/${lead.id}`)}
-        className="mb-2 rounded-lg border border-slate-700 bg-slate-900/40 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-800"
+        className="relative z-[1] mb-2 text-[11px] font-semibold text-[#A38A53] underline-offset-2 hover:text-[#9E844D] hover:underline"
       >
         Открыть карточку
       </button>
-      <LeadCardBody lead={lead} />
+      <LeadCardBody lead={lead} stageColor={stageColor} />
 
       {currentRole === "owner" && stage === "Запись" && (
         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -304,7 +316,7 @@ function LeadCard({
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => void handleArrival()}
-            className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+            className={`${theme.btnPrimary} py-2`}
           >
             Явка
           </button>
@@ -312,7 +324,7 @@ function LeadCard({
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => void handleNoShow()}
-            className="rounded-xl border border-slate-700 bg-slate-900/30 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-900/50"
+            className={`${theme.btnSecondary} py-2`}
           >
             Неявка
           </button>
@@ -326,7 +338,7 @@ function LeadCard({
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => void handleServiceDone()}
-              className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+              className={`${theme.btnPrimary} py-2`}
             >
               Услуга оказана
             </button>
@@ -334,7 +346,7 @@ function LeadCard({
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => void handleServiceReject()}
-              className="rounded-xl border border-red-500/40 bg-red-500/10 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/15"
+              className={`${theme.btnDanger} py-2`}
             >
               Нет
             </button>
@@ -342,8 +354,8 @@ function LeadCard({
         )}
 
       {(currentRole === "manager" || currentRole === "admin") && stage === "Доп. услуги" && (
-        <div className="mt-3 rounded-xl border border-slate-700/50 bg-slate-900/20 p-3 shadow-inner backdrop-blur-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+        <div className="mt-3 rounded-xl border border-[#d8d2c6] bg-[#faf8f4] p-3">
+          <div className="text-xs font-semibold uppercase tracking-wider text-[#5c6b7a]">
             Продуктовая корзина
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -383,7 +395,7 @@ function LeadCard({
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => void handleAddExtraService()}
-            className="mt-3 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+            className={`${theme.btnPrimary} mt-3 w-full py-2`}
           >
             + Доп. услуга
           </button>
@@ -445,10 +457,11 @@ function LeadCard({
   );
 }
 
-function LeadCardDragOverlay({ lead }: { lead: Lead }) {
+function LeadCardDragOverlay({ lead, stageColor }: { lead: Lead; stageColor?: string }) {
   return (
-    <div className="rotate-2 scale-[1.02] cursor-grabbing rounded-xl border border-purple-500/40 bg-slate-800/95 p-4 shadow-2xl shadow-purple-500/25 ring-2 ring-purple-500/30 backdrop-blur-md">
-      <LeadCardBody lead={lead} />
+    <div className="crm-lead-card-overlay">
+      <div className="crm-lead-card-accent" aria-hidden />
+      <LeadCardBody lead={lead} stageColor={stageColor} />
     </div>
   );
 }
@@ -476,33 +489,34 @@ function KanbanColumn({
       ref={setNodeRef}
       data-kanban-column="true"
       data-stage-id={stage.id}
-      className={[
-        "flex h-[min(70vh,520px)] w-[min(100%,280px)] min-w-0 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-700/40 bg-slate-800/30 p-3 shadow-inner backdrop-blur-sm transition-colors duration-300",
-        isOver ? "border-purple-500/40 bg-slate-800/45 ring-1 ring-purple-500/20" : "",
-      ].join(" ")}
+      className={["crm-kanban-col", isOver ? "is-drop-target" : ""].join(" ")}
     >
-      <div className="mb-3 flex items-center gap-2 px-1">
-        <span
-          className="h-2.5 w-2.5 shrink-0 rounded-full"
-          style={{
-            backgroundColor: stage.color,
-            boxShadow: `0 0 12px ${stage.color}`,
-          }}
-        />
-        <h3 className="text-sm font-semibold text-slate-200">{stage.name}</h3>
-        <span className="ml-auto text-xs text-slate-500">{leads.length}</span>
+      <div className="crm-kanban-col-header">
+        <span className="crm-stage-gem shrink-0" style={{ backgroundColor: stage.color }} />
+        <h3 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-wide text-[#2C2520]">{stage.name}</h3>
+        <span className="rounded-md border border-[#DCD1B4] bg-white px-2.5 py-0.5 text-xs font-bold tabular-nums text-[#9E844D]">
+          {leads.length}
+        </span>
       </div>
       <div
         ref={(el) => registerScrollContainer(stage.id, el)}
         data-kanban-scroll="true"
-        className="no-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden pr-0.5"
+        className="crm-kanban-col-body"
       >
         {leads.length === 0 ? (
-          <p className="flex flex-1 items-center justify-center px-2 py-8 text-center text-sm text-slate-500">
+          <p className="flex flex-1 items-center justify-center px-2 py-8 text-center text-sm text-[#8a96a3]">
             Нет лидов
           </p>
         ) : (
-          leads.map((lead) => <LeadCard key={lead.id} lead={lead} currentRole={currentRole} onRefresh={onRefresh} />)
+          leads.map((lead) => (
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              stageColor={stage.color}
+              currentRole={currentRole}
+              onRefresh={onRefresh}
+            />
+          ))
         )}
       </div>
     </div>
@@ -1164,37 +1178,32 @@ export function CrmPage() {
     event.stopPropagation();
   }, []);
 
+  const activeLeadStageColor = useMemo(() => {
+    if (!activeLead) return undefined;
+    return sortedStages.find((s) => s.id === activeLead.status_id)?.color;
+  }, [activeLead, sortedStages]);
+
   return (
-    <div className="relative mx-auto max-w-[1600px] space-y-8 pb-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-white">MetodiOne</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          {isCompanyAdmin && (
-            <button
-              type="button"
-              onClick={() => setPipelineSettingsOpen((v) => !v)}
-              className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
-            >
-              {pipelineSettingsOpen ? "Скрыть настройки воронки" : "Настройки воронки"}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setCreateLeadOpen(true)}
-            className="rounded-full border border-slate-700/50 bg-white/10 px-3 py-1 text-sm text-white transition hover:bg-white/15"
-          >
-            + Лид
-          </button>
-          <button
-            type="button"
-            onClick={() => setImportOpen(true)}
-            className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
-          >
-            Импорт CSV
-          </button>
-        </div>
-        {isCompanyAdmin && pipelineSettingsOpen && (
-          <div className="mt-2 rounded-xl border border-slate-700/40 bg-slate-950/20 p-4 space-y-3">
+    <div className="crm-page">
+      <CrmBusinessToolbar
+        isCompanyAdmin={isCompanyAdmin}
+        pipelineSettingsOpen={pipelineSettingsOpen}
+        onTogglePipelineSettings={() => setPipelineSettingsOpen((v) => !v)}
+        onCreateLead={() => setCreateLeadOpen(true)}
+        onImport={() => setImportOpen(true)}
+        pipelines={pipelinesQuery.data}
+        pipelineId={pipelineId}
+        onSelectPipeline={setPipelineId}
+        crmView={crmView}
+        onSetView={setCrmView}
+        boardSearchInput={boardSearchInput}
+        onBoardSearchChange={setBoardSearchInput}
+        showBoardSearch={crmView === "board" && sortedStages.length > 0}
+        showOnboardingBanner={currentRole === "owner" && !isOnboardingDone()}
+      />
+
+      {isCompanyAdmin && pipelineSettingsOpen ? (
+        <div className="mo-section space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -1203,21 +1212,17 @@ export function CrmPage() {
                   setPipeStages(cloneDefaultStages());
                   setCreatePipelineOpen(true);
                 }}
-                className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
+                className="crm-pill-btn"
               >
                 + Создать воронку
               </button>
-              <button
-                type="button"
-                onClick={() => setCreateStageOpen(true)}
-                className="rounded-full border border-slate-700/50 bg-slate-800/30 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-800/50"
-              >
+              <button type="button" onClick={() => setCreateStageOpen(true)} className="crm-pill-btn">
                 + Стадия в воронку
               </button>
             </div>
             {pipelineId != null && selectedPipelineForSettings && (
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-sm text-slate-400">Распределение новых лидов:</span>
+                <span className="text-sm text-[#5c6b7a]">Распределение новых лидов:</span>
                 <select
                   id="crm-pipeline-lead-assignment"
                   name="lead_assignment_mode"
@@ -1226,7 +1231,7 @@ export function CrmPage() {
                     patchPipelineMutation.mutate({ id: pipelineId, patch: { lead_assignment_mode: e.target.value } });
                   }}
                   disabled={patchPipelineMutation.isPending}
-                  className="rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
+                  className="mo-input max-w-xs py-1.5 text-sm"
                 >
                   <option value="none">Без автораспределения</option>
                   <option value="round_robin">По очереди (равномерно)</option>
@@ -1236,7 +1241,7 @@ export function CrmPage() {
             )}
             {pipelineId != null && selectedPipelineForSettings && (
               <div className="mt-2 flex flex-wrap flex-col gap-2 sm:flex-row sm:items-center">
-                <span className="text-sm text-slate-400">Менеджер приёма:</span>
+                <span className="text-sm text-[#5c6b7a]">Менеджер приёма:</span>
                 <select
                   id="crm-pipeline-intake-manager"
                   name="intake_manager_user_id"
@@ -1249,7 +1254,7 @@ export function CrmPage() {
                     });
                   }}
                   disabled={patchPipelineMutation.isPending}
-                  className="min-w-[240px] rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
+                  className="mo-input min-w-[240px] py-1.5 text-sm"
                 >
                   <option value="">— не назначен —</option>
                   {(employeesQuery.data ?? [])
@@ -1264,7 +1269,7 @@ export function CrmPage() {
             )}
             {pipelineId != null && selectedPipelineForSettings && (
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-sm text-slate-400">Эксперт этой воронки:</span>
+                <span className="text-sm text-[#5c6b7a]">Эксперт этой воронки:</span>
                 <select
                   id="crm-pipeline-expert"
                   name="expert_user_id"
@@ -1277,7 +1282,7 @@ export function CrmPage() {
                     });
                   }}
                   disabled={patchPipelineExpertMutation.isPending}
-                  className="rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1 text-sm text-white"
+                  className="mo-input max-w-xs py-1.5 text-sm"
                 >
                   <option value="">— не назначен —</option>
                   {(expertsQuery.data ?? []).map((u) => (
@@ -1289,8 +1294,8 @@ export function CrmPage() {
               </div>
             )}
             {pipelineId != null && sortedStages.length > 0 && (
-              <div className="mt-3 rounded-xl border border-slate-700/40 bg-slate-950/20 p-4">
-                <div className="text-sm font-semibold text-slate-200">Стадии этой воронки</div>
+              <div className="mt-3 rounded-xl border border-[#d8d2c6] bg-[#faf8f4] p-4">
+                <div className="text-sm font-semibold text-[#1e3348]">Стадии этой воронки</div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <button
                     type="button"
@@ -1298,16 +1303,16 @@ export function CrmPage() {
                       setDistributeOpen(true);
                       if (sortedStages.length > 0) setDistributeStageId(sortedStages[0].id);
                     }}
-                    className="rounded-xl border border-slate-700 bg-slate-900/40 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-800/40"
+                    className="crm-pill-btn"
                   >
                     Распределить лиды
                   </button>
                 </div>
-                <ul className="mt-2 divide-y divide-slate-700/40">
+                <ul className="mt-2 divide-y divide-[#e8e2d8]">
                   {sortedStages.map((s) => (
                     <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                      <span className="text-slate-300">
-                        <span className="font-mono text-xs text-slate-500">{s.id}</span> · {s.name}
+                      <span className="text-[#5c6b7a]">
+                        <span className="font-mono text-xs text-[#8a96a3]">{s.id}</span> · {s.name}
                       </span>
                       <button
                         type="button"
@@ -1316,7 +1321,7 @@ export function CrmPage() {
                           if (!window.confirm(`Удалить стадию «${s.name}»?`)) return;
                           deleteStageMutation.mutate(s.id);
                         }}
-                        className="rounded-lg border border-red-500/40 px-2 py-1 text-xs text-red-200 transition hover:bg-red-500/10 disabled:opacity-50"
+                        className={`${theme.btnDanger} px-2 py-1 text-xs disabled:opacity-50`}
                       >
                         Удалить
                       </button>
@@ -1324,7 +1329,7 @@ export function CrmPage() {
                   ))}
                 </ul>
                 {pipelinesQuery.data && pipelinesQuery.data.length > 1 && selectedPipelineForSettings && (
-                  <div className="mt-4 border-t border-slate-700/50 pt-3">
+                  <div className="mt-4 border-t border-[#e8e2d8] pt-3">
                     <button
                       type="button"
                       disabled={deletePipelineMutation.isPending}
@@ -1333,7 +1338,7 @@ export function CrmPage() {
                           return;
                         deletePipelineMutation.mutate(pipelineId);
                       }}
-                      className="rounded-lg border border-red-600/50 bg-red-950/30 px-3 py-1.5 text-sm text-red-200 transition hover:bg-red-950/50 disabled:opacity-50"
+                      className={`${theme.btnDanger} disabled:opacity-50`}
                     >
                       Удалить воронку целиком
                     </button>
@@ -1341,61 +1346,8 @@ export function CrmPage() {
                 )}
               </div>
             )}
-          </div>
-        )}
-        {pipelinesQuery.data && pipelinesQuery.data.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-slate-400">Воронка:</span>
-            {pipelinesQuery.data.map((p) => {
-              const active = pipelineId === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPipelineId(p.id)}
-                  className={[
-                    "rounded-full border px-3 py-1 text-sm transition-colors",
-                    active
-                      ? "border-purple-500/40 bg-white/10 text-white"
-                      : "border-slate-700/50 bg-slate-800/30 text-slate-400 hover:bg-slate-800/50 hover:text-slate-200",
-                  ].join(" ")}
-                >
-                  {p.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {pipelinesQuery.data && pipelinesQuery.data.length > 0 && pipelineId != null && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-slate-400">Вид:</span>
-            <button
-              type="button"
-              onClick={() => setCrmView("board")}
-              className={[
-                "rounded-full border px-3 py-1 text-sm transition-colors",
-                crmView === "board"
-                  ? "border-purple-500/40 bg-white/10 text-white"
-                  : "border-slate-700/50 bg-slate-800/30 text-slate-400 hover:bg-slate-800/50 hover:text-slate-200",
-              ].join(" ")}
-            >
-              Доска
-            </button>
-            <button
-              type="button"
-              onClick={() => setCrmView("list")}
-              className={[
-                "rounded-full border px-3 py-1 text-sm transition-colors",
-                crmView === "list"
-                  ? "border-purple-500/40 bg-white/10 text-white"
-                  : "border-slate-700/50 bg-slate-800/30 text-slate-400 hover:bg-slate-800/50 hover:text-slate-200",
-              ].join(" ")}
-            >
-              Список (все лиды)
-            </button>
-          </div>
-        )}
-      </header>
+        </div>
+      ) : null}
 
       {createPipelineOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -1873,18 +1825,18 @@ export function CrmPage() {
       )}
 
       {crmView === "list" && pipelineId != null && (
-        <section className="space-y-4">
+        <section className="mo-section space-y-4">
           <div className="flex flex-wrap items-end gap-3">
-            <label className="min-w-[200px] flex-1 text-sm text-slate-300">
+            <label className="min-w-[200px] flex-1 text-sm text-[#5c6b7a]">
               Поиск
               <input
                 value={listSearchInput}
                 onChange={(e) => setListSearchInput(e.target.value)}
                 placeholder="Имя, телефон, email…"
-                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                className={`${theme.input} mt-1`}
               />
             </label>
-            <label className="text-sm text-slate-300">
+            <label className="text-sm text-[#5c6b7a]">
               Стадия
               <select
                 value={listStatusFilter === "" ? "" : String(listStatusFilter)}
@@ -1892,7 +1844,7 @@ export function CrmPage() {
                   const v = e.target.value;
                   setListStatusFilter(v === "" ? "" : Number(v));
                 }}
-                className="mt-1 min-w-[180px] rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                className={`${theme.input} mt-1 min-w-[180px]`}
               >
                 <option value="">Все стадии</option>
                 {sortedStages.map((s) => (
@@ -1904,18 +1856,18 @@ export function CrmPage() {
             </label>
           </div>
           {leadsTableQuery.isError && (
-            <p className="text-sm text-red-300">{(leadsTableQuery.error as Error).message}</p>
+            <p className="text-sm text-[#9b3d3d]">{(leadsTableQuery.error as Error).message}</p>
           )}
-          {leadsTableQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+          {leadsTableQuery.isLoading && <p className="text-sm text-[#5c6b7a]">Загрузка…</p>}
           {leadsTableQuery.data && !leadsTableQuery.isLoading && (
             <>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-[#8a96a3]">
                 Найдено: {leadsTableQuery.data.total} · страница {leadsTableQuery.data.page} из {listTotalPages}
               </p>
-              <div className="overflow-x-auto rounded-xl border border-slate-700/50 bg-slate-800/20">
-                <table className="w-full min-w-[720px] text-left text-sm text-slate-200">
+              <div className="overflow-x-auto rounded-xl border border-[#d8d2c6] bg-white">
+                <table className="mo-table min-w-[720px]">
                   <thead>
-                    <tr className="border-b border-slate-700/60 text-xs uppercase tracking-wide text-slate-500">
+                    <tr className="text-xs uppercase tracking-wide">
                       <th className="px-3 py-2">ID</th>
                       <th className="px-3 py-2">Имя</th>
                       <th className="px-3 py-2">Телефон</th>
@@ -1927,22 +1879,22 @@ export function CrmPage() {
                   <tbody>
                     {leadsTableQuery.data.items.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-3 py-8 text-center text-slate-500">
+                        <td colSpan={6} className="px-3 py-8 text-center text-[#8a96a3]">
                           Нет лидов по условиям
                         </td>
                       </tr>
                     ) : (
                       leadsTableQuery.data.items.map((lead) => (
-                        <tr key={lead.id} className="border-b border-slate-700/40 hover:bg-slate-800/40">
-                          <td className="px-3 py-2 text-slate-400">{lead.id}</td>
-                          <td className="px-3 py-2 font-medium text-white">{lead.name}</td>
+                        <tr key={lead.id} className="hover:bg-[#faf8f4]">
+                          <td className="px-3 py-2 text-[#8a96a3]">{lead.id}</td>
+                          <td className="px-3 py-2 font-medium text-[#1e3348]">{lead.name}</td>
                           <td className="px-3 py-2">{lead.phone ?? "—"}</td>
                           <td className="px-3 py-2">{lead.email ?? "—"}</td>
-                          <td className="px-3 py-2 text-purple-200/90">{lead.stage_name ?? "—"}</td>
+                          <td className="px-3 py-2 text-[#2f5f85]">{lead.stage_name ?? "—"}</td>
                           <td className="px-3 py-2">
                             <Link
                               to={`/leads/${lead.id}`}
-                              className="text-indigo-300 underline-offset-2 hover:text-indigo-200 hover:underline"
+                              className="mo-link font-medium"
                             >
                               Открыть
                             </Link>
@@ -1959,18 +1911,18 @@ export function CrmPage() {
                     type="button"
                     disabled={listPage <= 1 || leadsTableQuery.isFetching}
                     onClick={() => setListPage((p) => Math.max(1, p - 1))}
-                    className="rounded-full border border-slate-600 px-3 py-1 text-sm text-slate-200 disabled:opacity-40"
+                    className="crm-pill-btn disabled:opacity-40"
                   >
                     Назад
                   </button>
-                  <span className="text-sm text-slate-400">
+                  <span className="text-sm text-[#5c6b7a]">
                     {listPage} / {listTotalPages}
                   </span>
                   <button
                     type="button"
                     disabled={listPage >= listTotalPages || leadsTableQuery.isFetching}
                     onClick={() => setListPage((p) => p + 1)}
-                    className="rounded-full border border-slate-600 px-3 py-1 text-sm text-slate-200 disabled:opacity-40"
+                    className="crm-pill-btn disabled:opacity-40"
                   >
                     Вперёд
                   </button>
@@ -1982,36 +1934,22 @@ export function CrmPage() {
       )}
 
       {crmView === "board" && (stagesQuery.isLoading || leadsQuery.isLoading) && (
-        <p className="text-sm text-slate-400">Загрузка…</p>
+        <p className="text-sm text-[#5c6b7a]">Загрузка…</p>
       )}
       {crmView === "board" && (stagesQuery.isError || leadsQuery.isError) && (
-        <p className="text-sm text-red-300">
+        <p className="text-sm text-[#9b3d3d]">
           {(stagesQuery.error as Error)?.message ?? (leadsQuery.error as Error)?.message}
         </p>
       )}
 
       {kanbanError && crmView === "board" && (
-        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-100">
+        <p className="rounded-xl border border-[#c9b07a]/50 bg-[#faf5eb] px-4 py-2 text-sm text-[#8a6d2e]">
           {kanbanError}
         </p>
       )}
 
       {crmView === "board" && sortedStages.length > 0 && (
         <>
-          <label className="mb-2 block max-w-xl text-xs text-slate-400" htmlFor="crm-board-search">
-            Поиск на доске
-            <input
-              id="crm-board-search"
-              name="board_search"
-              value={boardSearchInput}
-              onChange={(e) => setBoardSearchInput(e.target.value)}
-              placeholder="Имя, телефон, email или № лида…"
-              className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
-            />
-            <span className="mt-1 block text-[10px] text-slate-500">
-              Только отображение на доске; перетаскивание и данные на сервере не меняются.
-            </span>
-          </label>
           <DndContext
             sensors={sensors}
             collisionDetection={closestCorners}
@@ -2036,7 +1974,9 @@ export function CrmPage() {
               ))}
             </div>
             <DragOverlay dropAnimation={null}>
-              {activeLead ? <LeadCardDragOverlay lead={activeLead} /> : null}
+              {activeLead ? (
+                <LeadCardDragOverlay lead={activeLead} stageColor={activeLeadStageColor} />
+              ) : null}
             </DragOverlay>
           </DndContext>
         </>
