@@ -52,6 +52,9 @@ export function HomeEntry() {
     return <Navigate to="/companies" replace />;
   }
   if (role === "manager" || role === "admin") {
+    if (!restaurantMode && role === "manager") {
+      return <Navigate to="/desk" replace />;
+    }
     return <ManagerNavHomeEntry role={role} />;
   }
   if (role === "owner" && restaurantMode) {
@@ -102,9 +105,9 @@ export function RequireSuperOwner({ children }: { children: ReactNode }) {
 
 export function RequireFinance({ children }: { children: ReactNode }) {
   const r = decodeRoleFromToken(getStoredToken());
-  if (r !== "owner" && r !== "admin" && r !== "super_owner") {
+  if (r !== "owner" && r !== "admin" && r !== "super_owner" && r !== "finance_analyst") {
     return (
-      <AccessDenied message="Раздел «Финансы» доступен владельцу, администратору и супер-владельцу. Попросите владельца выдать вам роль или открыть отчёты." />
+      <AccessDenied message="Раздел «Финансы» доступен владельцу, администратору, финансовому аналитику и супер-владельцу." />
     );
   }
   return <>{children}</>;

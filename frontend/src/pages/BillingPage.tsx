@@ -44,17 +44,17 @@ export function BillingTariffPage() {
 
   if (companyId == null) {
     return (
-      <div className="mx-auto max-w-lg rounded-2xl border border-slate-700/50 bg-slate-900/40 p-8 text-center text-slate-300">
+      <div className="mo-section mx-auto max-w-lg p-8 text-center text-[#5c6b7a]">
         Не выбрана компания в контексте. Войдите заново или переключите компанию.
       </div>
     );
   }
 
   if (q.isLoading) {
-    return <p className="text-sm text-slate-400">Загрузка…</p>;
+    return <p className="text-sm text-[#5c6b7a]">Загрузка…</p>;
   }
   if (q.isError || !q.data) {
-    return <p className="text-sm text-red-300">{(q.error as Error)?.message ?? "Не удалось загрузить статус"}</p>;
+    return <p className="text-sm text-[#9b3d3d]">{(q.error as Error)?.message ?? "Не удалось загрузить статус"}</p>;
   }
 
   const s = q.data;
@@ -96,9 +96,9 @@ export function BillingTariffPage() {
       ) : null}
 
       {s.billing_status === "demo_expired" ? (
-        <div className="rounded-2xl border border-amber-500/40 bg-amber-950/30 px-5 py-4 text-sm text-amber-50">
-          <p className="font-semibold text-white">Демо-период завершён</p>
-          <p className="mt-2 text-amber-100/90">
+        <div className="mo-section border-[#c9b07a]/50 bg-[#faf5eb] text-sm">
+          <p className="font-semibold text-[#1e3348]">Демо-период завершён</p>
+          <p className="mt-2 text-[#5c6b7a]">
             Выберите тариф ниже, чтобы продолжить работу в MetodiOne. После выбора с вами свяжется администратор
             платформы для подтверждения оплаты и включения доступа.
           </p>
@@ -106,10 +106,10 @@ export function BillingTariffPage() {
       ) : null}
 
       {s.billing_status === "payment_pending" ? (
-        <div className="rounded-2xl border border-violet-500/40 bg-violet-950/30 px-5 py-4 text-sm text-violet-50">
-          <p className="font-semibold text-white">Ожидается подтверждение оплаты</p>
-          <p className="mt-2 text-violet-100/90">
-            Выбран тариф: <span className="font-medium text-white">{s.pending_tariff_plan_name ?? "—"}</span>. Доступ к
+        <div className="mo-section border-[#2f5f85]/30 bg-[#e8f0f7]/50 text-sm">
+          <p className="font-semibold text-[#1e3348]">Ожидается подтверждение оплаты</p>
+          <p className="mt-2 text-[#5c6b7a]">
+            Выбран тариф: <span className="font-medium text-[#1e3348]">{s.pending_tariff_plan_name ?? "—"}</span>. Доступ к
             CRM возобновится после проверки оплаты администратором. При необходимости вы можете выбрать другой тариф
             ниже (заявка обновится).
           </p>
@@ -117,7 +117,7 @@ export function BillingTariffPage() {
       ) : null}
 
       {s.billing_status === "subscribed" || s.billing_status === "active" ? (
-        <div className="rounded-2xl border border-emerald-500/35 bg-emerald-950/20 px-5 py-4 text-sm text-emerald-50">
+        <div className="mo-section border-[#2d6a5a]/35 bg-[#edf7f1] text-sm">
           <p className="font-semibold text-white">Тариф подключён</p>
           <p className="mt-2 text-emerald-100/90">
             Текущий план: <span className="font-medium text-white">{s.current_tariff_plan_name ?? "не зафиксирован"}</span>

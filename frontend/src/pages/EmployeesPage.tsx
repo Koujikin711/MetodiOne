@@ -2,7 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
+import { TerminateWithLeadsWizard } from "@/components/TerminateWithLeadsWizard";
+import { Button } from "@/components/ui/Button";
 import { apiFetch, getStoredToken } from "@/lib/api";
+import { theme } from "@/lib/theme";
 import { decodeUserIdFromToken } from "@/lib/auth";
 import type { BookingDirection, Pipeline, UserRole } from "@/lib/types";
 
@@ -14,7 +17,7 @@ const HORECA_ROLE_LABEL: Record<HorecaRole, string> = {
   cashier: "Кассир",
 };
 
-interface Employee {
+export interface Employee {
   id: number;
   email: string;
   phone: string | null;
@@ -99,6 +102,7 @@ export function EmployeesPage() {
   const [pipelineIds, setPipelineIds] = useState<number[]>([]);
   const [expertSpecialization, setExpertSpecialization] = useState("");
   const [bookingDirectionId, setBookingDirectionId] = useState<number | "">("");
+  const [terminateTarget, setTerminateTarget] = useState<Employee | null>(null);
 
   const pipelines = pipelinesQuery.data ?? [];
   const bookingDirections = bookingDirectionsQuery.data ?? [];
@@ -215,27 +219,8 @@ export function EmployeesPage() {
     setBookingDirectionId(bookingDirections[0].id);
   }, [open, role, bookingDirections, bookingDirectionId]);
 
-  const terminateMutation = useMutation({
-    mutationFn: (id: number) =>
-      apiFetch(`/api/employees/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["employees"] });
-      void qc.invalidateQueries({ queryKey: ["leads-redistribution-sources"] });
-      void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
-      toast.success("Сотрудник уволен");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   function confirmTerminate(e: Employee) {
-    if (
-      !window.confirm(
-        `Уволить ${e.full_name ?? e.email}? Вход будет заблокирован, назначения по воронкам сняты.`,
-      )
-    ) {
-      return;
-    }
-    terminateMutation.mutate(e.id);
+    setTerminateTarget(e);
   }
 
   const inviteMutation = useMutation({
@@ -293,7 +278,7 @@ export function EmployeesPage() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+          className={theme.btnPrimary}
         >
           Пригласить сотрудника
         </button>
@@ -430,7 +415,7 @@ export function EmployeesPage() {
                   <button
                     type="button"
                     onClick={() => confirmTerminate(e)}
-                    disabled={terminateMutation.isPending}
+                    disabled={terminateTarget?.id === e.id}
                     className="shrink-0 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
                   >
                     Уволить
@@ -496,6 +481,19 @@ export function EmployeesPage() {
           </div>
         )}
       </section>
+
+      {terminateTarget && (
+        <TerminateWithLeadsWizard
+          employee={terminateTarget}
+          activeManagers={activeSalesManagers}
+          onClose={() => setTerminateTarget(null)}
+          onDone={() => {
+            setTerminateTarget(null);
+            void qc.invalidateQueries({ queryKey: ["employees"] });
+            void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
+          }}
+        />
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -640,7 +638,7 @@ export function EmployeesPage() {
                 type="button"
                 onClick={() => inviteMutation.mutate()}
                 disabled={inviteMutation.isPending}
-                className="mt-2 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95 disabled:opacity-60"
+                className={`mt-2 w-full ${theme.btnPrimary} disabled:opacity-60`}
               >
                 {inviteMutation.isPending ? "Добавление…" : "Добавить"}
               </button>

@@ -2,6 +2,7 @@
 
 const ROUTE_FEATURE: [string, string][] = [
   ["/app", "crm"],
+  ["/desk", "crm"],
   ["/finance", "finance"],
   ["/integrations", "integrations"],
   ["/employees", "employees"],
@@ -18,6 +19,15 @@ const ROUTE_FEATURE: [string, string][] = [
   ["/horeca/tables", "horeca"],
   ["/horeca/finance", "horeca"],
   ["/horeca/analytics", "horeca"],
+  ["/horeca/guests", "horeca"],
+  ["/horeca/kitchen", "horeca"],
+  ["/horeca/stock", "horeca"],
+  ["/horeca/prep", "horeca"],
+  ["/horeca/forecast", "horeca"],
+  ["/horeca/team", "horeca"],
+  ["/horeca/comms", "horeca"],
+  ["/horeca/delivery", "horeca"],
+  ["/horeca/shift-tasks", "horeca"],
   ["/my-leads", "crm"],
   ["/crm", "crm"],
   ["/leads", "crm"],

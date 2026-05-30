@@ -455,44 +455,37 @@ export function LandingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(1200px_700px_at_10%_-10%,rgba(168,85,247,0.28),transparent_62%),radial-gradient(1200px_740px_at_90%_0%,rgba(59,130,246,0.26),transparent_60%),#090f22] text-slate-100">
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-slate-950/70 backdrop-blur">
+    <main className="min-h-screen bg-[radial-gradient(1200px_700px_at_10%_-10%,rgba(47,95,133,0.12),transparent_62%),radial-gradient(1200px_740px_at_90%_0%,rgba(45,106,90,0.08),transparent_60%),#ebe6dc] text-[#1e3348]">
+      <header className="sticky top-0 z-20 border-b border-[#d8d2c6] bg-[#faf8f4]/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-500 px-2 py-1 text-xs font-bold text-white">
+            <div className="rounded-lg bg-[#2f5f85] px-2 py-1 text-xs font-bold text-white">
               M1
             </div>
-            <span className="text-sm font-semibold sm:text-base">MetodiOne ERP</span>
+            <span className="text-sm font-semibold text-[#1e3348] sm:text-base">MetodiOne ERP</span>
           </div>
-          <nav className="hidden items-center gap-6 text-sm text-slate-300 md:flex">
-            <a href="#features" className="transition hover:text-fuchsia-300">
+          <nav className="hidden items-center gap-6 text-sm text-[#5c6b7a] md:flex">
+            <a href="#features" className="transition hover:text-[#2f5f85]">
               Возможности
             </a>
-            <a href="#solutions" className="transition hover:text-fuchsia-300">
+            <a href="#solutions" className="transition hover:text-[#2f5f85]">
               Для кого
             </a>
-            <a href="#pricing" className="transition hover:text-fuchsia-300">
+            <a href="#pricing" className="transition hover:text-[#2f5f85]">
               Тарифы
             </a>
-            <a href="#screens" className="transition hover:text-fuchsia-300">
+            <a href="#screens" className="transition hover:text-[#2f5f85]">
               Скриншоты
             </a>
-            <a href="#faq" className="transition hover:text-fuchsia-300">
+            <a href="#faq" className="transition hover:text-[#2f5f85]">
               FAQ
             </a>
           </nav>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setDemoOpen(true)}
-              className="rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-fuchsia-900/35 transition hover:opacity-95"
-            >
+            <button type="button" onClick={() => setDemoOpen(true)} className="btn-primary">
               Получить демо
             </button>
-            <a
-              href="/login"
-              className="rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
-            >
+            <a href="/login" className="btn-secondary">
               Вход
             </a>
           </div>
@@ -502,14 +495,14 @@ export function LandingPage() {
       <section ref={heroRef} className="mx-auto max-w-6xl px-4 pb-10 pt-10 sm:px-6 lg:px-8">
         <div
           ref={heroCardRef}
-          className="relative z-[5] mx-auto max-w-4xl overflow-visible rounded-3xl border border-white/10 bg-slate-900/45 p-8 text-center shadow-2xl shadow-black/25 sm:p-10"
+          className="glass-card relative z-[5] mx-auto max-w-4xl overflow-visible p-8 text-center shadow-md sm:p-10"
         >
           <div className="relative z-20 mx-auto flex min-h-[min(58vw,440px)] max-w-3xl flex-col items-center px-2 sm:min-h-[400px]">
             <div
               ref={m1AnchorRef}
               className="relative z-10 flex min-h-[52px] w-full flex-col items-center justify-center py-2"
             >
-              <div className="rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-500 px-3 py-1.5 text-lg font-bold tracking-tight text-white shadow-lg shadow-fuchsia-900/30 sm:px-4 sm:py-2 sm:text-xl">
+              <div className="rounded-lg bg-[#2f5f85] px-3 py-1.5 text-lg font-bold tracking-tight text-white shadow-sm sm:px-4 sm:py-2 sm:text-xl">
                 M1
               </div>
             </div>

@@ -1,7 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+
+import { FinanceOverviewKpiRow } from "@/components/finance/FinanceOverviewKpiRow";
+import { financeTabFromPath } from "@/config/navByRole";
+import { FinanceDemoHint } from "@/pages/finance/FinanceDemoHint";
 
 import { PeriodDelta, PlanFactBar } from "@/components/finance/FinanceReportsCharts";
 import { FinanceReportsChartsLazy } from "@/components/finance/FinanceReportsChartsLazy";
@@ -118,6 +122,7 @@ type StatementsTab = "opiu" | "balance" | "dds";
 type ManualLine = { accountId: number; debit: string; credit: string };
 
 export function FinancePage() {
+  const location = useLocation();
   const queryClient = useQueryClient();
   const token = getStoredToken();
   const role = decodeRoleFromToken(token);
@@ -132,7 +137,12 @@ export function FinancePage() {
     }
   }
 
-  const [tab, setTab] = useState<FinanceTab>("overview");
+  const pathTab = financeTabFromPath(location.pathname);
+  const [tab, setTab] = useState<FinanceTab>(pathTab);
+
+  useEffect(() => {
+    setTab(pathTab);
+  }, [pathTab]);
   const [journalSource, setJournalSource] = useState<string>("");
   const dm0 = defaultMonthRange();
   const [reportFrom, setReportFrom] = useState(dm0.from);
@@ -820,36 +830,19 @@ export function FinancePage() {
     );
   }
 
-  const tabBtn = (id: FinanceTab, label: string) => (
-    <button
-      key={id}
-      type="button"
-      onClick={() => setTab(id)}
-      className={[
-        "rounded-xl px-4 py-2 text-sm font-medium transition-colors",
-        tab === id
-          ? "bg-white/10 text-white ring-1 ring-purple-500/40"
-          : "text-slate-400 hover:bg-white/5 hover:text-slate-200",
-      ].join(" ")}
-    >
-      {label}
-    </button>
-  );
-
   return (
     <div className="relative mx-auto max-w-5xl space-y-6 pb-12">
       <header className="flex flex-col gap-3 print:hidden sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-white">{financeLex.navFinanceTitle}</h1>
-          <p className="text-sm text-slate-400">{financeLex.financePageIntro}</p>
+          <p className="text-sm text-[#5c6b7a]">{financeLex.financePageIntro}</p>
         </div>
         <div className="flex items-end gap-2">
-          <label className="flex flex-col gap-1 text-xs text-slate-400">
+          <label className="flex flex-col gap-1 text-xs text-[#5c6b7a]">
             Валюта отображения
             <select
               value={displayCurrency}
               onChange={(e) => setDisplayCurrency(e.target.value as FinanceDisplayCurrency)}
-              className="rounded-xl border border-slate-600/60 bg-slate-900/60 px-3 py-2 text-sm text-white"
+              className="mo-input py-2 text-sm"
             >
               <option value="TJS">TJS</option>
               <option value="RUB">RUB</option>
@@ -859,20 +852,20 @@ export function FinancePage() {
           <button
             type="button"
             onClick={() => refetchAll()}
-            className="shrink-0 rounded-xl border border-slate-600/60 px-4 py-2 text-sm text-slate-200 hover:bg-white/5"
+            className="btn-secondary shrink-0"
           >
             Обновить данные
           </button>
         </div>
       </header>
       {financeLex.financeBannerTitle ? (
-        <div className="rounded-2xl border border-teal-500/35 bg-teal-950/25 px-4 py-3 print:hidden">
-          <p className="text-sm font-semibold text-teal-100">{financeLex.financeBannerTitle}</p>
-          <p className="mt-1 text-sm text-slate-300">{financeLex.financeBannerBody}</p>
+        <div className="rounded-2xl border border-[#b8d4c8] bg-[#edf5f1] px-4 py-3 print:hidden">
+          <p className="text-sm font-semibold text-[#2d6a5a]">{financeLex.financeBannerTitle}</p>
+          <p className="mt-1 text-sm text-[#5c6b7a]">{financeLex.financeBannerBody}</p>
         </div>
       ) : null}
       {displayCurrency !== "TJS" ? (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-[#5c6b7a]">
           Курс для отображения: 1 TJS = {Number(fxRateQuery.data ?? 1).toFixed(4)} {displayCurrency}
         </p>
       ) : null}
@@ -900,41 +893,36 @@ export function FinancePage() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2 border-b border-slate-700/50 pb-3 print:hidden">
-        {tabBtn("overview", "Обзор")}
-        {tabBtn("accounting", "Бухгалтерия")}
-        {effective?.inventory_enabled ? tabBtn("inventory", "Склад") : null}
-        {tabBtn("reports", "Отчёты")}
-      </div>
-
-      {settingsQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+      {settingsQuery.isLoading && <p className="text-sm text-[#5c6b7a]">Загрузка…</p>}
       {settingsQuery.isError && (
         <p className="text-sm text-rose-300">{(settingsQuery.error as Error).message}</p>
       )}
 
       {tab === "overview" && effective && (
         <>
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-            <h2 className="text-lg font-medium text-white">Настройки учёта</h2>
+          <FinanceOverviewKpiRow year={overviewYear} />
+          <FinanceDemoHint />
+          <section className="mo-section">
+            <h2 className="text-lg font-medium text-[#1e3348]">Настройки учёта</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <label className="flex flex-col gap-1 text-sm text-slate-300">
+              <label className="flex flex-col gap-1 text-sm text-[#5c6b7a]">
                 Склад / запасы
                 <select
                   value={inv ? "1" : "0"}
                   onChange={(e) => setDraftInventory(e.target.value === "1")}
-                  className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                  className="mo-input py-2 text-sm"
                 >
                   <option value="0">Выключено</option>
                   <option value="1">Включено</option>
                 </select>
               </label>
-              <label className="flex flex-col gap-1 text-sm text-slate-300">
+              <label className="flex flex-col gap-1 text-sm text-[#5c6b7a]">
                 Метод себестоимости
                 <select
                   value={cost}
                   onChange={(e) => setDraftCosting(e.target.value)}
                   disabled={!inv}
-                  className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white disabled:opacity-40"
+                  className="mo-input py-2 text-sm disabled:opacity-40"
                 >
                   <option value="average">Средневзвешенная</option>
                   <option value="fifo">FIFO по партиям</option>
@@ -990,16 +978,16 @@ export function FinancePage() {
                   posting_locked_until: draftPostingLock ? draftPostingLock : null,
                 })
               }
-              className="mt-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-medium text-white shadow-lg disabled:opacity-50"
+              className="btn-primary mt-4 disabled:opacity-50"
             >
               Сохранить настройки
             </button>
           </section>
 
           {dashboardQuery.data && (
-            <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-              <h2 className="text-lg font-medium text-white">Сводка</h2>
-              <p className="mt-1 text-xs text-slate-500">
+            <section className="mo-section">
+              <h2 className="text-lg font-medium text-[#1e3348]">Сводка</h2>
+              <p className="mt-1 text-xs text-[#8a96a3]">
                 Складов: {dashboardQuery.data.warehouse_count}. Себестоимость:{" "}
                 {dashboardQuery.data.costing_method === "fifo" ? "FIFO" : "средняя"}.
               </p>

@@ -1,0 +1,26 @@
+/** Токены премиальной B2B-темы: ivory & matte gold */
+export const luxury = {
+  bgTop: "#FDFBF7",
+  bgBottom: "#F4EFE6",
+  sidebar: "#F7F4EB",
+  sidebarBorder: "#E1D9C6",
+  gold: "#D4AF37",
+  goldMuted: "#9E844D",
+  bronze: "#A38A53",
+  bronzeBorder: "#D1C4A9",
+  champagne: "#DCD1B4",
+  charcoal: "#2C2520",
+  taupe: "#7A7265",
+  plumFrom: "#7C628C",
+  plumTo: "#614B70",
+  shadowLuxury: "0 4px 20px -2px rgba(184, 164, 126, 0.15)",
+  shadowInset: "inset 0 2px 6px rgba(44, 37, 32, 0.06)",
+  nav: {
+    crm: "#4A1521",
+    tariff: "#0F4C3A",
+    horeca: "#6B1D2F",
+    online: "#1E3A8A",
+    tasks: "#2A6F85",
+    trainer: "#8C6D31",
+  },
+} as const;

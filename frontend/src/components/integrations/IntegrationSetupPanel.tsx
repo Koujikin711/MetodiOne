@@ -74,40 +74,40 @@ const CHANNELS: Array<{
     title: "WhatsApp",
     subtitle: "Green API",
     Icon: IconWhatsApp,
-    ring: "ring-emerald-500/50 hover:border-emerald-500/40",
-    bg: "bg-emerald-500/15 text-emerald-400",
+    ring: "",
+    bg: "bg-[#EDF7F1] text-[#0F4C3A]",
   },
   {
     id: "telegram",
     title: "Telegram",
-    subtitle: "Бот и webhook",
+    subtitle: "Бот и уведомления",
     Icon: IconTelegram,
-    ring: "ring-sky-500/50 hover:border-sky-500/40",
-    bg: "bg-sky-500/15 text-sky-400",
+    ring: "",
+    bg: "bg-[#E8F0FA] text-[#1E3A8A]",
   },
   {
     id: "google_sheets",
     title: "Google Таблицы",
     subtitle: "Импорт лидов",
     Icon: IconSheets,
-    ring: "ring-green-500/50 hover:border-green-500/40",
-    bg: "bg-green-600/15 text-green-300",
+    ring: "",
+    bg: "bg-[#EDF7F1] text-[#0F4C3A]",
   },
   {
     id: "instagram",
     title: "Instagram",
-    subtitle: "Meta — лиды и Direct",
+    subtitle: "Лиды и Direct",
     Icon: IconInstagram,
-    ring: "ring-fuchsia-500/50 hover:border-fuchsia-500/40",
-    bg: "bg-gradient-to-br from-amber-500/25 via-rose-500/20 to-purple-600/25 text-pink-200",
+    ring: "",
+    bg: "bg-[#FDF2F8] text-[#6B1D2F]",
   },
   {
     id: "gmail",
     title: "Gmail",
-    subtitle: "Почта и письма",
+    subtitle: "Входящая почта",
     Icon: IconGmail,
-    ring: "ring-red-500/50 hover:border-red-500/40",
-    bg: "bg-red-500/15 text-red-300",
+    ring: "",
+    bg: "bg-[#FDF5F5] text-[#7A2E2E]",
   },
 ];
 
@@ -127,74 +127,75 @@ function IntegrationCard({
   const hookPath = base ? `${base}/api/integrations/webhook/${it.id}` : `/api/integrations/webhook/${it.id}`;
 
   return (
-    <div className="rounded-xl border border-slate-700/60 bg-slate-900/30 p-3">
+    <div className="integ-card">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-800 [&>svg]:h-4 [&>svg]:w-4">
-            {it.provider === "green_api" && <IconWhatsApp className="text-emerald-400" />}
-            {it.provider === "telegram" && <IconTelegram className="text-sky-400" />}
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#F7F4EB] [&>svg]:h-4 [&>svg]:w-4">
+            {it.provider === "green_api" && <IconWhatsApp className="text-[#0F4C3A]" />}
+            {it.provider === "telegram" && <IconTelegram className="text-[#1E3A8A]" />}
             {it.provider === "google_sheets" && <IconSheets className="h-6 w-6" />}
             {it.provider === "instagram" && <IconInstagram className="h-7 w-7" />}
             {it.provider === "gmail" && <IconGmail className="h-7 w-7" />}
           </span>
-          <div className="min-w-0 text-sm font-semibold text-slate-100">{it.name}</div>
+          <div className="min-w-0 text-sm font-semibold text-[#2C2520]">{it.name}</div>
         </div>
         <button
           type="button"
           onClick={onEdit}
-          className="shrink-0 rounded-lg border border-slate-600 px-2 py-0.5 text-[11px] text-slate-200 hover:bg-slate-800/50"
+          className="shrink-0 rounded-lg border border-[#DCD1B4] px-2 py-0.5 text-[11px] text-[#2C2520] hover:bg-[#F7F4EB]/50"
         >
           Изменить
         </button>
       </div>
-      <div className="mt-1 text-[11px] text-slate-500">
-        {it.is_active ? <span className="text-emerald-400/90">Активна</span> : <span className="text-slate-500">Выключена</span>}
+      <div className="mt-1 text-[11px] text-[#A89880]">
+        {it.is_active ? <span className="font-medium text-[#0F4C3A]">Активна</span> : <span className="text-[#A89880]">Выключена</span>}
         {it.has_api_token ? " · токен сохранён" : ""}
       </div>
-      {it.setup_note ? <p className="mt-2 text-[11px] text-violet-200/90">{it.setup_note}</p> : null}
+      {it.setup_note ? (
+        <p className="mt-2 rounded-lg border border-[#DCD1B4] bg-[#F7F2E8] px-2 py-1.5 text-[11px] text-[#7A7265]">{it.setup_note}</p>
+      ) : null}
       {it.provider === "green_api" && (
         <div className="mt-2 space-y-2">
-          <div className="text-[11px] leading-relaxed text-emerald-400/90">
-            WhatsApp через Green API: лиды, чат и рассылка. При сбое webhook — «Изменить» и снова «Сохранить».
+          <div className="lux-caption leading-relaxed">
+            WhatsApp через Green API: лиды, чат и рассылка. При сбое webhook откройте «Изменить» и сохраните настройки заново.
           </div>
           <button
             type="button"
             onClick={onBroadcast}
-            className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/20"
+            className="crm-pill-btn px-2 py-1 text-[11px]"
           >
             Массовая рассылка
           </button>
         </div>
       )}
-      <div className="mt-2 text-[11px] text-slate-400">
+      <div className="mt-2 text-[11px] text-[#7A7265]">
         Воронка {it.pipeline_id}, стадия {it.stage_id}
       </div>
       {it.provider === "telegram" && (
-        <div className="mt-2 text-[11px] text-slate-300">
+        <div className="mt-2 text-[11px] text-[#7A7265]">
           Webhook URL:
-          <div className="mt-1 break-all rounded-lg border border-slate-700 bg-slate-950/40 px-2 py-1 font-mono text-[11px] text-slate-200">
+          <div className="mt-1 break-all rounded-lg border border-[#E1D9C6] bg-white px-2 py-1 font-mono text-[11px] text-[#2C2520]">
             {hookPath}?token=
-            <span className="text-amber-200/90">&lt;секрет_из_формы&gt;</span>
+            <span className="text-[#8C6D31]">секрет из формы</span>
           </div>
           {!apiBase && (
-            <div className="mt-1 text-[11px] text-amber-300/90">Задайте VITE_API_BASE_URL для полного URL.</div>
+            <div className="lux-caption mt-1">Укажите публичный адрес API в настройках сервера для полного URL.</div>
           )}
         </div>
       )}
       {it.provider === "instagram" && (
-        <div className="mt-2 space-y-2 text-[11px] leading-relaxed text-fuchsia-200/90">
+        <div className="mt-2 space-y-2 text-[11px] leading-relaxed text-[#7A7265]">
           <p>
-            Lead Ads (webhook <span className="font-mono text-fuchsia-100/90">leadgen</span>) и сообщения Instagram /
-            Facebook Page. Новые заявки и диалоги попадают в выбранную воронку.
+            Лиды из рекламы Meta и сообщения Instagram Direct. Новые заявки и диалоги попадают в выбранную воронку CRM.
           </p>
           <div>
-            <span className="text-slate-400">Callback URL (один и тот же для GET и POST в Meta):</span>
-            <div className="mt-1 break-all rounded-lg border border-fuchsia-900/40 bg-slate-950/50 px-2 py-1 font-mono text-[10px] text-fuchsia-100/95">
+            <span className="font-medium text-[#2C2520]">Адрес webhook для Meta (GET и POST):</span>
+            <div className="mt-1 break-all rounded-lg border border-[#DCD1B4] bg-[#FAF8F4] px-2 py-1 font-mono text-[10px] text-[#2C2520]">
               {hookPath}
             </div>
-            <p className="mt-1 text-[10px] text-slate-500">
-              Verify token в Meta = секрет из формы интеграции. Подписки: <span className="text-slate-400">leadgen</span>,{" "}
-              <span className="text-slate-400">instagram</span>, при необходимости <span className="text-slate-400">messages</span>.
+            <p className="lux-caption mt-1">
+              Код подтверждения в Meta — тот же секрет, что в форме ниже. Подписки: leadgen, instagram, при необходимости
+              messages.
             </p>
             {!apiBase && (
               <div className="mt-1 text-[10px] text-amber-300/90">Задайте VITE_API_BASE_URL для полного URL.</div>
@@ -204,21 +205,21 @@ function IntegrationCard({
       )}
       {it.provider === "google_sheets" && (
         <div className="mt-2 space-y-2">
-          <div className="text-[11px] text-slate-300">
+          <div className="text-[11px] text-[#7A7265]">
             Таблица: {String((it.config as Record<string, unknown> | null)?.sheet_url ?? "—")}
           </div>
           <button
             type="button"
             onClick={onSync}
-            className="rounded-lg border border-slate-600 px-2 py-1 text-[11px] text-slate-100 transition hover:bg-slate-800/50"
+            className="rounded-lg border border-[#DCD1B4] px-2 py-1 text-[11px] text-[#2C2520] transition hover:bg-[#F7F4EB]/50"
           >
             Синхронизировать сейчас
           </button>
         </div>
       )}
       {it.provider === "gmail" && (
-        <div className="mt-2 text-[11px] leading-relaxed text-red-200/90">
-          Gmail подключение через IMAP. Укажите почту и пароль приложения Google (App Password).
+        <div className="lux-caption mt-2 leading-relaxed">
+          Почта Gmail через IMAP. Используйте пароль приложения Google (App Password), не основной пароль аккаунта.
         </div>
       )}
     </div>
@@ -713,11 +714,11 @@ export function IntegrationSetupPanel() {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
-      <h2 className="text-lg font-medium text-white">Каналы и подключение</h2>
-      <p className="mt-1 text-sm text-slate-400">
-        Выберите сервис по иконке — откроется форма с полями. Уже настроенные каналы — в списке справа (на широком
-        экране) или ниже.
+    <section className="mo-section">
+      <h2 className="lux-heading">Каналы и подключение</h2>
+      <p className="lux-body mt-2">
+        Выберите сервис — откроется пошаговая форма с подсказками. Уже подключённые каналы отображаются в списке ниже:
+        их можно изменить, синхронизировать или отключить.
       </p>
 
       {!integrationFormOpen ? (
@@ -728,34 +729,32 @@ export function IntegrationSetupPanel() {
                 key={ch.id}
                 type="button"
                 onClick={() => pickChannel(ch.id)}
-                className={[
-                  "flex flex-col items-center gap-3 rounded-2xl border border-slate-600/50 bg-slate-900/40 p-6 text-center transition",
-                  "hover:bg-slate-900/70 focus:outline-none focus-visible:ring-2",
-                  ch.ring,
-                ].join(" ")}
+                className="integ-channel-tile"
               >
                 <div
                   className={[
-                    "flex h-16 w-16 items-center justify-center rounded-2xl [&>svg]:h-9 [&>svg]:w-9",
+                    "integ-channel-icon [&>svg]:h-9 [&>svg]:w-9",
                     ch.bg,
                   ].join(" ")}
                 >
                   <ch.Icon className={ch.id === "google_sheets" ? "h-10 w-10" : ""} />
                 </div>
                 <div>
-                  <div className="text-base font-semibold text-white">{ch.title}</div>
-                  <div className="mt-0.5 text-xs text-slate-500">{ch.subtitle}</div>
+                  <div className="text-base font-semibold text-[#2C2520]">{ch.title}</div>
+                  <div className="lux-caption mt-0.5">{ch.subtitle}</div>
                 </div>
               </button>
             ))}
           </div>
           <div className="mt-8">
-            <h3 className="text-sm font-semibold text-white">Текущие подключения</h3>
-            <p className="mt-1 text-xs text-slate-500">Изменить настройки или синхронизировать таблицу</p>
+            <h3 className="lux-subheading">Текущие подключения</h3>
+            <p className="lux-caption mt-1">Редактирование параметров, синхронизация таблиц и рассылки WhatsApp</p>
             <div className="mt-4 space-y-3">
-              {integrationsQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+              {integrationsQuery.isLoading && <p className="lux-body">Загрузка…</p>}
               {(integrationsQuery.data ?? []).length === 0 && !integrationsQuery.isLoading && (
-                <p className="text-sm text-slate-500">Пока нет интеграций — выберите канал выше</p>
+                <p className="lux-body rounded-xl border border-dashed border-[#DCD1B4] bg-[#FAF8F4] px-4 py-6 text-center">
+                  Подключённых каналов пока нет. Выберите сервис выше, чтобы начать настройку.
+                </p>
               )}
               {(integrationsQuery.data ?? []).map((it) => (
                 <IntegrationCard
@@ -782,26 +781,26 @@ export function IntegrationSetupPanel() {
             <button
               type="button"
               onClick={closeForm}
-              className="rounded-xl border border-slate-600 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800/50"
+              className="crm-pill-btn"
             >
               ← Другой канал
             </button>
             {editingIntegrationId != null && (
-              <span className="text-sm text-amber-200/90">Редактирование интеграции №{editingIntegrationId}</span>
+              <span className="text-sm font-medium text-[#8C6D31]">Редактирование подключения №{editingIntegrationId}</span>
             )}
           </div>
 
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-950/30 p-4">
-              <div className="text-sm font-semibold text-white">
+            <div className="integ-form-panel">
+              <div className="lux-subheading">
                 {editingIntegrationId != null ? "Параметры интеграции" : "Новая интеграция"}
               </div>
               {editingIntegrationId == null && (
-                <div className="mt-3 flex items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-900/40 px-3 py-2">
+                <div className="mt-3 flex items-center gap-3 rounded-xl border border-[#E1D9C6]/60 bg-[#FAF8F4] px-3 py-2">
                   <div
                     className={[
                       "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl [&>svg]:h-6 [&>svg]:w-6",
-                      CHANNELS.find((c) => c.id === integrationProvider)?.bg ?? "bg-slate-600/30",
+                      CHANNELS.find((c) => c.id === integrationProvider)?.bg ?? "bg-[#F7F4EB]",
                     ].join(" ")}
                   >
                     {integrationProvider === "green_api" && <IconWhatsApp />}
@@ -810,18 +809,18 @@ export function IntegrationSetupPanel() {
                     {integrationProvider === "instagram" && <IconInstagram className="h-8 w-8" />}
                     {integrationProvider === "gmail" && <IconGmail className="h-8 w-8" />}
                   </div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-[#7A7265]">
                     Тип канала выбран по иконке. Чтобы сменить — нажмите «Другой канал».
                   </div>
                 </div>
               )}
               {editingIntegrationId != null && (
-                <label className="mt-3 block text-sm text-slate-300">
+                <label className="mt-3 block text-sm text-[#7A7265]">
                   Провайдер
                   <select
                     value={integrationProvider}
                     disabled
-                    className="mt-1 w-full cursor-not-allowed rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white opacity-60"
+                    className="mt-1 w-full cursor-not-allowed rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm opacity-60"
                   >
                     <option value="green_api">GREEN API (WhatsApp)</option>
                     <option value="telegram">Telegram Bot</option>
@@ -833,17 +832,17 @@ export function IntegrationSetupPanel() {
               )}
 
               <div className="mt-3 grid gap-3">
-                <label className="text-sm text-slate-300">
+                <label className="text-sm text-[#7A7265]">
                   Название
                   <input
                     value={integrationName}
                     onChange={(e) => setIntegrationName(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                    className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                   />
                 </label>
 
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <label className="text-sm text-slate-300">
+                  <label className="text-sm text-[#7A7265]">
                     Воронка
                     <select
                       value={integrationPipelineId ?? ""}
@@ -852,7 +851,7 @@ export function IntegrationSetupPanel() {
                         setIntegrationPipelineId(Number.isFinite(id) ? id : null);
                         setIntegrationStageId(null);
                       }}
-                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                      className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                     >
                       {(pipelinesQuery.data ?? []).map((p) => (
                         <option key={p.id} value={p.id}>
@@ -861,12 +860,12 @@ export function IntegrationSetupPanel() {
                       ))}
                     </select>
                   </label>
-                  <label className="text-sm text-slate-300">
+                  <label className="text-sm text-[#7A7265]">
                     Стадия
                     <select
                       value={integrationStageId ?? ""}
                       onChange={(e) => setIntegrationStageId(Number(e.target.value))}
-                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                      className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                     >
                       {(integrationStagesQuery.data ?? []).map((s) => (
                         <option key={s.id} value={s.id}>
@@ -877,16 +876,16 @@ export function IntegrationSetupPanel() {
                   </label>
                 </div>
 
-                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-200">
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#E1D9C6]/60 bg-[#FAF8F4] p-3 text-sm text-[#2C2520]">
                   <input
                     type="checkbox"
                     checked={integrationCloseDealEnabled}
                     onChange={(e) => setIntegrationCloseDealEnabled(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-600"
+                    className="mt-0.5 h-4 w-4 rounded border-[#DCD1B4]"
                   />
                   <span>
-                    <span className="font-medium text-white">Кнопка «Закрыть сделку» для менеджеров</span>
-                    <span className="mt-1 block text-[11px] leading-relaxed text-slate-400">
+                    <span className="font-medium text-[#2C2520]">Кнопка «Закрыть сделку» для менеджеров</span>
+                    <span className="mt-1 block text-[11px] leading-relaxed text-[#7A7265]">
                       Менеджер закроет сделку с суммами на карточке лида. Лид уйдёт на стадию успеха из настроек
                       сервера.
                     </span>
@@ -894,21 +893,21 @@ export function IntegrationSetupPanel() {
                 </label>
 
                 {(integrationProvider === "telegram" || integrationProvider === "instagram") && (
-                  <label className="text-sm text-slate-300">
+                  <label className="text-sm text-[#7A7265]">
                     Verify token (секрет webhook)
                     {editingIntegrationId != null && (
-                      <span className="ml-1 text-[11px] font-normal text-slate-500">— оставьте пустым, чтобы не менять</span>
+                      <span className="ml-1 text-[11px] font-normal text-[#A89880]">— оставьте пустым, чтобы не менять</span>
                     )}
                     <div className="mt-1 flex gap-2">
                       <input
                         value={integrationSecret}
                         onChange={(e) => setIntegrationSecret(e.target.value)}
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                        className="w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                       <button
                         type="button"
                         onClick={() => void generateIntegrationSecret()}
-                        className="shrink-0 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800/40"
+                        className="shrink-0 rounded-xl border border-[#E1D9C6] px-3 py-2 text-sm text-[#2C2520] hover:bg-[#F7F4EB]/40"
                       >
                         Сгенерировать
                       </button>
@@ -918,21 +917,21 @@ export function IntegrationSetupPanel() {
 
                 {integrationProvider === "green_api" ? (
                   <div className="grid gap-3">
-                    <p className="text-[11px] leading-relaxed text-slate-400">
-                      Скопируйте из кабинета Green API: <span className="text-slate-300">idInstance</span>,{" "}
-                      <span className="text-slate-300">apiTokenInstance</span>. Webhook настроится автоматически.
+                    <p className="text-[11px] leading-relaxed text-[#7A7265]">
+                      Скопируйте из кабинета Green API: <span className="text-[#7A7265]">idInstance</span>,{" "}
+                      <span className="text-[#7A7265]">apiTokenInstance</span>. Webhook настроится автоматически.
                     </p>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <label className="text-sm text-slate-300">
+                      <label className="text-sm text-[#7A7265]">
                         idInstance
                         <input
                           value={greenInstanceId}
                           onChange={(e) => setGreenInstanceId(e.target.value)}
                           placeholder="Напр. 7103507365"
-                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                         />
                       </label>
-                      <label className="text-sm text-slate-300">
+                      <label className="text-sm text-[#7A7265]">
                         apiTokenInstance
                         <input
                           type="password"
@@ -942,106 +941,106 @@ export function IntegrationSetupPanel() {
                           placeholder={
                             editingIntegrationId != null ? "Оставьте пустым, чтобы не менять" : "Токен из кабинета"
                           }
-                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                         />
                       </label>
                     </div>
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-[#7A7265]">
                       Адрес API (по желанию)
                       <input
                         value={greenApiBaseUrl}
                         onChange={(e) => setGreenApiBaseUrl(e.target.value)}
                         placeholder="https://7103.api.greenapi.com"
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                     </label>
                   </div>
                 ) : integrationProvider === "google_sheets" ? (
                   <div className="grid gap-3">
-                    <p className="text-[11px] leading-relaxed text-slate-400">
+                    <p className="text-[11px] leading-relaxed text-[#7A7265]">
                       Ссылка на Google Sheets, доступная сервисному аккаунту CRM. Колонки по умолчанию:{" "}
-                      <span className="text-slate-300">full_name</span>, <span className="text-slate-300">phone_number</span>.
+                      <span className="text-[#7A7265]">full_name</span>, <span className="text-[#7A7265]">phone_number</span>.
                     </p>
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-[#7A7265]">
                       URL таблицы
                       <input
                         value={sheetsUrl}
                         onChange={(e) => setSheetsUrl(e.target.value)}
                         placeholder="https://docs.google.com/spreadsheets/d/..."
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                     </label>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <label className="text-sm text-slate-300">
+                      <label className="text-sm text-[#7A7265]">
                         Лист (необязательно)
                         <input
                           value={sheetsTabName}
                           onChange={(e) => setSheetsTabName(e.target.value)}
                           placeholder="Sheet1"
-                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                         />
                       </label>
-                      <label className="text-sm text-slate-300">
+                      <label className="text-sm text-[#7A7265]">
                         Строка заголовков
                         <input
                           value={sheetsHeaderRow}
                           onChange={(e) => setSheetsHeaderRow(e.target.value)}
                           placeholder="1"
-                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                         />
                       </label>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-3">
-                      <label className="text-sm text-slate-300">
+                      <label className="text-sm text-[#7A7265]">
                         Колонка имени
                         <input
                           value={sheetsNameColumn}
                           onChange={(e) => setSheetsNameColumn(e.target.value)}
                           placeholder="full_name"
-                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                         />
                       </label>
-                      <label className="text-sm text-slate-300">
+                      <label className="text-sm text-[#7A7265]">
                         Колонка телефона
                         <input
                           value={sheetsPhoneColumn}
                           onChange={(e) => setSheetsPhoneColumn(e.target.value)}
                           placeholder="phone_number"
-                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                         />
                       </label>
-                      <label className="text-sm text-slate-300">
+                      <label className="text-sm text-[#7A7265]">
                         Колонка email
                         <input
                           value={sheetsEmailColumn}
                           onChange={(e) => setSheetsEmailColumn(e.target.value)}
                           placeholder="email"
-                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                          className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                         />
                       </label>
                     </div>
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-[#7A7265]">
                       Стартовая строка данных
                       <input
                         value={sheetsStartRow}
                         onChange={(e) => setSheetsStartRow(e.target.value)}
                         placeholder="2"
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                        className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                     </label>
                   </div>
                 ) : integrationProvider === "instagram" ? (
                   <div className="grid gap-3">
-                    <p className="text-[11px] leading-relaxed text-slate-400">
+                    <p className="text-[11px] leading-relaxed text-[#7A7265]">
                       В Meta for Developers создайте приложение, привяжите Instagram и Страницу. Сгенерируйте{" "}
-                      <span className="text-fuchsia-200/90">Page Access Token</span> с правами на leads и сообщения. После
+                      <span className="font-medium text-[#6B1D2F]">Page Access Token</span> с правами на leads и сообщения. После
                       сохранения скопируйте Callback URL из списка интеграций справа — тот же путь для проверки и для
                       событий.
                     </p>
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-[#7A7265]">
                       Page Access Token
                       {editingIntegrationId != null && (
-                        <span className="ml-1 text-[11px] font-normal text-slate-500">
+                        <span className="ml-1 text-[11px] font-normal text-[#A89880]">
                           — пусто = оставить сохранённый токен
                         </span>
                       )}
@@ -1055,13 +1054,13 @@ export function IntegrationSetupPanel() {
                             ? "Оставьте пустым, чтобы не менять"
                             : "EAA… из Graph API Explorer или системного пользователя"
                         }
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                     </label>
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-[#7A7265]">
                       App Secret (рекомендуется)
                       {editingIntegrationId != null && (
-                        <span className="ml-1 text-[11px] font-normal text-slate-500">
+                        <span className="ml-1 text-[11px] font-normal text-[#A89880]">
                           — пусто = не менять; для проверки подписи X-Hub-Signature-256
                         </span>
                       )}
@@ -1071,29 +1070,29 @@ export function IntegrationSetupPanel() {
                         value={igAppSecret}
                         onChange={(e) => setIgAppSecret(e.target.value)}
                         placeholder="Из настроек приложения Meta"
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                     </label>
                   </div>
                 ) : integrationProvider === "gmail" ? (
                   <div className="grid gap-3">
-                    <p className="text-[11px] leading-relaxed text-slate-400">
+                    <p className="text-[11px] leading-relaxed text-[#7A7265]">
                       Подключение Gmail по IMAP. В Google-аккаунте включите двухфакторную аутентификацию и создайте{" "}
                       <span className="text-red-200/90">App Password</span>.
                     </p>
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-[#7A7265]">
                       Email
                       <input
                         value={gmailEmail}
                         onChange={(e) => setGmailEmail(e.target.value)}
                         placeholder="name@gmail.com"
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                     </label>
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-[#7A7265]">
                       App Password
                       {editingIntegrationId != null && (
-                        <span className="ml-1 text-[11px] font-normal text-slate-500">— пусто = оставить текущий</span>
+                        <span className="ml-1 text-[11px] font-normal text-[#A89880]">— пусто = оставить текущий</span>
                       )}
                       <input
                         type="password"
@@ -1101,82 +1100,82 @@ export function IntegrationSetupPanel() {
                         value={gmailAppPassword}
                         onChange={(e) => setGmailAppPassword(e.target.value)}
                         placeholder={editingIntegrationId != null ? "Оставьте пустым, чтобы не менять" : "16-символьный пароль приложения"}
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                     </label>
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-[#7A7265]">
                       IMAP host
                       <input
                         value={gmailImapHost}
                         onChange={(e) => setGmailImapHost(e.target.value)}
                         placeholder="imap.gmail.com"
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                     </label>
                   </div>
                 ) : (
-                  <label className="text-sm text-slate-300">
+                  <label className="text-sm text-[#7A7265]">
                     Config (JSON)
                     <textarea
                       value={integrationConfigText}
                       onChange={(e) => setIntegrationConfigText(e.target.value)}
                       rows={5}
-                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 font-mono text-xs text-white"
+                      className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 font-mono text-xs"
                     />
                   </label>
                 )}
 
-                <div className="rounded-xl border border-slate-700/60 bg-slate-950/20 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Шаблоны сообщений</p>
-                  <p className="mt-1 text-[11px] text-slate-500">
+                <div className="rounded-xl border border-[#E1D9C6]/60 bg-[#FAF8F4] p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#7A7265]">Шаблоны сообщений</p>
+                  <p className="mt-1 text-[11px] text-[#A89880]">
                     Переменные: {"{name}"}, {"{date}"}, {"{time}"}, {"{manager}"}
                   </p>
                   <div className="mt-2 grid gap-2">
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-[#7A7265]">
                       Приветствие
                       <textarea
                         value={tplGreeting}
                         onChange={(e) => setTplGreeting(e.target.value)}
                         rows={2}
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                     </label>
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-[#7A7265]">
                       Подтверждение записи
                       <textarea
                         value={tplConfirm}
                         onChange={(e) => setTplConfirm(e.target.value)}
                         rows={2}
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                     </label>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <label className="text-sm text-slate-300">
+                      <label className="text-sm text-[#7A7265]">
                         Напоминание за 24ч
                         <textarea
                           value={tplReminder24h}
                           onChange={(e) => setTplReminder24h(e.target.value)}
                           rows={2}
-                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                          className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                         />
                       </label>
-                      <label className="text-sm text-slate-300">
+                      <label className="text-sm text-[#7A7265]">
                         Напоминание за 2ч
                         <textarea
                           value={tplReminder2h}
                           onChange={(e) => setTplReminder2h(e.target.value)}
                           rows={2}
-                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                          className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                         />
                       </label>
                     </div>
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-[#7A7265]">
                       Реактивация
                       <textarea
                         value={tplReactivation}
                         onChange={(e) => setTplReactivation(e.target.value)}
                         rows={2}
-                        className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                     </label>
                   </div>
@@ -1186,7 +1185,7 @@ export function IntegrationSetupPanel() {
                   <button
                     type="button"
                     onClick={() => void submitCreateIntegration()}
-                    className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95"
+                    className="btn-primary w-full py-2.5"
                   >
                     {editingIntegrationId != null ? "Сохранить" : "Создать"}
                   </button>
@@ -1197,45 +1196,45 @@ export function IntegrationSetupPanel() {
                         resetIntegrationForm();
                         setIntegrationFormOpen(false);
                       }}
-                      className="w-full rounded-xl border border-slate-700 py-2 text-sm text-slate-300 transition hover:bg-slate-800/40"
+                      className="w-full rounded-xl border border-[#E1D9C6] py-2 text-sm text-[#7A7265] transition hover:bg-[#F7F4EB]/40"
                     >
                       Отменить редактирование
                     </button>
                   )}
                 </div>
                 {integrationProvider === "green_api" ? (
-                  <p className="text-[11px] text-slate-500">
-                    Ошибка про адрес API: задайте <span className="font-mono text-slate-400">public_api_base_url</span> на
+                  <p className="text-[11px] text-[#A89880]">
+                    Ошибка про адрес API: задайте <span className="font-mono text-[#7A7265]">public_api_base_url</span> на
                     сервере или сохраняйте интеграцию с того же сайта, где открыт API.
                   </p>
                 ) : integrationProvider === "google_sheets" ? (
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-[#A89880]">
                     После сохранения нажмите «Синхронизировать» в списке для первой загрузки строк.
                   </p>
                 ) : integrationProvider === "instagram" ? (
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-[#A89880]">
                     В подписках webhook укажите этот Callback URL, verify token = секрет выше. Лиды с форм и новые
                     директ-сообщения подтянутся в CRM автоматически.
                   </p>
                 ) : integrationProvider === "gmail" ? (
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-[#A89880]">
                     Используйте только пароль приложения Google. Обычный пароль аккаунта не подойдет.
                   </p>
                 ) : (
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-[#A89880]">
                     Скопируйте webhook URL из списка справа и укажите секрет в @BotFather.
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-950/40 p-4 lg:sticky lg:top-4 lg:self-start">
-              <div className="text-sm font-semibold text-white">Подключённые интеграции</div>
-              <p className="mt-1 text-[11px] text-slate-500">Webhook, синхронизация, изменение</p>
+            <div className="rounded-2xl border border-[#E1D9C6]/50 bg-white p-4 lg:sticky lg:top-4 lg:self-start">
+              <div className="lux-subheading">Подключённые интеграции</div>
+              <p className="mt-1 text-[11px] text-[#A89880]">Webhook, синхронизация, изменение</p>
               <div className="mt-3 max-h-[min(520px,70vh)] space-y-2 overflow-y-auto">
-                {integrationsQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+                {integrationsQuery.isLoading && <p className="text-sm text-[#7A7265]">Загрузка…</p>}
                 {(integrationsQuery.data ?? []).length === 0 && !integrationsQuery.isLoading && (
-                  <p className="text-sm text-slate-500">Пока нет — выберите канал выше</p>
+                  <p className="text-sm text-[#A89880]">Пока нет — выберите канал выше</p>
                 )}
                 {(integrationsQuery.data ?? []).map((it) => (
                   <IntegrationCard
@@ -1259,22 +1258,22 @@ export function IntegrationSetupPanel() {
         </div>
       )}
       {broadcastIntegrationId != null && (
-        <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-950/10 p-4">
+        <div className="mo-section mt-4 border-[#0F4C3A]/25 bg-[#EDF7F1]/50">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-emerald-100">Рассылка Green API</h3>
+            <h3 className="lux-subheading">Рассылка WhatsApp</h3>
             <button
               type="button"
               onClick={() => {
                 setBroadcastIntegrationId(null);
                 setBroadcastPreview(null);
               }}
-              className="rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800/40"
+              className="rounded-lg border border-[#DCD1B4] px-2 py-1 text-xs text-[#7A7265] hover:bg-[#F7F4EB]/40"
             >
               Закрыть
             </button>
           </div>
           <div className="grid gap-3">
-            <label className="text-sm text-slate-300">
+            <label className="text-sm text-[#7A7265]">
               Источник номеров
               <select
                 value={broadcastSource}
@@ -1283,7 +1282,7 @@ export function IntegrationSetupPanel() {
                   setBroadcastPreview(null);
                   setBroadcastLastResult(null);
                 }}
-                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
               >
                 <option value="database">Из базы (телефоны лидов)</option>
                 <option value="excel">Загрузить Excel / CSV</option>
@@ -1291,7 +1290,7 @@ export function IntegrationSetupPanel() {
             </label>
             {broadcastSource === "excel" && (
               <>
-                <label className="text-sm text-slate-300">
+                <label className="text-sm text-[#7A7265]">
                   Файл (.xlsx или .csv)
                   <input
                     type="file"
@@ -1301,10 +1300,10 @@ export function IntegrationSetupPanel() {
                       setBroadcastPreview(null);
                       setBroadcastLastResult(null);
                     }}
-                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                    className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                   />
                 </label>
-                <label className="text-sm text-slate-300">
+                <label className="text-sm text-[#7A7265]">
                   Колонка телефона (для xlsx)
                   <input
                     value={broadcastExcelColumn}
@@ -1314,27 +1313,27 @@ export function IntegrationSetupPanel() {
                       setBroadcastLastResult(null);
                     }}
                     placeholder="phone"
-                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                    className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                   />
                 </label>
               </>
             )}
-            <label className="text-sm text-slate-300">
+            <label className="text-sm text-[#7A7265]">
               Текст сообщения
               <textarea
                 value={broadcastText}
                 onChange={(e) => setBroadcastText(e.target.value)}
                 rows={4}
-                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white"
+                className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
               />
             </label>
             {broadcastPreview ? (
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-3 py-2 text-xs text-emerald-100">
+              <div className="rounded-xl border border-[#0F4C3A]/25 bg-white px-3 py-2 text-xs text-[#2C2520]">
                 Найдено номеров: {broadcastPreview.found_count}. К отправке (с лимитом): {broadcastPreview.limited_count}.
               </div>
             ) : null}
             {broadcastLastResult ? (
-              <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 px-3 py-2 text-xs text-sky-100">
+              <div className="rounded-xl border border-[#DCD1B4] bg-white px-3 py-2 text-xs text-[#2C2520]">
                 Рассылка завершена: отправлено {broadcastLastResult.sent_count} из {broadcastLastResult.requested_count}
                 {broadcastLastResult.failed_count > 0 ? `, ошибок ${broadcastLastResult.failed_count}` : ", без ошибок"}.
               </div>
@@ -1344,7 +1343,7 @@ export function IntegrationSetupPanel() {
                 type="button"
                 onClick={() => void previewGreenBroadcast()}
                 disabled={broadcastSending}
-                className="rounded-xl border border-emerald-400/40 px-3 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                className="crm-pill-btn disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {previewLoading ? "Считаем..." : "Предпросмотр"}
               </button>
@@ -1352,7 +1351,7 @@ export function IntegrationSetupPanel() {
                 type="button"
                 onClick={() => void sendGreenBroadcast()}
                 disabled={broadcastSending}
-                className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {broadcastSending ? "Отправляем..." : "Отправить всем"}
               </button>
