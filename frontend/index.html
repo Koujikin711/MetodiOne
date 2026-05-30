@@ -10,6 +10,14 @@
       rel="stylesheet"
     />
     <title>MetodiOne</title>
+    <script>
+      (function () {
+        var t = localStorage.getItem("mo-theme");
+        if (t !== "dark" && t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches) t = "dark";
+        if (t === "dark") document.documentElement.dataset.theme = "dark";
+        else document.documentElement.dataset.theme = "light";
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

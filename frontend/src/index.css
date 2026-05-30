@@ -24,7 +24,8 @@
   --color-slate-950: #1f1b17;
 }
 
-:root {
+:root,
+:root[data-theme="light"] {
   color-scheme: light;
   --mo-bg: #f4efe6;
   --mo-bg-top: #fdfbf7;
@@ -44,6 +45,76 @@
   --mo-success: #0f4c3a;
   --mo-warning: #8c6d31;
   --mo-danger: #6b1d2f;
+  --mo-shell-bg: #f7f4eb;
+  --mo-nav-hover: rgba(255, 255, 255, 0.45);
+  --mo-nav-active-bg: rgba(255, 255, 255, 0.72);
+  --booking-grid-hatch: rgba(148, 163, 184, 0.18);
+  --booking-appt-booked-bg: #dbeafe;
+  --booking-appt-booked-border: #2563eb;
+  --booking-appt-booked-text: #1e3a8a;
+  --booking-appt-completed-bg: #d1fae5;
+  --booking-appt-completed-border: #059669;
+  --booking-appt-completed-text: #064e3b;
+  --booking-appt-neutral-bg: #f3f4f6;
+  --booking-appt-neutral-border: #9ca3af;
+  --booking-appt-neutral-text: #374151;
+  --booking-appt-cancel-bg: #f5f5f4;
+  --booking-appt-cancel-border: #a8a29e;
+  --booking-appt-cancel-text: #78716c;
+  --booking-appt-notify-bg: #fef3c7;
+  --booking-appt-notify-border: #d97706;
+  --booking-appt-notify-text: #92400e;
+  --booking-appt-replied-bg: #ede9fe;
+  --booking-appt-replied-border: #7c3aed;
+  --booking-appt-replied-text: #5b21b6;
+  --booking-appt-meta: #5c554c;
+  --booking-appt-badge-bg: rgba(255, 255, 255, 0.85);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --mo-bg: #12100e;
+  --mo-bg-top: #0f0d0b;
+  --mo-surface: #1a1714;
+  --mo-surface-elevated: #242019;
+  --mo-border: #3d3830;
+  --mo-border-strong: #4f483f;
+  --mo-text: #f5f0e6;
+  --mo-text-muted: #a89880;
+  --mo-accent: #c9ad6a;
+  --mo-accent-hover: #d4af37;
+  --mo-accent-soft: #2e2a24;
+  --mo-gold: #d4af37;
+  --mo-shadow-luxury: 0 4px 24px -4px rgba(0, 0, 0, 0.45);
+  --mo-plum-from: #9a7fb0;
+  --mo-plum-to: #7c628c;
+  --mo-success: #34d399;
+  --mo-warning: #fbbf24;
+  --mo-danger: #f87171;
+  --mo-shell-bg: #1a1714;
+  --mo-nav-hover: rgba(255, 255, 255, 0.06);
+  --mo-nav-active-bg: rgba(212, 175, 55, 0.12);
+  --booking-grid-hatch: rgba(255, 255, 255, 0.06);
+  --booking-appt-booked-bg: #1e3a5f;
+  --booking-appt-booked-border: #60a5fa;
+  --booking-appt-booked-text: #e0f2fe;
+  --booking-appt-completed-bg: #064e3b;
+  --booking-appt-completed-border: #34d399;
+  --booking-appt-completed-text: #d1fae5;
+  --booking-appt-neutral-bg: #292524;
+  --booking-appt-neutral-border: #78716c;
+  --booking-appt-neutral-text: #e7e5e4;
+  --booking-appt-cancel-bg: #1c1917;
+  --booking-appt-cancel-border: #57534e;
+  --booking-appt-cancel-text: #a8a29e;
+  --booking-appt-notify-bg: #78350f;
+  --booking-appt-notify-border: #fbbf24;
+  --booking-appt-notify-text: #fef3c7;
+  --booking-appt-replied-bg: #4c1d95;
+  --booking-appt-replied-border: #a78bfa;
+  --booking-appt-replied-text: #ede9fe;
+  --booking-appt-meta: #c4b8a8;
+  --booking-appt-badge-bg: rgba(0, 0, 0, 0.25);
 }
 
 body {
@@ -75,10 +146,27 @@ body {
     linear-gradient(165deg, #fdfbf7 0%, #f4efe6 48%, #efe8dc 100%);
 }
 
+:root[data-theme="dark"] .app-shell-bg {
+  background:
+    radial-gradient(ellipse 100% 70% at 10% -10%, rgba(212, 175, 55, 0.08), transparent 55%),
+    radial-gradient(ellipse 80% 60% at 90% 0%, rgba(124, 98, 140, 0.1), transparent 50%),
+    linear-gradient(165deg, #0f0d0b 0%, #1a1714 50%, #12100e 100%);
+}
+
+:root[data-theme="dark"] .auth-gradient-bg {
+  background:
+    radial-gradient(ellipse 90% 70% at 50% -20%, rgba(124, 98, 140, 0.15), transparent 55%),
+    linear-gradient(180deg, #0f0d0b 0%, #1a1714 55%, #12100e 100%);
+}
+
 .shell-sidebar {
-  background-color: #f7f4eb;
-  border-right: 1px solid #e1d9c6;
+  background-color: var(--mo-shell-bg);
+  border-right: 1px solid var(--mo-border);
   box-shadow: 2px 0 16px -4px rgba(184, 164, 126, 0.12);
+}
+
+:root[data-theme="dark"] .shell-sidebar {
+  box-shadow: 2px 0 20px -4px rgba(0, 0, 0, 0.35);
 }
 
 .shell-nav-icon {
@@ -93,11 +181,11 @@ body {
   color: var(--mo-text-muted);
 }
 .shell-nav-link:hover {
-  background: rgba(255, 255, 255, 0.45);
+  background: var(--mo-nav-hover);
   color: var(--mo-text);
 }
 .shell-nav-link.is-active {
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--mo-nav-active-bg);
   border: 1px solid var(--mo-gold);
   box-shadow: 0 0 14px rgba(212, 175, 55, 0.18), var(--mo-shadow-luxury);
   color: var(--mo-text);
@@ -140,13 +228,67 @@ body {
 .btn-secondary {
   @apply rounded-xl border px-4 py-2 text-sm font-semibold transition disabled:opacity-50;
   border-color: var(--mo-border-strong);
-  background-color: #fff;
+  background-color: var(--mo-surface-elevated);
   color: var(--mo-accent-hover);
   box-shadow: var(--mo-shadow-luxury);
 }
 .btn-secondary:hover:not(:disabled) {
   background-color: var(--mo-accent-soft);
   border-color: var(--mo-gold);
+}
+
+/* Онлайн-запись — карточки с читаемым контрастом */
+.booking-appt {
+  @apply font-semibold shadow-sm;
+  border-width: 1px;
+  border-style: solid;
+}
+.booking-appt--booked {
+  background: var(--booking-appt-booked-bg);
+  border-color: var(--booking-appt-booked-border);
+  color: var(--booking-appt-booked-text);
+}
+.booking-appt--completed {
+  background: var(--booking-appt-completed-bg);
+  border-color: var(--booking-appt-completed-border);
+  color: var(--booking-appt-completed-text);
+}
+.booking-appt--no_show {
+  background: var(--booking-appt-neutral-bg);
+  border-color: var(--booking-appt-neutral-border);
+  color: var(--booking-appt-neutral-text);
+}
+.booking-appt--cancelled {
+  background: var(--booking-appt-cancel-bg);
+  border-color: var(--booking-appt-cancel-border);
+  color: var(--booking-appt-cancel-text);
+  opacity: 0.88;
+}
+.booking-appt--notify {
+  background: var(--booking-appt-notify-bg);
+  border-color: var(--booking-appt-notify-border);
+  color: var(--booking-appt-notify-text);
+}
+.booking-appt--replied {
+  background: var(--booking-appt-replied-bg);
+  border-color: var(--booking-appt-replied-border);
+  color: var(--booking-appt-replied-text);
+}
+.booking-appt-meta {
+  color: var(--booking-appt-meta);
+}
+.booking-appt-badge {
+  background: var(--booking-appt-badge-bg);
+  color: inherit;
+}
+.booking-grid-hatch {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 5px,
+    var(--booking-grid-hatch) 5px,
+    var(--booking-grid-hatch) 10px
+  );
 }
 
 .mo-text { color: var(--mo-text); }
