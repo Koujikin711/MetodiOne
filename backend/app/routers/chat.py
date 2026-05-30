@@ -1,7 +1,7 @@
 import logging
 import mimetypes
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
@@ -19,6 +19,7 @@ from app.models import (
     Integration,
     IntegrationProvider,
     Lead,
+    LeadAuditEvent,
     Pipeline,
     User,
     UserPipelineAssignment,
@@ -56,6 +57,19 @@ class ChatThreadRead(BaseModel):
         default=None,
         description="Направление последнего сообщения: in — от клиента, out — от менеджера.",
     )
+    is_transferred: bool = Field(
+        default=False,
+        description="Лид передан этому менеджеру при перераспределении (не изначально его).",
+    )
+
+
+ChatThreadBucket = Literal["transferred", "own", "awaiting_reply"]
+
+
+class ChatThreadBucketCounts(BaseModel):
+    transferred: int = 0
+    own: int = 0
+    awaiting_reply: int = 0
 
 
 class ChatMessageRead(BaseModel):
@@ -87,6 +101,19 @@ async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
         )
     )
     return {r[0] for r in rows.all()}
+
+
+def _lead_transferred_to_manager_exists(lead_id_col, *, manager_id: int, company_id: int):
+    return exists(
+        select(1)
+        .select_from(LeadAuditEvent)
+        .where(
+            LeadAuditEvent.lead_id == lead_id_col,
+            LeadAuditEvent.company_id == company_id,
+            LeadAuditEvent.action == "manager_reassigned",
+            LeadAuditEvent.details.like(f"%to_manager_id={manager_id}%"),
+        ),
+    )
 
 
 async def _expert_pipeline_ids(db: AsyncSession, *, user_id: int, company_id: int) -> set[int]:
@@ -339,12 +366,116 @@ async def _send_green_file_message(
     return _msg_read(msg)
 
 
+def _apply_thread_search(query, *, term: str):
+    like = f"%{term}%"
+    conds = [
+        Lead.name.ilike(like),
+        Lead.phone.ilike(like),
+        ChatThread.title.ilike(like),
+        ChatThread.external_chat_id.ilike(like),
+        exists(
+            select(ChatMessage.id)
+            .where(
+                ChatMessage.thread_id == ChatThread.id,
+                ChatMessage.text.ilike(like),
+            )
+            .limit(1),
+        ),
+    ]
+    digits = "".join(ch for ch in term if ch.isdigit())
+    if digits:
+        dlike = f"%{digits}%"
+        conds.extend(
+            [
+                Lead.phone.ilike(dlike),
+                ChatThread.external_chat_id.ilike(dlike),
+            ],
+        )
+    return query.where(or_(*conds))
+
+
+def _apply_manager_thread_bucket(
+    query,
+    *,
+    bucket: ChatThreadBucket | None,
+    manager_id: int,
+    company_id: int,
+    last_direction_sq,
+):
+    if bucket is None:
+        return query
+    transferred = _lead_transferred_to_manager_exists(
+        Lead.id,
+        manager_id=manager_id,
+        company_id=company_id,
+    )
+    if bucket == "transferred":
+        return query.where(transferred)
+    if bucket == "own":
+        return query.where(~transferred)
+    if bucket == "awaiting_reply":
+        return query.where(last_direction_sq == "in")
+    return query
+
+
+@router.get("/threads/bucket-counts", response_model=ChatThreadBucketCounts)
+async def thread_bucket_counts(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    q: str | None = Query(default=None, max_length=120),
+) -> ChatThreadBucketCounts:
+    """Счётчики для трёх вкладок чата менеджера."""
+    if current_user.role not in (UserRole.manager, UserRole.admin):
+        return ChatThreadBucketCounts()
+    allowed = await _manager_pipeline_ids(db, current_user.id)
+    if not allowed:
+        return ChatThreadBucketCounts()
+    term = (q or "").strip()
+    last_direction_sq = (
+        select(ChatMessage.direction)
+        .where(ChatMessage.thread_id == ChatThread.id)
+        .order_by(ChatMessage.id.desc())
+        .limit(1)
+        .correlate(ChatThread)
+        .scalar_subquery()
+    )
+    base = (
+        select(func.count(ChatThread.id))
+        .select_from(ChatThread)
+        .outerjoin(Lead, Lead.id == ChatThread.lead_id)
+        .where(
+            ChatThread.company_id == company_id,
+            ChatThread.pipeline_id.in_(allowed),
+            Lead.manager_id == current_user.id,
+        )
+    )
+    if term:
+        base = _apply_thread_search(base, term=term)
+    out = ChatThreadBucketCounts()
+    for bucket in ("transferred", "own", "awaiting_reply"):
+        qcnt = _apply_manager_thread_bucket(
+            base,
+            bucket=bucket,  # type: ignore[arg-type]
+            manager_id=current_user.id,
+            company_id=company_id,
+            last_direction_sq=last_direction_sq,
+        )
+        cnt = int((await db.execute(qcnt)).scalar_one() or 0)
+        setattr(out, bucket, cnt)
+    return out
+
+
 @router.get("/threads", response_model=list[ChatThreadRead])
 async def list_threads(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
     q: str | None = Query(default=None, max_length=120),
+    bucket: ChatThreadBucket | None = Query(
+        default=None,
+        description="Вкладка для менеджера: transferred | own | awaiting_reply",
+    ),
     limit: int | None = Query(default=None, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> list[ChatThreadRead]:
@@ -383,27 +514,38 @@ async def list_threads(
         .correlate(ChatThread)
         .scalar_subquery()
     )
-    query = (
-        select(
-            ChatThread.id,
-            ChatThread.lead_id,
-            Lead.name,
-            Lead.manager_id.label("manager_id"),
-            func.coalesce(User.full_name, User.email).label("manager_name"),
-            ChatThread.provider,
-            ChatThread.external_chat_id,
-            ChatThread.title,
-            ChatThread.pipeline_id,
-            ChatThread.updated_at,
-            first_message_at_sq.label("first_message_at"),
-            last_direction_sq.label("last_message_direction"),
-            unread_count_sq.label("unread_count"),
+    is_manager_view = current_user.role in (UserRole.manager, UserRole.admin)
+    transferred_sq = None
+    if is_manager_view:
+        transferred_sq = _lead_transferred_to_manager_exists(
+            Lead.id,
+            manager_id=current_user.id,
+            company_id=company_id,
         )
+    select_cols = [
+        ChatThread.id,
+        ChatThread.lead_id,
+        Lead.name,
+        Lead.manager_id.label("manager_id"),
+        func.coalesce(User.full_name, User.email).label("manager_name"),
+        ChatThread.provider,
+        ChatThread.external_chat_id,
+        ChatThread.title,
+        ChatThread.pipeline_id,
+        ChatThread.updated_at,
+        first_message_at_sq.label("first_message_at"),
+        last_direction_sq.label("last_message_direction"),
+        unread_count_sq.label("unread_count"),
+    ]
+    if transferred_sq is not None:
+        select_cols.append(case((transferred_sq, True), else_=False).label("is_transferred"))
+    query = (
+        select(*select_cols)
         .outerjoin(Lead, Lead.id == ChatThread.lead_id)
         .outerjoin(User, User.id == Lead.manager_id)
         .where(ChatThread.company_id == company_id)
     )
-    if current_user.role in (UserRole.manager, UserRole.admin):
+    if is_manager_view:
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if not allowed:
             return []
@@ -411,37 +553,20 @@ async def list_threads(
             ChatThread.pipeline_id.in_(allowed),
             Lead.manager_id == current_user.id,
         )
+        query = _apply_manager_thread_bucket(
+            query,
+            bucket=bucket,
+            manager_id=current_user.id,
+            company_id=company_id,
+            last_direction_sq=last_direction_sq,
+        )
     if current_user.role == UserRole.expert:
         allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
         if not allowed:
             return []
         query = query.where(ChatThread.pipeline_id.in_(allowed))
     if term:
-        like = f"%{term}%"
-        conds = [
-            Lead.name.ilike(like),
-            Lead.phone.ilike(like),
-            ChatThread.title.ilike(like),
-            ChatThread.external_chat_id.ilike(like),
-            exists(
-                select(ChatMessage.id)
-                .where(
-                    ChatMessage.thread_id == ChatThread.id,
-                    ChatMessage.text.ilike(like),
-                )
-                .limit(1),
-            ),
-        ]
-        digits = "".join(ch for ch in term if ch.isdigit())
-        if digits:
-            dlike = f"%{digits}%"
-            conds.extend(
-                [
-                    Lead.phone.ilike(dlike),
-                    ChatThread.external_chat_id.ilike(dlike),
-                ]
-            )
-        query = query.where(or_(*conds))
+        query = _apply_thread_search(query, term=term)
     # Сначала диалоги, где последнее сообщение от клиента (ждём ответ), затем по свежести.
     needs_reply = case((last_direction_sq == "in", 1), else_=0)
     query = query.order_by(needs_reply.desc(), ChatThread.updated_at.desc(), ChatThread.id.desc())
@@ -467,6 +592,7 @@ async def list_threads(
                 unread_count=int(row.unread_count or 0),
                 first_message_at=row.first_message_at,
                 last_message_direction=row.last_message_direction,
+                is_transferred=bool(getattr(row, "is_transferred", False)),
             )
         )
     return out

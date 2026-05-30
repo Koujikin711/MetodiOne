@@ -75,6 +75,16 @@ export interface ChatThread {
   first_message_at?: string | null;
   /** Направление последнего сообщения: in — от клиента, out — от нас */
   last_message_direction?: "in" | "out" | null;
+  /** Лид передан менеджеру при перераспределении */
+  is_transferred?: boolean;
+}
+
+export type ChatThreadBucket = "transferred" | "own" | "awaiting_reply";
+
+export interface ChatThreadBucketCounts {
+  transferred: number;
+  own: number;
+  awaiting_reply: number;
 }
 
 export interface ChatMessage {
