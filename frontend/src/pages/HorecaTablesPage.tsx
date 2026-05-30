@@ -31,27 +31,27 @@ export function HorecaTablesPage() {
     <div className="mx-auto max-w-[1300px] space-y-4 pb-10">
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-widest text-teal-300/90">HoReCa / Столики</p>
-        <h1 className="text-3xl font-semibold text-white">Зал: столики в реальном времени</h1>
-        <p className="text-sm text-slate-400">Нумерация столиков и онлайн-статусы: занято или свободно.</p>
-        <p className="text-xs text-slate-500">{roleLabel}</p>
+        <h1 className="lux-heading-page">Зал: столики в реальном времени</h1>
+        <p className="text-sm lux-caption">Нумерация столиков и онлайн-статусы: занято или свободно.</p>
+        <p className="text-xs mo-muted">{roleLabel}</p>
       </header>
 
-      <div className="flex flex-wrap gap-2 text-xs text-slate-300">
-        <Link to="/horeca/orders" className="rounded-lg border border-slate-600/50 px-3 py-1.5 hover:bg-slate-800/60">
+      <div className="flex flex-wrap gap-2 text-xs mo-muted">
+        <Link to="/horeca/orders" className="rounded-lg border border-[var(--mo-border-strong)]/50 px-3 py-1.5 hover:bg-[var(--mo-accent-soft)]">
           К заказам
         </Link>
-        <Link to="/horeca" className="rounded-lg border border-slate-600/50 px-3 py-1.5 hover:bg-slate-800/60">
+        <Link to="/horeca" className="rounded-lg border border-[var(--mo-border-strong)]/50 px-3 py-1.5 hover:bg-[var(--mo-accent-soft)]">
           В центр HoReCa
         </Link>
       </div>
 
-      {tablesQuery.isLoading ? <p className="text-sm text-slate-400">Загрузка зала…</p> : null}
-      {tablesQuery.isError ? <p className="text-sm text-rose-300">{(tablesQuery.error as Error).message}</p> : null}
+      {tablesQuery.isLoading ? <p className="text-sm lux-caption">Загрузка зала…</p> : null}
+      {tablesQuery.isError ? <p className="text-sm text-[#6b1d2f]">{(tablesQuery.error as Error).message}</p> : null}
 
       <section className="grid gap-3 sm:grid-cols-3">
-        <article className="rounded-2xl border border-slate-700/40 bg-slate-900/40 p-4">
-          <p className="text-xs text-slate-400">Всего столиков</p>
-          <p className="mt-2 text-3xl font-semibold text-white">{activeTables.length}</p>
+        <article className="rounded-2xl mo-section p-4">
+          <p className="text-xs lux-caption">Всего столиков</p>
+          <p className="mt-2 lux-heading-page">{activeTables.length}</p>
         </article>
         <article className="rounded-2xl border border-rose-500/35 bg-rose-950/20 p-4">
           <p className="text-xs text-rose-200/80">Занято сейчас</p>
@@ -77,7 +77,7 @@ export function HorecaTablesPage() {
               ].join(" ")}
             >
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-white">Стол #{t.table_number}</h2>
+                <h2 className="lux-subheading">Стол #{t.table_number}</h2>
                 <span
                   className={[
                     "rounded-full px-2 py-0.5 text-xs",
@@ -87,16 +87,16 @@ export function HorecaTablesPage() {
                   {busy ? "Занят" : "Свободен"}
                 </span>
               </div>
-              <p className="mt-2 text-sm text-slate-300">{t.table_name}</p>
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-2 text-sm mo-muted">{t.table_name}</p>
+              <p className="mt-1 text-xs lux-caption">
                 {busy ? `Гость: ${(t.current_guest_name || "").trim() || "—"}` : "Ожидает посадку"}
               </p>
-              {busy ? <p className="mt-1 text-xs text-slate-500">Блюдо: {(t.current_item_name || "").trim() || "—"}</p> : null}
+              {busy ? <p className="mt-1 text-xs mo-muted">Блюдо: {(t.current_item_name || "").trim() || "—"}</p> : null}
             </div>
           );
         })}
         {!tablesQuery.isLoading && activeTables.length === 0 ? (
-          <p className="text-sm text-slate-500">Нет столиков. Добавьте персонал зала/столики в модуле записи.</p>
+          <p className="text-sm mo-muted">Нет столиков. Добавьте персонал зала/столики в модуле записи.</p>
         ) : null}
       </section>
     </div>

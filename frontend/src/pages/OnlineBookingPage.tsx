@@ -547,7 +547,7 @@ export function OnlineBookingPage() {
         "rounded-xl px-4 py-2 text-sm font-medium transition-all",
         tab === id
           ? "bg-white/10 text-white ring-1 ring-purple-500/40"
-          : "text-slate-400 hover:bg-white/5 hover:text-slate-200",
+          : "lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]",
       ].join(" ")}
     >
       {label}
@@ -561,7 +561,7 @@ export function OnlineBookingPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Онлайн-записи</h1>
           <Link
             to="/app"
-            className="inline-flex text-sm font-medium text-purple-300 underline-offset-4 hover:text-purple-200 hover:underline"
+            className="inline-flex text-sm font-medium text-purple-300 underline-offset-4 hover:text-[#614b70] hover:underline"
           >
             ← К канбану
           </Link>
@@ -578,17 +578,17 @@ export function OnlineBookingPage() {
             <>
               <button
                 type="button"
-                className="fixed inset-0 z-40 block bg-slate-950/70"
+                className="fixed inset-0 z-40 block bg-[var(--mo-surface-elevated)]/70"
                 aria-label="Закрыть календарь"
                 onClick={() => setCalendarDrawerOpen(false)}
               />
-              <aside className="fixed left-0 top-0 z-50 flex h-full w-[min(100vw,18rem)] flex-col border-r border-white/10 bg-slate-900/98 p-4 shadow-2xl shadow-black/50 backdrop-blur-md">
+              <aside className="fixed left-0 top-0 z-50 flex h-full w-[min(100vw,18rem)] flex-col border-r border-[var(--mo-border)] bg-white/98 p-4 shadow-2xl shadow-[var(--mo-shadow-luxury)] backdrop-blur-md">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold text-white">Дата записи</h2>
                   <button
                     type="button"
                     onClick={() => setCalendarDrawerOpen(false)}
-                    className="rounded-lg border border-white/15 px-2 py-1 text-xs text-slate-300 hover:bg-white/10"
+                    className="rounded-lg border border-[var(--mo-border-strong)] px-2 py-1 text-xs mo-muted hover:bg-white/10"
                   >
                     Закрыть
                   </button>
@@ -600,13 +600,13 @@ export function OnlineBookingPage() {
                     setCalendarDrawerOpen(false);
                   }}
                 />
-                <label className="mt-4 block text-xs text-slate-400">
+                <label className="mt-4 block text-xs lux-caption">
                   День (точно)
                   <input
                     type="date"
                     value={filterDate}
                     onChange={(e) => setFilterDate(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-950/50 px-2 py-2 text-sm text-white"
+                    className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-surface)] px-2 py-2 text-sm text-white"
                   />
                 </label>
               </aside>
@@ -614,24 +614,24 @@ export function OnlineBookingPage() {
           )}
 
           <div className="flex flex-wrap items-center gap-3">
-            <label className="text-sm text-slate-300">
+            <label className="text-sm mo-muted">
               Дата
               <input
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
-                className="ml-2 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-white"
+                className="ml-2 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-1.5 text-white"
               />
             </label>
             <button
               type="button"
               onClick={() => setCalendarDrawerOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-800 xl:hidden"
+              className="inline-flex items-center gap-2 rounded-xl border border-[var(--mo-border-strong)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)] xl:hidden"
             >
               <Calendar className="h-4 w-4 text-purple-300" />
               Месяц
             </button>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] lux-caption">
               <span className="rounded border border-sky-300/40 bg-sky-500/15 px-2 py-0.5 text-sky-100">Записан</span>
               <span className="rounded border border-amber-300/50 bg-amber-500/15 px-2 py-0.5 text-amber-100">Уведомление отправлено</span>
               <span className="rounded border border-violet-300/50 bg-violet-500/20 px-2 py-0.5 text-violet-100">Клиент ответил</span>
@@ -652,27 +652,27 @@ export function OnlineBookingPage() {
                 onReorderSpecialists={canEditBooking ? (orderedIds) => reorderSpecialistsMutation.mutate(orderedIds) : undefined}
               />
               {gridAppointmentsQuery.isLoading && (
-                <p className="mt-3 text-sm text-slate-400">Загрузка записей…</p>
+                <p className="mt-3 text-sm lux-caption">Загрузка записей…</p>
               )}
             </div>
             <aside className="flex w-full min-w-0 flex-col gap-2 xl:sticky xl:top-4 xl:max-h-[calc(100vh-3rem)] xl:max-w-[280px] xl:overflow-y-auto">
-              <section className="hidden rounded-2xl border border-slate-700/40 bg-slate-800/30 p-3 shadow-inner backdrop-blur-sm xl:block">
+              <section className="hidden mo-section p-3 shadow-inner backdrop-blur-sm xl:block">
                 <h2 className="mb-2 text-sm font-semibold text-white">Дата записи</h2>
                 <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
-                <label className="mt-3 block text-xs text-slate-400">
+                <label className="mt-3 block text-xs lux-caption">
                   День (точно)
                   <input
                     type="date"
                     value={filterDate}
                     onChange={(e) => setFilterDate(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-950/50 px-2 py-2 text-sm text-white"
+                    className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-surface)] px-2 py-2 text-sm text-white"
                   />
                 </label>
               </section>
               {canEditBooking ? (
                 <section
                   ref={formPanelRef}
-                  className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm ring-1 ring-purple-500/15"
+                  className="mo-section p-4 shadow-inner backdrop-blur-sm ring-1 ring-purple-500/15"
                 >
                   <h2 className="mb-3 text-base font-semibold text-white">Новая запись</h2>
                   <form onSubmit={onSubmit} className="space-y-2.5">
@@ -681,33 +681,33 @@ export function OnlineBookingPage() {
                     Привязан лид #{leadId} — после сохранения он перейдёт в «В работе».
                   </p>
                 )}
-                <label className="block text-sm text-slate-300">
+                <label className="block text-sm mo-muted">
                   Пациент / клиент
                   <input
                     required
                     value={patientName}
                     onChange={(e) => setPatientName(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="mt-1 w-full mo-input"
                   />
                 </label>
-                <label className="block text-sm text-slate-300">
+                <label className="block text-sm mo-muted">
                   Телефон
                   <input
                     required
                     value={patientPhone}
                     onChange={(e) => setPatientPhone(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="mt-1 w-full mo-input"
                   />
                 </label>
                 {!leadId && (
                   <>
-                    <label className="block text-sm text-slate-300">
+                    <label className="block text-sm mo-muted">
                       Воронка для новой карточки
                       <select
                         required
                         value={newLeadPipelineId ?? ""}
                         onChange={(e) => setNewLeadPipelineId(Number(e.target.value))}
-                        className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                        className="mt-1 w-full mo-input"
                       >
                         {(pipelinesQuery.data ?? []).map((p) => (
                           <option key={p.id} value={p.id}>
@@ -716,13 +716,13 @@ export function OnlineBookingPage() {
                         ))}
                       </select>
                     </label>
-                    <label className="block text-sm text-slate-300">
+                    <label className="block text-sm mo-muted">
                       Стадия для новой карточки
                       <select
                         required
                         value={newLeadStageId ?? ""}
                         onChange={(e) => setNewLeadStageId(Number(e.target.value))}
-                        className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                        className="mt-1 w-full mo-input"
                       >
                         {(leadStagesQuery.data ?? []).map((s) => (
                           <option key={s.id} value={s.id}>
@@ -733,23 +733,23 @@ export function OnlineBookingPage() {
                     </label>
                   </>
                 )}
-                <label className="block text-sm text-slate-300">
+                <label className="block text-sm mo-muted">
                   Услуга (вручную)
                   <input
                     required
                     value={serviceTitle}
                     onChange={(e) => setServiceTitle(e.target.value)}
                     placeholder="Например: консультация, массаж…"
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white placeholder:text-slate-500"
+                    className="mt-1 w-full mo-input placeholder:mo-muted"
                   />
                 </label>
-                <label className="block text-sm text-slate-300">
+                <label className="block text-sm mo-muted">
                   Специалист
                   <select
                     required
                     value={specialistId || ""}
                     onChange={(e) => setSpecialistId(Number(e.target.value))}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="mt-1 w-full mo-input"
                   >
                     {specialistsForFormSelect.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -758,20 +758,20 @@ export function OnlineBookingPage() {
                     ))}
                   </select>
                 </label>
-                <label className="block text-sm text-slate-300">
+                <label className="block text-sm mo-muted">
                   Дата и время
                   <input
                     type="datetime-local"
                     required
                     value={startAt}
                     onChange={(e) => setStartAt(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="mt-1 w-full mo-input"
                   />
-                  <p className="mt-1 text-[10px] text-slate-500">
+                  <p className="mt-1 text-[10px] mo-muted">
                     Время в часовом поясе записи: {BOOKING_TIME_ZONE} (как на сервере).
                   </p>
                 </label>
-                <label className="block text-sm text-slate-300">
+                <label className="block text-sm mo-muted">
                   Стоимость услуги
                   <input
                     type="number"
@@ -781,19 +781,19 @@ export function OnlineBookingPage() {
                     value={fixedServiceAmount ?? serviceAmount}
                     onChange={(e) => setServiceAmount(Number(e.target.value))}
                     disabled={fixedServiceAmount != null}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white disabled:opacity-70"
+                    className="mt-1 w-full mo-input disabled:opacity-70"
                   />
                   {fixedServiceAmount != null ? (
-                    <p className="mt-1 text-xs text-emerald-300">
+                    <p className="mt-1 text-xs text-[#0f4c3a]">
                       Цена зафиксирована в KPI ({kpiPriceHintQuery.data?.year_month}). Введите только сумму оплаты.
                     </p>
                   ) : (
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs mo-muted">
                       Если владелец задал цену услуги в KPI на этот месяц, поле подставится автоматически.
                     </p>
                   )}
                 </label>
-                <label className="block text-sm text-slate-300">
+                <label className="block text-sm mo-muted">
                   Оплатил клиент
                   <input
                     type="number"
@@ -802,30 +802,30 @@ export function OnlineBookingPage() {
                     required
                     value={paidAmount}
                     onChange={(e) => setPaidAmount(Number(e.target.value))}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="mt-1 w-full mo-input"
                   />
                 </label>
                 {isManagerOrAdmin ? (
-                  <label className="block text-sm text-slate-300">
+                  <label className="block text-sm mo-muted">
                     Ответственный менеджер
                     <input
                       type="text"
                       value={currentUserName}
                       readOnly
-                      className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white opacity-90"
+                      className="mt-1 w-full mo-input opacity-90"
                     />
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs mo-muted">
                       Подставляется автоматически при оплате.
                     </p>
                   </label>
                 ) : null}
-                <label className="block text-sm text-slate-300">
+                <label className="block text-sm mo-muted">
                   Комментарий
                   <textarea
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     rows={3}
-                    className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+                    className="mt-1 w-full mo-input"
                   />
                 </label>
                     <button
@@ -838,15 +838,15 @@ export function OnlineBookingPage() {
                   </form>
                 </section>
               ) : (
-                <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 text-sm text-slate-300 shadow-inner backdrop-blur-sm">
-                  <h2 className="mb-2 text-lg font-semibold text-white">Режим эксперта</h2>
+                <section className="mo-section p-5 text-sm mo-muted shadow-inner backdrop-blur-sm">
+                  <h2 className="mb-2 lux-subheading">Режим эксперта</h2>
                   <p>Доступен только просмотр ваших записей в календаре и журнале.</p>
                 </section>
               )}
             </aside>
           </div>
           {canEditBooking ? (
-            <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
+            <section className="mo-section p-4">
               <h2 className="mb-3 text-sm font-semibold text-white">Источники заявок</h2>
               <form
                 className="mb-3 flex flex-wrap gap-2"
@@ -860,7 +860,7 @@ export function OnlineBookingPage() {
                   placeholder="Напр. Instagram / Рекомендация / Сайт"
                   value={sourceName}
                   onChange={(e) => setSourceName(e.target.value)}
-                  className="min-w-[200px] flex-1 rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-sm text-white"
+                  className="min-w-[200px] flex-1 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
                 />
                 <button
                   type="submit"
@@ -869,14 +869,14 @@ export function OnlineBookingPage() {
                   Добавить
                 </button>
               </form>
-              <ul className="max-h-40 space-y-1 overflow-y-auto text-sm text-slate-300">
+              <ul className="max-h-40 space-y-1 overflow-y-auto text-sm mo-muted">
                 {(sourcesQuery.data ?? []).map((s) => (
-                  <li key={s.id} className="rounded-lg border border-slate-700/50 px-2 py-1.5">
+                  <li key={s.id} className="rounded-lg border border-[var(--mo-border)] px-2 py-1.5">
                     {s.name} {!s.is_active ? <span className="text-xs text-amber-500/90">(выкл.)</span> : null}
                   </li>
                 ))}
                 {!sourcesQuery.isLoading && (sourcesQuery.data ?? []).length === 0 && (
-                  <li className="text-sm text-slate-500">Источников пока нет</li>
+                  <li className="text-sm mo-muted">Источников пока нет</li>
                 )}
               </ul>
             </section>
@@ -899,55 +899,55 @@ export function OnlineBookingPage() {
       />
 
       {tab === "journal" && (
-        <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5">
+        <section className="mo-section p-5">
           <div className="mb-4 flex flex-wrap items-center gap-3">
-            <label className="text-sm text-slate-300">
+            <label className="text-sm mo-muted">
               Дата
               <input
                 type="date"
                 value={journalDate}
                 onChange={(e) => setJournalDate(e.target.value)}
-                className="ml-2 rounded-xl border border-slate-600/50 bg-slate-900/50 px-2 py-1.5 text-white"
+                className="ml-2 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-1.5 text-white"
               />
             </label>
-            <label className="text-sm text-slate-300">
+            <label className="text-sm mo-muted">
               Поиск клиента (ФИО / телефон)
               <input
                 type="text"
                 value={journalSearch}
                 onChange={(e) => setJournalSearch(e.target.value)}
                 placeholder="Напр. Иванов или 992..."
-                className="ml-2 w-72 rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-1.5 text-white placeholder:text-slate-500"
+                className="ml-2 w-72 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-1.5 text-white placeholder:mo-muted"
               />
             </label>
           </div>
           {journalSearch.trim().length >= 2 ? (
-            <div className="mb-4 rounded-xl border border-slate-700/50 bg-slate-900/35 p-3">
+            <div className="mb-4 rounded-xl border border-[var(--mo-border)] bg-white/35 p-3">
               <h3 className="mb-2 text-sm font-semibold text-white">История клиента</h3>
-              {patientHistoryQuery.isLoading && <p className="text-sm text-slate-400">Ищем историю...</p>}
+              {patientHistoryQuery.isLoading && <p className="text-sm lux-caption">Ищем историю...</p>}
               {patientHistoryQuery.isError && (
                 <p className="text-sm text-red-300">{(patientHistoryQuery.error as Error).message}</p>
               )}
               {patientHistoryQuery.data && patientHistoryQuery.data.length === 0 && (
-                <p className="text-sm text-slate-400">Ничего не найдено по запросу.</p>
+                <p className="text-sm lux-caption">Ничего не найдено по запросу.</p>
               )}
               {patientHistoryQuery.data && patientHistoryQuery.data.length > 0 && (
                 <div className="space-y-3">
                   {patientHistoryQuery.data.map((item) => (
-                    <div key={`${item.patient_name}-${item.patient_phone}`} className="rounded-lg border border-slate-700/60 p-3">
+                    <div key={`${item.patient_name}-${item.patient_phone}`} className="rounded-lg border border-[var(--mo-border)] p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <p className="text-sm font-semibold text-white">{item.patient_name}</p>
-                          <p className="text-xs text-slate-400">{item.patient_phone}</p>
+                          <p className="text-xs lux-caption">{item.patient_phone}</p>
                         </div>
-                        <div className="text-right text-xs text-slate-300">
+                        <div className="text-right text-xs mo-muted">
                           <p>Всего записей: <b>{item.total_visits}</b></p>
                           <p>Последняя: <b>{item.last_visit_at ? formatDt(item.last_visit_at) : "—"}</b></p>
                         </div>
                       </div>
                       <div className="mt-2 overflow-x-auto">
-                        <table className="w-full min-w-[620px] text-left text-xs text-slate-300">
-                          <thead className="text-slate-500">
+                        <table className="w-full min-w-[620px] text-left text-xs mo-muted">
+                          <thead className="mo-muted">
                             <tr>
                               <th className="py-1 pr-3">Когда</th>
                               <th className="py-1 pr-3">Специалист</th>
@@ -976,9 +976,9 @@ export function OnlineBookingPage() {
             </div>
           ) : null}
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1200px] border-collapse text-left text-sm text-slate-200">
+            <table className="w-full min-w-[1200px] border-collapse text-left text-sm text-[var(--mo-text)]">
               <thead>
-                <tr className="border-b border-slate-700 text-slate-400">
+                <tr className="border-b border-[var(--mo-border)] lux-caption">
                   <th className="py-2 pr-4">Время</th>
                   <th className="py-2 pr-4">Пациент</th>
                   <th className="py-2 pr-4">Услуга</th>
@@ -1004,12 +1004,12 @@ export function OnlineBookingPage() {
                     <td className="py-2 pr-4 whitespace-nowrap">{formatDt(a.start_at)}</td>
                     <td className="py-2 pr-4">
                       {a.patient_name}
-                      <span className="block text-xs text-slate-500">{a.patient_phone}</span>
+                      <span className="block text-xs mo-muted">{a.patient_phone}</span>
                     </td>
-                    <td className="py-2 pr-4 text-slate-300">
+                    <td className="py-2 pr-4 mo-muted">
                       {(a.service_title || "").trim() || a.direction_name || "—"}
                     </td>
-                    <td className="py-2 pr-4 text-slate-400">{a.specialist_name}</td>
+                    <td className="py-2 pr-4 lux-caption">{a.specialist_name}</td>
                     <td className="py-2 pr-4">{a.service_amount ?? 0}</td>
                     <td className="py-2 pr-4">
                       {a.can_manage_journal ? (
@@ -1024,7 +1024,7 @@ export function OnlineBookingPage() {
                             if (next === Number(a.paid_amount ?? 0)) return;
                             paymentMutation.mutate({ id: a.id, paid_amount: next });
                           }}
-                          className="w-28 rounded-lg border border-slate-600/50 bg-slate-900/80 px-2 py-1 text-white"
+                          className="w-28 rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/80 px-2 py-1 text-white"
                         />
                       ) : (
                         <span>{a.paid_amount ?? 0}</span>
@@ -1034,7 +1034,7 @@ export function OnlineBookingPage() {
                       {Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? (
                         <span className="rounded bg-amber-500/20 px-2 py-0.5 text-amber-300">Долг</span>
                       ) : (
-                        <span className="text-emerald-300">Оплачено</span>
+                        <span className="text-[#0f4c3a]">Оплачено</span>
                       )}
                     </td>
                     <td className="py-2 pr-4">
@@ -1044,7 +1044,7 @@ export function OnlineBookingPage() {
                           onChange={(e) =>
                             statusMutation.mutate({ id: a.id, status: e.target.value })
                           }
-                          className="rounded-lg border border-slate-600/50 bg-slate-900/80 px-2 py-1 text-white"
+                          className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/80 px-2 py-1 text-white"
                         >
                           {Object.entries(statusLabels).map(([k, v]) => (
                             <option key={k} value={k}>
@@ -1053,7 +1053,7 @@ export function OnlineBookingPage() {
                           ))}
                         </select>
                       ) : (
-                        <span className="text-slate-300">{statusLabels[a.status] ?? a.status}</span>
+                        <span className="mo-muted">{statusLabels[a.status] ?? a.status}</span>
                       )}
                     </td>
                     {(journalQuery.data ?? []).some((x) => x.can_manage_journal) && (
@@ -1077,7 +1077,7 @@ export function OnlineBookingPage() {
               </tbody>
             </table>
             {!journalQuery.isLoading && (journalQuery.data ?? []).length === 0 && (
-              <p className="py-6 text-center text-slate-500">Нет записей на эту дату</p>
+              <p className="py-6 text-center mo-muted">Нет записей на эту дату</p>
             )}
           </div>
         </section>

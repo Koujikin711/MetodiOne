@@ -116,52 +116,52 @@ export function SpecialistModal({
       }}
     >
       <div
-        className="max-h-[min(92vh,720px)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+        className="max-h-[min(92vh,720px)] w-full max-w-md overflow-y-auto rounded-2xl crm-modal-panel border p-6 shadow-2xl"
         role="dialog"
         aria-labelledby="specialist-modal-title"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <h2 id="specialist-modal-title" className="text-lg font-semibold text-white">
+        <h2 id="specialist-modal-title" className="lux-subheading">
           {mode === "add" ? "Добавить специалиста" : "Редактировать специалиста"}
         </h2>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs mo-muted">
           Карточка в сетке записи. Учётная запись MetodiOne не создаётся. График — в часовом поясе онлайн-записи
           (по умолчанию Asia/Dushanbe, как на сервере; можно задать VITE_BOOKING_TIMEZONE на фронте).
         </p>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-3">
-          <label className="block text-sm text-slate-300">
+          <label className="block text-sm mo-muted">
             Имя
             <input
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-950/50 px-3 py-2 text-white placeholder:text-slate-500"
+              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-surface)] px-3 py-2 text-white placeholder:mo-muted"
               placeholder="ФИО"
             />
           </label>
 
-          <label className="block text-sm text-slate-300">
+          <label className="block text-sm mo-muted">
             Роль
             <input
               readOnly
               value="Специалист"
-              className="mt-1 w-full cursor-not-allowed rounded-xl border border-slate-600/40 bg-slate-950/30 px-3 py-2 text-slate-400"
+              className="mt-1 w-full cursor-not-allowed rounded-xl border border-[var(--mo-border-strong)]/40 bg-[var(--mo-surface)] px-3 py-2 lux-caption"
             />
           </label>
 
-          <div className="rounded-xl border border-slate-600/40 bg-slate-950/30 p-3">
-            <p className="text-sm font-medium text-slate-200">График приёма (сетка 07:00–20:00)</p>
-            <p className="mt-0.5 text-[11px] text-slate-500">
+          <div className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-[var(--mo-surface)] p-3">
+            <p className="text-sm font-medium text-[var(--mo-text)]">График приёма (сетка 07:00–20:00)</p>
+            <p className="mt-0.5 text-[11px] mo-muted">
               Вне интервала и в выходные слоты недоступны для записи.
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <label className="text-xs text-slate-400 col-span-2">
+              <label className="text-xs lux-caption col-span-2">
                 Длительность записи
                 <select
                   value={slotDurationMin}
                   onChange={(e) => setSlotDurationMin(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-slate-600/50 bg-slate-900 px-2 py-1.5 text-sm text-white"
+                  className="mt-1 w-full rounded-lg border border-[var(--mo-border-strong)]/50 bg-white px-2 py-1.5 text-sm text-white"
                 >
                   <option value={30}>30 минут</option>
                   <option value={60}>1 час</option>
@@ -170,12 +170,12 @@ export function SpecialistModal({
                   <option value={180}>3 часа</option>
                 </select>
               </label>
-              <label className="text-xs text-slate-400">
+              <label className="text-xs lux-caption">
                 Начало
                 <select
                   value={workStart}
                   onChange={(e) => setWorkStart(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-slate-600/50 bg-slate-900 px-2 py-1.5 text-sm text-white"
+                  className="mt-1 w-full rounded-lg border border-[var(--mo-border-strong)]/50 bg-white px-2 py-1.5 text-sm text-white"
                 >
                   {HOUR_OPTIONS_START.map((h) => (
                     <option key={h} value={h}>
@@ -184,12 +184,12 @@ export function SpecialistModal({
                   ))}
                 </select>
               </label>
-              <label className="text-xs text-slate-400">
+              <label className="text-xs lux-caption">
                 Конец (не включая)
                 <select
                   value={workEnd}
                   onChange={(e) => setWorkEnd(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-slate-600/50 bg-slate-900 px-2 py-1.5 text-sm text-white"
+                  className="mt-1 w-full rounded-lg border border-[var(--mo-border-strong)]/50 bg-white px-2 py-1.5 text-sm text-white"
                 >
                   {HOUR_OPTIONS_END.map((h) => (
                     <option key={h} value={h}>
@@ -202,7 +202,7 @@ export function SpecialistModal({
             {workStart >= workEnd && (
               <p className="mt-2 text-xs text-red-400">Конец должен быть позже начала.</p>
             )}
-            <p className="mt-3 text-xs text-slate-400">Рабочие дни</p>
+            <p className="mt-3 text-xs lux-caption">Рабочие дни</p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {WEEKDAY_LABELS.map((label, d) => (
                 <button
@@ -212,8 +212,8 @@ export function SpecialistModal({
                   className={[
                     "rounded-lg border px-2.5 py-1 text-xs font-medium transition",
                     workWeekdays.includes(d)
-                      ? "border-purple-500/50 bg-purple-500/20 text-purple-100"
-                      : "border-slate-600/60 bg-slate-900/80 text-slate-500 line-through opacity-70",
+                      ? "border-purple-500/50 bg-[#ece6f0] text-purple-100"
+                      : "border-[var(--mo-border-strong)]/60 bg-white/80 mo-muted line-through opacity-70",
                   ].join(" ")}
                 >
                   {label}
@@ -222,22 +222,22 @@ export function SpecialistModal({
             </div>
           </div>
 
-          <label className="block text-sm text-slate-300">
+          <label className="block text-sm mo-muted">
             Специализация
             <input
               value={specialization}
               onChange={(e) => setSpecialization(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-950/50 px-3 py-2 text-white placeholder:text-slate-500"
+              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-surface)] px-3 py-2 text-white placeholder:mo-muted"
               placeholder="Необязательно"
             />
           </label>
 
-          <label className="block text-sm text-slate-300">
+          <label className="block text-sm mo-muted">
             Телефон
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-600/50 bg-slate-950/50 px-3 py-2 text-white placeholder:text-slate-500"
+              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-surface)] px-3 py-2 text-white placeholder:mo-muted"
               placeholder="Необязательно"
             />
           </label>
@@ -246,7 +246,7 @@ export function SpecialistModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-xl border border-slate-600 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800"
+              className="flex-1 rounded-xl border border-[var(--mo-border-strong)] py-2.5 text-sm font-medium mo-muted transition hover:bg-[var(--mo-accent-soft)]"
             >
               Отмена
             </button>

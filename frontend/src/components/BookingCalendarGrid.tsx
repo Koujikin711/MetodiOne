@@ -51,8 +51,8 @@ const DEFAULT_WEEKDAYS = [0, 1, 2, 3, 4];
 const statusCardClass: Record<string, string> = {
   booked: "border-sky-400/45 bg-sky-500/15 text-sky-50 shadow-[0_0_20px_rgba(56,189,248,0.12)]",
   completed: "border-emerald-400/45 bg-emerald-500/15 text-emerald-50 shadow-[0_0_20px_rgba(52,211,153,0.12)]",
-  no_show: "border-slate-500/50 bg-slate-600/25 text-slate-200",
-  cancelled: "border-slate-500/50 bg-slate-700/30 text-slate-300",
+  no_show: "border-slate-500/50 bg-slate-600/25 text-[var(--mo-text)]",
+  cancelled: "border-slate-500/50 bg-slate-700/30 mo-muted",
 };
 
 const notifySentClass =
@@ -267,17 +267,17 @@ function SortableSpecialistColumn({
     <div
       ref={setNodeRef}
       style={{ ...style, minHeight: gridHeightPx + SPEC_HEADER_PX }}
-      className="group/spec relative basis-[260px] grow shrink-0 border-r border-slate-700/40 last:border-r-0"
+      className="group/spec relative basis-[260px] grow shrink-0 border-r border-[var(--mo-border)] last:border-r-0"
     >
       <div
-        className="sticky top-0 z-20 border-b border-slate-700/50 bg-slate-900/90 backdrop-blur-sm"
+        className="sticky top-0 z-20 border-b border-[var(--mo-border)] bg-white/90 backdrop-blur-sm"
         style={{ minHeight: SPEC_HEADER_PX }}
       >
         <div className="relative flex min-h-[inherit] items-center gap-0.5 px-1 py-1 pr-8">
           {dragEnabled && (
             <button
               type="button"
-              className="shrink-0 rounded-md p-1 text-slate-500 hover:bg-slate-800 hover:text-slate-300"
+              className="shrink-0 rounded-md p-1 mo-muted hover:bg-[var(--mo-accent-soft)] hover:mo-muted"
               aria-label="Перетащить колонку"
               {...attributes}
               {...listeners}
@@ -287,7 +287,7 @@ function SortableSpecialistColumn({
           )}
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
             <p className="truncate text-sm font-semibold leading-tight text-white">{spec.full_name}</p>
-            <p className="truncate text-xs leading-tight text-slate-500">
+            <p className="truncate text-xs leading-tight mo-muted">
               {(spec.specialization ?? "").trim() || spec.direction_name || "—"}
             </p>
           </div>
@@ -295,7 +295,7 @@ function SortableSpecialistColumn({
             <div className="absolute right-1 top-1 z-30" data-spec-menu-root>
               <button
                 type="button"
-                className="rounded-lg p-1.5 text-slate-300/90 transition-colors duration-200 hover:bg-slate-800 hover:text-white"
+                className="rounded-lg p-1.5 mo-muted/90 transition-colors duration-200 hover:bg-[var(--mo-accent-soft)] hover:text-white"
                 aria-label="Меню специалиста"
                 aria-expanded={menuSpecId === spec.id}
                 onClick={(e) => {
@@ -306,21 +306,21 @@ function SortableSpecialistColumn({
                 <MoreHorizontal className="h-4 w-4" />
               </button>
               {menuSpecId === spec.id && (
-                <div className="absolute right-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/98 py-1 shadow-2xl shadow-black/40 backdrop-blur-md">
+                <div className="absolute right-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-xl border border-[var(--mo-border)]/80 bg-white/98 py-1 shadow-2xl shadow-[var(--mo-shadow-luxury)] backdrop-blur-md">
                   <button
                     type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
                     onClick={() => {
                       setMenuSpecId(null);
                       onEditSpecialist?.(spec);
                     }}
                   >
-                    <Pencil className="h-4 w-4 shrink-0 text-slate-400" />
+                    <Pencil className="h-4 w-4 shrink-0 lux-caption" />
                     Редактировать
                   </button>
                   <button
                     type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-400 transition hover:bg-slate-800"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-400 transition hover:bg-[var(--mo-accent-soft)]"
                     onClick={() => {
                       setMenuSpecId(null);
                       onDeleteSpecialist?.(spec);
@@ -372,7 +372,7 @@ function SortableSpecialistColumn({
             key={minuteOfDay}
             className={[
               "pointer-events-none absolute inset-x-0 border-t",
-              minuteOfDay % 60 === 0 ? "border-slate-700/35" : "border-slate-700/20",
+              minuteOfDay % 60 === 0 ? "border-[var(--mo-border)]/35" : "border-[var(--mo-border)]/20",
             ].join(" ")}
             style={{ top: `${((minuteOfDay - GRID_START_HOUR * 60) / ((GRID_END_HOUR - GRID_START_HOUR) * 60)) * 100}%` }}
           />
@@ -489,21 +489,21 @@ function SortableSpecialistColumn({
                   {a.patient_name}
                 </span>
                 {a.status === "completed" && (
-                  <span className="shrink-0 text-emerald-300" aria-hidden>
+                  <span className="shrink-0 text-[#0f4c3a]" aria-hidden>
                     ✓
                   </span>
                 )}
               </div>
               <div className="mt-0.5 flex items-center justify-between gap-2">
-                <div className="min-w-0 flex-1 truncate text-[10px] font-medium text-purple-200/90">
+                <div className="min-w-0 flex-1 truncate text-[10px] font-medium text-[#614b70]/90">
                   {(a.service_title || "").trim() || "—"}
                 </div>
                 <div className="shrink-0 text-[9px] opacity-80">
                   {formatTimeRangeInBookingTz(a.start_at, a.end_at)}
                 </div>
               </div>
-              <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-400">
-                <span className="rounded bg-slate-900/50 px-1 py-0.5">MetodiOne</span>
+              <div className="mt-1 flex items-center gap-1 text-[10px] lux-caption">
+                <span className="rounded bg-white/50 px-1 py-0.5">MetodiOne</span>
                 {a.lead_id ? (
                   <span className="text-purple-300">#{a.lead_id}</span>
                 ) : (
@@ -602,13 +602,13 @@ export function BookingCalendarGrid({
 
   if (specialists.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-slate-600/50 bg-slate-900/30 px-6 py-16 text-center text-slate-400">
+      <div className="rounded-2xl border border-dashed border-[var(--mo-border-strong)]/50 bg-white/30 px-6 py-16 text-center lux-caption">
         <p>Добавьте специалистов кнопкой «+» справа от сетки или в разделе «Справочники».</p>
         {onAddSpecialist && (
           <button
             type="button"
             onClick={onAddSpecialist}
-            className="mt-4 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 p-2 text-slate-300 transition-all duration-300 hover:bg-slate-700"
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-[var(--mo-border)] bg-[var(--mo-accent-soft)] p-2 mo-muted transition-all duration-300 hover:bg-[var(--mo-accent-soft)]"
             aria-label="Добавить специалиста"
           >
             <Plus className="h-4 w-4" />
@@ -635,18 +635,18 @@ export function BookingCalendarGrid({
       : "";
 
   return (
-    <div className="relative overflow-x-auto rounded-2xl border border-slate-700/40 bg-slate-950/40">
+    <div className="relative overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]">
       <div className="flex min-w-full">
-        <div className="sticky left-0 z-30 flex w-[52px] shrink-0 flex-col border-r border-slate-700/50 bg-slate-950/95 backdrop-blur-sm">
+        <div className="sticky left-0 z-30 flex w-[52px] shrink-0 flex-col border-r border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 backdrop-blur-sm">
           <div
-            className="flex shrink-0 items-center justify-end border-b border-slate-700/50 bg-slate-950/95 px-0.5 py-1"
+            className="flex shrink-0 items-center justify-end border-b border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-0.5 py-1"
             style={{ minHeight: SPEC_HEADER_PX }}
           >
             {onAddSpecialist && (
               <button
                 type="button"
                 onClick={onAddSpecialist}
-                className="rounded-full border border-slate-700 bg-slate-900/90 p-1.5 text-slate-300 shadow-md transition-all duration-300 hover:bg-slate-800 hover:text-white"
+                className="rounded-full crm-modal-panel border/90 p-1.5 mo-muted shadow-md transition-all duration-300 hover:bg-[var(--mo-accent-soft)] hover:text-white"
                 aria-label="Добавить специалиста"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -657,7 +657,7 @@ export function BookingCalendarGrid({
             {SLOT_MINUTES.map((minuteOfDay) => (
               <div
                 key={minuteOfDay}
-                className="flex shrink-0 items-start justify-end pr-0.5 text-[10px] tabular-nums text-slate-500"
+                className="flex shrink-0 items-start justify-end pr-0.5 text-[10px] tabular-nums mo-muted"
                 style={{ height: (SLOT_STEP_MIN / 60) * PX_PER_HOUR }}
               >
                 {Math.floor(minuteOfDay / 60)}:{String(minuteOfDay % 60).padStart(2, "0")}

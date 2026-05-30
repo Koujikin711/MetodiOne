@@ -125,14 +125,14 @@ export function OwnerTerminateEmployeesModal({ open, onClose }: Props) {
       }}
     >
       <div
-        className="max-h-[90vh] w-full max-w-lg overflow-hidden rounded-2xl border border-slate-600 bg-slate-900 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-hidden rounded-2xl crm-modal-panel border shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="border-b border-slate-700 px-5 py-4">
-          <h2 id="terminate-modal-title" className="text-lg font-semibold text-white">
+        <div className="border-b border-[var(--mo-border)] px-5 py-4">
+          <h2 id="terminate-modal-title" className="lux-subheading">
             Уволить сотрудников
           </h2>
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="mt-1 text-xs lux-caption">
             Отметьте одного или нескольких. Себя уволить нельзя — вы не в списке.
           </p>
         </div>
@@ -141,16 +141,16 @@ export function OwnerTerminateEmployeesModal({ open, onClose }: Props) {
           {role !== "owner" ? (
             <p className="px-2 text-sm text-amber-200/90">Доступно только владельцу компании.</p>
           ) : employeesQuery.isLoading ? (
-            <p className="px-2 text-sm text-slate-400">Загрузка списка…</p>
+            <p className="px-2 text-sm lux-caption">Загрузка списка…</p>
           ) : employeesQuery.isError ? (
             <p className="px-2 text-sm text-red-300">{(employeesQuery.error as Error).message}</p>
           ) : selectable.length === 0 ? (
-            <p className="px-2 text-sm text-slate-400">Нет других активных сотрудников для увольнения.</p>
+            <p className="px-2 text-sm lux-caption">Нет других активных сотрудников для увольнения.</p>
           ) : (
             <ul className="space-y-1">
               {selectable.map((e) => (
                 <li key={e.id}>
-                  <label className="flex cursor-pointer items-start gap-3 rounded-xl px-2 py-2 hover:bg-slate-800/60">
+                  <label className="flex cursor-pointer items-start gap-3 rounded-xl px-2 py-2 hover:bg-[var(--mo-accent-soft)]">
                     <input
                       type="checkbox"
                       className="mt-1 h-4 w-4 shrink-0 rounded border-slate-500"
@@ -158,10 +158,10 @@ export function OwnerTerminateEmployeesModal({ open, onClose }: Props) {
                       onChange={() => toggle(e.id)}
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium text-slate-100">
+                      <span className="block truncate font-medium text-[var(--mo-text)]">
                         {e.full_name?.trim() || e.email}
                       </span>
-                      <span className="mt-0.5 block text-xs text-slate-500">
+                      <span className="mt-0.5 block text-xs mo-muted">
                         {e.email} · {roleLabel[e.role] ?? e.role}
                       </span>
                     </span>
@@ -172,13 +172,13 @@ export function OwnerTerminateEmployeesModal({ open, onClose }: Props) {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-700 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--mo-border)] px-4 py-3">
           <div className="flex gap-2">
             <button
               type="button"
               onClick={selectAll}
               disabled={selectable.length === 0}
-              className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 disabled:opacity-40"
+              className="rounded-lg border border-[var(--mo-border-strong)] px-3 py-1.5 text-xs text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)] disabled:opacity-40"
             >
               Выбрать всех
             </button>
@@ -186,7 +186,7 @@ export function OwnerTerminateEmployeesModal({ open, onClose }: Props) {
               type="button"
               onClick={clearAll}
               disabled={selected.size === 0}
-              className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 disabled:opacity-40"
+              className="rounded-lg border border-[var(--mo-border-strong)] px-3 py-1.5 text-xs text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)] disabled:opacity-40"
             >
               Снять выбор
             </button>
@@ -198,7 +198,7 @@ export function OwnerTerminateEmployeesModal({ open, onClose }: Props) {
                 setSelected(new Set());
                 onClose();
               }}
-              className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800/60"
+              className="rounded-xl border border-[var(--mo-border-strong)] px-4 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
             >
               Отмена
             </button>
@@ -206,7 +206,7 @@ export function OwnerTerminateEmployeesModal({ open, onClose }: Props) {
               type="button"
               disabled={fireMutation.isPending || selected.size === 0 || role !== "owner"}
               onClick={() => submit()}
-              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-[var(--mo-text)] hover:bg-red-500 disabled:opacity-50"
             >
               {fireMutation.isPending ? "Выполняется…" : `Уволить (${selected.size})`}
             </button>

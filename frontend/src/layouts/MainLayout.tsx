@@ -584,7 +584,7 @@ export function MainLayout() {
               type="button"
               onClick={logout}
               title="Выход"
-              className="mt-2 flex w-full flex-col items-center gap-2 rounded-2xl border-t border-slate-700/40 py-3 pt-4 text-slate-500 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-300"
+              className="mt-2 flex w-full flex-col items-center gap-2 rounded-2xl border-t border-[var(--mo-border)] py-3 pt-4 mo-muted transition-all duration-500 hover:bg-white/[0.04] hover:mo-muted"
             >
               <GradientIconBox variant="pink" className="h-9 w-9 opacity-80 [&_svg]:h-4 [&_svg]:w-4">
                 <LogOut className="h-4 w-4" />
@@ -617,7 +617,7 @@ export function MainLayout() {
               <button
                 type="button"
                 onClick={logout}
-                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center text-slate-400 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-200"
+                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
                 title="Выход"
               >
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
@@ -680,7 +680,7 @@ export function MainLayout() {
                 <button
                   type="button"
                   onClick={logout}
-                  className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center text-slate-400 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-200"
+                  className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
                   title="Выход"
                 >
                   <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
@@ -778,7 +778,7 @@ export function MainLayout() {
               <button
                 type="button"
                 onClick={logout}
-                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center text-slate-400 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-200"
+                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
                 title="Выход"
               >
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
@@ -833,7 +833,7 @@ export function MainLayout() {
               <button
                 type="button"
                 onClick={logout}
-                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center text-slate-400 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-200"
+                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
                 title="Выход"
               >
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
@@ -904,7 +904,7 @@ export function MainLayout() {
                 <button
                   type="button"
                   onClick={logout}
-                  className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center text-slate-400 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-200"
+                  className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
                   title="Выход"
                 >
                   <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
@@ -984,7 +984,7 @@ export function MainLayout() {
               <button
                 type="button"
                 onClick={logout}
-                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center text-slate-400 transition-all duration-500 hover:bg-white/[0.04] hover:text-slate-200"
+                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
                 title="Выход"
               >
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">

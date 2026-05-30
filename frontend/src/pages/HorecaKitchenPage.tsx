@@ -81,20 +81,20 @@ export function HorecaKitchenPage() {
     <div className="mx-auto max-w-[1200px] space-y-4 pb-10">
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-widest text-teal-300/90">HoReCa / Кухня и техкарты</p>
-        <h1 className="text-3xl font-semibold text-white">Кухня и техкарты</h1>
+        <h1 className="lux-heading-page">Кухня и техкарты</h1>
         <div className="flex gap-2 text-xs">
-          <Link to="/horeca/prep" className="rounded-lg border border-slate-600/60 px-3 py-1.5 text-slate-200 hover:bg-slate-800/50">
+          <Link to="/horeca/prep" className="rounded-lg border border-[var(--mo-border-strong)]/60 px-3 py-1.5 text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]">
             Заготовки и продаваемые порции
           </Link>
-          <Link to="/horeca/stock" className="rounded-lg border border-slate-600/60 px-3 py-1.5 text-slate-200 hover:bg-slate-800/50">
+          <Link to="/horeca/stock" className="rounded-lg border border-[var(--mo-border-strong)]/60 px-3 py-1.5 text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]">
             Алерты по складу
           </Link>
         </div>
       </header>
 
-      <section className="grid gap-3 rounded-2xl border border-slate-700/40 bg-slate-900/40 p-4 md:grid-cols-3">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Название позиции" className="rounded-xl border border-slate-600/50 bg-slate-900/70 px-3 py-2 text-sm text-white" />
-        <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Цена продажи" className="rounded-xl border border-slate-600/50 bg-slate-900/70 px-3 py-2 text-sm text-white" />
+      <section className="grid gap-3 rounded-2xl mo-section p-4 md:grid-cols-3">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Название позиции" className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-white" />
+        <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Цена продажи" className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-white" />
         <button
           type="button"
           onClick={() => {
@@ -108,7 +108,7 @@ export function HorecaKitchenPage() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-700/40 bg-slate-900/40 p-4">
+        <div className="rounded-2xl mo-section p-4">
           <h2 className="text-base font-semibold text-white">Позиции меню</h2>
           <div className="mt-3 space-y-2">
             {(itemsQuery.data ?? []).map((item) => (
@@ -119,7 +119,7 @@ export function HorecaKitchenPage() {
                   setSelectedItemId(item.id);
                   setLines([]);
                 }}
-                className={`w-full rounded-xl border px-3 py-2 text-left text-sm ${selectedItemId === item.id ? "border-teal-500/50 bg-teal-500/10 text-white" : "border-slate-700/60 bg-slate-950/40 text-slate-300"}`}
+                className={`w-full rounded-xl border px-3 py-2 text-left text-sm ${selectedItemId === item.id ? "border-teal-500/50 bg-teal-500/10 text-white" : "border-[var(--mo-border)] bg-[var(--mo-surface)] mo-muted"}`}
               >
                 {item.name} · {item.sale_price}
               </button>
@@ -127,11 +127,11 @@ export function HorecaKitchenPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-700/40 bg-slate-900/40 p-4">
+        <div className="rounded-2xl mo-section p-4">
           <h2 className="text-base font-semibold text-white">Редактор техкарты</h2>
-          {selectedItemId == null ? <p className="mt-2 text-sm text-slate-500">Выберите позицию меню.</p> : null}
+          {selectedItemId == null ? <p className="mt-2 text-sm mo-muted">Выберите позицию меню.</p> : null}
           {techCardQuery.data ? (
-            <p className="mt-2 text-xs text-slate-400">
+            <p className="mt-2 text-xs lux-caption">
               Текущая себестоимость: {techCardQuery.data.recipe_cost} · Food cost: {techCardQuery.data.food_cost_pct}%
             </p>
           ) : null}
@@ -145,7 +145,7 @@ export function HorecaKitchenPage() {
                     next[idx] = { ...l, product_id: Number(e.target.value) };
                     setLines(next);
                   }}
-                  className="rounded-xl border border-slate-600/50 bg-slate-900/70 px-2 py-2 text-sm text-white"
+                  className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-2 py-2 text-sm text-white"
                 >
                   <option value={0}>Продукт</option>
                   {(productsQuery.data ?? []).map((p) => (
@@ -162,11 +162,11 @@ export function HorecaKitchenPage() {
                     setLines(next);
                   }}
                   placeholder="Кол-во"
-                  className="rounded-xl border border-slate-600/50 bg-slate-900/70 px-2 py-2 text-sm text-white"
+                  className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-2 py-2 text-sm text-white"
                 />
               </div>
             ))}
-            <button type="button" onClick={() => setLines((prev) => [...prev, { product_id: 0, qty_per_portion: "1" }])} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-200">
+            <button type="button" onClick={() => setLines((prev) => [...prev, { product_id: 0, qty_per_portion: "1" }])} className="rounded-lg border border-[var(--mo-border-strong)] px-3 py-1.5 text-xs text-[var(--mo-text)]">
               + Строка
             </button>
             <button
@@ -181,7 +181,7 @@ export function HorecaKitchenPage() {
             </button>
           </div>
           {techCardQuery.data?.lines.length ? (
-            <div className="mt-3 text-xs text-slate-400">
+            <div className="mt-3 text-xs lux-caption">
               {techCardQuery.data.lines.slice(0, 4).map((l) => (
                 <div key={l.product_id}>
                   {l.product_name}: {l.qty_per_portion} · {productsById.get(l.product_id)?.unit || "ед."}

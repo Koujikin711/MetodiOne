@@ -271,7 +271,7 @@ export function EmployeesPage() {
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-white">Сотрудники</h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm lux-caption">
             Приглашение создаёт логин (email/телефон) и временный пароль.
           </p>
         </div>
@@ -284,7 +284,7 @@ export function EmployeesPage() {
         </button>
       </header>
 
-      {employeesQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+      {employeesQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
       {employeesQuery.isError && (
         <p className="text-sm text-red-300">{(employeesQuery.error as Error).message}</p>
       )}
@@ -292,18 +292,18 @@ export function EmployeesPage() {
       {(sourcesWithLeads.length > 0 || redistributionSourcesQuery.isLoading) &&
         activeSalesManagers.length >= 1 && (
         <section className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5 shadow-inner backdrop-blur-sm">
-          <h2 className="text-lg font-semibold text-white">Перераспределение лидов</h2>
-          <p className="mt-1 text-sm text-slate-400">
+          <h2 className="lux-subheading">Перераспределение лидов</h2>
+          <p className="mt-1 text-sm lux-caption">
             Все лиды выбранного менеджера равномерно передаются другим менеджерам (в том числе с уволенных
             аккаунтов). Входящие сообщения в чате и карточки клиентов откроются у новых ответственных.
           </p>
 
           {redistributionSourcesQuery.isLoading && (
-            <p className="mt-2 text-sm text-slate-500">Загрузка списка…</p>
+            <p className="mt-2 text-sm mo-muted">Загрузка списка…</p>
           )}
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm text-slate-300">
+            <label className="text-sm mo-muted">
               От кого забрать лиды
               <select
                 value={redistributeFromId === "" ? "" : String(redistributeFromId)}
@@ -312,7 +312,7 @@ export function EmployeesPage() {
                   setRedistributeFromId(v === "" ? "" : Number(v));
                   setRedistributeToIds([]);
                 }}
-                className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                className="mo-input mt-1 w-full"
               >
                 <option value="">— выберите менеджера —</option>
                 {sourcesWithLeads.map((m) => (
@@ -324,12 +324,12 @@ export function EmployeesPage() {
               </select>
             </label>
 
-            <div className="text-sm text-slate-300">
-              <span className="text-slate-500">Лидов у менеджера:</span>{" "}
+            <div className="text-sm mo-muted">
+              <span className="mo-muted">Лидов у менеджера:</span>{" "}
               {redistributeFromId === "" ? (
-                <span className="text-slate-500">—</span>
+                <span className="mo-muted">—</span>
               ) : redistributionPreviewQuery.isLoading ? (
-                <span className="text-slate-500">загрузка…</span>
+                <span className="mo-muted">загрузка…</span>
               ) : redistributionPreviewQuery.isError ? (
                 <span className="font-semibold text-amber-200">{selectedSource?.lead_count ?? 0}</span>
               ) : (
@@ -344,16 +344,16 @@ export function EmployeesPage() {
           </div>
 
           {redistributeFromId !== "" && (
-            <div className="mt-4 rounded-xl border border-slate-700/50 bg-slate-950/30 p-3">
+            <div className="mt-4 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
               <div className="text-sm font-semibold text-white">Кому передать</div>
-              <p className="mt-1 text-[11px] text-slate-500">
+              <p className="mt-1 text-[11px] mo-muted">
                 Только активные менеджеры. Лиды делятся поровну (round-robin).
               </p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {activeSalesManagers
                   .filter((m) => m.id !== redistributeFromId)
                   .map((m) => (
-                    <label key={m.id} className="flex items-center gap-2 text-sm text-slate-200">
+                    <label key={m.id} className="flex items-center gap-2 text-sm text-[var(--mo-text)]">
                       <input
                         type="checkbox"
                         checked={redistributeToIds.includes(m.id)}
@@ -361,7 +361,7 @@ export function EmployeesPage() {
                       />
                       <span className="truncate">
                         {m.full_name ?? m.email}
-                        <span className="text-slate-500"> · {m.role}</span>
+                        <span className="mo-muted"> · {m.role}</span>
                       </span>
                     </label>
                   ))}
@@ -389,21 +389,21 @@ export function EmployeesPage() {
         {(employeesQuery.data ?? []).map((e) => (
           <div
             key={e.id}
-            className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm"
+            className="mo-section p-4 shadow-inner backdrop-blur-sm"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="truncate text-base font-semibold text-white">
                   {e.full_name ?? "—"}
                 </div>
-                <div className="mt-1 text-sm text-slate-400">
+                <div className="mt-1 text-sm lux-caption">
                   {e.email} {e.phone ? `· ${e.phone}` : ""} · роль: {e.role}
                   {e.horeca_role ? ` · HoReCa: ${HORECA_ROLE_LABEL[e.horeca_role] ?? e.horeca_role}` : ""}
                   {e.role === "expert" && e.specialization ? ` · ${e.specialization}` : ""}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <div className="text-xs text-slate-400">
+                <div className="text-xs lux-caption">
                   Направления:{" "}
                   {e.pipeline_ids.length
                     ? e.pipeline_ids
@@ -426,40 +426,40 @@ export function EmployeesPage() {
           </div>
         ))}
         {!employeesQuery.isLoading && (employeesQuery.data ?? []).length === 0 && (
-          <p className="text-sm text-slate-500">Сотрудников пока нет.</p>
+          <p className="text-sm mo-muted">Сотрудников пока нет.</p>
         )}
       </div>
 
-      <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-5 shadow-inner backdrop-blur-sm">
-        <h2 className="text-lg font-semibold text-white">SMTP / Почта</h2>
-        {smtpQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка SMTP…</p>}
+      <section className="mo-section p-5 shadow-inner backdrop-blur-sm">
+        <h2 className="lux-subheading">SMTP / Почта</h2>
+        {smtpQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка SMTP…</p>}
         {smtpQuery.isError && (
           <p className="mt-2 text-sm text-red-300">{(smtpQuery.error as Error).message}</p>
         )}
         {smtpQuery.data && (
-          <div className="mt-3 grid gap-2 text-sm text-slate-300">
+          <div className="mt-3 grid gap-2 text-sm mo-muted">
             <div>
-              <span className="text-slate-500">HOST:</span> {smtpQuery.data.host || "—"}
+              <span className="mo-muted">HOST:</span> {smtpQuery.data.host || "—"}
             </div>
             <div>
-              <span className="text-slate-500">PORT:</span> {smtpQuery.data.port}
+              <span className="mo-muted">PORT:</span> {smtpQuery.data.port}
             </div>
             <div>
-              <span className="text-slate-500">USER:</span> {smtpQuery.data.user || "—"}
+              <span className="mo-muted">USER:</span> {smtpQuery.data.user || "—"}
             </div>
             <div>
-              <span className="text-slate-500">FROM:</span> {smtpQuery.data.from_email || "—"}
+              <span className="mo-muted">FROM:</span> {smtpQuery.data.from_email || "—"}
             </div>
             <div>
-              <span className="text-slate-500">PASSWORD:</span>{" "}
+              <span className="mo-muted">PASSWORD:</span>{" "}
               {smtpQuery.data.has_password ? "задан" : "не задан"}
             </div>
             <div>
-              <span className="text-slate-500">PUBLIC_APP_URL:</span>{" "}
+              <span className="mo-muted">PUBLIC_APP_URL:</span>{" "}
               {smtpQuery.data.public_app_url || "—"}
             </div>
             <div>
-              <span className="text-slate-500">PUBLIC_API_BASE_URL (WhatsApp):</span>{" "}
+              <span className="mo-muted">PUBLIC_API_BASE_URL (WhatsApp):</span>{" "}
               {smtpQuery.data.public_api_base_url || "— (берётся из запроса, иначе задайте в .env)"}
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -467,13 +467,13 @@ export function EmployeesPage() {
                 value={smtpTestEmail}
                 onChange={(e) => setSmtpTestEmail(e.target.value)}
                 placeholder="email для теста"
-                className="min-w-[240px] flex-1 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                className="min-w-[240px] flex-1 mo-input"
               />
               <button
                 type="button"
                 onClick={() => smtpTestMutation.mutate()}
                 disabled={smtpTestMutation.isPending}
-                className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-100 hover:bg-slate-800/40 disabled:opacity-60"
+                className="rounded-xl border border-[var(--mo-border)] px-4 py-2 text-sm text-[var(--mo-text)] hover:bg-white disabled:opacity-60"
               >
                 {smtpTestMutation.isPending ? "Отправка…" : "Тестовое письмо"}
               </button>
@@ -497,45 +497,45 @@ export function EmployeesPage() {
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+          <div className="w-full max-w-xl rounded-2xl crm-modal-panel border p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-white">Пригласить сотрудника</h2>
+              <h2 className="lux-subheading">Пригласить сотрудника</h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800/40"
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
               >
                 Закрыть
               </button>
             </div>
 
             <div className="mt-4 grid gap-3">
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 ФИО
                 <input
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Email
                 <input
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Телефон
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
 
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Роль
                 <select
                   value={role}
@@ -553,7 +553,7 @@ export function EmployeesPage() {
                       setBookingDirectionId(bookingDirections[0].id);
                     }
                   }}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 >
                   <option value="owner">Владелец</option>
                   <option value="manager">Менеджер</option>
@@ -562,12 +562,12 @@ export function EmployeesPage() {
                   <option value="finance_analyst">Финансовый аналитик</option>
                 </select>
               </label>
-              <label className="text-sm text-slate-300">
+              <label className="text-sm mo-muted">
                 Роль в HoReCa
                 <select
                   value={horecaRole}
                   onChange={(e) => setHorecaRole((e.target.value || "") as HorecaRole | "")}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 >
                   <option value="">— не назначать —</option>
                   <option value="waiter">Официант</option>
@@ -579,16 +579,16 @@ export function EmployeesPage() {
 
               {role === "expert" && (
                 <>
-                  <label className="text-sm text-slate-300">
+                  <label className="text-sm mo-muted">
                     Специальность (под ФИО в календаре)
                     <input
                       value={expertSpecialization}
                       onChange={(e) => setExpertSpecialization(e.target.value)}
                       placeholder="Например: Невролог"
-                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white placeholder:text-slate-600"
+                      className="mo-input mt-1 w-full placeholder:mo-muted"
                     />
                   </label>
-                  <label className="text-sm text-slate-300">
+                  <label className="text-sm mo-muted">
                     Направление онлайн-записи
                     <select
                       value={bookingDirectionId === "" ? "" : String(bookingDirectionId)}
@@ -596,7 +596,7 @@ export function EmployeesPage() {
                         const v = e.target.value;
                         setBookingDirectionId(v === "" ? "" : Number(v));
                       }}
-                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+                      className="mo-input mt-1 w-full"
                     >
                       <option value="">— выберите —</option>
                       {bookingDirections.map((d) => (
@@ -607,21 +607,21 @@ export function EmployeesPage() {
                     </select>
                   </label>
                   {bookingDirectionsQuery.isLoading && (
-                    <p className="text-xs text-slate-500">Загрузка направлений…</p>
+                    <p className="text-xs mo-muted">Загрузка направлений…</p>
                   )}
                 </>
               )}
 
-              <div className="rounded-2xl border border-slate-700/50 bg-slate-950/30 p-3">
+              <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
                 <div className="text-sm font-semibold text-white">Направления (воронки)</div>
-                <p className="mt-1 text-[11px] text-slate-500">
+                <p className="mt-1 text-[11px] mo-muted">
                   Для владельца направления не обязательны. Для менеджера и админа воронки: направления CRM. Для админа воронки обязательна хотя бы одна
                   (журнал записей и лиды). Для эксперта — тоже хотя бы одна воронка CRM плюс специальность и направление
                   записи выше. Для финансового аналитика воронки не обязательны (доступ к отчётам и журналу без правок).
                 </p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {pipelines.map((p) => (
-                    <label key={p.id} className="flex items-center gap-2 text-sm text-slate-200">
+                    <label key={p.id} className="flex items-center gap-2 text-sm text-[var(--mo-text)]">
                       <input
                         type="checkbox"
                         checked={pipelineIds.includes(p.id)}
@@ -630,7 +630,7 @@ export function EmployeesPage() {
                       <span className="truncate">{p.name}</span>
                     </label>
                   ))}
-                  {pipelines.length === 0 && <div className="text-sm text-slate-500">Нет воронок</div>}
+                  {pipelines.length === 0 && <div className="text-sm mo-muted">Нет воронок</div>}
                 </div>
               </div>
 

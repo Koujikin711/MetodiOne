@@ -20,25 +20,25 @@ export function HorecaCommsPage() {
     <div className="mx-auto max-w-[1200px] space-y-4 pb-10">
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-widest text-teal-300/90">HoReCa / Связь зал ↔ кухня</p>
-        <h1 className="text-3xl font-semibold text-white">Оперативная связь зал ↔ кухня</h1>
-        <p className="text-sm text-slate-400">Актуальные диалоги, ответственный менеджер и переход в полный чат.</p>
+        <h1 className="lux-heading-page">Оперативная связь зал ↔ кухня</h1>
+        <p className="text-sm lux-caption">Актуальные диалоги, ответственный менеджер и переход в полный чат.</p>
       </header>
 
-      <Link to="/chat" className="inline-block rounded-xl border border-slate-600/50 px-3 py-2 text-xs text-slate-100 hover:bg-slate-800/60">
+      <Link to="/chat" className="inline-block rounded-xl border border-[var(--mo-border-strong)]/50 px-3 py-2 text-xs text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]">
         Открыть полный чат
       </Link>
 
-      {threads.isLoading ? <p className="text-sm text-slate-400">Загрузка диалогов…</p> : null}
-      {threads.isError ? <p className="text-sm text-rose-300">{(threads.error as Error).message}</p> : null}
+      {threads.isLoading ? <p className="text-sm lux-caption">Загрузка диалогов…</p> : null}
+      {threads.isError ? <p className="text-sm text-[#6b1d2f]">{(threads.error as Error).message}</p> : null}
 
       <section className="space-y-2">
         {(threads.data ?? []).map((t) => (
-          <div key={t.id} className="rounded-xl border border-slate-700/50 bg-slate-900/45 p-3">
+          <div key={t.id} className="rounded-xl border border-[var(--mo-border)] bg-white p-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-white">{t.title || t.lead_name || `Диалог #${t.id}`}</p>
-              <span className="text-xs text-slate-500">{fmt(t.updated_at)}</span>
+              <p className="text-sm font-medium text-[var(--mo-text)]">{t.title || t.lead_name || `Диалог #${t.id}`}</p>
+              <span className="text-xs mo-muted">{fmt(t.updated_at)}</span>
             </div>
-            <p className="mt-1 text-xs text-slate-400">Ответственный: {t.manager_name || "Не назначен"} · Непрочитанных: {t.unread_count ?? 0}</p>
+            <p className="mt-1 text-xs lux-caption">Ответственный: {t.manager_name || "Не назначен"} · Непрочитанных: {t.unread_count ?? 0}</p>
           </div>
         ))}
       </section>

@@ -26,15 +26,15 @@ export function SegmentedControl<T extends string>({ segments, value, onChange }
             className={[
               "flex min-h-[68px] flex-col items-center justify-center rounded-xl border px-1 py-2 text-center transition",
               active
-                ? "border-[#3d7ab5]/60 bg-[#1a2838] text-white ring-1 ring-[#2d5f8a]/40"
-                : "border-[#2a3644] bg-[#111820] text-slate-400 hover:border-[#3d556c] hover:text-slate-200",
+                ? "border-[#d4af37] bg-white text-[var(--mo-text)] shadow-[var(--mo-shadow-luxury)] ring-1 ring-[#d4af37]/30"
+                : "border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] mo-muted hover:border-[#d4af37]/50 hover:text-[var(--mo-text)]",
             ].join(" ")}
           >
             <span className="text-[10px] font-semibold uppercase tracking-wide">{seg.label}</span>
             {seg.count != null ? (
-              <span className="mt-0.5 text-lg font-bold tabular-nums">{seg.count}</span>
+              <span className="mt-0.5 text-lg font-bold tabular-nums text-[var(--mo-text)]">{seg.count}</span>
             ) : null}
-            {seg.hint ? <span className="mt-0.5 text-[9px] leading-tight opacity-80">{seg.hint}</span> : null}
+            {seg.hint ? <span className="lux-caption mt-0.5 text-[9px] leading-tight">{seg.hint}</span> : null}
           </button>
         );
       })}

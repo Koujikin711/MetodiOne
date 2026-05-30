@@ -74,7 +74,7 @@ export function BillingTariffPage() {
     <div className="relative mx-auto max-w-[720px] space-y-6 pb-10">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight text-white">Оплата и тариф</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm lux-caption">
           Демо-период, выбор тарифа после демо и статус подключения по оплате.
         </p>
       </header>
@@ -83,7 +83,7 @@ export function BillingTariffPage() {
         <div className="rounded-2xl border border-cyan-500/35 bg-cyan-950/25 px-5 py-4 text-sm text-cyan-50">
           <p className="font-semibold text-white">Бесплатный демо-доступ</p>
           <p className="mt-2 text-cyan-100/90">
-            Осталось дней: <span className="font-mono text-white">{daysLeft}</span>
+            Осталось дней: <span className="font-mono text-[var(--mo-text)]">{daysLeft}</span>
             {s.trial_ends_at ? (
               <>
                 {" "}
@@ -120,7 +120,7 @@ export function BillingTariffPage() {
         <div className="mo-section border-[#2d6a5a]/35 bg-[#edf7f1] text-sm">
           <p className="font-semibold text-white">Тариф подключён</p>
           <p className="mt-2 text-emerald-100/90">
-            Текущий план: <span className="font-medium text-white">{s.current_tariff_plan_name ?? "не зафиксирован"}</span>
+            Текущий план: <span className="font-medium text-[var(--mo-text)]">{s.current_tariff_plan_name ?? "не зафиксирован"}</span>
             .
           </p>
           <Link to="/app" className="mt-3 inline-block text-sm font-medium text-emerald-200 underline-offset-2 hover:underline">
@@ -130,21 +130,21 @@ export function BillingTariffPage() {
       ) : null}
 
       {!isOwner ? (
-        <p className="text-xs text-slate-500">Выбор тарифа доступен только владельцу компании.</p>
+        <p className="text-xs mo-muted">Выбор тарифа доступен только владельцу компании.</p>
       ) : null}
 
       {canPick ? (
-        <section className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-5">
-          <h2 className="text-lg font-semibold text-white">Выберите тариф</h2>
+        <section className="rounded-2xl mo-section p-5">
+          <h2 className="lux-subheading">Выберите тариф</h2>
           <ul className="mt-4 space-y-3">
             {s.plans.map((p) => (
               <li
                 key={p.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-950/40 px-4 py-3"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-4 py-3"
               >
                 <div>
-                  <p className="font-medium text-white">{p.name}</p>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="font-medium text-[var(--mo-text)]">{p.name}</p>
+                  <p className="mt-1 text-xs lux-caption">
                     Сотрудники до {p.max_active_users === 0 ? "∞" : p.max_active_users} · интеграции до{" "}
                     {p.max_integrations === 0 ? "∞" : p.max_integrations}
                     {p.warehouse_enabled ? " · склад включён" : " · без склада"}
@@ -175,22 +175,22 @@ export function BillingTariffPage() {
           onClick={(e) => e.target === e.currentTarget && setShowComposition(false)}
         >
           <div
-            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-600 bg-slate-900 p-5 shadow-2xl"
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl crm-modal-panel border p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-semibold text-white">Состав подписки</h2>
-            <ul className="mt-3 space-y-2 text-sm text-slate-300">
+            <h2 className="lux-subheading">Состав подписки</h2>
+            <ul className="mt-3 space-y-2 text-sm mo-muted">
               {lines.map((ln, i) => (
-                <li key={i} className="flex justify-between gap-2 border-b border-slate-700/50 pb-2">
+                <li key={i} className="flex justify-between gap-2 border-b border-[var(--mo-border)] pb-2">
                   <span>{ln.label}</span>
-                  <span className="shrink-0 font-mono text-slate-100">
+                  <span className="shrink-0 font-mono text-[var(--mo-text)]">
                     {ln.amount} {cur}
                   </span>
                 </li>
               ))}
             </ul>
             {s.monthly_subtotal != null ? (
-              <p className="mt-3 text-xs text-slate-500">
+              <p className="mt-3 text-xs mo-muted">
                 Промежуточно: {s.monthly_subtotal} {cur}
                 {s.monthly_discount_percent != null && Number(s.monthly_discount_percent) > 0
                   ? ` · скидка ${s.monthly_discount_percent}% (−${s.monthly_discount_amount ?? "0"} ${cur})`
@@ -200,7 +200,7 @@ export function BillingTariffPage() {
             <button
               type="button"
               onClick={() => setShowComposition(false)}
-              className="mt-4 w-full rounded-xl border border-slate-600 py-2 text-sm text-slate-200 hover:bg-slate-800/60"
+              className="mt-4 w-full rounded-xl border border-[var(--mo-border-strong)] py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
             >
               Закрыть
             </button>

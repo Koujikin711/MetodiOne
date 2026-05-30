@@ -67,11 +67,11 @@ export function TerminateWithLeadsWizard({ employee, activeManagers, onClose, on
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/65 p-4">
       <div className={`w-full max-w-lg ${theme.surfaceCard} p-6 shadow-2xl`}>
-        <h2 className="text-lg font-semibold text-white">Увольнение: {label}</h2>
+        <h2 className="lux-subheading">Увольнение: {label}</h2>
 
         {step === 1 && (
           <>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-sm lux-caption">
               {previewQuery.isLoading
                 ? "Проверяем лиды…"
                 : leadCount > 0
@@ -96,10 +96,10 @@ export function TerminateWithLeadsWizard({ employee, activeManagers, onClose, on
 
         {step === 2 && (
           <>
-            <p className="mt-2 text-sm text-slate-400">Выберите получателей (round-robin).</p>
+            <p className="mt-2 text-sm lux-caption">Выберите получателей (round-robin).</p>
             <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
               {targets.map((m) => (
-                <label key={m.id} className="flex items-center gap-2 text-sm text-slate-200">
+                <label key={m.id} className="flex items-center gap-2 text-sm text-[var(--mo-text)]">
                   <input
                     type="checkbox"
                     checked={toIds.includes(m.id)}

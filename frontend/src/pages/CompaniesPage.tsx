@@ -290,12 +290,12 @@ export function CompaniesPage() {
     <div className="relative mx-auto max-w-[1200px] space-y-6 pb-10">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight text-white">Компании</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm lux-caption">
           Платформа: метрики, аудит, лимиты и вход в компанию или от имени владельца (поддержка)
         </p>
       </header>
 
-      {dashboardQuery.isLoading && <p className="text-sm text-slate-400">Загрузка сводки…</p>}
+      {dashboardQuery.isLoading && <p className="text-sm lux-caption">Загрузка сводки…</p>}
       {dashboardQuery.isError && (
         <p className="text-sm text-red-300">{(dashboardQuery.error as Error).message}</p>
       )}
@@ -315,9 +315,9 @@ export function CompaniesPage() {
           ].map(([label, val]) => (
             <div
               key={label}
-              className="rounded-2xl border border-slate-700/40 bg-slate-800/30 px-4 py-3 shadow-inner backdrop-blur-sm"
+              className="mo-section px-4 py-3 shadow-inner backdrop-blur-sm"
             >
-              <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+              <p className="text-xs uppercase tracking-wide mo-muted">{label}</p>
               <p className="mt-1 text-xl font-semibold text-white">{val}</p>
             </div>
           ))}
@@ -332,7 +332,7 @@ export function CompaniesPage() {
               (e: Error) => toast.error(e.message),
             )
           }
-          className="rounded-xl border border-slate-600 bg-slate-900/50 px-4 py-2 text-sm text-slate-100 hover:bg-slate-800/70"
+          className="rounded-xl crm-modal-panel border/50 px-4 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]/70"
         >
           Экспорт инцидентов (CSV)
         </button>
@@ -344,20 +344,20 @@ export function CompaniesPage() {
             void pendingPaymentsQuery.refetch();
             void platformBillingQuery.refetch();
           }}
-          className="rounded-xl border border-slate-600 bg-slate-900/50 px-4 py-2 text-sm text-slate-100 hover:bg-slate-800/70"
+          className="rounded-xl crm-modal-panel border/50 px-4 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]/70"
         >
           Обновить сводку и аудит
         </button>
       </div>
 
-      <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm">
-        <h2 className="text-lg font-semibold text-white">Демо и оплаты</h2>
-        <p className="mt-1 text-xs text-slate-400">
+      <section className="mo-section p-4 shadow-inner backdrop-blur-sm">
+        <h2 className="lux-subheading">Демо и оплаты</h2>
+        <p className="mt-1 text-xs lux-caption">
           Длительность автодемо с лендинга для новых компаний. Заявки на тариф после демо — подтвердите оплату и
           включите доступ.
         </p>
         <div className="mt-4 flex flex-wrap items-end gap-3">
-          <label className="text-sm text-slate-300">
+          <label className="text-sm mo-muted">
             Дней демо (новые заявки с сайта)
             <input
               type="number"
@@ -365,7 +365,7 @@ export function CompaniesPage() {
               max={365}
               value={demoDaysDraft}
               onChange={(e) => setDemoDaysDraft(e.target.value)}
-              className="mt-1 w-32 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+              className="mt-1 w-32 mo-input"
             />
           </label>
           <button
@@ -384,14 +384,14 @@ export function CompaniesPage() {
             Сохранить срок демо
           </button>
         </div>
-        {pendingPaymentsQuery.isLoading && <p className="mt-3 text-sm text-slate-400">Загрузка заявок…</p>}
+        {pendingPaymentsQuery.isLoading && <p className="mt-3 text-sm lux-caption">Загрузка заявок…</p>}
         {pendingPaymentsQuery.isError && (
           <p className="mt-3 text-sm text-red-300">{(pendingPaymentsQuery.error as Error).message}</p>
         )}
         {(pendingPaymentsQuery.data ?? []).length > 0 ? (
-          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-700/50">
-            <table className="w-full min-w-[520px] text-left text-xs text-slate-300">
-              <thead className="bg-slate-900/90 text-slate-400">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--mo-border)]">
+            <table className="w-full min-w-[520px] text-left text-xs mo-muted">
+              <thead className="bg-white/90 lux-caption">
                 <tr>
                   <th className="px-3 py-2 font-medium">Компания</th>
                   <th className="px-3 py-2 font-medium">Контакт</th>
@@ -401,9 +401,9 @@ export function CompaniesPage() {
               </thead>
               <tbody>
                 {(pendingPaymentsQuery.data ?? []).map((row) => (
-                  <tr key={row.id} className="border-t border-slate-700/40">
-                    <td className="px-3 py-2 font-medium text-white">
-                      {row.name} <span className="text-slate-500">#{row.id}</span>
+                  <tr key={row.id} className="border-t border-[var(--mo-border)]">
+                    <td className="px-3 py-2 font-medium text-[var(--mo-text)]">
+                      {row.name} <span className="mo-muted">#{row.id}</span>
                     </td>
                     <td className="px-3 py-2">{row.contact_email ?? "—"}</td>
                     <td className="px-3 py-2 text-violet-200">{row.pending_tariff_plan_name ?? "—"}</td>
@@ -428,20 +428,20 @@ export function CompaniesPage() {
           </div>
         ) : (
           !pendingPaymentsQuery.isLoading && (
-            <p className="mt-3 text-sm text-slate-500">Нет компаний в ожидании оплаты.</p>
+            <p className="mt-3 text-sm mo-muted">Нет компаний в ожидании оплаты.</p>
           )
         )}
       </section>
 
-      <section className="rounded-2xl border border-slate-700/40 bg-slate-800/20 p-4">
-        <h2 className="text-lg font-semibold text-white">Журнал действий super_owner</h2>
-        {auditQuery.isLoading && <p className="mt-2 text-sm text-slate-400">Загрузка…</p>}
+      <section className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-accent-soft)]/20 p-4">
+        <h2 className="lux-subheading">Журнал действий super_owner</h2>
+        {auditQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
         {auditQuery.isError && (
           <p className="mt-2 text-sm text-red-300">{(auditQuery.error as Error).message}</p>
         )}
-        <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-slate-700/50">
-          <table className="w-full min-w-[640px] text-left text-xs text-slate-300">
-            <thead className="sticky top-0 bg-slate-900/95 text-slate-400">
+        <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-[var(--mo-border)]">
+          <table className="w-full min-w-[640px] text-left text-xs mo-muted">
+            <thead className="sticky top-0 bg-white/95 lux-caption">
               <tr>
                 <th className="px-3 py-2 font-medium">Время</th>
                 <th className="px-3 py-2 font-medium">Действие</th>
@@ -452,14 +452,14 @@ export function CompaniesPage() {
             </thead>
             <tbody>
               {(auditQuery.data ?? []).map((row) => (
-                <tr key={row.id} className="border-t border-slate-700/40 hover:bg-slate-800/40">
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">
+                <tr key={row.id} className="border-t border-[var(--mo-border)] hover:bg-white">
+                  <td className="whitespace-nowrap px-3 py-2 lux-caption">
                     {new Date(row.created_at).toLocaleString()}
                   </td>
-                  <td className="px-3 py-2 text-slate-200">{row.action}</td>
+                  <td className="px-3 py-2 text-[var(--mo-text)]">{row.action}</td>
                   <td className="px-3 py-2">{row.company_id ?? "—"}</td>
                   <td className="px-3 py-2">{row.actor_user_id}</td>
-                  <td className="max-w-[280px] truncate px-3 py-2 text-slate-500" title={row.detail ?? ""}>
+                  <td className="max-w-[280px] truncate px-3 py-2 mo-muted" title={row.detail ?? ""}>
                     {row.detail ?? "—"}
                   </td>
                 </tr>
@@ -469,46 +469,46 @@ export function CompaniesPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm">
+      <section className="mo-section p-4 shadow-inner backdrop-blur-sm">
         <div className="flex flex-wrap items-end gap-2">
-          <label className="min-w-[220px] flex-1 text-sm text-slate-300">
+          <label className="min-w-[220px] flex-1 text-sm mo-muted">
             Новая компания
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+              className="mo-input mt-1 w-full"
               placeholder="Название компании..."
             />
           </label>
-          <label className="min-w-[220px] flex-1 text-sm text-slate-300">
+          <label className="min-w-[220px] flex-1 text-sm mo-muted">
             Email владельца
             <input
               value={ownerEmail}
               onChange={(e) => setOwnerEmail(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+              className="mo-input mt-1 w-full"
               placeholder="owner@company.com"
               type="email"
             />
           </label>
-          <label className="min-w-[220px] flex-1 text-sm text-slate-300">
+          <label className="min-w-[220px] flex-1 text-sm mo-muted">
             ФИО владельца (опц.)
             <input
               value={ownerName}
               onChange={(e) => setOwnerName(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+              className="mo-input mt-1 w-full"
               placeholder="Иван Иванов"
             />
           </label>
-          <label className="min-w-[220px] flex-1 text-sm text-slate-300">
+          <label className="min-w-[220px] flex-1 text-sm mo-muted">
             Внешняя БД компании (опц.)
             <input
               value={externalDbDsn}
               onChange={(e) => setExternalDbDsn(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+              className="mo-input mt-1 w-full"
               placeholder="postgresql://..."
             />
           </label>
-          <label className="min-w-[220px] flex-1 text-sm text-slate-300">
+          <label className="min-w-[220px] flex-1 text-sm mo-muted">
             Тарифный план
             <select
               value={createTariffPlanId === "" ? "" : String(createTariffPlanId)}
@@ -516,7 +516,7 @@ export function CompaniesPage() {
                 const v = e.target.value;
                 setCreateTariffPlanId(v === "" ? "" : Number(v));
               }}
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+              className="mo-input mt-1 w-full"
             >
               <option value="">Не назначать (все функции)</option>
               {(plansQuery.data ?? [])
@@ -528,13 +528,13 @@ export function CompaniesPage() {
                 ))}
             </select>
           </label>
-          <label className="min-w-[140px] text-sm text-slate-300">
+          <label className="min-w-[140px] text-sm mo-muted">
             Скидка к подписке, % (опц.)
             <input
               value={createBillingDiscount}
               onChange={(e) => setCreateBillingDiscount(e.target.value)}
               placeholder="0"
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
+              className="mo-input mt-1 w-full"
             />
           </label>
           <button
@@ -548,27 +548,27 @@ export function CompaniesPage() {
         </div>
       </section>
 
-      {companiesQuery.isLoading && <p className="text-sm text-slate-400">Загрузка списка…</p>}
+      {companiesQuery.isLoading && <p className="text-sm lux-caption">Загрузка списка…</p>}
       {companiesQuery.isError && <p className="text-sm text-red-300">{(companiesQuery.error as Error).message}</p>}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(companiesQuery.data ?? []).map((c) => (
           <article
             key={c.id}
-            className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm"
+            className="mo-section p-4 shadow-inner backdrop-blur-sm"
           >
-            <h3 className="text-lg font-semibold text-white">{c.name}</h3>
-            <p className="mt-1 text-xs text-slate-300">
+            <h3 className="lux-subheading">{c.name}</h3>
+            <p className="mt-1 text-xs mo-muted">
               {c.is_active ? "Статус: активна" : "Статус: остановлена"}
             </p>
-            <p className="mt-1 text-xs text-slate-400">Владелец: {c.contact_email || "—"}</p>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs lux-caption">Владелец: {c.contact_email || "—"}</p>
+            <p className="mt-1 text-xs lux-caption">
               Пользователи: {c.users_count} · Лиды: {c.leads_count} · Воронки: {c.pipelines_count}
             </p>
             <p className="mt-2 text-xs text-violet-200/90">
               Тарифный план: {c.tariff_plan_name ?? "не назначен (все функции)"}
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs mo-muted">
               Биллинг: {c.billing_status ?? "active"}
               {c.trial_ends_at ? ` · демо до ${new Date(c.trial_ends_at).toLocaleDateString()}` : ""}
               {c.pending_tariff_plan_name
@@ -583,7 +583,7 @@ export function CompaniesPage() {
                 Смена тарифа с {new Date(c.scheduled_tariff_effective_at).toLocaleString()}: {c.scheduled_tariff_plan_name}
               </p>
             ) : null}
-            <label className="mt-2 block text-xs text-slate-400">
+            <label className="mt-2 block text-xs lux-caption">
               Сменить тариф
               <select
                 value={c.tariff_plan_id ?? ""}
@@ -595,7 +595,7 @@ export function CompaniesPage() {
                   });
                 }}
                 disabled={assignPlanMutation.isPending}
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/50 px-2 py-1.5 text-sm text-white disabled:opacity-50"
+                className="mt-1 w-full rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] px-2 py-1.5 text-sm text-white disabled:opacity-50"
               >
                 <option value="">Не назначать (все функции)</option>
                 {(plansQuery.data ?? [])
@@ -617,7 +617,7 @@ export function CompaniesPage() {
                 type="button"
                 onClick={() => switchMutation.mutate(c.id)}
                 disabled={switchMutation.isPending || !c.is_active}
-                className="rounded-xl border border-slate-600 bg-slate-900/40 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-800/60 disabled:opacity-40"
+                className="rounded-xl crm-modal-panel border/40 px-3 py-1.5 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)] disabled:opacity-40"
               >
                 Открыть компанию
               </button>
@@ -633,7 +633,7 @@ export function CompaniesPage() {
                 type="button"
                 onClick={() => setTariffCompany(c)}
                 disabled={tariffMutation.isPending}
-                className="rounded-xl border border-slate-600 bg-slate-900/40 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-800/60 disabled:opacity-40"
+                className="rounded-xl crm-modal-panel border/40 px-3 py-1.5 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)] disabled:opacity-40"
               >
                 Лимиты тарифа
               </button>
@@ -649,7 +649,7 @@ export function CompaniesPage() {
                 type="button"
                 onClick={() => statusMutation.mutate({ companyId: c.id, isActive: !c.is_active })}
                 disabled={statusMutation.isPending}
-                className="rounded-xl border border-slate-600 bg-slate-900/40 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-800/60 disabled:opacity-40"
+                className="rounded-xl crm-modal-panel border/40 px-3 py-1.5 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)] disabled:opacity-40"
               >
                 {c.is_active ? "Остановить" : "Запустить"}
               </button>
@@ -665,35 +665,35 @@ export function CompaniesPage() {
           aria-modal
           aria-labelledby="tariff-title"
         >
-          <div className="w-full max-w-md rounded-2xl border border-slate-600 bg-slate-900 p-6 shadow-2xl">
-            <h2 id="tariff-title" className="text-lg font-semibold text-white">
+          <div className="w-full max-w-md rounded-2xl crm-modal-panel border p-6 shadow-2xl">
+            <h2 id="tariff-title" className="lux-subheading">
               Лимиты: {tariffCompany.name}
             </h2>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs lux-caption">
               Пустое поле — не менять этот лимит. Число — своё ограничение для компании.
             </p>
             <div className="mt-4 space-y-3">
-              <label className="block text-sm text-slate-300">
+              <label className="block text-sm mo-muted">
                 Макс. активных пользователей
                 <input
                   type="number"
                   min={0}
                   value={tariffUsersDraft}
                   onChange={(e) => setTariffUsersDraft(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
-              <label className="block text-sm text-slate-300">
+              <label className="block text-sm mo-muted">
                 Макс. интеграций
                 <input
                   type="number"
                   min={0}
                   value={tariffIntsDraft}
                   onChange={(e) => setTariffIntsDraft(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
-              <label className="block text-sm text-slate-300">
+              <label className="block text-sm mo-muted">
                 Скидка к подписке, % (перекрывает скидку тарифа; пусто — сброс)
                 <input
                   type="number"
@@ -702,7 +702,7 @@ export function CompaniesPage() {
                   step={0.1}
                   value={billingDiscountDraft}
                   onChange={(e) => setBillingDiscountDraft(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
             </div>
@@ -710,7 +710,7 @@ export function CompaniesPage() {
               <button
                 type="button"
                 onClick={() => setTariffCompany(null)}
-                className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800/60"
+                className="rounded-xl border border-[var(--mo-border-strong)] px-4 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
               >
                 Отмена
               </button>
@@ -725,7 +725,7 @@ export function CompaniesPage() {
                   }
                   tariffMutation.mutate({ companyId: tariffCompany.id, body });
                 }}
-                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-[var(--mo-text)] hover:bg-indigo-500 disabled:opacity-50"
               >
                 Сохранить
               </button>
@@ -738,7 +738,7 @@ export function CompaniesPage() {
                     body: { tariff_max_active_users: null, tariff_max_integrations: null },
                   })
                 }
-                className="rounded-xl border border-slate-500 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800/60 disabled:opacity-50"
+                className="rounded-xl border border-slate-500 px-4 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)] disabled:opacity-50"
               >
                 Сбросить на платформу
               </button>
@@ -758,7 +758,7 @@ export function CompaniesPage() {
                   }
                   billingDiscountMutation.mutate({ companyId: tariffCompany.id, percent: n });
                 }}
-                className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
+                className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-[var(--mo-text)] hover:bg-violet-500 disabled:opacity-50"
               >
                 Сохранить скидку
               </button>
@@ -774,15 +774,15 @@ export function CompaniesPage() {
           aria-modal
           aria-labelledby="schedule-tariff-title"
         >
-          <div className="w-full max-w-md rounded-2xl border border-slate-600 bg-slate-900 p-6 shadow-2xl">
-            <h2 id="schedule-tariff-title" className="text-lg font-semibold text-white">
+          <div className="w-full max-w-md rounded-2xl crm-modal-panel border p-6 shadow-2xl">
+            <h2 id="schedule-tariff-title" className="lux-subheading">
               Отложенная смена тарифа: {scheduleCompany.name}
             </h2>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs lux-caption">
               Текущий план остаётся до указанного времени, затем подставится выбранный тариф (например с 1-го числа).
             </p>
             <div className="mt-4 space-y-3">
-              <label className="block text-sm text-slate-300">
+              <label className="block text-sm mo-muted">
                 Новый тариф
                 <select
                   value={schedulePlanDraft === "" ? "" : String(schedulePlanDraft)}
@@ -790,7 +790,7 @@ export function CompaniesPage() {
                     const v = e.target.value;
                     setSchedulePlanDraft(v === "" ? "" : Number(v));
                   }}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 >
                   <option value="">— сбросить отложенную смену —</option>
                   {(plansQuery.data ?? [])
@@ -802,13 +802,13 @@ export function CompaniesPage() {
                     ))}
                 </select>
               </label>
-              <label className="block text-sm text-slate-300">
+              <label className="block text-sm mo-muted">
                 Дата и время вступления (локальное)
                 <input
                   type="datetime-local"
                   value={scheduleAtDraft}
                   onChange={(e) => setScheduleAtDraft(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-white"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
             </div>
@@ -816,7 +816,7 @@ export function CompaniesPage() {
               <button
                 type="button"
                 onClick={() => setScheduleCompany(null)}
-                className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800/60"
+                className="rounded-xl border border-[var(--mo-border-strong)] px-4 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
               >
                 Отмена
               </button>
@@ -848,7 +848,7 @@ export function CompaniesPage() {
                     },
                   });
                 }}
-                className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500 disabled:opacity-50"
+                className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-[var(--mo-text)] hover:bg-amber-500 disabled:opacity-50"
               >
                 Сохранить
               </button>

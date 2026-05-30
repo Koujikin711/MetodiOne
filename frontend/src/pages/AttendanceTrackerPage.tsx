@@ -44,7 +44,7 @@ function MiniMapPicker({
       center={[lat, lon]}
       zoom={16}
       scrollWheelZoom
-      className="h-48 w-full rounded-xl border border-white/10"
+      className="h-48 w-full rounded-xl border border-[var(--mo-border)]"
       key={`${lat.toFixed(6)}:${lon.toFixed(6)}:${radiusM}`}
     >
       <TileLayer
@@ -215,21 +215,21 @@ export function AttendanceTrackerPage() {
   }
 
   return (
-    <section className="space-y-5 text-slate-100">
-      <div className="rounded-2xl border border-white/10 bg-slate-900/45 p-5">
+    <section className="space-y-5 text-[var(--mo-text)]">
+      <div className="rounded-2xl mo-section p-5">
         <h1 className="text-2xl font-semibold">Geo-трекер присутствия</h1>
-        <p className="mt-1 text-sm text-slate-300">
+        <p className="mt-1 text-sm mo-muted">
           Контроль прихода/ухода, фиксация GPS-точек, проверка нахождения в геозоне и отчёт по отработанному времени.
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <article className="rounded-2xl border border-white/10 bg-slate-900/45 p-5">
+        <article className="rounded-2xl mo-section p-5">
           <h2 className="text-lg font-semibold">Моя смена</h2>
-          <p className="mt-2 text-sm text-slate-300">
-            Сегодня: <span className="font-medium text-white">{secToHuman(statusQuery.data?.today_total_sec ?? 0)}</span>
+          <p className="mt-2 text-sm mo-muted">
+            Сегодня: <span className="font-medium text-[var(--mo-text)]">{secToHuman(statusQuery.data?.today_total_sec ?? 0)}</span>
           </p>
-          <div className="mt-3 text-sm text-slate-300">
+          <div className="mt-3 text-sm mo-muted">
             {point ? (
               <span>
                 GPS: {point.latitude.toFixed(5)}, {point.longitude.toFixed(5)} (точность {point.accuracy_m ?? "?"}м)
@@ -242,7 +242,7 @@ export function AttendanceTrackerPage() {
             <button
               type="button"
               onClick={readCurrentLocation}
-              className="rounded-lg border border-slate-500/40 bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700"
+              className="rounded-lg border border-[var(--mo-border)] bg-[var(--mo-accent-soft)] px-3 py-2 text-sm hover:bg-[var(--mo-accent-soft)]"
             >
               Обновить геолокацию
             </button>
@@ -265,9 +265,9 @@ export function AttendanceTrackerPage() {
             )}
           </div>
           <div className="mt-4">
-            <label className="text-xs text-slate-400">Рабочая геозона</label>
+            <label className="text-xs lux-caption">Рабочая геозона</label>
             <select
-              className="mt-1 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg mo-input px-3 py-2 text-sm"
               value={geofenceId}
               onChange={(e) => setGeofenceId(e.target.value ? Number(e.target.value) : "")}
             >
@@ -281,39 +281,39 @@ export function AttendanceTrackerPage() {
                 ))}
             </select>
           </div>
-          <label className="mt-4 flex items-center gap-2 text-sm text-slate-300">
+          <label className="mt-4 flex items-center gap-2 text-sm mo-muted">
             <input
               type="checkbox"
               checked={trackEnabled}
               onChange={(e) => setTrackEnabled(e.target.checked)}
-              className="h-4 w-4 rounded border-white/20 bg-slate-900"
+              className="h-4 w-4 rounded border-[var(--mo-border)] bg-white"
             />
             Автопинг каждую минуту (в фоне страницы)
           </label>
         </article>
 
-        <article className="rounded-2xl border border-white/10 bg-slate-900/45 p-5">
+        <article className="rounded-2xl mo-section p-5">
           <h2 className="text-lg font-semibold">Геозоны компании</h2>
           <div className="mt-3 space-y-2 text-sm">
             {(geofencesQuery.data ?? []).map((g) => (
-              <div key={g.id} className="rounded-lg border border-white/10 bg-slate-950/50 p-3">
+              <div key={g.id} className="rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <strong>{g.name}</strong>
-                  <span className={g.is_active ? "text-emerald-300" : "text-slate-400"}>
+                  <span className={g.is_active ? "text-[#0f4c3a]" : "lux-caption"}>
                     {g.is_active ? "Активна" : "Выключена"}
                   </span>
                 </div>
-                <div className="text-slate-300">
+                <div className="mo-muted">
                   {g.address || "Без адреса"} - радиус {g.radius_m}м
                 </div>
               </div>
             ))}
-            {!geofencesQuery.data?.length ? <div className="text-slate-400">Геозоны пока не добавлены.</div> : null}
+            {!geofencesQuery.data?.length ? <div className="lux-caption">Геозоны пока не добавлены.</div> : null}
           </div>
           {canManageGeofences ? (
             <div className="mt-4 grid gap-2">
               <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs lux-caption">
                   <span>Кликните по карте, чтобы выбрать точку офиса</span>
                   <button
                     type="button"
@@ -324,7 +324,7 @@ export function AttendanceTrackerPage() {
                       }
                       setFencePoint(point.latitude, point.longitude);
                     }}
-                    className="rounded-md border border-white/20 bg-slate-800 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700"
+                    className="rounded-md border border-[var(--mo-border)] bg-[var(--mo-accent-soft)] px-2 py-1 text-xs text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
                   >
                     Взять мою геолокацию
                   </button>
@@ -337,32 +337,32 @@ export function AttendanceTrackerPage() {
                 />
               </div>
               <input
-                className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm"
+                className="rounded-lg mo-input px-3 py-2 text-sm"
                 placeholder="Название геозоны"
                 value={newFence.name}
                 onChange={(e) => setNewFence((x) => ({ ...x, name: e.target.value }))}
               />
               <input
-                className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm"
+                className="rounded-lg mo-input px-3 py-2 text-sm"
                 placeholder="Адрес"
                 value={newFence.address}
                 onChange={(e) => setNewFence((x) => ({ ...x, address: e.target.value }))}
               />
               <div className="grid grid-cols-3 gap-2">
                 <input
-                  className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm"
+                  className="rounded-lg mo-input px-3 py-2 text-sm"
                   placeholder="Широта"
                   value={newFence.latitude}
                   onChange={(e) => setNewFence((x) => ({ ...x, latitude: e.target.value }))}
                 />
                 <input
-                  className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm"
+                  className="rounded-lg mo-input px-3 py-2 text-sm"
                   placeholder="Долгота"
                   value={newFence.longitude}
                   onChange={(e) => setNewFence((x) => ({ ...x, longitude: e.target.value }))}
                 />
                 <input
-                  className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm"
+                  className="rounded-lg mo-input px-3 py-2 text-sm"
                   placeholder="Радиус, м"
                   value={newFence.radius_m}
                   onChange={(e) => setNewFence((x) => ({ ...x, radius_m: e.target.value }))}
@@ -387,37 +387,37 @@ export function AttendanceTrackerPage() {
       </div>
 
       {canViewReports ? (
-        <article className="rounded-2xl border border-white/10 bg-slate-900/45 p-5">
+        <article className="rounded-2xl mo-section p-5">
           <div className="flex flex-wrap items-end gap-2">
             <div>
-              <label className="text-xs text-slate-400">С</label>
+              <label className="text-xs lux-caption">С</label>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="mt-1 block rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm"
+                className="mt-1 block rounded-lg mo-input px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="text-xs text-slate-400">По</label>
+              <label className="text-xs lux-caption">По</label>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="mt-1 block rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm"
+                className="mt-1 block rounded-lg mo-input px-3 py-2 text-sm"
               />
             </div>
             <button
               type="button"
               onClick={() => void reportQuery.refetch()}
-              className="rounded-lg border border-white/20 bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700"
+              className="rounded-lg border border-[var(--mo-border)] bg-[var(--mo-accent-soft)] px-3 py-2 text-sm hover:bg-[var(--mo-accent-soft)]"
             >
               Обновить отчет
             </button>
           </div>
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="text-left text-slate-400">
+              <thead className="text-left lux-caption">
                 <tr>
                   <th className="px-3 py-2">Сотрудник</th>
                   <th className="px-3 py-2">Часы</th>
@@ -427,10 +427,10 @@ export function AttendanceTrackerPage() {
               </thead>
               <tbody>
                 {(reportQuery.data?.employees ?? []).map((row) => (
-                  <tr key={row.user_id} className="border-t border-white/10">
+                  <tr key={row.user_id} className="border-t border-[var(--mo-border)]">
                     <td className="px-3 py-2">
                       {row.full_name || row.email}
-                      <div className="text-xs text-slate-400">{row.email}</div>
+                      <div className="text-xs lux-caption">{row.email}</div>
                     </td>
                     <td className="px-3 py-2">{secToHuman(row.total_sec)}</td>
                     <td className="px-3 py-2">{row.shifts_count}</td>
@@ -439,7 +439,7 @@ export function AttendanceTrackerPage() {
                 ))}
                 {!reportQuery.data?.employees?.length ? (
                   <tr>
-                    <td className="px-3 py-4 text-slate-400" colSpan={4}>
+                    <td className="px-3 py-4 lux-caption" colSpan={4}>
                       Нет данных за период.
                     </td>
                   </tr>

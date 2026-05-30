@@ -26,8 +26,8 @@ export function FinanceShell() {
               className={[
                 "rounded-xl border px-4 py-2 text-sm font-medium transition",
                 active
-                  ? "border-[#2f5f85] bg-[#e8f0f7] text-[#1e3348]"
-                  : "border-[#d8d2c6] bg-white/70 text-[#5c6b7a] hover:border-[#2f5f85]/50 hover:text-[#1e3348]",
+                  ? "border-[#d4af37] bg-[#f7f2e8] text-[#2c2520] shadow-[var(--mo-shadow-luxury)]"
+                  : "border-[var(--mo-border)] bg-white/90 mo-muted hover:border-[#d4af37]/50 hover:text-[var(--mo-text)]",
               ].join(" ")}
             >
               {item.label}

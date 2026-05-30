@@ -558,14 +558,14 @@ export function ChatPage() {
             value={threadSearch}
             onChange={(e) => setThreadSearch(e.target.value)}
             placeholder="Поиск: имя, телефон, чат, ключевое слово…"
-            className="mb-2 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            className="mb-2 w-full rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm text-white placeholder:mo-muted"
           />
-          <p className="mb-2 text-[10px] leading-relaxed text-slate-500">
+          <p className="mb-2 text-[10px] leading-relaxed mo-muted">
             {showManagerChatBuckets
               ? "Вкладки фильтруют список. Внутри вкладки: зелёный — ждёт ответа · голубой — первые 3 дня · без заливки — старше."
               : "Подсветка: зелёный — ждёт вашего ответа · голубой — первые 3 дня с первого сообщения · без заливки — старше."}
           </p>
-          {threadsQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
+          {threadsQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
           {threadsQuery.isError && (
             <p className="text-sm text-red-300">{(threadsQuery.error as Error).message}</p>
           )}
@@ -584,14 +584,14 @@ export function ChatPage() {
                   className={threadRowClasses(t, t.id === threadId)}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-slate-100">
+                    <div className="truncate text-sm font-semibold text-[var(--mo-text)]">
                       {t.lead_name || t.title || `Диалог #${t.id}`}
                     </div>
-                    <div className="mt-1 truncate text-xs text-slate-400">
+                    <div className="mt-1 truncate text-xs lux-caption">
                       {t.provider} {t.external_chat_id ? `· ${t.external_chat_id}` : ""}
                     </div>
                     {manager ? (
-                      <div className="mt-1 truncate text-[11px] text-slate-300/80">Ответственный: {manager}</div>
+                      <div className="mt-1 truncate text-[11px] mo-muted/80">Ответственный: {manager}</div>
                     ) : null}
                     {t.is_transferred && chatBucket !== "transferred" ? (
                       <div className="mt-0.5 text-[10px] text-amber-200/90">Передан вам</div>
@@ -609,7 +609,7 @@ export function ChatPage() {
               );
             })}
             {!threadsQuery.isLoading && displayThreads.length === 0 && (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm mo-muted">
                 {showManagerChatBuckets
                   ? chatBucket === "transferred"
                     ? "Нет переданных лидов"
@@ -620,33 +620,33 @@ export function ChatPage() {
               </p>
             )}
             {threadsQuery.isFetchingNextPage && (
-              <p className="py-1 text-center text-xs text-slate-500">Загрузка ещё…</p>
+              <p className="py-1 text-center text-xs mo-muted">Загрузка ещё…</p>
             )}
             <div ref={threadsLoadMoreRef} className="h-1 w-full" aria-hidden />
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4 shadow-inner backdrop-blur-sm">
-          {!selectedThread && <p className="text-sm text-slate-500">Выберите диалог слева.</p>}
+        <section className="mo-section p-4 shadow-inner backdrop-blur-sm">
+          {!selectedThread && <p className="text-sm mo-muted">Выберите диалог слева.</p>}
           {selectedThread && (
             <>
-              <div className="mb-3 border-b border-slate-700/50 pb-2">
+              <div className="mb-3 border-b border-[var(--mo-border)] pb-2">
                 <div className="text-sm font-semibold text-white">
                   {selectedThread.lead_name || selectedThread.title || `Диалог #${selectedThread.id}`}
                 </div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs lux-caption">
                   <span>
                     {selectedThread.provider} {selectedThread.external_chat_id ? `· ${selectedThread.external_chat_id}` : ""}
                   </span>
                   <span className="opacity-60">·</span>
                   <span>
-                    Ответственный: <span className="text-slate-200/90">{selectedManagerLabel}</span>
+                    Ответственный: <span className="text-[var(--mo-text)]/90">{selectedManagerLabel}</span>
                   </span>
                 </div>
               </div>
 
               <div className="max-h-[56vh] space-y-2 overflow-y-auto pr-1">
-                {messagesQuery.isLoading && <p className="text-sm text-slate-400">Загрузка сообщений…</p>}
+                {messagesQuery.isLoading && <p className="text-sm lux-caption">Загрузка сообщений…</p>}
                 {(messagesQuery.data ?? []).map((m, idx, arr) => {
                   const isOut = m.direction === "out";
                   const time = formatChatTime(m.created_at);
@@ -660,18 +660,18 @@ export function ChatPage() {
                         ? "text-emerald-200/90"
                         : meta?.tone === "bad"
                           ? "text-rose-200/95"
-                          : "text-slate-400";
+                          : "lux-caption";
 
                   return (
                     <div
                       key={m.id}
                       className={[
                         "max-w-[85%] rounded-xl px-3 py-2 text-sm",
-                        isOut ? "ml-auto bg-indigo-600/40 text-slate-100" : "bg-slate-900/50 text-slate-200",
+                        isOut ? "ml-auto bg-indigo-600/40 text-[var(--mo-text)]" : "bg-white/50 text-[var(--mo-text)]",
                       ].join(" ")}
                     >
                       <MessageBody m={m} />
-                      <div className="mt-1 flex items-center justify-end gap-2 text-[10px] tabular-nums text-slate-400">
+                      <div className="mt-1 flex items-center justify-end gap-2 text-[10px] tabular-nums lux-caption">
                         {time ? <span>{time}</span> : null}
                         {isOut && meta?.label ? <span className={metaToneClass}>{meta.label}</span> : null}
                       </div>
@@ -684,7 +684,7 @@ export function ChatPage() {
                   );
                 })}
                 {!messagesQuery.isLoading && (messagesQuery.data ?? []).length === 0 && (
-                  <p className="text-sm text-slate-500">Нет сообщений.</p>
+                  <p className="text-sm mo-muted">Нет сообщений.</p>
                 )}
                 <div ref={messagesEndRef} aria-hidden />
               </div>
@@ -716,7 +716,7 @@ export function ChatPage() {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isRecording || voiceFinishing || sendMutation.isPending}
-                  className="shrink-0 rounded-xl border border-slate-600 bg-slate-900/50 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800/80 disabled:opacity-50"
+                  className="shrink-0 rounded-xl crm-modal-panel border/50 px-3 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]/80 disabled:opacity-50"
                 >
                   Файл
                 </button>
@@ -735,7 +735,7 @@ export function ChatPage() {
                           : "Сообщение клиенту…"
                   }
                   readOnly={isRecording || voiceFinishing}
-                  className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white read-only:opacity-80"
+                  className="min-w-0 flex-1 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm text-white read-only:opacity-80"
                 />
                 <button
                   type="button"
@@ -777,11 +777,11 @@ export function ChatPage() {
                 <p className="mt-1 text-xs font-medium text-red-300/90">● Запись… нажмите круглую кнопку ещё раз, чтобы остановить</p>
               )}
               {voiceFinishing && !isRecording && (
-                <p className="mt-1 text-xs text-slate-400">Отправка голосового…</p>
+                <p className="mt-1 text-xs lux-caption">Отправка голосового…</p>
               )}
               {voiceDraftUrl && voiceDraftFile && !isRecording && !voiceFinishing && (
-                <div className="mt-2 rounded-xl border border-slate-700/50 bg-slate-900/30 p-3">
-                  <div className="text-xs font-semibold text-slate-200">Предпрослушивание голосового</div>
+                <div className="mt-2 rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
+                  <div className="text-xs font-semibold text-[var(--mo-text)]">Предпрослушивание голосового</div>
                   <audio src={voiceDraftUrl} controls className="mt-2 w-full max-w-md" />
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
@@ -796,7 +796,7 @@ export function ChatPage() {
                       type="button"
                       onClick={clearVoiceDraft}
                       disabled={sendMutation.isPending}
-                      className="rounded-xl border border-slate-600 bg-slate-900/50 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-50"
+                      className="rounded-xl crm-modal-panel border/50 px-3 py-1.5 text-xs text-[var(--mo-text)] disabled:opacity-50"
                     >
                       Отменить
                     </button>
@@ -804,7 +804,7 @@ export function ChatPage() {
                 </div>
               )}
               {pendingFile && !isRecording && (
-                <p className="mt-1 text-xs text-slate-400">Вложение: {pendingFile.name}</p>
+                <p className="mt-1 text-xs lux-caption">Вложение: {pendingFile.name}</p>
               )}
             </>
           )}

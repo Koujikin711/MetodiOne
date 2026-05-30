@@ -8,9 +8,9 @@ type Props = {
 
 export function EmptyState({ title, description, action }: Props) {
   return (
-    <div className="rounded-xl border border-dashed border-[#2d3f52] bg-[#0f141c]/60 px-4 py-8 text-center">
-      <p className="text-sm font-medium text-slate-300">{title}</p>
-      {description ? <p className="mt-1 text-xs text-slate-500">{description}</p> : null}
+    <div className="mo-empty">
+      <p className="text-sm font-medium text-[var(--mo-text)]">{title}</p>
+      {description ? <p className="lux-caption mt-1">{description}</p> : null}
       {action ? <div className="mt-4 flex justify-center">{action}</div> : null}
     </div>
   );

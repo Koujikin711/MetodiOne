@@ -70,15 +70,15 @@ export function AnalyticsPage() {
     <div className="relative mx-auto max-w-6xl space-y-6 pb-8">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-white">{lex.analyticsTitle}</h1>
-        <p className="text-sm text-slate-400">{lex.analyticsIntro}</p>
+        <p className="text-sm lux-caption">{lex.analyticsIntro}</p>
       </header>
 
-      <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
+      <section className="mo-section p-4">
         <div className="grid gap-3 md:grid-cols-[170px_170px_200px_1fr_1fr_auto]">
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as "overview" | "full" | "detailed")}
-            className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+            className="mo-input"
           >
             <option value="overview">Обзор 360</option>
             <option value="full">Полная</option>
@@ -87,7 +87,7 @@ export function AnalyticsPage() {
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value as "day" | "month" | "custom")}
-            className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+            className="mo-input"
           >
             <option value="day">За день</option>
             <option value="month">За месяц</option>
@@ -96,7 +96,7 @@ export function AnalyticsPage() {
           <select
             value={pipelineId === "all" ? "all" : String(pipelineId)}
             onChange={(e) => setPipelineId(e.target.value === "all" ? "all" : Number(e.target.value))}
-            className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white"
+            className="mo-input"
           >
             <option value="all">{lex.pipelineAll}</option>
             {(pipelinesQuery.data ?? []).map((p) => (
@@ -110,14 +110,14 @@ export function AnalyticsPage() {
             disabled={period !== "custom"}
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white disabled:opacity-50"
+            className="mo-input disabled:opacity-50"
           />
           <input
             type="date"
             disabled={period !== "custom"}
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="rounded-xl border border-slate-600/50 bg-slate-900/50 px-3 py-2 text-white disabled:opacity-50"
+            className="mo-input disabled:opacity-50"
           />
           <button
             type="button"
@@ -162,7 +162,7 @@ export function AnalyticsPage() {
                 );
               }
             }}
-            className="rounded-xl border border-slate-600/50 bg-slate-900/60 px-4 py-2 text-sm text-white hover:bg-slate-800"
+            className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/60 px-4 py-2 text-sm text-white hover:bg-[var(--mo-accent-soft)]"
           >
             Экспорт CSV
           </button>
@@ -170,25 +170,25 @@ export function AnalyticsPage() {
       </section>
 
       {mode === "overview" && (
-        <section className="space-y-4 rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
+        <section className="space-y-4 mo-section p-4">
           {overviewQuery.isError && <p className="text-sm text-red-300">{(overviewQuery.error as Error).message}</p>}
-          {overviewQuery.isLoading && <p className="text-sm text-slate-400">Загрузка...</p>}
+          {overviewQuery.isLoading && <p className="text-sm lux-caption">Загрузка...</p>}
           {overviewQuery.data && (
             <>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
                   {lex.guestsMetricLabel}: <b>{overviewQuery.data.executive.leads_total}</b>
                 </div>
-                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
                   Win Rate: <b>{overviewQuery.data.executive.win_rate_pct}%</b>
                 </div>
-                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
                   Оплачено: <b>{moneyFmt.format(Number(overviewQuery.data.executive.paid_amount))}</b>
                 </div>
-                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
                   Не оплачено: <b>{moneyFmt.format(Number(overviewQuery.data.executive.unpaid_amount))}</b>
                 </div>
-                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
                   Первый ответ:{" "}
                   <b>
                     {overviewQuery.data.executive.avg_first_response_minutes == null
@@ -196,7 +196,7 @@ export function AnalyticsPage() {
                       : `${overviewQuery.data.executive.avg_first_response_minutes} мин`}
                   </b>
                 </div>
-                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
                   {lex.leadCycle}:{" "}
                   <b>
                     {overviewQuery.data.executive.avg_lead_cycle_hours == null
@@ -206,10 +206,10 @@ export function AnalyticsPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-3">
+              <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
                 <h3 className="mb-2 text-sm font-semibold text-white">Алерты</h3>
                 {overviewQuery.data.alerts.summary.length === 0 ? (
-                  <p className="text-sm text-emerald-300">Критичных отклонений не найдено.</p>
+                  <p className="text-sm text-[#0f4c3a]">Критичных отклонений не найдено.</p>
                 ) : (
                   <ul className="space-y-1 text-sm text-amber-200">
                     {overviewQuery.data.alerts.summary.map((item) => (
@@ -220,11 +220,11 @@ export function AnalyticsPage() {
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-3">
+                <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
                   <h3 className="mb-2 text-sm font-semibold text-white">{lex.sectionStageFlow}</h3>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[520px] text-left text-sm text-slate-200">
-                      <thead className="text-slate-400">
+                    <table className="w-full min-w-[520px] text-left text-sm text-[var(--mo-text)]">
+                      <thead className="lux-caption">
                         <tr>
                           <th className="py-2 pr-3">Стадия</th>
                           <th className="py-2 pr-3">{lex.leadCol}</th>
@@ -246,11 +246,11 @@ export function AnalyticsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-3">
+                <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
                   <h3 className="mb-2 text-sm font-semibold text-white">Причины потерь</h3>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[420px] text-left text-sm text-slate-200">
-                      <thead className="text-slate-400">
+                    <table className="w-full min-w-[420px] text-left text-sm text-[var(--mo-text)]">
+                      <thead className="lux-caption">
                         <tr>
                           <th className="py-2 pr-3">Причина</th>
                           <th className="py-2 pr-3">Кол-во</th>
@@ -271,11 +271,11 @@ export function AnalyticsPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-3">
+              <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
                 <h3 className="mb-2 text-sm font-semibold text-white">{lex.sourcesTitle}</h3>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-left text-sm text-slate-200">
-                      <thead className="text-slate-400">
+                    <table className="w-full min-w-[760px] text-left text-sm text-[var(--mo-text)]">
+                      <thead className="lux-caption">
                         <tr>
                           <th className="py-2 pr-3">Источник</th>
                           <th className="py-2 pr-3">{lex.leadCol}</th>
@@ -301,11 +301,11 @@ export function AnalyticsPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-3">
+              <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
                 <h3 className="mb-2 text-sm font-semibold text-white">{lex.sectionPlanFact}</h3>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[640px] text-left text-sm text-slate-200">
-                      <thead className="text-slate-400">
+                    <table className="w-full min-w-[640px] text-left text-sm text-[var(--mo-text)]">
+                      <thead className="lux-caption">
                         <tr>
                           <th className="py-2 pr-3">{lex.thStaff}</th>
                         <th className="py-2 pr-3">План</th>
@@ -332,25 +332,25 @@ export function AnalyticsPage() {
       )}
 
       {mode === "full" && (
-        <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
+        <section className="mo-section p-4">
           {fullQuery.isError && <p className="text-sm text-red-300">{(fullQuery.error as Error).message}</p>}
-          {fullQuery.isLoading && <p className="text-sm text-slate-400">Загрузка...</p>}
+          {fullQuery.isLoading && <p className="text-sm lux-caption">Загрузка...</p>}
           {fullQuery.data && (
             <>
               <div className="mb-3 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
                   {lex.guestsMetricLabel}: <b>{fullQuery.data.total_leads}</b>
                 </div>
-                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
                   Получено: <b>{moneyFmt.format(Number(fullQuery.data.total_received_amount))}</b>
                 </div>
-                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
                   Дебиторка: <b>{moneyFmt.format(Number(fullQuery.data.total_debt_amount))}</b>
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-sm text-slate-200">
-                  <thead className="text-slate-400">
+                <table className="w-full min-w-[760px] text-left text-sm text-[var(--mo-text)]">
+                  <thead className="lux-caption">
                     <tr>
                       <th className="py-2 pr-4">{lex.thPipelineOrOutlet}</th>
                       <th className="py-2 pr-4">{lex.leadCol}</th>
@@ -378,25 +378,25 @@ export function AnalyticsPage() {
       )}
 
       {mode === "detailed" && (
-        <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-4">
+        <section className="mo-section p-4">
           {detailedQuery.isError && <p className="text-sm text-red-300">{(detailedQuery.error as Error).message}</p>}
-          {detailedQuery.isLoading && <p className="text-sm text-slate-400">Загрузка...</p>}
+          {detailedQuery.isLoading && <p className="text-sm lux-caption">Загрузка...</p>}
           {detailedQuery.data && (
             <>
               <div className="mb-3 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
                   {lex.guestsMetricLabel}: <b>{detailedQuery.data.total_leads}</b>
                 </div>
-                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
                   Продано: <b>{moneyFmt.format(Number(detailedQuery.data.total_sold_amount))}</b>
                 </div>
-                <div className="rounded-xl bg-slate-900/40 p-3 text-sm text-slate-200">
+                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
                   Не оплачено: <b>{moneyFmt.format(Number(detailedQuery.data.total_unpaid_amount))}</b>
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-sm text-slate-200">
-                  <thead className="text-slate-400">
+                <table className="w-full min-w-[760px] text-left text-sm text-[var(--mo-text)]">
+                  <thead className="lux-caption">
                     <tr>
                       <th className="py-2 pr-4">{lex.thStaff}</th>
                       <th className="py-2 pr-4">{lex.leadCol}</th>

@@ -66,12 +66,12 @@ export function MiniMonthCalendar({ value, onChange }: Props) {
   }
 
   return (
-    <div className="w-full rounded-xl border border-slate-700/50 bg-slate-900/35 p-2.5">
+    <div className="w-full rounded-xl border border-[var(--mo-border)] bg-white/35 p-2.5">
       <div className="mb-2 flex items-center justify-between gap-1.5">
         <button
           type="button"
           onClick={() => shiftMonth(-1)}
-          className="rounded-md px-1.5 py-0.5 text-slate-400 hover:bg-white/5 hover:text-white"
+          className="rounded-md px-1.5 py-0.5 lux-caption hover:bg-white/5 hover:text-white"
           aria-label="Предыдущий месяц"
         >
           ‹
@@ -80,13 +80,13 @@ export function MiniMonthCalendar({ value, onChange }: Props) {
         <button
           type="button"
           onClick={() => shiftMonth(1)}
-          className="rounded-md px-1.5 py-0.5 text-slate-400 hover:bg-white/5 hover:text-white"
+          className="rounded-md px-1.5 py-0.5 lux-caption hover:bg-white/5 hover:text-white"
           aria-label="Следующий месяц"
         >
           ›
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-medium uppercase text-slate-500">
+      <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-medium uppercase mo-muted">
         {weekDays.map((w) => (
           <div key={w} className="py-0.5">
             {w}
@@ -106,7 +106,7 @@ export function MiniMonthCalendar({ value, onChange }: Props) {
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30"
                   : c.isToday
                     ? "bg-white/10 text-white ring-1 ring-purple-500/40"
-                    : "text-slate-300 hover:bg-white/5",
+                    : "mo-muted hover:bg-white/5",
               ].join(" ")}
             >
               {c.day}
