@@ -73,7 +73,7 @@ export function BillingTariffPage() {
   return (
     <div className="relative mx-auto max-w-[720px] space-y-6 pb-10">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight text-white">Оплата и тариф</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Оплата и тариф</h1>
         <p className="mt-1 text-sm lux-caption">
           Демо-период, выбор тарифа после демо и статус подключения по оплате.
         </p>
@@ -81,7 +81,7 @@ export function BillingTariffPage() {
 
       {s.billing_status === "demo_trial" && daysLeft != null ? (
         <div className="rounded-2xl border border-cyan-500/35 bg-cyan-950/25 px-5 py-4 text-sm text-cyan-50">
-          <p className="font-semibold text-white">Бесплатный демо-доступ</p>
+          <p className="font-semibold text-[var(--mo-text)]">Бесплатный демо-доступ</p>
           <p className="mt-2 text-cyan-100/90">
             Осталось дней: <span className="font-mono text-[var(--mo-text)]">{daysLeft}</span>
             {s.trial_ends_at ? (
@@ -118,7 +118,7 @@ export function BillingTariffPage() {
 
       {s.billing_status === "subscribed" || s.billing_status === "active" ? (
         <div className="mo-section border-[#2d6a5a]/35 bg-[#edf7f1] text-sm">
-          <p className="font-semibold text-white">Тариф подключён</p>
+          <p className="font-semibold text-[var(--mo-text)]">Тариф подключён</p>
           <p className="mt-2 text-emerald-100/90">
             Текущий план: <span className="font-medium text-[var(--mo-text)]">{s.current_tariff_plan_name ?? "не зафиксирован"}</span>
             .
@@ -154,7 +154,7 @@ export function BillingTariffPage() {
                   type="button"
                   disabled={selectMut.isPending}
                   onClick={() => selectMut.mutate(p.id)}
-                  className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  className="btn-primary"
                 >
                   Выбрать
                 </button>

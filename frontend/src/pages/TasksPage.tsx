@@ -139,7 +139,7 @@ export function TasksPage() {
   return (
     <div className="relative mx-auto max-w-3xl space-y-10">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-white">Задачи</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Задачи</h1>
         <p className="text-base lux-caption">Персональные и командные задачи по ролям</p>
         <div className="flex gap-2 pt-1">
           <button
@@ -176,7 +176,7 @@ export function TasksPage() {
             value={canTeamScope ? scope : "my"}
             onChange={(e) => setScope(e.target.value as "my" | "team")}
             disabled={!canTeamScope}
-            className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white disabled:opacity-50"
+            className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)] disabled:opacity-50"
           >
             <option value="my">Мои</option>
             <option value="team">Командные</option>
@@ -187,7 +187,7 @@ export function TasksPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+            className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
           >
             <option value="">Все</option>
             {Object.entries(statusLabel).map(([k, v]) => (
@@ -203,7 +203,7 @@ export function TasksPage() {
             type="date"
             value={deadlineFrom}
             onChange={(e) => setDeadlineFrom(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+            className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
           />
         </label>
         <label className="text-xs lux-caption">
@@ -212,7 +212,7 @@ export function TasksPage() {
             type="date"
             value={deadlineTo}
             onChange={(e) => setDeadlineTo(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+            className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
           />
         </label>
         <label className="text-xs lux-caption">
@@ -221,7 +221,7 @@ export function TasksPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Название / описание"
-            className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+            className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
           />
         </label>
       </section>
@@ -234,7 +234,7 @@ export function TasksPage() {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
             />
           </label>
           <label className="text-xs lux-caption">
@@ -242,7 +242,7 @@ export function TasksPage() {
             <select
               value={assignedTo}
               onChange={(e) => setAssignedTo(e.target.value ? Number(e.target.value) : "")}
-              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
             >
               <option value="">Выберите</option>
               {(assigneesQuery.data ?? []).map((u) => (
@@ -258,7 +258,7 @@ export function TasksPage() {
               type="datetime-local"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
             />
           </label>
           <label className="text-xs lux-caption">
@@ -268,7 +268,7 @@ export function TasksPage() {
               min={1}
               value={relatedLeadId}
               onChange={(e) => setRelatedLeadId(e.target.value ? Number(e.target.value) : "")}
-              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
             />
           </label>
           <label className="md:col-span-2 text-xs lux-caption">
@@ -277,7 +277,7 @@ export function TasksPage() {
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
             />
           </label>
           <button
@@ -290,7 +290,7 @@ export function TasksPage() {
               createMutation.mutate();
             }}
             disabled={createMutation.isPending}
-            className="md:col-span-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="md:col-span-2 btn-primary"
           >
             {createMutation.isPending ? "Создание..." : "Создать задачу"}
           </button>
@@ -321,7 +321,7 @@ export function TasksPage() {
                       <select
                         value={editingStatus}
                         onChange={(e) => setEditingStatus(e.target.value as TaskStatus)}
-                        className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-1.5 text-xs text-white"
+                        className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-1.5 text-xs text-[var(--mo-text)]"
                       >
                         {Object.entries(statusLabel).map(([k, v]) => (
                           <option key={k} value={k}>
@@ -333,7 +333,7 @@ export function TasksPage() {
                         <select
                           value={editingAssignedTo}
                           onChange={(e) => setEditingAssignedTo(e.target.value ? Number(e.target.value) : "")}
-                          className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-1.5 text-xs text-white"
+                          className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-1.5 text-xs text-[var(--mo-text)]"
                         >
                           <option value="">Без изменения исполнителя</option>
                           {(assigneesQuery.data ?? []).map((u) => (
@@ -371,19 +371,19 @@ export function TasksPage() {
                   <input
                     value={editingTitle}
                     onChange={(e) => setEditingTitle(e.target.value)}
-                    className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+                    className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
                   />
                   <input
                     type="datetime-local"
                     value={editingDeadline}
                     onChange={(e) => setEditingDeadline(e.target.value)}
-                    className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+                    className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
                   />
                   <textarea
                     rows={3}
                     value={editingDescription}
                     onChange={(e) => setEditingDescription(e.target.value)}
-                    className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+                    className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
                   />
                 </div>
               ) : t.description ? (
@@ -392,7 +392,7 @@ export function TasksPage() {
               {t.related_lead_id ? (
                 <p className="mt-3 text-sm mo-muted">
                   Лид:{" "}
-                  <Link className="text-purple-300 underline-offset-4 hover:underline" to={`/leads/${t.related_lead_id}`}>
+                  <Link className="text-[var(--mo-accent-hover)] underline-offset-4 hover:underline" to={`/leads/${t.related_lead_id}`}>
                     #{t.related_lead_id} открыть карточку
                   </Link>
                 </p>
@@ -483,7 +483,7 @@ export function TasksPage() {
                             [t.id]: { score: Number(e.target.value), comment: prev[t.id]?.comment ?? t.review_comment ?? "" },
                           }))
                         }
-                        className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/60 px-2 py-1 text-xs text-white"
+                        className="rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/60 px-2 py-1 text-xs text-[var(--mo-text)]"
                       >
                         {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                           <option key={n} value={n}>
@@ -500,7 +500,7 @@ export function TasksPage() {
                           }))
                         }
                         placeholder="Комментарий к оценке"
-                        className="min-w-[220px] flex-1 rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/60 px-2 py-1 text-xs text-white"
+                        className="min-w-[220px] flex-1 rounded-lg border border-[var(--mo-border-strong)]/50 bg-white/60 px-2 py-1 text-xs text-[var(--mo-text)]"
                       />
                       <button
                         type="button"

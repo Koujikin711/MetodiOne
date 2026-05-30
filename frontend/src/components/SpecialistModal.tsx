@@ -136,7 +136,7 @@ export function SpecialistModal({
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-surface)] px-3 py-2 text-white placeholder:mo-muted"
+              className="mo-input mt-1 w-full"
               placeholder="ФИО"
             />
           </label>
@@ -161,7 +161,7 @@ export function SpecialistModal({
                 <select
                   value={slotDurationMin}
                   onChange={(e) => setSlotDurationMin(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-[var(--mo-border-strong)]/50 bg-white px-2 py-1.5 text-sm text-white"
+                  className="mo-input mt-1 w-full text-sm"
                 >
                   <option value={30}>30 минут</option>
                   <option value={60}>1 час</option>
@@ -175,7 +175,7 @@ export function SpecialistModal({
                 <select
                   value={workStart}
                   onChange={(e) => setWorkStart(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-[var(--mo-border-strong)]/50 bg-white px-2 py-1.5 text-sm text-white"
+                  className="mo-input mt-1 w-full text-sm"
                 >
                   {HOUR_OPTIONS_START.map((h) => (
                     <option key={h} value={h}>
@@ -189,7 +189,7 @@ export function SpecialistModal({
                 <select
                   value={workEnd}
                   onChange={(e) => setWorkEnd(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-[var(--mo-border-strong)]/50 bg-white px-2 py-1.5 text-sm text-white"
+                  className="mo-input mt-1 w-full text-sm"
                 >
                   {HOUR_OPTIONS_END.map((h) => (
                     <option key={h} value={h}>
@@ -227,7 +227,7 @@ export function SpecialistModal({
             <input
               value={specialization}
               onChange={(e) => setSpecialization(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-surface)] px-3 py-2 text-white placeholder:mo-muted"
+              className="mo-input mt-1 w-full"
               placeholder="Необязательно"
             />
           </label>
@@ -237,7 +237,7 @@ export function SpecialistModal({
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-surface)] px-3 py-2 text-white placeholder:mo-muted"
+              className="mo-input mt-1 w-full"
               placeholder="Необязательно"
             />
           </label>
@@ -253,7 +253,7 @@ export function SpecialistModal({
             <button
               type="submit"
               disabled={isSubmitting || workStart >= workEnd || !workWeekdays.length}
-              className="flex-1 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:opacity-95 disabled:opacity-50"
+              className="flex-1 btn-primary"
             >
               {isSubmitting ? "Сохранение…" : mode === "add" ? "Добавить" : "Сохранить"}
             </button>

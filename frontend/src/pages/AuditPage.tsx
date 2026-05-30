@@ -27,7 +27,7 @@ export function AuditPage() {
   return (
     <div className="relative mx-auto max-w-[1400px] space-y-4 pb-10">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight text-white">Системный аудит</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Системный аудит</h1>
         <p className="mt-1 text-sm lux-caption">
           Кто открывал, редактировал, удалял и перемещал записи в MetodiOne.
         </p>
@@ -39,18 +39,18 @@ export function AuditPage() {
             value={entityType}
             onChange={(e) => setEntityType(e.target.value)}
             placeholder="Фильтр по entity_type (lead, booking_appointment, specialist...)"
-            className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+            className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
           />
           <input
             value={entityId}
             onChange={(e) => setEntityId(e.target.value)}
             placeholder="entity_id"
-            className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-white"
+            className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
           />
           <button
             type="button"
             onClick={() => query.refetch()}
-            className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white"
+            className="btn-primary"
           >
             Обновить
           </button>

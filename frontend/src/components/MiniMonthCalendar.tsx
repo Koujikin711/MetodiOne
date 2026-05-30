@@ -66,21 +66,21 @@ export function MiniMonthCalendar({ value, onChange }: Props) {
   }
 
   return (
-    <div className="w-full rounded-xl border border-[var(--mo-border)] bg-white/35 p-2.5">
+    <div className="w-full rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2.5">
       <div className="mb-2 flex items-center justify-between gap-1.5">
         <button
           type="button"
           onClick={() => shiftMonth(-1)}
-          className="rounded-md px-1.5 py-0.5 lux-caption hover:bg-white/5 hover:text-white"
+          className="rounded-md px-1.5 py-0.5 lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]"
           aria-label="Предыдущий месяц"
         >
           ‹
         </button>
-        <span className="text-xs font-semibold text-white">{label}</span>
+        <span className="text-xs font-semibold text-[var(--mo-text)]">{label}</span>
         <button
           type="button"
           onClick={() => shiftMonth(1)}
-          className="rounded-md px-1.5 py-0.5 lux-caption hover:bg-white/5 hover:text-white"
+          className="rounded-md px-1.5 py-0.5 lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]"
           aria-label="Следующий месяц"
         >
           ›
@@ -103,10 +103,10 @@ export function MiniMonthCalendar({ value, onChange }: Props) {
               className={[
                 "rounded-md py-1 text-[11px] font-medium transition-colors",
                 iso === value
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30"
+                  ? "border border-[#8c6d31] bg-[#A38A53] font-semibold text-white shadow-[var(--mo-shadow-luxury)]"
                   : c.isToday
-                    ? "bg-white/10 text-white ring-1 ring-purple-500/40"
-                    : "mo-muted hover:bg-white/5",
+                    ? "border border-[#d4af37] bg-[#f7f2e8] text-[var(--mo-text)]"
+                    : "mo-muted hover:bg-[var(--mo-accent-soft)] hover:text-[var(--mo-text)]",
               ].join(" ")}
             >
               {c.day}

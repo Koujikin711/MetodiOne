@@ -93,15 +93,15 @@ export function HorecaKitchenPage() {
       </header>
 
       <section className="grid gap-3 rounded-2xl mo-section p-4 md:grid-cols-3">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Название позиции" className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-white" />
-        <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Цена продажи" className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-white" />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Название позиции" className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-[var(--mo-text)]" />
+        <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Цена продажи" className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-[var(--mo-text)]" />
         <button
           type="button"
           onClick={() => {
             if (!name.trim()) return toast.error("Введите название");
             createItem.mutate();
           }}
-          className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
+          className="rounded-xl bg-indigo-600 px-3 py-2 lux-subheading text-sm"
         >
           Добавить позицию
         </button>
@@ -109,7 +109,7 @@ export function HorecaKitchenPage() {
 
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl mo-section p-4">
-          <h2 className="text-base font-semibold text-white">Позиции меню</h2>
+          <h2 className="lux-subheading">Позиции меню</h2>
           <div className="mt-3 space-y-2">
             {(itemsQuery.data ?? []).map((item) => (
               <button
@@ -119,7 +119,7 @@ export function HorecaKitchenPage() {
                   setSelectedItemId(item.id);
                   setLines([]);
                 }}
-                className={`w-full rounded-xl border px-3 py-2 text-left text-sm ${selectedItemId === item.id ? "border-teal-500/50 bg-teal-500/10 text-white" : "border-[var(--mo-border)] bg-[var(--mo-surface)] mo-muted"}`}
+                className={`w-full rounded-xl border px-3 py-2 text-left text-sm ${selectedItemId === item.id ? "border-teal-500/50 bg-teal-500/10 text-[var(--mo-text)]" : "border-[var(--mo-border)] bg-[var(--mo-surface)] mo-muted"}`}
               >
                 {item.name} · {item.sale_price}
               </button>
@@ -128,7 +128,7 @@ export function HorecaKitchenPage() {
         </div>
 
         <div className="rounded-2xl mo-section p-4">
-          <h2 className="text-base font-semibold text-white">Редактор техкарты</h2>
+          <h2 className="lux-subheading">Редактор техкарты</h2>
           {selectedItemId == null ? <p className="mt-2 text-sm mo-muted">Выберите позицию меню.</p> : null}
           {techCardQuery.data ? (
             <p className="mt-2 text-xs lux-caption">
@@ -145,7 +145,7 @@ export function HorecaKitchenPage() {
                     next[idx] = { ...l, product_id: Number(e.target.value) };
                     setLines(next);
                   }}
-                  className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-2 py-2 text-sm text-white"
+                  className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-2 py-2 text-sm text-[var(--mo-text)]"
                 >
                   <option value={0}>Продукт</option>
                   {(productsQuery.data ?? []).map((p) => (
@@ -162,7 +162,7 @@ export function HorecaKitchenPage() {
                     setLines(next);
                   }}
                   placeholder="Кол-во"
-                  className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-2 py-2 text-sm text-white"
+                  className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-2 py-2 text-sm text-[var(--mo-text)]"
                 />
               </div>
             ))}
@@ -175,7 +175,7 @@ export function HorecaKitchenPage() {
                 if (!selectedItemId) return;
                 saveTechCard.mutate();
               }}
-              className="ml-2 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white"
+              className="ml-2 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-[var(--mo-text)]"
             >
               Сохранить техкарту
             </button>

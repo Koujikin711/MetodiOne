@@ -122,7 +122,7 @@ export function ManagerDeskPage() {
                   {t.lead_name || t.title || `#${t.id}`}
                 </span>
                 {(t.unread_count ?? 0) > 0 ? (
-                  <span className="shrink-0 rounded-full bg-[#2d6a5a] px-2 py-0.5 text-[11px] font-bold text-white">
+                  <span className="shrink-0 rounded-full bg-[#2d6a5a] px-2 py-0.5 text-[11px] font-bold text-[var(--mo-text)]">
                     {t.unread_count}
                   </span>
                 ) : null}

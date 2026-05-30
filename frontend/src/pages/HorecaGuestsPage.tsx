@@ -39,7 +39,7 @@ export function HorecaGuestsPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Например: Анна или +992..."
-            className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-white"
+            className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white px-3 py-2 text-sm text-[var(--mo-text)]"
           />
         </label>
       </section>
@@ -70,7 +70,7 @@ export function HorecaGuestsPage() {
       {(guestsQuery.data ?? []).length === 0 && canSearch && !guestsQuery.isLoading ? (
         <p className="text-sm mo-muted">Совпадений не найдено.</p>
       ) : null}
-      <Link to="/horeca" className="inline-block text-xs text-teal-200 underline hover:text-white">
+      <Link to="/horeca" className="inline-block text-xs text-teal-200 underline hover:text-[var(--mo-text)]">
         Назад в центр HoReCa
       </Link>
     </div>

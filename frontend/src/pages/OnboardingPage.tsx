@@ -23,7 +23,7 @@ export function OnboardingPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 pb-12">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Мастер первого дня</h1>
+        <h1 className="lux-heading-page text-2xl">Мастер первого дня</h1>
         <p className="mt-2 text-sm lux-caption">
           Пройдите шаги в удобном порядке. Позже мастер можно снова открыть по ссылке{" "}
           <span className="mo-muted">/onboarding</span> — отметка «готово» сбрасывается только кнопкой ниже.
@@ -45,7 +45,7 @@ export function OnboardingPage() {
             className="flex flex-col gap-2 rounded-2xl border border-[var(--mo-border)] bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
-              <div className="text-xs font-medium text-purple-300">Шаг {i + 1}</div>
+              <div className="text-xs font-medium text-[var(--mo-accent-hover)]">Шаг {i + 1}</div>
               <div className="lux-subheading">{s.title}</div>
               <p className="mt-1 text-sm lux-caption">{s.desc}</p>
             </div>
@@ -62,7 +62,7 @@ export function OnboardingPage() {
         <button
           type="button"
           onClick={finish}
-          className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/25"
+          className="btn-primary"
         >
           Готово, больше не показывать баннер
         </button>

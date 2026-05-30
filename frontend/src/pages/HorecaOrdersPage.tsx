@@ -71,7 +71,7 @@ export function HorecaOrdersPage() {
         {visibleStages.map((k) => (
           <div key={k} className="rounded-2xl border border-[var(--mo-border)] bg-white p-3">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white">{HORECA_STAGE_META[k].title}</h2>
+              <h2 className="lux-subheading text-sm">{HORECA_STAGE_META[k].title}</h2>
               <span className="rounded-full bg-[var(--mo-accent-soft)] px-2 py-0.5 text-xs mo-muted">{grouped[k].length}</span>
             </div>
             <p className="mb-3 text-xs mo-muted">{HORECA_STAGE_META[k].hint}</p>

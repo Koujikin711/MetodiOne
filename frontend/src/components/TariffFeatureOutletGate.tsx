@@ -64,7 +64,7 @@ export function TariffFeatureOutletGate() {
       </p>
       {upgrade.length > 0 ? (
         <p className="mt-4 text-sm text-[var(--mo-text)]">
-          Для доступа приобретите тариф: <span className="font-semibold text-white">{upgrade.join(", ")}</span>.
+          Для доступа приобретите тариф: <span className="font-semibold text-[var(--mo-text)]">{upgrade.join(", ")}</span>.
         </p>
       ) : (
         <p className="mt-4 text-sm mo-muted">

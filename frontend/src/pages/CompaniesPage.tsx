@@ -289,7 +289,7 @@ export function CompaniesPage() {
   return (
     <div className="relative mx-auto max-w-[1200px] space-y-6 pb-10">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight text-white">Компании</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Компании</h1>
         <p className="mt-1 text-sm lux-caption">
           Платформа: метрики, аудит, лимиты и вход в компанию или от имени владельца (поддержка)
         </p>
@@ -318,7 +318,7 @@ export function CompaniesPage() {
               className="mo-section px-4 py-3 shadow-inner backdrop-blur-sm"
             >
               <p className="text-xs uppercase tracking-wide mo-muted">{label}</p>
-              <p className="mt-1 text-xl font-semibold text-white">{val}</p>
+              <p className="mt-1 text-xl font-semibold text-[var(--mo-text)]">{val}</p>
             </div>
           ))}
         </section>
@@ -379,7 +379,7 @@ export function CompaniesPage() {
               }
               platformBillingMutation.mutate(n);
             }}
-            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+            className="rounded-xl bg-indigo-600 px-4 py-2 lux-subheading text-sm hover:bg-indigo-500 disabled:opacity-50"
           >
             Сохранить срок демо
           </button>
@@ -416,7 +416,7 @@ export function CompaniesPage() {
                             confirmPaymentMutation.mutate(row.id);
                           }
                         }}
-                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-[var(--mo-text)] hover:bg-emerald-500 disabled:opacity-50"
                       >
                         Оплата получена — включить
                       </button>
@@ -541,7 +541,7 @@ export function CompaniesPage() {
             type="button"
             onClick={() => createMutation.mutate()}
             disabled={createMutation.isPending || !name.trim() || !ownerEmail.trim()}
-            className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="btn-primary"
           >
             Создать
           </button>
@@ -595,7 +595,7 @@ export function CompaniesPage() {
                   });
                 }}
                 disabled={assignPlanMutation.isPending}
-                className="mt-1 w-full rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] px-2 py-1.5 text-sm text-white disabled:opacity-50"
+                className="mt-1 w-full rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] px-2 py-1.5 text-sm text-[var(--mo-text)] disabled:opacity-50"
               >
                 <option value="">Не назначать (все функции)</option>
                 {(plansQuery.data ?? [])

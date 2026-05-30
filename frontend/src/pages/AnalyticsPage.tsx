@@ -69,7 +69,7 @@ export function AnalyticsPage() {
   return (
     <div className="relative mx-auto max-w-6xl space-y-6 pb-8">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-white">{lex.analyticsTitle}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">{lex.analyticsTitle}</h1>
         <p className="text-sm lux-caption">{lex.analyticsIntro}</p>
       </header>
 
@@ -162,7 +162,7 @@ export function AnalyticsPage() {
                 );
               }
             }}
-            className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/60 px-4 py-2 text-sm text-white hover:bg-[var(--mo-accent-soft)]"
+            className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/60 px-4 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
           >
             Экспорт CSV
           </button>
@@ -207,7 +207,7 @@ export function AnalyticsPage() {
               </div>
 
               <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
-                <h3 className="mb-2 text-sm font-semibold text-white">Алерты</h3>
+                <h3 className="mb-2 lux-subheading text-sm">Алерты</h3>
                 {overviewQuery.data.alerts.summary.length === 0 ? (
                   <p className="text-sm text-[#0f4c3a]">Критичных отклонений не найдено.</p>
                 ) : (
@@ -221,7 +221,7 @@ export function AnalyticsPage() {
 
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
-                  <h3 className="mb-2 text-sm font-semibold text-white">{lex.sectionStageFlow}</h3>
+                  <h3 className="mb-2 lux-subheading text-sm">{lex.sectionStageFlow}</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[520px] text-left text-sm text-[var(--mo-text)]">
                       <thead className="lux-caption">
@@ -234,7 +234,7 @@ export function AnalyticsPage() {
                       </thead>
                       <tbody>
                         {overviewQuery.data.stage_conversion.map((r) => (
-                          <tr key={r.stage_id} className="border-t border-slate-800">
+                          <tr key={r.stage_id} className="border-t border-[var(--mo-border)]">
                             <td className="py-2 pr-3">{r.stage_name}</td>
                             <td className="py-2 pr-3">{r.leads_count}</td>
                             <td className="py-2 pr-3">{r.conversion_to_next_pct == null ? "—" : `${r.conversion_to_next_pct}%`}</td>
@@ -247,7 +247,7 @@ export function AnalyticsPage() {
                 </div>
 
                 <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
-                  <h3 className="mb-2 text-sm font-semibold text-white">Причины потерь</h3>
+                  <h3 className="mb-2 lux-subheading text-sm">Причины потерь</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[420px] text-left text-sm text-[var(--mo-text)]">
                       <thead className="lux-caption">
@@ -259,7 +259,7 @@ export function AnalyticsPage() {
                       </thead>
                       <tbody>
                         {overviewQuery.data.loss_reasons.map((r) => (
-                          <tr key={r.reason} className="border-t border-slate-800">
+                          <tr key={r.reason} className="border-t border-[var(--mo-border)]">
                             <td className="py-2 pr-3">{r.reason}</td>
                             <td className="py-2 pr-3">{r.count}</td>
                             <td className="py-2 pr-3">{r.share_pct}%</td>
@@ -272,7 +272,7 @@ export function AnalyticsPage() {
               </div>
 
               <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
-                <h3 className="mb-2 text-sm font-semibold text-white">{lex.sourcesTitle}</h3>
+                <h3 className="mb-2 lux-subheading text-sm">{lex.sourcesTitle}</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[760px] text-left text-sm text-[var(--mo-text)]">
                       <thead className="lux-caption">
@@ -287,7 +287,7 @@ export function AnalyticsPage() {
                     </thead>
                     <tbody>
                       {overviewQuery.data.by_source.map((r) => (
-                        <tr key={r.source} className="border-t border-slate-800">
+                        <tr key={r.source} className="border-t border-[var(--mo-border)]">
                           <td className="py-2 pr-3">{r.source}</td>
                           <td className="py-2 pr-3">{r.leads_count}</td>
                           <td className="py-2 pr-3">{r.lead_share_pct}%</td>
@@ -302,7 +302,7 @@ export function AnalyticsPage() {
               </div>
 
               <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
-                <h3 className="mb-2 text-sm font-semibold text-white">{lex.sectionPlanFact}</h3>
+                <h3 className="mb-2 lux-subheading text-sm">{lex.sectionPlanFact}</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[640px] text-left text-sm text-[var(--mo-text)]">
                       <thead className="lux-caption">
@@ -315,7 +315,7 @@ export function AnalyticsPage() {
                     </thead>
                     <tbody>
                       {overviewQuery.data.manager_plan_fact.map((r) => (
-                        <tr key={`${r.manager_id ?? "none"}-${r.manager_name}`} className="border-t border-slate-800">
+                        <tr key={`${r.manager_id ?? "none"}-${r.manager_name}`} className="border-t border-[var(--mo-border)]">
                           <td className="py-2 pr-3">{r.manager_name}</td>
                           <td className="py-2 pr-3">{moneyFmt.format(Number(r.plan_amount))}</td>
                           <td className="py-2 pr-3">{moneyFmt.format(Number(r.fact_paid_amount))}</td>
@@ -361,7 +361,7 @@ export function AnalyticsPage() {
                   </thead>
                   <tbody>
                     {fullQuery.data.by_pipeline.map((r) => (
-                      <tr key={`${r.pipeline_id ?? "none"}-${r.pipeline_name}`} className="border-t border-slate-800">
+                      <tr key={`${r.pipeline_id ?? "none"}-${r.pipeline_name}`} className="border-t border-[var(--mo-border)]">
                         <td className="py-2 pr-4">{r.pipeline_name}</td>
                         <td className="py-2 pr-4">{r.leads_count}</td>
                         <td className="py-2 pr-4">{r.processed_by_manager_count}</td>
@@ -406,7 +406,7 @@ export function AnalyticsPage() {
                   </thead>
                   <tbody>
                     {detailedQuery.data.by_manager.map((r) => (
-                      <tr key={`${r.manager_id ?? "none"}-${r.manager_name}`} className="border-t border-slate-800">
+                      <tr key={`${r.manager_id ?? "none"}-${r.manager_name}`} className="border-t border-[var(--mo-border)]">
                         <td className="py-2 pr-4">{r.manager_name}</td>
                         <td className="py-2 pr-4">{r.leads_count}</td>
                         <td className="py-2 pr-4">{moneyFmt.format(Number(r.sold_amount))}</td>
