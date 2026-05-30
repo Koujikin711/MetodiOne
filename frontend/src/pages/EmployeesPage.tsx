@@ -42,6 +42,13 @@ interface SmtpConfig {
   public_api_base_url: string;
 }
 
+interface RedistributionSource {
+  manager_id: number;
+  manager_name: string;
+  lead_count: number;
+  is_active: boolean;
+}
+
 interface RedistributionPreview {
   from_manager_id: number;
   from_manager_name: string;
@@ -99,7 +106,7 @@ export function EmployeesPage() {
 
   const myUserId = useMemo(() => decodeUserIdFromToken(getStoredToken()), []);
 
-  const salesManagers = useMemo(
+  const activeSalesManagers = useMemo(
     () =>
       (employeesQuery.data ?? []).filter((e) => e.role === "manager" || e.role === "admin"),
     [employeesQuery.data],
@@ -107,6 +114,25 @@ export function EmployeesPage() {
 
   const [redistributeFromId, setRedistributeFromId] = useState<number | "">("");
   const [redistributeToIds, setRedistributeToIds] = useState<number[]>([]);
+
+  const redistributionSourcesQuery = useQuery({
+    queryKey: ["leads-redistribution-sources"],
+    queryFn: () => apiFetch<RedistributionSource[]>("/api/leads/redistribution/sources"),
+  });
+
+  const redistributionSources = redistributionSourcesQuery.data ?? [];
+  const sourcesWithLeads = useMemo(
+    () => redistributionSources.filter((s) => s.lead_count > 0),
+    [redistributionSources],
+  );
+
+  const selectedSource = useMemo(
+    () =>
+      redistributeFromId === ""
+        ? undefined
+        : redistributionSources.find((s) => s.manager_id === redistributeFromId),
+    [redistributionSources, redistributeFromId],
+  );
 
   const redistributionPreviewQuery = useQuery({
     queryKey: ["leads-redistribution-preview", redistributeFromId],
@@ -129,7 +155,7 @@ export function EmployeesPage() {
     onSuccess: (r) => {
       const parts = Object.entries(r.per_manager)
         .map(([id, cnt]) => {
-          const emp = salesManagers.find((e) => e.id === Number(id));
+          const emp = activeSalesManagers.find((e) => e.id === Number(id));
           const label = emp?.full_name ?? emp?.email ?? `#${id}`;
           return `${label}: ${cnt}`;
         })
@@ -143,6 +169,7 @@ export function EmployeesPage() {
       setRedistributeToIds([]);
       void qc.invalidateQueries({ queryKey: ["leads"] });
       void qc.invalidateQueries({ queryKey: ["leads-table"] });
+      void qc.invalidateQueries({ queryKey: ["leads-redistribution-sources"] });
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
       void qc.invalidateQueries({ queryKey: ["tasks"] });
     },
@@ -160,16 +187,16 @@ export function EmployeesPage() {
       toast.error("Выберите менеджера-источник и хотя бы одного получателя");
       return;
     }
-    const src = salesManagers.find((e) => e.id === redistributeFromId);
-    const srcLabel = src?.full_name ?? src?.email ?? `#${redistributeFromId}`;
-    const cnt = redistributionPreviewQuery.data?.lead_count ?? 0;
+    const srcLabel = selectedSource?.manager_name ?? `#${redistributeFromId}`;
+    const cnt =
+      redistributionPreviewQuery.data?.lead_count ?? selectedSource?.lead_count ?? 0;
     if (cnt <= 0) {
       toast.error("У выбранного менеджера нет лидов для передачи");
       return;
     }
     const targets = redistributeToIds
       .map((id) => {
-        const e = salesManagers.find((x) => x.id === id);
+        const e = activeSalesManagers.find((x) => x.id === id);
         return e?.full_name ?? e?.email ?? `#${id}`;
       })
       .join(", ");
@@ -193,6 +220,7 @@ export function EmployeesPage() {
       apiFetch(`/api/employees/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["employees"] });
+      void qc.invalidateQueries({ queryKey: ["leads-redistribution-sources"] });
       void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
       toast.success("Сотрудник уволен");
     },
@@ -276,13 +304,18 @@ export function EmployeesPage() {
         <p className="text-sm text-red-300">{(employeesQuery.error as Error).message}</p>
       )}
 
-      {salesManagers.length >= 2 && (
+      {(sourcesWithLeads.length > 0 || redistributionSourcesQuery.isLoading) &&
+        activeSalesManagers.length >= 1 && (
         <section className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5 shadow-inner backdrop-blur-sm">
           <h2 className="text-lg font-semibold text-white">Перераспределение лидов</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Все лиды выбранного менеджера равномерно передаются другим менеджерам. Входящие сообщения
-            в чате и карточки клиентов откроются у новых ответственных; им создаётся задача-уведомление.
+            Все лиды выбранного менеджера равномерно передаются другим менеджерам (в том числе с уволенных
+            аккаунтов). Входящие сообщения в чате и карточки клиентов откроются у новых ответственных.
           </p>
+
+          {redistributionSourcesQuery.isLoading && (
+            <p className="mt-2 text-sm text-slate-500">Загрузка списка…</p>
+          )}
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="text-sm text-slate-300">
@@ -297,9 +330,10 @@ export function EmployeesPage() {
                 className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-white"
               >
                 <option value="">— выберите менеджера —</option>
-                {salesManagers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.full_name ?? m.email} ({m.role})
+                {sourcesWithLeads.map((m) => (
+                  <option key={m.manager_id} value={m.manager_id}>
+                    {m.manager_name} — {m.lead_count} лид(ов)
+                    {!m.is_active ? " · уволен" : ""}
                   </option>
                 ))}
               </select>
@@ -312,12 +346,15 @@ export function EmployeesPage() {
               ) : redistributionPreviewQuery.isLoading ? (
                 <span className="text-slate-500">загрузка…</span>
               ) : redistributionPreviewQuery.isError ? (
-                <span className="text-red-300">ошибка</span>
+                <span className="font-semibold text-amber-200">{selectedSource?.lead_count ?? 0}</span>
               ) : (
                 <span className="font-semibold text-amber-200">
-                  {redistributionPreviewQuery.data?.lead_count ?? 0}
+                  {redistributionPreviewQuery.data?.lead_count ?? selectedSource?.lead_count ?? 0}
                 </span>
               )}
+              {selectedSource && !selectedSource.is_active ? (
+                <span className="mt-1 block text-xs text-amber-200/90">Аккаунт уволен — лиды всё ещё на нём</span>
+              ) : null}
             </div>
           </div>
 
@@ -325,11 +362,10 @@ export function EmployeesPage() {
             <div className="mt-4 rounded-xl border border-slate-700/50 bg-slate-950/30 p-3">
               <div className="text-sm font-semibold text-white">Кому передать</div>
               <p className="mt-1 text-[11px] text-slate-500">
-                Отметьте одного или нескольких менеджеров (источник исключён). Лиды делятся поровну по
-                round-robin.
+                Только активные менеджеры. Лиды делятся поровну (round-robin).
               </p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {salesManagers
+                {activeSalesManagers
                   .filter((m) => m.id !== redistributeFromId)
                   .map((m) => (
                     <label key={m.id} className="flex items-center gap-2 text-sm text-slate-200">
@@ -355,7 +391,7 @@ export function EmployeesPage() {
               redistributeMutation.isPending ||
               redistributeFromId === "" ||
               redistributeToIds.length === 0 ||
-              (redistributionPreviewQuery.data?.lead_count ?? 0) <= 0
+              (redistributionPreviewQuery.data?.lead_count ?? selectedSource?.lead_count ?? 0) <= 0
             }
             className="mt-4 rounded-xl border border-amber-500/40 bg-amber-600/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-600/30 disabled:opacity-50"
           >

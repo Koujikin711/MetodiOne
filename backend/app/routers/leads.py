@@ -795,6 +795,13 @@ async def import_leads_csv(
     return LeadImportResponse(created=created, errors=errors)
 
 
+class LeadRedistributionSource(BaseModel):
+    manager_id: int
+    manager_name: str
+    lead_count: int
+    is_active: bool
+
+
 class LeadRedistributionPreview(BaseModel):
     from_manager_id: int
     from_manager_name: str
@@ -817,16 +824,68 @@ async def _load_redistribution_manager(
     *,
     manager_id: int,
     company_id: int,
+    require_active: bool,
 ) -> User:
     user = await db.get(User, manager_id)
-    if user is None or user.company_id != company_id or not user.is_active:
+    if user is None or user.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Менеджер не найден")
+    if require_active and not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Менеджер уволен — его можно указать только как источник лидов, не как получателя",
+        )
     if not _is_redistribution_manager_role(user.role):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Перераспределение доступно только для ролей менеджер и админ воронки",
         )
     return user
+
+
+@router.get("/redistribution/sources", response_model=list[LeadRedistributionSource])
+async def lead_redistribution_sources(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[LeadRedistributionSource]:
+    """Менеджеры/админы с числом лидов (в т.ч. уволенные, если лиды ещё на них)."""
+    if not _is_lead_redistribution_admin(current_user.role):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ воронки")
+
+    lead_counts: dict[int, int] = {}
+    rows = await db.execute(
+        select(Lead.manager_id, func.count(Lead.id))
+        .where(Lead.company_id == company_id, Lead.manager_id.is_not(None))
+        .group_by(Lead.manager_id),
+    )
+    for mid, cnt in rows.all():
+        if mid is not None:
+            lead_counts[int(mid)] = int(cnt or 0)
+
+    users = (
+        await db.execute(
+            select(User).where(
+                User.company_id == company_id,
+                User.role.in_([UserRole.manager, UserRole.admin]),
+            ),
+        )
+    ).scalars().all()
+
+    out: list[LeadRedistributionSource] = []
+    for user in users:
+        cnt = lead_counts.get(user.id, 0)
+        if not user.is_active and cnt <= 0:
+            continue
+        out.append(
+            LeadRedistributionSource(
+                manager_id=user.id,
+                manager_name=_user_display_name(user),
+                lead_count=cnt,
+                is_active=bool(user.is_active),
+            ),
+        )
+    out.sort(key=lambda x: (-x.lead_count, x.manager_name.lower()))
+    return out
 
 
 @router.get("/redistribution/preview", response_model=LeadRedistributionPreview)
@@ -838,7 +897,12 @@ async def lead_redistribution_preview(
 ) -> LeadRedistributionPreview:
     if not _is_lead_redistribution_admin(current_user.role):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ воронки")
-    src = await _load_redistribution_manager(db, manager_id=from_manager_id, company_id=company_id)
+    src = await _load_redistribution_manager(
+        db,
+        manager_id=from_manager_id,
+        company_id=company_id,
+        require_active=False,
+    )
     cnt = int(
         await db.scalar(
             select(func.count(Lead.id)).where(
@@ -874,12 +938,22 @@ async def redistribute_manager_leads(
             detail="Укажите хотя бы одного другого менеджера для приёма лидов",
         )
 
-    src = await _load_redistribution_manager(db, manager_id=from_id, company_id=company_id)
+    src = await _load_redistribution_manager(
+        db,
+        manager_id=from_id,
+        company_id=company_id,
+        require_active=False,
+    )
     src_name = _user_display_name(src)
 
     targets: list[User] = []
     for tid in to_ids_raw:
-        u = await _load_redistribution_manager(db, manager_id=tid, company_id=company_id)
+        u = await _load_redistribution_manager(
+            db,
+            manager_id=tid,
+            company_id=company_id,
+            require_active=True,
+        )
         targets.append(u)
     target_ids = [u.id for u in targets]
 
