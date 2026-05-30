@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, case, delete, false, func, or_, select
+from sqlalchemy import and_, case, delete, false, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -40,6 +40,7 @@ from app.schemas.lead import (
     LeadTablePage,
     LeadUpdate,
 )
+from app.services.audit import write_audit_event
 from app.services.automation import process_lead_automation
 from app.services.finance_crm_bridge import post_crm_deal_payment_once
 from app.services.lead_assignment import assign_manager_for_new_lead
@@ -51,6 +52,7 @@ from app.schemas.deal import ProtocolFinishBody
 router = APIRouter(prefix="/leads", tags=["leads"])
 
 INTEGRATION_CLOSE_DEAL_TYPE = "integration_close"
+_MAX_REDISTRIBUTE_BATCH = 2000
 
 # asyncpg / PostgreSQL wire protocol: max 32767 bind parameters per statement.
 # Deal aggregate query uses 7 fixed params + one per lead_id in IN (...).
@@ -249,6 +251,45 @@ async def _enrich_leads_close_deal(
         show = _show_close_deal_ui(lead, read, current_user, pf, closed, mgr_allowed)
         out.append(read.model_copy(update={"show_close_deal_button": show}))
     return out
+
+
+def _is_lead_redistribution_admin(role: UserRole) -> bool:
+    return role in (UserRole.owner, UserRole.admin)
+
+
+def _is_redistribution_manager_role(role: UserRole) -> bool:
+    return role in (UserRole.manager, UserRole.admin)
+
+
+def _user_display_name(user: User) -> str:
+    return (str(user.full_name or "").strip() or str(user.email or "").strip() or f"#{user.id}")
+
+
+async def _notify_users(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    user_ids: list[int],
+    title: str,
+    description: str | None = None,
+    related_lead_id: int | None = None,
+) -> None:
+    if not user_ids:
+        return
+    for uid in sorted(set(user_ids)):
+        db.add(
+            Task(
+                company_id=company_id,
+                title=title,
+                deadline=None,
+                status=TaskStatus.pending,
+                assigned_to=uid,
+                created_by_user_id=None,
+                description=description,
+                related_lead_id=related_lead_id,
+            )
+        )
+    await db.flush()
 
 
 async def _notify_by_roles(
@@ -752,6 +793,191 @@ async def import_leads_csv(
                     errors.append(LeadImportErrorItem(row=row_idx, message=str(e2)[:240]))
 
     return LeadImportResponse(created=created, errors=errors)
+
+
+class LeadRedistributionPreview(BaseModel):
+    from_manager_id: int
+    from_manager_name: str
+    lead_count: int
+
+
+class LeadRedistributeBody(BaseModel):
+    from_manager_id: int = Field(..., ge=1)
+    to_manager_ids: list[int] = Field(..., min_length=1)
+
+
+class LeadRedistributeResult(BaseModel):
+    total: int
+    reassigned: int
+    per_manager: dict[int, int]
+
+
+async def _load_redistribution_manager(
+    db: AsyncSession,
+    *,
+    manager_id: int,
+    company_id: int,
+) -> User:
+    user = await db.get(User, manager_id)
+    if user is None or user.company_id != company_id or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Менеджер не найден")
+    if not _is_redistribution_manager_role(user.role):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Перераспределение доступно только для ролей менеджер и админ воронки",
+        )
+    return user
+
+
+@router.get("/redistribution/preview", response_model=LeadRedistributionPreview)
+async def lead_redistribution_preview(
+    from_manager_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> LeadRedistributionPreview:
+    if not _is_lead_redistribution_admin(current_user.role):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ воронки")
+    src = await _load_redistribution_manager(db, manager_id=from_manager_id, company_id=company_id)
+    cnt = int(
+        await db.scalar(
+            select(func.count(Lead.id)).where(
+                Lead.company_id == company_id,
+                Lead.manager_id == from_manager_id,
+            ),
+        )
+        or 0,
+    )
+    return LeadRedistributionPreview(
+        from_manager_id=from_manager_id,
+        from_manager_name=_user_display_name(src),
+        lead_count=cnt,
+    )
+
+
+@router.post("/redistribute", response_model=LeadRedistributeResult)
+async def redistribute_manager_leads(
+    body: LeadRedistributeBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> LeadRedistributeResult:
+    """Перенести все лиды менеджера к другим менеджерам (равномерно, round-robin)."""
+    if not _is_lead_redistribution_admin(current_user.role):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ воронки")
+
+    from_id = int(body.from_manager_id)
+    to_ids_raw = sorted({int(x) for x in body.to_manager_ids if int(x) != from_id})
+    if not to_ids_raw:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Укажите хотя бы одного другого менеджера для приёма лидов",
+        )
+
+    src = await _load_redistribution_manager(db, manager_id=from_id, company_id=company_id)
+    src_name = _user_display_name(src)
+
+    targets: list[User] = []
+    for tid in to_ids_raw:
+        u = await _load_redistribution_manager(db, manager_id=tid, company_id=company_id)
+        targets.append(u)
+    target_ids = [u.id for u in targets]
+
+    lead_ids: list[int] = []
+    offset = 0
+    while True:
+        chunk = (
+            await db.execute(
+                select(Lead.id)
+                .where(Lead.company_id == company_id, Lead.manager_id == from_id)
+                .order_by(Lead.id.asc())
+                .offset(offset)
+                .limit(_MAX_REDISTRIBUTE_BATCH),
+            )
+        ).scalars().all()
+        if not chunk:
+            break
+        lead_ids.extend(int(x) for x in chunk)
+        offset += len(chunk)
+        if len(chunk) < _MAX_REDISTRIBUTE_BATCH:
+            break
+
+    total = len(lead_ids)
+    if total == 0:
+        return LeadRedistributeResult(total=0, reassigned=0, per_manager={})
+
+    per_manager: dict[int, int] = {tid: 0 for tid in target_ids}
+    n_targets = len(target_ids)
+    lead_to_manager: dict[int, int] = {}
+
+    for i, lead_id in enumerate(lead_ids):
+        new_mid = target_ids[i % n_targets]
+        lead_to_manager[lead_id] = new_mid
+        per_manager[new_mid] = per_manager.get(new_mid, 0) + 1
+
+    for lead_id, new_mid in lead_to_manager.items():
+        lead = await db.get(Lead, lead_id)
+        if lead is None:
+            continue
+        lead.manager_id = new_mid
+        await _audit_lead(
+            db,
+            lead_id=lead_id,
+            action="manager_reassigned",
+            current_user=current_user,
+            details=f"from_manager_id={from_id} ({src_name}), to_manager_id={new_mid}",
+        )
+
+    for lead_id, new_mid in lead_to_manager.items():
+        appts = (
+            await db.execute(
+                select(BookingAppointment).where(
+                    BookingAppointment.company_id == company_id,
+                    BookingAppointment.lead_id == lead_id,
+                    BookingAppointment.responsible_manager_id == from_id,
+                ),
+            )
+        ).scalars().all()
+        for appt in appts:
+            appt.responsible_manager_id = new_mid
+
+        await db.execute(
+            update(Task)
+            .where(
+                Task.company_id == company_id,
+                Task.related_lead_id == lead_id,
+                Task.assigned_to == from_id,
+                Task.status.in_([TaskStatus.pending, TaskStatus.in_progress]),
+            )
+            .values(assigned_to=new_mid),
+        )
+
+    await db.flush()
+
+    for tid, cnt in per_manager.items():
+        if cnt <= 0:
+            continue
+        await _notify_users(
+            db,
+            company_id=company_id,
+            user_ids=[tid],
+            title=f"Вам переданы лиды от {src_name}",
+            description=(
+                f"Передано лидов: {cnt}. Ранее ответственным был {src_name} — теперь вы отвечаете "
+                f"за этих клиентов (входящие сообщения в чате и карточки в CRM)."
+            ),
+        )
+
+    await write_audit_event(
+        db,
+        entity_type="lead",
+        entity_id=from_id,
+        action="leads_redistributed",
+        current_user=current_user,
+        details=f"from={from_id}, targets={target_ids}, total={total}, per_manager={per_manager}",
+    )
+
+    return LeadRedistributeResult(total=total, reassigned=total, per_manager=per_manager)
 
 
 @router.get("/{lead_id}", response_model=LeadRead)
