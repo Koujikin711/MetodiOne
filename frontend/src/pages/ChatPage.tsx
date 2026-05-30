@@ -3,8 +3,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
-import { apiFetch, resolveMediaUrl } from "@/lib/api";
-import type { ChatMessage, ChatThread } from "@/lib/types";
+import { apiFetch, getStoredToken, resolveMediaUrl } from "@/lib/api";
+import { decodeRoleFromToken } from "@/lib/auth";
+import type { ChatMessage, ChatThread, ChatThreadBucket, ChatThreadBucketCounts } from "@/lib/types";
 
 const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|bmp|svg|avif|heic|heif)(\?|#|$)/i;
 
@@ -132,6 +133,12 @@ function MicIcon({ className }: { className?: string }) {
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 const THREADS_PAGE_SIZE = 20;
 
+const CHAT_BUCKET_TABS: { id: ChatThreadBucket; label: string; hint: string }[] = [
+  { id: "transferred", label: "Переданные", hint: "После перераспределения" },
+  { id: "own", label: "Мои", hint: "Изначально ваши" },
+  { id: "awaiting_reply", label: "Ждут ответа", hint: "Клиент написал — вы нет" },
+];
+
 /** Зелёный: последнее сообщение от клиента (ждём ответ). Голубой: в пределах 3 суток с первого сообщения в чате. */
 type ThreadAttention = "waiting_reply" | "recent_window" | "normal";
 
@@ -183,17 +190,34 @@ export function ChatPage() {
 
   const [threadSearch, setThreadSearch] = useState("");
   const [threadSearchDebounced, setThreadSearchDebounced] = useState("");
+  const userRole = decodeRoleFromToken(getStoredToken());
+  const showManagerChatBuckets = userRole === "manager" || userRole === "admin";
+  const [chatBucket, setChatBucket] = useState<ChatThreadBucket>("own");
+
   useEffect(() => {
     const t = window.setTimeout(() => setThreadSearchDebounced(threadSearch.trim()), 220);
     return () => window.clearTimeout(t);
   }, [threadSearch]);
 
+  const bucketCountsQuery = useQuery({
+    queryKey: ["chat-thread-bucket-counts", threadSearchDebounced],
+    queryFn: () => {
+      const p = new URLSearchParams();
+      if (threadSearchDebounced) p.set("q", threadSearchDebounced);
+      return apiFetch<ChatThreadBucketCounts>(`/api/chat/threads/bucket-counts?${p.toString()}`);
+    },
+    enabled: showManagerChatBuckets,
+    refetchInterval: tabVisible ? 6000 : false,
+    refetchOnWindowFocus: false,
+  });
+
   const threadsQuery = useInfiniteQuery({
-    queryKey: ["chat-threads", threadSearchDebounced],
+    queryKey: ["chat-threads", threadSearchDebounced, showManagerChatBuckets ? chatBucket : "all"],
     initialPageParam: 0,
     queryFn: ({ pageParam }) => {
       const p = new URLSearchParams();
       if (threadSearchDebounced) p.set("q", threadSearchDebounced);
+      if (showManagerChatBuckets) p.set("bucket", chatBucket);
       p.set("limit", String(THREADS_PAGE_SIZE));
       p.set("offset", String(pageParam));
       return apiFetch<ChatThread[]>(`/api/chat/threads?${p.toString()}`);
@@ -252,16 +276,23 @@ export function ChatPage() {
   }, [selectedThread?.manager_name]);
   const displayThreads = useMemo(() => {
     const list = [...allThreads];
-    list.sort((a, b) => {
-      const aw = a.last_message_direction === "in" ? 1 : 0;
-      const bw = b.last_message_direction === "in" ? 1 : 0;
-      if (bw !== aw) return bw - aw;
-      const ts = new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-      if (ts !== 0) return ts;
-      return b.id - a.id;
-    });
+    if (!showManagerChatBuckets) {
+      list.sort((a, b) => {
+        const aw = a.last_message_direction === "in" ? 1 : 0;
+        const bw = b.last_message_direction === "in" ? 1 : 0;
+        if (bw !== aw) return bw - aw;
+        const ts = new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+        if (ts !== 0) return ts;
+        return b.id - a.id;
+      });
+    }
     return list;
-  }, [allThreads]);
+  }, [allThreads, showManagerChatBuckets]);
+
+  useEffect(() => {
+    if (!showManagerChatBuckets) return;
+    setThreadId(null);
+  }, [chatBucket, showManagerChatBuckets]);
 
   const messagesQuery = useQuery({
     queryKey: ["chat-messages", threadId],
@@ -330,6 +361,7 @@ export function ChatPage() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       void qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
+      void qc.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -480,6 +512,45 @@ export function ChatPage() {
       <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <section className="rounded-2xl border border-slate-700/40 bg-slate-800/30 p-3 shadow-inner backdrop-blur-sm">
           <div className="mb-2 text-sm font-semibold text-white">Диалоги</div>
+
+          {showManagerChatBuckets ? (
+            <div className="mb-3 grid grid-cols-3 gap-1.5">
+              {CHAT_BUCKET_TABS.map((tab) => {
+                const active = chatBucket === tab.id;
+                const count =
+                  tab.id === "transferred"
+                    ? bucketCountsQuery.data?.transferred ?? 0
+                    : tab.id === "own"
+                      ? bucketCountsQuery.data?.own ?? 0
+                      : bucketCountsQuery.data?.awaiting_reply ?? 0;
+                const activeShell =
+                  tab.id === "transferred"
+                    ? "border-amber-400/60 bg-amber-500/25 ring-1 ring-amber-300/40"
+                    : tab.id === "own"
+                      ? "border-indigo-400/60 bg-indigo-500/25 ring-1 ring-indigo-300/40"
+                      : "border-emerald-400/60 bg-emerald-500/25 ring-1 ring-emerald-300/40";
+                const idleShell = "border-slate-600/60 bg-slate-950/35 hover:bg-slate-900/55";
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setChatBucket(tab.id)}
+                    className={[
+                      "flex min-h-[72px] flex-col items-center justify-center rounded-xl border px-1 py-2 text-center transition",
+                      active ? activeShell : idleShell,
+                    ].join(" ")}
+                  >
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-200">
+                      {tab.label}
+                    </span>
+                    <span className="mt-0.5 text-xl font-bold tabular-nums text-white">{count}</span>
+                    <span className="mt-0.5 text-[9px] leading-tight text-slate-400">{tab.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
           <input
             value={threadSearch}
             onChange={(e) => setThreadSearch(e.target.value)}
@@ -487,8 +558,9 @@ export function ChatPage() {
             className="mb-2 w-full rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500"
           />
           <p className="mb-2 text-[10px] leading-relaxed text-slate-500">
-            Подсветка: зелёный — ждёт вашего ответа · голубой — первые 3 дня с первого сообщения · без заливки —
-            старше.
+            {showManagerChatBuckets
+              ? "Вкладки фильтруют список. Внутри вкладки: зелёный — ждёт ответа · голубой — первые 3 дня · без заливки — старше."
+              : "Подсветка: зелёный — ждёт вашего ответа · голубой — первые 3 дня с первого сообщения · без заливки — старше."}
           </p>
           {threadsQuery.isLoading && <p className="text-sm text-slate-400">Загрузка…</p>}
           {threadsQuery.isError && (
@@ -518,6 +590,9 @@ export function ChatPage() {
                     {manager ? (
                       <div className="mt-1 truncate text-[11px] text-slate-300/80">Ответственный: {manager}</div>
                     ) : null}
+                    {t.is_transferred && chatBucket !== "transferred" ? (
+                      <div className="mt-0.5 text-[10px] text-amber-200/90">Передан вам</div>
+                    ) : null}
                   </div>
                   {unread > 0 ? (
                     <span
@@ -531,7 +606,15 @@ export function ChatPage() {
               );
             })}
             {!threadsQuery.isLoading && displayThreads.length === 0 && (
-              <p className="text-sm text-slate-500">Пока нет диалогов</p>
+              <p className="text-sm text-slate-500">
+                {showManagerChatBuckets
+                  ? chatBucket === "transferred"
+                    ? "Нет переданных лидов"
+                    : chatBucket === "own"
+                      ? "Нет ваших диалогов"
+                      : "Нет диалогов, где ждут вашего ответа"
+                  : "Пока нет диалогов"}
+              </p>
             )}
             {threadsQuery.isFetchingNextPage && (
               <p className="py-1 text-center text-xs text-slate-500">Загрузка ещё…</p>
