@@ -504,7 +504,7 @@ export function ChatPage() {
   };
 
   return (
-    <div className="relative mx-auto max-w-[1400px] space-y-4 pb-10">
+    <div className="relative mx-auto max-w-[1400px] space-y-4 pb-28 sm:pb-10">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight text-[#1e3348]">Чат</h1>
         <p className="mt-1 text-sm text-[#5c6b7a]">
@@ -513,7 +513,7 @@ export function ChatPage() {
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <section className="mo-card p-3">
+        <section className={["mo-card p-3", threadId != null ? "hidden lg:block" : ""].join(" ")}>
           <div className="mb-2 text-sm font-semibold text-[#1e3348]">Диалоги</div>
 
           {showManagerChatBuckets ? (
@@ -626,11 +626,25 @@ export function ChatPage() {
           </div>
         </section>
 
-        <section className="mo-section p-4 shadow-inner backdrop-blur-sm">
+        <section
+          className={[
+            "mo-section flex flex-col p-3 shadow-inner backdrop-blur-sm sm:p-4",
+            threadId == null ? "hidden lg:flex" : "flex",
+            threadId != null ? "max-lg:min-h-[calc(100dvh-10rem)]" : "",
+          ].join(" ")}
+        >
           {!selectedThread && <p className="text-sm mo-muted">Выберите диалог слева.</p>}
           {selectedThread && (
             <>
-              <div className="mb-3 border-b border-[var(--mo-border)] pb-2">
+              <div className="mb-3 flex shrink-0 items-start gap-2 border-b border-[var(--mo-border)] pb-2">
+                <button
+                  type="button"
+                  className="btn-secondary shrink-0 px-2 py-1.5 text-xs lg:hidden"
+                  onClick={() => setThreadId(null)}
+                >
+                  ← Диалоги
+                </button>
+                <div className="min-w-0 flex-1">
                 <div className="lux-subheading text-sm">
                   {selectedThread.lead_name || selectedThread.title || `Диалог #${selectedThread.id}`}
                 </div>
@@ -643,9 +657,11 @@ export function ChatPage() {
                     Ответственный: <span className="text-[var(--mo-text)]/90">{selectedManagerLabel}</span>
                   </span>
                 </div>
+                </div>
               </div>
 
-              <div className="max-h-[56vh] space-y-2 overflow-y-auto pr-1">
+              <div className="flex min-h-0 flex-1 flex-col">
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 max-lg:max-h-none lg:max-h-[56vh]">
                 {messagesQuery.isLoading && <p className="text-sm lux-caption">Загрузка сообщений…</p>}
                 {(messagesQuery.data ?? []).map((m, idx, arr) => {
                   const isOut = m.direction === "out";
@@ -667,7 +683,9 @@ export function ChatPage() {
                       key={m.id}
                       className={[
                         "max-w-[85%] rounded-xl px-3 py-2 text-sm",
-                        isOut ? "ml-auto bg-indigo-600/40 text-[var(--mo-text)]" : "bg-white/50 text-[var(--mo-text)]",
+                        isOut
+                          ? "ml-auto border border-[#2f5f85]/25 bg-[#e8f0f7] text-[var(--mo-text)]"
+                          : "border border-[var(--mo-border)] bg-[var(--mo-surface)] text-[var(--mo-text)]",
                       ].join(" ")}
                     >
                       <MessageBody m={m} />
@@ -690,7 +708,7 @@ export function ChatPage() {
               </div>
 
               <form
-                className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end"
+                className="sticky bottom-0 z-10 mt-3 shrink-0 flex flex-col gap-2 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] pt-3 sm:flex-row sm:items-end sm:border-t-0 sm:bg-transparent lg:static"
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (isRecording || voiceFinishing) return;
@@ -716,7 +734,7 @@ export function ChatPage() {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isRecording || voiceFinishing || sendMutation.isPending}
-                  className="shrink-0 rounded-xl crm-modal-panel border/50 px-3 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]/80 disabled:opacity-50"
+                  className="shrink-0 rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-3 py-2 text-sm font-medium text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)] disabled:opacity-50"
                 >
                   Файл
                 </button>
@@ -735,7 +753,7 @@ export function ChatPage() {
                           : "Сообщение клиенту…"
                   }
                   readOnly={isRecording || voiceFinishing}
-                  className="min-w-0 flex-1 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm text-[var(--mo-text)] read-only:opacity-80"
+                  className="mo-input min-w-0 flex-1 read-only:opacity-80"
                 />
                 <button
                   type="button"
@@ -780,7 +798,7 @@ export function ChatPage() {
                 <p className="mt-1 text-xs lux-caption">Отправка голосового…</p>
               )}
               {voiceDraftUrl && voiceDraftFile && !isRecording && !voiceFinishing && (
-                <div className="mt-2 rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
+                <div className="mt-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
                   <div className="text-xs font-semibold text-[var(--mo-text)]">Предпрослушивание голосового</div>
                   <audio src={voiceDraftUrl} controls className="mt-2 w-full max-w-md" />
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -806,6 +824,7 @@ export function ChatPage() {
               {pendingFile && !isRecording && (
                 <p className="mt-1 text-xs lux-caption">Вложение: {pendingFile.name}</p>
               )}
+              </div>
             </>
           )}
         </section>
