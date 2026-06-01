@@ -192,3 +192,13 @@ class BookingPatientHistoryItem(BaseModel):
     first_visit_at: datetime | None = None
     last_visit_at: datetime | None = None
     visits: list[BookingPatientVisitRead] = Field(default_factory=list)
+
+
+class BookingPatientSuggestItem(BaseModel):
+    """Подсказка при создании онлайн-записи — клиент уже есть в CRM или был на приёме."""
+
+    lead_id: int | None = None
+    patient_name: str
+    patient_phone: str
+    manager_name: str | None = None
+    source: str = Field(description="crm | visits")

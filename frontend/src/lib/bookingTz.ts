@@ -75,11 +75,24 @@ export function utcMsToHourMinuteInBookingTz(ms: number): { h: number; min: numb
   return { h: p.h, min: p.min };
 }
 
+export function formatTimeInBookingTz(iso: string): string {
+  const { h, min } = utcMsToHourMinuteInBookingTz(new Date(iso).getTime());
+  return `${h}:${String(min).padStart(2, "0")}`;
+}
+
 export function formatTimeRangeInBookingTz(isoStart: string, isoEnd: string): string {
   const a = utcMsToHourMinuteInBookingTz(new Date(isoStart).getTime());
   const b = utcMsToHourMinuteInBookingTz(new Date(isoEnd).getTime());
   const f = (x: { h: number; min: number }) => `${x.h}:${String(x.min).padStart(2, "0")}`;
   return `${f(a)} – ${f(b)}`;
+}
+
+/** Компактная подпись времени для карточки в календаре записи. */
+export function formatAppointmentTimeOnCard(isoStart: string, isoEnd: string, compact: boolean): string {
+  const start = formatTimeInBookingTz(isoStart);
+  if (compact) return start;
+  const end = formatTimeInBookingTz(isoEnd);
+  return start === end ? start : `${start}–${end}`;
 }
 
 /** datetime-local «YYYY-MM-DDTHH:mm» трактуем как время в TZ записи → ISO UTC для API. */

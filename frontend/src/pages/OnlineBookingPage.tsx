@@ -13,6 +13,7 @@ import { BOOKING_TIME_ZONE, datetimeLocalBookingToIsoUtc, ymdInBookingTz } from 
 import type {
   BookingAppointment,
   BookingPatientHistoryItem,
+  BookingPatientSuggestItem,
   BookingSpecialist,
   LeadSource,
   Pipeline,
@@ -64,6 +65,9 @@ export function OnlineBookingPage() {
   const [serviceAmount, setServiceAmount] = useState<number>(0);
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [comment, setComment] = useState("");
+  const [patientSuggestOpen, setPatientSuggestOpen] = useState(false);
+  const [patientSuggestDebounced, setPatientSuggestDebounced] = useState("");
+  const patientSuggestRef = useRef<HTMLDivElement>(null);
   const token = getStoredToken();
   const currentRole = decodeRoleFromToken(token);
   const currentUserId = decodeUserIdFromToken(token);
@@ -163,6 +167,55 @@ export function OnlineBookingPage() {
       ),
     enabled: tab === "journal" && journalSearch.trim().length >= 2,
   });
+
+  const patientSuggestTerm = useMemo(() => {
+    const n = patientName.trim();
+    const p = patientPhone.trim();
+    if (n.length >= 2) return n;
+    if (p.length >= 2) return p;
+    return "";
+  }, [patientName, patientPhone]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setPatientSuggestDebounced(patientSuggestTerm), 220);
+    return () => window.clearTimeout(t);
+  }, [patientSuggestTerm]);
+
+  const patientSuggestQuery = useQuery({
+    queryKey: ["booking-patient-suggest", patientSuggestDebounced],
+    queryFn: () =>
+      apiFetch<BookingPatientSuggestItem[]>(
+        `/api/booking/patient-suggest?q=${encodeURIComponent(patientSuggestDebounced)}&limit=12`,
+      ),
+    enabled:
+      canEditBooking &&
+      leadId == null &&
+      patientSuggestDebounced.length >= 2 &&
+      patientSuggestOpen,
+  });
+
+  useEffect(() => {
+    if (!patientSuggestOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (patientSuggestRef.current && !patientSuggestRef.current.contains(e.target as Node)) {
+        setPatientSuggestOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [patientSuggestOpen]);
+
+  function applyPatientSuggestion(item: BookingPatientSuggestItem) {
+    setPatientName(item.patient_name);
+    setPatientPhone(item.patient_phone === "—" ? "" : item.patient_phone);
+    if (item.lead_id != null) {
+      setLeadId(item.lead_id);
+      setNewLeadPipelineId(null);
+      setNewLeadStageId(null);
+    }
+    setPatientSuggestOpen(false);
+    toast.success(item.lead_id != null ? "Клиент из CRM подставлен" : "Данные клиента подставлены");
+  }
 
   const createMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -681,27 +734,72 @@ export function OnlineBookingPage() {
                   <form onSubmit={onSubmit} className="space-y-2.5">
                 {leadId != null && (
                   <p className="text-xs text-[var(--mo-success)]">
-                    Привязан лид #{leadId} — после сохранения он перейдёт в «В работе».
+                    Привязан лид #{leadId} — карточка уже в CRM, новая не создаётся. Менеджер сохранится.
                   </p>
                 )}
-                <label className="block text-sm mo-muted">
-                  Пациент / клиент
-                  <input
-                    required
-                    value={patientName}
-                    onChange={(e) => setPatientName(e.target.value)}
-                    className="mt-1 w-full mo-input"
-                  />
-                </label>
-                <label className="block text-sm mo-muted">
-                  Телефон
-                  <input
-                    required
-                    value={patientPhone}
-                    onChange={(e) => setPatientPhone(e.target.value)}
-                    className="mt-1 w-full mo-input"
-                  />
-                </label>
+                <div ref={patientSuggestRef} className="relative space-y-2.5">
+                  <p className="text-[11px] mo-muted">
+                    Начните вводить имя или телефон — если клиент уже есть, выберите его из списка.
+                  </p>
+                  <label className="block text-sm mo-muted">
+                    Пациент / клиент
+                    <input
+                      required
+                      value={patientName}
+                      onChange={(e) => {
+                        setPatientName(e.target.value);
+                        setPatientSuggestOpen(true);
+                        if (leadId != null) setLeadId(null);
+                      }}
+                      onFocus={() => setPatientSuggestOpen(true)}
+                      className="mt-1 w-full mo-input"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="block text-sm mo-muted">
+                    Телефон
+                    <input
+                      required
+                      value={patientPhone}
+                      onChange={(e) => {
+                        setPatientPhone(e.target.value);
+                        setPatientSuggestOpen(true);
+                        if (leadId != null) setLeadId(null);
+                      }}
+                      onFocus={() => setPatientSuggestOpen(true)}
+                      className="mt-1 w-full mo-input"
+                      autoComplete="off"
+                    />
+                  </label>
+                  {patientSuggestOpen && patientSuggestDebounced.length >= 2 ? (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] py-1 shadow-lg">
+                      {patientSuggestQuery.isLoading ? (
+                        <p className="px-3 py-2 text-xs mo-muted">Поиск…</p>
+                      ) : null}
+                      {(patientSuggestQuery.data ?? []).map((item) => (
+                        <button
+                          key={`${item.lead_id ?? "n"}-${item.patient_name}-${item.patient_phone}`}
+                          type="button"
+                          className="flex w-full flex-col gap-0.5 px-3 py-2 text-left text-sm transition hover:bg-[var(--mo-accent-soft)]"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => applyPatientSuggestion(item)}
+                        >
+                          <span className="font-semibold text-[var(--mo-text)]">{item.patient_name}</span>
+                          <span className="text-xs mo-muted">
+                            {item.patient_phone}
+                            {item.manager_name ? ` · ${item.manager_name}` : ""}
+                            {item.source === "crm" ? " · в CRM" : " · был на приёме"}
+                          </span>
+                        </button>
+                      ))}
+                      {!patientSuggestQuery.isLoading &&
+                      patientSuggestQuery.isSuccess &&
+                      (patientSuggestQuery.data ?? []).length === 0 ? (
+                        <p className="px-3 py-2 text-xs mo-muted">Новый клиент — заполните поля ниже</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
                 {!leadId && (
                   <>
                     <label className="block text-sm mo-muted">
