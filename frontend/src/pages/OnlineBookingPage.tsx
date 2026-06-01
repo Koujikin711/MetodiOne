@@ -823,13 +823,17 @@ export function OnlineBookingPage() {
                   </label>
                 ) : null}
                 <label className="block text-sm mo-muted">
-                  Комментарий
+                  Заметка к записи
                   <textarea
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    rows={3}
+                    rows={2}
+                    placeholder="Например: перенос с прошлой недели, пожелания клиента…"
                     className="mt-1 w-full mo-input"
                   />
+                  <span className="mt-1 block text-[11px] mo-muted">
+                    Появится при наведении на запись в календаре.
+                  </span>
                 </label>
                     <button
                       type="submit"
@@ -990,6 +994,7 @@ export function OnlineBookingPage() {
                   <th className="py-2 pr-4">Оплачено</th>
                   <th className="py-2 pr-4">Дебиторка</th>
                   <th className="py-2 pr-4">Статус</th>
+                  <th className="py-2 pr-4 max-w-[200px]">Заметка</th>
                   {(journalQuery.data ?? []).some((x) => x.can_manage_journal) && (
                     <th className="py-2 pr-4">Действия</th>
                   )}
@@ -1057,6 +1062,18 @@ export function OnlineBookingPage() {
                         </select>
                       ) : (
                         <span className="mo-muted">{statusLabels[a.status] ?? a.status}</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-4 max-w-[200px]">
+                      {(a.comment || "").trim() ? (
+                        <span
+                          className="line-clamp-2 text-xs mo-muted"
+                          title={(a.comment || "").trim()}
+                        >
+                          {(a.comment || "").trim()}
+                        </span>
+                      ) : (
+                        <span className="mo-muted">—</span>
                       )}
                     </td>
                     {(journalQuery.data ?? []).some((x) => x.can_manage_journal) && (
