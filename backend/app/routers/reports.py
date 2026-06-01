@@ -2,12 +2,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import case, distinct, func, select
+from sqlalchemy import case, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser
 from app.database import get_db
-from app.models import BookingAppointment, BookingSpecialist, Pipeline, UserRole
+from app.models import BookingAppointment, BookingDirection, BookingSpecialist, Pipeline, UserRole
 from app.schemas.reports import ExpertBookingItem, ExpertReportsResponse, PipelineExpertReport
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -77,8 +77,15 @@ async def expert_reports(
                     ).label("patients_arrived"),
                 )
                 .join(BookingSpecialist, BookingSpecialist.id == BookingAppointment.specialist_id)
+                .join(
+                    BookingDirection,
+                    BookingAppointment.direction_id == BookingDirection.id,
+                )
                 .where(
-                    BookingAppointment.pipeline_id == pipe.id,
+                    or_(
+                        BookingAppointment.pipeline_id == pipe.id,
+                        BookingDirection.pipeline_id == pipe.id,
+                    ),
                     BookingAppointment.start_at >= start,
                     BookingAppointment.start_at < end,
                 )

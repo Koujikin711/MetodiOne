@@ -107,6 +107,19 @@ async def _sync_expert_calendar_profile(
             detail="Неизвестное или неактивное направление онлайн-записи",
         )
 
+    if d.pipeline_id is None and user.company_id is not None:
+        assign_rows = (
+            await db.execute(
+                select(UserPipelineAssignment.pipeline_id).where(
+                    UserPipelineAssignment.user_id == user.id,
+                    UserPipelineAssignment.company_id == user.company_id,
+                ),
+            )
+        ).all()
+        assigned = {int(r[0]) for r in assign_rows}
+        if len(assigned) == 1:
+            d.pipeline_id = next(iter(assigned))
+
     r = await db.execute(select(BookingSpecialist).where(BookingSpecialist.crm_user_id == user.id))
     spec = r.scalars().first()
     if spec is not None:
