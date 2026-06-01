@@ -669,6 +669,14 @@ export interface BookingPatientHistoryItem {
   visits: BookingPatientVisit[];
 }
 
+export interface BookingPatientSuggestItem {
+  lead_id: number | null;
+  patient_name: string;
+  patient_phone: string;
+  manager_name: string | null;
+  source: "crm" | "visits" | string;
+}
+
 export interface AttendanceGeofence {
   id: number;
   name: string;

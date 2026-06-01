@@ -32,6 +32,7 @@ from app.schemas.booking import (
     BookingAppointmentRead,
     BookingAppointmentStatusUpdate,
     BookingPatientHistoryItem,
+    BookingPatientSuggestItem,
     BookingPatientVisitRead,
     BookingDirectionCreate,
     BookingDirectionRead,
@@ -1049,6 +1050,137 @@ async def booking_patient_history(
     out.sort(key=lambda x: (x.last_visit_at or datetime.min.replace(tzinfo=UTC)), reverse=True)
     for item in out:
         item.visits.sort(key=lambda v: v.start_at, reverse=True)
+    return out[:limit]
+
+
+def _suggest_dedupe_key(phone: str, name: str) -> str:
+    digits = _norm_phone(phone) or ""
+    if len(digits) >= 7:
+        return f"p:{digits[-9:]}"
+    return f"n:{_norm_patient_name(name)}"
+
+
+def _lead_matches_suggest_term(lead: Lead, term: str, phone_digits: str) -> bool:
+    name_l = (lead.name or "").lower()
+    phone_raw = (lead.phone or "").lower()
+    if term.lower() in name_l:
+        return True
+    if term.lower() in phone_raw:
+        return True
+    ln = _norm_phone(lead.phone)
+    if phone_digits and ln:
+        if ln == phone_digits or (len(phone_digits) >= 9 and len(ln) >= 9 and ln[-9:] == phone_digits[-9:]):
+            return True
+    return False
+
+
+@router.get("/patient-suggest", response_model=list[BookingPatientSuggestItem])
+async def booking_patient_suggest(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    q: str = Query(..., min_length=2, max_length=120),
+    limit: int = Query(12, ge=1, le=30),
+) -> list[BookingPatientSuggestItem]:
+    """Подсказки клиентов при заполнении формы записи (CRM + прошлые визиты)."""
+    term = q.strip()
+    if len(term) < 2:
+        return []
+
+    like = f"%{term}%"
+    phone_digits = _norm_phone(term) or ""
+    seen: set[str] = set()
+    out: list[BookingPatientSuggestItem] = []
+
+    def push(item: BookingPatientSuggestItem) -> None:
+        key = _suggest_dedupe_key(item.patient_phone, item.patient_name)
+        if key in seen:
+            return
+        seen.add(key)
+        out.append(item)
+
+    lead_filters = [Lead.name.ilike(like), Lead.phone.ilike(like)]
+    if phone_digits and len(phone_digits) >= 4:
+        lead_filters.append(Lead.phone.ilike(f"%{phone_digits[-9:]}%"))
+
+    lead_rows = (
+        await db.execute(
+            select(Lead, User.full_name)
+            .outerjoin(User, User.id == Lead.manager_id)
+            .where(Lead.company_id == company_id, or_(*lead_filters))
+            .order_by(Lead.id.desc())
+            .limit(60),
+        )
+    ).all()
+
+    for lead, mgr_name in lead_rows:
+        if not _lead_matches_suggest_term(lead, term, phone_digits):
+            continue
+        push(
+            BookingPatientSuggestItem(
+                lead_id=int(lead.id),
+                patient_name=(lead.name or "").strip() or "Клиент",
+                patient_phone=(lead.phone or "").strip() or "—",
+                manager_name=(mgr_name or "").strip() or None,
+                source="crm",
+            ),
+        )
+        if len(out) >= limit:
+            return out[:limit]
+
+    appt_filters = [
+        BookingAppointment.patient_name.ilike(like),
+        BookingAppointment.patient_phone.ilike(like),
+    ]
+    if phone_digits and len(phone_digits) >= 4:
+        appt_filters.append(BookingAppointment.patient_phone.ilike(f"%{phone_digits[-9:]}%"))
+
+    appt_rows = (
+        await db.execute(
+            select(
+                BookingAppointment.lead_id,
+                BookingAppointment.patient_name,
+                BookingAppointment.patient_phone,
+            )
+            .where(BookingAppointment.company_id == company_id, or_(*appt_filters))
+            .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc())
+            .limit(80),
+        )
+    ).all()
+
+    appt_lead_ids = {int(r[0]) for r in appt_rows if r[0] is not None}
+    mgr_by_lead: dict[int, str | None] = {}
+    if appt_lead_ids:
+        mgr_rows = (
+            await db.execute(
+                select(Lead.id, User.full_name)
+                .outerjoin(User, User.id == Lead.manager_id)
+                .where(Lead.company_id == company_id, Lead.id.in_(appt_lead_ids)),
+            )
+        ).all()
+        mgr_by_lead = {int(lid): (str(name).strip() if name else None) for lid, name in mgr_rows}
+
+    for lead_id, patient_name, patient_phone in appt_rows:
+        name = (patient_name or "").strip() or "Клиент"
+        phone = (patient_phone or "").strip() or "—"
+        if phone_digits:
+            pn = _norm_phone(phone)
+            if pn and pn != phone_digits and (len(phone_digits) < 9 or len(pn) < 9 or pn[-9:] != phone_digits[-9:]):
+                if term.lower() not in name.lower():
+                    continue
+        mgr_name = mgr_by_lead.get(int(lead_id)) if lead_id is not None else None
+        push(
+            BookingPatientSuggestItem(
+                lead_id=int(lead_id) if lead_id is not None else None,
+                patient_name=name,
+                patient_phone=phone,
+                manager_name=mgr_name,
+                source="visits",
+            ),
+        )
+        if len(out) >= limit:
+            break
+
     return out[:limit]
 
 

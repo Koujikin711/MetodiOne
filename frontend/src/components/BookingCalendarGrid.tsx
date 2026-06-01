@@ -27,7 +27,7 @@ import {
 import { GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "@/components/icons";
 import {
   BOOKING_TIME_ZONE,
-  formatTimeRangeInBookingTz,
+  formatAppointmentTimeOnCard,
   utcMsToHourMinuteInBookingTz,
   weekdayMon0InBookingTz,
   ymdInBookingTz,
@@ -476,28 +476,34 @@ function SortableSpecialistColumn({
                 ].join(" ")}
                 title={note ? `${leadTitle}. Заметка: ${note}` : leadTitle}
               >
-              <div className="flex items-start justify-between gap-1">
+              <div className="flex items-start justify-between gap-1.5">
                 <span
                   className={[
-                    "line-clamp-2 break-words pr-1 font-semibold leading-[1.25]",
+                    "min-w-0 flex-1 break-words pr-1 font-semibold leading-[1.25]",
                     narrow ? "line-clamp-2 text-[10px]" : "line-clamp-2 text-[13px]",
                   ].join(" ")}
                 >
                   {a.patient_name}
                 </span>
-                {a.status === "completed" && (
-                  <span className="shrink-0 opacity-90" aria-hidden>
-                    ✓
+                <div className="flex shrink-0 flex-col items-end gap-0.5 leading-none">
+                  <span
+                    className={[
+                      "whitespace-nowrap font-bold tabular-nums",
+                      narrow ? "text-[10px]" : "text-[11px]",
+                    ].join(" ")}
+                    title={formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
+                  >
+                    {formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow)}
                   </span>
-                )}
+                  {a.status === "completed" && (
+                    <span className="text-[10px] font-bold opacity-90" aria-hidden>
+                      ✓
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="mt-0.5 flex items-center justify-between gap-2 booking-appt-meta">
-                <div className="min-w-0 flex-1 truncate text-[10px] font-medium opacity-90">
-                  {(a.service_title || "").trim() || "—"}
-                </div>
-                <div className="shrink-0 text-[9px] font-semibold tabular-nums opacity-90">
-                  {formatTimeRangeInBookingTz(a.start_at, a.end_at)}
-                </div>
+              <div className="mt-0.5 truncate text-[10px] font-medium opacity-90 booking-appt-meta">
+                {(a.service_title || "").trim() || "—"}
               </div>
               {note && !narrow ? (
                 <div className="mt-0.5 truncate text-[9px] italic opacity-80" title={note}>
