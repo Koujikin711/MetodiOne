@@ -518,6 +518,15 @@ export function LeadDetailPage() {
                                     ? "Отменён"
                                     : a.status}
                           </p>
+                          {(a.comment || "").trim() ? (
+                            <p
+                              className="mt-2 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] px-2 py-1.5 text-xs text-[var(--mo-text)]"
+                              title={(a.comment || "").trim()}
+                            >
+                              <span className="font-semibold mo-muted">Заметка: </span>
+                              {(a.comment || "").trim()}
+                            </p>
+                          ) : null}
                         </div>
                         {canEditBooking && isBooked && (
                           <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">

@@ -436,22 +436,12 @@ function SortableSpecialistColumn({
           const laneCount = Math.max(1, laneInfo?.laneCount ?? 1);
           const cls = appointmentVisualClass(a);
           const narrow = laneCount > 1;
+          const note = (a.comment || "").trim();
+          const leadTitle = a.lead_id ? "Открыть карточку клиента" : "Нет лида в MetodiOne";
           return (
-            <button
+            <div
               key={a.id}
-              type="button"
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData("text/appointment-id", String(a.id));
-                e.dataTransfer.effectAllowed = "move";
-              }}
-              onClick={() => onAppointmentClick(a)}
-              className={[
-                "absolute z-20 overflow-hidden rounded-lg text-left text-xs",
-                narrow ? "px-1 py-0.5" : "px-2 py-1.5",
-                cls,
-                appointmentHoverClass,
-              ].join(" ")}
+              className="group/appt absolute z-20"
               style={{
                 top: `${topPct}%`,
                 height: `${heightPct}%`,
@@ -460,8 +450,32 @@ function SortableSpecialistColumn({
                 right: "auto",
                 zIndex: 20 + lane,
               }}
-              title={a.lead_id ? "Открыть карточку клиента (лид)" : "Нет лида в MetodiOne"}
             >
+              {note ? (
+                <div
+                  role="tooltip"
+                  className="pointer-events-none absolute bottom-full left-1/2 z-[80] mb-1 hidden w-max max-w-[min(260px,92vw)] -translate-x-1/2 rounded-lg border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-2.5 py-1.5 text-[11px] leading-snug text-[var(--mo-text)] shadow-lg group-hover/appt:block"
+                >
+                  <span className="font-semibold text-[var(--mo-text-muted)]">Заметка: </span>
+                  {note}
+                </div>
+              ) : null}
+              <button
+                type="button"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/appointment-id", String(a.id));
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                onClick={() => onAppointmentClick(a)}
+                className={[
+                  "h-full w-full overflow-hidden rounded-lg text-left text-xs",
+                  narrow ? "px-1 py-0.5" : "px-2 py-1.5",
+                  cls,
+                  appointmentHoverClass,
+                ].join(" ")}
+                title={note ? `${leadTitle}. Заметка: ${note}` : leadTitle}
+              >
               <div className="flex items-start justify-between gap-1">
                 <span
                   className={[
@@ -485,6 +499,11 @@ function SortableSpecialistColumn({
                   {formatTimeRangeInBookingTz(a.start_at, a.end_at)}
                 </div>
               </div>
+              {note && !narrow ? (
+                <div className="mt-0.5 truncate text-[9px] italic opacity-80" title={note}>
+                  {note}
+                </div>
+              ) : null}
               <div className="booking-appt-meta mt-1 flex items-center gap-1 text-[10px]">
                 <span className="booking-appt-badge rounded px-1 py-0.5 font-medium">MetodiOne</span>
                 {a.lead_id ? (
@@ -494,6 +513,7 @@ function SortableSpecialistColumn({
                 )}
               </div>
             </button>
+            </div>
           );
         })}
       </div>
