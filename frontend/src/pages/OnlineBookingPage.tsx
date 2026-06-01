@@ -567,6 +567,12 @@ export function OnlineBookingPage() {
           {tabBtn("online", "Онлайн-записи")}
           {tabBtn("journal", "Журнал")}
         </div>
+        {isExpert ? (
+          <p className="lux-caption max-w-3xl">
+            Если вы назначены главным экспертом воронки (в настройках канбана), здесь видны записи всех
+            экспертов этой воронки. Иначе — только ваша колонка (просмотр).
+          </p>
+        ) : null}
       </header>
 
       {tab === "online" && (

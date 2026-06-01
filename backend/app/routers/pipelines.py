@@ -53,6 +53,20 @@ async def list_pipelines(
         if not allowed:
             return []
         q = q.where(Pipeline.id.in_(allowed))
+    elif current_user.role == UserRole.expert:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        expert_pipes = (
+            await db.execute(
+                select(Pipeline.id).where(
+                    Pipeline.company_id == company_id,
+                    Pipeline.expert_user_id == current_user.id,
+                ),
+            )
+        ).scalars().all()
+        allowed |= {int(x) for x in expert_pipes}
+        if not allowed:
+            return []
+        q = q.where(Pipeline.id.in_(allowed))
     result = await db.execute(q.order_by(Pipeline.id))
     return [PipelineRead.model_validate(p) for p in result.scalars().all()]
 

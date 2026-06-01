@@ -91,6 +91,49 @@ async def _user_assigned_pipeline_ids(db: AsyncSession, user_id: int) -> set[int
     return {row[0] for row in r.all()}
 
 
+async def _expert_chief_pipeline_ids(db: AsyncSession, user: User) -> set[int]:
+    """Воронки, где пользователь — главный эксперт (expert_user_id в настройках воронки)."""
+    if user.company_id is None:
+        return set()
+    r = await db.execute(
+        select(Pipeline.id).where(
+            Pipeline.company_id == user.company_id,
+            Pipeline.expert_user_id == user.id,
+        ),
+    )
+    return {int(row[0]) for row in r.all()}
+
+
+def _appointment_in_pipelines(*, pipeline_ids: set[int]) -> object:
+    """Условие: запись относится к одной из воронок (снимок или направление календаря)."""
+    if not pipeline_ids:
+        return BookingAppointment.id == -1
+    return or_(
+        BookingAppointment.pipeline_id.in_(pipeline_ids),
+        BookingDirection.pipeline_id.in_(pipeline_ids),
+    )
+
+
+def _specialists_visible_to_chief_expert(
+    *,
+    pipeline_ids: set[int],
+    company_id: int,
+) -> object:
+    """Колонки всех экспертов воронки: направление или учётная запись эксперта в назначениях воронки."""
+    assigned_expert_ids = (
+        select(UserPipelineAssignment.user_id)
+        .where(
+            UserPipelineAssignment.company_id == company_id,
+            UserPipelineAssignment.pipeline_id.in_(pipeline_ids),
+        )
+        .scalar_subquery()
+    )
+    return or_(
+        BookingDirection.pipeline_id.in_(pipeline_ids),
+        BookingSpecialist.crm_user_id.in_(assigned_expert_ids),
+    )
+
+
 async def _appointment_lead_pipeline_id(db: AsyncSession, appt: BookingAppointment) -> int | None:
     if getattr(appt, "pipeline_id", None) is not None:
         return int(appt.pipeline_id)
@@ -503,15 +546,22 @@ async def delete_direction(
 @router.get("/specialists", response_model=list[BookingSpecialistRead])
 async def list_specialists(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: CurrentUser,
+    current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> list[BookingSpecialistRead]:
-    result = await db.execute(
+    q = (
         select(BookingSpecialist, BookingDirection.name)
         .join(BookingDirection, BookingSpecialist.direction_id == BookingDirection.id)
         .where(BookingSpecialist.company_id == company_id, BookingDirection.company_id == company_id)
-        .order_by(BookingSpecialist.sort_order.asc(), BookingSpecialist.id.asc()),
     )
+    if current_user.role == UserRole.expert:
+        chief_pids = await _expert_chief_pipeline_ids(db, current_user)
+        if chief_pids:
+            q = q.where(_specialists_visible_to_chief_expert(pipeline_ids=chief_pids, company_id=company_id))
+        else:
+            q = q.where(BookingSpecialist.crm_user_id == current_user.id)
+    q = q.order_by(BookingSpecialist.sort_order.asc(), BookingSpecialist.id.asc())
+    result = await db.execute(q)
     rows = result.all()
     return [_specialist_read(s, dname) for s, dname in rows]
 
@@ -697,6 +747,81 @@ def _norm_phone(raw: str | None) -> str | None:
     return digits or None
 
 
+def _norm_patient_name(name: str) -> str:
+    return " ".join((name or "").strip().lower().split())
+
+
+async def _find_lead_by_phone_for_booking(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    phone_digits: str,
+) -> Lead | None:
+    if len(phone_digits) < 7:
+        return None
+    exact = (
+        await db.execute(
+            select(Lead)
+            .where(Lead.company_id == company_id, Lead.phone == phone_digits)
+            .order_by(Lead.id.desc())
+            .limit(1),
+        )
+    ).scalars().first()
+    if exact is not None:
+        return exact
+
+    tail = phone_digits[-9:] if len(phone_digits) >= 9 else phone_digits
+    candidates = (
+        await db.execute(
+            select(Lead)
+            .where(
+                Lead.company_id == company_id,
+                Lead.phone.is_not(None),
+                Lead.phone.ilike(f"%{tail}"),
+            )
+            .order_by(Lead.id.desc())
+            .limit(40),
+        )
+    ).scalars().all()
+    for lead in candidates:
+        norm = _norm_phone(lead.phone)
+        if not norm:
+            continue
+        if norm == phone_digits:
+            return lead
+        if len(norm) >= 9 and len(phone_digits) >= 9 and norm[-9:] == phone_digits[-9:]:
+            return lead
+    return None
+
+
+async def _find_lead_by_name_for_booking(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    patient_name: str,
+) -> Lead | None:
+    key = _norm_patient_name(patient_name)
+    if len(key) < 4:
+        return None
+    first_token = key.split(" ", 1)[0]
+    candidates = (
+        await db.execute(
+            select(Lead)
+            .where(
+                Lead.company_id == company_id,
+                Lead.name.is_not(None),
+                Lead.name.ilike(f"%{first_token}%"),
+            )
+            .order_by(Lead.id.desc())
+            .limit(40),
+        )
+    ).scalars().all()
+    for lead in candidates:
+        if _norm_patient_name(lead.name or "") == key:
+            return lead
+    return None
+
+
 async def _upsert_lead_for_appointment(
     db: AsyncSession,
     *,
@@ -707,15 +832,24 @@ async def _upsert_lead_for_appointment(
     lead_pipeline_id: int | None,
     lead_stage_id: int | None,
 ) -> int | None:
-    phone = _norm_phone(patient_phone)
-    if not phone:
-        return None
-    existing = await db.execute(
-        select(Lead).where(Lead.company_id == company_id, Lead.phone == phone).order_by(Lead.id.desc()).limit(1),
-    )
-    found = existing.scalars().first()
+    phone_digits = _norm_phone(patient_phone) or ""
+    found: Lead | None = None
+    if phone_digits:
+        found = await _find_lead_by_phone_for_booking(db, company_id=company_id, phone_digits=phone_digits)
+    if found is None and patient_name.strip():
+        found = await _find_lead_by_name_for_booking(db, company_id=company_id, patient_name=patient_name)
+
     if found is not None:
+        name_s = patient_name.strip()
+        if name_s and (not (found.name or "").strip() or (found.name or "").strip() == "Клиент"):
+            found.name = name_s
+        if phone_digits and not _norm_phone(found.phone):
+            found.phone = phone_digits
+        await db.flush()
         return found.id
+
+    if not phone_digits:
+        return None
 
     stage_id = lead_stage_id
     if stage_id is not None and lead_pipeline_id is not None:
@@ -745,7 +879,7 @@ async def _upsert_lead_for_appointment(
     lead = Lead(
         company_id=company_id,
         name=patient_name.strip() or "Клиент",
-        phone=phone,
+        phone=phone_digits,
         source="Онлайн-запись",
         status_id=stage_id,
         manager_id=manager_id,
@@ -781,7 +915,11 @@ async def list_appointments(
     if specialist_id is not None:
         q = q.where(BookingAppointment.specialist_id == specialist_id)
     if current_user.role == UserRole.expert:
-        q = q.where(BookingSpecialist.crm_user_id == current_user.id)
+        chief_pids = await _expert_chief_pipeline_ids(db, current_user)
+        if chief_pids:
+            q = q.where(_appointment_in_pipelines(pipeline_ids=chief_pids))
+        else:
+            q = q.where(BookingSpecialist.crm_user_id == current_user.id)
     q = q.order_by(BookingAppointment.start_at.asc())
     result = await db.execute(q)
     out: list[BookingAppointmentRead] = []
@@ -840,7 +978,28 @@ async def booking_patient_history(
     ).all()
 
     if current_user.role == UserRole.expert:
-        rows = [r for r in rows if r[9] and int(r[9]) == current_user.id]
+        chief_pids = await _expert_chief_pipeline_ids(db, current_user)
+        if chief_pids:
+            appt_ids = [int(r[0]) for r in rows]
+            if appt_ids:
+                pipe_rows = (
+                    await db.execute(
+                        select(BookingAppointment.id, BookingAppointment.pipeline_id, BookingDirection.pipeline_id)
+                        .join(BookingDirection, BookingAppointment.direction_id == BookingDirection.id)
+                        .where(BookingAppointment.id.in_(appt_ids))
+                    )
+                ).all()
+                allowed_appt_ids: set[int] = set()
+                for aid, appt_pid, dir_pid in pipe_rows:
+                    if appt_pid is not None and int(appt_pid) in chief_pids:
+                        allowed_appt_ids.add(int(aid))
+                    elif dir_pid is not None and int(dir_pid) in chief_pids:
+                        allowed_appt_ids.add(int(aid))
+                rows = [r for r in rows if int(r[0]) in allowed_appt_ids]
+            else:
+                rows = []
+        else:
+            rows = [r for r in rows if r[9] and int(r[9]) == current_user.id]
 
     grouped: dict[tuple[str, str], BookingPatientHistoryItem] = {}
     for (
@@ -944,12 +1103,15 @@ async def create_appointment(
 
     lead_id = body.lead_id
     appointment_pipeline_id: int | None = None
+    resolved_manager_id = body.responsible_manager_id
     if lead_id is not None:
         lead = await db.get(Lead, lead_id)
         if lead is None or lead.company_id != company_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Лид не найден")
         await db.refresh(lead, ["stage"])
         appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
+        if lead.manager_id is not None:
+            resolved_manager_id = lead.manager_id
     else:
         lead_id = await _upsert_lead_for_appointment(
             db,
@@ -961,11 +1123,14 @@ async def create_appointment(
             lead_stage_id=body.lead_stage_id,
         )
         appointment_pipeline_id = body.lead_pipeline_id
-        if appointment_pipeline_id is None and lead_id is not None:
+        if lead_id is not None:
             lead = await db.get(Lead, lead_id)
             if lead is not None:
                 await db.refresh(lead, ["stage"])
-                appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
+                if appointment_pipeline_id is None:
+                    appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
+                if lead.manager_id is not None:
+                    resolved_manager_id = lead.manager_id
 
     service_amount_value = float(body.service_amount)
     if appointment_pipeline_id is not None:
@@ -996,7 +1161,7 @@ async def create_appointment(
         status="booked",
         service_amount=service_amount_value,
         paid_amount=body.paid_amount,
-        responsible_manager_id=body.responsible_manager_id,
+        responsible_manager_id=resolved_manager_id,
         created_by_user_id=current_user.id,
         comment=(body.comment or "").strip() or None,
         service_title=service_title,
