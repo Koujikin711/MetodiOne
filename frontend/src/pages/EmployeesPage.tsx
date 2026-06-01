@@ -103,6 +103,8 @@ export function EmployeesPage() {
   const [expertSpecialization, setExpertSpecialization] = useState("");
   const [bookingDirectionId, setBookingDirectionId] = useState<number | "">("");
   const [terminateTarget, setTerminateTarget] = useState<Employee | null>(null);
+  const [editPipelinesEmployee, setEditPipelinesEmployee] = useState<Employee | null>(null);
+  const [editPipelineIds, setEditPipelineIds] = useState<number[]>([]);
 
   const pipelines = pipelinesQuery.data ?? [];
   const bookingDirections = bookingDirectionsQuery.data ?? [];
@@ -266,6 +268,33 @@ export function EmployeesPage() {
     setPipelineIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  function openEditPipelines(e: Employee) {
+    setEditPipelinesEmployee(e);
+    setEditPipelineIds([...e.pipeline_ids]);
+  }
+
+  function toggleEditPipeline(id: number) {
+    setEditPipelineIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  const patchPipelinesMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<Employee>(`/api/employees/${editPipelinesEmployee!.id}/pipelines`, {
+        method: "PATCH",
+        body: JSON.stringify({ pipeline_ids: editPipelineIds }),
+      }),
+    onSuccess: () => {
+      toast.success("Воронки сотрудника обновлены");
+      setEditPipelinesEmployee(null);
+      void qc.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  function canEditPipelines(role: UserRole) {
+    return role === "manager" || role === "admin" || role === "expert";
+  }
+
   return (
     <div className="relative mx-auto max-w-[1200px] space-y-6 pb-10">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -404,13 +433,22 @@ export function EmployeesPage() {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <div className="text-xs lux-caption">
-                  Направления:{" "}
+                  Воронки:{" "}
                   {e.pipeline_ids.length
                     ? e.pipeline_ids
                         .map((id) => pipelineById.get(id)?.name ?? `#${id}`)
                         .join(", ")
                     : "—"}
                 </div>
+                {canEditPipelines(e.role) ? (
+                  <button
+                    type="button"
+                    onClick={() => openEditPipelines(e)}
+                    className="shrink-0 rounded-lg border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                  >
+                    Воронки
+                  </button>
+                ) : null}
                 {myUserId !== null && e.id !== myUserId && (
                   <button
                     type="button"
@@ -493,6 +531,57 @@ export function EmployeesPage() {
             void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
           }}
         />
+      )}
+
+      {editPipelinesEmployee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-xl rounded-2xl crm-modal-panel border p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="lux-subheading">Воронки сотрудника</h2>
+              <button
+                type="button"
+                onClick={() => setEditPipelinesEmployee(null)}
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
+              >
+                Закрыть
+              </button>
+            </div>
+            <p className="mt-2 text-sm mo-muted">
+              {editPipelinesEmployee.full_name ?? editPipelinesEmployee.email} ·{" "}
+              {editPipelinesEmployee.role === "manager"
+                ? "менеджер"
+                : editPipelinesEmployee.role === "admin"
+                  ? "админ воронки"
+                  : "эксперт"}
+            </p>
+            <div className="mt-4 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
+              <p className="text-[11px] mo-muted">
+                Отметьте воронки, в которых сотрудник видит лиды и записи. Нужна хотя бы одна воронка.
+              </p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {pipelines.map((p) => (
+                  <label key={p.id} className="flex items-center gap-2 text-sm text-[var(--mo-text)]">
+                    <input
+                      type="checkbox"
+                      checked={editPipelineIds.includes(p.id)}
+                      onChange={() => toggleEditPipeline(p.id)}
+                    />
+                    <span className="truncate">{p.name}</span>
+                  </label>
+                ))}
+                {pipelines.length === 0 && <div className="text-sm mo-muted">Нет воронок</div>}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => patchPipelinesMutation.mutate()}
+              disabled={patchPipelinesMutation.isPending || editPipelineIds.length === 0}
+              className={`mt-4 w-full ${theme.btnPrimary} disabled:opacity-60`}
+            >
+              {patchPipelinesMutation.isPending ? "Сохранение…" : "Сохранить воронки"}
+            </button>
+          </div>
+        </div>
       )}
 
       {open && (
@@ -615,9 +704,8 @@ export function EmployeesPage() {
               <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
                 <div className="lux-subheading text-sm">Направления (воронки)</div>
                 <p className="mt-1 text-[11px] mo-muted">
-                  Для владельца направления не обязательны. Для менеджера и админа воронки: направления CRM. Для админа воронки обязательна хотя бы одна
-                  (журнал записей и лиды). Для эксперта — тоже хотя бы одна воронка CRM плюс специальность и направление
-                  записи выше. Для финансового аналитика воронки не обязательны (доступ к отчётам и журналу без правок).
+                  Для менеджера, админа и эксперта нужна хотя бы одна воронка. После приглашения воронки можно изменить кнопкой
+                  «Воронки» в карточке сотрудника.
                 </p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {pipelines.map((p) => (
