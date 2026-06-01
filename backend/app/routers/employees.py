@@ -16,6 +16,7 @@ from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.security import hash_password
 from app.database import get_db
 from app.models import BookingDirection, BookingSpecialist, Pipeline, User, UserPipelineAssignment, UserRole
+from app.services.audit import write_audit_event
 from app.services.mail import send_email
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -54,6 +55,10 @@ class InviteEmployeeResult(BaseModel):
     employee: EmployeeRead
     invite_url: str
     temp_password_sent_to_email: bool
+
+
+class PatchEmployeePipelinesBody(BaseModel):
+    pipeline_ids: list[int] = Field(default_factory=list)
 
 
 def _rand_password() -> str:
@@ -412,6 +417,99 @@ async def invite_employee(
         invite_url=invite_url,
         temp_password_sent_to_email=sent,
     )
+
+
+async def _validate_pipeline_ids(db: AsyncSession, company_id: int, pipeline_ids: list[int]) -> list[int]:
+    if not pipeline_ids:
+        return []
+    unique = sorted(set(int(x) for x in pipeline_ids))
+    r = await db.execute(
+        select(Pipeline.id).where(Pipeline.company_id == company_id, Pipeline.id.in_(unique)),
+    )
+    ok = {int(x[0]) for x in r.all()}
+    if set(unique) != ok:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown pipeline_id in list")
+    return unique
+
+
+def _validate_pipelines_for_role(role: UserRole, pipeline_ids: list[int]) -> None:
+    if role in (UserRole.admin, UserRole.expert, UserRole.manager) and not pipeline_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Укажите хотя бы одну воронку для менеджера, админа или эксперта",
+        )
+
+
+@router.patch("/{employee_id}/pipelines", response_model=EmployeeRead)
+async def patch_employee_pipelines(
+    employee_id: int,
+    body: PatchEmployeePipelinesBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> EmployeeRead:
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+
+    target = await db.get(User, employee_id)
+    if target is None or target.company_id != company_id or not target.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")
+
+    if target.role == UserRole.owner:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Воронки владельца не редактируются — у владельца доступ ко всем воронкам",
+        )
+
+    pipeline_ids = await _validate_pipeline_ids(db, company_id, body.pipeline_ids)
+    _validate_pipelines_for_role(target.role, pipeline_ids)
+
+    old_rows = (
+        await db.execute(
+            select(UserPipelineAssignment.pipeline_id).where(
+                UserPipelineAssignment.user_id == target.id,
+                UserPipelineAssignment.company_id == company_id,
+            ),
+        )
+    ).all()
+    old_ids = {int(r[0]) for r in old_rows}
+    new_ids = set(pipeline_ids)
+
+    removed = old_ids - new_ids
+    if removed:
+        pipes_to_clear = (
+            await db.execute(
+                select(Pipeline).where(
+                    Pipeline.company_id == company_id,
+                    Pipeline.id.in_(removed),
+                    Pipeline.intake_manager_user_id == target.id,
+                ),
+            )
+        ).scalars().all()
+        for pipe in pipes_to_clear:
+            pipe.intake_manager_user_id = None
+
+    await db.execute(
+        delete(UserPipelineAssignment).where(
+            UserPipelineAssignment.user_id == target.id,
+            UserPipelineAssignment.company_id == company_id,
+        ),
+    )
+    for pid in pipeline_ids:
+        db.add(UserPipelineAssignment(company_id=company_id, user_id=target.id, pipeline_id=pid))
+    await db.flush()
+
+    await write_audit_event(
+        db,
+        entity_type="employee",
+        entity_id=target.id,
+        action="employee_pipelines_updated",
+        current_user=current_user,
+        details=f"pipeline_ids={pipeline_ids}",
+    )
+
+    await db.refresh(target)
+    return await _employee_read(db, target)
 
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
