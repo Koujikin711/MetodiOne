@@ -10,7 +10,6 @@ export const TARIFF_FEATURE_CATALOG_FALLBACK: FeatureCatalogItem[] = [
   { key: "crm", label: "CRM, канбан и лиды" },
   { key: "employees", label: "Сотрудники и приглашения" },
   { key: "finance", label: "Финансы" },
-  { key: "horeca", label: "HoReCa (ресторан: зал, кухня, себестоимость)" },
   { key: "integrations", label: "Интеграции каналов" },
   { key: "kpi", label: "KPI продаж" },
   { key: "reports", label: "Отчёты эксперта" },

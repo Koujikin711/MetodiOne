@@ -11,8 +11,7 @@ import { PeriodDelta, PlanFactBar } from "@/components/finance/FinanceReportsCha
 import { FinanceReportsChartsLazy } from "@/components/finance/FinanceReportsChartsLazy";
 import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl } from "@/lib/api";
 import { decodeCompanyIdFromToken, decodeRoleFromToken } from "@/lib/auth";
-import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
-import { restaurantLexicon } from "@/lib/restaurantLexicon";
+import { appLexicon } from "@/lib/appLexicon";
 import { previousPeriodRange } from "@/lib/financePeriod";
 import { printFinanceZone } from "@/lib/printFinance";
 import type {
@@ -39,6 +38,7 @@ import type {
   FinanceBudgetMonthRow,
   FinanceBalanceSheetReport,
   FinanceCashFlowReport,
+  FinanceClinicSummary,
 } from "@/lib/types";
 
 type FinanceDisplayCurrency = "TJS" | "RUB" | "USD";
@@ -83,6 +83,8 @@ function sourceTypeLabel(t: string): string {
     osv_import: "Импорт ОСВ",
     osv_cash_import: "Импорт кассового ОСВ",
     template: "Шаблон",
+    crm_deal_payment: "CRM: оплата сделки",
+    crm_booking_payment: "CRM: оплата записи",
   };
   return m[t] ?? t;
 }
@@ -128,8 +130,7 @@ export function FinancePage() {
   const role = decodeRoleFromToken(token);
   const superNeedsCompany = role === "super_owner" && decodeCompanyIdFromToken(token) == null;
   const readOnlyFinance = role === "finance_analyst";
-  const { restaurantMode } = useTariffNavAccess();
-  const financeLex = restaurantLexicon(restaurantMode);
+  const financeLex = appLexicon;
 
   function assertFinanceCanEdit() {
     if (readOnlyFinance) {
@@ -245,6 +246,15 @@ export function FinancePage() {
     queryFn: () =>
       apiFetch<FinancePeriodSummary>(
         `/api/finance/reports/period-summary?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
+      ),
+    enabled: !superNeedsCompany && tab === "reports",
+  });
+
+  const clinicSummaryQuery = useQuery({
+    queryKey: ["finance-reports", "clinic-summary", reportRangeKey],
+    queryFn: () =>
+      apiFetch<FinanceClinicSummary>(
+        `/api/finance/reports/clinic-summary?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
       ),
     enabled: !superNeedsCompany && tab === "reports",
   });
@@ -2106,6 +2116,33 @@ export function FinancePage() {
                   <div className="text-xs lux-caption">Проводок за период</div>
                   <div className="mt-1 text-sm font-medium text-[var(--mo-text)]">{periodSummaryQuery.data.journal_entries_count}</div>
                 </div>
+                {periodSummaryQuery.data.cash_balance != null ? (
+                  <div className="rounded-xl border border-sky-500/25 bg-sky-950/20 px-4 py-3">
+                    <div className="text-xs text-sky-200/80">Деньги на счетах (1010+1020)</div>
+                    <div className="mt-1 lux-subheading">{parseMoney(periodSummaryQuery.data.cash_balance)}</div>
+                  </div>
+                ) : null}
+                {periodSummaryQuery.data.ar_crm_total != null ? (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3">
+                    <div className="text-xs text-amber-200/80">Дебиторка (CRM)</div>
+                    <div className="mt-1 lux-subheading">{parseMoney(periodSummaryQuery.data.ar_crm_total)}</div>
+                    <p className="mt-1 text-[10px] text-amber-200/70">
+                      Записи: {parseMoney(periodSummaryQuery.data.ar_appointments ?? "0")} · доп. услуги:{" "}
+                      {parseMoney(periodSummaryQuery.data.ar_deals ?? "0")}
+                    </p>
+                  </div>
+                ) : null}
+                {periodSummaryQuery.data.crm_collected_total != null ? (
+                  <div className="rounded-xl border border-teal-500/25 bg-teal-950/20 px-4 py-3">
+                    <div className="text-xs text-teal-200/80">Поступления за период (CRM)</div>
+                    <div className="mt-1 lux-subheading">{parseMoney(periodSummaryQuery.data.crm_collected_total)}</div>
+                    {periodSummaryQuery.data.crm_service_volume ? (
+                      <p className="mt-1 text-[10px] text-teal-200/70">
+                        Объём услуг по записям: {parseMoney(periodSummaryQuery.data.crm_service_volume)}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 {periodSummaryQuery.data.budget_revenue_plan != null &&
                 periodSummaryQuery.data.budget_revenue_plan !== "" ? (
                   <>
@@ -2144,6 +2181,95 @@ export function FinancePage() {
               </div>
             )}
           </section>
+
+          {clinicSummaryQuery.data ? (
+            <section className="mo-section">
+              <h2 className="text-lg font-medium text-[#1e3348]">Клиника: дебиторка и сборы</h2>
+              <p className="mt-1 text-sm text-[#5c6b7a]">
+                Долги пациентов по записям и доп. услугам, факт поступлений по менеджерам за выбранный период.
+              </p>
+              {clinicSummaryQuery.isLoading ? <p className="mt-3 text-sm lux-caption">Загрузка…</p> : null}
+              {clinicSummaryQuery.isError ? (
+                <p className="mt-3 text-sm text-[#6b1d2f]">{(clinicSummaryQuery.error as Error).message}</p>
+              ) : null}
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <div className="overflow-x-auto rounded-xl border border-[var(--mo-border)]">
+                  <table className="w-full min-w-[320px] text-left text-sm">
+                    <thead className="border-b border-[var(--mo-border)] bg-[var(--mo-surface)] text-xs uppercase text-[#5c6b7a]">
+                      <tr>
+                        <th className="px-3 py-2">Клиент / услуга</th>
+                        <th className="px-3 py-2">Долг</th>
+                        <th className="px-3 py-2">Всего</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clinicSummaryQuery.data.receivable_lines.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="px-3 py-4 text-[#5c6b7a]">
+                            Нет открытой дебиторки
+                          </td>
+                        </tr>
+                      ) : (
+                        clinicSummaryQuery.data.receivable_lines.map((row) => (
+                          <tr key={`${row.kind}-${row.source_id}`} className="border-b border-[var(--mo-border)]/60">
+                            <td className="px-3 py-2">
+                              <div className="font-medium text-[var(--mo-text)]">{row.counterparty}</div>
+                              <div className="text-[10px] lux-caption">
+                                {row.kind === "appointment" ? "Запись" : "Доп. услуга"}
+                                {row.lead_id ? (
+                                  <>
+                                    {" "}
+                                    ·{" "}
+                                    <Link to={`/leads/${row.lead_id}`} className="underline">
+                                      лид #{row.lead_id}
+                                    </Link>
+                                  </>
+                                ) : null}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 font-medium text-amber-200">{parseMoney(row.amount_due)}</td>
+                            <td className="px-3 py-2 lux-caption">{parseMoney(row.amount_total)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-[var(--mo-border)]">
+                  <h3 className="border-b border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm font-medium text-[var(--mo-text)]">
+                    Сбор денег менеджерами за период
+                  </h3>
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-[var(--mo-border)] text-xs uppercase text-[#5c6b7a]">
+                      <tr>
+                        <th className="px-3 py-2">Менеджер</th>
+                        <th className="px-3 py-2">Собрано</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clinicSummaryQuery.data.manager_collections.length === 0 ? (
+                        <tr>
+                          <td colSpan={2} className="px-3 py-4 text-[#5c6b7a]">
+                            Нет оплат по записям в выбранном периоде
+                          </td>
+                        </tr>
+                      ) : (
+                        clinicSummaryQuery.data.manager_collections.map((m) => (
+                          <tr key={m.manager_id} className="border-b border-[var(--mo-border)]/60">
+                            <td className="px-3 py-2">{m.manager_name}</td>
+                            <td className="px-3 py-2 font-medium">{parseMoney(m.collected_amount)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                  <p className="px-3 py-2 text-[10px] lux-caption">
+                    Основа для KPI и выплат: факт оплат по записям, привязанных к менеджеру.
+                  </p>
+                </div>
+              </div>
+            </section>
+          ) : null}
 
           <section className="mo-section p-5">
             <h2 className="lux-subheading">Графики</h2>

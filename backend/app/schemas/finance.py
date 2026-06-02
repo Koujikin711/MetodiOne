@@ -272,6 +272,50 @@ class FinancePeriodSummaryRead(BaseModel):
         default=False,
         description="True если отклонение по выручке или расходам от плана по модулю > 10%",
     )
+    cash_balance: Decimal = Field(default=Decimal("0"), description="Остаток денег (1010+1020) на конец периода")
+    ar_crm_total: Decimal = Field(default=Decimal("0"), description="Дебиторка по CRM: неоплаченные записи и доп. услуги")
+    ar_appointments: Decimal = Field(default=Decimal("0"))
+    ar_deals: Decimal = Field(default=Decimal("0"))
+    crm_collected_total: Decimal = Field(default=Decimal("0"), description="Поступления в CRM за период (оплаты записей и сделок)")
+    crm_service_volume: Decimal = Field(default=Decimal("0"), description="Объём услуг по записям за период (service_amount)")
+
+
+class FinanceReceivableLineRead(BaseModel):
+    kind: str
+    source_id: int
+    lead_id: int | None = None
+    counterparty: str
+    amount_total: Decimal
+    amount_paid: Decimal
+    amount_due: Decimal
+    occurred_at: datetime | None = None
+
+
+class FinanceManagerCollectionRead(BaseModel):
+    manager_id: int
+    manager_name: str
+    collected_amount: Decimal
+
+
+class FinanceClinicSummaryRead(BaseModel):
+    date_from: datetime
+    date_to: datetime
+    revenue_total: Decimal
+    expense_total: Decimal
+    net_income: Decimal
+    cash_balance: Decimal
+    ar_crm_total: Decimal
+    ar_appointments: Decimal
+    ar_deals: Decimal
+    ar_gl_balance: Decimal
+    crm_collected_total: Decimal
+    crm_collected_appointments: Decimal
+    crm_collected_deals: Decimal
+    crm_service_volume: Decimal
+    deferred_unrecognized: Decimal
+    inventory_value: Decimal
+    receivable_lines: list[FinanceReceivableLineRead] = Field(default_factory=list)
+    manager_collections: list[FinanceManagerCollectionRead] = Field(default_factory=list)
 
 
 class TrialBalanceLineRead(BaseModel):

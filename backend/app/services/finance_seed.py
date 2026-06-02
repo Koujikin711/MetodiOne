@@ -18,13 +18,17 @@ from app.models import (
 DEFAULT_ACCOUNTS: list[tuple[str, str, str, bool]] = [
     ("1010", "Касса", "asset", True),
     ("1020", "Расчётный счёт", "asset", True),
+    ("1230", "Дебиторская задолженность", "asset", True),
     ("2010", "Товары на складе", "asset", True),
     ("2090", "Отложенная выручка (услуги)", "liability", True),
     ("2999", "Технический зачёт (балансировка)", "liability", True),
     ("4010", "Выручка — услуги", "revenue", True),
     ("4020", "Выручка — товары", "revenue", True),
     ("7010", "Себестоимость товаров", "expense", True),
+    ("7110", "Расходы на персонал", "expense", True),
 ]
+
+CLINIC_EXTRA_ACCOUNT_CODES = frozenset({"1230", "7110"})
 
 
 async def ensure_finance_settings(db: AsyncSession, company_id: int) -> FinanceCompanySettings:
@@ -41,20 +45,38 @@ async def ensure_finance_settings(db: AsyncSession, company_id: int) -> FinanceC
 
 async def ensure_default_chart(db: AsyncSession, company_id: int) -> None:
     cnt = await db.scalar(select(func.count(FinanceAccount.id)).where(FinanceAccount.company_id == company_id))
-    if int(cnt or 0) > 0:
-        return
-    for i, (code, name, atype, is_sys) in enumerate(DEFAULT_ACCOUNTS):
-        db.add(
-            FinanceAccount(
-                company_id=company_id,
-                code=code,
-                name=name,
-                account_type=atype,
-                is_system=is_sys,
-                is_active=True,
-                sort_order=i,
+    if int(cnt or 0) == 0:
+        for i, (code, name, atype, is_sys) in enumerate(DEFAULT_ACCOUNTS):
+            db.add(
+                FinanceAccount(
+                    company_id=company_id,
+                    code=code,
+                    name=name,
+                    account_type=atype,
+                    is_system=is_sys,
+                    is_active=True,
+                    sort_order=i,
+                )
             )
-        )
+        await db.flush()
+        return
+    existing = set(
+        (await db.execute(select(FinanceAccount.code).where(FinanceAccount.company_id == company_id))).scalars().all()
+    )
+    for code, name, atype, is_sys in DEFAULT_ACCOUNTS:
+        if code not in existing:
+            db.add(
+                FinanceAccount(
+                    company_id=company_id,
+                    code=code,
+                    name=name,
+                    account_type=atype,
+                    is_system=is_sys,
+                    is_active=True,
+                    sort_order=900 + len(existing),
+                )
+            )
+            existing.add(code)
     await db.flush()
 
 

@@ -18,7 +18,6 @@ export const luxury = {
   nav: {
     crm: "#4A1521",
     tariff: "#0F4C3A",
-    horeca: "#6B1D2F",
     online: "#1E3A8A",
     tasks: "#2A6F85",
     trainer: "#8C6D31",

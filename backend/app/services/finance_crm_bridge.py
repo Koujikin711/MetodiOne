@@ -136,3 +136,58 @@ async def sync_booking_payment_revenue(
         db.add(FinanceJournalLine(entry_id=ent.id, account_id=int(cash_acc_id), debit=Decimal("0"), credit=amt))
     await db.flush()
     return True
+
+
+async def sync_deal_payment_revenue(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    lead_id: int | None,
+    deal_id: int,
+    target_paid_amount: Decimal,
+    user_id: int | None,
+) -> bool:
+    """Синхронизирует оплату по сделке (доп. услуга): дельта в журнал."""
+    rev_acc_id = await account_id_by_code(db, company_id, "4010")
+    cash_acc_id = await _preferred_cash_account_id(db, company_id)
+    if rev_acc_id is None or cash_acc_id is None:
+        return False
+
+    posted = await db.scalar(
+        select(func.coalesce(func.sum(FinanceJournalLine.credit - FinanceJournalLine.debit), 0))
+        .select_from(FinanceJournalLine)
+        .join(FinanceJournalEntry, FinanceJournalEntry.id == FinanceJournalLine.entry_id)
+        .where(
+            FinanceJournalEntry.company_id == company_id,
+            FinanceJournalEntry.source_type == "crm_deal_payment",
+            FinanceJournalEntry.related_deal_id == deal_id,
+            FinanceJournalLine.account_id == int(rev_acc_id),
+        )
+    )
+    already_posted = Decimal(str(posted or 0)).quantize(Decimal("0.01"))
+    target = Decimal(target_paid_amount or 0).quantize(Decimal("0.01"))
+    delta = (target - already_posted).quantize(Decimal("0.01"))
+    if delta == 0:
+        return False
+
+    ent = FinanceJournalEntry(
+        company_id=company_id,
+        entry_date=datetime.now(UTC),
+        memo=f"CRM: оплата сделки #{deal_id}",
+        source_type="crm_deal_payment",
+        created_by_user_id=user_id,
+        related_lead_id=lead_id,
+        related_deal_id=deal_id,
+    )
+    db.add(ent)
+    await db.flush()
+
+    amt = abs(delta)
+    if delta > 0:
+        db.add(FinanceJournalLine(entry_id=ent.id, account_id=int(cash_acc_id), debit=amt, credit=Decimal("0")))
+        db.add(FinanceJournalLine(entry_id=ent.id, account_id=int(rev_acc_id), debit=Decimal("0"), credit=amt))
+    else:
+        db.add(FinanceJournalLine(entry_id=ent.id, account_id=int(rev_acc_id), debit=amt, credit=Decimal("0")))
+        db.add(FinanceJournalLine(entry_id=ent.id, account_id=int(cash_acc_id), debit=Decimal("0"), credit=amt))
+    await db.flush()
+    return True

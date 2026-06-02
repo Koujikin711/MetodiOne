@@ -20,6 +20,8 @@ export function useChatRealtime(enabled: boolean) {
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
       void qc.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
       void qc.invalidateQueries({ queryKey: ["desk-awaiting-threads"] });
+      void qc.invalidateQueries({ queryKey: ["team-threads"] });
+      void qc.invalidateQueries({ queryKey: ["team-messages"] });
     };
 
     try {

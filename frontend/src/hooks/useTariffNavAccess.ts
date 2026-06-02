@@ -1,40 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
-
-import { apiFetch, getActiveCompanyId, getStoredToken } from "@/lib/api";
-import { decodeRoleFromToken } from "@/lib/auth";
-import type { TariffAccessRead } from "@/lib/types";
+import { useCallback } from "react";
 
 /**
- * Доступ к пунктам меню по тарифу: скрываем иконки функций, которых нет в плане.
- * super_owner и отсутствие контекста компании — не фильтруем.
+ * Тарифные ограничения навигации отключены — все разделы видны в рамках роли.
  */
 export function useTariffNavAccess() {
-  const token = getStoredToken();
-  const role = decodeRoleFromToken(token);
-  const companyId = getActiveCompanyId();
+  const showNavForFeature = useCallback((_featureKey: string | null) => true, []);
 
-  const q = useQuery({
-    queryKey: ["tariff-access", companyId],
-    queryFn: () => apiFetch<TariffAccessRead>("/api/system/tariff-access"),
-    enabled: companyId != null && role !== "super_owner",
-    staleTime: 60_000,
-  });
-
-  const enabledSet = useMemo(() => new Set(q.data?.enabled_features ?? []), [q.data?.enabled_features]);
-  const restaurantMode = enabledSet.has("horeca");
-
-  const showNavForFeature = useCallback(
-    (featureKey: string | null) => {
-      if (role === "super_owner") return true;
-      if (featureKey == null) return true;
-      if (companyId == null) return true;
-      // Пока тариф не загружен — не показываем «лишние» разделы (раньше всё мелькало как доступное).
-      if (q.isLoading || !q.data) return false;
-      return enabledSet.has(featureKey);
-    },
-    [role, companyId, q.isLoading, q.data, enabledSet],
-  );
-
-  return { showNavForFeature, restaurantMode, tariffAccess: q.data, isLoading: q.isLoading };
+  return { showNavForFeature, tariffAccess: undefined, isLoading: false };
 }

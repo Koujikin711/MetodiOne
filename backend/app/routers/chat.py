@@ -472,6 +472,7 @@ async def thread_bucket_counts(
         .outerjoin(Lead, Lead.id == ChatThread.lead_id)
         .where(
             ChatThread.company_id == company_id,
+            ChatThread.provider != "internal",
             ChatThread.pipeline_id.in_(allowed),
             Lead.manager_id == current_user.id,
         )
@@ -569,7 +570,7 @@ async def list_threads(
         select(*select_cols)
         .outerjoin(Lead, Lead.id == ChatThread.lead_id)
         .outerjoin(User, User.id == Lead.manager_id)
-        .where(ChatThread.company_id == company_id)
+        .where(ChatThread.company_id == company_id, ChatThread.provider != "internal")
     )
     if is_manager_view:
         allowed = await _manager_pipeline_ids(db, current_user.id)

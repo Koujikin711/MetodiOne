@@ -11,7 +11,6 @@ import {
   TrendingUp,
   UserRound,
   Users,
-  UtensilsCrossed,
   Wallet,
 } from "@/components/icons";
 import { AppBanners } from "@/components/AppBanners";
@@ -26,7 +25,7 @@ import metodiMarkUrl from "@/assets/metodione-mark.svg?url";
 import { apiFetch, getStoredToken, setStoredToken } from "@/lib/api";
 import { decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
-import { restaurantLexicon } from "@/lib/restaurantLexicon";
+import { appLexicon } from "@/lib/appLexicon";
 import type { ChatThread, Task, TaskListResponse } from "@/lib/types";
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
@@ -63,9 +62,8 @@ export function MainLayout() {
     role === "owner" || role === "admin" || role === "super_owner" || role === "finance_analyst";
   const showIntegrationsHub = role === "owner";
   const showKpi = role === "owner" || role === "super_owner" || role === "manager" || role === "admin";
-  const showBillingNav = role === "owner" || role === "admin";
-  const { showNavForFeature, restaurantMode } = useTariffNavAccess();
-  const navLex = restaurantLexicon(restaurantMode);
+  const { showNavForFeature } = useTariffNavAccess();
+  const navLex = appLexicon;
 
   function logout() {
     setStoredToken(null);
@@ -212,66 +210,8 @@ export function MainLayout() {
                   </GradientIconBox>
                   <span className="shell-nav-label max-w-[4rem]">Компании</span>
                 </NavLink>
-                <NavLink to="/tariff-plans" className={navLinkClass} title="Тарифы">
-                  <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <TrendingUp className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="shell-nav-label max-w-[4rem]">Тарифы</span>
-                </NavLink>
-              </>
+</>
             ) : isManagerNav ? (
-              restaurantMode ? (
-                <>
-                  <NavIf show={showNavForFeature("horeca")}>
-                    <NavLink to="/horeca/orders" className={navLinkClass} title="Заказы и стадии">
-                      <GradientIconBox variant="horeca" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Funnel className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Заказы</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("horeca")}>
-                    <NavLink to="/horeca/tables" className={navLinkClass} title="Столики">
-                      <GradientIconBox variant="online" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Calendar className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Столики</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("horeca")}>
-                    <NavLink to="/horeca/finance" className={navLinkClass} title="Финансы HoReCa">
-                      <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Wallet className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Финансы</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("horeca")}>
-                    <NavLink to="/horeca/analytics" className={navLinkClass} title="Аналитика HoReCa">
-                      <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <BarChart3 className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Аналитика</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("horeca")}>
-                    <NavLink to="/horeca" className={navLinkClass} title="Центр HoReCa">
-                      <GradientIconBox variant="horeca" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <UtensilsCrossed className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">HoReCa</span>
-                    </NavLink>
-                  </NavIf>
-                  {role === "admin" ? (
-                    <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
-                      <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <TrendingUp className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Тариф</span>
-                    </NavLink>
-                  ) : null}
-                </>
-              ) : (
                 <>
                   <NavLink to="/desk" className={navLinkClass} title="Рабочий стол">
                     <GradientIconBox variant="crm" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
@@ -295,17 +235,9 @@ export function MainLayout() {
                       <span className="shell-nav-label max-w-[4rem]">Онлайн</span>
                     </NavLink>
                   </NavIf>
-                  <NavIf show={showNavForFeature("horeca")}>
-                    <NavLink to="/horeca" className={navLinkClass} title={navLex.navHorecaTitle}>
-                      <GradientIconBox variant="horeca" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <UtensilsCrossed className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">{navLex.navHoreca}</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("crm")}>
+<NavIf show={showNavForFeature("crm")}>
                     <NavLink to="/crm" className={navLinkClass} title={navLex.navKanbanTitle}>
-                      <GradientIconBox variant="horeca" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <GradientIconBox variant="crm" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
                         <Funnel className="h-[18px] w-[18px]" />
                       </GradientIconBox>
                       <span className="shell-nav-label max-w-[4rem]">{navLex.navKanban}</span>
@@ -327,15 +259,14 @@ export function MainLayout() {
                       <span className="shell-nav-label max-w-[4rem]">Задачи</span>
                     </NavLink>
                   </NavIf>
-                  <NavIf show={showNavForFeature("attendance")}>
-                    <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
-                      <GradientIconBox variant="trainer" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Target className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Трекер</span>
-                    </NavLink>
-                  </NavIf>
-                  {showKpi ? (
+                  <NavLink to="/messenger" className={navLinkClass} title="Мессенджер">
+                    <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Users className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="shell-nav-label max-w-[4rem]">Команда</span>
+                  </NavLink>
+
+{showKpi ? (
                     <NavIf show={showNavForFeature("kpi")}>
                       <NavLink to="/kpi" className={navLinkClass} title={navLex.navKpiTitle}>
                         <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
@@ -355,16 +286,7 @@ export function MainLayout() {
                       </NavLink>
                     </NavIf>
                   ) : null}
-                  {role === "admin" ? (
-                    <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
-                      <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <TrendingUp className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Тариф</span>
-                    </NavLink>
-                  ) : null}
-                </>
-              )
+</>
             ) : isExpert ? (
               <>
                 <NavIf show={showNavForFeature("booking")}>
@@ -399,76 +321,15 @@ export function MainLayout() {
                     <span className="shell-nav-label max-w-[4rem]">Задачи</span>
                   </NavLink>
                 </NavIf>
-                <NavIf show={showNavForFeature("attendance")}>
-                  <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                  <NavLink to="/messenger" className={navLinkClass} title="Мессенджер">
                     <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Target className="h-[18px] w-[18px]" />
+                      <Users className="h-[18px] w-[18px]" />
                     </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Трекер</span>
+                    <span className="shell-nav-label max-w-[4rem]">Команда</span>
                   </NavLink>
-                </NavIf>
-              </>
+
+</>
             ) : (
-              restaurantMode ? (
-                <>
-                  <NavIf show={showNavForFeature("horeca")}>
-                    <NavLink to="/horeca/orders" className={navLinkClass} title="Заказы и стадии">
-                      <GradientIconBox variant="horeca" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Funnel className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Заказы</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("horeca")}>
-                    <NavLink to="/horeca/tables" className={navLinkClass} title="Столики">
-                      <GradientIconBox variant="online" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Calendar className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Столики</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("horeca")}>
-                    <NavLink to="/horeca/finance" className={navLinkClass} title="Финансы HoReCa">
-                      <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Wallet className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Финансы</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("horeca")}>
-                    <NavLink to="/horeca/analytics" className={navLinkClass} title="Аналитика HoReCa">
-                      <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <BarChart3 className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Аналитика</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("employees")}>
-                    <NavLink to="/employees" className={navLinkClass} title="Сотрудники HoReCa">
-                      <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Users className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Персонал</span>
-                    </NavLink>
-                  </NavIf>
-                  {showBillingNav ? (
-                    <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
-                      <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <TrendingUp className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Тариф</span>
-                    </NavLink>
-                  ) : null}
-                  <NavIf show={showNavForFeature("horeca")}>
-                    <NavLink to="/horeca" className={navLinkClass} title="Центр HoReCa">
-                      <GradientIconBox variant="horeca" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <UtensilsCrossed className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">HoReCa</span>
-                    </NavLink>
-                  </NavIf>
-                </>
-              ) : (
                 <>
                 <NavIf show={showNavForFeature("crm")}>
                   <NavLink to="/app" end className={navLinkClass} title={navLex.navOwnerHomeTitle}>
@@ -478,23 +339,7 @@ export function MainLayout() {
                     <span className="shell-nav-label max-w-[4rem]">{navLex.navOwnerHomeShort}</span>
                   </NavLink>
                 </NavIf>
-                {showBillingNav ? (
-                  <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
-                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <TrendingUp className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Тариф</span>
-                  </NavLink>
-                ) : null}
-                <NavIf show={showNavForFeature("horeca")}>
-                  <NavLink to="/horeca" className={navLinkClass} title={navLex.navHorecaTitle}>
-                    <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <UtensilsCrossed className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">{navLex.navHoreca}</span>
-                  </NavLink>
-                </NavIf>
-                <NavIf show={showNavForFeature("booking")}>
+<NavIf show={showNavForFeature("booking")}>
                   <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
                     <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
                       <Calendar className="h-[18px] w-[18px]" />
@@ -510,15 +355,14 @@ export function MainLayout() {
                     <span className="shell-nav-label max-w-[4rem]">Задачи</span>
                   </NavLink>
                 </NavIf>
-                <NavIf show={showNavForFeature("attendance")}>
-                  <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
+                  <NavLink to="/messenger" className={navLinkClass} title="Мессенджер">
                     <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Target className="h-[18px] w-[18px]" />
+                      <Users className="h-[18px] w-[18px]" />
                     </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Трекер</span>
+                    <span className="shell-nav-label max-w-[4rem]">Команда</span>
                   </NavLink>
-                </NavIf>
-                <NavIf show={showNavForFeature("analytics")}>
+
+<NavIf show={showNavForFeature("analytics")}>
                   <NavLink to="/analytics" className={navLinkClass} title={navLex.navAnalyticsTitle}>
                     <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
                       <BarChart3 className="h-[18px] w-[18px]" />
@@ -579,7 +423,6 @@ export function MainLayout() {
                   </NavIf>
                 ) : null}
                 </>
-              )
             )}
             <div className="mt-2 border-t border-[var(--mo-border)] pt-3">
               <ThemeToggle />
@@ -617,13 +460,7 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Компании</span>
               </NavLink>
-              <NavLink to="/tariff-plans" className={navLinkClass} title="Тарифы">
-                <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <TrendingUp className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Тарифы</span>
-              </NavLink>
-              <button
+<button
                 type="button"
                 onClick={logout}
                 className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
@@ -636,69 +473,6 @@ export function MainLayout() {
               </button>
             </>
           ) : isManagerNav ? (
-            restaurantMode ? (
-              <>
-                <NavIf show={showNavForFeature("horeca")}>
-                  <NavLink to="/horeca/orders" className={navLinkClass} title="Заказы и стадии">
-                    <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Funnel className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Заказы</span>
-                  </NavLink>
-                </NavIf>
-                <NavIf show={showNavForFeature("horeca")}>
-                  <NavLink to="/horeca/tables" className={navLinkClass} title="Столики">
-                    <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Calendar className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Столики</span>
-                  </NavLink>
-                </NavIf>
-                <NavIf show={showNavForFeature("horeca")}>
-                  <NavLink to="/horeca/finance" className={navLinkClass} title="Финансы HoReCa">
-                    <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Wallet className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Финансы</span>
-                  </NavLink>
-                </NavIf>
-                <NavIf show={showNavForFeature("horeca")}>
-                  <NavLink to="/horeca/analytics" className={navLinkClass} title="Аналитика HoReCa">
-                    <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <BarChart3 className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Анал.</span>
-                  </NavLink>
-                </NavIf>
-                <NavIf show={showNavForFeature("horeca")}>
-                  <NavLink to="/horeca" className={navLinkClass} title="Центр HoReCa">
-                    <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <UtensilsCrossed className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">HoReCa</span>
-                  </NavLink>
-                </NavIf>
-                {role === "admin" ? (
-                  <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
-                    <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <TrendingUp className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Тариф</span>
-                  </NavLink>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
-                  title="Выход"
-                >
-                  <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <LogOut className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Выход</span>
-                </button>
-              </>
-            ) : (
             <>
               <NavIf show={showNavForFeature("crm")}>
                 <NavLink to="/crm" className={navLinkClass} title={navLex.navKanbanTitle}>
@@ -716,15 +490,7 @@ export function MainLayout() {
                   <span className="text-[9px]">{navLex.navGuestsShort}</span>
                 </NavLink>
               </NavIf>
-              <NavIf show={showNavForFeature("horeca")}>
-                <NavLink to="/horeca" className={navLinkClass} title={navLex.navHorecaTitle}>
-                  <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <UtensilsCrossed className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">{navLex.navHoreca}</span>
-                </NavLink>
-              </NavIf>
-              <NavIf show={showNavForFeature("booking")}>
+<NavIf show={showNavForFeature("booking")}>
                 <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Calendar className="h-4 w-4" />
@@ -748,14 +514,12 @@ export function MainLayout() {
                   <span className="text-[9px]">Задачи</span>
                 </NavLink>
               </NavIf>
-              <NavIf show={showNavForFeature("attendance")}>
-                <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
-                  <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Target className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Трекер</span>
-                </NavLink>
-              </NavIf>
+              <NavLink to="/messenger" className={navLinkClass} title="Мессенджер">
+                <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <Users className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Команда</span>
+              </NavLink>
               {showKpi ? (
                 <NavIf show={showNavForFeature("kpi")}>
                   <NavLink to="/kpi" className={navLinkClass} title={navLex.navKpiTitle}>
@@ -776,15 +540,7 @@ export function MainLayout() {
                   </NavLink>
                 </NavIf>
               ) : null}
-              {role === "admin" ? (
-                <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <TrendingUp className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Тариф</span>
-                </NavLink>
-              ) : null}
-              <button
+<button
                 type="button"
                 onClick={logout}
                 className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
@@ -796,7 +552,6 @@ export function MainLayout() {
                 <span className="text-[9px]">Выход</span>
               </button>
             </>
-            )
           ) : isExpert ? (
             <>
               <NavIf show={showNavForFeature("booking")}>
@@ -831,15 +586,14 @@ export function MainLayout() {
                   <span className="text-[9px]">Задачи</span>
                 </NavLink>
               </NavIf>
-              <NavIf show={showNavForFeature("attendance")}>
-                <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
-                  <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Target className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Трекер</span>
-                </NavLink>
-              </NavIf>
-              <button
+                  <NavLink to="/messenger" className={navLinkClass} title="Мессенджер">
+                    <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                      <Users className="h-[18px] w-[18px]" />
+                    </GradientIconBox>
+                    <span className="shell-nav-label max-w-[4rem]">Команда</span>
+                  </NavLink>
+
+<button
                 type="button"
                 onClick={logout}
                 className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
@@ -852,77 +606,6 @@ export function MainLayout() {
               </button>
             </>
           ) : (
-            restaurantMode ? (
-              <>
-                <NavIf show={showNavForFeature("horeca")}>
-                  <NavLink to="/horeca/orders" className={navLinkClass} title="Заказы и стадии">
-                    <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Funnel className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Заказы</span>
-                  </NavLink>
-                </NavIf>
-                <NavIf show={showNavForFeature("horeca")}>
-                  <NavLink to="/horeca/tables" className={navLinkClass} title="Столики">
-                    <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Calendar className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Столики</span>
-                  </NavLink>
-                </NavIf>
-                <NavIf show={showNavForFeature("horeca")}>
-                  <NavLink to="/horeca/finance" className={navLinkClass} title="Финансы HoReCa">
-                    <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Wallet className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Финансы</span>
-                  </NavLink>
-                </NavIf>
-                <NavIf show={showNavForFeature("horeca")}>
-                  <NavLink to="/horeca/analytics" className={navLinkClass} title="Аналитика HoReCa">
-                    <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <BarChart3 className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Анал.</span>
-                  </NavLink>
-                </NavIf>
-                <NavIf show={showNavForFeature("employees")}>
-                  <NavLink to="/employees" className={navLinkClass} title="Сотрудники HoReCa">
-                    <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Users className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Персонал</span>
-                  </NavLink>
-                </NavIf>
-                {showBillingNav ? (
-                  <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
-                    <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <TrendingUp className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Тариф</span>
-                  </NavLink>
-                ) : null}
-                <NavIf show={showNavForFeature("horeca")}>
-                  <NavLink to="/horeca" className={navLinkClass} title="Центр HoReCa">
-                    <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <UtensilsCrossed className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">HoReCa</span>
-                  </NavLink>
-                </NavIf>
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
-                  title="Выход"
-                >
-                  <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <LogOut className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Выход</span>
-                </button>
-              </>
-            ) : (
             <>
               <NavIf show={showNavForFeature("crm")}>
                 <NavLink to="/app" end className={navLinkClass} title={navLex.navOwnerHomeTitle}>
@@ -932,23 +615,7 @@ export function MainLayout() {
                   <span className="text-[9px]">{navLex.navOwnerHomeShort}</span>
                 </NavLink>
               </NavIf>
-              {showBillingNav ? (
-                <NavLink to="/billing" className={navLinkClass} title="Оплата и тариф">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <TrendingUp className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Тариф</span>
-                </NavLink>
-              ) : null}
-              <NavIf show={showNavForFeature("horeca")}>
-                <NavLink to="/horeca" className={navLinkClass} title={navLex.navHorecaTitle}>
-                  <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <UtensilsCrossed className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">{navLex.navHoreca}</span>
-                </NavLink>
-              </NavIf>
-              <NavIf show={showNavForFeature("booking")}>
+<NavIf show={showNavForFeature("booking")}>
                 <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Calendar className="h-4 w-4" />
@@ -982,15 +649,7 @@ export function MainLayout() {
                   <span className="text-[9px]">Чат</span>
                 </NavLink>
               </NavIf>
-              <NavIf show={showNavForFeature("attendance")}>
-                <NavLink to="/attendance" className={navLinkClass} title="Geo-трекер">
-                  <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Target className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Трекер</span>
-                </NavLink>
-              </NavIf>
-              <button
+<button
                 type="button"
                 onClick={logout}
                 className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
@@ -1002,7 +661,6 @@ export function MainLayout() {
                 <span className="text-[9px]">Выход</span>
               </button>
             </>
-            )
           )}
         </nav>
       </div>

@@ -7,14 +7,11 @@ import {
   RequireFinance,
   RequireNotManager,
   RequireOwner,
-  RequireOwnerOrAdmin,
   RequireSuperOwner,
 } from "@/components/RoleRoutes";
 import { MainLayout } from "@/layouts/MainLayout";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
-import { AttendanceTrackerPage } from "@/pages/AttendanceTrackerPage";
 import { AuditPage } from "@/pages/AuditPage";
-import { BillingTariffPage } from "@/pages/BillingPage";
 import { ChatPage } from "@/pages/ChatPage";
 import { EmployeesPage } from "@/pages/EmployeesPage";
 import { ExpertReportsPage } from "@/pages/ExpertReportsPage";
@@ -27,26 +24,12 @@ import { CompaniesPage } from "@/pages/CompaniesPage";
 import { CrmPage } from "@/pages/CrmPage";
 import { FinancePage } from "@/pages/FinancePage";
 import { FinanceShell } from "@/pages/finance/FinanceShell";
-import { HorecaPlaceholderPage } from "@/pages/HorecaPlaceholderPage";
-import { HorecaOrdersPage } from "@/pages/HorecaOrdersPage";
-import { HorecaTablesPage } from "@/pages/HorecaTablesPage";
-import { HorecaFinancePage } from "@/pages/HorecaFinancePage";
-import { HorecaAnalyticsPage } from "@/pages/HorecaAnalyticsPage";
-import { HorecaGuestsPage } from "@/pages/HorecaGuestsPage";
-import { HorecaKitchenPage } from "@/pages/HorecaKitchenPage";
-import { HorecaStockPage } from "@/pages/HorecaStockPage";
-import { HorecaShiftTasksPage } from "@/pages/HorecaShiftTasksPage";
-import { HorecaCommsPage } from "@/pages/HorecaCommsPage";
-import { HorecaDeliveryPage } from "@/pages/HorecaDeliveryPage";
-import { HorecaForecastPage } from "@/pages/HorecaForecastPage";
 import { IntegrationsHubPage } from "@/pages/IntegrationsHubPage";
 import { KpiPage } from "@/pages/KpiPage";
 import { LandingPage } from "@/pages/LandingPage";
 import { OnboardingPage } from "@/pages/OnboardingPage";
-import { TariffPlansPage } from "@/pages/TariffPlansPage";
 import { TasksPage } from "@/pages/TasksPage";
-import { HorecaPrepPage } from "@/pages/HorecaPrepPage";
-import { HorecaTeamPage } from "@/pages/HorecaTeamPage";
+import { TeamMessengerPage } from "@/pages/TeamMessengerPage";
 import { ManagerDeskPage } from "@/pages/ManagerDeskPage";
 
 export default function App() {
@@ -66,14 +49,7 @@ export default function App() {
             <Route path="/booking" element={<OnlineBookingPage />} />
             <Route path="/leads/:id" element={<LeadDetailPage />} />
             <Route path="/tasks" element={<TasksPage />} />
-            <Route
-              path="/billing"
-              element={
-                <RequireOwnerOrAdmin>
-                  <BillingTariffPage />
-                </RequireOwnerOrAdmin>
-              }
-            />
+            <Route path="/messenger" element={<TeamMessengerPage />} />
             <Route
               path="/analytics"
               element={
@@ -109,34 +85,11 @@ export default function App() {
             <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/integrations" element={<IntegrationsHubPage />} />
             <Route path="/audit" element={<AuditPage />} />
-            <Route path="/horeca" element={<HorecaPlaceholderPage />} />
-            <Route path="/horeca/orders" element={<HorecaOrdersPage />} />
-            <Route path="/horeca/tables" element={<HorecaTablesPage />} />
-            <Route path="/horeca/finance" element={<HorecaFinancePage />} />
-            <Route path="/horeca/analytics" element={<HorecaAnalyticsPage />} />
-            <Route path="/horeca/guests" element={<HorecaGuestsPage />} />
-            <Route path="/horeca/kitchen" element={<HorecaKitchenPage />} />
-            <Route path="/horeca/stock" element={<HorecaStockPage />} />
-            <Route path="/horeca/shift-tasks" element={<HorecaShiftTasksPage />} />
-            <Route path="/horeca/comms" element={<HorecaCommsPage />} />
-            <Route path="/horeca/delivery" element={<HorecaDeliveryPage />} />
-            <Route path="/horeca/prep" element={<HorecaPrepPage />} />
-            <Route path="/horeca/forecast" element={<HorecaForecastPage />} />
-            <Route path="/horeca/team" element={<HorecaTeamPage />} />
-            <Route path="/attendance" element={<AttendanceTrackerPage />} />
             <Route
               path="/companies"
               element={
                 <RequireSuperOwner>
                   <CompaniesPage />
-                </RequireSuperOwner>
-              }
-            />
-            <Route
-              path="/tariff-plans"
-              element={
-                <RequireSuperOwner>
-                  <TariffPlansPage />
                 </RequireSuperOwner>
               }
             />
