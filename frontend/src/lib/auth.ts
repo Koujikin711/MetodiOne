@@ -77,13 +77,3 @@ export function decodeDisplayNameFromToken(token: string | null): string | null 
   if (email) return email;
   return null;
 }
-
-export type HorecaRole = "waiter" | "hall_admin" | "cook" | "cashier";
-
-export function decodeHorecaRoleFromToken(token: string | null): HorecaRole | null {
-  const raw = parseJwtPayload(token)?.horeca_role;
-  if (raw !== "waiter" && raw !== "hall_admin" && raw !== "cook" && raw !== "cashier") {
-    return null;
-  }
-  return raw;
-}

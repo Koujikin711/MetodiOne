@@ -28,13 +28,11 @@ from app.database_migrate import (
     ensure_tariff_plans_platform,
     ensure_demo_billing_platform,
     ensure_tariff_constructor_billing,
-    ensure_horeca_finance_tables,
-    ensure_horeca_staff_roles,
 )
 from app.core.security import decode_token, hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
-from app.routers import attendance, analytics, audit, auth, billing, booking, chat, companies, deals, employees, finance, horeca, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tariff_plans, tasks, users
+from app.routers import analytics, audit, auth, billing, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tariff_plans, tasks, team_chat, users
 from app.services.background_events import record_background_event
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.runtime_metrics import runtime_metrics
@@ -92,8 +90,6 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_tariff_plans_platform(conn, settings.database_url)
                 await ensure_demo_billing_platform(conn, settings.database_url)
                 await ensure_tariff_constructor_billing(conn, settings.database_url)
-                await ensure_horeca_finance_tables(conn, settings.database_url)
-                await ensure_horeca_staff_roles(conn, settings.database_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
@@ -346,7 +342,8 @@ async def enforce_must_change_password(request: Request, call_next):  # type: ig
 
 @app.middleware("http")
 async def enforce_tariff_feature_path(request: Request, call_next):  # type: ignore[no-untyped-def]
-    """Блокировка API по функциям тарифного плана компании (кроме super_owner)."""
+    """Тарифное ограничение API отключено — все функции доступны в рамках компании."""
+    return await call_next(request)
     if request.method == "OPTIONS":
         return await call_next(request)
     path = request.url.path
@@ -400,7 +397,8 @@ async def enforce_tariff_feature_path(request: Request, call_next):  # type: ign
 
 @app.middleware("http")
 async def enforce_company_billing(request: Request, call_next):  # type: ignore[no-untyped-def]
-    """После демо / до подтверждения оплаты — только auth, billing и чтение тарифа (раньше проверки функций тарифа)."""
+    """Биллинг-блокировка API отключена."""
+    return await call_next(request)
     if request.method == "OPTIONS":
         return await call_next(request)
     path = request.url.path
@@ -505,8 +503,7 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(companies.router, prefix="/api")
 app.include_router(tariff_plans.router, prefix="/api")
 app.include_router(finance.router, prefix="/api")
-app.include_router(attendance.router, prefix="/api")
-app.include_router(horeca.router, prefix="/api")
+app.include_router(team_chat.router, prefix="/api")
 
 
 @app.get("/health")

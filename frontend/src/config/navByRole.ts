@@ -6,9 +6,9 @@ export const NAV_ZONES = {
     paths: ["/crm", "/my-leads", "/chat", "/kpi", "/analytics"],
   },
   service: { label: "Сервис", paths: ["/booking", "/reports"] },
-  operations: { label: "Операции", paths: ["/finance", "/horeca"] },
-  team: { label: "Команда", paths: ["/employees", "/tasks", "/attendance"] },
-  settings: { label: "Настройки", paths: ["/integrations", "/billing", "/audit", "/onboarding"] },
+  operations: { label: "Операции", paths: ["/finance"] },
+  team: { label: "Команда", paths: ["/employees", "/tasks", "/messenger"] },
+  settings: { label: "Настройки", paths: ["/integrations", "/audit", "/onboarding"] },
 } as const;
 
 export const FINANCE_SUBROUTES = [

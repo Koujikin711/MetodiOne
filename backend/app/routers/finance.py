@@ -55,7 +55,10 @@ from app.schemas.finance import (
     FinanceConsistencyRead,
     FinanceDashboardRead,
     FinanceForecastRead,
+    FinanceClinicSummaryRead,
+    FinanceManagerCollectionRead,
     FinancePeriodSummaryRead,
+    FinanceReceivableLineRead,
     FinanceReminderMessageRead,
     FinanceRemindersRead,
     FinanceSettingsPatch,
@@ -104,6 +107,11 @@ from app.services.finance_reports import (
     total_inventory_value,
     trial_balance_net_for_account_code,
     trial_balance_rows,
+)
+from app.services.finance_clinic import (
+    clinic_finance_snapshot,
+    manager_collections_in_period,
+    receivable_line_items,
 )
 from app.services.finance_seed import (
     account_id_by_code,
@@ -883,6 +891,7 @@ async def report_period_summary(
                     budget_alert = True
                 if v_exp is not None and abs(v_exp) > Decimal("10"):
                     budget_alert = True
+    clinic = await clinic_finance_snapshot(db, company_id, d0, d1)
     return FinancePeriodSummaryRead(
         date_from=d0,
         date_to=d1,
@@ -898,6 +907,52 @@ async def report_period_summary(
         budget_revenue_variance_pct=v_rev,
         budget_expense_variance_pct=v_exp,
         budget_alert=budget_alert,
+        cash_balance=clinic["cash_balance"],
+        ar_crm_total=clinic["ar_crm_total"],
+        ar_appointments=clinic["ar_appointments"],
+        ar_deals=clinic["ar_deals"],
+        crm_collected_total=clinic["crm_collected_total"],
+        crm_service_volume=clinic["crm_service_volume"],
+    )
+
+
+@router.get("/reports/clinic-summary", response_model=FinanceClinicSummaryRead)
+async def report_clinic_summary(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD"),
+    date_to: str = Query(..., description="YYYY-MM-DD"),
+) -> FinanceClinicSummaryRead:
+    """Сводка для клиники: учёт, дебиторка, поступления, выплаты менеджерам (факт сбора)."""
+    await _require_finance(current_user)
+    settings = await _ready_finance(db, company_id)
+    d0, d1 = _parse_period_dates(date_from, date_to)
+    rev, exp, net = await pl_totals(db, company_id, d0, d1)
+    inv = await total_inventory_value(db, company_id) if settings.inventory_enabled else Decimal("0")
+    deferred = await deferred_unrecognized_total(db, company_id)
+    clinic = await clinic_finance_snapshot(db, company_id, d0, d1)
+    lines_raw = await receivable_line_items(db, company_id, limit=100)
+    mgr_rows = await manager_collections_in_period(db, company_id, d0, d1)
+    return FinanceClinicSummaryRead(
+        date_from=d0,
+        date_to=d1,
+        revenue_total=rev,
+        expense_total=exp,
+        net_income=net,
+        cash_balance=clinic["cash_balance"],
+        ar_crm_total=clinic["ar_crm_total"],
+        ar_appointments=clinic["ar_appointments"],
+        ar_deals=clinic["ar_deals"],
+        ar_gl_balance=clinic["ar_gl_balance"],
+        crm_collected_total=clinic["crm_collected_total"],
+        crm_collected_appointments=clinic["crm_collected_appointments"],
+        crm_collected_deals=clinic["crm_collected_deals"],
+        crm_service_volume=clinic["crm_service_volume"],
+        deferred_unrecognized=deferred,
+        inventory_value=inv,
+        receivable_lines=[FinanceReceivableLineRead.model_validate(x) for x in lines_raw],
+        manager_collections=[FinanceManagerCollectionRead.model_validate(x) for x in mgr_rows],
     )
 
 

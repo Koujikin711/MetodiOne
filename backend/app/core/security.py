@@ -35,9 +35,6 @@ def jwt_claims_for_user(
     cid = company_id if company_id is not None else user.company_id
     if cid is not None:
         claims["company_id"] = int(cid)
-    horeca_role = (getattr(user, "horeca_role", None) or "").strip()
-    if horeca_role:
-        claims["horeca_role"] = horeca_role
     if impersonated_by is not None:
         claims["impersonated_by"] = int(impersonated_by)
     return claims

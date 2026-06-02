@@ -2,8 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
-import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
-import { restaurantLexicon } from "@/lib/restaurantLexicon";
+import { appLexicon } from "@/lib/appLexicon";
 import type { AnalyticsOverviewRead, DetailedAnalyticsRead, FullAnalyticsRead, Pipeline } from "@/lib/types";
 
 const moneyFmt = new Intl.NumberFormat("ru-RU", {
@@ -27,8 +26,7 @@ function downloadCsv(filename: string, headers: string[], rows: Array<Array<stri
 }
 
 export function AnalyticsPage() {
-  const { restaurantMode } = useTariffNavAccess();
-  const lex = restaurantLexicon(restaurantMode);
+  const lex = appLexicon;
   const [mode, setMode] = useState<"overview" | "full" | "detailed">("overview");
   const [period, setPeriod] = useState<"day" | "month" | "custom">("day");
   const [dateFrom, setDateFrom] = useState("");

@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 const variants = {
   crm: "bg-[#4A1521]",
   tariff: "bg-[#0F4C3A]",
-  horeca: "bg-[#6B1D2F]",
   online: "bg-[#1E3A8A]",
   tasks: "bg-[#2A6F85]",
   trainer: "bg-[#8C6D31]",

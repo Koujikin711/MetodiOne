@@ -324,186 +324,6 @@ export interface TariffAccessRead {
   upgrade_hints: Record<string, string[]>;
 }
 
-export interface HorecaShiftOverview {
-  bookings_today: number;
-  revenue_today: string;
-  avg_check_today: string;
-  open_tasks: number;
-  low_stock_items: number;
-  cogs_7d: string;
-}
-
-export interface HorecaAbcItem {
-  item_name: string;
-  revenue: string;
-  share_pct: number;
-  abc_class: "A" | "B" | "C" | string;
-}
-
-export interface HorecaFoodCostItem {
-  product_id: number;
-  product_name: string;
-  quantity: string;
-  avg_unit_cost: string;
-  stock_value: string;
-  share_pct: number;
-  risk: "ok" | "low" | "out" | string;
-}
-
-export interface HorecaOverviewRead {
-  generated_at: string;
-  shift: HorecaShiftOverview;
-  abc_menu: HorecaAbcItem[];
-  food_cost_top: HorecaFoodCostItem[];
-}
-
-export interface HorecaMenuItem {
-  id: number;
-  name: string;
-  sale_price: string;
-  is_active: boolean;
-}
-
-export interface HorecaTechCardLine {
-  product_id: number;
-  product_name: string;
-  qty_per_portion: string;
-  avg_unit_cost: string;
-  line_cost: string;
-}
-
-export interface HorecaTechCardRead {
-  menu_item_id: number;
-  menu_item_name: string;
-  sale_price: string;
-  recipe_cost: string;
-  gross_per_portion: string;
-  food_cost_pct: number;
-  lines: HorecaTechCardLine[];
-}
-
-export interface HorecaFinanceItem {
-  menu_item_name: string;
-  qty: number;
-  revenue: string;
-  cogs: string;
-  gross_profit: string;
-  food_cost_pct: number;
-  abc_class: string;
-  unmapped: boolean;
-}
-
-export interface HorecaFinanceSummaryRead {
-  date_from: string;
-  date_to: string;
-  revenue: string;
-  cogs: string;
-  gross_profit: string;
-  gross_margin_pct: number;
-  food_cost_pct: number;
-  sales_count: number;
-  mapped_sales_count: number;
-  unmapped_sales_count: number;
-  items: HorecaFinanceItem[];
-}
-
-export interface HorecaOrderBoardItem {
-  id: number;
-  stage: "new" | "in_work" | "ready" | "closed" | string;
-  status: string;
-  table_id: number | null;
-  table_name: string | null;
-  guest_name: string;
-  item_name: string;
-  start_at: string;
-  end_at: string;
-  paid_amount: string;
-}
-
-export interface HorecaTableStatus {
-  table_id: number;
-  table_name: string;
-  table_number: number;
-  is_busy: boolean;
-  current_order_id: number | null;
-  current_guest_name: string | null;
-  current_item_name: string | null;
-  starts_at: string | null;
-  ends_at: string | null;
-}
-
-export interface HorecaProductOption {
-  id: number;
-  name: string;
-  unit: string;
-  is_active: boolean;
-}
-
-export interface HorecaStockBalance {
-  product_id: number;
-  product_name: string;
-  quantity: string;
-  avg_unit_cost: string;
-  stock_value: string;
-  risk: "ok" | "low" | "out" | string;
-}
-
-export interface HorecaStockMovement {
-  id: number;
-  created_at: string;
-  movement_type: string;
-  product_id: number;
-  product_name: string;
-  qty_delta: string;
-  unit_cost: string | null;
-  memo: string | null;
-}
-
-export interface HorecaStockAlert {
-  product_id: number;
-  product_name: string;
-  quantity: string;
-  risk: "ok" | "low" | "out" | string;
-}
-
-export interface HorecaStockReportLine {
-  product_id: number;
-  product_name: string;
-  issue_qty: string;
-  issue_value: string;
-}
-
-export interface HorecaStockReportRead {
-  date_from: string;
-  date_to: string;
-  total_issue_value: string;
-  lines: HorecaStockReportLine[];
-}
-
-export interface HorecaPrepLine {
-  menu_item_id: number;
-  menu_item_name: string;
-  portions_ready: string;
-}
-
-export interface HorecaSellableItem {
-  menu_item_id: number;
-  menu_item_name: string;
-  max_from_stock: number | null;
-  portions_prepared_today: string | null;
-  sellable_portions: number | null;
-}
-
-export interface HorecaCapacityForecastRead {
-  generated_at: string;
-  tables_count: number;
-  staff_horeca_count: number;
-  avg_visit_minutes: number;
-  turns_per_table_per_4h: number;
-  estimated_max_covers_4h: number;
-  notes: string;
-}
-
 export interface LeadStatusPatchResponse extends Lead {
   automation_task_created: boolean;
 }
@@ -882,6 +702,50 @@ export interface FinancePeriodSummary {
   budget_revenue_variance_pct?: string | null;
   budget_expense_variance_pct?: string | null;
   budget_alert?: boolean;
+  cash_balance?: string;
+  ar_crm_total?: string;
+  ar_appointments?: string;
+  ar_deals?: string;
+  crm_collected_total?: string;
+  crm_service_volume?: string;
+}
+
+export interface FinanceReceivableLine {
+  kind: string;
+  source_id: number;
+  lead_id: number | null;
+  counterparty: string;
+  amount_total: string;
+  amount_paid: string;
+  amount_due: string;
+  occurred_at: string | null;
+}
+
+export interface FinanceManagerCollection {
+  manager_id: number;
+  manager_name: string;
+  collected_amount: string;
+}
+
+export interface FinanceClinicSummary {
+  date_from: string;
+  date_to: string;
+  revenue_total: string;
+  expense_total: string;
+  net_income: string;
+  cash_balance: string;
+  ar_crm_total: string;
+  ar_appointments: string;
+  ar_deals: string;
+  ar_gl_balance: string;
+  crm_collected_total: string;
+  crm_collected_appointments: string;
+  crm_collected_deals: string;
+  crm_service_volume: string;
+  deferred_unrecognized: string;
+  inventory_value: string;
+  receivable_lines: FinanceReceivableLine[];
+  manager_collections: FinanceManagerCollection[];
 }
 
 export interface FinanceOsvImportResult {

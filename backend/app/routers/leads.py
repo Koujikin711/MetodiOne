@@ -42,7 +42,7 @@ from app.schemas.lead import (
 )
 from app.services.audit import write_audit_event
 from app.services.automation import process_lead_automation
-from app.services.finance_crm_bridge import post_crm_deal_payment_once
+from app.services.finance_crm_bridge import sync_deal_payment_revenue
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.sales_kpi import get_kpi_service_price
 from app.services.lead_import import decode_csv_text, normalize_email_strict, parse_csv_rows, row_to_parsed_lead
@@ -1377,12 +1377,12 @@ async def close_deal_from_integration_pipeline(
     db.add(deal)
     lead.status_id = success_stage_id
     await db.flush()
-    await post_crm_deal_payment_once(
+    await sync_deal_payment_revenue(
         db,
         company_id=company_id,
         lead_id=lead.id,
         deal_id=deal.id,
-        amount=body.paid_amount,
+        target_paid_amount=body.paid_amount,
         user_id=current_user.id,
     )
     await _audit_lead(
@@ -1850,6 +1850,16 @@ async def add_extra_service_to_cart(
         details=f"Добавлена доп. услуга: {body.type.strip()}, сумма={body.amount}, оплачено={body.paid_amount}",
     )
     await db.refresh(deal)
+
+    if body.paid_amount and Decimal(str(body.paid_amount)) > 0:
+        await sync_deal_payment_revenue(
+            db,
+            company_id=company_id,
+            lead_id=lead.id,
+            deal_id=deal.id,
+            target_paid_amount=Decimal(str(body.paid_amount)),
+            user_id=current_user.id,
+        )
 
     if is_protocol:
         await _notify_by_roles(

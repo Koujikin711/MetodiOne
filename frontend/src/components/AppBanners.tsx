@@ -22,7 +22,7 @@ export function AppBanners() {
   const companyId = getActiveCompanyId();
   const impersonatorId = decodeImpersonatorFromToken(token);
   const showOnboardingBanner = role === "owner" && !isOnboardingDone() && !location.pathname.startsWith("/crm");
-  const canBillingBanner = (role === "owner" || role === "admin") && companyId != null && role !== "super_owner";
+  const canBillingBanner = false;
 
   const billingQ = useQuery({
     queryKey: ["billing-status", companyId],

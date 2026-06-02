@@ -348,6 +348,28 @@ async def cumulative_account_net_dc(
     return out
 
 
+async def account_balance_as_of(
+    db: AsyncSession,
+    company_id: int,
+    account_code: str,
+    as_of_inclusive: datetime,
+) -> Decimal | None:
+    """Накопленное сальдо Дт−Кт по счёту на конец даты; None если счёт не найден."""
+    rows = await cumulative_account_net_dc(db, company_id, as_of_inclusive)
+    for code, _name, _atype, net in rows:
+        if code == account_code:
+            return net
+    acc = await db.scalar(
+        select(FinanceAccount.id).where(
+            FinanceAccount.company_id == company_id,
+            FinanceAccount.code == account_code,
+        ),
+    )
+    if acc is None:
+        return None
+    return Decimal("0")
+
+
 async def balance_sheet_snapshot(
     db: AsyncSession,
     company_id: int,
