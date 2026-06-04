@@ -468,6 +468,16 @@ export interface BookingAppointment {
   notification_sent_at?: string | null;
   /** Когда клиент ответил на уведомление */
   notification_replied_at?: string | null;
+  /** Номер визита к этому специалисту: 1 — первый, 2 — второй… */
+  visit_number?: number | null;
+  /** WhatsApp-подтверждение записи отправлено */
+  whatsapp_confirmation_sent?: boolean;
+}
+
+/** Правила отображения номера сеанса в онлайн-записи (главный эксперт воронки). */
+export interface BookingViewerContext {
+  is_chief_expert: boolean;
+  show_session_instead_of_time: boolean;
 }
 
 export interface BookingPatientVisit {

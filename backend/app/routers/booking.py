@@ -40,6 +40,7 @@ from app.schemas.booking import (
     BookingSpecialistCreate,
     BookingSpecialistRead,
     BookingSpecialistUpdate,
+    BookingViewerContext,
     SpecialistReorderBody,
 )
 from app.schemas.lead import LeadRead
@@ -202,6 +203,104 @@ def _appointment_duration_minutes(specialist: BookingSpecialist, _direction: Boo
     return spec_slot if spec_slot >= 15 else 30
 
 
+def _visit_group_key(phone: str | None, specialist_id: int) -> tuple[str, int]:
+    digits = _norm_phone(phone) or ""
+    if len(digits) >= 9:
+        digits = digits[-9:]
+    elif not digits:
+        digits = (phone or "").strip().lower()
+    return (digits, int(specialist_id))
+
+
+async def _visit_numbers_for_ids(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    appointment_ids: list[int],
+) -> dict[int, int]:
+    """Порядковый номер визита пациента к специалисту (без учёта отменённых записей)."""
+    if not appointment_ids:
+        return {}
+    targets = (
+        await db.execute(
+            select(BookingAppointment.specialist_id).where(
+                BookingAppointment.id.in_(appointment_ids),
+                BookingAppointment.company_id == company_id,
+            )
+        )
+    ).all()
+    spec_ids = {int(r[0]) for r in targets}
+    if not spec_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(
+                BookingAppointment.id,
+                BookingAppointment.specialist_id,
+                BookingAppointment.patient_phone,
+                BookingAppointment.start_at,
+            )
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.specialist_id.in_(spec_ids),
+                BookingAppointment.status != "cancelled",
+            )
+            .order_by(BookingAppointment.start_at.asc(), BookingAppointment.id.asc())
+        )
+    ).all()
+    from collections import defaultdict
+
+    groups: dict[tuple[str, int], list[int]] = defaultdict(list)
+    for aid, sid, phone, _start in rows:
+        groups[_visit_group_key(phone, int(sid))].append(int(aid))
+    visit_map: dict[int, int] = {}
+    for ids in groups.values():
+        for idx, appt_id in enumerate(ids, start=1):
+            visit_map[appt_id] = idx
+    return {aid: visit_map.get(aid, 1) for aid in appointment_ids}
+
+
+def _appointment_pipeline_id(
+    appt: BookingAppointment,
+    direction_pipeline_id: int | None = None,
+) -> int | None:
+    if appt.pipeline_id is not None:
+        return int(appt.pipeline_id)
+    if direction_pipeline_id is not None:
+        return int(direction_pipeline_id)
+    return None
+
+
+def _chief_expert_may_see_visit_numbers(viewer: User, pipeline_id: int | None, chief_pipeline_ids: set[int]) -> bool:
+    """Номер сеанса только у эксперта, назначенного главным на воронку."""
+    if viewer.role != UserRole.expert or not chief_pipeline_ids:
+        return False
+    if pipeline_id is None:
+        return False
+    return int(pipeline_id) in chief_pipeline_ids
+
+
+async def _visit_numbers_for_chief_expert_view(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    viewer: User,
+    rows: list[tuple[BookingAppointment, str, int | None, str]],
+) -> dict[int, int]:
+    """Считает visit_number только для записей воронок, где viewer — главный эксперт."""
+    chief_pids = await _expert_chief_pipeline_ids(db, viewer)
+    if not chief_pids:
+        return {}
+    chief_appt_ids = [
+        int(a.id)
+        for a, _dname, dir_pid, _sname in rows
+        if _chief_expert_may_see_visit_numbers(viewer, _appointment_pipeline_id(a, dir_pid), chief_pids)
+    ]
+    if not chief_appt_ids:
+        return {}
+    return await _visit_numbers_for_ids(db, company_id=company_id, appointment_ids=chief_appt_ids)
+
+
 async def _booking_appointment_read(
     db: AsyncSession,
     a: BookingAppointment,
@@ -209,11 +308,17 @@ async def _booking_appointment_read(
     direction_name: str,
     specialist_name: str,
     viewer: User | None,
+    visit_number: int | None = None,
+    whatsapp_confirmation_sent: bool = False,
 ) -> BookingAppointmentRead:
     can = False
     if viewer is not None:
         can = await compute_can_manage_journal(db, a, viewer)
     st = (a.service_title or "").strip() or None
+    if not whatsapp_confirmation_sent:
+        from app.services.whatsapp_automation import booking_whatsapp_confirmation_sent
+
+        whatsapp_confirmation_sent = await booking_whatsapp_confirmation_sent(db, int(a.id))
     return BookingAppointmentRead(
         id=a.id,
         lead_id=a.lead_id,
@@ -232,6 +337,8 @@ async def _booking_appointment_read(
         specialist_name=specialist_name,
         comment=a.comment,
         can_manage_journal=can,
+        visit_number=visit_number,
+        whatsapp_confirmation_sent=whatsapp_confirmation_sent,
     )
 
 
@@ -890,6 +997,19 @@ async def _upsert_lead_for_appointment(
     return lead.id
 
 
+@router.get("/viewer-context", response_model=BookingViewerContext)
+async def booking_viewer_context(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> BookingViewerContext:
+    """Главный эксперт воронки видит номер сеанса вместо времени; остальные — у #ID MetodiOne на карточке."""
+    if current_user.role != UserRole.expert:
+        return BookingViewerContext(is_chief_expert=False, show_session_instead_of_time=False)
+    chief_pids = await _expert_chief_pipeline_ids(db, current_user)
+    is_chief = bool(chief_pids)
+    return BookingViewerContext(is_chief_expert=is_chief, show_session_instead_of_time=is_chief)
+
+
 @router.get("/appointments", response_model=list[BookingAppointmentRead])
 async def list_appointments(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -900,7 +1020,12 @@ async def list_appointments(
     lead_id: int | None = None,
 ) -> list[BookingAppointmentRead]:
     q = (
-        select(BookingAppointment, BookingDirection.name, BookingSpecialist.full_name)
+        select(
+            BookingAppointment,
+            BookingDirection.name,
+            BookingDirection.pipeline_id,
+            BookingSpecialist.full_name,
+        )
         .join(BookingDirection, BookingAppointment.direction_id == BookingDirection.id)
         .join(BookingSpecialist, BookingAppointment.specialist_id == BookingSpecialist.id)
         .where(BookingAppointment.company_id == company_id)
@@ -923,8 +1048,13 @@ async def list_appointments(
             q = q.where(BookingSpecialist.crm_user_id == current_user.id)
     q = q.order_by(BookingAppointment.start_at.asc())
     result = await db.execute(q)
+    rows = result.all()
+    all_ids = [int(r[0].id) for r in rows]
+    visit_nums_all = await _visit_numbers_for_ids(db, company_id=company_id, appointment_ids=all_ids)
+    from app.services.whatsapp_automation import booking_whatsapp_confirmation_sent
+
     out: list[BookingAppointmentRead] = []
-    for a, dname, sname in result.all():
+    for a, dname, _dir_pid, sname in rows:
         out.append(
             await _booking_appointment_read(
                 db,
@@ -932,6 +1062,8 @@ async def list_appointments(
                 direction_name=dname,
                 specialist_name=sname,
                 viewer=current_user,
+                visit_number=visit_nums_all.get(int(a.id)),
+                whatsapp_confirmation_sent=await booking_whatsapp_confirmation_sent(db, int(a.id)),
             ),
         )
     return out
@@ -1314,17 +1446,20 @@ async def create_appointment(
     if lead_id is not None:
         await _sync_lead_to_stage_name(db, lead_id, settings.booking_stage_after_book)
 
-    await send_booking_confirmation_if_needed(db, appointment=appt)
+    wa_sent = await send_booking_confirmation_if_needed(db, appointment=appt)
     await db.refresh(appt)
 
     dname = direction.name
     sname = specialist.full_name
+    visit_nums = await _visit_numbers_for_ids(db, company_id=company_id, appointment_ids=[int(appt.id)])
     return await _booking_appointment_read(
         db,
         appt,
         direction_name=dname,
         specialist_name=sname,
         viewer=current_user,
+        visit_number=visit_nums.get(int(appt.id)),
+        whatsapp_confirmation_sent=wa_sent,
     )
 
 

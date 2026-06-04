@@ -132,6 +132,14 @@ class BookingAppointmentRead(BaseModel):
         default=False,
         description="Владелец или админ воронки лида — оплата/удаление в журнале записей",
     )
+    visit_number: int | None = Field(
+        default=None,
+        description="Номер визита пациента к этому специалисту (1 — первый, 2 — второй и т.д.)",
+    )
+    whatsapp_confirmation_sent: bool = Field(
+        default=False,
+        description="Клиенту отправлено WhatsApp-подтверждение записи",
+    )
 
     model_config = {"from_attributes": True}
 
@@ -192,6 +200,16 @@ class BookingPatientHistoryItem(BaseModel):
     first_visit_at: datetime | None = None
     last_visit_at: datetime | None = None
     visits: list[BookingPatientVisitRead] = Field(default_factory=list)
+
+
+class BookingViewerContext(BaseModel):
+    """Как показывать номер сеанса в UI онлайн-записи."""
+
+    is_chief_expert: bool = False
+    show_session_instead_of_time: bool = Field(
+        default=False,
+        description="Главный эксперт воронки: в журнале/календаре вместо времени — номер сеанса",
+    )
 
 
 class BookingPatientSuggestItem(BaseModel):

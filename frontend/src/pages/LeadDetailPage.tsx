@@ -16,6 +16,7 @@ import {
 import type {
   BookingAppointment,
   BookingSpecialist,
+  BookingViewerContext,
   FinanceJournalEntryDetail,
   Lead,
   LeadAuditEvent,
@@ -131,6 +132,27 @@ export function LeadDetailPage() {
     queryFn: () => apiFetch<BookingAppointment[]>(`/api/booking/appointments?lead_id=${leadId}`),
     enabled: Number.isFinite(leadId) && leadId > 0,
   });
+
+  const bookingViewerQuery = useQuery({
+    queryKey: ["booking-viewer-context"],
+    queryFn: () => apiFetch<BookingViewerContext>("/api/booking/viewer-context"),
+  });
+  const showSessionInsteadOfTime = bookingViewerQuery.data?.show_session_instead_of_time ?? false;
+
+  const leadSessionNumber = useMemo(() => {
+    if (showSessionInsteadOfTime) return null;
+    const list = (leadAppointmentsQuery.data ?? []).filter(
+      (a) => a.visit_number != null && a.visit_number > 0 && a.status !== "cancelled",
+    );
+    if (list.length === 0) return null;
+    const now = Date.now();
+    const booked = list
+      .filter((a) => a.status === "booked")
+      .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
+    const upcoming = booked.find((a) => new Date(a.start_at).getTime() >= now);
+    const pick = upcoming ?? list.sort((a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime())[0];
+    return pick?.visit_number ?? null;
+  }, [leadAppointmentsQuery.data, showSessionInsteadOfTime]);
 
   const specialistsQuery = useQuery({
     queryKey: ["booking-specialists", "lead-move-modal"],
@@ -456,7 +478,17 @@ export function LeadDetailPage() {
             </div>
             <div className="sm:col-span-2">
               <dt className="text-xs uppercase tracking-wide mo-muted">ID в MetodiOne</dt>
-              <dd className="mt-1 font-mono mo-muted">#{query.data.id}</dd>
+              <dd className="mt-1 font-mono mo-muted">
+                #{query.data.id}
+                {leadSessionNumber != null ? (
+                  <span
+                    className="ml-2 font-sans text-base font-bold tabular-nums text-indigo-800"
+                    title={`${leadSessionNumber}-й сеанс`}
+                  >
+                    · сеанс {leadSessionNumber}
+                  </span>
+                ) : null}
+              </dd>
             </div>
           </dl>
 
@@ -477,15 +509,18 @@ export function LeadDetailPage() {
                   const isBooked = a.status === "booked";
                   const highlight =
                     Number.isFinite(appointmentFromUrl) && appointmentFromUrl === a.id && isBooked;
+                  const statusShell =
+                    a.status === "completed"
+                      ? "border-emerald-500/45 bg-emerald-500/10"
+                      : a.status === "no_show"
+                        ? "border-rose-500/45 bg-rose-500/10"
+                        : highlight
+                          ? "border-sky-500/50 bg-sky-500/10 ring-1 ring-sky-400/30"
+                          : "border-[var(--mo-border)] bg-[var(--mo-accent-soft)]/30";
                   return (
                     <li
                       key={a.id}
-                      className={[
-                        "rounded-xl border p-4 text-sm",
-                        highlight
-                          ? "border-sky-500/50 bg-sky-500/10 ring-1 ring-sky-400/30"
-                          : "mo-section",
-                      ].join(" ")}
+                      className={["rounded-xl border p-4 text-sm", statusShell].join(" ")}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div>
@@ -506,17 +541,27 @@ export function LeadDetailPage() {
                                 ? ` · ${a.direction_name}`
                                 : ""}
                           </p>
-                          <p className="mt-1 text-xs mo-muted">
+                          <p className="mt-1 text-xs">
                             Статус:{" "}
-                            {a.status === "booked"
-                              ? "Записан"
-                              : a.status === "completed"
-                                ? "Завершён"
-                                : a.status === "no_show"
-                                  ? "Не явился"
-                                  : a.status === "cancelled"
-                                    ? "Отменён"
-                                    : a.status}
+                            <span
+                              className={
+                                a.status === "completed"
+                                  ? "font-semibold text-emerald-800"
+                                  : a.status === "no_show"
+                                    ? "font-semibold text-rose-800"
+                                    : "mo-muted"
+                              }
+                            >
+                              {a.status === "booked"
+                                ? "Записан"
+                                : a.status === "completed"
+                                  ? "Явился"
+                                  : a.status === "no_show"
+                                    ? "Не явился"
+                                    : a.status === "cancelled"
+                                      ? "Отменён"
+                                      : a.status}
+                            </span>
                           </p>
                           {(a.comment || "").trim() ? (
                             <p
