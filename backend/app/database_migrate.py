@@ -167,6 +167,26 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
                     "CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_specialists_crm_user_id ON booking_specialists(crm_user_id) WHERE crm_user_id IS NOT NULL",
                 ),
             )
+        r = await conn.execute(text("PRAGMA table_info(booking_specialists)"))
+        cols = {row[1] for row in r.fetchall()}
+        if "course_streams_enabled" not in cols:
+            await conn.execute(
+                text("ALTER TABLE booking_specialists ADD COLUMN course_streams_enabled INTEGER NOT NULL DEFAULT 0"),
+            )
+        if "course_stream_max_days" not in cols:
+            await conn.execute(
+                text("ALTER TABLE booking_specialists ADD COLUMN course_stream_max_days INTEGER NOT NULL DEFAULT 15"),
+            )
+        if "course_stream_min_day_for_next" not in cols:
+            await conn.execute(
+                text(
+                    "ALTER TABLE booking_specialists ADD COLUMN course_stream_min_day_for_next INTEGER NOT NULL DEFAULT 10",
+                ),
+            )
+        if "course_stream_gap_days" not in cols:
+            await conn.execute(
+                text("ALTER TABLE booking_specialists ADD COLUMN course_stream_gap_days INTEGER NOT NULL DEFAULT 10"),
+            )
 
         if added_sort_order:
             await conn.execute(text("UPDATE booking_specialists SET sort_order = id"))
@@ -416,6 +436,26 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             text(
                 """UPDATE booking_specialists SET work_weekdays = '[0,1,2,3,4]'::jsonb
                    WHERE work_weekdays IS NULL""",
+            ),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE booking_specialists ADD COLUMN IF NOT EXISTS course_streams_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+            ),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE booking_specialists ADD COLUMN IF NOT EXISTS course_stream_max_days INTEGER NOT NULL DEFAULT 15",
+            ),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE booking_specialists ADD COLUMN IF NOT EXISTS course_stream_min_day_for_next INTEGER NOT NULL DEFAULT 10",
+            ),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE booking_specialists ADD COLUMN IF NOT EXISTS course_stream_gap_days INTEGER NOT NULL DEFAULT 10",
             ),
         )
         await conn.execute(

@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
+import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import { decodeRoleFromToken } from "@/lib/auth";
 import {
   BOOKING_TIME_ZONE,
@@ -142,7 +143,7 @@ export function LeadDetailPage() {
   const leadSessionNumber = useMemo(() => {
     if (showSessionInsteadOfTime) return null;
     const list = (leadAppointmentsQuery.data ?? []).filter(
-      (a) => a.visit_number != null && a.visit_number > 0 && a.status !== "cancelled",
+      (a) => visitDisplayValue(a) != null && a.status !== "cancelled",
     );
     if (list.length === 0) return null;
     const now = Date.now();
@@ -151,7 +152,7 @@ export function LeadDetailPage() {
       .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
     const upcoming = booked.find((a) => new Date(a.start_at).getTime() >= now);
     const pick = upcoming ?? list.sort((a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime())[0];
-    return pick?.visit_number ?? null;
+    return pick ? visitDisplayValue(pick) : null;
   }, [leadAppointmentsQuery.data, showSessionInsteadOfTime]);
 
   const specialistsQuery = useQuery({
@@ -483,9 +484,9 @@ export function LeadDetailPage() {
                 {leadSessionNumber != null ? (
                   <span
                     className="ml-2 font-sans text-base font-bold tabular-nums text-indigo-800"
-                    title={`${leadSessionNumber}-й сеанс`}
+                    title="Сеанс / поток"
                   >
-                    · сеанс {leadSessionNumber}
+                    · {leadSessionNumber.includes(":") ? leadSessionNumber : `сеанс ${leadSessionNumber}`}
                   </span>
                 ) : null}
               </dd>

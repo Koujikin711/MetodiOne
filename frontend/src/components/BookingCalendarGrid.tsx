@@ -33,6 +33,7 @@ import {
   ymdInBookingTz,
   zonedWallTimeToUtcMs,
 } from "@/lib/bookingTz";
+import { visitDisplayTitle, visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const GRID_START_HOUR = 7;
@@ -496,13 +497,9 @@ function SortableSpecialistColumn({
                         "whitespace-nowrap font-bold tabular-nums text-indigo-900",
                         narrow ? "text-[11px]" : "text-[13px]",
                       ].join(" ")}
-                      title={
-                        a.visit_number != null && a.visit_number > 0
-                          ? `${a.visit_number}-й сеанс`
-                          : "Сеанс"
-                      }
+                      title={visitDisplayTitle(a)}
                     >
-                      {a.visit_number != null && a.visit_number > 0 ? a.visit_number : "—"}
+                      {visitDisplayValue(a) ?? "—"}
                     </span>
                   ) : (
                     <span
@@ -537,12 +534,9 @@ function SortableSpecialistColumn({
                 ) : (
                   <span className="opacity-80">без лида</span>
                 )}
-                {!showSessionInsteadOfTime && a.visit_number != null && a.visit_number > 0 ? (
-                  <span
-                    className="font-bold tabular-nums text-indigo-800"
-                    title={`${a.visit_number}-й сеанс`}
-                  >
-                    · {a.visit_number}
+                {!showSessionInsteadOfTime && visitDisplayValue(a) ? (
+                  <span className="font-bold tabular-nums text-indigo-800" title={visitDisplayTitle(a)}>
+                    · {visitDisplayValue(a)}
                   </span>
                 ) : null}
               </div>

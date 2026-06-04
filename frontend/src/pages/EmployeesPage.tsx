@@ -92,6 +92,10 @@ export function EmployeesPage() {
   const [pipelineIds, setPipelineIds] = useState<number[]>([]);
   const [expertSpecialization, setExpertSpecialization] = useState("");
   const [bookingDirectionId, setBookingDirectionId] = useState<number | "">("");
+  const [courseStreamsEnabled, setCourseStreamsEnabled] = useState(false);
+  const [courseStreamMaxDays, setCourseStreamMaxDays] = useState(15);
+  const [courseStreamMinDay, setCourseStreamMinDay] = useState(10);
+  const [courseStreamGapDays, setCourseStreamGapDays] = useState(10);
   const [terminateTarget, setTerminateTarget] = useState<Employee | null>(null);
   const [editPipelinesEmployee, setEditPipelinesEmployee] = useState<Employee | null>(null);
   const [editPipelineIds, setEditPipelineIds] = useState<number[]>([]);
@@ -228,6 +232,10 @@ export function EmployeesPage() {
         payload.specialization = expertSpecialization.trim();
         payload.booking_direction_id =
           typeof bookingDirectionId === "number" ? bookingDirectionId : undefined;
+        payload.course_streams_enabled = courseStreamsEnabled;
+        payload.course_stream_max_days = courseStreamMaxDays;
+        payload.course_stream_min_day_for_next = courseStreamMinDay;
+        payload.course_stream_gap_days = courseStreamGapDays;
       }
       return apiFetch<InviteResult>("/api/employees/invite", {
         method: "POST",
@@ -243,6 +251,10 @@ export function EmployeesPage() {
       setPipelineIds([]);
       setExpertSpecialization("");
       setBookingDirectionId("");
+      setCourseStreamsEnabled(false);
+      setCourseStreamMaxDays(15);
+      setCourseStreamMinDay(10);
+      setCourseStreamGapDays(10);
       void qc.invalidateQueries({ queryKey: ["employees"] });
       void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
 
@@ -667,6 +679,59 @@ export function EmployeesPage() {
                   {bookingDirectionsQuery.isLoading && (
                     <p className="text-xs mo-muted">Загрузка направлений…</p>
                   )}
+                  <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3">
+                    <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--mo-text)]">
+                      <input
+                        type="checkbox"
+                        checked={courseStreamsEnabled}
+                        onChange={(e) => setCourseStreamsEnabled(e.target.checked)}
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="font-medium">Курсы / потоки (1:1, 1:10, 2:1)</span>
+                        <span className="mt-0.5 block text-xs mo-muted">
+                          Считать сеансы по потокам для 15‑дневных курсов. Настройки можно изменить в календаре записи.
+                        </span>
+                      </span>
+                    </label>
+                    {courseStreamsEnabled && (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        <label className="text-xs mo-muted">
+                          Поток, дн.
+                          <input
+                            type="number"
+                            min={5}
+                            max={90}
+                            value={courseStreamMaxDays}
+                            onChange={(e) => setCourseStreamMaxDays(Number(e.target.value))}
+                            className="mo-input mt-1 w-full tabular-nums"
+                          />
+                        </label>
+                        <label className="text-xs mo-muted">
+                          Мин. день
+                          <input
+                            type="number"
+                            min={1}
+                            max={60}
+                            value={courseStreamMinDay}
+                            onChange={(e) => setCourseStreamMinDay(Number(e.target.value))}
+                            className="mo-input mt-1 w-full tabular-nums"
+                          />
+                        </label>
+                        <label className="text-xs mo-muted">
+                          Перерыв
+                          <input
+                            type="number"
+                            min={1}
+                            max={60}
+                            value={courseStreamGapDays}
+                            onChange={(e) => setCourseStreamGapDays(Number(e.target.value))}
+                            className="mo-input mt-1 w-full tabular-nums"
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
 

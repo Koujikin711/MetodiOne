@@ -43,6 +43,10 @@ class InviteEmployeeBody(BaseModel):
     specialization: str | None = Field(default=None, max_length=255)
     """Для эксперта: направление онлайн-записи (тип слота / колонка календаря)."""
     booking_direction_id: int | None = Field(default=None, ge=1)
+    course_streams_enabled: bool = False
+    course_stream_max_days: int = Field(15, ge=5, le=90)
+    course_stream_min_day_for_next: int = Field(10, ge=1, le=60)
+    course_stream_gap_days: int = Field(10, ge=1, le=60)
 
 
 class InviteEmployeeResult(BaseModel):
@@ -97,6 +101,10 @@ async def _sync_expert_calendar_profile(
     phone_norm: str,
     specialization: str,
     booking_direction_id: int,
+    course_streams_enabled: bool = False,
+    course_stream_max_days: int = 15,
+    course_stream_min_day_for_next: int = 10,
+    course_stream_gap_days: int = 10,
 ) -> None:
     d = await db.get(BookingDirection, booking_direction_id)
     if d is None or not d.is_active:
@@ -126,6 +134,10 @@ async def _sync_expert_calendar_profile(
         spec.specialization = specialization.strip()
         spec.direction_id = booking_direction_id
         spec.is_active = True
+        spec.course_streams_enabled = course_streams_enabled
+        spec.course_stream_max_days = course_stream_max_days
+        spec.course_stream_min_day_for_next = course_stream_min_day_for_next
+        spec.course_stream_gap_days = course_stream_gap_days
         await db.flush()
         return
 
@@ -143,6 +155,10 @@ async def _sync_expert_calendar_profile(
         slot_duration_min=30,
         work_weekdays=[0, 1, 2, 3, 4],
         crm_user_id=user.id,
+        course_streams_enabled=course_streams_enabled,
+        course_stream_max_days=course_stream_max_days,
+        course_stream_min_day_for_next=course_stream_min_day_for_next,
+        course_stream_gap_days=course_stream_gap_days,
     )
     db.add(spec)
     await db.flush()
@@ -339,6 +355,10 @@ async def invite_employee(
             phone_norm=phone,
             specialization=(body.specialization or "").strip(),
             booking_direction_id=body.booking_direction_id,
+            course_streams_enabled=body.course_streams_enabled,
+            course_stream_max_days=body.course_stream_max_days,
+            course_stream_min_day_for_next=body.course_stream_min_day_for_next,
+            course_stream_gap_days=body.course_stream_gap_days,
         )
 
     invite_url = _build_invite_url(invite_token)

@@ -415,6 +415,11 @@ class BookingSpecialist(Base):
     work_start_hour: Mapped[int] = mapped_column(default=9)
     work_end_hour: Mapped[int] = mapped_column(default=18)
     work_weekdays: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Курсы / потоки: отображение 1:1, 1:10, 2:1 вместо простого счёта визитов
+    course_streams_enabled: Mapped[bool] = mapped_column(default=False)
+    course_stream_max_days: Mapped[int] = mapped_column(default=15)
+    course_stream_min_day_for_next: Mapped[int] = mapped_column(default=10)
+    course_stream_gap_days: Mapped[int] = mapped_column(default=10)
 
     direction: Mapped["BookingDirection"] = relationship(back_populates="specialists")
     appointments: Mapped[list["BookingAppointment"]] = relationship(back_populates="specialist")

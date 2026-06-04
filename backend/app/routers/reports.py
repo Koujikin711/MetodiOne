@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentUser
 from app.database import get_db
 from app.models import BookingAppointment, BookingDirection, BookingSpecialist, Pipeline, UserRole
-from app.routers.booking import _visit_group_key, _visit_numbers_for_ids
+from app.routers.booking import _visit_group_key, _visit_labels_for_ids
+from app.services.booking_visit_labels import VisitLabelInfo
 from app.schemas.reports import ExpertBookingItem, ExpertReportsResponse, PipelineExpertReport
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -43,7 +44,7 @@ def _period_bounds(period: str, date_from: str | None, date_to: str | None) -> t
 
 def _aggregate_expert_visit_stats(
     rows: list[tuple],
-    visit_map: dict[int, int],
+    visit_map: dict[int, VisitLabelInfo],
 ) -> dict[int, dict[str, int | set[tuple[str, int]]]]:
     """rows: (appt_id, specialist_id, patient_phone, status) in period."""
     stats: dict[int, dict] = defaultdict(
@@ -57,13 +58,23 @@ def _aggregate_expert_visit_stats(
         if str(st) == "cancelled":
             continue
         sid = int(sid)
-        vn = int(visit_map.get(int(appt_id), 1))
-        stats[sid]["sessions_total"] += vn
+        li = visit_map.get(int(appt_id)) or VisitLabelInfo(visit_number=1, visit_label="1")
         key = _visit_group_key(phone, sid)
-        if vn <= 1:
-            stats[sid]["first_phones"].add(key)
-        if vn >= 2:
-            stats[sid]["repeat_phones"].add(key)
+        if li.visit_stream is not None and li.visit_stream_day is not None:
+            stats[sid]["sessions_total"] += int(li.visit_stream_day)
+            if int(li.visit_stream) == 1 and int(li.visit_stream_day) == 1:
+                stats[sid]["first_phones"].add(key)
+            if int(li.visit_stream) >= 2 or (
+                int(li.visit_stream) == 1 and int(li.visit_stream_day) > 1
+            ):
+                stats[sid]["repeat_phones"].add(key)
+        else:
+            vn = int(li.visit_number or 1)
+            stats[sid]["sessions_total"] += vn
+            if vn <= 1:
+                stats[sid]["first_phones"].add(key)
+            if vn >= 2:
+                stats[sid]["repeat_phones"].add(key)
     return stats
 
 
@@ -114,7 +125,7 @@ async def expert_reports(
         ).all()
 
         appt_ids = [int(r[0]) for r in appt_rows]
-        visit_map = await _visit_numbers_for_ids(db, company_id=company_id, appointment_ids=appt_ids)
+        visit_map = await _visit_labels_for_ids(db, company_id=company_id, appointment_ids=appt_ids)
         visit_stats = _aggregate_expert_visit_stats(appt_rows, visit_map)
 
         rows = (

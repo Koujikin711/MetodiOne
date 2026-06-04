@@ -5,7 +5,8 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
-import { SpecialistModal } from "@/components/SpecialistModal";
+import { SpecialistModal, type SpecialistFormValues } from "@/components/SpecialistModal";
+import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import { Calendar } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
@@ -481,17 +482,15 @@ export function OnlineBookingPage() {
     setSpecialistModalOpen(true);
   }
 
-  function handleSpecialistModalSubmit(values: {
-    full_name: string;
-    phone: string;
-    specialization: string;
-    slot_duration_min: number;
-    work_start_hour: number;
-    work_end_hour: number;
-    work_weekdays: number[];
-  }) {
+  function handleSpecialistModalSubmit(values: SpecialistFormValues) {
     const phone = values.phone.trim() || null;
     const specialization = values.specialization.trim() || null;
+    const streamFields = {
+      course_streams_enabled: values.course_streams_enabled,
+      course_stream_max_days: values.course_stream_max_days,
+      course_stream_min_day_for_next: values.course_stream_min_day_for_next,
+      course_stream_gap_days: values.course_stream_gap_days,
+    };
     if (specialistModalMode === "add") {
       createSpecialistUserMutation.mutate({
         full_name: values.full_name,
@@ -502,6 +501,7 @@ export function OnlineBookingPage() {
         work_start_hour: values.work_start_hour,
         work_end_hour: values.work_end_hour,
         work_weekdays: values.work_weekdays,
+        ...streamFields,
       });
       return;
     }
@@ -516,6 +516,7 @@ export function OnlineBookingPage() {
           work_start_hour: values.work_start_hour,
           work_end_hour: values.work_end_hour,
           work_weekdays: values.work_weekdays,
+          ...streamFields,
         },
       });
     }
@@ -1134,7 +1135,7 @@ export function OnlineBookingPage() {
                   >
                     <td className="py-2 pr-4 whitespace-nowrap tabular-nums">
                       {showSessionInsteadOfTime ? (
-                        <span className="font-semibold text-indigo-800">{a.visit_number ?? "—"}</span>
+                        <span className="font-semibold text-indigo-800">{visitDisplayValue(a) ?? "—"}</span>
                       ) : (
                         formatDt(a.start_at)
                       )}

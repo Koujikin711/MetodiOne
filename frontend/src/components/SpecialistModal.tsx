@@ -11,21 +11,27 @@ const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const HOUR_OPTIONS_START = Array.from({ length: GRID_END - GRID_START - 1 }, (_, i) => GRID_START + i);
 const HOUR_OPTIONS_END = Array.from({ length: GRID_END - GRID_START }, (_, i) => GRID_START + 1 + i);
 
+export type SpecialistFormValues = {
+  full_name: string;
+  phone: string;
+  specialization: string;
+  slot_duration_min: number;
+  work_start_hour: number;
+  work_end_hour: number;
+  work_weekdays: number[];
+  course_streams_enabled: boolean;
+  course_stream_max_days: number;
+  course_stream_min_day_for_next: number;
+  course_stream_gap_days: number;
+};
+
 type Props = {
   open: boolean;
   mode: "add" | "edit";
   initial: BookingSpecialist | null;
   isSubmitting: boolean;
   onClose: () => void;
-  onSubmit: (values: {
-    full_name: string;
-    phone: string;
-    specialization: string;
-    slot_duration_min: number;
-    work_start_hour: number;
-    work_end_hour: number;
-    work_weekdays: number[];
-  }) => void;
+  onSubmit: (values: SpecialistFormValues) => void;
 };
 
 function normWeekdays(raw: number[] | undefined): number[] {
@@ -48,6 +54,10 @@ export function SpecialistModal({
   const [workStart, setWorkStart] = useState(9);
   const [workEnd, setWorkEnd] = useState(18);
   const [workWeekdays, setWorkWeekdays] = useState<number[]>([...DEFAULT_WEEKDAYS]);
+  const [courseStreamsEnabled, setCourseStreamsEnabled] = useState(false);
+  const [courseStreamMaxDays, setCourseStreamMaxDays] = useState(15);
+  const [courseStreamMinDay, setCourseStreamMinDay] = useState(10);
+  const [courseStreamGapDays, setCourseStreamGapDays] = useState(10);
 
   useEffect(() => {
     if (!open) return;
@@ -59,6 +69,10 @@ export function SpecialistModal({
       setWorkStart(initial.work_start_hour ?? 9);
       setWorkEnd(initial.work_end_hour ?? 18);
       setWorkWeekdays(normWeekdays(initial.work_weekdays));
+      setCourseStreamsEnabled(Boolean(initial.course_streams_enabled));
+      setCourseStreamMaxDays(initial.course_stream_max_days ?? 15);
+      setCourseStreamMinDay(initial.course_stream_min_day_for_next ?? 10);
+      setCourseStreamGapDays(initial.course_stream_gap_days ?? 10);
     } else {
       setFullName("");
       setPhone("");
@@ -67,6 +81,10 @@ export function SpecialistModal({
       setWorkStart(9);
       setWorkEnd(18);
       setWorkWeekdays([...DEFAULT_WEEKDAYS]);
+      setCourseStreamsEnabled(false);
+      setCourseStreamMaxDays(15);
+      setCourseStreamMinDay(10);
+      setCourseStreamGapDays(10);
     }
   }, [open, mode, initial]);
 
@@ -104,6 +122,10 @@ export function SpecialistModal({
       work_start_hour: workStart,
       work_end_hour: workEnd,
       work_weekdays: [...workWeekdays],
+      course_streams_enabled: courseStreamsEnabled,
+      course_stream_max_days: courseStreamMaxDays,
+      course_stream_min_day_for_next: courseStreamMinDay,
+      course_stream_gap_days: courseStreamGapDays,
     });
   }
 
@@ -116,7 +138,7 @@ export function SpecialistModal({
       }}
     >
       <div
-        className="max-h-[min(92vh,720px)] w-full max-w-md overflow-y-auto rounded-2xl crm-modal-panel border p-6 shadow-2xl"
+        className="max-h-[min(92vh,820px)] w-full max-w-lg overflow-y-auto rounded-2xl crm-modal-panel border p-6 shadow-2xl"
         role="dialog"
         aria-labelledby="specialist-modal-title"
         onMouseDown={(e) => e.stopPropagation()}
@@ -125,8 +147,7 @@ export function SpecialistModal({
           {mode === "add" ? "Добавить специалиста" : "Редактировать специалиста"}
         </h2>
         <p className="mt-1 text-xs mo-muted">
-          Карточка в сетке записи. Учётная запись MetodiOne не создаётся. График — в часовом поясе онлайн-записи
-          (по умолчанию Asia/Dushanbe, как на сервере; можно задать VITE_BOOKING_TIMEZONE на фронте).
+          Карточка в сетке записи. График — в часовом поясе онлайн-записи.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-3">
@@ -152,9 +173,6 @@ export function SpecialistModal({
 
           <div className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-[var(--mo-surface)] p-3">
             <p className="text-sm font-medium text-[var(--mo-text)]">График приёма (сетка 07:00–20:00)</p>
-            <p className="mt-0.5 text-[11px] mo-muted">
-              Вне интервала и в выходные слоты недоступны для записи.
-            </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <label className="text-xs lux-caption col-span-2">
                 Длительность записи
@@ -220,6 +238,66 @@ export function SpecialistModal({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3">
+            <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--mo-text)]">
+              <input
+                type="checkbox"
+                checked={courseStreamsEnabled}
+                onChange={(e) => setCourseStreamsEnabled(e.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                <span className="font-medium">Курсы / потоки</span>
+                <span className="mt-0.5 block text-xs mo-muted">
+                  Сеанс как 1:1, 1:10, 2:1 (поток : день в потоке). Для 15‑дневных курсов.
+                </span>
+              </span>
+            </label>
+            {courseStreamsEnabled && (
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <label className="text-xs mo-muted">
+                  Длина потока (дн.)
+                  <input
+                    type="number"
+                    min={5}
+                    max={90}
+                    value={courseStreamMaxDays}
+                    onChange={(e) => setCourseStreamMaxDays(Number(e.target.value))}
+                    className="mo-input mt-1 w-full tabular-nums"
+                  />
+                </label>
+                <label className="text-xs mo-muted">
+                  Мин. день для 2‑го потока
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={courseStreamMinDay}
+                    onChange={(e) => setCourseStreamMinDay(Number(e.target.value))}
+                    className="mo-input mt-1 w-full tabular-nums"
+                  />
+                </label>
+                <label className="text-xs mo-muted">
+                  Перерыв (дн.)
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={courseStreamGapDays}
+                    onChange={(e) => setCourseStreamGapDays(Number(e.target.value))}
+                    className="mo-input mt-1 w-full tabular-nums"
+                  />
+                </label>
+              </div>
+            )}
+            {courseStreamsEnabled && (
+              <p className="mt-2 text-[10px] leading-snug mo-muted">
+                Новый поток: после {courseStreamMaxDays} дн. с начала потока или если достигнут день {courseStreamMinDay}+
+                и нет визитов {courseStreamGapDays} дн. подряд.
+              </p>
+            )}
           </div>
 
           <label className="block text-sm mo-muted">
