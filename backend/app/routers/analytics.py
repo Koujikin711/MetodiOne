@@ -3,12 +3,12 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
-from app.models import BookingAppointment, Lead, LeadAuditEvent, Pipeline, PipelineStage, SalesKpiPlan, User, UserRole
+from app.models import BookingAppointment, ChatMessage, ChatThread, Lead, LeadAuditEvent, Pipeline, PipelineStage, SalesKpiPlan, User, UserRole
 from app.schemas.analytics import (
     AnalyticsAlertsRead,
     AnalyticsOverviewRead,
@@ -64,6 +64,66 @@ def _safe_pct(num: float, den: float) -> float:
     if den <= 0:
         return 0.0
     return round((num / den) * 100, 2)
+
+
+async def _manager_message_reply_counts(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    start: datetime,
+    end: datetime,
+    pipeline_id: int | None,
+) -> tuple[dict[int | None, int], dict[int | None, int]]:
+    """По менеджерам: сколько лидов написали (in) и скольким менеджер ответил (out) за период."""
+    lead_filters = [
+        Lead.company_id == company_id,
+        Lead.created_at >= start,
+        Lead.created_at < end,
+    ]
+    if pipeline_id is not None:
+        lead_filters.append(PipelineStage.pipeline_id == pipeline_id)
+
+    msg_company = or_(ChatMessage.company_id == company_id, ChatMessage.company_id.is_(None))
+
+    inbound_rows = (
+        await db.execute(
+            select(Lead.manager_id, func.count(func.distinct(Lead.id)))
+            .select_from(ChatMessage)
+            .join(ChatThread, ChatThread.id == ChatMessage.thread_id)
+            .join(Lead, Lead.id == ChatThread.lead_id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .where(
+                *lead_filters,
+                msg_company,
+                ChatMessage.direction == "in",
+                ChatMessage.created_at >= start,
+                ChatMessage.created_at < end,
+            )
+            .group_by(Lead.manager_id)
+        )
+    ).all()
+    outbound_rows = (
+        await db.execute(
+            select(Lead.manager_id, func.count(func.distinct(Lead.id)))
+            .select_from(ChatMessage)
+            .join(ChatThread, ChatThread.id == ChatMessage.thread_id)
+            .join(Lead, Lead.id == ChatThread.lead_id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .where(
+                *lead_filters,
+                msg_company,
+                ChatMessage.direction == "out",
+                Lead.manager_id.is_not(None),
+                ChatMessage.author_user_id == Lead.manager_id,
+                ChatMessage.created_at >= start,
+                ChatMessage.created_at < end,
+            )
+            .group_by(Lead.manager_id)
+        )
+    ).all()
+    messaged = {mid: int(cnt or 0) for mid, cnt in inbound_rows}
+    replied = {mid: int(cnt or 0) for mid, cnt in outbound_rows}
+    return messaged, replied
 
 
 async def _ensure_pipeline_scope(db: AsyncSession, company_id: int, pipeline_id: int | None) -> int | None:
@@ -206,6 +266,10 @@ async def analytics_detailed(
         )
     ).all()
 
+    messaged_map, replied_map = await _manager_message_reply_counts(
+        db, company_id=company_id, start=start, end=end, pipeline_id=pipeline_id
+    )
+
     by_manager: list[ManagerDetailedAnalyticsItem] = []
     total_sold = Decimal("0")
     total_unpaid = Decimal("0")
@@ -221,6 +285,8 @@ async def analytics_detailed(
                 leads_count=int(leads_count or 0),
                 sold_amount=sold_dec,
                 unpaid_amount=unpaid_dec,
+                clients_messaged_count=messaged_map.get(uid, 0),
+                manager_replied_count=replied_map.get(uid, 0),
             )
         )
     return DetailedAnalyticsRead(

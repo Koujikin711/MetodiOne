@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
@@ -8,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentUser
 from app.database import get_db
 from app.models import BookingAppointment, BookingDirection, BookingSpecialist, Pipeline, UserRole
+from app.routers.booking import _visit_group_key, _visit_numbers_for_ids
 from app.schemas.reports import ExpertBookingItem, ExpertReportsResponse, PipelineExpertReport
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -39,6 +41,32 @@ def _period_bounds(period: str, date_from: str | None, date_to: str | None) -> t
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="period: day | week | custom")
 
 
+def _aggregate_expert_visit_stats(
+    rows: list[tuple],
+    visit_map: dict[int, int],
+) -> dict[int, dict[str, int | set[tuple[str, int]]]]:
+    """rows: (appt_id, specialist_id, patient_phone, status) in period."""
+    stats: dict[int, dict] = defaultdict(
+        lambda: {
+            "first_phones": set(),
+            "repeat_phones": set(),
+            "sessions_total": 0,
+        },
+    )
+    for appt_id, sid, phone, st in rows:
+        if str(st) == "cancelled":
+            continue
+        sid = int(sid)
+        vn = int(visit_map.get(int(appt_id), 1))
+        stats[sid]["sessions_total"] += vn
+        key = _visit_group_key(phone, sid)
+        if vn <= 1:
+            stats[sid]["first_phones"].add(key)
+        if vn >= 2:
+            stats[sid]["repeat_phones"].add(key)
+    return stats
+
+
 @router.get("/expert", response_model=ExpertReportsResponse)
 async def expert_reports(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -50,9 +78,9 @@ async def expert_reports(
     if current_user.role not in (UserRole.owner, UserRole.expert):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Expert only")
 
+    company_id = int(current_user.company_id)
     start, end = _period_bounds(period, date_from, date_to)
 
-    # Owner can view all; expert only own pipelines
     pipes_q = select(Pipeline).order_by(Pipeline.id.asc())
     if current_user.role == UserRole.expert:
         pipes_q = pipes_q.where(Pipeline.expert_user_id == current_user.id)
@@ -60,7 +88,35 @@ async def expert_reports(
 
     items: list[PipelineExpertReport] = []
     for pipe in pipes:
-        # Отчёт эксперта: только данные таблицы онлайн-записи.
+        appt_rows = (
+            await db.execute(
+                select(
+                    BookingAppointment.id,
+                    BookingAppointment.specialist_id,
+                    BookingAppointment.patient_phone,
+                    BookingAppointment.status,
+                )
+                .join(BookingSpecialist, BookingSpecialist.id == BookingAppointment.specialist_id)
+                .join(
+                    BookingDirection,
+                    BookingAppointment.direction_id == BookingDirection.id,
+                )
+                .where(
+                    or_(
+                        BookingAppointment.pipeline_id == pipe.id,
+                        BookingDirection.pipeline_id == pipe.id,
+                    ),
+                    BookingAppointment.company_id == company_id,
+                    BookingAppointment.start_at >= start,
+                    BookingAppointment.start_at < end,
+                )
+            )
+        ).all()
+
+        appt_ids = [int(r[0]) for r in appt_rows]
+        visit_map = await _visit_numbers_for_ids(db, company_id=company_id, appointment_ids=appt_ids)
+        visit_stats = _aggregate_expert_visit_stats(appt_rows, visit_map)
+
         rows = (
             await db.execute(
                 select(
@@ -86,6 +142,7 @@ async def expert_reports(
                         BookingAppointment.pipeline_id == pipe.id,
                         BookingDirection.pipeline_id == pipe.id,
                     ),
+                    BookingAppointment.company_id == company_id,
                     BookingAppointment.start_at >= start,
                     BookingAppointment.start_at < end,
                 )
@@ -97,18 +154,32 @@ async def expert_reports(
         experts: list[ExpertBookingItem] = []
         total_booked = 0
         total_arrived = 0
+        total_first = 0
+        total_repeat = 0
+        total_sessions = 0
         for sid, full_name, spec, patients_booked, patients_arrived in rows:
+            sid_int = int(sid)
             pb = int(patients_booked or 0)
             pa = int(patients_arrived or 0)
+            vs = visit_stats.get(sid_int, {})
+            first_n = len(vs.get("first_phones", set()))
+            repeat_n = len(vs.get("repeat_phones", set()))
+            sessions_n = int(vs.get("sessions_total", 0))
             total_booked += pb
             total_arrived += pa
+            total_first += first_n
+            total_repeat += repeat_n
+            total_sessions += sessions_n
             experts.append(
                 ExpertBookingItem(
-                    specialist_id=int(sid),
+                    specialist_id=sid_int,
                     specialist_name=str(full_name),
                     specialization=(str(spec).strip() if spec else None),
                     patients_booked=pb,
                     patients_arrived=pa,
+                    first_visit_patients=first_n,
+                    repeat_patients=repeat_n,
+                    sessions_total=sessions_n,
                 )
             )
 
@@ -118,6 +189,9 @@ async def expert_reports(
                 pipeline_name=pipe.name,
                 patients_booked=total_booked,
                 patients_arrived=total_arrived,
+                first_visit_patients=total_first,
+                repeat_patients=total_repeat,
+                sessions_total=total_sessions,
                 experts=experts,
             )
         )
@@ -127,4 +201,3 @@ async def expert_reports(
         period_end=end.isoformat(),
         items=items,
     )
-

@@ -7,6 +7,9 @@ class ExpertBookingItem(BaseModel):
     specialization: str | None = None
     patients_booked: int = 0
     patients_arrived: int = 0
+    first_visit_patients: int = Field(default=0, description="Новые пациенты (первое обращение к специалисту)")
+    repeat_patients: int = Field(default=0, description="Повторные пациенты")
+    sessions_total: int = Field(default=0, description="Сумма номеров сеансов за период")
 
 
 class PipelineExpertReport(BaseModel):
@@ -14,6 +17,9 @@ class PipelineExpertReport(BaseModel):
     pipeline_name: str
     patients_booked: int = 0
     patients_arrived: int = 0
+    first_visit_patients: int = 0
+    repeat_patients: int = 0
+    sessions_total: int = 0
     experts: list[ExpertBookingItem] = Field(default_factory=list)
 
 

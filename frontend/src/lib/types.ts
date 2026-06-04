@@ -350,6 +350,8 @@ export interface ManagerDetailedAnalyticsItem {
   leads_count: number;
   sold_amount: string;
   unpaid_amount: string;
+  clients_messaged_count: number;
+  manager_replied_count: number;
 }
 
 export interface DetailedAnalyticsRead {
@@ -558,6 +560,9 @@ export interface ExpertBookingItem {
   specialization: string | null;
   patients_booked: number;
   patients_arrived: number;
+  first_visit_patients: number;
+  repeat_patients: number;
+  sessions_total: number;
 }
 
 export interface PipelineExpertReport {
@@ -565,6 +570,9 @@ export interface PipelineExpertReport {
   pipeline_name: string;
   patients_booked: number;
   patients_arrived: number;
+  first_visit_patients: number;
+  repeat_patients: number;
+  sessions_total: number;
   experts: ExpertBookingItem[];
 }
 

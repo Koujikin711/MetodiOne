@@ -150,12 +150,13 @@ export function AnalyticsPage() {
               if (mode === "detailed" && detailedQuery.data) {
                 downloadCsv(
                   "analytics_detailed.csv",
-                  [lex.thStaff, lex.leadCol, "Продано", "Не оплачено"],
+                  [lex.thStaff, lex.leadCol, "Продано", "Не оплачено", "Ответили (клиент / менеджер)"],
                   detailedQuery.data.by_manager.map((r) => [
                     r.manager_name,
                     r.leads_count,
                     Number(r.sold_amount),
                     Number(r.unpaid_amount),
+                    `${r.clients_messaged_count ?? 0} / ${r.manager_replied_count ?? 0}`,
                   ]),
                 );
               }
@@ -400,6 +401,9 @@ export function AnalyticsPage() {
                       <th className="py-2 pr-4">{lex.leadCol}</th>
                       <th className="py-2 pr-4">Продано</th>
                       <th className="py-2 pr-4">Не оплачено</th>
+                      <th className="py-2 pr-4" title="Сколько лидов написали / скольким менеджер ответил">
+                        Ответили
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -409,6 +413,12 @@ export function AnalyticsPage() {
                         <td className="py-2 pr-4">{r.leads_count}</td>
                         <td className="py-2 pr-4">{moneyFmt.format(Number(r.sold_amount))}</td>
                         <td className="py-2 pr-4">{moneyFmt.format(Number(r.unpaid_amount))}</td>
+                        <td className="py-2 pr-4 tabular-nums">
+                          <span className="font-medium text-[var(--mo-text)]">{r.clients_messaged_count ?? 0}</span>
+                          <span className="mo-muted"> / </span>
+                          <span className="font-medium text-indigo-800">{r.manager_replied_count ?? 0}</span>
+                          <span className="mt-0.5 block text-[10px] mo-muted">клиент · ответ</span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
