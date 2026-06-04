@@ -200,6 +200,8 @@ type Props = {
   onEditSpecialist?: (s: BookingSpecialist) => void;
   onDeleteSpecialist?: (s: BookingSpecialist) => void;
   onReorderSpecialists?: (orderedIds: number[]) => void;
+  /** Главный эксперт: вместо времени на карточке — номер сеанса */
+  showSessionInsteadOfTime?: boolean;
 };
 
 type SortableColProps = {
@@ -219,6 +221,7 @@ type SortableColProps = {
   dragEnabled: boolean;
   nowTopPct: number | null;
   slotClickSpecialistIds?: ReadonlySet<number>;
+  showSessionInsteadOfTime?: boolean;
 };
 
 function SortableSpecialistColumn({
@@ -238,6 +241,7 @@ function SortableSpecialistColumn({
   dragEnabled,
   nowTopPct,
   slotClickSpecialistIds,
+  showSessionInsteadOfTime,
 }: SortableColProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: spec.id,
@@ -486,15 +490,31 @@ function SortableSpecialistColumn({
                   {a.patient_name}
                 </span>
                 <div className="flex shrink-0 flex-col items-end gap-0.5 leading-none">
-                  <span
-                    className={[
-                      "whitespace-nowrap font-bold tabular-nums",
-                      narrow ? "text-[10px]" : "text-[11px]",
-                    ].join(" ")}
-                    title={formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
-                  >
-                    {formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow)}
-                  </span>
+                  {showSessionInsteadOfTime ? (
+                    <span
+                      className={[
+                        "whitespace-nowrap font-bold tabular-nums text-indigo-900",
+                        narrow ? "text-[11px]" : "text-[13px]",
+                      ].join(" ")}
+                      title={
+                        a.visit_number != null && a.visit_number > 0
+                          ? `${a.visit_number}-й сеанс`
+                          : "Сеанс"
+                      }
+                    >
+                      {a.visit_number != null && a.visit_number > 0 ? a.visit_number : "—"}
+                    </span>
+                  ) : (
+                    <span
+                      className={[
+                        "whitespace-nowrap font-bold tabular-nums",
+                        narrow ? "text-[10px]" : "text-[11px]",
+                      ].join(" ")}
+                      title={formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
+                    >
+                      {formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow)}
+                    </span>
+                  )}
                   {a.status === "completed" && (
                     <span className="text-[10px] font-bold opacity-90" aria-hidden>
                       ✓
@@ -517,6 +537,14 @@ function SortableSpecialistColumn({
                 ) : (
                   <span className="opacity-80">без лида</span>
                 )}
+                {!showSessionInsteadOfTime && a.visit_number != null && a.visit_number > 0 ? (
+                  <span
+                    className="font-bold tabular-nums text-indigo-800"
+                    title={`${a.visit_number}-й сеанс`}
+                  >
+                    · {a.visit_number}
+                  </span>
+                ) : null}
               </div>
             </button>
             </div>
@@ -539,6 +567,7 @@ export function BookingCalendarGrid({
   onDeleteSpecialist,
   onReorderSpecialists,
   onMoveAppointment,
+  showSessionInsteadOfTime,
 }: Props) {
   const totalHours = GRID_END_HOUR - GRID_START_HOUR;
   const gridHeightPx = totalHours * PX_PER_HOUR;
@@ -607,6 +636,7 @@ export function BookingCalendarGrid({
     dragEnabled,
     nowTopPct: nowLineTopPct(dateYmd, nowTick),
     slotClickSpecialistIds,
+    showSessionInsteadOfTime,
   };
 
   if (specialists.length === 0) {

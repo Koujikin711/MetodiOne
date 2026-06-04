@@ -15,6 +15,7 @@ import type {
   BookingPatientHistoryItem,
   BookingPatientSuggestItem,
   BookingSpecialist,
+  BookingViewerContext,
   LeadSource,
   Pipeline,
   PipelineStage,
@@ -88,6 +89,12 @@ export function OnlineBookingPage() {
       return null;
     }
   }, [startAt]);
+
+  const bookingViewerQuery = useQuery({
+    queryKey: ["booking-viewer-context"],
+    queryFn: () => apiFetch<BookingViewerContext>("/api/booking/viewer-context"),
+  });
+  const showSessionInsteadOfTime = bookingViewerQuery.data?.show_session_instead_of_time ?? false;
 
   const specialistsQuery = useQuery({
     queryKey: ["booking-specialists"],
@@ -223,8 +230,15 @@ export function OnlineBookingPage() {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    onSuccess: () => {
-      toast.success("Запись создана.");
+    onSuccess: (created) => {
+      if (created.whatsapp_confirmation_sent) {
+        toast.success("Запись создана. Клиенту отправлено подтверждение в WhatsApp.");
+      } else {
+        toast.success(
+          "Запись создана. WhatsApp не отправлен — проверьте Green API, телефон лида и шаблон «confirm» в интеграции.",
+          { duration: 5500 },
+        );
+      }
       setPatientName("");
       setPatientPhone("");
       setComment("");
@@ -706,6 +720,7 @@ export function OnlineBookingPage() {
                 onEditSpecialist={canEditBooking ? openEditSpecialistModal : undefined}
                 onDeleteSpecialist={canEditBooking ? (s) => deleteSpecialistUserMutation.mutate(s.id) : undefined}
                 onReorderSpecialists={canEditBooking ? (orderedIds) => reorderSpecialistsMutation.mutate(orderedIds) : undefined}
+                showSessionInsteadOfTime={showSessionInsteadOfTime}
               />
               {gridAppointmentsQuery.isLoading && (
                 <p className="mt-3 text-sm lux-caption">Загрузка записей…</p>
@@ -1063,7 +1078,17 @@ export function OnlineBookingPage() {
                           </thead>
                           <tbody>
                             {item.visits.map((v) => (
-                              <tr key={v.appointment_id} className="border-t border-[var(--mo-border)]">
+                              <tr
+                                key={v.appointment_id}
+                                className={[
+                                  "border-t border-[var(--mo-border)]",
+                                  v.status === "completed"
+                                    ? "bg-emerald-500/10"
+                                    : v.status === "no_show"
+                                      ? "bg-rose-500/10"
+                                      : "",
+                                ].join(" ")}
+                              >
                                 <td className="py-1 pr-3 whitespace-nowrap">{formatDt(v.start_at)}</td>
                                 <td className="py-1 pr-3">{v.specialist_name || "—"}</td>
                                 <td className="py-1 pr-3">{(v.service_title || "").trim() || "—"}</td>
@@ -1084,7 +1109,7 @@ export function OnlineBookingPage() {
             <table className="w-full min-w-[1200px] border-collapse text-left text-sm text-[var(--mo-text)]">
               <thead>
                 <tr className="border-b border-[var(--mo-border)] lux-caption">
-                  <th className="py-2 pr-4">Время</th>
+                  <th className="py-2 pr-4">{showSessionInsteadOfTime ? "Сеанс" : "Время"}</th>
                   <th className="py-2 pr-4">Пациент</th>
                   <th className="py-2 pr-4">Услуга</th>
                   <th className="py-2 pr-4">Специалист</th>
@@ -1107,7 +1132,13 @@ export function OnlineBookingPage() {
                       Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? "bg-amber-500/5" : "",
                     ].join(" ")}
                   >
-                    <td className="py-2 pr-4 whitespace-nowrap">{formatDt(a.start_at)}</td>
+                    <td className="py-2 pr-4 whitespace-nowrap tabular-nums">
+                      {showSessionInsteadOfTime ? (
+                        <span className="font-semibold text-indigo-800">{a.visit_number ?? "—"}</span>
+                      ) : (
+                        formatDt(a.start_at)
+                      )}
+                    </td>
                     <td className="py-2 pr-4">
                       {a.patient_name}
                       <span className="block text-xs mo-muted">{a.patient_phone}</span>

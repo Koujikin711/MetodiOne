@@ -179,49 +179,53 @@ async def send_welcome_if_first_incoming(
     )
 
 
+async def booking_whatsapp_confirmation_sent(db: AsyncSession, appointment_id: int) -> bool:
+    return await _has_event(
+        db,
+        entity_type="booking_appointment",
+        entity_id=appointment_id,
+        action="whatsapp_confirm_sent",
+    )
+
+
 async def send_booking_confirmation_if_needed(
     db: AsyncSession,
     *,
     appointment: BookingAppointment,
-) -> None:
+) -> bool:
+    """Отправляет подтверждение записи в WhatsApp. Возвращает True, если сообщение ушло успешно."""
     if appointment.lead_id is None:
-        return
-    if await _has_event(
-        db,
-        entity_type="booking_appointment",
-        entity_id=appointment.id,
-        action="whatsapp_confirm_sent",
-    ):
-        return
+        return False
+    if await booking_whatsapp_confirmation_sent(db, appointment.id):
+        return True
     lead = await db.get(Lead, appointment.lead_id)
     if lead is None:
-        return
+        return False
     await db.refresh(lead, ["stage"])
     pipeline_id = lead.stage.pipeline_id if lead.stage else None
     integ = await _active_green_integration_for_pipeline(db, pipeline_id)
     if integ is None:
-        return
+        return False
     thread = await _thread_for_lead_green(db, lead)
-    if thread is None:
-        return
     manager = await db.get(User, appointment.responsible_manager_id) if appointment.responsible_manager_id else None
     text = _render_template(
         _templates_from_integration_config(integ.config).get("confirm", _DEFAULT_TEMPLATES["confirm"]),
         _booking_ctx(appointment, manager.full_name if manager else None),
     ).strip()
     if not text:
-        return
+        return False
     chat_id = _chat_id_from_thread_or_phone(thread, lead.phone)
     if not chat_id:
-        return
+        return False
     ok, err, provider_id = send_green_text(integ.config or {}, chat_id, text)
-    await _log_outgoing_message(
-        db,
-        thread=thread,
-        text=text,
-        delivery_status=("sent" if ok else "failed"),
-        provider_message_id=provider_id,
-    )
+    if thread is not None:
+        await _log_outgoing_message(
+            db,
+            thread=thread,
+            text=text,
+            delivery_status=("sent" if ok else "failed"),
+            provider_message_id=provider_id,
+        )
     await write_audit_event(
         db,
         entity_type="booking_appointment",
@@ -230,6 +234,7 @@ async def send_booking_confirmation_if_needed(
         current_user=None,
         details=None if ok else f"send_failed={err}",
     )
+    return bool(ok)
 
 
 async def run_whatsapp_reminder_tick(db: AsyncSession) -> int:
