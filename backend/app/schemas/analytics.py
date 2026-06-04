@@ -25,6 +25,14 @@ class ManagerDetailedAnalyticsItem(BaseModel):
     leads_count: int = 0
     sold_amount: Decimal = Field(default=Decimal("0"))
     unpaid_amount: Decimal = Field(default=Decimal("0"))
+    clients_messaged_count: int = Field(
+        default=0,
+        description="Сколько лидов написали входящее сообщение за период",
+    )
+    manager_replied_count: int = Field(
+        default=0,
+        description="Скольким из них менеджер ответил исходящим сообщением за период",
+    )
 
 
 class DetailedAnalyticsRead(BaseModel):
