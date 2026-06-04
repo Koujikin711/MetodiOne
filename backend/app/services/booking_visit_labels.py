@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.config import settings
 from app.models import BookingAppointment, BookingSpecialist
 
 
