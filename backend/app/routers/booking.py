@@ -212,52 +212,31 @@ def _visit_group_key(phone: str | None, specialist_id: int) -> tuple[str, int]:
     return (digits, int(specialist_id))
 
 
+async def _visit_labels_for_ids(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    appointment_ids: list[int],
+):
+    from app.services.booking_visit_labels import visit_labels_for_ids
+
+    return await visit_labels_for_ids(
+        db,
+        company_id=company_id,
+        appointment_ids=appointment_ids,
+        norm_phone=_norm_phone,
+    )
+
+
 async def _visit_numbers_for_ids(
     db: AsyncSession,
     *,
     company_id: int,
     appointment_ids: list[int],
 ) -> dict[int, int]:
-    """Порядковый номер визита пациента к специалисту (без учёта отменённых записей)."""
-    if not appointment_ids:
-        return {}
-    targets = (
-        await db.execute(
-            select(BookingAppointment.specialist_id).where(
-                BookingAppointment.id.in_(appointment_ids),
-                BookingAppointment.company_id == company_id,
-            )
-        )
-    ).all()
-    spec_ids = {int(r[0]) for r in targets}
-    if not spec_ids:
-        return {}
-    rows = (
-        await db.execute(
-            select(
-                BookingAppointment.id,
-                BookingAppointment.specialist_id,
-                BookingAppointment.patient_phone,
-                BookingAppointment.start_at,
-            )
-            .where(
-                BookingAppointment.company_id == company_id,
-                BookingAppointment.specialist_id.in_(spec_ids),
-                BookingAppointment.status != "cancelled",
-            )
-            .order_by(BookingAppointment.start_at.asc(), BookingAppointment.id.asc())
-        )
-    ).all()
-    from collections import defaultdict
-
-    groups: dict[tuple[str, int], list[int]] = defaultdict(list)
-    for aid, sid, phone, _start in rows:
-        groups[_visit_group_key(phone, int(sid))].append(int(aid))
-    visit_map: dict[int, int] = {}
-    for ids in groups.values():
-        for idx, appt_id in enumerate(ids, start=1):
-            visit_map[appt_id] = idx
-    return {aid: visit_map.get(aid, 1) for aid in appointment_ids}
+    """Порядковый номер визита или день в потоке."""
+    labels = await _visit_labels_for_ids(db, company_id=company_id, appointment_ids=appointment_ids)
+    return {int(aid): int(info.visit_number or 1) for aid, info in labels.items()}
 
 
 def _appointment_pipeline_id(
@@ -309,6 +288,9 @@ async def _booking_appointment_read(
     specialist_name: str,
     viewer: User | None,
     visit_number: int | None = None,
+    visit_label: str | None = None,
+    visit_stream: int | None = None,
+    visit_stream_day: int | None = None,
     whatsapp_confirmation_sent: bool = False,
 ) -> BookingAppointmentRead:
     can = False
@@ -338,6 +320,9 @@ async def _booking_appointment_read(
         comment=a.comment,
         can_manage_journal=can,
         visit_number=visit_number,
+        visit_label=visit_label,
+        visit_stream=visit_stream,
+        visit_stream_day=visit_stream_day,
         whatsapp_confirmation_sent=whatsapp_confirmation_sent,
     )
 
@@ -346,6 +331,17 @@ def _norm_work_weekdays(raw: list | None) -> list[int]:
     if raw is None or len(raw) == 0:
         return [0, 1, 2, 3, 4]
     return sorted({int(x) for x in raw if 0 <= int(x) <= 6})
+
+
+def _apply_course_stream_fields(s: BookingSpecialist, data: dict) -> None:
+    if "course_streams_enabled" in data and data["course_streams_enabled"] is not None:
+        s.course_streams_enabled = bool(data["course_streams_enabled"])
+    if "course_stream_max_days" in data and data["course_stream_max_days"] is not None:
+        s.course_stream_max_days = int(data["course_stream_max_days"])
+    if "course_stream_min_day_for_next" in data and data["course_stream_min_day_for_next"] is not None:
+        s.course_stream_min_day_for_next = int(data["course_stream_min_day_for_next"])
+    if "course_stream_gap_days" in data and data["course_stream_gap_days"] is not None:
+        s.course_stream_gap_days = int(data["course_stream_gap_days"])
 
 
 def _specialist_read(s: BookingSpecialist, direction_name: str | None) -> BookingSpecialistRead:
@@ -362,6 +358,10 @@ def _specialist_read(s: BookingSpecialist, direction_name: str | None) -> Bookin
         work_start_hour=s.work_start_hour,
         work_end_hour=s.work_end_hour,
         work_weekdays=_norm_work_weekdays(s.work_weekdays),
+        course_streams_enabled=bool(getattr(s, "course_streams_enabled", False)),
+        course_stream_max_days=int(getattr(s, "course_stream_max_days", 15) or 15),
+        course_stream_min_day_for_next=int(getattr(s, "course_stream_min_day_for_next", 10) or 10),
+        course_stream_gap_days=int(getattr(s, "course_stream_gap_days", 10) or 10),
     )
 
 
@@ -703,6 +703,10 @@ async def create_specialist(
         work_start_hour=body.work_start_hour,
         work_end_hour=body.work_end_hour,
         work_weekdays=list(body.work_weekdays),
+        course_streams_enabled=body.course_streams_enabled,
+        course_stream_max_days=body.course_stream_max_days,
+        course_stream_min_day_for_next=body.course_stream_min_day_for_next,
+        course_stream_gap_days=body.course_stream_gap_days,
     )
     db.add(s)
     await db.flush()
@@ -751,6 +755,7 @@ async def patch_specialist(
         s.work_weekdays = list(body.work_weekdays)
     if "slot_duration_min" in patch and body.slot_duration_min is not None:
         s.slot_duration_min = body.slot_duration_min
+    _apply_course_stream_fields(s, patch)
     await db.flush()
     await write_audit_event(
         db,
@@ -1050,11 +1055,12 @@ async def list_appointments(
     result = await db.execute(q)
     rows = result.all()
     all_ids = [int(r[0].id) for r in rows]
-    visit_nums_all = await _visit_numbers_for_ids(db, company_id=company_id, appointment_ids=all_ids)
+    labels_all = await _visit_labels_for_ids(db, company_id=company_id, appointment_ids=all_ids)
     from app.services.whatsapp_automation import booking_whatsapp_confirmation_sent
 
     out: list[BookingAppointmentRead] = []
     for a, dname, _dir_pid, sname in rows:
+        li = labels_all.get(int(a.id))
         out.append(
             await _booking_appointment_read(
                 db,
@@ -1062,7 +1068,10 @@ async def list_appointments(
                 direction_name=dname,
                 specialist_name=sname,
                 viewer=current_user,
-                visit_number=visit_nums_all.get(int(a.id)),
+                visit_number=li.visit_number if li else None,
+                visit_label=li.visit_label if li else None,
+                visit_stream=li.visit_stream if li else None,
+                visit_stream_day=li.visit_stream_day if li else None,
                 whatsapp_confirmation_sent=await booking_whatsapp_confirmation_sent(db, int(a.id)),
             ),
         )
@@ -1451,14 +1460,18 @@ async def create_appointment(
 
     dname = direction.name
     sname = specialist.full_name
-    visit_nums = await _visit_numbers_for_ids(db, company_id=company_id, appointment_ids=[int(appt.id)])
+    labels = await _visit_labels_for_ids(db, company_id=company_id, appointment_ids=[int(appt.id)])
+    li = labels.get(int(appt.id))
     return await _booking_appointment_read(
         db,
         appt,
         direction_name=dname,
         specialist_name=sname,
         viewer=current_user,
-        visit_number=visit_nums.get(int(appt.id)),
+        visit_number=li.visit_number if li else None,
+        visit_label=li.visit_label if li else None,
+        visit_stream=li.visit_stream if li else None,
+        visit_stream_day=li.visit_stream_day if li else None,
         whatsapp_confirmation_sent=wa_sent,
     )
 

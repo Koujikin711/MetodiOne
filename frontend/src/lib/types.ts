@@ -445,6 +445,11 @@ export interface BookingSpecialist {
   work_end_hour?: number;
   /** 0=Пн … 6=Вс (как на бэкенде) */
   work_weekdays?: number[];
+  /** Курсы: нумерация поток:день (1:1, 1:10, 2:1) */
+  course_streams_enabled?: boolean;
+  course_stream_max_days?: number;
+  course_stream_min_day_for_next?: number;
+  course_stream_gap_days?: number;
 }
 
 export interface BookingAppointment {
@@ -470,8 +475,12 @@ export interface BookingAppointment {
   notification_sent_at?: string | null;
   /** Когда клиент ответил на уведомление */
   notification_replied_at?: string | null;
-  /** Номер визита к этому специалисту: 1 — первый, 2 — второй… */
+  /** Номер визита или день в потоке */
   visit_number?: number | null;
+  /** Поток:день, например 1:10 */
+  visit_label?: string | null;
+  visit_stream?: number | null;
+  visit_stream_day?: number | null;
   /** WhatsApp-подтверждение записи отправлено */
   whatsapp_confirmation_sent?: boolean;
 }

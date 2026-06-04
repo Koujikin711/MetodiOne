@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import BookingDirection, BookingSpecialist
-from app.routers.booking import _specialist_read, resolve_default_booking_direction_id
+from app.routers.booking import _apply_course_stream_fields, _specialist_read, resolve_default_booking_direction_id
 from app.schemas.booking import BookingSpecialistRead
 from app.schemas.specialist_users import SpecialistUserCreate, SpecialistUserUpdate
 from app.services.audit import write_audit_event
@@ -45,6 +45,10 @@ async def create_specialist_user(
         work_start_hour=body.work_start_hour,
         work_end_hour=body.work_end_hour,
         work_weekdays=list(body.work_weekdays),
+        course_streams_enabled=body.course_streams_enabled,
+        course_stream_max_days=body.course_stream_max_days,
+        course_stream_min_day_for_next=body.course_stream_min_day_for_next,
+        course_stream_gap_days=body.course_stream_gap_days,
     )
     db.add(s)
     await db.flush()
@@ -94,6 +98,7 @@ async def patch_specialist_user(
         s.work_end_hour = body.work_end_hour
     if "work_weekdays" in patch and body.work_weekdays is not None:
         s.work_weekdays = list(body.work_weekdays)
+    _apply_course_stream_fields(s, patch)
 
     await db.flush()
     await write_audit_event(

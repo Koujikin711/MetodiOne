@@ -46,6 +46,20 @@ class BookingSpecialistRead(BaseModel):
     work_start_hour: int = 9
     work_end_hour: int = 18
     work_weekdays: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4])
+    course_streams_enabled: bool = False
+    course_stream_max_days: int = Field(15, ge=5, le=90, description="Длина потока (дней), затем новый поток")
+    course_stream_min_day_for_next: int = Field(
+        10,
+        ge=1,
+        le=60,
+        description="Минимальный день в потоке перед переходом по перерыву",
+    )
+    course_stream_gap_days: int = Field(
+        10,
+        ge=1,
+        le=60,
+        description="Дней без визитов после min-дня — начало следующего потока",
+    )
 
     model_config = {"from_attributes": True}
 
@@ -66,6 +80,10 @@ class BookingSpecialistCreate(BaseModel):
         default_factory=lambda: [0, 1, 2, 3, 4],
         description="0=Пн … 6=Вс (как datetime.weekday() в Python)",
     )
+    course_streams_enabled: bool = False
+    course_stream_max_days: int = Field(15, ge=5, le=90)
+    course_stream_min_day_for_next: int = Field(10, ge=1, le=60)
+    course_stream_gap_days: int = Field(10, ge=1, le=60)
 
     @field_validator("work_weekdays")
     @classmethod
@@ -93,6 +111,10 @@ class BookingSpecialistUpdate(BaseModel):
     work_start_hour: int | None = Field(None, ge=BOOKING_GRID_START_HOUR, le=BOOKING_GRID_END_HOUR - 1)
     work_end_hour: int | None = Field(None, ge=BOOKING_GRID_START_HOUR + 1, le=BOOKING_GRID_END_HOUR)
     work_weekdays: list[int] | None = None
+    course_streams_enabled: bool | None = None
+    course_stream_max_days: int | None = Field(None, ge=5, le=90)
+    course_stream_min_day_for_next: int | None = Field(None, ge=1, le=60)
+    course_stream_gap_days: int | None = Field(None, ge=1, le=60)
 
     @field_validator("work_weekdays")
     @classmethod
@@ -134,8 +156,14 @@ class BookingAppointmentRead(BaseModel):
     )
     visit_number: int | None = Field(
         default=None,
-        description="Номер визита пациента к этому специалисту (1 — первый, 2 — второй и т.д.)",
+        description="Номер визита или день в потоке (для курсов)",
     )
+    visit_label: str | None = Field(
+        default=None,
+        description="Отображение: 3 или 1:10 (поток:день курса)",
+    )
+    visit_stream: int | None = Field(default=None, description="Номер потока курса")
+    visit_stream_day: int | None = Field(default=None, description="День в текущем потоке")
     whatsapp_confirmation_sent: bool = Field(
         default=False,
         description="Клиенту отправлено WhatsApp-подтверждение записи",
