@@ -34,6 +34,18 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
     .join(" ");
 }
 
+function mobileBottomNavLinkClass({ isActive }: { isActive: boolean }) {
+  return [
+    "shell-nav-link group flex shrink-0 min-w-[4.25rem] flex-col items-center gap-1 rounded-2xl px-2 py-1.5 text-center",
+    isActive ? "is-active" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+const mobileBottomLogoutClass =
+  "group flex shrink-0 min-w-[4.25rem] flex-col items-center gap-1 rounded-2xl px-2 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]";
+
 function NavIf({ show, children }: { show: boolean; children: ReactNode }) {
   if (!show) return null;
   return <>{children}</>;
@@ -441,7 +453,7 @@ export function MainLayout() {
           </nav>
         </aside>
 
-        <main className="relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-24 sm:px-10 sm:py-10 sm:pb-10 lg:px-14 text-[var(--mo-text)]">
+        <main className="relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:px-10 sm:py-10 sm:pb-10 lg:px-14 text-[var(--mo-text)]">
           <div className="pointer-events-none fixed right-3 top-3 z-40 sm:hidden">
             <div className="pointer-events-auto">
               <ThemeToggle compact />
@@ -451,10 +463,13 @@ export function MainLayout() {
           <TariffFeatureOutletGate />
         </main>
 
-        <nav className="print:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-2 py-2 backdrop-blur-xl sm:hidden">
+        <nav
+          aria-label="Основная навигация"
+          className="print:hidden no-scrollbar fixed bottom-0 left-0 right-0 z-50 flex touch-pan-x items-stretch gap-0.5 overflow-x-auto overscroll-x-contain border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-1 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-xl sm:hidden"
+        >
           {isSuperOwner ? (
             <>
-              <NavLink to="/companies" className={navLinkClass} title="Компании">
+              <NavLink to="/companies" className={mobileBottomNavLinkClass} title="Компании">
                 <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <Users className="h-4 w-4" />
                 </GradientIconBox>
@@ -463,7 +478,7 @@ export function MainLayout() {
 <button
                 type="button"
                 onClick={logout}
-                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
+                className={mobileBottomLogoutClass}
                 title="Выход"
               >
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
@@ -475,7 +490,7 @@ export function MainLayout() {
           ) : isManagerNav ? (
             <>
               <NavIf show={showNavForFeature("crm")}>
-                <NavLink to="/crm" className={navLinkClass} title={navLex.navKanbanTitle}>
+                <NavLink to="/crm" className={mobileBottomNavLinkClass} title={navLex.navKanbanTitle}>
                   <GradientIconBox variant="crm" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Funnel className="h-4 w-4" />
                   </GradientIconBox>
@@ -483,7 +498,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("crm")}>
-                <NavLink to="/my-leads" className={navLinkClass} title={navLex.navGuestsTitle}>
+                <NavLink to="/my-leads" className={mobileBottomNavLinkClass} title={navLex.navGuestsTitle}>
                   <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <UserRound className="h-4 w-4" />
                   </GradientIconBox>
@@ -491,7 +506,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
 <NavIf show={showNavForFeature("booking")}>
-                <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                <NavLink to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Calendar className="h-4 w-4" />
                   </GradientIconBox>
@@ -499,7 +514,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("chat")}>
-                <NavLink to="/chat" className={navLinkClass} title="Чат">
+                <NavLink to="/chat" className={mobileBottomNavLinkClass} title="Чат">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <MessageCircle className="h-4 w-4" />
                   </GradientIconBox>
@@ -507,14 +522,14 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("tasks")}>
-                <NavLink to="/tasks" className={navLinkClass} title="Задачи">
+                <NavLink to="/tasks" className={mobileBottomNavLinkClass} title="Задачи">
                   <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <CheckSquare className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Задачи</span>
                 </NavLink>
               </NavIf>
-              <NavLink to="/messenger" className={navLinkClass} title="Мессенджер">
+              <NavLink to="/messenger" className={mobileBottomNavLinkClass} title="Мессенджер">
                 <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <Users className="h-4 w-4" />
                 </GradientIconBox>
@@ -522,7 +537,7 @@ export function MainLayout() {
               </NavLink>
               {showKpi ? (
                 <NavIf show={showNavForFeature("kpi")}>
-                  <NavLink to="/kpi" className={navLinkClass} title={navLex.navKpiTitle}>
+                  <NavLink to="/kpi" className={mobileBottomNavLinkClass} title={navLex.navKpiTitle}>
                     <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                       <Target className="h-4 w-4" />
                     </GradientIconBox>
@@ -532,7 +547,7 @@ export function MainLayout() {
               ) : null}
               {role === "admin" ? (
                 <NavIf show={showNavForFeature("finance")}>
-                  <NavLink to="/finance" className={navLinkClass} title={navLex.navFinanceTitle}>
+                  <NavLink to="/finance" className={mobileBottomNavLinkClass} title={navLex.navFinanceTitle}>
                     <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                       <Wallet className="h-4 w-4" />
                     </GradientIconBox>
@@ -543,7 +558,7 @@ export function MainLayout() {
 <button
                 type="button"
                 onClick={logout}
-                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
+                className={mobileBottomLogoutClass}
                 title="Выход"
               >
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
@@ -555,7 +570,7 @@ export function MainLayout() {
           ) : isExpert ? (
             <>
               <NavIf show={showNavForFeature("booking")}>
-                <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                <NavLink to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Calendar className="h-4 w-4" />
                   </GradientIconBox>
@@ -563,7 +578,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("reports")}>
-                <NavLink to="/reports" className={navLinkClass} title="Отчёты">
+                <NavLink to="/reports" className={mobileBottomNavLinkClass} title="Отчёты">
                   <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <BarChart3 className="h-4 w-4" />
                   </GradientIconBox>
@@ -571,7 +586,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("chat")}>
-                <NavLink to="/chat" className={navLinkClass} title="Чат">
+                <NavLink to="/chat" className={mobileBottomNavLinkClass} title="Чат">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <MessageCircle className="h-4 w-4" />
                   </GradientIconBox>
@@ -579,24 +594,24 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("tasks")}>
-                <NavLink to="/tasks" className={navLinkClass} title="Задачи">
+                <NavLink to="/tasks" className={mobileBottomNavLinkClass} title="Задачи">
                   <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <CheckSquare className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Задачи</span>
                 </NavLink>
               </NavIf>
-                  <NavLink to="/messenger" className={navLinkClass} title="Мессенджер">
-                    <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Users className="h-[18px] w-[18px]" />
+                  <NavLink to="/messenger" className={mobileBottomNavLinkClass} title="Мессенджер">
+                    <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <Users className="h-4 w-4" />
                     </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Команда</span>
+                    <span className="text-[9px]">Команда</span>
                   </NavLink>
 
 <button
                 type="button"
                 onClick={logout}
-                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
+                className={mobileBottomLogoutClass}
                 title="Выход"
               >
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
@@ -608,7 +623,7 @@ export function MainLayout() {
           ) : (
             <>
               <NavIf show={showNavForFeature("crm")}>
-                <NavLink to="/app" end className={navLinkClass} title={navLex.navOwnerHomeTitle}>
+                <NavLink to="/app" end className={mobileBottomNavLinkClass} title={navLex.navOwnerHomeTitle}>
                   <GradientIconBox variant="crm" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Funnel className="h-4 w-4" />
                   </GradientIconBox>
@@ -616,7 +631,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
 <NavIf show={showNavForFeature("booking")}>
-                <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
+                <NavLink to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Calendar className="h-4 w-4" />
                   </GradientIconBox>
@@ -625,7 +640,7 @@ export function MainLayout() {
               </NavIf>
               {showKpi ? (
                 <NavIf show={showNavForFeature("kpi")}>
-                  <NavLink to="/kpi" className={navLinkClass} title={navLex.navKpiTitle}>
+                  <NavLink to="/kpi" className={mobileBottomNavLinkClass} title={navLex.navKpiTitle}>
                     <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                       <Target className="h-4 w-4" />
                     </GradientIconBox>
@@ -634,7 +649,7 @@ export function MainLayout() {
                 </NavIf>
               ) : null}
               <NavIf show={showNavForFeature("finance")}>
-                <NavLink to="/finance" className={navLinkClass} title={navLex.navFinanceTitle}>
+                <NavLink to="/finance" className={mobileBottomNavLinkClass} title={navLex.navFinanceTitle}>
                   <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Wallet className="h-4 w-4" />
                   </GradientIconBox>
@@ -642,7 +657,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("chat")}>
-                <NavLink to="/chat" className={navLinkClass} title="Чат">
+                <NavLink to="/chat" className={mobileBottomNavLinkClass} title="Чат">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <MessageCircle className="h-4 w-4" />
                   </GradientIconBox>
@@ -652,7 +667,7 @@ export function MainLayout() {
 <button
                 type="button"
                 onClick={logout}
-                className="group flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]"
+                className={mobileBottomLogoutClass}
                 title="Выход"
               >
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
