@@ -16,6 +16,10 @@ class BookingDirectionRead(BaseModel):
     is_active: bool
     pipeline_id: int | None = None
     pipeline_name: str | None = None
+    course_streams_enabled: bool = False
+    course_stream_max_days: int = 15
+    course_stream_min_day_for_next: int = 10
+    course_stream_gap_days: int = 10
 
     model_config = {"from_attributes": True}
 
@@ -31,6 +35,10 @@ class BookingDirectionUpdate(BaseModel):
     duration_min: int | None = Field(None, ge=10, le=480)
     pipeline_id: int | None = Field(None, ge=1)
     is_active: bool | None = None
+    course_streams_enabled: bool | None = None
+    course_stream_max_days: int | None = Field(None, ge=5, le=90)
+    course_stream_min_day_for_next: int | None = Field(None, ge=1, le=60)
+    course_stream_gap_days: int | None = Field(None, ge=1, le=60)
 
 
 class BookingSpecialistRead(BaseModel):

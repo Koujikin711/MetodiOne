@@ -90,6 +90,32 @@ export function ExpertReportsPage() {
             </div>
           </div>
 
+          {(p.direction_payments ?? []).length > 0 ? (
+            <div className="mt-4 overflow-x-auto">
+              <h3 className="mb-2 text-sm font-medium mo-muted">Оплаты по направлениям</h3>
+              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--mo-border)] lux-caption">
+                    <th className="py-2 pr-4">Направление</th>
+                    <th className="py-2 pr-4">Оплачено (записи)</th>
+                    <th className="py-2 pr-4">Начислено (записи)</th>
+                    <th className="py-2 pr-4">Этапы услуг</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(p.direction_payments ?? []).map((d) => (
+                    <tr key={d.direction_id} className="border-b border-[var(--mo-border)]">
+                      <td className="py-2 pr-4">{d.direction_name}</td>
+                      <td className="py-2 pr-4 tabular-nums">{d.appointments_paid}</td>
+                      <td className="py-2 pr-4 tabular-nums">{d.appointments_billed}</td>
+                      <td className="py-2 pr-4 tabular-nums font-medium text-emerald-800">{d.installments_paid}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[1100px] border-collapse text-left text-sm text-[var(--mo-text)]">
               <thead>

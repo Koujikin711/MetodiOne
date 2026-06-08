@@ -134,6 +134,15 @@ class AccountantExpenseCreate(BaseModel):
     memo: str | None = Field(None, max_length=500)
 
 
+class MigrateLegacyResultRead(BaseModel):
+    created: int = 0
+    skipped: int = 0
+
+
+class GmailSyncResultRead(BaseModel):
+    imported: int = 0
+
+
 class GmailInboxItemRead(BaseModel):
     id: int
     gmail_message_id: str

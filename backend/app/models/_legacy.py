@@ -390,6 +390,10 @@ class BookingDirection(Base):
     pipeline_id: Mapped[int | None] = mapped_column(ForeignKey("pipelines.id", ondelete="SET NULL"), nullable=True, index=True)
     duration_min: Mapped[int] = mapped_column(default=30)
     is_active: Mapped[bool] = mapped_column(default=True)
+    course_streams_enabled: Mapped[bool] = mapped_column(default=False)
+    course_stream_max_days: Mapped[int] = mapped_column(default=15)
+    course_stream_min_day_for_next: Mapped[int] = mapped_column(default=10)
+    course_stream_gap_days: Mapped[int] = mapped_column(default=10)
 
     specialists: Mapped[list["BookingSpecialist"]] = relationship(back_populates="direction")
     appointments: Mapped[list["BookingAppointment"]] = relationship(back_populates="direction")

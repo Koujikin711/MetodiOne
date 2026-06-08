@@ -4,7 +4,9 @@ import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
 import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
+import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
+import { PatientPhone } from "@/components/PatientPhone";
 import { SpecialistModal, type SpecialistFormValues } from "@/components/SpecialistModal";
 import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import { Calendar } from "@/components/icons";
@@ -77,6 +79,7 @@ export function OnlineBookingPage() {
   const isExpert = currentRole === "expert";
   const isManagerOrAdmin = currentRole === "manager" || currentRole === "admin";
   const canEditBooking = !isExpert;
+  const canEditDirectionStreams = currentRole === "owner" || currentRole === "admin";
 
   const [specialistModalOpen, setSpecialistModalOpen] = useState(false);
   const [specialistModalMode, setSpecialistModalMode] = useState<"add" | "edit">("add");
@@ -215,7 +218,13 @@ export function OnlineBookingPage() {
 
   function applyPatientSuggestion(item: BookingPatientSuggestItem) {
     setPatientName(item.patient_name);
-    setPatientPhone(item.patient_phone === "—" ? "" : item.patient_phone);
+    if (item.lead_id != null) {
+      setPatientPhone("");
+    } else if (item.patient_phone_can_view_full) {
+      setPatientPhone(item.patient_phone === "—" ? "" : item.patient_phone);
+    } else {
+      setPatientPhone("");
+    }
     if (item.lead_id != null) {
       setLeadId(item.lead_id);
       setNewLeadPipelineId(null);
@@ -802,7 +811,7 @@ export function OnlineBookingPage() {
                         >
                           <span className="font-semibold text-[var(--mo-text)]">{item.patient_name}</span>
                           <span className="text-xs mo-muted">
-                            {item.patient_phone}
+                            <PatientPhone value={item} />
                             {item.manager_name ? ` · ${item.manager_name}` : ""}
                             {item.source === "crm" ? " · в CRM" : " · был на приёме"}
                           </span>
@@ -1059,7 +1068,9 @@ export function OnlineBookingPage() {
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <p className="lux-subheading text-sm">{item.patient_name}</p>
-                          <p className="text-xs lux-caption">{item.patient_phone}</p>
+                          <p className="text-xs lux-caption">
+                            <PatientPhone value={item} />
+                          </p>
                         </div>
                         <div className="text-right text-xs mo-muted">
                           <p>Всего записей: <b>{item.total_visits}</b></p>
@@ -1142,7 +1153,9 @@ export function OnlineBookingPage() {
                     </td>
                     <td className="py-2 pr-4">
                       {a.patient_name}
-                      <span className="block text-xs mo-muted">{a.patient_phone}</span>
+                      <span className="block text-xs mo-muted">
+                        <PatientPhone value={a} />
+                      </span>
                     </td>
                     <td className="py-2 pr-4 mo-muted">
                       {(a.service_title || "").trim() || a.direction_name || "—"}
@@ -1232,6 +1245,8 @@ export function OnlineBookingPage() {
           </div>
         </section>
       )}
+
+      {canEditDirectionStreams ? <DirectionStreamsPanel /> : null}
     </div>
   );
 }

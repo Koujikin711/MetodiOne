@@ -357,6 +357,32 @@ def _apply_course_stream_fields(s: BookingSpecialist, data: dict) -> None:
         s.course_stream_gap_days = int(data["course_stream_gap_days"])
 
 
+def _apply_direction_course_stream_fields(d: BookingDirection, data: dict) -> None:
+    if "course_streams_enabled" in data and data["course_streams_enabled"] is not None:
+        d.course_streams_enabled = bool(data["course_streams_enabled"])
+    if "course_stream_max_days" in data and data["course_stream_max_days"] is not None:
+        d.course_stream_max_days = int(data["course_stream_max_days"])
+    if "course_stream_min_day_for_next" in data and data["course_stream_min_day_for_next"] is not None:
+        d.course_stream_min_day_for_next = int(data["course_stream_min_day_for_next"])
+    if "course_stream_gap_days" in data and data["course_stream_gap_days"] is not None:
+        d.course_stream_gap_days = int(data["course_stream_gap_days"])
+
+
+def _direction_read(d: BookingDirection, pipeline_name: str | None) -> BookingDirectionRead:
+    return BookingDirectionRead(
+        id=d.id,
+        name=d.name,
+        duration_min=d.duration_min,
+        is_active=d.is_active,
+        pipeline_id=d.pipeline_id,
+        pipeline_name=pipeline_name,
+        course_streams_enabled=bool(getattr(d, "course_streams_enabled", False)),
+        course_stream_max_days=int(getattr(d, "course_stream_max_days", 15) or 15),
+        course_stream_min_day_for_next=int(getattr(d, "course_stream_min_day_for_next", 10) or 10),
+        course_stream_gap_days=int(getattr(d, "course_stream_gap_days", 10) or 10),
+    )
+
+
 def _specialist_read(s: BookingSpecialist, direction_name: str | None) -> BookingSpecialistRead:
     return BookingSpecialistRead(
         id=s.id,
@@ -541,17 +567,7 @@ async def list_directions(
         q = q.where(BookingDirection.pipeline_id == pipeline_id)
     result = await db.execute(q)
     rows = result.all()
-    return [
-        BookingDirectionRead(
-            id=d.id,
-            name=d.name,
-            duration_min=d.duration_min,
-            is_active=d.is_active,
-            pipeline_id=d.pipeline_id,
-            pipeline_name=pname,
-        )
-        for d, pname in rows
-    ]
+    return [_direction_read(d, pname) for d, pname in rows]
 
 
 @router.post("/directions", response_model=BookingDirectionRead, status_code=status.HTTP_201_CREATED)
@@ -586,14 +602,7 @@ async def create_direction(
         )
     except IntegrityError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Направление с таким именем уже есть")
-    return BookingDirectionRead(
-        id=row.id,
-        name=row.name,
-        duration_min=row.duration_min,
-        is_active=row.is_active,
-        pipeline_id=row.pipeline_id,
-        pipeline_name=pipe.name,
-    )
+    return _direction_read(row, pipe.name)
 
 
 @router.patch("/directions/{direction_id}", response_model=BookingDirectionRead)
@@ -622,19 +631,13 @@ async def patch_direction(
         if p is None or p.company_id != company_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная воронка")
         d.pipeline_id = body.pipeline_id
+    _apply_direction_course_stream_fields(d, patch)
     await db.flush()
     p_name: str | None = None
     if d.pipeline_id is not None:
         p = await db.get(Pipeline, d.pipeline_id)
         p_name = p.name if p is not None else None
-    return BookingDirectionRead(
-        id=d.id,
-        name=d.name,
-        duration_min=d.duration_min,
-        is_active=d.is_active,
-        pipeline_id=d.pipeline_id,
-        pipeline_name=p_name,
-    )
+    return _direction_read(d, p_name)
 
 
 @router.delete("/directions/{direction_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1204,7 +1207,24 @@ async def booking_patient_history(
     out.sort(key=lambda x: (x.last_visit_at or datetime.min.replace(tzinfo=UTC)), reverse=True)
     for item in out:
         item.visits.sort(key=lambda v: v.start_at, reverse=True)
-    return out[:limit]
+
+    from app.services.patient_phone_visibility import resolve_phone_fields
+
+    masked: list[BookingPatientHistoryItem] = []
+    for item in out[:limit]:
+        phone_val, phone_display, can_view = await resolve_phone_fields(
+            db, current_user, None, item.patient_phone,
+        )
+        masked.append(
+            item.model_copy(
+                update={
+                    "patient_phone": phone_val if phone_val is not None else (phone_display or "—"),
+                    "patient_phone_display": phone_display,
+                    "patient_phone_can_view_full": can_view,
+                },
+            ),
+        )
+    return masked
 
 
 def _suggest_dedupe_key(phone: str, name: str) -> str:
@@ -1267,14 +1287,23 @@ async def booking_patient_suggest(
         )
     ).all()
 
+    from app.services.patient_phone_visibility import resolve_phone_fields
+
     for lead, mgr_name in lead_rows:
         if not _lead_matches_suggest_term(lead, term, phone_digits):
             continue
+        await db.refresh(lead, ["stage"])
+        pipeline_id = lead.stage.pipeline_id if lead.stage else None
+        phone_val, phone_display, can_view = await resolve_phone_fields(
+            db, current_user, pipeline_id, lead.phone,
+        )
         push(
             BookingPatientSuggestItem(
                 lead_id=int(lead.id),
                 patient_name=(lead.name or "").strip() or "Клиент",
-                patient_phone=(lead.phone or "").strip() or "—",
+                patient_phone=phone_val if phone_val is not None else (phone_display or "—"),
+                patient_phone_display=phone_display,
+                patient_phone_can_view_full=can_view,
                 manager_name=(mgr_name or "").strip() or None,
                 source="crm",
             ),
@@ -1323,11 +1352,22 @@ async def booking_patient_suggest(
                 if term.lower() not in name.lower():
                     continue
         mgr_name = mgr_by_lead.get(int(lead_id)) if lead_id is not None else None
+        pipeline_id: int | None = None
+        if lead_id is not None:
+            lead_row = await db.get(Lead, int(lead_id))
+            if lead_row is not None:
+                await db.refresh(lead_row, ["stage"])
+                pipeline_id = lead_row.stage.pipeline_id if lead_row.stage else None
+        phone_val, phone_display, can_view = await resolve_phone_fields(
+            db, current_user, pipeline_id, phone,
+        )
         push(
             BookingPatientSuggestItem(
                 lead_id=int(lead_id) if lead_id is not None else None,
                 patient_name=name,
-                patient_phone=phone,
+                patient_phone=phone_val if phone_val is not None else (phone_display or "—"),
+                patient_phone_display=phone_display,
+                patient_phone_can_view_full=can_view,
                 manager_name=mgr_name,
                 source="visits",
             ),
@@ -1434,12 +1474,17 @@ async def create_appointment(
 
     now = datetime.now(UTC)
     service_title = (body.service_title or "").strip()
+    stored_phone = body.patient_phone.strip()
+    if lead_id is not None:
+        lead_for_phone = await db.get(Lead, lead_id)
+        if lead_for_phone is not None and (lead_for_phone.phone or "").strip():
+            stored_phone = (lead_for_phone.phone or "").strip()
     appt = BookingAppointment(
         company_id=company_id,
         lead_id=lead_id,
         pipeline_id=appointment_pipeline_id,
         patient_name=body.patient_name.strip(),
-        patient_phone=body.patient_phone.strip(),
+        patient_phone=stored_phone,
         direction_id=resolved_direction_id,
         specialist_id=body.specialist_id,
         start_at=start_at,

@@ -63,6 +63,7 @@ from app.services.background_events import record_background_event
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.runtime_metrics import runtime_metrics
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
+from app.services.gmail_inbox_sync import run_gmail_inbox_sync_tick
 from app.services.whatsapp_payment_reminders import run_payment_reminder_tick
 
 logger = logging.getLogger(__name__)
@@ -267,6 +268,7 @@ async def lifespan(_: FastAPI):
 
     async def _reminder_loop() -> None:
         next_sheets_run = 0.0
+        next_gmail_run = 0.0
         try:
             await asyncio.sleep(8)
         except asyncio.CancelledError:
@@ -276,11 +278,18 @@ async def lifespan(_: FastAPI):
                 async with AsyncSessionLocal() as session:
                     sent = await run_whatsapp_reminder_tick(session)
                     pay_sent = await run_payment_reminder_tick(session)
+                    gmail_imported = 0
+                    now_tick = asyncio.get_running_loop().time()
+                    if now_tick >= next_gmail_run:
+                        gmail_imported = await run_gmail_inbox_sync_tick(session)
+                        next_gmail_run = now_tick + 300.0
                     await session.commit()
                     if sent:
                         logger.info("whatsapp reminders sent: %s", sent)
                     if pay_sent:
                         logger.info("whatsapp payment reminders sent: %s", pay_sent)
+                    if gmail_imported:
+                        logger.info("gmail inbox imported: %s", gmail_imported)
                         record_background_event(
                             source="whatsapp_reminders",
                             ok=True,
