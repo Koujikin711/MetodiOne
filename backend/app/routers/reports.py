@@ -60,8 +60,9 @@ def _aggregate_expert_visit_stats(
         sid = int(sid)
         li = visit_map.get(int(appt_id)) or VisitLabelInfo(visit_number=1, visit_label="1")
         key = _visit_group_key(phone, sid)
+        # Сеансы за период = число визитов (записей) в диапазоне, не сумма порядковых номеров.
+        stats[sid]["sessions_total"] += 1
         if li.visit_stream is not None and li.visit_stream_day is not None:
-            stats[sid]["sessions_total"] += int(li.visit_stream_day)
             if int(li.visit_stream) == 1 and int(li.visit_stream_day) == 1:
                 stats[sid]["first_phones"].add(key)
             if int(li.visit_stream) >= 2 or (
@@ -70,7 +71,6 @@ def _aggregate_expert_visit_stats(
                 stats[sid]["repeat_phones"].add(key)
         else:
             vn = int(li.visit_number or 1)
-            stats[sid]["sessions_total"] += vn
             if vn <= 1:
                 stats[sid]["first_phones"].add(key)
             if vn >= 2:

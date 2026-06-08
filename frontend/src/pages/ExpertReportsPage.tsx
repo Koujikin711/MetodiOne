@@ -85,7 +85,7 @@ export function ExpertReportsPage() {
                 <span className="mo-muted">Повторное:</span> {p.repeat_patients ?? 0}
               </span>
               <span>
-                <span className="mo-muted">Сеансы (сумма):</span> {p.sessions_total ?? 0}
+                <span className="mo-muted">Сеансы:</span> {p.sessions_total ?? 0}
               </span>
             </div>
           </div>
