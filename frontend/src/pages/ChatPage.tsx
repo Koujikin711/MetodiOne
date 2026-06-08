@@ -232,8 +232,11 @@ export function ChatPage() {
     refetchInterval: tabVisible ? 6000 : false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
+    placeholderData: (prev) => prev,
   });
   const [threadId, setThreadId] = useState<number | null>(null);
+  /** Снимок открытого диалога — не теряется, если после ответа он выпал из вкладки/списка. */
+  const [pinnedThread, setPinnedThread] = useState<ChatThread | null>(null);
   const leadFromQuery = Number(searchParams.get("lead_id"));
 
   const allThreads = useMemo(() => {
@@ -254,8 +257,18 @@ export function ChatPage() {
     if (!Number.isFinite(leadFromQuery) || leadFromQuery <= 0) return;
     if (threadId != null) return;
     const match = allThreads.find((t) => t.lead_id === leadFromQuery);
-    if (match) setThreadId(match.id);
+    if (match) openThread(match);
   }, [leadFromQuery, threadId, allThreads]);
+
+  function openThread(t: ChatThread) {
+    setThreadId(t.id);
+    setPinnedThread(t);
+  }
+
+  function closeChat() {
+    setThreadId(null);
+    setPinnedThread(null);
+  }
 
   const [text, setText] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -272,11 +285,28 @@ export function ChatPage() {
   }, [threadId]);
 
   const selectedThread = useMemo(() => allThreads.find((t) => t.id === threadId) ?? null, [allThreads, threadId]);
+
+  useEffect(() => {
+    if (threadId == null) {
+      setPinnedThread(null);
+      return;
+    }
+    if (selectedThread) setPinnedThread(selectedThread);
+  }, [threadId, selectedThread]);
+
+  const activeThread = useMemo(() => {
+    if (threadId == null) return null;
+    if (pinnedThread?.id === threadId) return pinnedThread;
+    return selectedThread;
+  }, [threadId, pinnedThread, selectedThread]);
+
   const selectedManagerLabel = useMemo(() => {
-    const raw = (selectedThread?.manager_name || "").trim();
+    const raw = (activeThread?.manager_name || "").trim();
     if (raw) return raw;
     return "—";
-  }, [selectedThread?.manager_name]);
+  }, [activeThread?.manager_name]);
+
+  const showListOnMobile = threadId == null;
   const displayThreads = useMemo(() => {
     const list = [...allThreads];
     if (!showManagerChatBuckets) {
@@ -294,7 +324,7 @@ export function ChatPage() {
 
   useEffect(() => {
     if (!showManagerChatBuckets) return;
-    setThreadId(null);
+    closeChat();
   }, [chatBucket, showManagerChatBuckets]);
 
   const messagesQuery = useQuery({
@@ -504,16 +534,21 @@ export function ChatPage() {
   };
 
   return (
-    <div className="relative mx-auto max-w-[1400px] space-y-4 pb-28 sm:pb-10">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight text-[#1e3348]">Чат</h1>
-        <p className="mt-1 text-sm text-[#5c6b7a]">
+    <div className="relative mx-auto flex max-w-[1400px] flex-col gap-3 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:gap-4 sm:pb-10">
+      <header className={showListOnMobile ? "shrink-0" : "hidden shrink-0 lg:block"}>
+        <h1 className="text-xl font-semibold tracking-tight text-[#1e3348] sm:text-3xl">Чат</h1>
+        <p className="mt-1 hidden text-sm text-[#5c6b7a] sm:block">
           Переписка с клиентами (WhatsApp через GREEN API): текст, фото, видео, голос, файлы.
         </p>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <section className={["mo-card p-3", threadId != null ? "hidden lg:block" : ""].join(" ")}>
+      <div className="grid min-h-0 flex-1 gap-3 lg:min-h-[calc(100dvh-12rem)] lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-4">
+        <section
+          className={[
+            "mo-card flex max-h-[calc(100dvh-14rem-env(safe-area-inset-bottom))] flex-col overflow-hidden p-3",
+            showListOnMobile ? "flex" : "hidden lg:flex",
+          ].join(" ")}
+        >
           <div className="mb-2 text-sm font-semibold text-[#1e3348]">Диалоги</div>
 
           {showManagerChatBuckets ? (
@@ -571,7 +606,7 @@ export function ChatPage() {
           )}
           <div
             ref={threadsListRef}
-            className="max-h-[56vh] space-y-2 overflow-y-auto overscroll-contain pr-1 sm:max-h-[62vh]"
+            className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 lg:max-h-[56vh]"
           >
             {displayThreads.map((t) => {
               const unread = t.unread_count ?? 0;
@@ -580,7 +615,7 @@ export function ChatPage() {
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => setThreadId(t.id)}
+                  onClick={() => openThread(t)}
                   className={threadRowClasses(t, t.id === threadId)}
                 >
                   <div className="min-w-0 flex-1">
@@ -628,40 +663,51 @@ export function ChatPage() {
 
         <section
           className={[
-            "mo-section flex flex-col p-3 shadow-inner backdrop-blur-sm sm:p-4",
+            "mo-section flex flex-col overflow-hidden p-3 shadow-inner backdrop-blur-sm sm:p-4",
             threadId == null ? "hidden lg:flex" : "flex",
-            threadId != null ? "max-lg:min-h-[calc(100dvh-10rem)]" : "",
+            threadId != null
+              ? "max-lg:min-h-[calc(100dvh-14rem-env(safe-area-inset-bottom))] max-lg:max-h-[calc(100dvh-14rem-env(safe-area-inset-bottom))]"
+              : "",
           ].join(" ")}
         >
-          {!selectedThread && <p className="text-sm mo-muted">Выберите диалог слева.</p>}
-          {selectedThread && (
+          {threadId == null && (
+            <p className="flex flex-1 items-center justify-center text-sm mo-muted lg:flex">
+              Выберите диалог слева.
+            </p>
+          )}
+          {threadId != null && (
             <>
-              <div className="mb-3 flex shrink-0 items-start gap-2 border-b border-[var(--mo-border)] pb-2">
+              <div className="flex shrink-0 items-start gap-2 border-b border-[var(--mo-border)] pb-2.5 pt-0.5">
                 <button
                   type="button"
-                  className="btn-secondary shrink-0 px-2 py-1.5 text-xs lg:hidden"
-                  onClick={() => setThreadId(null)}
+                  className="btn-secondary shrink-0 px-3 py-2 text-sm lg:hidden"
+                  onClick={closeChat}
+                  aria-label="Назад к списку диалогов"
                 >
-                  ← Диалоги
+                  ← Назад
                 </button>
                 <div className="min-w-0 flex-1">
-                <div className="lux-subheading text-sm">
-                  {selectedThread.lead_name || selectedThread.title || `Диалог #${selectedThread.id}`}
-                </div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs lux-caption">
-                  <span>
-                    {selectedThread.provider} {selectedThread.external_chat_id ? `· ${selectedThread.external_chat_id}` : ""}
-                  </span>
-                  <span className="opacity-60">·</span>
-                  <span>
-                    Ответственный: <span className="text-[var(--mo-text)]/90">{selectedManagerLabel}</span>
-                  </span>
-                </div>
+                  <div className="lux-subheading truncate text-sm">
+                    {activeThread?.lead_name || activeThread?.title || `Диалог #${threadId}`}
+                  </div>
+                  {activeThread ? (
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs lux-caption">
+                      <span>
+                        {activeThread.provider}{" "}
+                        {activeThread.external_chat_id ? `· ${activeThread.external_chat_id}` : ""}
+                      </span>
+                      <span className="opacity-60">·</span>
+                      <span>
+                        Ответственный:{" "}
+                        <span className="text-[var(--mo-text)]/90">{selectedManagerLabel}</span>
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col">
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 max-lg:max-h-none lg:max-h-[56vh]">
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-0.5 py-2 lg:max-h-[56vh]">
                 {messagesQuery.isLoading && <p className="text-sm lux-caption">Загрузка сообщений…</p>}
                 {(messagesQuery.data ?? []).map((m, idx, arr) => {
                   const isOut = m.direction === "out";
@@ -708,7 +754,7 @@ export function ChatPage() {
               </div>
 
               <form
-                className="sticky bottom-0 z-10 mt-3 shrink-0 flex flex-col gap-2 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] pt-3 sm:flex-row sm:items-end sm:border-t-0 sm:bg-transparent lg:static"
+                className="shrink-0 flex flex-col gap-2 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] pt-3 sm:flex-row sm:items-end lg:mt-3 lg:bg-transparent"
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (isRecording || voiceFinishing) return;
