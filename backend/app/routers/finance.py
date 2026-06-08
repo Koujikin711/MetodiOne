@@ -86,6 +86,7 @@ from app.schemas.finance import (
     WarehouseRead,
     YearOverviewMonthRead,
 )
+from app.schemas.service_catalog import AccountantExpenseCreate
 from app.services.finance_export_workbook import build_finance_workbook_bytes
 from app.services.finance_osv_import import (
     is_cash_osv_revenue_kind,
@@ -151,9 +152,11 @@ _FINANCE_READ_ROLES = frozenset(
         UserRole.admin,
         UserRole.super_owner,
         UserRole.finance_analyst,
+        UserRole.accountant,
     },
 )
 _FINANCE_WRITE_ROLES = frozenset({UserRole.owner, UserRole.admin, UserRole.super_owner})
+_ACCOUNTANT_WRITE_ROLES = frozenset({UserRole.accountant, UserRole.owner, UserRole.admin, UserRole.super_owner})
 
 
 async def _require_finance(user: CurrentUser) -> None:
@@ -2032,3 +2035,37 @@ async def import_osv_csv(
         warnings=warnings,
         accounts_missing=[],
     )
+
+
+@router.post("/accountant/expense", status_code=status.HTTP_201_CREATED)
+async def post_accountant_expense(
+    body: AccountantExpenseCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> dict:
+    if current_user.role not in _ACCOUNTANT_WRITE_ROLES:
+        raise HTTPException(status_code=403, detail="Только бухгалтер или администратор")
+    await _ready_finance(db, company_id)
+    amount = Decimal(body.amount).quantize(Decimal("0.01"))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Сумма должна быть больше 0")
+    expense_acc_id = await account_id_by_code(db, company_id, body.expense_account_code.strip())
+    cash_acc_id = await account_id_by_code(db, company_id, "1010")
+    if expense_acc_id is None or cash_acc_id is None:
+        raise HTTPException(status_code=400, detail="Счёт расхода или кассы не найден")
+    entry_dt = body.entry_date or datetime.now(UTC)
+    ent = await _post_balanced_journal(
+        db,
+        company_id=company_id,
+        user_id=current_user.id,
+        entry_date=entry_dt,
+        memo=body.memo or body.dds_article,
+        source_type="accountant_expense",
+        lines=[
+            (int(expense_acc_id), amount, Decimal("0"), {"dds_article": body.dds_article}),
+            (int(cash_acc_id), Decimal("0"), amount, None),
+        ],
+    )
+    await db.commit()
+    return {"journal_entry_id": ent.id, "amount": str(amount)}

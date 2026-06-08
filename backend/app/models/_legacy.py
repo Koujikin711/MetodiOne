@@ -18,6 +18,7 @@ class UserRole(str, enum.Enum):
     manager = "manager"
     expert = "expert"
     finance_analyst = "finance_analyst"
+    accountant = "accountant"
 
 
 class TaskStatus(str, enum.Enum):
@@ -852,3 +853,102 @@ class FinanceDeferredPeriod(Base):
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (UniqueConstraint("contract_id", "period_no", name="uq_finance_deferred_contract_period"),)
+
+
+class ServiceTemplate(Base):
+    """Конструктор услуг: шаблон на воронку (разовая / протокол / курс)."""
+
+    __tablename__ = "service_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    pipeline_id: Mapped[int] = mapped_column(ForeignKey("pipelines.id", ondelete="CASCADE"), index=True)
+    direction_id: Mapped[int | None] = mapped_column(
+        ForeignKey("booking_directions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    service_type: Mapped[str] = mapped_column(String(32), default="single")  # single|protocol|course
+    duration_days: Mapped[int | None] = mapped_column(nullable=True)
+    visit_count: Mapped[int | None] = mapped_column(nullable=True)
+    price_base: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    specialist_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    course_streams_enabled: Mapped[bool] = mapped_column(default=False)
+    course_stream_max_days: Mapped[int] = mapped_column(default=15)
+    course_stream_min_day_for_next: Mapped[int] = mapped_column(default=10)
+    course_stream_gap_days: Mapped[int] = mapped_column(default=10)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    is_legacy: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
+class ServicePaymentRule(Base):
+    """Правило этапа оплаты в шаблоне (произвольное число этапов)."""
+
+    __tablename__ = "service_payment_rules"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey("service_templates.id", ondelete="CASCADE"), index=True)
+    sort_order: Mapped[int] = mapped_column(default=1)
+    label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    kind: Mapped[str] = mapped_column(String(16), default="percent")  # percent|fixed
+    value: Mapped[Decimal] = mapped_column(Numeric(14, 4), default=Decimal("0"))
+    trigger_type: Mapped[str] = mapped_column(String(32), default="on_enrollment")
+    trigger_day: Mapped[int | None] = mapped_column(nullable=True)
+    trigger_days_offset: Mapped[int | None] = mapped_column(nullable=True)
+
+
+class PatientServiceEnrollment(Base):
+    """Подключённая услуга у лида."""
+
+    __tablename__ = "patient_service_enrollments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey("service_templates.id", ondelete="RESTRICT"), index=True)
+    pipeline_id: Mapped[int] = mapped_column(ForeignKey("pipelines.id", ondelete="CASCADE"), index=True)
+    direction_id: Mapped[int | None] = mapped_column(ForeignKey("booking_directions.id", ondelete="SET NULL"), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    status: Mapped[str] = mapped_column(String(24), default="active")  # active|completed|cancelled
+    total_price: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+
+
+class PaymentInstallment(Base):
+    """Этап оплаты по enrollment."""
+
+    __tablename__ = "payment_installments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    enrollment_id: Mapped[int] = mapped_column(
+        ForeignKey("patient_service_enrollments.id", ondelete="CASCADE"),
+        index=True,
+    )
+    sort_order: Mapped[int] = mapped_column(default=1)
+    label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    due_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(24), default="pending")  # pending|paid|overdue
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    journal_entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("finance_journal_entries.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class FinanceGmailInboxItem(Base):
+    """Входящий документ из Gmail (черновик до проводки)."""
+
+    __tablename__ = "finance_gmail_inbox"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    gmail_message_id: Mapped[str] = mapped_column(String(128), index=True)
+    subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    sender: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    attachment_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(24), default="pending")  # pending|applied|rejected
+    parsed_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)

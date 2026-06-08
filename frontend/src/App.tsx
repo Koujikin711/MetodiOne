@@ -6,7 +6,9 @@ import {
   HomeEntry,
   RequireFinance,
   RequireNotManager,
+  RequireAccountant,
   RequireOwner,
+  RequireOwnerOrAdmin,
   RequireSuperOwner,
 } from "@/components/RoleRoutes";
 import { MainLayout } from "@/layouts/MainLayout";
@@ -31,6 +33,9 @@ import { OnboardingPage } from "@/pages/OnboardingPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { TeamMessengerPage } from "@/pages/TeamMessengerPage";
 import { ManagerDeskPage } from "@/pages/ManagerDeskPage";
+import { ServiceCatalogPage } from "@/pages/ServiceCatalogPage";
+import { AccountantPage } from "@/pages/AccountantPage";
+import { ReceivablesPage } from "@/pages/ReceivablesPage";
 
 export default function App() {
   return (
@@ -73,6 +78,30 @@ export default function App() {
               <Route path="reports" element={<FinancePage />} />
             </Route>
             <Route path="/reports" element={<ExpertReportsPage />} />
+            <Route
+              path="/services"
+              element={
+                <RequireOwnerOrAdmin>
+                  <ServiceCatalogPage />
+                </RequireOwnerOrAdmin>
+              }
+            />
+            <Route
+              path="/receivables"
+              element={
+                <RequireFinance>
+                  <ReceivablesPage />
+                </RequireFinance>
+              }
+            />
+            <Route
+              path="/accountant"
+              element={
+                <RequireAccountant>
+                  <AccountantPage />
+                </RequireAccountant>
+              }
+            />
             <Route
               path="/employees"
               element={

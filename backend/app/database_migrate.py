@@ -1434,3 +1434,226 @@ async def ensure_tariff_constructor_billing(conn: AsyncConnection, database_url:
         await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS scheduled_tariff_effective_at TIMESTAMPTZ"))
         return
 
+
+async def ensure_accountant_role(conn: AsyncConnection, database_url: str) -> None:
+    low = database_url.lower()
+    if "postgresql" not in low and "asyncpg" not in low:
+        return
+    if conn.in_transaction():
+        await conn.commit()
+    ac = conn.execution_options(isolation_level="AUTOCOMMIT")
+    if hasattr(ac, "__await__"):
+        ac = await ac  # type: ignore[assignment]
+    exists_q = text(
+        """
+        SELECT 1 FROM pg_enum e
+        JOIN pg_type t ON t.oid = e.enumtypid
+        WHERE t.typname = 'user_role' AND e.enumlabel = :val LIMIT 1
+        """,
+    )
+    if await ac.scalar(exists_q, {"val": "accountant"}) is None:
+        await ac.execute(text("ALTER TYPE user_role ADD VALUE 'accountant'"))
+
+
+async def ensure_service_catalog_tables(conn: AsyncConnection, database_url: str) -> None:
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    pg = "postgresql" in low or "asyncpg" in low
+
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS service_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    pipeline_id INTEGER NOT NULL,
+                    direction_id INTEGER,
+                    name VARCHAR(255) NOT NULL,
+                    service_type VARCHAR(32) NOT NULL DEFAULT 'single',
+                    duration_days INTEGER,
+                    visit_count INTEGER,
+                    price_base NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    specialist_ids TEXT NOT NULL DEFAULT '[]',
+                    course_streams_enabled INTEGER NOT NULL DEFAULT 0,
+                    course_stream_max_days INTEGER NOT NULL DEFAULT 15,
+                    course_stream_min_day_for_next INTEGER NOT NULL DEFAULT 10,
+                    course_stream_gap_days INTEGER NOT NULL DEFAULT 10,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    is_legacy INTEGER NOT NULL DEFAULT 0,
+                    created_at DATETIME
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS service_payment_rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    template_id INTEGER NOT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 1,
+                    label VARCHAR(120),
+                    kind VARCHAR(16) NOT NULL DEFAULT 'percent',
+                    value NUMERIC(14, 4) NOT NULL DEFAULT 0,
+                    trigger_type VARCHAR(32) NOT NULL DEFAULT 'on_enrollment',
+                    trigger_day INTEGER,
+                    trigger_days_offset INTEGER
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS patient_service_enrollments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    lead_id INTEGER NOT NULL,
+                    template_id INTEGER NOT NULL,
+                    pipeline_id INTEGER NOT NULL,
+                    direction_id INTEGER,
+                    started_at DATETIME,
+                    status VARCHAR(24) NOT NULL DEFAULT 'active',
+                    total_price NUMERIC(14, 2) NOT NULL DEFAULT 0
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS payment_installments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    enrollment_id INTEGER NOT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 1,
+                    label VARCHAR(120),
+                    amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    due_date DATETIME NOT NULL,
+                    status VARCHAR(24) NOT NULL DEFAULT 'pending',
+                    paid_at DATETIME,
+                    journal_entry_id INTEGER,
+                    reminder_sent_at DATETIME
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS finance_gmail_inbox (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    gmail_message_id VARCHAR(128) NOT NULL,
+                    subject VARCHAR(500),
+                    sender VARCHAR(320),
+                    attachment_name VARCHAR(255),
+                    status VARCHAR(24) NOT NULL DEFAULT 'pending',
+                    parsed_summary TEXT,
+                    created_at DATETIME
+                )""",
+            ),
+        )
+        r = await conn.execute(text("PRAGMA table_info(booking_directions)"))
+        dcols = {row[1] for row in r.fetchall()}
+        for col, ddl in (
+            ("course_streams_enabled", "INTEGER NOT NULL DEFAULT 0"),
+            ("course_stream_max_days", "INTEGER NOT NULL DEFAULT 15"),
+            ("course_stream_min_day_for_next", "INTEGER NOT NULL DEFAULT 10"),
+            ("course_stream_gap_days", "INTEGER NOT NULL DEFAULT 10"),
+        ):
+            if col not in dcols:
+                await conn.execute(text(f"ALTER TABLE booking_directions ADD COLUMN {col} {ddl}"))
+        return
+
+    if pg:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS service_templates (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+                    direction_id INTEGER REFERENCES booking_directions(id) ON DELETE SET NULL,
+                    name VARCHAR(255) NOT NULL,
+                    service_type VARCHAR(32) NOT NULL DEFAULT 'single',
+                    duration_days INTEGER,
+                    visit_count INTEGER,
+                    price_base NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    specialist_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    course_streams_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                    course_stream_max_days INTEGER NOT NULL DEFAULT 15,
+                    course_stream_min_day_for_next INTEGER NOT NULL DEFAULT 10,
+                    course_stream_gap_days INTEGER NOT NULL DEFAULT 10,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    is_legacy BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS service_payment_rules (
+                    id SERIAL PRIMARY KEY,
+                    template_id INTEGER NOT NULL REFERENCES service_templates(id) ON DELETE CASCADE,
+                    sort_order INTEGER NOT NULL DEFAULT 1,
+                    label VARCHAR(120),
+                    kind VARCHAR(16) NOT NULL DEFAULT 'percent',
+                    value NUMERIC(14, 4) NOT NULL DEFAULT 0,
+                    trigger_type VARCHAR(32) NOT NULL DEFAULT 'on_enrollment',
+                    trigger_day INTEGER,
+                    trigger_days_offset INTEGER
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS patient_service_enrollments (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+                    template_id INTEGER NOT NULL REFERENCES service_templates(id) ON DELETE RESTRICT,
+                    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+                    direction_id INTEGER REFERENCES booking_directions(id) ON DELETE SET NULL,
+                    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    status VARCHAR(24) NOT NULL DEFAULT 'active',
+                    total_price NUMERIC(14, 2) NOT NULL DEFAULT 0
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS payment_installments (
+                    id SERIAL PRIMARY KEY,
+                    enrollment_id INTEGER NOT NULL REFERENCES patient_service_enrollments(id) ON DELETE CASCADE,
+                    sort_order INTEGER NOT NULL DEFAULT 1,
+                    label VARCHAR(120),
+                    amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    due_date TIMESTAMPTZ NOT NULL,
+                    status VARCHAR(24) NOT NULL DEFAULT 'pending',
+                    paid_at TIMESTAMPTZ,
+                    journal_entry_id INTEGER REFERENCES finance_journal_entries(id) ON DELETE SET NULL,
+                    reminder_sent_at TIMESTAMPTZ
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS finance_gmail_inbox (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    gmail_message_id VARCHAR(128) NOT NULL,
+                    subject VARCHAR(500),
+                    sender VARCHAR(320),
+                    attachment_name VARCHAR(255),
+                    status VARCHAR(24) NOT NULL DEFAULT 'pending',
+                    parsed_summary TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""",
+            ),
+        )
+        await conn.execute(
+            text("ALTER TABLE booking_directions ADD COLUMN IF NOT EXISTS course_streams_enabled BOOLEAN NOT NULL DEFAULT FALSE"),
+        )
+        await conn.execute(
+            text("ALTER TABLE booking_directions ADD COLUMN IF NOT EXISTS course_stream_max_days INTEGER NOT NULL DEFAULT 15"),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE booking_directions ADD COLUMN IF NOT EXISTS course_stream_min_day_for_next INTEGER NOT NULL DEFAULT 10",
+            ),
+        )
+        await conn.execute(
+            text("ALTER TABLE booking_directions ADD COLUMN IF NOT EXISTS course_stream_gap_days INTEGER NOT NULL DEFAULT 10"),
+        )
+

@@ -14,14 +14,17 @@ import {
   ymdInBookingTz,
   zonedWallTimeToUtcMs,
 } from "@/lib/bookingTz";
+import { PatientPhone } from "@/components/PatientPhone";
 import type {
   BookingAppointment,
   BookingSpecialist,
   BookingViewerContext,
+  EnrollmentRead,
   FinanceJournalEntryDetail,
   Lead,
   LeadAuditEvent,
   SalesKpiLeadPriceHint,
+  ServiceTemplateRead,
 } from "@/lib/types";
 
 export function LeadDetailPage() {
@@ -41,6 +44,7 @@ export function LeadDetailPage() {
   const [moveModalAppointment, setMoveModalAppointment] = useState<BookingAppointment | null>(null);
   const [moveDateYmd, setMoveDateYmd] = useState("");
   const [moveMinuteOfDay, setMoveMinuteOfDay] = useState<number | null>(null);
+  const [pickedTemplateId, setPickedTemplateId] = useState<number | "">("");
 
   const SLOT_STEP_MIN = 30;
 
@@ -79,6 +83,40 @@ export function LeadDetailPage() {
     queryKey: ["lead", leadId],
     queryFn: () => apiFetch<Lead>(`/api/leads/${leadId}`),
     enabled: Number.isFinite(leadId) && leadId > 0,
+  });
+  const leadPipelineId = query.data?.pipeline_id ?? null;
+  const enrollmentsQ = useQuery({
+    queryKey: ["lead-enrollments", leadId],
+    queryFn: () => apiFetch<EnrollmentRead[]>(`/api/services/leads/${leadId}/enrollments`),
+    enabled: Number.isFinite(leadId) && leadId > 0,
+  });
+  const serviceTemplatesQ = useQuery({
+    queryKey: ["service-templates", leadPipelineId],
+    queryFn: () =>
+      apiFetch<ServiceTemplateRead[]>(`/api/services/templates?pipeline_id=${leadPipelineId}&active_only=true`),
+    enabled: leadPipelineId != null,
+  });
+  const enrollMut = useMutation({
+    mutationFn: (templateId: number) =>
+      apiFetch<EnrollmentRead>(`/api/services/leads/${leadId}/enrollments`, {
+        method: "POST",
+        body: JSON.stringify({ template_id: templateId }),
+      }),
+    onSuccess: () => {
+      toast.success("Услуга подключена");
+      void qc.invalidateQueries({ queryKey: ["lead-enrollments", leadId] });
+      setPickedTemplateId("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const payInstallmentMut = useMutation({
+    mutationFn: (installmentId: number) =>
+      apiFetch(`/api/services/installments/${installmentId}/pay`, { method: "POST" }),
+    onSuccess: () => {
+      toast.success("Оплата зафиксирована");
+      void qc.invalidateQueries({ queryKey: ["lead-enrollments", leadId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
   const leadPriceHintQuery = useQuery({
     queryKey: ["lead-kpi-price-hint", leadId],
@@ -463,7 +501,9 @@ export function LeadDetailPage() {
           <dl className="grid gap-4 sm:grid-cols-2">
             <div>
               <dt className="text-xs uppercase tracking-wide mo-muted">Телефон</dt>
-              <dd className="mt-1 text-lg text-[var(--mo-text)]">{query.data.phone ?? "—"}</dd>
+              <dd className="mt-1 text-lg text-[var(--mo-text)]">
+                <PatientPhone value={query.data} />
+              </dd>
             </div>
             <div>
               <dt className="text-xs uppercase tracking-wide mo-muted">Email</dt>
@@ -492,6 +532,53 @@ export function LeadDetailPage() {
               </dd>
             </div>
           </dl>
+
+          <section className="mt-8 border-t border-[var(--mo-border)] pt-6">
+            <h2 className="lux-subheading text-sm">Услуга и оплаты</h2>
+            {(enrollmentsQ.data ?? []).map((en) => (
+              <div key={en.id} className="mt-3 rounded-xl border border-[var(--mo-border)] p-4">
+                <div className="font-semibold">{en.template_name}</div>
+                <div className="text-xs mo-muted">Сумма: {en.total_price}</div>
+                <ul className="mt-2 space-y-1 text-sm">
+                  {en.installments.map((inst) => (
+                    <li key={inst.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        {inst.label} — {inst.amount} · {new Date(inst.due_date).toLocaleDateString("ru-RU")} ·{" "}
+                        <span className={inst.status === "paid" ? "text-emerald-700" : inst.status === "overdue" ? "text-red-700" : ""}>
+                          {inst.status}
+                        </span>
+                      </span>
+                      {inst.status !== "paid" && (role === "owner" || role === "admin") && (
+                        <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => payInstallmentMut.mutate(inst.id)}>
+                          Оплачен
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {leadPipelineId != null && (role === "owner" || role === "admin" || role === "manager") && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <select className="mo-input max-w-xs" value={pickedTemplateId} onChange={(e) => setPickedTemplateId(e.target.value ? Number(e.target.value) : "")}>
+                  <option value="">Подключить услугу…</option>
+                  {(serviceTemplatesQ.data ?? []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn-primary text-sm"
+                  disabled={pickedTemplateId === "" || enrollMut.isPending}
+                  onClick={() => pickedTemplateId !== "" && enrollMut.mutate(pickedTemplateId)}
+                >
+                  Подключить
+                </button>
+              </div>
+            )}
+          </section>
 
           {(leadAppointmentsQuery.data ?? []).length > 0 && (
             <section className="mt-8 border-t border-[var(--mo-border)] pt-6">

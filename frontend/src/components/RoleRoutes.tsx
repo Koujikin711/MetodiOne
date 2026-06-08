@@ -43,6 +43,12 @@ export function HomeEntry() {
   if (role === "super_owner") {
     return <Navigate to="/companies" replace />;
   }
+  if (role === "accountant") {
+    return <Navigate to="/accountant" replace />;
+  }
+  if (role === "finance_analyst") {
+    return <Navigate to="/receivables" replace />;
+  }
   if (role === "manager" || role === "admin") {
     if (role === "manager") {
       return <Navigate to="/desk" replace />;
@@ -85,10 +91,18 @@ export function RequireSuperOwner({ children }: { children: ReactNode }) {
 
 export function RequireFinance({ children }: { children: ReactNode }) {
   const r = decodeRoleFromToken(getStoredToken());
-  if (r !== "owner" && r !== "admin" && r !== "super_owner" && r !== "finance_analyst") {
+  if (r !== "owner" && r !== "admin" && r !== "super_owner" && r !== "finance_analyst" && r !== "accountant") {
     return (
-      <AccessDenied message="Раздел «Финансы» доступен владельцу, администратору, финансовому аналитику и супер-владельцу." />
+      <AccessDenied message="Раздел «Финансы» доступен владельцу, администратору, финансовому аналитику, бухгалтеру и супер-владельцу." />
     );
+  }
+  return <>{children}</>;
+}
+
+export function RequireAccountant({ children }: { children: ReactNode }) {
+  const r = decodeRoleFromToken(getStoredToken());
+  if (r !== "accountant" && r !== "owner" && r !== "admin") {
+    return <AccessDenied message="Раздел «Бухгалтерия» доступен бухгалтеру, владельцу и администратору." />;
   }
   return <>{children}</>;
 }

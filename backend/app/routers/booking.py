@@ -301,13 +301,26 @@ async def _booking_appointment_read(
         from app.services.whatsapp_automation import booking_whatsapp_confirmation_sent
 
         whatsapp_confirmation_sent = await booking_whatsapp_confirmation_sent(db, int(a.id))
+    from app.services.patient_phone_visibility import resolve_phone_fields
+
+    pipeline_id = a.pipeline_id
+    if pipeline_id is None and viewer is not None:
+        pipeline_id = None
+    phone_raw = a.patient_phone
+    phone_val, phone_display, can_view = (
+        await resolve_phone_fields(db, viewer, pipeline_id, phone_raw)
+        if viewer is not None
+        else (phone_raw, phone_raw, True)
+    )
     return BookingAppointmentRead(
         id=a.id,
         lead_id=a.lead_id,
         specialist_id=a.specialist_id,
         direction_id=a.direction_id,
         patient_name=a.patient_name,
-        patient_phone=a.patient_phone,
+        patient_phone=phone_val if phone_val is not None else (phone_display or ""),
+        patient_phone_display=phone_display,
+        patient_phone_can_view_full=can_view,
         start_at=_ensure_utc(a.start_at),
         end_at=_ensure_utc(a.end_at),
         status=a.status,

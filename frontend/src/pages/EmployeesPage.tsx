@@ -644,6 +644,7 @@ export function EmployeesPage() {
                   <option value="expert">Эксперт</option>
                   <option value="admin">Админ воронки</option>
                   <option value="finance_analyst">Финансовый аналитик</option>
+                  <option value="accountant">Бухгалтер</option>
                 </select>
               </label>
 
