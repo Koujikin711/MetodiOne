@@ -13,7 +13,16 @@ function monthBoundsYmd(): { from: string; to: string } {
   return { from: `${y}-${m}-01`, to: `${y}-${m}-${String(last).padStart(2, "0")}` };
 }
 
-export function AccountantPage() {
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-[var(--mo-border)] p-3">
+      <p className="text-xs mo-muted">{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums">{Number(value).toLocaleString("ru-RU")}</p>
+    </div>
+  );
+}
+
+export function FinanceAccountantPanel() {
   const qc = useQueryClient();
   const period = useMemo(() => monthBoundsYmd(), []);
   const [amount, setAmount] = useState("");
@@ -63,6 +72,7 @@ export function AccountantPage() {
       setAmount("");
       setMemo("");
       void qc.invalidateQueries({ queryKey: ["accountant-dashboard"] });
+      void qc.invalidateQueries({ queryKey: ["finance-journal"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -71,17 +81,15 @@ export function AccountantPage() {
   const dash = dashboardQ.data;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 pb-10">
-      <header>
-        <h1 className="text-2xl font-semibold">Бухгалтерия</h1>
-        <p className="text-sm lux-caption">Ввод расходов, Gmail и сводка ОПУ / ДДС / ОСВ за текущий месяц</p>
-      </header>
-
+    <div className="space-y-6">
       <section className="mo-section p-4">
-        <h2 className="mb-3 lux-subheading">Сводка за месяц</h2>
-        {dashboardQ.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
+        <h2 className="lux-subheading">ОПУ / ДДС / ОСВ за месяц</h2>
+        <p className="mt-1 text-sm lux-caption">
+          Сводка в реальном времени из журнала проводок. Gmail-письма с вложениями подтягиваются в «Входящие» для ручной проводки.
+        </p>
+        {dashboardQ.isLoading && <p className="mt-3 text-sm lux-caption">Загрузка…</p>}
         {dash ? (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Metric label="Выручка (ОПУ)" value={dash.revenue_total} />
             <Metric label="Расходы (ОПУ)" value={dash.expense_total} />
             <Metric label="Чистая прибыль" value={dash.net_income} />
@@ -101,7 +109,8 @@ export function AccountantPage() {
       </section>
 
       <section className="mo-section space-y-3 p-4">
-        <h2 className="lux-subheading">Новый расход</h2>
+        <h2 className="lux-subheading">Ввод расхода</h2>
+        <p className="text-sm lux-caption">Статья из номенклатуры счетов и статья ДДС — как в вашей кассовой таблице.</p>
         <input className="mo-input" type="number" min={0} placeholder="Сумма" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <select className="mo-input" value={accountCode} onChange={(e) => setAccountCode(e.target.value)}>
           <option value="">Статья / счёт расхода</option>
@@ -111,22 +120,27 @@ export function AccountantPage() {
             </option>
           ))}
         </select>
-        <input className="mo-input" placeholder="Статья ДДС (из номенклатуры)" value={ddsArticle} onChange={(e) => setDdsArticle(e.target.value)} />
+        <input className="mo-input" placeholder="Статья ДДС" value={ddsArticle} onChange={(e) => setDdsArticle(e.target.value)} />
         <input className="mo-input" placeholder="Комментарий" value={memo} onChange={(e) => setMemo(e.target.value)} />
-        <button type="button" className="btn-primary" disabled={expenseMut.isPending || !amount || !accountCode || !ddsArticle.trim()} onClick={() => expenseMut.mutate()}>
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={expenseMut.isPending || !amount || !accountCode || !ddsArticle.trim()}
+          onClick={() => expenseMut.mutate()}
+        >
           Записать расход
         </button>
       </section>
 
       <section className="mo-section p-4">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="lux-subheading">Входящие (Gmail)</h2>
+          <h2 className="lux-subheading">Входящие Gmail</h2>
           <button type="button" className="btn-secondary text-sm" disabled={gmailSyncMut.isPending} onClick={() => gmailSyncMut.mutate()}>
             Синхронизировать
           </button>
         </div>
         <p className="mb-3 text-xs lux-caption">
-          Подключите Gmail в разделе «Интеграции» (IMAP + App Password). Новые письма подтягиваются каждые 5 минут.
+          Подключите Gmail в «Интеграции» (IMAP + App Password). Синхронизация каждые 5 минут.
         </p>
         {(inboxQ.data ?? []).map((item) => (
           <div key={item.id} className="mb-2 rounded-lg border border-[var(--mo-border)] p-2 text-sm">
@@ -137,15 +151,6 @@ export function AccountantPage() {
         ))}
         {!inboxQ.isLoading && (inboxQ.data ?? []).length === 0 && <p className="text-sm lux-caption">Входящих пока нет</p>}
       </section>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-[var(--mo-border)] p-3">
-      <p className="text-xs mo-muted">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums">{Number(value).toLocaleString("ru-RU")}</p>
     </div>
   );
 }

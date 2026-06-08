@@ -8,7 +8,6 @@ import {
   LogOut,
   MessageCircle,
   Plug,
-  TrendingUp,
   UserRound,
   Users,
   Wallet,
@@ -78,8 +77,7 @@ export function MainLayout() {
     role === "finance_analyst" ||
     role === "accountant";
   const showServices = role === "owner" || role === "admin";
-  const showReceivables = showFinance;
-  const showAccountantDesk = role === "accountant" || role === "owner" || role === "admin";
+  const financeNavTo = role === "accountant" ? "/finance/accountant" : "/finance";
   const showIntegrationsHub = role === "owner";
   const showKpi = role === "owner" || role === "super_owner" || role === "manager" || role === "admin";
   const { showNavForFeature } = useTariffNavAccess();
@@ -314,14 +312,6 @@ export function MainLayout() {
                       <span className="shell-nav-label max-w-[4rem]">Услуги</span>
                     </NavLink>
                   ) : null}
-                  {showReceivables ? (
-                    <NavLink to="/receivables" className={navLinkClass} title="Дебиторка">
-                      <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <TrendingUp className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Долги</span>
-                    </NavLink>
-                  ) : null}
 </>
             ) : isExpert ? (
               <>
@@ -367,22 +357,12 @@ export function MainLayout() {
 </>
             ) : isAccountant ? (
               <>
-                {showAccountantDesk ? (
-                  <NavLink to="/accountant" className={navLinkClass} title="Бухгалтерия">
-                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Wallet className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Бухг.</span>
-                  </NavLink>
-                ) : null}
-                {showReceivables ? (
-                  <NavLink to="/receivables" className={navLinkClass} title="Дебиторка">
-                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <TrendingUp className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Долги</span>
-                  </NavLink>
-                ) : null}
+                <NavLink to={financeNavTo} className={navLinkClass} title={navLex.navFinanceTitle}>
+                  <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                    <Wallet className="h-[18px] w-[18px]" />
+                  </GradientIconBox>
+                  <span className="shell-nav-label max-w-[4rem]">{navLex.navFinance}</span>
+                </NavLink>
               </>
             ) : (
                 <>
@@ -436,7 +416,7 @@ export function MainLayout() {
                   </NavIf>
                 ) : null}
                 <NavIf show={showNavForFeature("finance")}>
-                  <NavLink to="/finance" className={navLinkClass} title={navLex.navFinanceTitle}>
+                  <NavLink to={financeNavTo} className={navLinkClass} title={navLex.navFinanceTitle}>
                     <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
                       <Wallet className="h-[18px] w-[18px]" />
                     </GradientIconBox>
@@ -449,22 +429,6 @@ export function MainLayout() {
                       <Funnel className="h-[18px] w-[18px]" />
                     </GradientIconBox>
                     <span className="shell-nav-label max-w-[4rem]">Услуги</span>
-                  </NavLink>
-                ) : null}
-                {showReceivables ? (
-                  <NavLink to="/receivables" className={navLinkClass} title="Дебиторка">
-                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <TrendingUp className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Долги</span>
-                  </NavLink>
-                ) : null}
-                {showAccountantDesk ? (
-                  <NavLink to="/accountant" className={navLinkClass} title="Бухгалтерия">
-                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Wallet className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Бухг.</span>
                   </NavLink>
                 ) : null}
                 <NavIf show={showNavForFeature("employees")}>
@@ -614,7 +578,7 @@ export function MainLayout() {
               ) : null}
               {role === "admin" ? (
                 <NavIf show={showNavForFeature("finance")}>
-                  <NavLink to="/finance" className={mobileBottomNavLinkClass} title={navLex.navFinanceTitle}>
+                  <NavLink to={financeNavTo} className={mobileBottomNavLinkClass} title={navLex.navFinanceTitle}>
                     <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                       <Wallet className="h-4 w-4" />
                     </GradientIconBox>
@@ -628,14 +592,6 @@ export function MainLayout() {
                     <Funnel className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Услуги</span>
-                </NavLink>
-              ) : null}
-              {showReceivables ? (
-                <NavLink to="/receivables" className={mobileBottomNavLinkClass} title="Дебиторка">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <TrendingUp className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Долги</span>
                 </NavLink>
               ) : null}
 <button
@@ -705,22 +661,12 @@ export function MainLayout() {
             </>
           ) : isAccountant ? (
             <>
-              {showAccountantDesk ? (
-                <NavLink to="/accountant" className={mobileBottomNavLinkClass} title="Бухгалтерия">
-                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Wallet className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Бухг.</span>
-                </NavLink>
-              ) : null}
-              {showReceivables ? (
-                <NavLink to="/receivables" className={mobileBottomNavLinkClass} title="Дебиторка">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <TrendingUp className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Долги</span>
-                </NavLink>
-              ) : null}
+              <NavLink to={financeNavTo} className={mobileBottomNavLinkClass} title={navLex.navFinanceTitle}>
+                <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <Wallet className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">{navLex.navFinance}</span>
+              </NavLink>
               <button
                 type="button"
                 onClick={logout}
@@ -762,7 +708,7 @@ export function MainLayout() {
                 </NavIf>
               ) : null}
               <NavIf show={showNavForFeature("finance")}>
-                <NavLink to="/finance" className={mobileBottomNavLinkClass} title={navLex.navFinanceTitle}>
+                <NavLink to={financeNavTo} className={mobileBottomNavLinkClass} title={navLex.navFinanceTitle}>
                   <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Wallet className="h-4 w-4" />
                   </GradientIconBox>
@@ -775,22 +721,6 @@ export function MainLayout() {
                     <Funnel className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Услуги</span>
-                </NavLink>
-              ) : null}
-              {showReceivables ? (
-                <NavLink to="/receivables" className={mobileBottomNavLinkClass} title="Дебиторка">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <TrendingUp className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Долги</span>
-                </NavLink>
-              ) : null}
-              {showAccountantDesk ? (
-                <NavLink to="/accountant" className={mobileBottomNavLinkClass} title="Бухгалтерия">
-                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Wallet className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Бухг.</span>
                 </NavLink>
               ) : null}
               <NavIf show={showNavForFeature("chat")}>

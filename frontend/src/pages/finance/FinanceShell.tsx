@@ -1,20 +1,44 @@
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { PageHeader } from "@/components/ui/PageHeader";
-import { FINANCE_SUBROUTES } from "@/config/navByRole";
+import { FINANCE_SUBROUTES, financeTabsForRole } from "@/config/navByRole";
+import { getStoredToken } from "@/lib/api";
+import { decodeRoleFromToken } from "@/lib/auth";
 import { theme } from "@/lib/theme";
 
 export function FinanceShell() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const role = decodeRoleFromToken(getStoredToken());
+  const tabs = financeTabsForRole(role);
+
+  useEffect(() => {
+    if (role === "accountant" && (location.pathname === "/finance" || location.pathname === "/finance/")) {
+      navigate("/finance/accountant", { replace: true });
+    }
+  }, [role, location.pathname, navigate]);
+
+  const allowedPaths = new Set(tabs.map((t) => t.path));
+  useEffect(() => {
+    const match = FINANCE_SUBROUTES.find((t) =>
+      t.path === "/finance"
+        ? location.pathname === "/finance" || location.pathname === "/finance/"
+        : location.pathname.startsWith(t.path),
+    );
+    if (match && !allowedPaths.has(match.path)) {
+      navigate(tabs[0]?.path ?? "/finance", { replace: true });
+    }
+  }, [location.pathname, allowedPaths, tabs, navigate]);
 
   return (
     <div className={`${theme.pageBg} pb-10`}>
       <PageHeader
         title="Финансы"
-        description="Обзор, учёт, склад и отчётность в отдельных разделах."
+        description="Обзор, учёт, бухгалтерия, дебиторка, склад и отчётность в одном разделе."
       />
       <nav className="mb-6 flex flex-wrap gap-2">
-        {FINANCE_SUBROUTES.map((item) => {
+        {tabs.map((item) => {
           const active =
             item.path === "/finance"
               ? location.pathname === "/finance" || location.pathname === "/finance/"

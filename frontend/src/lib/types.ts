@@ -1064,6 +1064,7 @@ export interface ReceivablesSummaryRead {
   overdue_amount: number | string;
   items: {
     installment_id: number;
+    lead_id: number;
     lead_name: string;
     template_name: string;
     label: string | null;

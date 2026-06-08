@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -6,7 +6,6 @@ import {
   HomeEntry,
   RequireFinance,
   RequireNotManager,
-  RequireAccountant,
   RequireOwner,
   RequireOwnerOrAdmin,
   RequireSuperOwner,
@@ -34,8 +33,6 @@ import { TasksPage } from "@/pages/TasksPage";
 import { TeamMessengerPage } from "@/pages/TeamMessengerPage";
 import { ManagerDeskPage } from "@/pages/ManagerDeskPage";
 import { ServiceCatalogPage } from "@/pages/ServiceCatalogPage";
-import { AccountantPage } from "@/pages/AccountantPage";
-import { ReceivablesPage } from "@/pages/ReceivablesPage";
 
 export default function App() {
   return (
@@ -74,9 +71,13 @@ export default function App() {
             >
               <Route index element={<FinancePage />} />
               <Route path="accounting" element={<FinancePage />} />
+              <Route path="accountant" element={<FinancePage />} />
+              <Route path="receivables" element={<FinancePage />} />
               <Route path="inventory" element={<FinancePage />} />
               <Route path="reports" element={<FinancePage />} />
             </Route>
+            <Route path="/receivables" element={<Navigate to="/finance/receivables" replace />} />
+            <Route path="/accountant" element={<Navigate to="/finance/accountant" replace />} />
             <Route path="/reports" element={<ExpertReportsPage />} />
             <Route
               path="/services"
@@ -84,22 +85,6 @@ export default function App() {
                 <RequireOwnerOrAdmin>
                   <ServiceCatalogPage />
                 </RequireOwnerOrAdmin>
-              }
-            />
-            <Route
-              path="/receivables"
-              element={
-                <RequireFinance>
-                  <ReceivablesPage />
-                </RequireFinance>
-              }
-            />
-            <Route
-              path="/accountant"
-              element={
-                <RequireAccountant>
-                  <AccountantPage />
-                </RequireAccountant>
               }
             />
             <Route

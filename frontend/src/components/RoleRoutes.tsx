@@ -44,10 +44,10 @@ export function HomeEntry() {
     return <Navigate to="/companies" replace />;
   }
   if (role === "accountant") {
-    return <Navigate to="/accountant" replace />;
+    return <Navigate to="/finance/accountant" replace />;
   }
   if (role === "finance_analyst") {
-    return <Navigate to="/receivables" replace />;
+    return <Navigate to="/finance/reports" replace />;
   }
   if (role === "manager" || role === "admin") {
     if (role === "manager") {
@@ -99,10 +99,3 @@ export function RequireFinance({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export function RequireAccountant({ children }: { children: ReactNode }) {
-  const r = decodeRoleFromToken(getStoredToken());
-  if (r !== "accountant" && r !== "owner" && r !== "admin") {
-    return <AccessDenied message="Раздел «Бухгалтерия» доступен бухгалтеру, владельцу и администратору." />;
-  }
-  return <>{children}</>;
-}
