@@ -155,7 +155,7 @@ function threadAttention(t: ChatThread): ThreadAttention {
 
 function threadRowClasses(t: ChatThread, selected: boolean) {
   const base =
-    "flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition";
+    "flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition max-lg:px-2.5 max-lg:py-1.5";
   if (selected) {
     return [base, "border-[#2f5f85] bg-[#e8f0f7] ring-1 ring-[#2f5f85]/25"].join(" ");
   }
@@ -533,26 +533,41 @@ export function ChatPage() {
     });
   };
 
+  const mobileChatHeight =
+    "max-lg:h-[calc(100dvh-5.75rem-env(safe-area-inset-bottom))] max-lg:max-h-[calc(100dvh-5.75rem-env(safe-area-inset-bottom))]";
+
   return (
-    <div className="relative mx-auto flex max-w-[1400px] flex-col gap-3 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:gap-4 sm:pb-10">
-      <header className={showListOnMobile ? "shrink-0" : "hidden shrink-0 lg:block"}>
+    <div
+      className={[
+        "relative mx-auto flex max-w-[1400px] flex-col gap-3 sm:gap-4 sm:pb-10",
+        "max-lg:-mx-3 max-lg:-mt-4 max-lg:mb-0 max-lg:min-h-0 max-lg:overflow-hidden max-lg:pb-0 max-lg:gap-0",
+        mobileChatHeight,
+      ].join(" ")}
+    >
+      <header className="hidden shrink-0 lg:block">
         <h1 className="text-xl font-semibold tracking-tight text-[#1e3348] sm:text-3xl">Чат</h1>
         <p className="mt-1 hidden text-sm text-[#5c6b7a] sm:block">
           Переписка с клиентами (WhatsApp через GREEN API): текст, фото, видео, голос, файлы.
         </p>
       </header>
 
-      <div className="grid min-h-0 flex-1 gap-3 lg:min-h-[calc(100dvh-12rem)] lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-4">
+      <div
+        className={[
+          "grid min-h-0 flex-1 gap-3 lg:min-h-[calc(100dvh-12rem)] lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-4",
+          "max-lg:h-full max-lg:gap-0",
+        ].join(" ")}
+      >
         <section
           className={[
-            "mo-card flex max-h-[calc(100dvh-14rem-env(safe-area-inset-bottom))] flex-col overflow-hidden p-3",
+            "mo-card flex flex-col overflow-hidden p-3 max-lg:rounded-none max-lg:border-x-0 max-lg:p-2",
+            mobileChatHeight,
             showListOnMobile ? "flex" : "hidden lg:flex",
           ].join(" ")}
         >
-          <div className="mb-2 text-sm font-semibold text-[#1e3348]">Диалоги</div>
+          <div className="mb-2 hidden text-sm font-semibold text-[#1e3348] sm:block">Диалоги</div>
 
           {showManagerChatBuckets ? (
-            <div className="mb-3 grid grid-cols-3 gap-1.5">
+            <div className="mb-2 grid shrink-0 grid-cols-3 gap-1 max-lg:mb-1.5 sm:mb-3 sm:gap-1.5">
               {CHAT_BUCKET_TABS.map((tab) => {
                 const active = chatBucket === tab.id;
                 const count =
@@ -574,15 +589,15 @@ export function ChatPage() {
                     type="button"
                     onClick={() => setChatBucket(tab.id)}
                     className={[
-                      "flex min-h-[72px] flex-col items-center justify-center rounded-xl border px-1 py-2 text-center transition",
+                      "flex min-h-[52px] flex-col items-center justify-center rounded-lg border px-1 py-1.5 text-center transition sm:min-h-[72px] sm:rounded-xl sm:py-2",
                       active ? activeShell : idleShell,
                     ].join(" ")}
                   >
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-[#5c6b7a]">
+                    <span className="text-[9px] font-semibold uppercase tracking-wide text-[#5c6b7a] sm:text-[10px]">
                       {tab.label}
                     </span>
-                    <span className="mt-0.5 text-xl font-bold tabular-nums text-[#1e3348]">{count}</span>
-                    <span className="mt-0.5 text-[9px] leading-tight text-[#8a96a3]">{tab.hint}</span>
+                    <span className="mt-0.5 text-base font-bold tabular-nums text-[#1e3348] sm:text-xl">{count}</span>
+                    <span className="mt-0.5 hidden text-[9px] leading-tight text-[#8a96a3] sm:block">{tab.hint}</span>
                   </button>
                 );
               })}
@@ -593,9 +608,9 @@ export function ChatPage() {
             value={threadSearch}
             onChange={(e) => setThreadSearch(e.target.value)}
             placeholder="Поиск: имя, телефон, чат, ключевое слово…"
-            className="mb-2 w-full rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm text-[var(--mo-text)] placeholder:mo-muted"
+            className="mb-1.5 w-full shrink-0 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm text-[var(--mo-text)] placeholder:mo-muted max-lg:py-1.5 sm:mb-2"
           />
-          <p className="mb-2 text-[10px] leading-relaxed mo-muted">
+          <p className="mb-2 hidden text-[10px] leading-relaxed mo-muted sm:block">
             {showManagerChatBuckets
               ? "Вкладки фильтруют список. Внутри вкладки: зелёный — ждёт ответа · голубой — первые 3 дня · без заливки — старше."
               : "Подсветка: зелёный — ждёт вашего ответа · голубой — первые 3 дня с первого сообщения · без заливки — старше."}
@@ -606,7 +621,7 @@ export function ChatPage() {
           )}
           <div
             ref={threadsListRef}
-            className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 lg:max-h-[56vh]"
+            className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1 sm:space-y-2 lg:max-h-[56vh]"
           >
             {displayThreads.map((t) => {
               const unread = t.unread_count ?? 0;
@@ -622,11 +637,13 @@ export function ChatPage() {
                     <div className="truncate text-sm font-semibold text-[var(--mo-text)]">
                       {t.lead_name || t.title || `Диалог #${t.id}`}
                     </div>
-                    <div className="mt-1 truncate text-xs lux-caption">
+                    <div className="mt-0.5 truncate text-xs lux-caption max-lg:text-[11px] sm:mt-1">
                       {t.provider} {t.external_chat_id ? `· ${t.external_chat_id}` : ""}
                     </div>
                     {manager ? (
-                      <div className="mt-1 truncate text-[11px] mo-muted/80">Ответственный: {manager}</div>
+                      <div className="mt-1 hidden truncate text-[11px] mo-muted/80 sm:block">
+                        Ответственный: {manager}
+                      </div>
                     ) : null}
                     {t.is_transferred && chatBucket !== "transferred" ? (
                       <div className="mt-0.5 text-[10px] text-amber-200/90">Передан вам</div>
@@ -664,10 +681,9 @@ export function ChatPage() {
         <section
           className={[
             "mo-section flex flex-col overflow-hidden p-3 shadow-inner backdrop-blur-sm sm:p-4",
+            "max-lg:rounded-none max-lg:border-x-0 max-lg:p-2",
             threadId == null ? "hidden lg:flex" : "flex",
-            threadId != null
-              ? "max-lg:min-h-[calc(100dvh-14rem-env(safe-area-inset-bottom))] max-lg:max-h-[calc(100dvh-14rem-env(safe-area-inset-bottom))]"
-              : "",
+            threadId != null ? mobileChatHeight : "",
           ].join(" ")}
         >
           {threadId == null && (
@@ -677,10 +693,10 @@ export function ChatPage() {
           )}
           {threadId != null && (
             <>
-              <div className="flex shrink-0 items-start gap-2 border-b border-[var(--mo-border)] pb-2.5 pt-0.5">
+              <div className="flex shrink-0 items-start gap-2 border-b border-[var(--mo-border)] pb-2 pt-0.5 max-lg:pb-1.5">
                 <button
                   type="button"
-                  className="btn-secondary shrink-0 px-3 py-2 text-sm lg:hidden"
+                  className="btn-secondary shrink-0 px-2.5 py-1.5 text-sm max-lg:text-xs lg:hidden"
                   onClick={closeChat}
                   aria-label="Назад к списку диалогов"
                 >
