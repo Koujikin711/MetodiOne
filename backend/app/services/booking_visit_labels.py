@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import BookingAppointment, BookingSpecialist
+from app.models import BookingAppointment, BookingDirection, BookingSpecialist
 
 
 @dataclass(frozen=True)
@@ -109,13 +109,31 @@ def compute_simple_visit_numbers(appointments: list[tuple[int, datetime]]) -> di
     return out
 
 
-def visit_group_key(phone: str | None, specialist_id: int, *, norm_phone) -> tuple[str, int]:
+def visit_group_key(
+    phone: str | None,
+    specialist_id: int,
+    *,
+    norm_phone,
+    direction_id: int | None = None,
+    use_direction: bool = False,
+) -> tuple[str, int]:
     digits = norm_phone(phone) or ""
     if len(digits) >= 9:
         digits = digits[-9:]
     elif not digits:
         digits = (phone or "").strip().lower()
+    if use_direction and direction_id is not None:
+        return (digits, int(direction_id))
     return (digits, int(specialist_id))
+
+
+def course_stream_settings_from_direction(d: BookingDirection) -> CourseStreamSettings:
+    return CourseStreamSettings(
+        enabled=bool(getattr(d, "course_streams_enabled", False)),
+        max_days=max(1, int(getattr(d, "course_stream_max_days", 15) or 15)),
+        min_day_for_next=max(1, int(getattr(d, "course_stream_min_day_for_next", 10) or 10)),
+        gap_days=max(1, int(getattr(d, "course_stream_gap_days", 10) or 10)),
+    )
 
 
 async def visit_labels_for_ids(
@@ -144,11 +162,26 @@ async def visit_labels_for_ids(
     ).scalars().all()
     spec_cfg = {int(s.id): course_stream_settings_from_specialist(s) for s in spec_rows}
 
+    dir_ids = (
+        await db.execute(
+            select(BookingAppointment.direction_id).where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.specialist_id.in_(spec_ids),
+            )
+        )
+    ).all()
+    direction_ids = {int(r[0]) for r in dir_ids if r[0] is not None}
+    dir_rows = (
+        await db.execute(select(BookingDirection).where(BookingDirection.id.in_(direction_ids)))
+    ).scalars().all() if direction_ids else []
+    dir_cfg = {int(d.id): course_stream_settings_from_direction(d) for d in dir_rows}
+
     rows = (
         await db.execute(
             select(
                 BookingAppointment.id,
                 BookingAppointment.specialist_id,
+                BookingAppointment.direction_id,
                 BookingAppointment.patient_phone,
                 BookingAppointment.start_at,
             )
@@ -162,16 +195,29 @@ async def visit_labels_for_ids(
     ).all()
 
     groups: dict[tuple[str, int], list[tuple[int, datetime]]] = defaultdict(list)
-    for aid, sid, phone, start in rows:
-        groups[visit_group_key(phone, int(sid), norm_phone=norm_phone)].append((int(aid), start))
+    group_meta: dict[tuple[str, int], tuple[bool, CourseStreamSettings]] = {}
+    for aid, sid, did, phone, start in rows:
+        did_int = int(did) if did is not None else None
+        d_cfg = dir_cfg.get(did_int, CourseStreamSettings()) if did_int else CourseStreamSettings()
+        s_cfg = spec_cfg.get(int(sid), CourseStreamSettings())
+        use_dir = bool(d_cfg.enabled)
+        cfg = d_cfg if use_dir else s_cfg
+        key = visit_group_key(
+            phone,
+            int(sid),
+            norm_phone=norm_phone,
+            direction_id=did_int,
+            use_direction=use_dir,
+        )
+        groups[key].append((int(aid), start))
+        group_meta[key] = (bool(cfg.enabled), cfg)
 
     visit_map: dict[int, VisitLabelInfo] = {}
     for key, appts in groups.items():
         if not appts:
             continue
-        sid = int(key[1])
-        cfg = spec_cfg.get(sid, CourseStreamSettings())
-        if cfg.enabled:
+        enabled, cfg = group_meta.get(key, (False, CourseStreamSettings()))
+        if enabled:
             labeled = compute_course_stream_labels(appts, cfg)
         else:
             labeled = compute_simple_visit_numbers(appts)

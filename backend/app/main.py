@@ -28,15 +28,42 @@ from app.database_migrate import (
     ensure_tariff_plans_platform,
     ensure_demo_billing_platform,
     ensure_tariff_constructor_billing,
+    ensure_service_catalog_tables,
+    ensure_accountant_role,
 )
 from app.core.security import decode_token, hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
-from app.routers import analytics, audit, auth, billing, booking, chat, companies, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sources, stages, system, tariff_plans, tasks, team_chat, users
+from app.routers import (
+    analytics,
+    audit,
+    auth,
+    billing,
+    booking,
+    chat,
+    companies,
+    deals,
+    employees,
+    finance,
+    integrations,
+    leads,
+    pipelines,
+    reports,
+    sales_kpi,
+    service_catalog,
+    sources,
+    stages,
+    system,
+    tariff_plans,
+    tasks,
+    team_chat,
+    users,
+)
 from app.services.background_events import record_background_event
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.runtime_metrics import runtime_metrics
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
+from app.services.whatsapp_payment_reminders import run_payment_reminder_tick
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +117,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_tariff_plans_platform(conn, settings.database_url)
                 await ensure_demo_billing_platform(conn, settings.database_url)
                 await ensure_tariff_constructor_billing(conn, settings.database_url)
+                await ensure_service_catalog_tables(conn, settings.database_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
@@ -228,6 +256,8 @@ async def lifespan(_: FastAPI):
         await ensure_owner_role_migration(conn, settings.database_url)
     async with engine.connect() as conn:
         await ensure_integration_provider_migration(conn, settings.database_url)
+    async with engine.connect() as conn:
+        await ensure_accountant_role(conn, settings.database_url)
     await seed_pipelines_and_stages()
     await seed_test_admin()
     await seed_super_owner()
@@ -245,9 +275,12 @@ async def lifespan(_: FastAPI):
             try:
                 async with AsyncSessionLocal() as session:
                     sent = await run_whatsapp_reminder_tick(session)
+                    pay_sent = await run_payment_reminder_tick(session)
                     await session.commit()
                     if sent:
                         logger.info("whatsapp reminders sent: %s", sent)
+                    if pay_sent:
+                        logger.info("whatsapp payment reminders sent: %s", pay_sent)
                         record_background_event(
                             source="whatsapp_reminders",
                             ok=True,
@@ -503,6 +536,7 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(companies.router, prefix="/api")
 app.include_router(tariff_plans.router, prefix="/api")
 app.include_router(finance.router, prefix="/api")
+app.include_router(service_catalog.router, prefix="/api")
 app.include_router(team_chat.router, prefix="/api")
 
 

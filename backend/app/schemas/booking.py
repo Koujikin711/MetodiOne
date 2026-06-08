@@ -140,6 +140,8 @@ class BookingAppointmentRead(BaseModel):
     direction_id: int
     patient_name: str
     patient_phone: str
+    patient_phone_display: str | None = None
+    patient_phone_can_view_full: bool = False
     start_at: datetime
     end_at: datetime
     status: str
@@ -224,6 +226,8 @@ class BookingPatientVisitRead(BaseModel):
 class BookingPatientHistoryItem(BaseModel):
     patient_name: str
     patient_phone: str
+    patient_phone_display: str | None = None
+    patient_phone_can_view_full: bool = False
     total_visits: int = 0
     first_visit_at: datetime | None = None
     last_visit_at: datetime | None = None
@@ -246,5 +250,7 @@ class BookingPatientSuggestItem(BaseModel):
     lead_id: int | None = None
     patient_name: str
     patient_phone: str
+    patient_phone_display: str | None = None
+    patient_phone_can_view_full: bool = False
     manager_name: str | None = None
     source: str = Field(description="crm | visits")

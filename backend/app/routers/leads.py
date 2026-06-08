@@ -41,6 +41,7 @@ from app.schemas.lead import (
     LeadUpdate,
 )
 from app.services.audit import write_audit_event
+from app.services.patient_phone_visibility import resolve_phone_fields
 from app.services.automation import process_lead_automation
 from app.services.finance_crm_bridge import sync_deal_payment_revenue
 from app.services.lead_assignment import assign_manager_for_new_lead
@@ -331,6 +332,8 @@ def _lead_to_read(lead: Lead) -> LeadRead:
         id=lead.id,
         name=lead.name,
         phone=lead.phone,
+        phone_display=lead.phone,
+        phone_can_view_full=True,
         email=lead.email,
         source=lead.source,
         status_id=lead.status_id,
@@ -341,6 +344,20 @@ def _lead_to_read(lead: Lead) -> LeadRead:
         pipeline_id=lead.stage.pipeline_id if lead.stage else None,
         created_at=lead.created_at,
     )
+
+
+async def _apply_phone_visibility_to_read(db: AsyncSession, user: User, read: LeadRead) -> LeadRead:
+    phone, display, can_view = await resolve_phone_fields(db, user, read.pipeline_id, read.phone)
+    return read.model_copy(
+        update={"phone": phone, "phone_display": display, "phone_can_view_full": can_view},
+    )
+
+
+async def _apply_phone_visibility_batch(db: AsyncSession, user: User, items: list[LeadRead]) -> list[LeadRead]:
+    out: list[LeadRead] = []
+    for item in items:
+        out.append(await _apply_phone_visibility_to_read(db, user, item))
+    return out
 
 
 async def _manager_names_map(db: AsyncSession, manager_ids: set[int]) -> dict[int, str]:
@@ -357,10 +374,11 @@ async def _manager_names_map(db: AsyncSession, manager_ids: set[int]) -> dict[in
     return out
 
 
-async def _lead_to_read_with_manager(db: AsyncSession, lead: Lead) -> LeadRead:
+async def _lead_to_read_with_manager(db: AsyncSession, lead: Lead, user: User) -> LeadRead:
     mids = {lead.manager_id} if lead.manager_id else set()
     managers = await _manager_names_map(db, mids)
-    return _lead_to_read(lead).model_copy(update={"manager_name": managers.get(lead.manager_id or -1)})
+    base = _lead_to_read(lead).model_copy(update={"manager_name": managers.get(lead.manager_id or -1)})
+    return await _apply_phone_visibility_to_read(db, user, base)
 
 
 async def _manager_id_for_manual_lead_create(
@@ -432,7 +450,7 @@ async def create_lead(
     )
     await db.refresh(lead)
     await db.refresh(lead, ["stage"])
-    base = await _lead_to_read_with_manager(db, lead)
+    base = await _lead_to_read_with_manager(db, lead, current_user)
     enriched = await _enrich_leads_close_deal(db, [lead], [base], current_user)
     return enriched[0]
 
@@ -514,7 +532,8 @@ async def _leads_to_read_with_deals(
                 },
             ),
         )
-    return await _enrich_leads_close_deal(db, leads, out, current_user)
+    enriched = await _enrich_leads_close_deal(db, leads, out, current_user)
+    return await _apply_phone_visibility_batch(db, current_user, enriched)
 
 
 @router.get("", response_model=list[LeadRead])
@@ -1125,7 +1144,7 @@ async def get_lead(
             "paid_extras_amount": row[4],
         }
 
-    base = (await _lead_to_read_with_manager(db, lead)).model_copy(
+    base = (await _lead_to_read_with_manager(db, lead, current_user)).model_copy(
         update={
             "protocol_deal_id": (info["protocol_deal_id"] if info else None) or None,
             "protocol_requested": bool(info["protocol_requested"]) if info else False,
@@ -1190,7 +1209,7 @@ async def patch_lead(
         details="Обновлены поля карточки клиента (ФИО/телефон/email/источник)",
     )
     await db.refresh(lead, ["stage"])
-    base = await _lead_to_read_with_manager(db, lead)
+    base = await _lead_to_read_with_manager(db, lead, current_user)
     enriched = await _enrich_leads_close_deal(db, [lead], [base], current_user)
     return enriched[0]
 
@@ -1440,7 +1459,7 @@ async def close_deal_from_integration_pipeline(
             "protocol_file_attached": row[3],
             "paid_extras_amount": row[4],
         }
-    base = (await _lead_to_read_with_manager(db, lead)).model_copy(
+    base = (await _lead_to_read_with_manager(db, lead, current_user)).model_copy(
         update={
             "protocol_deal_id": (info["protocol_deal_id"] if info else None) or None,
             "protocol_requested": bool(info["protocol_requested"]) if info else False,
@@ -1504,7 +1523,7 @@ async def reject_lead(
         ),
     )
     await db.refresh(lead, ["stage"])
-    return await _lead_to_read_with_manager(db, lead)
+    return await _lead_to_read_with_manager(db, lead, current_user)
 
 
 @router.patch("/{lead_id}/status", response_model=LeadStatusPatchResponse)
@@ -1569,7 +1588,7 @@ async def update_lead_status(
         details=f"Смена стадии: {from_stage.name} -> {stage.name}",
     )
     await db.refresh(lead, ["stage"])
-    read = await _lead_to_read_with_manager(db, lead)
+    read = await _lead_to_read_with_manager(db, lead, current_user)
     automation_task_created = await process_lead_automation(db, lead_id, body.status_id)
     return LeadStatusPatchResponse(
         **read.model_dump(),
@@ -1634,7 +1653,7 @@ async def lead_arrival(
         assigned_roles=[UserRole.expert],
     )
 
-    return await _lead_to_read_with_manager(db, lead)
+    return await _lead_to_read_with_manager(db, lead, current_user)
 
 
 @router.post("/{lead_id}/no-show", response_model=LeadRead)
@@ -1696,7 +1715,7 @@ async def lead_no_show(
         details=f"Неявка обработана: action={body.action}, reason={(body.reason or '').strip() or '-'}",
     )
     await db.refresh(lead, ["stage"])
-    return await _lead_to_read_with_manager(db, lead)
+    return await _lead_to_read_with_manager(db, lead, current_user)
 
 
 @router.post("/{lead_id}/service-done", response_model=LeadRead)
@@ -1748,7 +1767,7 @@ async def lead_service_done(
         assigned_roles=[UserRole.manager, UserRole.admin],
     )
 
-    return await _lead_to_read_with_manager(db, lead)
+    return await _lead_to_read_with_manager(db, lead, current_user)
 
 
 @router.post("/{lead_id}/service-reject", response_model=LeadRead)
@@ -1792,7 +1811,7 @@ async def lead_service_reject(
         details=f"Отказ в услуге: {body.reason.strip()}",
     )
     await db.refresh(lead, ["stage"])
-    return await _lead_to_read_with_manager(db, lead)
+    return await _lead_to_read_with_manager(db, lead, current_user)
 
 
 @router.post("/{lead_id}/cart/extra-services/add", response_model=DealRead)
@@ -1928,7 +1947,7 @@ async def protocol_finish(
         assigned_roles=[UserRole.manager, UserRole.admin, UserRole.owner],
     )
 
-    return await _lead_to_read_with_manager(db, lead)
+    return await _lead_to_read_with_manager(db, lead, current_user)
 
 
 @router.get("/{lead_id}/audit", response_model=list[LeadAuditRead])

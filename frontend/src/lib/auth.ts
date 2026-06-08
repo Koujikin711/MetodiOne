@@ -27,7 +27,8 @@ export function decodeRoleFromToken(token: string | null): UserRole | null {
     role === "admin" ||
     role === "manager" ||
     role === "expert" ||
-    role === "finance_analyst"
+    role === "finance_analyst" ||
+    role === "accountant"
   )
     return role;
   return null;

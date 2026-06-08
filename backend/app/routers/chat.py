@@ -302,6 +302,12 @@ async def _send_green_file_message(
     file_content_type: str | None,
     caption: str,
 ) -> ChatMessageRead:
+    from app.services.chat_outbound_policy import outbound_message_allowed
+
+    if caption.strip():
+        allowed, policy_err = outbound_message_allowed(current_user, caption)
+        if not allowed:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=policy_err or "Сообщение запрещено")
     status_name = "sent"
     provider_msg_id = None
     try:
@@ -602,8 +608,16 @@ async def list_threads(
     if limit is not None:
         query = query.limit(limit)
     rows = (await db.execute(query)).all()
+    from app.models import UserRole
+    from app.services.patient_phone_visibility import can_view_full_patient_phone, mask_patient_phone
+
     out: list[ChatThreadRead] = []
     for row in rows:
+        ext_chat = row.external_chat_id
+        if current_user.role == UserRole.manager and ext_chat:
+            can_view = await can_view_full_patient_phone(db, current_user, row.pipeline_id)
+            if not can_view:
+                ext_chat = mask_patient_phone(ext_chat.split("@")[0] if "@" in ext_chat else ext_chat)
         out.append(
             ChatThreadRead(
                 id=int(row.id),
@@ -612,7 +626,7 @@ async def list_threads(
                 manager_id=getattr(row, "manager_id", None),
                 manager_name=getattr(row, "manager_name", None),
                 provider=row.provider,
-                external_chat_id=row.external_chat_id,
+                external_chat_id=ext_chat,
                 title=row.title,
                 pipeline_id=row.pipeline_id,
                 updated_at=row.updated_at,
@@ -781,6 +795,11 @@ async def send_message(
     if not plain_text:
         logger.warning("chat empty text thread=%s", thread_id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пустое сообщение")
+    from app.services.chat_outbound_policy import outbound_message_allowed
+
+    allowed, policy_err = outbound_message_allowed(current_user, plain_text)
+    if not allowed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=policy_err or "Сообщение запрещено")
     ok, err, provider_msg_id = await send_green_text_async(cfg, chat_id, plain_text)
     if not ok:
         msg = ChatMessage(

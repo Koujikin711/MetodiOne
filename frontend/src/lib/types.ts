@@ -1,4 +1,4 @@
-export type UserRole = "super_owner" | "owner" | "admin" | "manager" | "expert" | "finance_analyst";
+export type UserRole = "super_owner" | "owner" | "admin" | "manager" | "expert" | "finance_analyst" | "accountant";
 
 export interface User {
   id: number;
@@ -105,6 +105,9 @@ export interface Lead {
   id: number;
   name: string;
   phone: string | null;
+  phone_display?: string | null;
+  phone_can_view_full?: boolean;
+  pipeline_id?: number | null;
   email: string | null;
   source: string | null;
   status_id: number;
@@ -967,4 +970,82 @@ export interface SalesKpiLeadPriceHint {
   year_month: string;
   direction_id: number | null;
   direction_name: string | null;
+}
+
+export interface PaymentRuleCreate {
+  sort_order: number;
+  label?: string | null;
+  kind: "percent" | "fixed";
+  value: number;
+  trigger_type: string;
+  trigger_day?: number | null;
+  trigger_days_offset?: number | null;
+}
+
+export interface PaymentRuleRead extends PaymentRuleCreate {
+  id: number;
+}
+
+export interface ServiceTemplateRead {
+  id: number;
+  pipeline_id: number;
+  direction_id: number | null;
+  name: string;
+  service_type: string;
+  duration_days: number | null;
+  visit_count: number | null;
+  price_base: number | string;
+  specialist_ids: number[];
+  course_streams_enabled: boolean;
+  is_active: boolean;
+  is_legacy: boolean;
+  payment_rules: PaymentRuleRead[];
+}
+
+export interface InstallmentRead {
+  id: number;
+  sort_order: number;
+  label: string | null;
+  amount: number | string;
+  due_date: string;
+  status: string;
+  paid_at?: string | null;
+}
+
+export interface EnrollmentRead {
+  id: number;
+  lead_id: number;
+  template_id: number;
+  pipeline_id: number;
+  template_name?: string | null;
+  status: string;
+  total_price: number | string;
+  started_at: string;
+  installments: InstallmentRead[];
+}
+
+export interface ReceivablesSummaryRead {
+  pending_count: number;
+  overdue_count: number;
+  paid_month_amount: number | string;
+  overdue_amount: number | string;
+  items: {
+    installment_id: number;
+    lead_name: string;
+    template_name: string;
+    label: string | null;
+    amount: number | string;
+    due_date: string;
+    status: string;
+    days_overdue: number;
+  }[];
+}
+
+export interface GmailInboxItemRead {
+  id: number;
+  gmail_message_id: string;
+  subject: string | null;
+  sender: string | null;
+  status: string;
+  parsed_summary: string | null;
 }

@@ -29,6 +29,8 @@ class LeadRead(BaseModel):
     id: int
     name: str
     phone: str | None
+    phone_display: str | None = None
+    phone_can_view_full: bool = False
     email: str | None
     source: str | None
     status_id: int

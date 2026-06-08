@@ -17,6 +17,7 @@ import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
 import { CrmBusinessToolbar } from "@/components/crm/CrmBusinessToolbar";
+import { PatientPhone } from "@/components/PatientPhone";
 import { apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
 import { theme } from "@/lib/theme";
 import { decodeRoleFromToken } from "@/lib/auth";
@@ -96,7 +97,9 @@ function LeadCardBody({ lead, stageColor }: { lead: Lead; stageColor?: string })
       ) : (
         <p className="mt-0.5 text-sm italic text-[#A89880]">Без ответственного</p>
       )}
-      <p className="mt-2 break-all text-sm text-[#7A7265]">{lead.phone ?? "—"}</p>
+      <p className="mt-2 break-all text-sm text-[#7A7265]">
+        <PatientPhone value={lead} />
+      </p>
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#EFEBE1] pt-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <span className="crm-stage-gem shrink-0" style={{ backgroundColor: dotColor }} />
@@ -1888,7 +1891,9 @@ export function CrmPage() {
                         <tr key={lead.id} className="hover:bg-[#faf8f4]">
                           <td className="px-3 py-2 text-[#8a96a3]">{lead.id}</td>
                           <td className="px-3 py-2 font-medium text-[#1e3348]">{lead.name}</td>
-                          <td className="px-3 py-2">{lead.phone ?? "—"}</td>
+                          <td className="px-3 py-2">
+                            <PatientPhone value={lead} />
+                          </td>
                           <td className="px-3 py-2">{lead.email ?? "—"}</td>
                           <td className="px-3 py-2 text-[#2f5f85]">{lead.stage_name ?? "—"}</td>
                           <td className="px-3 py-2">
