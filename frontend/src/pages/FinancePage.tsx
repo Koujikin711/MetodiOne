@@ -3,7 +3,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useLocation } from "react-router-dom";
 
+import { FinanceAccountantPanel } from "@/components/finance/FinanceAccountantPanel";
 import { FinanceOverviewKpiRow } from "@/components/finance/FinanceOverviewKpiRow";
+import { FinanceReceivablesPanel } from "@/components/finance/FinanceReceivablesPanel";
 import { financeTabFromPath } from "@/config/navByRole";
 import { FinanceDemoHint } from "@/pages/finance/FinanceDemoHint";
 
@@ -117,7 +119,7 @@ function downloadCsv(filename: string, headers: string[], rows: Array<Array<stri
   URL.revokeObjectURL(url);
 }
 
-type FinanceTab = "overview" | "accounting" | "inventory" | "reports";
+type FinanceTab = "overview" | "accounting" | "inventory" | "reports" | "accountant" | "receivables";
 
 type StatementsTab = "opiu" | "balance" | "dds";
 
@@ -130,6 +132,7 @@ export function FinancePage() {
   const role = decodeRoleFromToken(token);
   const superNeedsCompany = role === "super_owner" && decodeCompanyIdFromToken(token) == null;
   const readOnlyFinance = role === "finance_analyst";
+  const isAccountantOnly = role === "accountant";
   const financeLex = appLexicon;
 
   function assertFinanceCanEdit() {
@@ -887,8 +890,13 @@ export function FinancePage() {
 
       {readOnlyFinance ? (
         <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-50">
-          Вы вошли как <strong>финансовый аналитик</strong>: доступны отчёты и журнал, создание и изменение проводок
+          Вы вошли как <strong>финансовый аналитик</strong>: доступны обзор, отчёты и дебиторка; создание и изменение проводок
           недоступны.
+        </div>
+      ) : null}
+      {isAccountantOnly ? (
+        <div className="rounded-2xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-50">
+          Вы вошли как <strong>бухгалтер</strong>: ввод расходов, Gmail, дебиторка и отчёты ОПУ/ДДС/ОСВ.
         </div>
       ) : null}
 
@@ -1715,6 +1723,10 @@ export function FinancePage() {
           </section>
         </>
       )}
+
+      {tab === "accountant" && <FinanceAccountantPanel />}
+
+      {tab === "receivables" && <FinanceReceivablesPanel />}
 
       {tab === "reports" && (
         <>
