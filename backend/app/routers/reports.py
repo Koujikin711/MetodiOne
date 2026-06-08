@@ -8,10 +8,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser
 from app.database import get_db
-from app.models import BookingAppointment, BookingDirection, BookingSpecialist, Pipeline, UserRole
+from app.models import (
+    BookingAppointment,
+    BookingDirection,
+    BookingSpecialist,
+    PatientServiceEnrollment,
+    PaymentInstallment,
+    Pipeline,
+    UserRole,
+)
 from app.routers.booking import _visit_group_key, _visit_labels_for_ids
 from app.services.booking_visit_labels import VisitLabelInfo
-from app.schemas.reports import ExpertBookingItem, ExpertReportsResponse, PipelineExpertReport
+from app.schemas.reports import (
+    DirectionPaymentSummary,
+    ExpertBookingItem,
+    ExpertReportsResponse,
+    PipelineExpertReport,
+)
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -194,6 +207,70 @@ async def expert_reports(
                 )
             )
 
+        appt_pay_rows = (
+            await db.execute(
+                select(
+                    BookingDirection.id,
+                    BookingDirection.name,
+                    func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
+                    func.coalesce(func.sum(BookingAppointment.service_amount), 0),
+                )
+                .join(BookingDirection, BookingAppointment.direction_id == BookingDirection.id)
+                .where(
+                    or_(
+                        BookingAppointment.pipeline_id == pipe.id,
+                        BookingDirection.pipeline_id == pipe.id,
+                    ),
+                    BookingAppointment.company_id == company_id,
+                    BookingAppointment.start_at >= start,
+                    BookingAppointment.start_at < end,
+                    BookingAppointment.status != "cancelled",
+                )
+                .group_by(BookingDirection.id, BookingDirection.name)
+                .order_by(BookingDirection.name.asc()),
+            )
+        ).all()
+
+        inst_pay_rows = (
+            await db.execute(
+                select(
+                    BookingDirection.id,
+                    BookingDirection.name,
+                    func.coalesce(func.sum(PaymentInstallment.amount), 0),
+                )
+                .join(PatientServiceEnrollment, PatientServiceEnrollment.id == PaymentInstallment.enrollment_id)
+                .join(BookingDirection, BookingDirection.id == PatientServiceEnrollment.direction_id)
+                .where(
+                    PatientServiceEnrollment.company_id == company_id,
+                    PatientServiceEnrollment.pipeline_id == pipe.id,
+                    PaymentInstallment.status == "paid",
+                    PaymentInstallment.paid_at >= start,
+                    PaymentInstallment.paid_at < end,
+                )
+                .group_by(BookingDirection.id, BookingDirection.name)
+            )
+        ).all()
+
+        pay_map: dict[int, DirectionPaymentSummary] = {}
+        for did, dname, paid, billed in appt_pay_rows:
+            pay_map[int(did)] = DirectionPaymentSummary(
+                direction_id=int(did),
+                direction_name=str(dname),
+                appointments_paid=float(paid or 0),
+                appointments_billed=float(billed or 0),
+                installments_paid=0.0,
+            )
+        for did, dname, inst_paid in inst_pay_rows:
+            key = int(did)
+            if key in pay_map:
+                pay_map[key].installments_paid = float(inst_paid or 0)
+            else:
+                pay_map[key] = DirectionPaymentSummary(
+                    direction_id=key,
+                    direction_name=str(dname),
+                    installments_paid=float(inst_paid or 0),
+                )
+
         items.append(
             PipelineExpertReport(
                 pipeline_id=pipe.id,
@@ -203,6 +280,7 @@ async def expert_reports(
                 first_visit_patients=total_first,
                 repeat_patients=total_repeat,
                 sessions_total=total_sessions,
+                direction_payments=sorted(pay_map.values(), key=lambda x: x.direction_name),
                 experts=experts,
             )
         )

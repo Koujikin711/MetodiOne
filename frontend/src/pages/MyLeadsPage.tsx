@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
+import { PatientPhone } from "@/components/PatientPhone";
 import { apiFetch } from "@/lib/api";
 import type { Lead } from "@/lib/types";
 
@@ -42,7 +43,9 @@ export function MyLeadsPage() {
                 {leadDateBadge(lead.created_at)}
               </span>
             </div>
-            <p className="mt-2 text-sm lux-caption">{lead.phone ?? "—"}</p>
+            <p className="mt-2 text-sm lux-caption">
+              <PatientPhone value={lead} />
+            </p>
             {lead.stage_name && (
               <p className="mt-2 text-xs text-[var(--mo-accent-hover)]/90">{lead.stage_name}</p>
             )}

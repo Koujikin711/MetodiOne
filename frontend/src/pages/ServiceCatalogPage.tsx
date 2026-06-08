@@ -30,6 +30,15 @@ export function ServiceCatalogPage() {
     { sort_order: 3, label: "Этап 3", kind: "percent", value: 20, trigger_type: "course_day", trigger_day: 15 },
   ]);
 
+  const migrateMut = useMutation({
+    mutationFn: () => apiFetch<{ created: number; skipped: number }>("/api/services/migrate-legacy-templates", { method: "POST" }),
+    onSuccess: (data) => {
+      toast.success(`Миграция: создано ${data.created}, пропущено ${data.skipped}`);
+      void qc.invalidateQueries({ queryKey: ["service-templates"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const createMut = useMutation({
     mutationFn: () => {
       if (pid == null) throw new Error("Выберите воронку");
@@ -58,9 +67,14 @@ export function ServiceCatalogPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-10">
-      <header>
-        <h1 className="text-2xl font-semibold text-[var(--mo-text)]">Конструктор услуг</h1>
-        <p className="mt-1 text-sm lux-caption">Каталог привязан к воронке. Произвольное число этапов оплаты.</p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-[var(--mo-text)]">Конструктор услуг</h1>
+          <p className="mt-1 text-sm lux-caption">Каталог привязан к воронке. Произвольное число этапов оплаты.</p>
+        </div>
+        <button type="button" className="btn-secondary text-sm" disabled={migrateMut.isPending} onClick={() => migrateMut.mutate()}>
+          Импорт из записей
+        </button>
       </header>
 
       <section className="mo-section p-4">

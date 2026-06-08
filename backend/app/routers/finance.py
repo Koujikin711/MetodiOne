@@ -23,6 +23,7 @@ from app.models import (
     FinanceCompanySettings,
     FinanceDeferredContract,
     FinanceDeferredPeriod,
+    FinanceGmailInboxItem,
     FinanceJournalEntry,
     FinanceJournalLine,
     FinanceJournalTemplate,
@@ -37,6 +38,7 @@ from app.models import (
     UserRole,
 )
 from app.schemas.finance import (
+    AccountantDashboardRead,
     AccountRead,
     AccountTypeRollupRead,
     BalanceSheetReportRead,
@@ -2034,6 +2036,53 @@ async def import_osv_csv(
         journal_entry_id=ent.id,
         warnings=warnings,
         accounts_missing=[],
+    )
+
+
+@router.get("/accountant/dashboard", response_model=AccountantDashboardRead)
+async def accountant_dashboard(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD"),
+    date_to: str = Query(..., description="YYYY-MM-DD"),
+) -> AccountantDashboardRead:
+    if current_user.role not in _FINANCE_READ_ROLES:
+        raise HTTPException(status_code=403, detail="Нет доступа")
+    d0, d1 = _parse_period_dates(date_from, date_to)
+    rev, exp, net = await pl_totals(db, company_id, d0, d1)
+    opening, closing, net_ch, buckets = await cash_flow_statement(db, company_id, d0, d1)
+    dds_operating = Decimal("0")
+    for key, _label, amount in buckets:
+        if str(key).startswith("op_"):
+            dds_operating += amount
+    dds_operating = dds_operating.quantize(Decimal("0.01"))
+    tb = await trial_balance_rows(db, company_id, d0, d1)
+    gmail_pending = int(
+        (
+            await db.execute(
+                select(func.count())
+                .select_from(FinanceGmailInboxItem)
+                .where(
+                    FinanceGmailInboxItem.company_id == company_id,
+                    FinanceGmailInboxItem.status == "pending",
+                ),
+            )
+        ).scalar_one()
+        or 0,
+    )
+    return AccountantDashboardRead(
+        date_from=d0,
+        date_to=d1,
+        revenue_total=rev,
+        expense_total=exp,
+        net_income=net,
+        cash_opening=opening,
+        cash_closing=closing,
+        cash_net_change=net_ch,
+        dds_operating_net=dds_operating,
+        trial_balance_lines=len(tb),
+        gmail_pending_count=gmail_pending,
     )
 
 

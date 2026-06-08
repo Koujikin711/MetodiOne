@@ -280,6 +280,20 @@ class FinancePeriodSummaryRead(BaseModel):
     crm_service_volume: Decimal = Field(default=Decimal("0"), description="Объём услуг по записям за период (service_amount)")
 
 
+class AccountantDashboardRead(BaseModel):
+    date_from: datetime
+    date_to: datetime
+    revenue_total: Decimal
+    expense_total: Decimal
+    net_income: Decimal
+    cash_opening: Decimal
+    cash_closing: Decimal
+    cash_net_change: Decimal
+    dds_operating_net: Decimal = Field(default=Decimal("0"), description="Операционный поток ДДС за период")
+    trial_balance_lines: int = 0
+    gmail_pending_count: int = 0
+
+
 class FinanceReceivableLineRead(BaseModel):
     kind: str
     source_id: int

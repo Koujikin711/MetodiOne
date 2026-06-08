@@ -1,6 +1,14 @@
 from pydantic import BaseModel, Field
 
 
+class DirectionPaymentSummary(BaseModel):
+    direction_id: int
+    direction_name: str
+    appointments_paid: float = 0
+    appointments_billed: float = 0
+    installments_paid: float = 0
+
+
 class ExpertBookingItem(BaseModel):
     specialist_id: int
     specialist_name: str
@@ -20,6 +28,7 @@ class PipelineExpertReport(BaseModel):
     first_visit_patients: int = 0
     repeat_patients: int = 0
     sessions_total: int = 0
+    direction_payments: list[DirectionPaymentSummary] = Field(default_factory=list)
     experts: list[ExpertBookingItem] = Field(default_factory=list)
 
 

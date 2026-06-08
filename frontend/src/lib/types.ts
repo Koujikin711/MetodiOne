@@ -431,6 +431,10 @@ export interface BookingDirection {
   is_active: boolean;
   pipeline_id: number | null;
   pipeline_name?: string | null;
+  course_streams_enabled?: boolean;
+  course_stream_max_days?: number;
+  course_stream_min_day_for_next?: number;
+  course_stream_gap_days?: number;
 }
 
 export interface BookingSpecialist {
@@ -462,6 +466,8 @@ export interface BookingAppointment {
   direction_id: number;
   patient_name: string;
   patient_phone: string;
+  patient_phone_display?: string | null;
+  patient_phone_can_view_full?: boolean;
   start_at: string;
   end_at: string;
   status: string;
@@ -507,6 +513,8 @@ export interface BookingPatientVisit {
 export interface BookingPatientHistoryItem {
   patient_name: string;
   patient_phone: string;
+  patient_phone_display?: string | null;
+  patient_phone_can_view_full?: boolean;
   total_visits: number;
   first_visit_at: string | null;
   last_visit_at: string | null;
@@ -517,6 +525,8 @@ export interface BookingPatientSuggestItem {
   lead_id: number | null;
   patient_name: string;
   patient_phone: string;
+  patient_phone_display?: string | null;
+  patient_phone_can_view_full?: boolean;
   manager_name: string | null;
   source: "crm" | "visits" | string;
 }
@@ -577,6 +587,14 @@ export interface ExpertBookingItem {
   sessions_total: number;
 }
 
+export interface DirectionPaymentSummary {
+  direction_id: number;
+  direction_name: string;
+  appointments_paid: number;
+  appointments_billed: number;
+  installments_paid: number;
+}
+
 export interface PipelineExpertReport {
   pipeline_id: number;
   pipeline_name: string;
@@ -585,7 +603,22 @@ export interface PipelineExpertReport {
   first_visit_patients: number;
   repeat_patients: number;
   sessions_total: number;
+  direction_payments?: DirectionPaymentSummary[];
   experts: ExpertBookingItem[];
+}
+
+export interface AccountantDashboardRead {
+  date_from: string;
+  date_to: string;
+  revenue_total: number;
+  expense_total: number;
+  net_income: number;
+  cash_opening: number;
+  cash_closing: number;
+  cash_net_change: number;
+  dds_operating_net: number;
+  trial_balance_lines: number;
+  gmail_pending_count: number;
 }
 
 export interface ExpertReportsResponse {

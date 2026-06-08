@@ -10,6 +10,8 @@ from sqlalchemy.orm import selectinload
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import (
+    BookingAppointment,
+    BookingDirection,
     FinanceGmailInboxItem,
     Lead,
     PatientServiceEnrollment,
@@ -23,7 +25,9 @@ from app.schemas.service_catalog import (
     EnrollmentCreate,
     EnrollmentRead,
     GmailInboxItemRead,
+    GmailSyncResultRead,
     InstallmentRead,
+    MigrateLegacyResultRead,
     ReceivableItemRead,
     ReceivablesSummaryRead,
     ServiceTemplateCreate,
@@ -33,6 +37,7 @@ from app.schemas.service_catalog import (
 )
 from app.services.finance_crm_bridge import post_crm_deal_payment_once
 from app.services.finance_seed import account_id_by_code
+from app.services.gmail_inbox_sync import run_gmail_inbox_sync_tick
 from app.services.service_enrollment import create_enrollment_from_template, refresh_overdue_installments
 
 router = APIRouter(prefix="/services", tags=["services"])
@@ -412,3 +417,101 @@ async def list_gmail_inbox(
         )
     ).scalars().all()
     return [GmailInboxItemRead.model_validate(r) for r in rows]
+
+
+@router.post("/gmail-sync", response_model=GmailSyncResultRead)
+async def trigger_gmail_sync(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> GmailSyncResultRead:
+    if current_user.role not in _finance_roles() | {UserRole.accountant}:
+        raise HTTPException(status_code=403, detail="Нет доступа")
+    imported = await run_gmail_inbox_sync_tick(db)
+    await db.commit()
+    return GmailSyncResultRead(imported=imported)
+
+
+@router.post("/migrate-legacy-templates", response_model=MigrateLegacyResultRead)
+async def migrate_legacy_service_templates(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> MigrateLegacyResultRead:
+    if current_user.role not in _catalog_write_roles():
+        raise HTTPException(status_code=403, detail="Только владелец или админ")
+    rows = (
+        await db.execute(
+            select(
+                BookingAppointment.service_title,
+                BookingAppointment.direction_id,
+                BookingAppointment.pipeline_id,
+                BookingDirection.pipeline_id,
+                func.avg(BookingAppointment.service_amount),
+            )
+            .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.service_title.isnot(None),
+                func.length(func.trim(BookingAppointment.service_title)) > 0,
+            )
+            .group_by(
+                BookingAppointment.service_title,
+                BookingAppointment.direction_id,
+                BookingAppointment.pipeline_id,
+                BookingDirection.pipeline_id,
+            ),
+        )
+    ).all()
+
+    created = 0
+    skipped = 0
+    for title, direction_id, appt_pipeline_id, dir_pipeline_id, avg_price in rows:
+        name = (str(title or "")).strip()
+        if not name:
+            skipped += 1
+            continue
+        pipeline_id = int(appt_pipeline_id or dir_pipeline_id or 0)
+        if pipeline_id <= 0:
+            skipped += 1
+            continue
+        exists = (
+            await db.execute(
+                select(ServiceTemplate.id).where(
+                    ServiceTemplate.company_id == company_id,
+                    ServiceTemplate.pipeline_id == pipeline_id,
+                    ServiceTemplate.direction_id == int(direction_id),
+                    ServiceTemplate.name == name,
+                ).limit(1),
+            )
+        ).scalar_one_or_none()
+        if exists is not None:
+            skipped += 1
+            continue
+        price = Decimal(avg_price or 0).quantize(Decimal("0.01"))
+        t = ServiceTemplate(
+            company_id=company_id,
+            pipeline_id=pipeline_id,
+            direction_id=int(direction_id),
+            name=name,
+            service_type="single",
+            price_base=price,
+            specialist_ids=[],
+            is_active=True,
+            is_legacy=True,
+        )
+        db.add(t)
+        await db.flush()
+        db.add(
+            ServicePaymentRule(
+                template_id=t.id,
+                sort_order=1,
+                label="Полная оплата",
+                kind="percent",
+                value=Decimal("100"),
+                trigger_type="on_enrollment",
+            ),
+        )
+        created += 1
+    await db.commit()
+    return MigrateLegacyResultRead(created=created, skipped=skipped)
