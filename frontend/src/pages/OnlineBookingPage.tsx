@@ -66,8 +66,8 @@ export function OnlineBookingPage() {
   const [specialistId, setSpecialistId] = useState(0);
   const [serviceTitle, setServiceTitle] = useState("");
   const [startAt, setStartAt] = useState("");
-  const [serviceAmount, setServiceAmount] = useState<number>(0);
-  const [paidAmount, setPaidAmount] = useState<number>(0);
+  const [serviceAmount, setServiceAmount] = useState("");
+  const [paidAmount, setPaidAmount] = useState("");
   const [comment, setComment] = useState("");
   const [patientSuggestOpen, setPatientSuggestOpen] = useState(false);
   const [patientSuggestDebounced, setPatientSuggestDebounced] = useState("");
@@ -253,8 +253,8 @@ export function OnlineBookingPage() {
       setPatientPhone("");
       setComment("");
       setServiceTitle("");
-      setServiceAmount(0);
-      setPaidAmount(0);
+      setServiceAmount("");
+      setPaidAmount("");
       setLeadId(null);
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
@@ -459,7 +459,7 @@ export function OnlineBookingPage() {
   }, [leadStagesQuery.data, newLeadStageId]);
   useEffect(() => {
     if (fixedServiceAmount == null) return;
-    setServiceAmount(fixedServiceAmount);
+    setServiceAmount(String(fixedServiceAmount));
   }, [fixedServiceAmount]);
 
   useEffect(() => {
@@ -581,7 +581,17 @@ export function OnlineBookingPage() {
       toast.error("Неверная дата.");
       return;
     }
-    const resolvedServiceAmount = fixedServiceAmount ?? serviceAmount;
+    const resolvedServiceAmount =
+      fixedServiceAmount ?? (serviceAmount.trim() === "" ? NaN : Number(serviceAmount));
+    const resolvedPaidAmount = paidAmount.trim() === "" ? 0 : Number(paidAmount);
+    if (!Number.isFinite(resolvedServiceAmount) || resolvedServiceAmount < 0) {
+      toast.error("Укажите стоимость услуги");
+      return;
+    }
+    if (!Number.isFinite(resolvedPaidAmount) || resolvedPaidAmount < 0) {
+      toast.error("Сумма оплаты указана неверно");
+      return;
+    }
     const payload: Record<string, unknown> = {
       patient_name: patientName.trim(),
       patient_phone: patientPhone.trim(),
@@ -589,14 +599,14 @@ export function OnlineBookingPage() {
       service_title: serviceTitle.trim(),
       start_at: startIso,
       service_amount: resolvedServiceAmount,
-      paid_amount: paidAmount,
+      paid_amount: resolvedPaidAmount,
       comment: comment.trim() || null,
     };
-    if (paidAmount > resolvedServiceAmount) {
+    if (resolvedPaidAmount > resolvedServiceAmount) {
       toast.error("Оплата не может быть больше стоимости услуги");
       return;
     }
-    if (isManagerOrAdmin && paidAmount > 0 && !currentUserId) {
+    if (isManagerOrAdmin && resolvedPaidAmount > 0 && !currentUserId) {
       toast.error("Не удалось определить ответственного менеджера автоматически");
       return;
     }
@@ -609,7 +619,7 @@ export function OnlineBookingPage() {
       payload.lead_pipeline_id = newLeadPipelineId;
       payload.lead_stage_id = newLeadStageId;
     }
-    if (isManagerOrAdmin && paidAmount > 0 && currentUserId) {
+    if (isManagerOrAdmin && resolvedPaidAmount > 0 && currentUserId) {
       payload.responsible_manager_id = currentUserId;
     }
     createMutation.mutate(payload);
@@ -904,8 +914,8 @@ export function OnlineBookingPage() {
                     min={0}
                     step={1}
                     required
-                    value={fixedServiceAmount ?? serviceAmount}
-                    onChange={(e) => setServiceAmount(Number(e.target.value))}
+                    value={fixedServiceAmount != null ? String(fixedServiceAmount) : serviceAmount}
+                    onChange={(e) => setServiceAmount(e.target.value)}
                     disabled={fixedServiceAmount != null}
                     className="mt-1 w-full mo-input disabled:opacity-70"
                   />
@@ -927,7 +937,7 @@ export function OnlineBookingPage() {
                     step={1}
                     required
                     value={paidAmount}
-                    onChange={(e) => setPaidAmount(Number(e.target.value))}
+                    onChange={(e) => setPaidAmount(e.target.value)}
                     className="mt-1 w-full mo-input"
                   />
                 </label>

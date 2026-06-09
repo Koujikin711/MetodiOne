@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentCompanyId, CurrentUser
+from app.core.manager_scope import manager_lead_visibility
 from app.core.security import decode_token
 from app.database import get_db
 from app.models import (
@@ -30,6 +31,7 @@ from app.models import (
 from app.services.audio_prepare import prepare_file_for_green_whatsapp
 from app.services.chat_media_store import resolve_outgoing_chat_media, save_outgoing_chat_media
 from app.services.green_api_send import send_green_file_upload, send_green_text_async
+from app.services.patient_phone_visibility import can_view_full_patient_phone, mask_patient_phone
 
 logger = logging.getLogger(__name__)
 
@@ -480,7 +482,7 @@ async def thread_bucket_counts(
             ChatThread.company_id == company_id,
             ChatThread.provider != "internal",
             ChatThread.pipeline_id.in_(allowed),
-            Lead.manager_id == current_user.id,
+            manager_lead_visibility(current_user.id),
         )
     )
     if term:
@@ -584,7 +586,7 @@ async def list_threads(
             return []
         query = query.where(
             ChatThread.pipeline_id.in_(allowed),
-            Lead.manager_id == current_user.id,
+            manager_lead_visibility(current_user.id),
         )
         query = _apply_manager_thread_bucket(
             query,
@@ -608,8 +610,6 @@ async def list_threads(
     if limit is not None:
         query = query.limit(limit)
     rows = (await db.execute(query)).all()
-    from app.models import UserRole
-    from app.services.patient_phone_visibility import can_view_full_patient_phone, mask_patient_phone
 
     out: list[ChatThreadRead] = []
     for row in rows:

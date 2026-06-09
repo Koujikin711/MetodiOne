@@ -73,7 +73,7 @@ export default function App() {
               <Route path="accounting" element={<FinancePage />} />
               <Route path="accountant" element={<FinancePage />} />
               <Route path="receivables" element={<FinancePage />} />
-              <Route path="inventory" element={<FinancePage />} />
+              <Route path="inventory" element={<Navigate to="/finance" replace />} />
               <Route path="reports" element={<FinancePage />} />
             </Route>
             <Route path="/receivables" element={<Navigate to="/finance/receivables" replace />} />

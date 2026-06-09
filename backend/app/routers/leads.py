@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.core.deps import CurrentCompanyId, CurrentUser
+from app.core.manager_scope import manager_lead_visibility
 from app.core.rbac import is_manager_like
 from app.database import get_db
 from app.models import (
@@ -569,7 +570,7 @@ async def list_leads(
             .where(PipelineStage.pipeline_id == pipeline_id, Lead.company_id == company_id, PipelineStage.company_id == company_id)
         )
         if is_manager_like(current_user.role):
-            ranked = ranked.where(Lead.manager_id == current_user.id)
+            ranked = ranked.where(manager_lead_visibility(current_user.id))
         ranked_sq = ranked.subquery()
         q = (
             select(Lead)
@@ -590,7 +591,7 @@ async def list_leads(
         q = q.join(PipelineStage, PipelineStage.id == Lead.status_id).where(
             PipelineStage.company_id == company_id,
             PipelineStage.pipeline_id.in_(allowed),
-            Lead.manager_id == current_user.id,
+            manager_lead_visibility(current_user.id),
         )
     if current_user.role == UserRole.expert:
         allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
@@ -639,7 +640,7 @@ async def list_leads_table(
 
     filters = [PipelineStage.pipeline_id == pipeline_id, PipelineStage.company_id == company_id, Lead.company_id == company_id]
     if is_manager_like(current_user.role):
-        filters.append(Lead.manager_id == current_user.id)
+        filters.append(manager_lead_visibility(current_user.id))
     if status_id is not None:
         filters.append(Lead.status_id == status_id)
     if q and q.strip():
