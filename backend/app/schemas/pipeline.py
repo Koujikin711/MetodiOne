@@ -14,6 +14,7 @@ class PipelineRead(BaseModel):
     lead_assignment_mode: str = "none"
     expert_user_id: int | None = None
     intake_manager_user_id: int | None = None
+    manager_allowed_outbound_phones: list[str] = []
 
     model_config = {"from_attributes": True}
 
@@ -25,6 +26,10 @@ class PipelinePatch(BaseModel):
     )
     expert_user_id: int | None = Field(default=None, ge=1)
     intake_manager_user_id: int | None = Field(default=None, ge=1)
+    manager_allowed_outbound_phones: list[str] | None = Field(
+        default=None,
+        description="Номера, которые менеджеры могут отправлять в чате (разные форматы одного номера допустимы).",
+    )
 
 
 class PipelineCreate(BaseModel):

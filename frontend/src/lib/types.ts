@@ -21,6 +21,8 @@ export interface Pipeline {
   lead_assignment_mode?: string;
   expert_user_id?: number | null;
   intake_manager_user_id?: number | null;
+  /** Номера, которые менеджеры могут отправлять в чате этой воронки */
+  manager_allowed_outbound_phones?: string[];
 }
 
 export interface LeadSource {

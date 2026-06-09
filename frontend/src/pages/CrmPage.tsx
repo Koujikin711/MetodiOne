@@ -828,6 +828,13 @@ export function CrmPage() {
     [pipelinesQuery.data, pipelineId],
   );
 
+  const [outboundPhonesDraft, setOutboundPhonesDraft] = useState("");
+
+  useEffect(() => {
+    const phones = selectedPipelineForSettings?.manager_allowed_outbound_phones ?? [];
+    setOutboundPhonesDraft(phones.join("\n"));
+  }, [selectedPipelineForSettings?.id, selectedPipelineForSettings?.manager_allowed_outbound_phones]);
+
   const expertsQuery = useQuery({
     queryKey: ["employees", "experts"],
     queryFn: () => apiFetch<Array<{ id: number; email: string; full_name: string | null }>>("/api/employees/experts"),
@@ -1268,6 +1275,45 @@ export function CrmPage() {
                       </option>
                     ))}
                 </select>
+              </div>
+            )}
+            {pipelineId != null && selectedPipelineForSettings && (
+              <div className="mt-3 w-full max-w-xl space-y-2">
+                <label className="block text-sm text-[#5c6b7a]" htmlFor="crm-pipeline-outbound-phones">
+                  Номера для отправки менеджерами в чате
+                </label>
+                <p className="text-xs mo-muted">
+                  По одному номеру в строке. Менеджеры смогут отправлять только эти номера (клиника, колл-центр и т.д.).
+                  Формат может отличаться: +992, без кода страны — система сопоставит варианты одного номера.
+                </p>
+                <textarea
+                  id="crm-pipeline-outbound-phones"
+                  value={outboundPhonesDraft}
+                  onChange={(e) => setOutboundPhonesDraft(e.target.value)}
+                  rows={4}
+                  placeholder={"+992901234567\n901234567"}
+                  className="w-full mo-input font-mono text-sm"
+                />
+                <button
+                  type="button"
+                  disabled={patchPipelineMutation.isPending}
+                  onClick={() => {
+                    const phones = outboundPhonesDraft
+                      .split(/[\n,;]+/)
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    patchPipelineMutation.mutate(
+                      {
+                        id: pipelineId,
+                        patch: { manager_allowed_outbound_phones: phones },
+                      },
+                      { onSuccess: () => toast.success("Разрешённые номера сохранены") },
+                    );
+                  }}
+                  className="crm-pill-btn"
+                >
+                  Сохранить номера
+                </button>
               </div>
             )}
             {pipelineId != null && selectedPipelineForSettings && (

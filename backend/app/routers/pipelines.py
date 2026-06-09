@@ -12,9 +12,22 @@ from app.schemas.pipeline import PipelineCreate, PipelinePatch, PipelineRead
 from app.services.audit import write_audit_event
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
 from app.services.lead_assignment import assign_manager_for_new_lead
+from app.services.phone_match import parse_allowed_phones_json, serialize_allowed_phones
 from app.services.stage_delete_checks import pipeline_delete_block_reason
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
+
+
+def _pipeline_to_read(pipe: Pipeline) -> PipelineRead:
+    return PipelineRead(
+        id=pipe.id,
+        name=pipe.name,
+        type=pipe.type,
+        lead_assignment_mode=pipe.lead_assignment_mode or "none",
+        expert_user_id=pipe.expert_user_id,
+        intake_manager_user_id=pipe.intake_manager_user_id,
+        manager_allowed_outbound_phones=parse_allowed_phones_json(pipe.manager_allowed_outbound_phones),
+    )
 
 _MAX_DISTRIBUTE_BATCH = 2000
 
@@ -68,7 +81,7 @@ async def list_pipelines(
             return []
         q = q.where(Pipeline.id.in_(allowed))
     result = await db.execute(q.order_by(Pipeline.id))
-    return [PipelineRead.model_validate(p) for p in result.scalars().all()]
+    return [_pipeline_to_read(p) for p in result.scalars().all()]
 
 
 @router.post("", response_model=PipelineRead, status_code=status.HTTP_201_CREATED)
@@ -157,7 +170,7 @@ async def create_pipeline(
         details=f"name={pipe.name}, stages={len(stages_to_add)}, auto_default={not bool(body.stages)}",
     )
     await db.refresh(pipe)
-    return PipelineRead.model_validate(pipe)
+    return _pipeline_to_read(pipe)
 
 
 @router.patch("/{pipeline_id}", response_model=PipelineRead)
@@ -221,6 +234,8 @@ async def patch_pipeline(
                 detail="lead_assignment_mode must be none, round_robin or least_loaded",
             )
         pipe.lead_assignment_mode = mode
+    if body.manager_allowed_outbound_phones is not None:
+        pipe.manager_allowed_outbound_phones = serialize_allowed_phones(body.manager_allowed_outbound_phones)
     await db.flush()
     await write_audit_event(
         db,
@@ -230,11 +245,12 @@ async def patch_pipeline(
         current_user=current_user,
         details=(
             f"lead_assignment_mode={pipe.lead_assignment_mode}, expert_user_id={pipe.expert_user_id}, "
-            f"intake_manager_user_id={pipe.intake_manager_user_id}"
+            f"intake_manager_user_id={pipe.intake_manager_user_id}, "
+            f"manager_allowed_outbound_phones={pipe.manager_allowed_outbound_phones}"
         ),
     )
     await db.refresh(pipe)
-    return PipelineRead.model_validate(pipe)
+    return _pipeline_to_read(pipe)
 
 
 @router.delete("/{pipeline_id}", status_code=status.HTTP_204_NO_CONTENT)
