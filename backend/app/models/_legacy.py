@@ -108,6 +108,8 @@ class Pipeline(Base):
     # none | round_robin | least_loaded — кому назначать новых лидов из интеграций/очереди
     lead_assignment_mode: Mapped[str] = mapped_column(String(32), default="none")
     assignment_rr_counter: Mapped[int] = mapped_column(default=0)
+    # JSON-массив строк: номера, которые менеджеры могут отправлять в чате (клиника, колл-центр и т.д.)
+    manager_allowed_outbound_phones: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     stages: Mapped[list["PipelineStage"]] = relationship(back_populates="pipeline")
 

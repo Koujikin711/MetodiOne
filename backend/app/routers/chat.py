@@ -32,6 +32,7 @@ from app.services.audio_prepare import prepare_file_for_green_whatsapp
 from app.services.chat_media_store import resolve_outgoing_chat_media, save_outgoing_chat_media
 from app.services.green_api_send import send_green_file_upload, send_green_text_async
 from app.services.patient_phone_visibility import can_view_full_patient_phone, mask_patient_phone
+from app.services.phone_match import parse_allowed_phones_json
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,22 @@ class ChatMessageRead(BaseModel):
 
 class SendMessageBody(BaseModel):
     text: str = Field(..., min_length=1, max_length=4000)
+
+
+async def _thread_allowed_outbound_phones(db: AsyncSession, thread: ChatThread) -> list[str]:
+    pipeline_id = thread.pipeline_id
+    if pipeline_id is None and thread.lead_id is not None:
+        lead = await db.get(Lead, thread.lead_id)
+        if lead is not None:
+            await db.refresh(lead, ["stage"])
+            if lead.stage is not None:
+                pipeline_id = lead.stage.pipeline_id
+    if pipeline_id is None:
+        return []
+    pipe = await db.get(Pipeline, int(pipeline_id))
+    if pipe is None:
+        return []
+    return parse_allowed_phones_json(pipe.manager_allowed_outbound_phones)
 
 
 async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
@@ -306,8 +323,13 @@ async def _send_green_file_message(
 ) -> ChatMessageRead:
     from app.services.chat_outbound_policy import outbound_message_allowed
 
+    allowed_phones = await _thread_allowed_outbound_phones(db, thread)
     if caption.strip():
-        allowed, policy_err = outbound_message_allowed(current_user, caption)
+        allowed, policy_err = outbound_message_allowed(
+            current_user,
+            caption,
+            allowed_outbound_phones=allowed_phones,
+        )
         if not allowed:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=policy_err or "Сообщение запрещено")
     status_name = "sent"
@@ -797,7 +819,12 @@ async def send_message(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пустое сообщение")
     from app.services.chat_outbound_policy import outbound_message_allowed
 
-    allowed, policy_err = outbound_message_allowed(current_user, plain_text)
+    allowed_phones = await _thread_allowed_outbound_phones(db, thread)
+    allowed, policy_err = outbound_message_allowed(
+        current_user,
+        plain_text,
+        allowed_outbound_phones=allowed_phones,
+    )
     if not allowed:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=policy_err or "Сообщение запрещено")
     ok, err, provider_msg_id = await send_green_text_async(cfg, chat_id, plain_text)
