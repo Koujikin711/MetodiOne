@@ -119,7 +119,7 @@ function downloadCsv(filename: string, headers: string[], rows: Array<Array<stri
   URL.revokeObjectURL(url);
 }
 
-type FinanceTab = "overview" | "accounting" | "inventory" | "reports" | "accountant" | "receivables";
+type FinanceTab = "overview" | "accounting" | "reports" | "accountant" | "receivables";
 
 type StatementsTab = "opiu" | "balance" | "dds";
 
@@ -198,12 +198,6 @@ export function FinancePage() {
 
   const effective = settingsQuery.data;
 
-  useEffect(() => {
-    if (!effective?.inventory_enabled && tab === "inventory") {
-      setTab("overview");
-    }
-  }, [effective?.inventory_enabled, tab]);
-
   const dashboardQuery = useQuery({
     queryKey: ["finance-dashboard"],
     queryFn: () => apiFetch<FinanceDashboard>("/api/finance/dashboard"),
@@ -213,25 +207,25 @@ export function FinancePage() {
   const warehousesQuery = useQuery({
     queryKey: ["finance-warehouses"],
     queryFn: () => apiFetch<FinanceWarehouse[]>("/api/finance/warehouses"),
-    enabled: !superNeedsCompany,
+    enabled: false,
   });
 
   const productsQuery = useQuery({
     queryKey: ["finance-products"],
     queryFn: () => apiFetch<FinanceProduct[]>("/api/finance/products"),
-    enabled: !superNeedsCompany,
+    enabled: false,
   });
 
   const balancesQuery = useQuery({
     queryKey: ["finance-stock-balances"],
     queryFn: () => apiFetch<FinanceStockBalanceRow[]>("/api/finance/stock/balances"),
-    enabled: !superNeedsCompany && Boolean(effective?.inventory_enabled),
+    enabled: false,
   });
 
   const movementsQuery = useQuery({
     queryKey: ["finance-stock-movements"],
     queryFn: () => apiFetch<FinanceStockMovement[]>("/api/finance/stock/movements?limit=100"),
-    enabled: !superNeedsCompany && Boolean(effective?.inventory_enabled) && tab === "inventory",
+    enabled: false,
   });
 
   const accountsQuery = useQuery({
@@ -438,8 +432,6 @@ export function FinancePage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const [draftInventory, setDraftInventory] = useState<boolean | null>(null);
-  const [draftCosting, setDraftCosting] = useState<string | null>(null);
   const [draftGoodsPol, setDraftGoodsPol] = useState<string | null>(null);
   const [draftServPol, setDraftServPol] = useState<string | null>(null);
   const [draftPostingLock, setDraftPostingLock] = useState("");
@@ -525,8 +517,6 @@ export function FinancePage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const inv = draftInventory ?? effective?.inventory_enabled ?? false;
-  const cost = draftCosting ?? effective?.costing_method ?? "average";
   const gPol = draftGoodsPol ?? effective?.revenue_goods_policy ?? "shipment";
   const sPol = draftServPol ?? effective?.revenue_services_policy ?? "deferred_period";
 
@@ -923,29 +913,6 @@ export function FinancePage() {
           <section className="mo-section">
             <h2 className="text-lg font-medium text-[#1e3348]">Настройки учёта</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <label className="flex flex-col gap-1 text-sm text-[#5c6b7a]">
-                Склад / запасы
-                <select
-                  value={inv ? "1" : "0"}
-                  onChange={(e) => setDraftInventory(e.target.value === "1")}
-                  className="mo-input py-2 text-sm"
-                >
-                  <option value="0">Выключено</option>
-                  <option value="1">Включено</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm text-[#5c6b7a]">
-                Метод себестоимости
-                <select
-                  value={cost}
-                  onChange={(e) => setDraftCosting(e.target.value)}
-                  disabled={!inv}
-                  className="mo-input py-2 text-sm disabled:opacity-40"
-                >
-                  <option value="average">Средневзвешенная</option>
-                  <option value="fifo">FIFO по партиям</option>
-                </select>
-              </label>
               <label className="flex flex-col gap-1 text-sm mo-muted">
                 Выручка: товары (политика)
                 <select
@@ -979,7 +946,7 @@ export function FinancePage() {
                   className="max-w-xs mo-input"
                 />
                 <span className="text-[11px] mo-muted">
-                  Пусто — без блокировки. Проводки с датой ≤ выбранной даты будут запрещены (импорт ОСВ, ручные, склад,
+                  Пусто — без блокировки. Проводки с датой ≤ выбранной даты будут запрещены (импорт ОСВ, ручные,
                   признание отложенной выручки).
                 </span>
               </label>
@@ -989,8 +956,6 @@ export function FinancePage() {
               disabled={patchSettings.isPending}
               onClick={() =>
                 patchSettings.mutate({
-                  inventory_enabled: draftInventory ?? undefined,
-                  costing_method: draftCosting ?? undefined,
                   revenue_goods_policy: draftGoodsPol ?? undefined,
                   revenue_services_policy: draftServPol ?? undefined,
                   posting_locked_until: draftPostingLock ? draftPostingLock : null,
@@ -1000,118 +965,6 @@ export function FinancePage() {
             >
               Сохранить настройки
             </button>
-          </section>
-
-          {dashboardQuery.data && (
-            <section className="mo-section">
-              <h2 className="text-lg font-medium text-[#1e3348]">Сводка</h2>
-              <p className="mt-1 text-xs text-[#8a96a3]">
-                Складов: {dashboardQuery.data.warehouse_count}. Себестоимость:{" "}
-                {dashboardQuery.data.costing_method === "fifo" ? "FIFO" : "средняя"}.
-              </p>
-              {dashboardQuery.data.inventory_enabled && dashboardQuery.data.warehouses.length > 0 && (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {dashboardQuery.data.warehouses.map((w) => (
-                    <div
-                      key={w.warehouse_id}
-                      className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white px-4 py-3"
-                    >
-                      <div className="text-sm font-medium text-[var(--mo-text)]">{w.warehouse_name}</div>
-                      <div className="mt-1 text-xs lux-caption">Позиций: {w.sku_positions}</div>
-                      <div className="mt-1 text-sm text-[#0f4c3a]">{parseMoney(w.inventory_value)}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Склады</h2>
-            <ul className="mt-3 space-y-2 text-sm mo-muted">
-              {(warehousesQuery.data ?? []).map((w) => (
-                <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--mo-border)]/30 py-2 last:border-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-[var(--mo-text)]">{w.name}</span>
-                    {w.is_default && (
-                      <span className="rounded bg-[#ece6f0] px-2 py-0.5 text-xs text-[#614b70]">по умолчанию</span>
-                    )}
-                    {!w.is_active && <span className="text-xs text-[#6b1d2f]">неактивен</span>}
-                  </div>
-                  <button
-                    type="button"
-                    disabled={patchWarehouse.isPending}
-                    onClick={() => patchWarehouse.mutate({ id: w.id, is_active: !w.is_active })}
-                    className="rounded-lg border border-[var(--mo-border-strong)] px-2 py-1 text-xs text-[var(--mo-text)] hover:bg-white/5"
-                  >
-                    {w.is_active ? "Отключить" : "Включить"}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-4 flex flex-wrap items-end gap-2">
-              <label className="min-w-[200px] flex-1 text-sm mo-muted">
-                Новый склад
-                <input
-                  value={whName}
-                  onChange={(e) => setWhName(e.target.value)}
-                  className="mt-1 w-full mo-input"
-                  placeholder="Название"
-                />
-              </label>
-              <label className="flex items-center gap-2 text-sm mo-muted">
-                <input type="checkbox" checked={whDefault} onChange={(e) => setWhDefault(e.target.checked)} />
-                по умолчанию
-              </label>
-              <button
-                type="button"
-                disabled={!whName.trim() || createWh.isPending}
-                onClick={() => createWh.mutate()}
-                className="btn-secondary text-sm disabled:opacity-40"
-              >
-                Добавить
-              </button>
-            </div>
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Номенклатура</h2>
-            <div className="mt-4 flex flex-wrap items-end gap-2">
-              <label className="min-w-[200px] flex-1 text-sm mo-muted">
-                Название
-                <input
-                  value={prodName}
-                  onChange={(e) => setProdName(e.target.value)}
-                  className="mt-1 w-full mo-input"
-                />
-              </label>
-              <label className="text-sm mo-muted">
-                Тип
-                <select
-                  value={prodType}
-                  onChange={(e) => setProdType(e.target.value as "good" | "service")}
-                  className="mt-1 block mo-input"
-                >
-                  <option value="good">Товар</option>
-                  <option value="service">Услуга</option>
-                </select>
-              </label>
-              <button
-                type="button"
-                disabled={!prodName.trim() || createProd.isPending}
-                onClick={() => createProd.mutate()}
-                className="btn-secondary text-sm disabled:opacity-40"
-              >
-                Создать
-              </button>
-            </div>
-            <ul className="mt-4 max-h-48 space-y-1 overflow-auto text-sm lux-caption">
-              {(productsQuery.data ?? []).map((p) => (
-                <li key={p.id}>
-                  {p.name} — {p.product_type === "good" ? "товар" : "услуга"}
-                </li>
-              ))}
-            </ul>
           </section>
 
           <section className="mo-section p-5">
@@ -1559,166 +1412,6 @@ export function FinancePage() {
               >
                 Провести
               </button>
-            </div>
-          </section>
-        </>
-      )}
-
-      {tab === "inventory" && effective?.inventory_enabled && (
-        <>
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Остатки</h2>
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[480px] text-left text-sm mo-muted">
-                <thead>
-                  <tr className="border-b border-[var(--mo-border-strong)]/50 text-xs uppercase mo-muted">
-                    <th className="py-2 pr-2">Товар</th>
-                    <th className="py-2 pr-2">Склад</th>
-                    <th className="py-2 pr-2">Кол-во</th>
-                    <th className="py-2 pr-2">Себ-ть</th>
-                    <th className="py-2">Сумма</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(balancesQuery.data ?? []).map((row, i) => (
-                    <tr key={i} className="border-b border-[var(--mo-border)]/30">
-                      <td className="py-2 pr-2 text-[var(--mo-text)]">{row.product_name}</td>
-                      <td className="py-2 pr-2">{row.warehouse_name}</td>
-                      <td className="py-2 pr-2">{row.quantity}</td>
-                      <td className="py-2 pr-2">{parseMoney(row.avg_unit_cost)}</td>
-                      <td className="py-2">{parseMoney(row.value)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-6 grid gap-6 md:grid-cols-2">
-              <div>
-                <h3 className="text-sm font-medium text-[var(--mo-text)]">Приход</h3>
-                <div className="mt-2 space-y-2">
-                  <select
-                    value={rcpWh || defaultWhId}
-                    onChange={(e) => setRcpWh(Number(e.target.value))}
-                    className="w-full mo-input"
-                  >
-                    {(warehousesQuery.data ?? []).filter((w) => w.is_active).map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={rcpProd}
-                    onChange={(e) => setRcpProd(Number(e.target.value))}
-                    className="w-full mo-input"
-                  >
-                    <option value={0}>— товар —</option>
-                    {(productsQuery.data ?? [])
-                      .filter((p) => p.product_type === "good")
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                  </select>
-                  <input
-                    value={rcpQty}
-                    onChange={(e) => setRcpQty(e.target.value)}
-                    placeholder="Кол-во"
-                    className="w-full mo-input"
-                  />
-                  <input
-                    value={rcpCost}
-                    onChange={(e) => setRcpCost(e.target.value)}
-                    placeholder="Цена за ед."
-                    className="w-full mo-input"
-                  />
-                  <button
-                    type="button"
-                    disabled={receiptMut.isPending || !rcpProd}
-                    onClick={() => receiptMut.mutate()}
-                    className="w-full rounded-xl bg-emerald-600/80 py-2 text-sm font-medium text-[var(--mo-text)] disabled:opacity-40"
-                  >
-                    Провести приход
-                  </button>
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-[var(--mo-text)]">Списание</h3>
-                <div className="mt-2 space-y-2">
-                  <select
-                    value={issWh || defaultWhId}
-                    onChange={(e) => setIssWh(Number(e.target.value))}
-                    className="w-full mo-input"
-                  >
-                    {(warehousesQuery.data ?? []).filter((w) => w.is_active).map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={issProd}
-                    onChange={(e) => setIssProd(Number(e.target.value))}
-                    className="w-full mo-input"
-                  >
-                    <option value={0}>— товар —</option>
-                    {(productsQuery.data ?? [])
-                      .filter((p) => p.product_type === "good")
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                  </select>
-                  <input
-                    value={issQty}
-                    onChange={(e) => setIssQty(e.target.value)}
-                    placeholder="Кол-во"
-                    className="w-full mo-input"
-                  />
-                  <button
-                    type="button"
-                    disabled={issueMut.isPending || !issProd}
-                    onClick={() => issueMut.mutate()}
-                    className="w-full rounded-xl bg-rose-600/70 py-2 text-sm font-medium text-[var(--mo-text)] disabled:opacity-40"
-                  >
-                    Провести списание
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Движения по складу</h2>
-            {movementsQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
-            <div className="mt-3 max-h-80 overflow-auto rounded-xl border border-[var(--mo-border)]">
-              <table className="w-full text-left text-xs mo-muted">
-                <thead className="sticky top-0 bg-white/95 mo-muted">
-                  <tr>
-                    <th className="px-2 py-2">Время</th>
-                    <th className="px-2 py-2">Тип</th>
-                    <th className="px-2 py-2">Товар</th>
-                    <th className="px-2 py-2">Склад</th>
-                    <th className="px-2 py-2 text-right">Кол-во</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(movementsQuery.data ?? []).map((m) => (
-                    <tr key={m.id} className="border-t border-[var(--mo-border)]">
-                      <td className="px-2 py-1.5 whitespace-nowrap lux-caption">
-                        {m.created_at?.slice(0, 19)?.replace("T", " ")}
-                      </td>
-                      <td className="px-2 py-1.5">{movementTypeLabel(m.movement_type)}</td>
-                      <td className="px-2 py-1.5 text-[var(--mo-text)]">{m.product_name}</td>
-                      <td className="px-2 py-1.5">{m.warehouse_name}</td>
-                      <td className="px-2 py-1.5 text-right font-mono">{m.qty_delta}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </section>
         </>

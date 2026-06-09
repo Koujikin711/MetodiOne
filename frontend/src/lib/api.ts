@@ -73,21 +73,44 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
-  let res: Response;
+  function looksLikeHtmlPayload(text: string, contentType: string | null): boolean {
+    const ct = (contentType || "").toLowerCase();
+    if (ct.includes("json")) return false;
+    const trimmed = text.trimStart().toLowerCase();
+    return trimmed.startsWith("<!doctype") || trimmed.startsWith("<html");
+  }
+
+  let res: Response | null = null;
+  let text = "";
+  let data: unknown = null;
   try {
     const candidates = resolveApiCandidates(path);
     let lastErr: unknown = null;
-    let response: Response | null = null;
-    for (const url of candidates) {
+    for (let i = 0; i < candidates.length; i += 1) {
+      const url = candidates[i];
+      let response: Response;
       try {
         response = await fetch(url, { ...init, headers, signal: controller.signal });
-        break;
       } catch (e: unknown) {
         lastErr = e;
+        continue;
       }
+      const bodyText = await response.text();
+      const hasMoreCandidates = i < candidates.length - 1;
+      if (bodyText && looksLikeHtmlPayload(bodyText, response.headers.get("content-type"))) {
+        if (hasMoreCandidates) continue;
+      } else if (bodyText) {
+        try {
+          data = JSON.parse(bodyText) as unknown;
+        } catch {
+          if (hasMoreCandidates) continue;
+        }
+      }
+      res = response;
+      text = bodyText;
+      break;
     }
-    if (!response) throw lastErr ?? new Error("Network error");
-    res = response;
+    if (!res) throw lastErr ?? new Error("Network error");
   } catch (e: unknown) {
     const aborted =
       (e instanceof DOMException && e.name === "AbortError") ||
@@ -107,17 +130,15 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     window.clearTimeout(timeoutId);
   }
 
-  if (res.status === 204) return undefined as T;
+  if (res!.status === 204) return undefined as T;
 
-  const text = await res.text();
-  let data: unknown = null;
-  if (text) {
+  if (text && data == null) {
     try {
       data = JSON.parse(text) as unknown;
     } catch {
       throw new Error(
         res.ok
-          ? "Сервер вернул не JSON"
+          ? "Сервер вернул не JSON. Проверьте прокси /api и доступность бэкенда."
           : `Ошибка сервера (${res.status}). Проверьте, что запущен FastAPI на порту 8000.`,
       );
     }

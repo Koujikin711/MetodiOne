@@ -35,7 +35,7 @@ export function FinanceShell() {
     <div className={`${theme.pageBg} pb-10`}>
       <PageHeader
         title="Финансы"
-        description="Обзор, учёт, бухгалтерия, дебиторка, склад и отчётность в одном разделе."
+        description="Обзор, учёт, бухгалтерия, дебиторка и отчётность в одном разделе."
       />
       <nav className="mb-6 flex flex-wrap gap-2">
         {tabs.map((item) => {
