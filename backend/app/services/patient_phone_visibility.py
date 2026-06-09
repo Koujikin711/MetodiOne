@@ -1,4 +1,4 @@
-"""Кто видит полный телефон пациента; маскирование для менеджеров."""
+"""Кто видит полный телефон пациента; маскирование для ролей без доступа."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ _FULL_PHONE_ROLES = frozenset(
         UserRole.super_owner,
         UserRole.owner,
         UserRole.admin,
+        UserRole.manager,
     },
 )
 
