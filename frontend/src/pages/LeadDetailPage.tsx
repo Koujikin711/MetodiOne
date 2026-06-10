@@ -20,7 +20,6 @@ import type {
   BookingSpecialist,
   BookingViewerContext,
   EnrollmentRead,
-  FinanceJournalEntryDetail,
   Lead,
   LeadAuditEvent,
   SalesKpiLeadPriceHint,
@@ -395,16 +394,6 @@ export function LeadDetailPage() {
     enabled: auditOpen && Number.isFinite(leadId) && leadId > 0,
   });
 
-  const canSeeFinanceJournal =
-    role === "owner" || role === "admin" || role === "super_owner" || role === "finance_analyst";
-
-  const financeJournalQuery = useQuery({
-    queryKey: ["lead-finance-journal", leadId],
-    queryFn: () =>
-      apiFetch<FinanceJournalEntryDetail[]>(`/api/finance/journal-entries?lead_id=${leadId}&limit=40`),
-    enabled: canSeeFinanceJournal && Number.isFinite(leadId) && leadId > 0,
-  });
-
   if (!Number.isFinite(leadId) || leadId <= 0) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center lux-caption">
@@ -689,48 +678,6 @@ export function LeadDetailPage() {
             </section>
           )}
 
-          {canSeeFinanceJournal ? (
-            <section className="mt-8 border-t border-[var(--mo-border)] pt-6">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="lux-subheading text-sm">Финансы: проводки по лиду</h2>
-                <Link
-                  to="/finance"
-                  className="text-xs font-medium text-[var(--mo-accent-hover)] hover:text-[#614b70] hover:underline"
-                >
-                  Открыть финансы →
-                </Link>
-              </div>
-              {financeJournalQuery.isLoading && <p className="mt-2 text-xs mo-muted">Загрузка журнала…</p>}
-              {financeJournalQuery.isError && (
-                <p className="mt-2 text-xs text-[#6b1d2f]">
-                  {(financeJournalQuery.error as Error).message ?? "Нет доступа или ошибка API"}
-                </p>
-              )}
-              {(financeJournalQuery.data ?? []).length === 0 && !financeJournalQuery.isLoading && (
-                <p className="mt-2 text-xs mo-muted">Проводок с привязкой к этому лиду пока нет.</p>
-              )}
-              <ul className="mt-3 space-y-2">
-                {(financeJournalQuery.data ?? []).map((je) => (
-                  <li key={je.id} className="rounded-xl mo-section p-3 text-xs">
-                    <div className="flex flex-wrap gap-2 mo-muted">
-                      <span className="font-mono lux-caption">#{je.id}</span>
-                      <span>{new Date(je.entry_date).toLocaleString("ru-RU")}</span>
-                      <span className="rounded bg-slate-700/60 px-2 py-0.5 text-[var(--mo-text)]">{je.source_type}</span>
-                    </div>
-                    {je.memo && <p className="mt-1 lux-caption">{je.memo}</p>}
-                    <ul className="mt-2 space-y-1 font-mono text-[11px] mo-muted">
-                      {je.lines.map((ln, i) => (
-                        <li key={i}>
-                          {ln.account_code} {ln.debit !== "0" ? `Дт ${ln.debit}` : ""}{" "}
-                          {ln.credit !== "0" ? `Кт ${ln.credit}` : ""}
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
           {canDeleteLead ? (
             <section className="mt-8 border-t border-[var(--mo-border)] pt-6">
               <button

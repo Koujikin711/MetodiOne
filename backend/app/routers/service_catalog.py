@@ -12,7 +12,6 @@ from app.database import get_db
 from app.models import (
     BookingAppointment,
     BookingDirection,
-    FinanceGmailInboxItem,
     Lead,
     PatientServiceEnrollment,
     PaymentInstallment,
@@ -21,11 +20,8 @@ from app.models import (
     UserRole,
 )
 from app.schemas.service_catalog import (
-    AccountantExpenseCreate,
     EnrollmentCreate,
     EnrollmentRead,
-    GmailInboxItemRead,
-    GmailSyncResultRead,
     InstallmentRead,
     MigrateLegacyResultRead,
     ReceivableItemRead,
@@ -35,16 +31,9 @@ from app.schemas.service_catalog import (
     ServiceTemplateUpdate,
     PaymentRuleRead,
 )
-from app.services.finance_crm_bridge import post_crm_deal_payment_once
-from app.services.finance_seed import account_id_by_code
-from app.services.gmail_inbox_sync import run_gmail_inbox_sync_tick
 from app.services.service_enrollment import create_enrollment_from_template, refresh_overdue_installments
 
 router = APIRouter(prefix="/services", tags=["services"])
-
-
-def _finance_roles() -> frozenset[UserRole]:
-    return frozenset({UserRole.owner, UserRole.admin, UserRole.super_owner, UserRole.finance_analyst})
 
 
 def _catalog_write_roles() -> frozenset[UserRole]:
@@ -88,7 +77,7 @@ async def list_service_templates(
     pipeline_id: int = Query(..., ge=1),
     active_only: bool = Query(True),
 ) -> list[ServiceTemplateRead]:
-    if current_user.role not in _catalog_write_roles() and current_user.role not in _finance_roles():
+    if current_user.role not in _catalog_write_roles():
         if current_user.role not in (UserRole.manager, UserRole.expert):
             raise HTTPException(status_code=403, detail="Нет доступа")
     q = select(ServiceTemplate).where(
@@ -284,7 +273,7 @@ async def mark_installment_paid(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> InstallmentRead:
-    if current_user.role not in _catalog_write_roles() | _finance_roles():
+    if current_user.role not in _catalog_write_roles():
         raise HTTPException(status_code=403, detail="Нет доступа")
     inst = await db.get(PaymentInstallment, installment_id)
     if inst is None:
@@ -294,25 +283,6 @@ async def mark_installment_paid(
         raise HTTPException(status_code=404, detail="Этап не найден")
     if inst.status == "paid":
         return InstallmentRead.model_validate(inst)
-    amount = Decimal(inst.amount or 0).quantize(Decimal("0.01"))
-    cash_id = await account_id_by_code(db, company_id, "1010")
-    rev_id = await account_id_by_code(db, company_id, "4010")
-    if cash_id and rev_id and amount > 0:
-        from app.models import FinanceJournalEntry, FinanceJournalLine
-
-        ent = FinanceJournalEntry(
-            company_id=company_id,
-            entry_date=datetime.now(UTC),
-            memo=f"Оплата этапа: {inst.label or inst.sort_order} (лид #{enrollment.lead_id})",
-            source_type="service_installment",
-            created_by_user_id=current_user.id,
-            related_lead_id=enrollment.lead_id,
-        )
-        db.add(ent)
-        await db.flush()
-        db.add(FinanceJournalLine(entry_id=ent.id, account_id=int(cash_id), debit=amount, credit=Decimal("0")))
-        db.add(FinanceJournalLine(entry_id=ent.id, account_id=int(rev_id), debit=Decimal("0"), credit=amount))
-        inst.journal_entry_id = ent.id
     inst.status = "paid"
     inst.paid_at = datetime.now(UTC)
     await db.commit()
@@ -327,7 +297,7 @@ async def list_receivables(
     company_id: CurrentCompanyId,
     pipeline_id: int | None = Query(None, ge=1),
 ) -> ReceivablesSummaryRead:
-    if current_user.role not in _finance_roles() | _catalog_write_roles():
+    if current_user.role not in _catalog_write_roles():
         raise HTTPException(status_code=403, detail="Нет доступа")
     await refresh_overdue_installments(db, company_id)
     now = datetime.now(UTC)
@@ -398,38 +368,6 @@ async def list_receivables(
         overdue_amount=overdue_amt.quantize(Decimal("0.01")),
         items=items,
     )
-
-
-@router.get("/gmail-inbox", response_model=list[GmailInboxItemRead])
-async def list_gmail_inbox(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: CurrentUser,
-    company_id: CurrentCompanyId,
-) -> list[GmailInboxItemRead]:
-    if current_user.role not in _finance_roles() | {UserRole.accountant}:
-        raise HTTPException(status_code=403, detail="Нет доступа")
-    rows = (
-        await db.execute(
-            select(FinanceGmailInboxItem)
-            .where(FinanceGmailInboxItem.company_id == company_id)
-            .order_by(FinanceGmailInboxItem.created_at.desc())
-            .limit(100),
-        )
-    ).scalars().all()
-    return [GmailInboxItemRead.model_validate(r) for r in rows]
-
-
-@router.post("/gmail-sync", response_model=GmailSyncResultRead)
-async def trigger_gmail_sync(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: CurrentUser,
-    company_id: CurrentCompanyId,
-) -> GmailSyncResultRead:
-    if current_user.role not in _finance_roles() | {UserRole.accountant}:
-        raise HTTPException(status_code=403, detail="Нет доступа")
-    imported = await run_gmail_inbox_sync_tick(db)
-    await db.commit()
-    return GmailSyncResultRead(imported=imported)
 
 
 @router.post("/migrate-legacy-templates", response_model=MigrateLegacyResultRead)

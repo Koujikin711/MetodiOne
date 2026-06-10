@@ -59,6 +59,17 @@ class PatchEmployeePipelinesBody(BaseModel):
     pipeline_ids: list[int] = Field(default_factory=list)
 
 
+class PatchEmployeeContactBody(BaseModel):
+    email: str | None = Field(default=None, min_length=3, max_length=320)
+    phone: str | None = Field(default=None, min_length=7, max_length=32)
+
+
+class PatchEmployeeContactResult(BaseModel):
+    employee: EmployeeRead
+    email_changed: bool = False
+    credentials_email_sent: bool = False
+
+
 def _rand_password() -> str:
     alphabet = string.ascii_letters + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(12))
@@ -201,6 +212,65 @@ def _invite_app_base() -> str:
 
 def _build_invite_url(invite_token: str) -> str:
     return f"{_invite_app_base()}/login?invite={invite_token}"
+
+
+def _credentials_email_bodies(
+    *,
+    email: str,
+    temp_password: str,
+    invite_url: str,
+    intro: str,
+    heading: str = "Доступ к CRM",
+) -> tuple[str, str]:
+    safe_email = html.escape(email)
+    safe_pw = html.escape(temp_password)
+    safe_url = html.escape(invite_url, quote=True)
+    plain = (
+        "Здравствуйте!\n\n"
+        f"{intro}\n"
+        f"Логин: {email}\n"
+        f"Пароль: {temp_password}\n"
+        f"Вход: {invite_url}\n\n"
+        "Старый логин и пароль больше не действуют. После входа рекомендуем сменить пароль."
+    )
+    html_body = f"""<!DOCTYPE html>
+<html><body style="font-family:system-ui,Segoe UI,sans-serif;line-height:1.5;color:#1e293b;background:#f8fafc;padding:24px;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(15,23,42,.08);overflow:hidden;">
+    <tr><td style="padding:28px 28px 8px;">
+      <h1 style="margin:0;font-size:20px;color:#0f172a;">{html.escape(heading)}</h1>
+      <p style="margin:16px 0 0;font-size:15px;">{html.escape(intro)}</p>
+    </td></tr>
+    <tr><td style="padding:8px 28px;">
+      <p style="margin:8px 0;"><strong>Логин:</strong> {safe_email}</p>
+      <p style="margin:8px 0;"><strong>Пароль:</strong> <code style="background:#f1f5f9;padding:2px 8px;border-radius:6px;">{safe_pw}</code></p>
+    </td></tr>
+    <tr><td style="padding:16px 28px 28px;">
+      <a href="{safe_url}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:600;font-size:15px;">Войти в CRM</a>
+      <p style="margin:20px 0 0;font-size:13px;color:#64748b;">Если кнопка не открывается, скопируйте ссылку:<br/><span style="word-break:break-all;color:#475569;">{safe_url}</span></p>
+    </td></tr>
+  </table>
+</body></html>"""
+    return plain, html_body
+
+
+def _send_employee_credentials_email(
+    to_email: str,
+    temp_password: str,
+    invite_token: str,
+    *,
+    intro: str,
+    subject: str = "Доступ к CRM",
+    heading: str = "Доступ к CRM",
+) -> bool:
+    invite_url = _build_invite_url(invite_token)
+    plain, html_body = _credentials_email_bodies(
+        email=to_email,
+        temp_password=temp_password,
+        invite_url=invite_url,
+        intro=intro,
+        heading=heading,
+    )
+    return send_email(to_email, subject, plain, html_body=html_body)
 
 
 async def _user_with_phone_except(
@@ -362,40 +432,14 @@ async def invite_employee(
         )
 
     invite_url = _build_invite_url(invite_token)
-    safe_email = html.escape(email)
-    safe_pw = html.escape(temp_password)
-    safe_url = html.escape(invite_url, quote=True)
     intro = "Вам восстановили доступ к CRM." if rehire else "Вас пригласили в CRM."
-    plain = (
-        "Здравствуйте!\n\n"
-        f"{intro}\n"
-        f"Логин: {email}\n"
-        f"Пароль: {temp_password}\n"
-        f"Вход: {invite_url}\n\n"
-        "После входа рекомендуем сменить пароль."
-    )
-    html_body = f"""<!DOCTYPE html>
-<html><body style="font-family:system-ui,Segoe UI,sans-serif;line-height:1.5;color:#1e293b;background:#f8fafc;padding:24px;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(15,23,42,.08);overflow:hidden;">
-    <tr><td style="padding:28px 28px 8px;">
-      <h1 style="margin:0;font-size:20px;color:#0f172a;">Приглашение в CRM</h1>
-      <p style="margin:16px 0 0;font-size:15px;">{"Вам восстановили доступ." if rehire else "Вам создан доступ."} Данные для входа:</p>
-    </td></tr>
-    <tr><td style="padding:8px 28px;">
-      <p style="margin:8px 0;"><strong>Логин:</strong> {safe_email}</p>
-      <p style="margin:8px 0;"><strong>Пароль:</strong> <code style="background:#f1f5f9;padding:2px 8px;border-radius:6px;">{safe_pw}</code></p>
-    </td></tr>
-    <tr><td style="padding:16px 28px 28px;">
-      <a href="{safe_url}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:600;font-size:15px;">Войти в CRM</a>
-      <p style="margin:20px 0 0;font-size:13px;color:#64748b;">Если кнопка не открывается, скопируйте ссылку:<br/><span style="word-break:break-all;color:#475569;">{safe_url}</span></p>
-    </td></tr>
-  </table>
-</body></html>"""
-    sent = send_email(
+    sent = _send_employee_credentials_email(
         email,
-        "Приглашение в CRM",
-        plain,
-        html_body=html_body,
+        temp_password,
+        invite_token,
+        intro=intro,
+        subject="Приглашение в CRM",
+        heading="Приглашение в CRM",
     )
     if not sent:
         raise HTTPException(
@@ -432,6 +476,112 @@ def _validate_pipelines_for_role(role: UserRole, pipeline_ids: list[int]) -> Non
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Укажите хотя бы одну воронку для менеджера, админа или эксперта",
         )
+
+
+@router.patch("/{employee_id}", response_model=PatchEmployeeContactResult)
+async def patch_employee_contact(
+    employee_id: int,
+    body: PatchEmployeeContactBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> PatchEmployeeContactResult:
+    """Обновить email и/или телефон. При смене email — новый пароль на новую почту, старый логин отключается."""
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+
+    if body.email is None and body.phone is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите email или телефон")
+
+    target = await db.get(User, employee_id)
+    if target is None or target.company_id != company_id or not target.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")
+
+    if target.role == UserRole.owner and target.id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Контакты другого владельца нельзя изменить",
+        )
+
+    email_changed = False
+    credentials_sent = False
+    changed = False
+    new_email = target.email
+    new_phone = target.phone
+
+    if body.email is not None:
+        normalized = body.email.strip().lower()
+        if normalized != (target.email or "").strip().lower():
+            changed = True
+            conflict = (
+                await db.execute(select(User).where(User.email == normalized, User.id != target.id).limit(1))
+            ).scalars().first()
+            if conflict is not None:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email уже занят")
+
+            _invite_app_base()
+            temp_password = _rand_password()
+            invite_token = secrets.token_urlsafe(32)
+            target.email = normalized
+            target.hashed_password = hash_password(temp_password)
+            target.invite_token = invite_token
+            target.must_change_password = True
+            new_email = normalized
+            email_changed = True
+
+            intro = "Для вашего аккаунта в CRM изменён email. Используйте новые данные для входа."
+            credentials_sent = _send_employee_credentials_email(
+                normalized,
+                temp_password,
+                invite_token,
+                intro=intro,
+                subject="Новый логин для CRM",
+                heading="Смена email в CRM",
+            )
+            if not credentials_sent:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Не удалось отправить письмо на новый email. Проверьте SMTP.",
+                )
+
+    if body.phone is not None:
+        phone = _norm_phone(body.phone)
+        if len(phone) < 7:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректный телефон")
+        if phone != (target.phone or ""):
+            changed = True
+            other_phone = await _user_with_phone_except(db, phone, company_id, except_user_id=target.id)
+            if other_phone is not None:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Телефон уже занят")
+            target.phone = phone
+            new_phone = phone
+            if target.role == UserRole.expert:
+                spec = (
+                    await db.execute(
+                        select(BookingSpecialist).where(BookingSpecialist.crm_user_id == target.id).limit(1),
+                    )
+                ).scalars().first()
+                if spec is not None:
+                    spec.phone = phone
+
+    if not changed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет изменений")
+
+    await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="employee",
+        entity_id=target.id,
+        action="employee_contact_updated",
+        current_user=current_user,
+        details=f"email_changed={email_changed}, email={new_email}, phone={new_phone}",
+    )
+    await db.refresh(target)
+    return PatchEmployeeContactResult(
+        employee=await _employee_read(db, target),
+        email_changed=email_changed,
+        credentials_email_sent=credentials_sent,
+    )
 
 
 @router.patch("/{employee_id}/pipelines", response_model=EmployeeRead)

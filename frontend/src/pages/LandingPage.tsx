@@ -5,12 +5,9 @@ import { apiFetch } from "@/lib/api";
 import { BarChart3, Calendar, CheckSquare, Funnel, MapPin, MessageCircle, Target, Users, Wallet } from "@/components/icons";
 
 const shots = [
-  { src: "/landing/01-finance-charts.png", title: "Финансовые графики" },
   { src: "/landing/02-kpi-matrix.png", title: "KPI по услугам и менеджерам" },
   { src: "/landing/03-lead-card.png", title: "Карточка клиента" },
   { src: "/landing/04-chat.png", title: "Чат с клиентами" },
-  { src: "/landing/05-finance-tables.png", title: "ОПиУ и ОСВ таблицы" },
-  { src: "/landing/06-finance-overview.png", title: "Финансовый обзор" },
   { src: "/landing/07-booking.png", title: "Онлайн-запись" },
   { src: "/landing/08-integrations.png", title: "Интеграции и каналы" },
   { src: "/landing/09-tasks.png", title: "Командные задачи" },
@@ -56,14 +53,14 @@ const platformTabs = [
     ],
   },
   {
-    id: "finance",
-    title: "KPI и финансы",
-    lead: "Руководитель видит план, факт и маржинальность в реальном времени.",
+    id: "kpi",
+    title: "KPI и аналитика",
+    lead: "Руководитель видит план, факт и результат команды в реальном времени.",
     bullets: [
       "KPI по менеджерам и услугам: план/факт/% выполнения",
-      "Финансовые отчёты: ОПиУ, баланс, ОСВ, детализация по периодам",
+      "Аналитика по воронкам, менеджерам и закрытым сделкам",
       "Контроль сумм сделок, допродаж и закрытия менеджерами",
-      "Экспорт и прозрачная аналитика для управленческих решений",
+      "Прозрачные отчёты для управленческих решений",
     ],
   },
   {

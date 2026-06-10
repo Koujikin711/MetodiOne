@@ -19,7 +19,7 @@ from app.database_migrate import (
     ensure_attendance_tracker_tables,
     ensure_booking_specialist_columns,
     ensure_chat_performance_indexes,
-    ensure_finance_extensions,
+    ensure_finance_osv_tables,
     ensure_integration_provider_migration,
     ensure_multi_tenant_migration,
     ensure_owner_role_migration,
@@ -29,7 +29,6 @@ from app.database_migrate import (
     ensure_demo_billing_platform,
     ensure_tariff_constructor_billing,
     ensure_service_catalog_tables,
-    ensure_accountant_role,
 )
 from app.core.security import decode_token, hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -63,7 +62,6 @@ from app.services.background_events import record_background_event
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.runtime_metrics import runtime_metrics
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
-from app.services.gmail_inbox_sync import run_gmail_inbox_sync_tick
 from app.services.whatsapp_payment_reminders import run_payment_reminder_tick
 
 logger = logging.getLogger(__name__)
@@ -110,7 +108,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await conn.run_sync(Base.metadata.create_all)
                 await ensure_booking_specialist_columns(conn, settings.database_url)
                 await ensure_multi_tenant_migration(conn, settings.database_url)
-                await ensure_finance_extensions(conn, settings.database_url)
+                await ensure_finance_osv_tables(conn, settings.database_url)
                 await ensure_sales_kpi_plans(conn, settings.database_url)
                 await ensure_chat_performance_indexes(conn, settings.database_url)
                 await ensure_attendance_tracker_tables(conn, settings.database_url)
@@ -257,8 +255,6 @@ async def lifespan(_: FastAPI):
         await ensure_owner_role_migration(conn, settings.database_url)
     async with engine.connect() as conn:
         await ensure_integration_provider_migration(conn, settings.database_url)
-    async with engine.connect() as conn:
-        await ensure_accountant_role(conn, settings.database_url)
     await seed_pipelines_and_stages()
     await seed_test_admin()
     await seed_super_owner()
@@ -268,7 +264,6 @@ async def lifespan(_: FastAPI):
 
     async def _reminder_loop() -> None:
         next_sheets_run = 0.0
-        next_gmail_run = 0.0
         try:
             await asyncio.sleep(8)
         except asyncio.CancelledError:
@@ -278,18 +273,12 @@ async def lifespan(_: FastAPI):
                 async with AsyncSessionLocal() as session:
                     sent = await run_whatsapp_reminder_tick(session)
                     pay_sent = await run_payment_reminder_tick(session)
-                    gmail_imported = 0
-                    now_tick = asyncio.get_running_loop().time()
-                    if now_tick >= next_gmail_run:
-                        gmail_imported = await run_gmail_inbox_sync_tick(session)
-                        next_gmail_run = now_tick + 300.0
                     await session.commit()
                     if sent:
                         logger.info("whatsapp reminders sent: %s", sent)
                     if pay_sent:
                         logger.info("whatsapp payment reminders sent: %s", pay_sent)
-                    if gmail_imported:
-                        logger.info("gmail inbox imported: %s", gmail_imported)
+                    if sent:
                         record_background_event(
                             source="whatsapp_reminders",
                             ok=True,

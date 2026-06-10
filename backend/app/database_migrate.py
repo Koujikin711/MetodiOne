@@ -1662,3 +1662,65 @@ async def ensure_service_catalog_tables(conn: AsyncConnection, database_url: str
             text("ALTER TABLE booking_directions ADD COLUMN IF NOT EXISTS course_stream_gap_days INTEGER NOT NULL DEFAULT 10"),
         )
 
+
+async def ensure_finance_osv_tables(conn: AsyncConnection, database_url: str) -> None:
+    sqlite = "sqlite" in database_url
+    pg = not sqlite
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS finance_osv_rows (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    txn_date DATE NOT NULL,
+                    partner_amount NUMERIC(14, 2),
+                    service_period VARCHAR(64),
+                    revenue NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    expense NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    bank VARCHAR(64),
+                    basis VARCHAR(255),
+                    counterparty VARCHAR(255),
+                    phone VARCHAR(64),
+                    via_person VARCHAR(128),
+                    product_service VARCHAR(255),
+                    article VARCHAR(128),
+                    detail_category VARCHAR(128),
+                    brief_category VARCHAR(64),
+                    source VARCHAR(24) NOT NULL DEFAULT 'manual',
+                    external_key VARCHAR(255),
+                    created_at DATETIME,
+                    UNIQUE(company_id, external_key)
+                )""",
+            ),
+        )
+        return
+    if pg:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS finance_osv_rows (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    txn_date DATE NOT NULL,
+                    partner_amount NUMERIC(14, 2),
+                    service_period VARCHAR(64),
+                    revenue NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    expense NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    bank VARCHAR(64),
+                    basis VARCHAR(255),
+                    counterparty VARCHAR(255),
+                    phone VARCHAR(64),
+                    via_person VARCHAR(128),
+                    product_service VARCHAR(255),
+                    article VARCHAR(128),
+                    detail_category VARCHAR(128),
+                    brief_category VARCHAR(64),
+                    source VARCHAR(24) NOT NULL DEFAULT 'manual',
+                    external_key VARCHAR(255),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    CONSTRAINT uq_finance_osv_company_external UNIQUE (company_id, external_key)
+                )""",
+            ),
+        )
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_osv_rows_company_id ON finance_osv_rows (company_id)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_osv_rows_txn_date ON finance_osv_rows (txn_date)"))
+
