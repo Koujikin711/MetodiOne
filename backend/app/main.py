@@ -59,6 +59,7 @@ from app.routers import (
     users,
 )
 from app.services.background_events import record_background_event
+from app.services.google_sheets_finance_sync import run_finance_sheets_sync_tick
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.runtime_metrics import runtime_metrics
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
@@ -287,6 +288,7 @@ async def lifespan(_: FastAPI):
                     now = asyncio.get_running_loop().time()
                     if now >= next_sheets_run:
                         synced = await run_google_sheets_import_tick(session)
+                        finance_synced = await run_finance_sheets_sync_tick(session)
                         await session.commit()
                         if synced:
                             logger.info("google sheets sync tick: integrations=%s", synced)
@@ -294,6 +296,13 @@ async def lifespan(_: FastAPI):
                                 source="google_sheets",
                                 ok=True,
                                 message=f"Тик Google Sheets обработал интеграций: {synced}",
+                            )
+                        if finance_synced:
+                            logger.info("finance osv sheets sync tick: companies=%s", finance_synced)
+                            record_background_event(
+                                source="finance_sheets",
+                                ok=True,
+                                message=f"Синхронизировано таблиц ОСВ: {finance_synced}",
                             )
                         period = max(int(settings.google_sheets_poll_seconds), 30)
                         next_sheets_run = now + float(period)

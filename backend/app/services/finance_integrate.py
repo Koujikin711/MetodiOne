@@ -1,19 +1,17 @@
-"""Интеграция ОСВ: Gmail (IMAP) + данные CRM."""
+"""Интеграция ОСВ: Google Sheets + Gmail + CRM."""
 
 from __future__ import annotations
 
 import asyncio
-import csv
 import email
+import email.utils
 import imaplib
-import io
 import re
 from datetime import UTC, date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from email.header import decode_header
 from typing import Any
 
-from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,32 +24,8 @@ from app.models import (
     IntegrationProvider,
     Lead,
 )
-
-_HEADER_ALIASES: dict[str, str] = {
-    "дата": "txn_date",
-    "date": "txn_date",
-    "маблаги партном": "partner_amount",
-    "период оказания услуги": "service_period",
-    "выручка": "revenue",
-    "выручка - som": "revenue",
-    "revenue": "revenue",
-    "расход": "expense",
-    "расход - som": "expense",
-    "expense": "expense",
-    "банк": "bank",
-    "основание выручка/расход": "basis",
-    "основание": "basis",
-    "контрагенты": "counterparty",
-    "контрагент": "counterparty",
-    "телефон": "phone",
-    "чрз": "via_person",
-    "товар/услуга": "product_service",
-    "товар": "product_service",
-    "услуга": "product_service",
-    "статья": "article",
-    "подробно": "detail_category",
-    "кратко": "brief_category",
-}
+from app.services.finance_osv_parse import parse_csv_bytes, parse_decimal, parse_xlsx_bytes
+from app.services.google_sheets_finance_sync import sync_google_sheets_to_osv
 
 _AMOUNT_RE = re.compile(r"(\d[\d\s.,]{2,})\s*(?:som|сом|tjs|₽|руб)?", re.I)
 
@@ -68,132 +42,12 @@ def _decode_mime_header(raw: str | None) -> str:
     return "".join(parts)
 
 
-def _parse_decimal(raw: Any) -> Decimal:
-    if raw is None:
-        return Decimal("0")
-    if isinstance(raw, (int, float, Decimal)):
-        return Decimal(str(raw))
-    s = str(raw).strip().replace("\u00a0", "").replace(" ", "")
-    if not s or s in ("-", "—"):
-        return Decimal("0")
-    s = s.replace(",", ".")
-    try:
-        return Decimal(s)
-    except InvalidOperation:
-        return Decimal("0")
-
-
-def _parse_date(raw: Any) -> date | None:
-    if raw is None:
-        return None
-    if isinstance(raw, datetime):
-        return raw.date()
-    if isinstance(raw, date):
-        return raw
-    s = str(raw).strip()
-    if not s:
-        return None
-    for fmt in ("%d.%m.%Y", "%Y-%m-%d", "%d.%m.%y", "%d/%m/%Y"):
-        try:
-            return datetime.strptime(s, fmt).date()
-        except ValueError:
-            continue
-    m = re.search(r"(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})", s)
-    if m:
-        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        if y < 100:
-            y += 2000
-        try:
-            return date(y, mo, d)
-        except ValueError:
-            return None
-    return None
-
-
-def _normalize_header(h: str) -> str:
-    return re.sub(r"\s+", " ", (h or "").strip().lower())
-
-
-def _row_from_mapping(data: dict[str, Any]) -> dict[str, Any] | None:
-    txn_date = _parse_date(data.get("txn_date"))
-    revenue = _parse_decimal(data.get("revenue"))
-    expense = _parse_decimal(data.get("expense"))
-    if txn_date is None or (revenue <= 0 and expense <= 0):
-        return None
-    return {
-        "txn_date": txn_date,
-        "partner_amount": _parse_decimal(data.get("partner_amount")) or None,
-        "service_period": (data.get("service_period") or None),
-        "revenue": revenue,
-        "expense": expense,
-        "bank": (str(data.get("bank") or "").strip() or None),
-        "basis": (str(data.get("basis") or "").strip() or None),
-        "counterparty": (str(data.get("counterparty") or "").strip() or None),
-        "phone": (str(data.get("phone") or "").strip() or None),
-        "via_person": (str(data.get("via_person") or "").strip() or None),
-        "product_service": (str(data.get("product_service") or "").strip() or None),
-        "article": (str(data.get("article") or "").strip() or None),
-        "detail_category": (str(data.get("detail_category") or "").strip() or None),
-        "brief_category": (str(data.get("brief_category") or "").strip() or None),
-    }
-
-
-def _parse_csv_bytes(raw: bytes) -> list[dict[str, Any]]:
-    text = raw.decode("utf-8-sig", errors="replace")
-    reader = csv.reader(io.StringIO(text))
-    rows = list(reader)
-    if len(rows) < 2:
-        return []
-    header = [_normalize_header(c) for c in rows[0]]
-    col_map: dict[int, str] = {}
-    for i, h in enumerate(header):
-        field = _HEADER_ALIASES.get(h)
-        if field:
-            col_map[i] = field
-    if not col_map:
-        return []
-    out: list[dict[str, Any]] = []
-    for line in rows[1:]:
-        data: dict[str, Any] = {}
-        for i, field in col_map.items():
-            if i < len(line):
-                data[field] = line[i]
-        parsed = _row_from_mapping(data)
-        if parsed:
-            out.append(parsed)
-    return out
-
-
-def _parse_xlsx_bytes(raw: bytes) -> list[dict[str, Any]]:
-    wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
-    ws = wb.active
-    rows = list(ws.iter_rows(values_only=True))
-    if len(rows) < 2:
-        return []
-    header = [_normalize_header(str(c or "")) for c in rows[0]]
-    col_map: dict[int, str] = {}
-    for i, h in enumerate(header):
-        field = _HEADER_ALIASES.get(h)
-        if field:
-            col_map[i] = field
-    out: list[dict[str, Any]] = []
-    for line in rows[1:]:
-        data: dict[str, Any] = {}
-        for i, field in col_map.items():
-            if i < len(line):
-                data[field] = line[i]
-        parsed = _row_from_mapping(data)
-        if parsed:
-            out.append(parsed)
-    return out
-
-
 def _parse_email_body_row(subject: str, body: str, fallback_date: date) -> dict[str, Any] | None:
     text = f"{subject}\n{body}"
     amounts = _AMOUNT_RE.findall(text)
     if not amounts:
         return None
-    amt = _parse_decimal(amounts[0])
+    amt = parse_decimal(amounts[0])
     if amt <= 0:
         return None
     low = text.lower()
@@ -241,9 +95,9 @@ def _imap_fetch_parsed_rows(email_addr: str, app_password: str, imap_host: str) 
                         low = fname.lower()
                         parsed_rows: list[dict[str, Any]] = []
                         if low.endswith(".csv"):
-                            parsed_rows = _parse_csv_bytes(payload)
+                            parsed_rows = parse_csv_bytes(payload)
                         elif low.endswith((".xlsx", ".xlsm")):
-                            parsed_rows = _parse_xlsx_bytes(payload)
+                            parsed_rows = parse_xlsx_bytes(payload)
                         for i, row in enumerate(parsed_rows):
                             out.append((f"{ext_base}:att:{fname}:{i}", row))
                     elif ctype == "text/plain" and not body_text:
@@ -262,7 +116,7 @@ def _imap_fetch_parsed_rows(email_addr: str, app_password: str, imap_host: str) 
     return out
 
 
-async def _get_gmail_integration(db: AsyncSession, company_id: int) -> Integration | None:
+async def get_gmail_integration(db: AsyncSession, company_id: int) -> Integration | None:
     row = (
         await db.execute(
             select(Integration)
@@ -388,7 +242,7 @@ async def sync_crm_to_osv(db: AsyncSession, company_id: int) -> tuple[int, int]:
 
 
 async def sync_gmail_to_osv(db: AsyncSession, company_id: int) -> tuple[int, int, bool, str | None]:
-    integ = await _get_gmail_integration(db, company_id)
+    integ = await get_gmail_integration(db, company_id)
     if integ is None:
         return 0, 0, False, None
     cfg = integ.config if isinstance(integ.config, dict) else {}
@@ -416,22 +270,33 @@ async def sync_gmail_to_osv(db: AsyncSession, company_id: int) -> tuple[int, int
     return imported, skipped, True, email_addr
 
 
+async def ensure_finance_settings(db: AsyncSession, company_id: int) -> FinanceCompanySettings:
+    row = (
+        await db.execute(select(FinanceCompanySettings).where(FinanceCompanySettings.company_id == company_id))
+    ).scalars().first()
+    if row is None:
+        row = FinanceCompanySettings(company_id=company_id)
+        db.add(row)
+        await db.flush()
+    return row
+
+
 async def run_finance_integrate(db: AsyncSession, company_id: int) -> dict[str, Any]:
+    settings = await ensure_finance_settings(db, company_id)
+
+    sheets_imported = 0
+    sheets_sheet: str | None = None
+    sheets_error: str | None = None
+    if (settings.osv_sheet_url or "").strip():
+        try:
+            sheets_imported, sheets_sheet = await sync_google_sheets_to_osv(db, company_id)
+        except Exception as exc:
+            sheets_error = str(exc)
+
     gmail_imported, gmail_skipped, gmail_ok, gmail_email = await sync_gmail_to_osv(db, company_id)
     crm_imported, crm_skipped = await sync_crm_to_osv(db, company_id)
 
-    settings = (
-        await db.execute(select(FinanceCompanySettings).where(FinanceCompanySettings.company_id == company_id))
-    ).scalars().first()
-    if settings is None:
-        settings = FinanceCompanySettings(company_id=company_id)
-        db.add(settings)
     settings.updated_at = datetime.now(UTC)
-    if gmail_imported or crm_imported:
-        today = date.today()
-        settings.last_osv_import_to = today
-        if settings.last_osv_import_from is None:
-            settings.last_osv_import_from = date(today.year, 1, 1)
 
     total = (
         await db.execute(
@@ -440,18 +305,30 @@ async def run_finance_integrate(db: AsyncSession, company_id: int) -> dict[str, 
     ).all()
 
     msg_parts: list[str] = []
-    if gmail_ok:
-        msg_parts.append(f"Gmail: +{gmail_imported} строк")
+    if sheets_imported:
+        msg_parts.append(f"Google Sheets ({sheets_sheet}): {sheets_imported} строк")
+    elif (settings.osv_sheet_url or "").strip():
+        msg_parts.append(sheets_error or "Google Sheets: строк не найдено")
     else:
-        msg_parts.append("Gmail не подключён — подключите в «Интеграции»")
-    msg_parts.append(f"CRM: +{crm_imported} строк")
+        msg_parts.append("Google Sheets: укажите URL таблицы ОСВ в настройках финансов")
+
+    if gmail_ok:
+        msg_parts.append(f"Gmail: +{gmail_imported}")
+    else:
+        msg_parts.append("Gmail: не подключён")
+
+    msg_parts.append(f"CRM: +{crm_imported}")
     skipped = gmail_skipped + crm_skipped
     if skipped:
-        msg_parts.append(f"пропущено дублей: {skipped}")
+        msg_parts.append(f"дублей пропущено: {skipped}")
 
     return {
         "gmail_connected": gmail_ok,
         "gmail_email": gmail_email,
+        "sheets_connected": bool((settings.osv_sheet_url or "").strip()),
+        "osv_sheet_url": settings.osv_sheet_url,
+        "osv_sheet_name": sheets_sheet or settings.osv_sheet_name,
+        "imported_from_sheets": sheets_imported,
         "imported_from_gmail": gmail_imported,
         "imported_from_crm": crm_imported,
         "skipped_duplicates": skipped,

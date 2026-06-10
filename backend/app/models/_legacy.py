@@ -659,6 +659,8 @@ class FinanceCompanySettings(Base):
     last_osv_import_to: Mapped[date | None] = mapped_column(Date, nullable=True, default=None)
     # Проводки с датой <= этой (по календарю UTC) запрещены, кроме служебных сценариев
     posting_locked_until: Mapped[date | None] = mapped_column(Date, nullable=True, default=None)
+    osv_sheet_url: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None)
+    osv_sheet_name: Mapped[str | None] = mapped_column(String(120), nullable=True, default=None)
 
 
 class FinanceBudgetMonth(Base):

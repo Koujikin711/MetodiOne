@@ -71,15 +71,38 @@ class FinanceOpiuReportRead(BaseModel):
     rows: list[FinanceReportCellRow]
 
 
+class FinanceSettingsRead(BaseModel):
+    osv_sheet_url: str | None = None
+    osv_sheet_name: str | None = None
+    last_osv_import_from: date | None = None
+    last_osv_import_to: date | None = None
+    google_sheets_ready: bool = False
+    service_account_email: str | None = None
+
+
+class FinanceSettingsPatch(BaseModel):
+    osv_sheet_url: str | None = None
+    osv_sheet_name: str | None = None
+
+
 class FinanceIntegrationStatusRead(BaseModel):
     gmail_connected: bool = False
     gmail_email: str | None = None
+    sheets_connected: bool = False
+    osv_sheet_url: str | None = None
+    osv_sheet_name: str | None = None
     last_sync_at: datetime | None = None
+    last_osv_import_from: date | None = None
+    last_osv_import_to: date | None = None
     osv_rows_count: int = 0
 
 
 class FinanceIntegrateResultRead(BaseModel):
     gmail_connected: bool
+    sheets_connected: bool = False
+    osv_sheet_url: str | None = None
+    osv_sheet_name: str | None = None
+    imported_from_sheets: int = 0
     imported_from_gmail: int = 0
     imported_from_crm: int = 0
     skipped_duplicates: int = 0

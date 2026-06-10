@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings as app_settings
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import FinanceCompanySettings, FinanceOsvRow, UserRole
@@ -14,9 +15,12 @@ from app.schemas.finance_v2 import (
     FinanceIntegrationStatusRead,
     FinanceOpiuReportRead,
     FinanceOsvSummaryRead,
+    FinanceSettingsPatch,
+    FinanceSettingsRead,
 )
-from app.services.finance_integrate import run_finance_integrate
+from app.services.finance_integrate import ensure_finance_settings, get_gmail_integration, run_finance_integrate
 from app.services.finance_report_build import build_dds_report, build_opiu_report, load_osv_summary
+from app.services.google_sheets_sync import _google_service_account_ready
 
 router = APIRouter(prefix="/finance", tags=["finance"])
 
@@ -30,10 +34,70 @@ _FINANCE_ROLES = frozenset(
     },
 )
 
+_SETTINGS_ROLES = frozenset(
+    {
+        UserRole.owner,
+        UserRole.admin,
+        UserRole.super_owner,
+        UserRole.accountant,
+    },
+)
+
 
 def _require_finance(user: CurrentUser) -> None:
     if user.role not in _FINANCE_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к финансам")
+
+
+def _require_finance_settings(user: CurrentUser) -> None:
+    if user.role not in _SETTINGS_ROLES:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Настройки финансов доступны владельцу и бухгалтеру")
+
+
+def _settings_read(row: FinanceCompanySettings | None) -> FinanceSettingsRead:
+    email = app_settings.google_service_account_email.strip() or None
+    return FinanceSettingsRead(
+        osv_sheet_url=row.osv_sheet_url if row else None,
+        osv_sheet_name=row.osv_sheet_name if row else None,
+        last_osv_import_from=row.last_osv_import_from if row else None,
+        last_osv_import_to=row.last_osv_import_to if row else None,
+        google_sheets_ready=_google_service_account_ready(),
+        service_account_email=email,
+    )
+
+
+@router.get("/settings", response_model=FinanceSettingsRead)
+async def get_finance_settings(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceSettingsRead:
+    _require_finance(current_user)
+    row = (
+        await db.execute(select(FinanceCompanySettings).where(FinanceCompanySettings.company_id == company_id))
+    ).scalars().first()
+    return _settings_read(row)
+
+
+@router.patch("/settings", response_model=FinanceSettingsRead)
+async def patch_finance_settings(
+    body: FinanceSettingsPatch,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceSettingsRead:
+    _require_finance_settings(current_user)
+    row = await ensure_finance_settings(db, company_id)
+    if body.osv_sheet_url is not None:
+        url = body.osv_sheet_url.strip() or None
+        row.osv_sheet_url = url
+    if body.osv_sheet_name is not None:
+        name = body.osv_sheet_name.strip() or None
+        row.osv_sheet_name = name
+    row.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(row)
+    return _settings_read(row)
 
 
 @router.get("/integration-status", response_model=FinanceIntegrationStatusRead)
@@ -43,9 +107,7 @@ async def integration_status(
     company_id: CurrentCompanyId,
 ) -> FinanceIntegrationStatusRead:
     _require_finance(current_user)
-    from app.services.finance_integrate import _get_gmail_integration
-
-    integ = await _get_gmail_integration(db, company_id)
+    integ = await get_gmail_integration(db, company_id)
     cfg = integ.config if integ and isinstance(integ.config, dict) else {}
     email = str(cfg.get("email") or cfg.get("gmail_email") or "").strip() or None
     settings = (
@@ -55,10 +117,16 @@ async def integration_status(
         await db.scalar(select(func.count()).select_from(FinanceOsvRow).where(FinanceOsvRow.company_id == company_id))
         or 0,
     )
+    sheet_url = (settings.osv_sheet_url or "").strip() if settings else ""
     return FinanceIntegrationStatusRead(
         gmail_connected=integ is not None and bool(email),
         gmail_email=email,
+        sheets_connected=bool(sheet_url),
+        osv_sheet_url=sheet_url or None,
+        osv_sheet_name=settings.osv_sheet_name if settings else None,
         last_sync_at=settings.updated_at if settings else None,
+        last_osv_import_from=settings.last_osv_import_from if settings else None,
+        last_osv_import_to=settings.last_osv_import_to if settings else None,
         osv_rows_count=count,
     )
 
@@ -69,7 +137,7 @@ async def integrate_finance(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceIntegrateResultRead:
-    """Забрать ОСВ из Gmail (вложения CSV/XLSX и уведомления) и из CRM (оплаты)."""
+    """Забрать ОСВ из Google Sheets, Gmail и CRM."""
     _require_finance(current_user)
     if current_user.role == UserRole.finance_analyst:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Интеграция доступна владельцу и бухгалтеру")
