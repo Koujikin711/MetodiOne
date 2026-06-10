@@ -64,6 +64,9 @@ export interface ChatThread {
   id: number;
   lead_id: number | null;
   lead_name: string | null;
+  lead_phone?: string | null;
+  lead_phone_display?: string | null;
+  lead_phone_can_view_full?: boolean;
   manager_id?: number | null;
   manager_name?: string | null;
   provider: string;

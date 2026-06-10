@@ -3,10 +3,27 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { apiFetch, getStoredToken, resolveMediaUrl } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import type { ChatMessage, ChatThread, ChatThreadBucket, ChatThreadBucketCounts } from "@/lib/types";
+
+function threadPhoneForDisplay(t: ChatThread): string {
+  const fromLead = displayPatientPhone({
+    phone: t.lead_phone,
+    phone_display: t.lead_phone_display,
+  });
+  if (fromLead !== "—") return fromLead;
+  const ext = (t.external_chat_id || "").trim();
+  if (!ext) return "—";
+  const local = ext.includes("@") ? ext.split("@")[0] : ext;
+  const digits = local.replace(/\D/g, "");
+  if (digits.length >= 9) {
+    return digits.startsWith("992") ? `+${digits}` : `+992${digits}`;
+  }
+  return local || "—";
+}
 
 const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|bmp|svg|avif|heic|heif)(\?|#|$)/i;
 
@@ -637,8 +654,19 @@ export function ChatPage() {
                     <div className="truncate text-sm font-semibold text-[var(--mo-text)]">
                       {t.lead_name || t.title || `Диалог #${t.id}`}
                     </div>
-                    <div className="mt-0.5 truncate text-xs lux-caption max-lg:text-[11px] sm:mt-1">
-                      {t.provider} {t.external_chat_id ? `· ${t.external_chat_id}` : ""}
+                    {threadPhoneForDisplay(t) !== "—" ? (
+                      <div className="mt-0.5 truncate text-xs font-medium text-[var(--mo-text)]/90 tabular-nums max-lg:text-[11px] sm:mt-1">
+                        <PatientPhone
+                          value={{
+                            phone: t.lead_phone,
+                            phone_display: t.lead_phone_display || threadPhoneForDisplay(t),
+                            phone_can_view_full: t.lead_phone_can_view_full,
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                    <div className="mt-0.5 truncate text-[10px] lux-caption max-lg:hidden">
+                      {t.provider}
                     </div>
                     {manager ? (
                       <div className="mt-1 hidden truncate text-[11px] mo-muted/80 sm:block">
@@ -703,21 +731,34 @@ export function ChatPage() {
                   ← Назад
                 </button>
                 <div className="min-w-0 flex-1">
-                  <div className="lux-subheading truncate text-sm">
+                  <div className="lux-subheading truncate text-sm sm:text-base">
                     {activeThread?.lead_name || activeThread?.title || `Диалог #${threadId}`}
                   </div>
                   {activeThread ? (
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs lux-caption">
-                      <span>
-                        {activeThread.provider}{" "}
-                        {activeThread.external_chat_id ? `· ${activeThread.external_chat_id}` : ""}
-                      </span>
-                      <span className="opacity-60">·</span>
-                      <span>
-                        Ответственный:{" "}
-                        <span className="text-[var(--mo-text)]/90">{selectedManagerLabel}</span>
-                      </span>
-                    </div>
+                    <>
+                      <div className="mt-1 text-base font-semibold tracking-wide text-[var(--mo-text)] tabular-nums max-lg:text-sm">
+                        {threadPhoneForDisplay(activeThread) !== "—" ? (
+                          <PatientPhone
+                            value={{
+                              phone: activeThread.lead_phone,
+                              phone_display:
+                                activeThread.lead_phone_display || threadPhoneForDisplay(activeThread),
+                              phone_can_view_full: activeThread.lead_phone_can_view_full,
+                            }}
+                          />
+                        ) : (
+                          <span className="text-xs font-normal lux-caption">Номер не указан</span>
+                        )}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs lux-caption">
+                        <span>{activeThread.provider}</span>
+                        <span className="opacity-60">·</span>
+                        <span>
+                          Ответственный:{" "}
+                          <span className="text-[var(--mo-text)]/90">{selectedManagerLabel}</span>
+                        </span>
+                      </div>
+                    </>
                   ) : null}
                 </div>
               </div>
