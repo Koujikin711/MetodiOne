@@ -155,7 +155,23 @@ const CHAT_BUCKET_TABS: { id: ChatThreadBucket; label: string; hint: string }[] 
   { id: "transferred", label: "Переданные", hint: "После перераспределения" },
   { id: "own", label: "Мои", hint: "Изначально ваши" },
   { id: "awaiting_reply", label: "Ждут ответа", hint: "Клиент написал — вы нет" },
+  { id: "sold", label: "Проданные", hint: "Закрытые сделки" },
 ];
+
+function formatSaleMoney(raw: string | null | undefined): string {
+  if (!raw) return "—";
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return raw;
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(n);
+}
+
+function saleSummaryLine(t: ChatThread): string | null {
+  if (!t.sale_service_title && !t.sale_amount && !t.sale_paid_amount) return null;
+  const paid = formatSaleMoney(t.sale_paid_amount);
+  const total = formatSaleMoney(t.sale_amount);
+  const svc = (t.sale_service_title || "Услуга").trim();
+  return `${svc} · оплачено ${paid}${total !== "—" ? ` из ${total}` : ""}`;
+}
 
 /** Зелёный: последнее сообщение от клиента (ждём ответ). Голубой: в пределах 3 суток с первого сообщения в чате. */
 type ThreadAttention = "waiting_reply" | "recent_window" | "normal";
@@ -584,7 +600,7 @@ export function ChatPage() {
           <div className="mb-2 hidden text-sm font-semibold text-[#1e3348] sm:block">Диалоги</div>
 
           {showManagerChatBuckets ? (
-            <div className="mb-2 grid shrink-0 grid-cols-3 gap-1 max-lg:mb-1.5 sm:mb-3 sm:gap-1.5">
+            <div className="mb-2 grid shrink-0 grid-cols-2 gap-1 max-lg:mb-1.5 sm:mb-3 sm:grid-cols-4 sm:gap-1.5">
               {CHAT_BUCKET_TABS.map((tab) => {
                 const active = chatBucket === tab.id;
                 const count =
@@ -592,13 +608,17 @@ export function ChatPage() {
                     ? bucketCountsQuery.data?.transferred ?? 0
                     : tab.id === "own"
                       ? bucketCountsQuery.data?.own ?? 0
-                      : bucketCountsQuery.data?.awaiting_reply ?? 0;
+                      : tab.id === "sold"
+                        ? bucketCountsQuery.data?.sold ?? 0
+                        : bucketCountsQuery.data?.awaiting_reply ?? 0;
                 const activeShell =
                   tab.id === "transferred"
                     ? "border-[#c9b07a] bg-[#faf5eb] ring-1 ring-[#c9b07a]/40"
                     : tab.id === "own"
                       ? "border-[#2f5f85] bg-[#e8f0f7] ring-1 ring-[#2f5f85]/30"
-                      : "border-[#2d6a5a] bg-[#edf7f1] ring-1 ring-[#2d6a5a]/30";
+                      : tab.id === "sold"
+                        ? "border-[#7a5c9e] bg-[#f3edf8] ring-1 ring-[#7a5c9e]/35"
+                        : "border-[#2d6a5a] bg-[#edf7f1] ring-1 ring-[#2d6a5a]/30";
                 const idleShell = "border-[#d8d2c6] bg-white/80 hover:border-[#2f5f85]/30 hover:bg-white";
                 return (
                   <button
@@ -668,6 +688,11 @@ export function ChatPage() {
                     <div className="mt-0.5 truncate text-[10px] lux-caption max-lg:hidden">
                       {t.provider}
                     </div>
+                    {saleSummaryLine(t) ? (
+                      <div className="mt-1 truncate text-[10px] font-medium text-[#5a3d7a] sm:text-[11px]">
+                        {saleSummaryLine(t)}
+                      </div>
+                    ) : null}
                     {manager ? (
                       <div className="mt-1 hidden truncate text-[11px] mo-muted/80 sm:block">
                         Ответственный: {manager}
@@ -695,7 +720,9 @@ export function ChatPage() {
                     ? "Нет переданных лидов"
                     : chatBucket === "own"
                       ? "Нет ваших диалогов"
-                      : "Нет диалогов, где ждут вашего ответа"
+                      : chatBucket === "sold"
+                        ? "Нет проданных пациентов"
+                        : "Нет диалогов, где ждут вашего ответа"
                   : "Пока нет диалогов"}
               </p>
             )}
@@ -750,6 +777,11 @@ export function ChatPage() {
                           <span className="text-xs font-normal lux-caption">Номер не указан</span>
                         )}
                       </div>
+                      {saleSummaryLine(activeThread) ? (
+                        <div className="mt-1 text-xs font-medium text-[#5a3d7a] sm:text-sm">
+                          {saleSummaryLine(activeThread)}
+                        </div>
+                      ) : null}
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs lux-caption">
                         <span>{activeThread.provider}</span>
                         <span className="opacity-60">·</span>

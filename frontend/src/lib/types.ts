@@ -82,14 +82,18 @@ export interface ChatThread {
   last_message_direction?: "in" | "out" | null;
   /** Лид передан менеджеру при перераспределении */
   is_transferred?: boolean;
+  sale_service_title?: string | null;
+  sale_amount?: string | null;
+  sale_paid_amount?: string | null;
 }
 
-export type ChatThreadBucket = "transferred" | "own" | "awaiting_reply";
+export type ChatThreadBucket = "transferred" | "own" | "awaiting_reply" | "sold";
 
 export interface ChatThreadBucketCounts {
   transferred: number;
   own: number;
   awaiting_reply: number;
+  sold: number;
 }
 
 export interface ChatMessage {

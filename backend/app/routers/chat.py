@@ -16,9 +16,12 @@ from app.core.manager_scope import manager_lead_visibility
 from app.core.security import decode_token
 from app.database import get_db
 from app.models import (
+    BookingAppointment,
+    BookingDirection,
     ChatMessage,
     ChatThread,
     ChatThreadUserRead,
+    Deal,
     Integration,
     IntegrationProvider,
     Lead,
@@ -28,6 +31,8 @@ from app.models import (
     UserPipelineAssignment,
     UserRole,
 )
+
+_INTEGRATION_CLOSE_DEAL_TYPE = "integration_close"
 from app.services.audio_prepare import prepare_file_for_green_whatsapp
 from app.services.chat_media_store import resolve_outgoing_chat_media, save_outgoing_chat_media
 from app.services.green_api_send import send_green_file_upload, send_green_text_async
@@ -73,15 +78,22 @@ class ChatThreadRead(BaseModel):
         default=False,
         description="Лид передан этому менеджеру при перераспределении (не изначально его).",
     )
+    sale_service_title: str | None = Field(
+        default=None,
+        description="Услуга по закрытой продаже (последняя запись или сделка).",
+    )
+    sale_amount: str | None = Field(default=None, description="Сумма сделки")
+    sale_paid_amount: str | None = Field(default=None, description="Оплачено по сделке")
 
 
-ChatThreadBucket = Literal["transferred", "own", "awaiting_reply"]
+ChatThreadBucket = Literal["transferred", "own", "awaiting_reply", "sold"]
 
 
 class ChatThreadBucketCounts(BaseModel):
     transferred: int = 0
     own: int = 0
     awaiting_reply: int = 0
+    sold: int = 0
 
 
 class ChatMessageRead(BaseModel):
@@ -137,6 +149,74 @@ async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
         )
     )
     return {r[0] for r in rows.all()}
+
+
+def _lead_closed_sale_exists(lead_id_col, *, company_id: int):
+    return exists(
+        select(1)
+        .select_from(Deal)
+        .where(
+            Deal.lead_id == lead_id_col,
+            Deal.company_id == company_id,
+            Deal.deal_type == _INTEGRATION_CLOSE_DEAL_TYPE,
+        ),
+    )
+
+
+async def _sale_info_by_lead_ids(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    lead_ids: list[int],
+) -> dict[int, dict[str, str | None]]:
+    if not lead_ids:
+        return {}
+    uniq = sorted({int(x) for x in lead_ids if x is not None})
+    deal_rows = (
+        await db.execute(
+            select(Deal.lead_id, Deal.amount, Deal.paid_amount, Deal.title).where(
+                Deal.company_id == company_id,
+                Deal.lead_id.in_(uniq),
+                Deal.deal_type == _INTEGRATION_CLOSE_DEAL_TYPE,
+            ),
+        )
+    ).all()
+    out: dict[int, dict[str, str | None]] = {}
+    for lead_id, amount, paid, title in deal_rows:
+        lid = int(lead_id)
+        out[lid] = {
+            "service": (str(title or "").strip() or None),
+            "amount": str(amount) if amount is not None else None,
+            "paid": str(paid) if paid is not None else None,
+        }
+    appt_rows = (
+        await db.execute(
+            select(
+                BookingAppointment.lead_id,
+                func.coalesce(BookingAppointment.service_title, BookingDirection.name),
+            )
+            .outerjoin(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.lead_id.in_(uniq),
+            )
+            .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc()),
+        )
+    ).all()
+    service_by_lead: dict[int, str] = {}
+    for lead_id, svc in appt_rows:
+        if lead_id is None:
+            continue
+        lid = int(lead_id)
+        if lid in service_by_lead:
+            continue
+        label = str(svc or "").strip()
+        if label:
+            service_by_lead[lid] = label
+    for lid, info in out.items():
+        svc = service_by_lead.get(lid) or info.get("service")
+        info["service"] = svc or "Закрытая сделка"
+    return out
 
 
 def _lead_transferred_to_manager_exists(lead_id_col, *, manager_id: int, company_id: int):
@@ -462,6 +542,8 @@ def _apply_manager_thread_bucket(
         return query.where(~transferred)
     if bucket == "awaiting_reply":
         return query.where(last_direction_sq == "in")
+    if bucket == "sold":
+        return query.where(_lead_closed_sale_exists(Lead.id, company_id=company_id))
     return query
 
 
@@ -496,7 +578,7 @@ async def thread_bucket_counts(
     company_id: CurrentCompanyId,
     q: str | None = Query(default=None, max_length=120),
 ) -> ChatThreadBucketCounts:
-    """Счётчики для трёх вкладок чата менеджера."""
+    """Счётчики для вкладок чата менеджера."""
     if current_user.role not in (UserRole.manager, UserRole.admin):
         return ChatThreadBucketCounts()
     allowed = await _manager_pipeline_ids(db, current_user.id)
@@ -525,7 +607,7 @@ async def thread_bucket_counts(
     if term:
         base = _apply_thread_search(base, term=term)
     out = ChatThreadBucketCounts()
-    for bucket in ("transferred", "own", "awaiting_reply"):
+    for bucket in ("transferred", "own", "awaiting_reply", "sold"):
         qcnt = _apply_manager_thread_bucket(
             base,
             bucket=bucket,  # type: ignore[arg-type]
@@ -546,7 +628,7 @@ async def list_threads(
     q: str | None = Query(default=None, max_length=120),
     bucket: ChatThreadBucket | None = Query(
         default=None,
-        description="Вкладка для менеджера: transferred | own | awaiting_reply",
+        description="Вкладка для менеджера: transferred | own | awaiting_reply | sold",
     ),
     limit: int | None = Query(default=None, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -648,6 +730,8 @@ async def list_threads(
     if limit is not None:
         query = query.limit(limit)
     rows = (await db.execute(query)).all()
+    lead_ids = [int(row.lead_id) for row in rows if getattr(row, "lead_id", None) is not None]
+    sale_info = await _sale_info_by_lead_ids(db, company_id=company_id, lead_ids=lead_ids)
 
     out: list[ChatThreadRead] = []
     for row in rows:
@@ -661,6 +745,7 @@ async def list_threads(
         )
         if current_user.role == UserRole.manager and ext_chat and not can_view_phone:
             ext_chat = mask_patient_phone(ext_chat.split("@")[0] if "@" in ext_chat else ext_chat)
+        sale = sale_info.get(int(row.lead_id)) if row.lead_id is not None else None
         out.append(
             ChatThreadRead(
                 id=int(row.id),
@@ -680,6 +765,9 @@ async def list_threads(
                 first_message_at=row.first_message_at,
                 last_message_direction=row.last_message_direction,
                 is_transferred=bool(getattr(row, "is_transferred", False)),
+                sale_service_title=sale.get("service") if sale else None,
+                sale_amount=sale.get("amount") if sale else None,
+                sale_paid_amount=sale.get("paid") if sale else None,
             )
         )
     return out
