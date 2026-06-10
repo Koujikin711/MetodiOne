@@ -31,8 +31,12 @@ from app.models import (
 from app.services.audio_prepare import prepare_file_for_green_whatsapp
 from app.services.chat_media_store import resolve_outgoing_chat_media, save_outgoing_chat_media
 from app.services.green_api_send import send_green_file_upload, send_green_text_async
-from app.services.patient_phone_visibility import can_view_full_patient_phone, mask_patient_phone
-from app.services.phone_match import parse_allowed_phones_json
+from app.services.patient_phone_visibility import (
+    can_view_full_patient_phone,
+    mask_patient_phone,
+    resolve_phone_fields,
+)
+from app.services.phone_match import parse_allowed_phones_json, phone_digits
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +47,9 @@ class ChatThreadRead(BaseModel):
     id: int
     lead_id: int | None = None
     lead_name: str | None = None
+    lead_phone: str | None = None
+    lead_phone_display: str | None = None
+    lead_phone_can_view_full: bool = False
     manager_id: int | None = None
     manager_name: str | None = None
     provider: str
@@ -93,6 +100,14 @@ class ChatMessageRead(BaseModel):
 
 class SendMessageBody(BaseModel):
     text: str = Field(..., min_length=1, max_length=4000)
+
+
+def _phone_from_external_chat_id(external_chat_id: str | None) -> str | None:
+    if not external_chat_id or not str(external_chat_id).strip():
+        return None
+    local = str(external_chat_id).split("@", 1)[0].strip()
+    digits = phone_digits(local)
+    return digits or local or None
 
 
 async def _thread_allowed_outbound_phones(db: AsyncSession, thread: ChatThread) -> list[str]:
@@ -583,6 +598,7 @@ async def list_threads(
         ChatThread.id,
         ChatThread.lead_id,
         Lead.name,
+        Lead.phone,
         Lead.manager_id.label("manager_id"),
         func.coalesce(User.full_name, User.email).label("manager_name"),
         ChatThread.provider,
@@ -636,15 +652,23 @@ async def list_threads(
     out: list[ChatThreadRead] = []
     for row in rows:
         ext_chat = row.external_chat_id
-        if current_user.role == UserRole.manager and ext_chat:
-            can_view = await can_view_full_patient_phone(db, current_user, row.pipeline_id)
-            if not can_view:
-                ext_chat = mask_patient_phone(ext_chat.split("@")[0] if "@" in ext_chat else ext_chat)
+        raw_phone = (row.phone if getattr(row, "phone", None) else None) or _phone_from_external_chat_id(ext_chat)
+        phone_val, phone_display, can_view_phone = await resolve_phone_fields(
+            db,
+            current_user,
+            row.pipeline_id,
+            raw_phone,
+        )
+        if current_user.role == UserRole.manager and ext_chat and not can_view_phone:
+            ext_chat = mask_patient_phone(ext_chat.split("@")[0] if "@" in ext_chat else ext_chat)
         out.append(
             ChatThreadRead(
                 id=int(row.id),
                 lead_id=row.lead_id,
                 lead_name=row.name,
+                lead_phone=phone_val if phone_val is not None else (phone_display if phone_display != "—" else None),
+                lead_phone_display=phone_display,
+                lead_phone_can_view_full=can_view_phone,
                 manager_id=getattr(row, "manager_id", None),
                 manager_name=getattr(row, "manager_name", None),
                 provider=row.provider,
