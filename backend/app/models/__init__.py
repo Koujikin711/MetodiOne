@@ -2,4 +2,3 @@
 
 from app.models._legacy import *  # noqa: F403
 from app.models.finance_osv import *  # noqa: F403
-from app.models.freelance import *  # noqa: F403
