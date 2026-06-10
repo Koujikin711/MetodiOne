@@ -687,15 +687,33 @@ export interface FinanceOpiuReport {
   rows: FinanceReportCellRow[];
 }
 
+export interface FinanceSettings {
+  osv_sheet_url?: string | null;
+  osv_sheet_name?: string | null;
+  last_osv_import_from?: string | null;
+  last_osv_import_to?: string | null;
+  google_sheets_ready: boolean;
+  service_account_email?: string | null;
+}
+
 export interface FinanceIntegrationStatus {
   gmail_connected: boolean;
   gmail_email?: string | null;
+  sheets_connected: boolean;
+  osv_sheet_url?: string | null;
+  osv_sheet_name?: string | null;
   last_sync_at?: string | null;
+  last_osv_import_from?: string | null;
+  last_osv_import_to?: string | null;
   osv_rows_count: number;
 }
 
 export interface FinanceIntegrateResult {
   gmail_connected: boolean;
+  sheets_connected?: boolean;
+  osv_sheet_url?: string | null;
+  osv_sheet_name?: string | null;
+  imported_from_sheets?: number;
   imported_from_gmail: number;
   imported_from_crm: number;
   skipped_duplicates: number;

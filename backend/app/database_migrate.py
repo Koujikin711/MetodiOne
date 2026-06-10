@@ -1693,7 +1693,6 @@ async def ensure_finance_osv_tables(conn: AsyncConnection, database_url: str) ->
                 )""",
             ),
         )
-        return
     if pg:
         await conn.execute(
             text(
@@ -1723,4 +1722,18 @@ async def ensure_finance_osv_tables(conn: AsyncConnection, database_url: str) ->
         )
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_osv_rows_company_id ON finance_osv_rows (company_id)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_osv_rows_txn_date ON finance_osv_rows (txn_date)"))
+
+    for col, ddl_sqlite, ddl_pg in (
+        ("osv_sheet_url", "VARCHAR(500)", "VARCHAR(500)"),
+        ("osv_sheet_name", "VARCHAR(120)", "VARCHAR(120)"),
+    ):
+        if sqlite:
+            r = await conn.execute(text("PRAGMA table_info(finance_company_settings)"))
+            cols = {row[1] for row in r.fetchall()}
+            if col not in cols:
+                await conn.execute(text(f"ALTER TABLE finance_company_settings ADD COLUMN {col} {ddl_sqlite}"))
+        elif pg:
+            await conn.execute(
+                text(f"ALTER TABLE finance_company_settings ADD COLUMN IF NOT EXISTS {col} {ddl_pg}"),
+            )
 

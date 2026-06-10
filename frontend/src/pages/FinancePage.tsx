@@ -11,6 +11,7 @@ import type {
   FinanceIntegrationStatus,
   FinanceOpiuReport,
   FinanceOsvSummary,
+  FinanceSettings,
 } from "@/lib/types";
 
 type FinanceTab = "osv" | "dds" | "opiu";
@@ -40,6 +41,14 @@ export function FinancePage() {
   const year = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(year);
   const [tab, setTab] = useState<FinanceTab>("osv");
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [sheetName, setSheetName] = useState("");
+
+  const settingsQuery = useQuery({
+    queryKey: ["finance-settings"],
+    queryFn: () => apiFetch<FinanceSettings>("/api/finance/settings"),
+    enabled: canIntegrate,
+  });
 
   const statusQuery = useQuery({
     queryKey: ["finance-integration-status"],
@@ -68,6 +77,7 @@ export function FinancePage() {
     onSuccess: (res) => {
       toast.success(res.message);
       void qc.invalidateQueries({ queryKey: ["finance-integration-status"] });
+      void qc.invalidateQueries({ queryKey: ["finance-settings"] });
       void qc.invalidateQueries({ queryKey: ["finance-osv"] });
       void qc.invalidateQueries({ queryKey: ["finance-dds"] });
       void qc.invalidateQueries({ queryKey: ["finance-opiu"] });
@@ -75,7 +85,30 @@ export function FinancePage() {
     onError: (e: Error) => toast.error(e.message || "Не удалось выполнить интеграцию"),
   });
 
+  const saveSettingsMutation = useMutation({
+    mutationFn: (body: { osv_sheet_url: string; osv_sheet_name: string }) =>
+      apiFetch<FinanceSettings>("/api/finance/settings", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (res) => {
+      setSheetUrl(res.osv_sheet_url ?? "");
+      setSheetName(res.osv_sheet_name ?? "");
+      toast.success("Таблица ОСВ сохранена. Запускаем синхронизацию…");
+      void qc.invalidateQueries({ queryKey: ["finance-settings"] });
+      void qc.invalidateQueries({ queryKey: ["finance-integration-status"] });
+      integrateMutation.mutate();
+    },
+    onError: (e: Error) => toast.error(e.message || "Не удалось сохранить настройки"),
+  });
+
   const years = useMemo(() => [year, year - 1, year - 2], [year]);
+
+  const settingsLoaded = settingsQuery.data;
+  const settingsUrl = settingsLoaded?.osv_sheet_url ?? "";
+  const settingsTab = settingsLoaded?.osv_sheet_name ?? "";
+  const formUrl = sheetUrl || settingsUrl;
+  const formName = sheetName || settingsTab;
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-4 pb-10">
@@ -83,7 +116,8 @@ export function FinancePage() {
         <div>
           <h1 className="lux-heading text-2xl sm:text-3xl">Финансы</h1>
           <p className="mt-1 max-w-2xl text-sm mo-muted">
-            ОСВ — источник данных. ДДС и ОПиУ строятся автоматически по статьям, как в вашей Google-таблице.
+            Укажите ссылку на Google-таблицу с листом ОСВ — система сама читает её и обновляет отчёты. ДДС и ОПиУ
+            строятся автоматически.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -111,10 +145,79 @@ export function FinancePage() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      {canIntegrate ? (
+        <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4 shadow-sm">
+          <h2 className="text-sm font-semibold">Google Таблица ОСВ</h2>
+          <p className="mt-1 text-xs mo-muted">
+            Вставьте ссылку на вашу таблицу с колонками Дата, Выручка, Расход, Банк, Статья и т.д. Расшарьте таблицу
+            на сервисный аккаунт CRM
+            {settingsQuery.data?.service_account_email ? (
+              <>
+                : <span className="font-mono text-[11px]">{settingsQuery.data.service_account_email}</span>
+              </>
+            ) : (
+              " (email настраивается администратором сервера)"
+            )}
+            . Синхронизация идёт автоматически каждые несколько минут.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+            <label className="block text-xs mo-muted">
+              URL таблицы
+              <input
+                value={formUrl}
+                onChange={(e) => setSheetUrl(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+                className="mo-input mt-1 w-full text-sm"
+              />
+            </label>
+            <label className="block text-xs mo-muted">
+              Лист (необязательно)
+              <input
+                value={formName}
+                onChange={(e) => setSheetName(e.target.value)}
+                placeholder="ОСВ"
+                className="mo-input mt-1 w-full text-sm sm:w-36"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={saveSettingsMutation.isPending || !formUrl.trim()}
+              onClick={() =>
+                saveSettingsMutation.mutate({
+                  osv_sheet_url: formUrl.trim(),
+                  osv_sheet_name: formName.trim(),
+                })
+              }
+              className="btn-primary px-4 py-2 text-sm disabled:opacity-60"
+            >
+              {saveSettingsMutation.isPending ? "Сохранение…" : "Сохранить"}
+            </button>
+          </div>
+          {!settingsQuery.data?.google_sheets_ready ? (
+            <p className="mt-2 text-xs text-amber-700">
+              Google Sheets на сервере ещё не настроен — обратитесь к администратору.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm dark:from-emerald-950/30">
           <div className="text-xs font-medium uppercase tracking-wide text-emerald-800/80">Строк в ОСВ</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">{statusQuery.data?.osv_rows_count ?? "—"}</div>
+        </div>
+        <div className="rounded-2xl border border-violet-200/60 bg-gradient-to-br from-violet-50 to-white p-4 shadow-sm dark:from-violet-950/30">
+          <div className="text-xs font-medium uppercase tracking-wide text-violet-900/70">Google Sheets</div>
+          <div className="mt-1 text-sm font-medium">
+            {statusQuery.data?.sheets_connected
+              ? statusQuery.data.osv_sheet_name || "Подключена"
+              : "Не указана"}
+          </div>
+          {statusQuery.data?.last_sync_at ? (
+            <div className="mt-1 text-[11px] mo-muted">
+              Обновлено: {new Date(statusQuery.data.last_sync_at).toLocaleString("ru-RU")}
+            </div>
+          ) : null}
         </div>
         <div className="rounded-2xl border border-sky-200/60 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm dark:from-sky-950/30">
           <div className="text-xs font-medium uppercase tracking-wide text-sky-900/70">Gmail</div>
@@ -177,7 +280,9 @@ function OsvTable({ loading, data }: { loading: boolean; data?: FinanceOsvSummar
   if (!rows.length) {
     return (
       <div className="rounded-2xl border border-dashed border-[var(--mo-border)] p-10 text-center">
-        <p className="text-sm mo-muted">ОСВ пуста. Нажмите «Интегрировать» после подключения Gmail или дождитесь загрузки оплат из CRM.</p>
+        <p className="text-sm mo-muted">
+          ОСВ пуста. Укажите ссылку на Google-таблицу выше — данные подтянутся автоматически.
+        </p>
       </div>
     );
   }
