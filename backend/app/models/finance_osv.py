@@ -8,7 +8,7 @@ from decimal import Decimal
 from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models._legacy import _utc_now
+from app.models._legacy import Base, _utc_now
 
 
 class FinanceOsvRow(Base):
