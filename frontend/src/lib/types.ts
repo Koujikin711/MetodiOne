@@ -616,324 +616,91 @@ export interface PipelineExpertReport {
   experts: ExpertBookingItem[];
 }
 
-export interface AccountantDashboardRead {
-  date_from: string;
-  date_to: string;
-  revenue_total: number;
-  expense_total: number;
-  net_income: number;
-  cash_opening: number;
-  cash_closing: number;
-  cash_net_change: number;
-  dds_operating_net: number;
-  trial_balance_lines: number;
-  gmail_pending_count: number;
-}
-
 export interface ExpertReportsResponse {
   period_start: string;
   period_end: string;
   items: PipelineExpertReport[];
 }
 
-/** Настройки финансового модуля (политики учёта) */
-export interface FinanceSettings {
-  inventory_enabled: boolean;
-  costing_method: string;
-  revenue_goods_policy: string;
-  revenue_services_policy: string;
-  last_osv_import_from?: string | null;
-  last_osv_import_to?: string | null;
-  posting_locked_until?: string | null;
-}
-
-export interface FinanceWarehouse {
+export interface FinanceOsvRow {
   id: number;
-  name: string;
-  code: string | null;
-  is_active: boolean;
-  sort_order: number;
-  is_default: boolean;
-}
-
-export interface FinanceProduct {
-  id: number;
-  name: string;
-  sku: string | null;
-  product_type: string;
-  unit: string;
-  is_active: boolean;
-}
-
-export interface FinanceStockBalanceRow {
-  product_id: number;
-  product_name: string;
-  warehouse_id: number;
-  warehouse_name: string;
-  quantity: string;
-  avg_unit_cost: string;
-  value: string;
-}
-
-export interface FinanceDashboardWarehouse {
-  warehouse_id: number;
-  warehouse_name: string;
-  sku_positions: number;
-  inventory_value: string;
-}
-
-export interface FinanceDashboard {
-  warehouse_count: number;
-  multi_warehouse: boolean;
-  warehouses: FinanceDashboardWarehouse[];
-  inventory_enabled: boolean;
-  costing_method: string;
-}
-
-export interface FinanceDeferredContract {
-  id: number;
-  title: string;
-  total_amount: string;
-  period_count: number;
-  start_date: string;
-  end_date: string;
-  memo: string | null;
-}
-
-export interface FinanceDeferredPeriod {
-  id: number;
-  period_no: number;
-  amount: string;
-  due_date: string;
-  posted_at: string | null;
-  journal_entry_id: number | null;
-}
-
-export interface FinanceAccount {
-  id: number;
-  code: string;
-  name: string;
-  account_type: string;
-  is_system: boolean;
-  is_active: boolean;
-}
-
-export interface FinanceJournalLineDetail {
-  account_code: string;
-  account_name: string;
-  debit: string;
-  credit: string;
-  dimensions?: Record<string, unknown> | null;
-}
-
-export interface FinanceJournalEntryDetail {
-  id: number;
-  entry_date: string;
-  memo: string | null;
-  source_type: string;
-  created_at: string;
-  related_lead_id?: number | null;
-  related_deal_id?: number | null;
-  lines: FinanceJournalLineDetail[];
-}
-
-export interface FinanceReminderMessage {
-  kind: string;
-  text: string;
-}
-
-export interface FinanceRemindersOverview {
-  messages: FinanceReminderMessage[];
-}
-
-export interface FinanceStockMovement {
-  id: number;
-  created_at: string;
-  movement_type: string;
-  qty_delta: string;
-  unit_cost: string | null;
-  memo: string | null;
-  warehouse_id: number;
-  warehouse_name: string;
-  product_id: number;
-  product_name: string;
-}
-
-export interface FinancePeriodSummary {
-  date_from: string;
-  date_to: string;
-  revenue_total: string;
-  expense_total: string;
-  net_income: string;
-  inventory_value: string;
-  deferred_unrecognized: string;
-  journal_entries_count: number;
-  net_margin_pct?: string | null;
-  budget_revenue_plan?: string | null;
-  budget_expense_plan?: string | null;
-  budget_revenue_variance_pct?: string | null;
-  budget_expense_variance_pct?: string | null;
-  budget_alert?: boolean;
-  cash_balance?: string;
-  ar_crm_total?: string;
-  ar_appointments?: string;
-  ar_deals?: string;
-  crm_collected_total?: string;
-  crm_service_volume?: string;
-}
-
-export interface FinanceReceivableLine {
-  kind: string;
-  source_id: number;
-  lead_id: number | null;
-  counterparty: string;
-  amount_total: string;
-  amount_paid: string;
-  amount_due: string;
-  occurred_at: string | null;
-}
-
-export interface FinanceManagerCollection {
-  manager_id: number;
-  manager_name: string;
-  collected_amount: string;
-}
-
-export interface FinanceClinicSummary {
-  date_from: string;
-  date_to: string;
-  revenue_total: string;
-  expense_total: string;
-  net_income: string;
-  cash_balance: string;
-  ar_crm_total: string;
-  ar_appointments: string;
-  ar_deals: string;
-  ar_gl_balance: string;
-  crm_collected_total: string;
-  crm_collected_appointments: string;
-  crm_collected_deals: string;
-  crm_service_volume: string;
-  deferred_unrecognized: string;
-  inventory_value: string;
-  receivable_lines: FinanceReceivableLine[];
-  manager_collections: FinanceManagerCollection[];
-}
-
-export interface FinanceOsvImportResult {
-  applied: boolean;
-  date_from: string;
-  date_to: string;
-  rows_parsed: number;
-  journal_entry_id?: number | null;
-  warnings: string[];
-  accounts_missing: string[];
-}
-
-export interface FinanceJournalTemplate {
-  id: number;
-  name: string;
-  lines: Array<{ account_code: string; debit: string | number; credit: string | number }>;
+  txn_date: string;
+  partner_amount?: string | null;
+  service_period?: string | null;
+  revenue: string | number;
+  expense: string | number;
+  bank?: string | null;
+  basis?: string | null;
+  counterparty?: string | null;
+  phone?: string | null;
+  via_person?: string | null;
+  product_service?: string | null;
+  article?: string | null;
+  detail_category?: string | null;
+  brief_category?: string | null;
+  source: string;
   created_at: string;
 }
 
-export interface FinanceConsistency {
-  debit_total: string;
-  credit_total: string;
-  balanced: boolean;
-  difference: string;
-  inventory_account_code: string;
-  inventory_gl_net: string;
-  inventory_stock_value: string;
+export interface FinanceOsvSummary {
+  revenue_total: string | number;
+  expense_total: string | number;
+  balance: string | number;
+  rows: FinanceOsvRow[];
 }
 
-export interface FinanceAccountTypeRollup {
-  account_type: string;
-  debit_total: string;
-  credit_total: string;
-  net_balance: string;
-}
-
-export interface FinanceTrialBalanceLine {
-  account_code: string;
-  account_name: string;
-  account_type: string;
-  debit_total: string;
-  credit_total: string;
-  net_balance: string;
-}
-
-export interface FinancePLLine {
-  account_code: string;
-  account_name: string;
-  account_type: string;
-  amount: string;
-}
-
-/** Упрощённый бухгалтерский баланс (на конец date_to) */
-export interface FinanceBalanceSheetRow {
-  section: string;
-  line_kind: string;
-  account_code?: string | null;
+export interface FinanceReportCellRow {
+  key: string;
   label: string;
-  amount: string;
+  kind?: string;
+  values: (string | number)[];
+  total: string | number;
+  bold?: boolean;
+  indent?: number;
 }
 
-export interface FinanceBalanceSheetReport {
-  as_of_date: string;
-  rows: FinanceBalanceSheetRow[];
-  total_assets: string;
-  total_liabilities: string;
-  total_equity_accounts: string;
-  retained_earnings: string;
-  total_passive: string;
-  balanced: boolean;
-}
-
-/** Упрощённый ДДС по счетам кассы и расчётного счёта */
-export interface FinanceCashFlowBucket {
-  bucket_key: string;
+export interface FinanceReportGroup {
+  key: string;
   label: string;
-  amount: string;
+  kind?: string;
+  rows: FinanceReportCellRow[];
 }
 
-export interface FinanceCashFlowReport {
-  date_from: string;
-  date_to: string;
-  opening_cash: string;
-  closing_cash: string;
-  net_change: string;
-  buckets: FinanceCashFlowBucket[];
+export interface FinanceReportSection {
+  key: string;
+  label: string;
+  kind?: string;
+  groups: FinanceReportGroup[];
 }
 
-export interface FinanceYearOverviewMonth {
+export interface FinanceDdsReport {
   year: number;
-  month: number;
-  revenue_actual: string;
-  expense_actual: string;
-  net_actual: string;
-  revenue_plan: string;
-  expense_plan: string;
+  month_labels: string[];
+  opening_balance: (string | number)[];
+  closing_balance: (string | number)[];
+  sections: FinanceReportSection[];
 }
 
-export interface FinanceForecastPoint {
+export interface FinanceOpiuReport {
   year: number;
-  month: number;
-  projected_revenue: string;
+  month_labels: string[];
+  rows: FinanceReportCellRow[];
 }
 
-export interface FinanceForecast {
-  baseline_months_used: number;
-  average_monthly_revenue: string;
-  points: FinanceForecastPoint[];
+export interface FinanceIntegrationStatus {
+  gmail_connected: boolean;
+  gmail_email?: string | null;
+  last_sync_at?: string | null;
+  osv_rows_count: number;
 }
 
-export interface FinanceBudgetMonthRow {
-  year: number;
-  month: number;
-  revenue_plan: string;
-  expense_plan: string;
-  updated_at: string;
+export interface FinanceIntegrateResult {
+  gmail_connected: boolean;
+  imported_from_gmail: number;
+  imported_from_crm: number;
+  skipped_duplicates: number;
+  osv_rows_count: number;
+  message: string;
 }
 
 export interface BackgroundEventRow {
@@ -1084,11 +851,3 @@ export interface ReceivablesSummaryRead {
   }[];
 }
 
-export interface GmailInboxItemRead {
-  id: number;
-  gmail_message_id: string;
-  subject: string | null;
-  sender: string | null;
-  status: string;
-  parsed_summary: string | null;
-}

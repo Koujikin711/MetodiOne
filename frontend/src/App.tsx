@@ -24,7 +24,6 @@ import { OnlineBookingPage } from "@/pages/OnlineBookingPage";
 import { CompaniesPage } from "@/pages/CompaniesPage";
 import { CrmPage } from "@/pages/CrmPage";
 import { FinancePage } from "@/pages/FinancePage";
-import { FinanceShell } from "@/pages/finance/FinanceShell";
 import { IntegrationsHubPage } from "@/pages/IntegrationsHubPage";
 import { KpiPage } from "@/pages/KpiPage";
 import { LandingPage } from "@/pages/LandingPage";
@@ -65,19 +64,10 @@ export default function App() {
               path="/finance"
               element={
                 <RequireFinance>
-                  <FinanceShell />
+                  <FinancePage />
                 </RequireFinance>
               }
-            >
-              <Route index element={<FinancePage />} />
-              <Route path="accounting" element={<FinancePage />} />
-              <Route path="accountant" element={<FinancePage />} />
-              <Route path="receivables" element={<FinancePage />} />
-              <Route path="inventory" element={<Navigate to="/finance" replace />} />
-              <Route path="reports" element={<FinancePage />} />
-            </Route>
-            <Route path="/receivables" element={<Navigate to="/finance/receivables" replace />} />
-            <Route path="/accountant" element={<Navigate to="/finance/accountant" replace />} />
+            />
             <Route path="/reports" element={<ExpertReportsPage />} />
             <Route
               path="/services"

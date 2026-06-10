@@ -37,7 +37,7 @@ export function KpiPage() {
   const pipelinesQuery = useQuery({
     queryKey: ["sales-kpi-pipelines"],
     queryFn: () => apiFetch<SalesKpiPipelineMeta[]>("/api/sales-kpi/pipelines"),
-    enabled: role !== "expert" && role !== "finance_analyst",
+    enabled: role !== "expert",
   });
 
   useEffect(() => {
@@ -116,7 +116,7 @@ export function KpiPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (role === "expert" || role === "finance_analyst") {
+  if (role === "expert") {
     return <AccessDenied message="Раздел KPI недоступен для вашей роли." />;
   }
 

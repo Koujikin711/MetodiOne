@@ -55,6 +55,12 @@ interface RedistributeResult {
   per_manager: Record<string, number>;
 }
 
+interface PatchEmployeeContactResult {
+  employee: Employee;
+  email_changed: boolean;
+  credentials_email_sent: boolean;
+}
+
 export function EmployeesPage() {
   const qc = useQueryClient();
   const employeesQuery = useQuery({
@@ -268,14 +274,45 @@ export function EmployeesPage() {
     setPipelineIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  const [editContactEmployee, setEditContactEmployee] = useState<Employee | null>(null);
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+
   function openEditPipelines(e: Employee) {
     setEditPipelinesEmployee(e);
     setEditPipelineIds([...e.pipeline_ids]);
   }
 
+  function openEditContact(e: Employee) {
+    setEditContactEmployee(e);
+    setEditEmail(e.email);
+    setEditPhone(e.phone ?? "");
+  }
+
   function toggleEditPipeline(id: number) {
     setEditPipelineIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
+
+  const patchContactMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<PatchEmployeeContactResult>(`/api/employees/${editContactEmployee!.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          email: editEmail.trim(),
+          phone: editPhone.trim(),
+        }),
+      }),
+    onSuccess: (res) => {
+      if (res.email_changed && res.credentials_email_sent) {
+        toast.success("Контакты обновлены. Новый логин и пароль отправлены на email.");
+      } else {
+        toast.success("Контакты сотрудника обновлены");
+      }
+      setEditContactEmployee(null);
+      void qc.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   const patchPipelinesMutation = useMutation({
     mutationFn: () =>
@@ -439,6 +476,13 @@ export function EmployeesPage() {
                         .join(", ")
                     : "—"}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => openEditContact(e)}
+                  className="shrink-0 rounded-lg border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                >
+                  Контакты
+                </button>
                 {canEditPipelines(e.role) ? (
                   <button
                     type="button"
@@ -530,6 +574,58 @@ export function EmployeesPage() {
             void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
           }}
         />
+      )}
+
+      {editContactEmployee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-xl rounded-2xl crm-modal-panel border p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="lux-subheading">Контакты сотрудника</h2>
+              <button
+                type="button"
+                onClick={() => setEditContactEmployee(null)}
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
+              >
+                Закрыть
+              </button>
+            </div>
+            <p className="mt-2 text-sm mo-muted">
+              {editContactEmployee.full_name ?? editContactEmployee.email}
+            </p>
+            <div className="mt-4 space-y-3">
+              <label className="block text-sm mo-muted">
+                Email (логин)
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(ev) => setEditEmail(ev.target.value)}
+                  className="mt-1 w-full mo-input"
+                />
+              </label>
+              <label className="block text-sm mo-muted">
+                Телефон
+                <input
+                  type="tel"
+                  value={editPhone}
+                  onChange={(ev) => setEditPhone(ev.target.value)}
+                  className="mt-1 w-full mo-input"
+                />
+              </label>
+              <p className="text-xs leading-relaxed mo-muted">
+                При смене email на новый адрес уйдёт письмо с новым логином и паролем. Старый email и пароль
+                перестанут работать.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => patchContactMutation.mutate()}
+              disabled={patchContactMutation.isPending || !editEmail.trim() || !editPhone.trim()}
+              className={`mt-4 w-full ${theme.btnPrimary} disabled:opacity-60`}
+            >
+              {patchContactMutation.isPending ? "Сохранение…" : "Сохранить"}
+            </button>
+          </div>
+        </div>
       )}
 
       {editPipelinesEmployee && (
@@ -643,8 +739,6 @@ export function EmployeesPage() {
                   <option value="manager">Менеджер</option>
                   <option value="expert">Эксперт</option>
                   <option value="admin">Админ воронки</option>
-                  <option value="finance_analyst">Финансовый аналитик</option>
-                  <option value="accountant">Бухгалтер</option>
                 </select>
               </label>
 

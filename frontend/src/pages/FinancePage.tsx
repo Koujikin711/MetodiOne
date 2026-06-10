@@ -1,2423 +1,370 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Link, useLocation } from "react-router-dom";
 
-import { FinanceAccountantPanel } from "@/components/finance/FinanceAccountantPanel";
-import { FinanceOverviewKpiRow } from "@/components/finance/FinanceOverviewKpiRow";
-import { FinanceReceivablesPanel } from "@/components/finance/FinanceReceivablesPanel";
-import { financeTabFromPath } from "@/config/navByRole";
-import { FinanceDemoHint } from "@/pages/finance/FinanceDemoHint";
-
-import { PeriodDelta, PlanFactBar } from "@/components/finance/FinanceReportsCharts";
-import { FinanceReportsChartsLazy } from "@/components/finance/FinanceReportsChartsLazy";
-import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl } from "@/lib/api";
-import { decodeCompanyIdFromToken, decodeRoleFromToken } from "@/lib/auth";
-import { appLexicon } from "@/lib/appLexicon";
-import { previousPeriodRange } from "@/lib/financePeriod";
-import { printFinanceZone } from "@/lib/printFinance";
+import { apiFetch, getStoredToken } from "@/lib/api";
+import { decodeRoleFromToken } from "@/lib/auth";
 import type {
-  FinanceAccount,
-  FinanceConsistency,
-  FinanceDashboard,
-  FinanceDeferredContract,
-  FinanceDeferredPeriod,
-  FinanceForecast,
-  FinanceJournalEntryDetail,
-  FinanceJournalTemplate,
-  FinanceRemindersOverview,
-  FinanceOsvImportResult,
-  FinancePLLine,
-  FinanceAccountTypeRollup,
-  FinancePeriodSummary,
-  FinanceProduct,
-  FinanceSettings,
-  FinanceStockBalanceRow,
-  FinanceStockMovement,
-  FinanceTrialBalanceLine,
-  FinanceWarehouse,
-  FinanceYearOverviewMonth,
-  FinanceBudgetMonthRow,
-  FinanceBalanceSheetReport,
-  FinanceCashFlowReport,
-  FinanceClinicSummary,
+  FinanceDdsReport,
+  FinanceIntegrateResult,
+  FinanceIntegrationStatus,
+  FinanceOpiuReport,
+  FinanceOsvSummary,
 } from "@/lib/types";
 
-type FinanceDisplayCurrency = "TJS" | "RUB" | "USD";
+type FinanceTab = "osv" | "dds" | "opiu";
 
-let _moneyDisplayCurrency: FinanceDisplayCurrency = "TJS";
-let _moneyDisplayRate = 1;
-let _moneyFmtIntl = new Intl.NumberFormat("ru-RU", {
-  style: "currency",
-  currency: _moneyDisplayCurrency,
-  maximumFractionDigits: 2,
-});
+const TABS: { id: FinanceTab; label: string; hint: string }[] = [
+  { id: "osv", label: "ОСВ", hint: "Операционная таблица" },
+  { id: "dds", label: "ДДС", hint: "Движение денежных средств" },
+  { id: "opiu", label: "ОПиУ", hint: "Отчёт о прибылях и убытках" },
+];
 
-function setMoneyDisplay(currency: FinanceDisplayCurrency, rate: number) {
-  _moneyDisplayCurrency = currency;
-  _moneyDisplayRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
-  _moneyFmtIntl = new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  });
+function money(n: string | number | null | undefined): string {
+  const v = Number(n ?? 0);
+  if (!Number.isFinite(v)) return "—";
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(v);
 }
 
-const moneyFmt = {
-  format(value: number) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return String(value);
-    return _moneyFmtIntl.format(n * _moneyDisplayRate);
-  },
-};
-
-function parseMoney(s: string) {
-  const n = Number(s);
-  return Number.isFinite(n) ? moneyFmt.format(n) : s;
+function pct(n: string | number | null | undefined): string {
+  const v = Number(n ?? 0);
+  if (!Number.isFinite(v)) return "—";
+  return `${v.toFixed(1)}%`;
 }
-
-function sourceTypeLabel(t: string): string {
-  const m: Record<string, string> = {
-    manual: "Ручная",
-    stock_receipt: "Приход ТМЦ",
-    stock_issue: "Списание ТМЦ",
-    deferred_revenue: "Отложенная выручка",
-    osv_import: "Импорт ОСВ",
-    osv_cash_import: "Импорт кассового ОСВ",
-    template: "Шаблон",
-    crm_deal_payment: "CRM: оплата сделки",
-    crm_booking_payment: "CRM: оплата записи",
-  };
-  return m[t] ?? t;
-}
-
-function movementTypeLabel(t: string): string {
-  const m: Record<string, string> = { receipt: "Приход", issue: "Списание" };
-  return m[t] ?? t;
-}
-
-function defaultMonthRange(): { from: string; to: string } {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = d.getMonth() + 1;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const last = new Date(y, m, 0).getDate();
-  return { from: `${y}-${pad(m)}-01`, to: `${y}-${pad(m)}-${pad(last)}` };
-}
-
-function downloadCsv(filename: string, headers: string[], rows: Array<Array<string | number>>) {
-  const esc = (v: string | number) => `"${String(v).replaceAll('"', '""')}"`;
-  const csv = [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\n");
-  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-type FinanceTab = "overview" | "accounting" | "reports" | "accountant" | "receivables";
-
-type StatementsTab = "opiu" | "balance" | "dds";
-
-type ManualLine = { accountId: number; debit: string; credit: string };
 
 export function FinancePage() {
-  const location = useLocation();
-  const queryClient = useQueryClient();
-  const token = getStoredToken();
-  const role = decodeRoleFromToken(token);
-  const superNeedsCompany = role === "super_owner" && decodeCompanyIdFromToken(token) == null;
-  const readOnlyFinance = role === "finance_analyst";
-  const isAccountantOnly = role === "accountant";
-  const financeLex = appLexicon;
+  const qc = useQueryClient();
+  const role = decodeRoleFromToken(getStoredToken());
+  const canIntegrate = role === "owner" || role === "admin" || role === "super_owner" || role === "accountant";
+  const year = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(year);
+  const [tab, setTab] = useState<FinanceTab>("osv");
 
-  function assertFinanceCanEdit() {
-    if (readOnlyFinance) {
-      throw new Error("Роль «Финансовый аналитик»: только просмотр отчётов и журнала.");
-    }
-  }
-
-  const pathTab = financeTabFromPath(location.pathname);
-  const [tab, setTab] = useState<FinanceTab>(pathTab);
-
-  useEffect(() => {
-    setTab(pathTab);
-  }, [pathTab]);
-  const [journalSource, setJournalSource] = useState<string>("");
-  const dm0 = defaultMonthRange();
-  const [reportFrom, setReportFrom] = useState(dm0.from);
-  const [reportTo, setReportTo] = useState(dm0.to);
-  const [overviewYear, setOverviewYear] = useState(() => new Date().getFullYear());
-  const [budgetMonth, setBudgetMonth] = useState(() => new Date().getMonth() + 1);
-  const [budgetRev, setBudgetRev] = useState("");
-  const [budgetExp, setBudgetExp] = useState("");
-  const [fcYear, setFcYear] = useState(() => new Date().getFullYear());
-  const [fcMonth, setFcMonth] = useState(() => new Date().getMonth() + 1);
-  const [fcHorizon, setFcHorizon] = useState(3);
-  const [drillAccountId, setDrillAccountId] = useState(0);
-  const [statementsTab, setStatementsTab] = useState<StatementsTab>("opiu");
-  const [displayCurrency, setDisplayCurrency] = useState<FinanceDisplayCurrency>(() => {
-    const raw = (typeof window !== "undefined" ? window.localStorage.getItem("finance_display_currency") : null) || "TJS";
-    if (raw === "RUB" || raw === "USD" || raw === "TJS") return raw;
-    return "TJS";
+  const statusQuery = useQuery({
+    queryKey: ["finance-integration-status"],
+    queryFn: () => apiFetch<FinanceIntegrationStatus>("/api/finance/integration-status"),
   });
 
-  const fxRateQuery = useQuery({
-    queryKey: ["finance-display-fx", displayCurrency],
-    queryFn: async () => {
-      if (displayCurrency === "TJS") return 1;
-      const res = await fetch("https://open.er-api.com/v6/latest/TJS");
-      if (!res.ok) throw new Error("Не удалось получить курс валют");
-      const data = (await res.json()) as { rates?: Record<string, number> };
-      const next = Number(data.rates?.[displayCurrency]);
-      if (!Number.isFinite(next) || next <= 0) throw new Error("Не найден курс для выбранной валюты");
-      return next;
-    },
-    staleTime: 5 * 60 * 1000,
+  const osvQuery = useQuery({
+    queryKey: ["finance-osv", selectedYear],
+    queryFn: () => apiFetch<FinanceOsvSummary>(`/api/finance/osv?year=${selectedYear}&limit=1000`),
   });
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("finance_display_currency", displayCurrency);
-    }
-  }, [displayCurrency]);
-
-  useEffect(() => {
-    setMoneyDisplay(displayCurrency, fxRateQuery.data ?? 1);
-  }, [displayCurrency, fxRateQuery.data]);
-
-  const settingsQuery = useQuery({
-    queryKey: ["finance-settings"],
-    queryFn: () => apiFetch<FinanceSettings>("/api/finance/settings"),
-    enabled: !superNeedsCompany,
+  const ddsQuery = useQuery({
+    queryKey: ["finance-dds", selectedYear],
+    queryFn: () => apiFetch<FinanceDdsReport>(`/api/finance/reports/dds?year=${selectedYear}`),
+    enabled: tab === "dds",
   });
 
-  const effective = settingsQuery.data;
-
-  const dashboardQuery = useQuery({
-    queryKey: ["finance-dashboard"],
-    queryFn: () => apiFetch<FinanceDashboard>("/api/finance/dashboard"),
-    enabled: !superNeedsCompany,
+  const opiuQuery = useQuery({
+    queryKey: ["finance-opiu", selectedYear],
+    queryFn: () => apiFetch<FinanceOpiuReport>(`/api/finance/reports/opiu?year=${selectedYear}`),
+    enabled: tab === "opiu",
   });
 
-  const warehousesQuery = useQuery({
-    queryKey: ["finance-warehouses"],
-    queryFn: () => apiFetch<FinanceWarehouse[]>("/api/finance/warehouses"),
-    enabled: false,
-  });
-
-  const productsQuery = useQuery({
-    queryKey: ["finance-products"],
-    queryFn: () => apiFetch<FinanceProduct[]>("/api/finance/products"),
-    enabled: false,
-  });
-
-  const balancesQuery = useQuery({
-    queryKey: ["finance-stock-balances"],
-    queryFn: () => apiFetch<FinanceStockBalanceRow[]>("/api/finance/stock/balances"),
-    enabled: false,
-  });
-
-  const movementsQuery = useQuery({
-    queryKey: ["finance-stock-movements"],
-    queryFn: () => apiFetch<FinanceStockMovement[]>("/api/finance/stock/movements?limit=100"),
-    enabled: false,
-  });
-
-  const accountsQuery = useQuery({
-    queryKey: ["finance-accounts"],
-    queryFn: () => apiFetch<FinanceAccount[]>("/api/finance/accounts"),
-    enabled: !superNeedsCompany && (tab === "accounting" || tab === "overview" || tab === "reports"),
-  });
-
-  const reportRangeKey = `${reportFrom}_${reportTo}`;
-  const prevRange = useMemo(() => previousPeriodRange(reportFrom, reportTo), [reportFrom, reportTo]);
-  const prevRangeKey = prevRange ? `${prevRange.from}_${prevRange.to}` : "";
-
-  const periodSummaryQuery = useQuery({
-    queryKey: ["finance-reports", "period-summary", reportRangeKey],
-    queryFn: () =>
-      apiFetch<FinancePeriodSummary>(
-        `/api/finance/reports/period-summary?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
-      ),
-    enabled: !superNeedsCompany && tab === "reports",
-  });
-
-  const clinicSummaryQuery = useQuery({
-    queryKey: ["finance-reports", "clinic-summary", reportRangeKey],
-    queryFn: () =>
-      apiFetch<FinanceClinicSummary>(
-        `/api/finance/reports/clinic-summary?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
-      ),
-    enabled: !superNeedsCompany && tab === "reports",
-  });
-
-  const prevPeriodSummaryQuery = useQuery({
-    queryKey: ["finance-reports", "period-summary-prev", prevRangeKey],
-    queryFn: () =>
-      apiFetch<FinancePeriodSummary>(
-        `/api/finance/reports/period-summary?date_from=${encodeURIComponent(prevRange!.from)}&date_to=${encodeURIComponent(prevRange!.to)}`,
-      ),
-    enabled: !superNeedsCompany && tab === "reports" && prevRange != null,
-  });
-
-  const trialBalanceQuery = useQuery({
-    queryKey: ["finance-reports", "trial-balance", reportRangeKey],
-    queryFn: () =>
-      apiFetch<FinanceTrialBalanceLine[]>(
-        `/api/finance/reports/trial-balance?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
-      ),
-    enabled: !superNeedsCompany && tab === "reports",
-  });
-
-  const plLinesQuery = useQuery({
-    queryKey: ["finance-reports", "pl-lines", reportRangeKey],
-    queryFn: () =>
-      apiFetch<FinancePLLine[]>(
-        `/api/finance/reports/pl-lines?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
-      ),
-    enabled: !superNeedsCompany && tab === "reports",
-  });
-
-  const typeRollupQuery = useQuery({
-    queryKey: ["finance-reports", "type-rollup", reportRangeKey],
-    queryFn: () =>
-      apiFetch<FinanceAccountTypeRollup[]>(
-        `/api/finance/reports/account-type-rollup?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
-      ),
-    enabled: !superNeedsCompany && tab === "reports",
-  });
-
-  const drillJournalQs = useMemo(() => {
-    const p = new URLSearchParams();
-    p.set("limit", "40");
-    p.set("account_id", String(drillAccountId));
-    p.set("date_from", reportFrom);
-    p.set("date_to", reportTo);
-    return p.toString();
-  }, [drillAccountId, reportFrom, reportTo]);
-
-  const drillJournalQuery = useQuery({
-    queryKey: ["finance-journal-drill", drillJournalQs],
-    queryFn: () => apiFetch<FinanceJournalEntryDetail[]>(`/api/finance/journal-entries?${drillJournalQs}`),
-    enabled: !superNeedsCompany && tab === "reports" && drillAccountId > 0,
-  });
-
-  const yearOverviewQuery = useQuery({
-    queryKey: ["finance-reports", "year-overview", overviewYear],
-    queryFn: () => apiFetch<FinanceYearOverviewMonth[]>(`/api/finance/reports/year-overview?year=${overviewYear}`),
-    enabled: !superNeedsCompany && tab === "reports",
-  });
-
-  const forecastQuery = useQuery({
-    queryKey: ["finance-reports", "forecast", fcYear, fcMonth, fcHorizon],
-    queryFn: () =>
-      apiFetch<FinanceForecast>(
-        `/api/finance/reports/forecast?year=${fcYear}&month=${fcMonth}&horizon=${fcHorizon}`,
-      ),
-    enabled: !superNeedsCompany && tab === "reports",
-  });
-
-  const consistencyQuery = useQuery({
-    queryKey: ["finance-reports", "consistency", reportRangeKey],
-    queryFn: () =>
-      apiFetch<FinanceConsistency>(
-        `/api/finance/reports/consistency?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
-      ),
-    enabled: !superNeedsCompany && tab === "reports",
-  });
-
-  const balanceSheetQuery = useQuery({
-    queryKey: ["finance-reports", "balance-sheet", reportRangeKey],
-    queryFn: () =>
-      apiFetch<FinanceBalanceSheetReport>(
-        `/api/finance/reports/balance-sheet?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
-      ),
-    enabled: !superNeedsCompany && tab === "reports",
-  });
-
-  const cashFlowQuery = useQuery({
-    queryKey: ["finance-reports", "cash-flow", reportRangeKey],
-    queryFn: () =>
-      apiFetch<FinanceCashFlowReport>(
-        `/api/finance/reports/cash-flow?date_from=${encodeURIComponent(reportFrom)}&date_to=${encodeURIComponent(reportTo)}`,
-      ),
-    enabled: !superNeedsCompany && tab === "reports",
-  });
-
-  const templatesQuery = useQuery({
-    queryKey: ["finance-journal-templates"],
-    queryFn: () => apiFetch<FinanceJournalTemplate[]>("/api/finance/journal-templates"),
-    enabled: !superNeedsCompany && tab === "accounting",
-  });
-
-  const remindersQuery = useQuery({
-    queryKey: ["finance-reminders"],
-    queryFn: () => apiFetch<FinanceRemindersOverview>("/api/finance/reminders/overview"),
-    enabled: !superNeedsCompany,
-  });
-
-  const saveBudgetMutation = useMutation({
-    mutationFn: () => {
-      assertFinanceCanEdit();
-      return apiFetch<FinanceBudgetMonthRow>(
-        "/api/finance/budgets/month",
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            year: overviewYear,
-            month: budgetMonth,
-            revenue_plan: budgetRev || "0",
-            expense_plan: budgetExp || "0",
-          }),
-        },
-      );
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
-      toast.success("План на месяц сохранён");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const journalQs = useMemo(() => {
-    const p = new URLSearchParams();
-    p.set("limit", "80");
-    if (journalSource) p.set("source_type", journalSource);
-    return p.toString();
-  }, [journalSource]);
-
-  const journalQuery = useQuery({
-    queryKey: ["finance-journal", journalQs],
-    queryFn: () => apiFetch<FinanceJournalEntryDetail[]>(`/api/finance/journal-entries?${journalQs}`),
-    enabled: !superNeedsCompany && tab === "accounting",
-  });
-
-  const deferredQuery = useQuery({
-    queryKey: ["finance-deferred"],
-    queryFn: () => apiFetch<FinanceDeferredContract[]>("/api/finance/deferred-contracts"),
-    enabled: !superNeedsCompany,
-  });
-
-  const refetchAll = () => {
-    void queryClient.invalidateQueries({ queryKey: ["finance-settings"] });
-    void queryClient.invalidateQueries({ queryKey: ["finance-dashboard"] });
-    void queryClient.invalidateQueries({ queryKey: ["finance-warehouses"] });
-    void queryClient.invalidateQueries({ queryKey: ["finance-products"] });
-    void queryClient.invalidateQueries({ queryKey: ["finance-stock-balances"] });
-    void queryClient.invalidateQueries({ queryKey: ["finance-stock-movements"] });
-    void queryClient.invalidateQueries({ queryKey: ["finance-accounts"] });
-    void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
-    void queryClient.invalidateQueries({ queryKey: ["finance-deferred"] });
-    void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
-    void queryClient.invalidateQueries({ queryKey: ["finance-journal-drill"] });
-    void queryClient.invalidateQueries({ queryKey: ["finance-journal-templates"] });
-  };
-
-  const invalidateFinance = refetchAll;
-
-  const patchSettings = useMutation({
-    mutationFn: (body: Partial<FinanceSettings>) => {
-      assertFinanceCanEdit();
-      return apiFetch<FinanceSettings>("/api/finance/settings", { method: "PATCH", body: JSON.stringify(body) });
-    },
-    onSuccess: () => {
-      invalidateFinance();
-      toast.success("Настройки сохранены");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const [draftGoodsPol, setDraftGoodsPol] = useState<string | null>(null);
-  const [draftServPol, setDraftServPol] = useState<string | null>(null);
-  const [draftPostingLock, setDraftPostingLock] = useState("");
-  const [osvReplace, setOsvReplace] = useState(false);
-  const [osvDefaultYear, setOsvDefaultYear] = useState(String(new Date().getFullYear()));
-  const osvFileRef = useRef<HTMLInputElement>(null);
-  const [tplName, setTplName] = useState("");
-  const [tplJson, setTplJson] = useState(
-    '[\n  {"account_code":"1010","debit":"100","credit":"0"},\n  {"account_code":"2999","debit":"0","credit":"100"}\n]',
-  );
-
-  const deleteTemplateMut = useMutation({
-    mutationFn: (id: number) => {
-      assertFinanceCanEdit();
-      return apiFetch<void>(`/api/finance/journal-templates/${id}`, { method: "DELETE" });
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["finance-journal-templates"] });
-      toast.success("Шаблон удалён");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const createTemplateMut = useMutation({
-    mutationFn: () => {
-      assertFinanceCanEdit();
-      let lines: Array<{ account_code: string; debit: string; credit: string }>;
-      try {
-        lines = JSON.parse(tplJson) as Array<{ account_code: string; debit: string; credit: string }>;
-      } catch {
-        throw new Error("Некорректный JSON в шаблоне");
-      }
-      return apiFetch<FinanceJournalTemplate>("/api/finance/journal-templates", {
-        method: "POST",
-        body: JSON.stringify({ name: tplName.trim(), lines }),
-      });
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["finance-journal-templates"] });
-      toast.success("Шаблон сохранён");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const applyTemplateMut = useMutation({
-    mutationFn: async (tid: number) => {
-      assertFinanceCanEdit();
-      const raw = window.prompt("Дата проводки (ISO, например 2026-01-15T12:00)", manualDate.trim() || "");
-      if (!raw) throw new Error("Отменено");
-      return apiFetch<{ id: number }>(`/api/finance/journal/from-template/${tid}`, {
-        method: "POST",
-        body: JSON.stringify({ entry_date: new Date(raw).toISOString() }),
-      });
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
-      invalidateFinance();
-      toast.success("Проведено из шаблона");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const osvImportMut = useMutation({
-    mutationFn: async (opts: { file: File; apply: boolean }) => {
-      assertFinanceCanEdit();
-      const fd = new FormData();
-      fd.append("file", opts.file);
-      if (osvDefaultYear.trim()) fd.append("default_year", osvDefaultYear.trim());
-      fd.append("replace_period", osvReplace ? "true" : "false");
-      fd.append("apply", opts.apply ? "true" : "false");
-      return apiFetch<FinanceOsvImportResult>("/api/finance/import/osv", { method: "POST", body: fd });
-    },
-    onSuccess: (r) => {
-      setReportFrom(r.date_from);
-      setReportTo(r.date_to);
-      invalidateFinance();
-      if (r.applied) setTab("reports");
-      if (r.warnings.length) toast(r.warnings.join("; "), { icon: "ℹ️" });
-      if (r.accounts_missing?.length)
-        toast.error(`Нет в плане счетов: ${r.accounts_missing.join(", ")}`);
-      toast.success(r.applied ? `ОСВ записано в журнал (${r.rows_parsed} строк)` : `ОСВ разобрано (${r.rows_parsed} строк)`);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const gPol = draftGoodsPol ?? effective?.revenue_goods_policy ?? "shipment";
-  const sPol = draftServPol ?? effective?.revenue_services_policy ?? "deferred_period";
-
-  const [whName, setWhName] = useState("");
-  const [whDefault, setWhDefault] = useState(false);
-  const createWh = useMutation({
-    mutationFn: () => {
-      assertFinanceCanEdit();
-      return apiFetch<FinanceWarehouse>("/api/finance/warehouses", {
-        method: "POST",
-        body: JSON.stringify({ name: whName.trim(), is_default: whDefault, sort_order: 0 }),
-      });
-    },
-    onSuccess: () => {
-      setWhName("");
-      setWhDefault(false);
-      invalidateFinance();
-      toast.success("Склад создан");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const patchWarehouse = useMutation({
-    mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) => {
-      assertFinanceCanEdit();
-      return apiFetch<FinanceWarehouse>(`/api/finance/warehouses/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ is_active }),
-      });
-    },
-    onSuccess: () => {
-      invalidateFinance();
-      toast.success("Склад обновлён");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const [prodName, setProdName] = useState("");
-  const [prodType, setProdType] = useState<"good" | "service">("good");
-  const createProd = useMutation({
-    mutationFn: () => {
-      assertFinanceCanEdit();
-      return apiFetch<FinanceProduct>("/api/finance/products", {
-        method: "POST",
-        body: JSON.stringify({ name: prodName.trim(), product_type: prodType, unit: "pcs" }),
-      });
-    },
-    onSuccess: () => {
-      setProdName("");
-      invalidateFinance();
-      toast.success("Номенклатура добавлена");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const defaultWhId = useMemo(() => {
-    const list = warehousesQuery.data ?? [];
-    const d = list.find((w) => w.is_default);
-    return d?.id ?? list[0]?.id ?? 0;
-  }, [warehousesQuery.data]);
-
-  const [rcpWh, setRcpWh] = useState(0);
-  const [rcpProd, setRcpProd] = useState(0);
-  const [rcpQty, setRcpQty] = useState("1");
-  const [rcpCost, setRcpCost] = useState("0");
-  const receiptMut = useMutation({
-    mutationFn: () => {
-      assertFinanceCanEdit();
-      return apiFetch<{ ok: number }>("/api/finance/stock/receipt", {
-        method: "POST",
-        body: JSON.stringify({
-          warehouse_id: rcpWh || defaultWhId,
-          product_id: rcpProd,
-          quantity: rcpQty,
-          unit_cost: rcpCost,
-        }),
-      });
-    },
-    onSuccess: () => {
-      invalidateFinance();
-      void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
-      void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
-      toast.success("Приход проведён");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const [issWh, setIssWh] = useState(0);
-  const [issProd, setIssProd] = useState(0);
-  const [issQty, setIssQty] = useState("1");
-  const issueMut = useMutation({
-    mutationFn: () => {
-      assertFinanceCanEdit();
-      return apiFetch<{ cost: string }>("/api/finance/stock/issue", {
-        method: "POST",
-        body: JSON.stringify({
-          warehouse_id: issWh || defaultWhId,
-          product_id: issProd,
-          quantity: issQty,
-        }),
-      });
-    },
+  const integrateMutation = useMutation({
+    mutationFn: () => apiFetch<FinanceIntegrateResult>("/api/finance/integrate", { method: "POST" }),
     onSuccess: (res) => {
-      invalidateFinance();
-      void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
-      void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
-      toast.success(`Списание, себестоимость ${parseMoney(res.cost)}`);
+      toast.success(res.message);
+      void qc.invalidateQueries({ queryKey: ["finance-integration-status"] });
+      void qc.invalidateQueries({ queryKey: ["finance-osv"] });
+      void qc.invalidateQueries({ queryKey: ["finance-dds"] });
+      void qc.invalidateQueries({ queryKey: ["finance-opiu"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message || "Не удалось выполнить интеграцию"),
   });
 
-  const [defTitle, setDefTitle] = useState("");
-  const [defAmount, setDefAmount] = useState("10000");
-  const [defPeriods, setDefPeriods] = useState("3");
-  const [defStart, setDefStart] = useState("");
-  const [defEnd, setDefEnd] = useState("");
-  const createDef = useMutation({
-    mutationFn: () => {
-      assertFinanceCanEdit();
-      const start = defStart ? `${defStart}T00:00:00` : new Date().toISOString().slice(0, 19);
-      const end = defEnd ? `${defEnd}T00:00:00` : new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 19);
-      return apiFetch<FinanceDeferredContract>("/api/finance/deferred-contracts", {
-        method: "POST",
-        body: JSON.stringify({
-          title: defTitle.trim(),
-          total_amount: defAmount,
-          period_count: Number(defPeriods) || 1,
-          start_date: start,
-          end_date: end,
-        }),
-      });
-    },
-    onSuccess: () => {
-      setDefTitle("");
-      invalidateFinance();
-      toast.success("Договор с периодами создан");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  const years = useMemo(() => [year, year - 1, year - 2], [year]);
 
-  const [periodsFor, setPeriodsFor] = useState<number | null>(null);
-  const periodsQuery = useQuery({
-    queryKey: ["finance-deferred-periods", periodsFor],
-    queryFn: () => apiFetch<FinanceDeferredPeriod[]>(`/api/finance/deferred-contracts/${periodsFor}/periods`),
-    enabled: periodsFor != null && !superNeedsCompany,
-  });
+  return (
+    <div className="mx-auto max-w-[1600px] space-y-4 pb-10">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="lux-heading text-2xl sm:text-3xl">Финансы</h1>
+          <p className="mt-1 max-w-2xl text-sm mo-muted">
+            ОСВ — источник данных. ДДС и ОПиУ строятся автоматически по статьям, как в вашей Google-таблице.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="mo-input text-sm"
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+          {canIntegrate ? (
+            <button
+              type="button"
+              onClick={() => integrateMutation.mutate()}
+              disabled={integrateMutation.isPending}
+              className="btn-primary px-4 py-2 text-sm disabled:opacity-60"
+            >
+              {integrateMutation.isPending ? "Интеграция…" : "Интегрировать"}
+            </button>
+          ) : null}
+        </div>
+      </div>
 
-  const recognizeMut = useMutation({
-    mutationFn: ({ contractId, periodNo }: { contractId: number; periodNo: number }) => {
-      assertFinanceCanEdit();
-      return apiFetch<{ id: number }>(
-        `/api/finance/deferred-contracts/${contractId}/periods/${periodNo}/recognize`,
-        { method: "POST" },
-      );
-    },
-    onSuccess: () => {
-      void periodsQuery.refetch();
-      void deferredQuery.refetch();
-      void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
-      void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
-      toast.success("Период признан в выручку");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm dark:from-emerald-950/30">
+          <div className="text-xs font-medium uppercase tracking-wide text-emerald-800/80">Строк в ОСВ</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums">{statusQuery.data?.osv_rows_count ?? "—"}</div>
+        </div>
+        <div className="rounded-2xl border border-sky-200/60 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm dark:from-sky-950/30">
+          <div className="text-xs font-medium uppercase tracking-wide text-sky-900/70">Gmail</div>
+          <div className="mt-1 text-sm font-medium">
+            {statusQuery.data?.gmail_connected
+              ? statusQuery.data.gmail_email || "Подключён"
+              : "Не подключён"}
+          </div>
+          {!statusQuery.data?.gmail_connected ? (
+            <Link to="/integrations" className="mt-1 inline-block text-xs text-[var(--mo-accent-hover)] hover:underline">
+              Подключить в интеграциях →
+            </Link>
+          ) : null}
+        </div>
+        <div className="rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm dark:from-amber-950/30">
+          <div className="text-xs font-medium uppercase tracking-wide text-amber-900/70">Выручка / расход (год)</div>
+          <div className="mt-1 text-sm tabular-nums">
+            <span className="font-semibold text-emerald-700">{money(osvQuery.data?.revenue_total)}</span>
+            <span className="mo-muted"> / </span>
+            <span className="font-semibold text-rose-700">{money(osvQuery.data?.expense_total)}</span>
+          </div>
+        </div>
+      </div>
 
-  const [manualMemo, setManualMemo] = useState("");
-  const [manualDate, setManualDate] = useState(() => {
-    const d = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  });
+      <div className="flex flex-wrap gap-2 border-b border-[var(--mo-border)] pb-2">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={[
+              "rounded-xl px-4 py-2 text-sm font-medium transition",
+              tab === t.id
+                ? "bg-[#1e3a5f] text-white shadow-md"
+                : "bg-[var(--mo-surface-elevated)] mo-muted hover:bg-[var(--mo-accent-soft)]",
+            ].join(" ")}
+            title={t.hint}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-  useEffect(() => {
-    if (!effective) return;
-    setDraftPostingLock(effective.posting_locked_until ? effective.posting_locked_until.slice(0, 10) : "");
-  }, [effective?.posting_locked_until]);
-
-  const [manualLines, setManualLines] = useState<ManualLine[]>([
-    { accountId: 0, debit: "", credit: "" },
-    { accountId: 0, debit: "", credit: "" },
-  ]);
-
-  const postManualJournal = useMutation({
-    mutationFn: () => {
-      assertFinanceCanEdit();
-      const lines = manualLines
-        .filter((l) => l.accountId > 0)
-        .map((l) => ({
-          account_id: l.accountId,
-          debit: l.debit || "0",
-          credit: l.credit || "0",
-        }));
-      let td = 0;
-      let tc = 0;
-      for (const ln of lines) {
-        td += Number(ln.debit) || 0;
-        tc += Number(ln.credit) || 0;
-      }
-      for (const ln of lines) {
-        const d = Number(ln.debit) || 0;
-        const c = Number(ln.credit) || 0;
-        if (d > 0 && c > 0) throw new Error("В строке укажите либо дебет, либо кредит (не оба)");
-        if (d <= 0 && c <= 0) throw new Error("В каждой строке должен быть дебет или кредит");
-      }
-      if (lines.length < 2) throw new Error("Добавьте минимум две строки со счетами");
-      if (Math.abs(td - tc) > 0.005) throw new Error("Сумма дебета должна равняться сумме кредита");
-      if (td <= 0) throw new Error("Сумма проводки должна быть больше нуля");
-      const iso = manualDate.includes("T")
-        ? `${manualDate.length === 16 ? `${manualDate}:00` : manualDate}`
-        : `${manualDate}T12:00:00`;
-      return apiFetch<{ id: number }>("/api/finance/journal", {
-        method: "POST",
-        body: JSON.stringify({
-          entry_date: iso,
-          memo: manualMemo.trim() || null,
-          lines,
-        }),
-      });
-    },
-    onSuccess: () => {
-      setManualMemo("");
-      setManualLines([
-        { accountId: 0, debit: "", credit: "" },
-        { accountId: 0, debit: "", credit: "" },
-      ]);
-      void queryClient.invalidateQueries({ queryKey: ["finance-journal"] });
-      void queryClient.invalidateQueries({ queryKey: ["finance-reports"] });
-      void queryClient.invalidateQueries({ queryKey: ["finance-journal-drill"] });
-      toast.success("Проводка создана");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const accountsForSelect = useMemo(
-    () => (accountsQuery.data ?? []).filter((a) => a.is_active),
-    [accountsQuery.data],
+      {tab === "osv" && (
+        <OsvTable loading={osvQuery.isLoading} data={osvQuery.data} />
+      )}
+      {tab === "dds" && (
+        <DdsTable loading={ddsQuery.isLoading} data={ddsQuery.data} />
+      )}
+      {tab === "opiu" && (
+        <OpiuTable loading={opiuQuery.isLoading} data={opiuQuery.data} />
+      )}
+    </div>
   );
+}
 
-  const downloadReportPack = async () => {
-    const df = reportFrom;
-    const dt = reportTo;
-    const qs = `date_from=${encodeURIComponent(df)}&date_to=${encodeURIComponent(dt)}`;
-    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    const ps = await apiFetch<FinancePeriodSummary>(`/api/finance/reports/period-summary?${qs}`);
-    downloadCsv(`metodione-summary_${df}_${dt}.csv`, ["field", "value"], [
-      ["revenue", ps.revenue_total],
-      ["expense", ps.expense_total],
-      ["net", ps.net_income],
-      ["inventory", ps.inventory_value],
-      ["entries", String(ps.journal_entries_count)],
-    ]);
-    await delay(250);
-    const tb = await apiFetch<FinanceTrialBalanceLine[]>(`/api/finance/reports/trial-balance?${qs}`);
-    downloadCsv(
-      `metodione-tb_${df}_${dt}.csv`,
-      ["account_code", "account_name", "account_type", "debit_total", "credit_total", "net_balance"],
-      tb.map((r) => [r.account_code, r.account_name, r.account_type, r.debit_total, r.credit_total, r.net_balance]),
-    );
-    await delay(250);
-    const pl = await apiFetch<FinancePLLine[]>(`/api/finance/reports/pl-lines?${qs}`);
-    downloadCsv(
-      `metodione-pl_${df}_${dt}.csv`,
-      ["account_code", "account_name", "account_type", "amount"],
-      pl.map((r) => [r.account_code, r.account_name, r.account_type, r.amount]),
-    );
-    await delay(250);
-    const roll = await apiFetch<FinanceAccountTypeRollup[]>(`/api/finance/reports/account-type-rollup?${qs}`);
-    downloadCsv(
-      `metodione-rollup_${df}_${dt}.csv`,
-      ["account_type", "debit_total", "credit_total", "net_balance"],
-      roll.map((r) => [r.account_type, r.debit_total, r.credit_total, r.net_balance]),
-    );
-    toast.success("Скачаны 4 CSV: сводка, ОСВ, P&L, rollup по типам счетов");
-  };
-
-  const downloadWorkbookXlsx = async () => {
-    const df = reportFrom;
-    const dt = reportTo;
-    const qs = `date_from=${encodeURIComponent(df)}&date_to=${encodeURIComponent(dt)}`;
-    const headers: Record<string, string> = {};
-    const token = getStoredToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-    const cid = getActiveCompanyId();
-    if (cid != null) headers["X-Company-Id"] = String(cid);
-    const res = await fetch(resolveApiUrl(`/api/finance/reports/export-workbook?${qs}`), { headers });
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      throw new Error(t || `Ошибка ${res.status}`);
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `metodione-finance_${df}_${dt}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    toast.success("Скачан XLSX (ОСВ, ОПиУ, баланс, ДДС)");
-  };
-
-  if (superNeedsCompany) {
+function OsvTable({ loading, data }: { loading: boolean; data?: FinanceOsvSummary }) {
+  if (loading) return <p className="text-sm mo-muted">Загрузка ОСВ…</p>;
+  const rows = data?.rows ?? [];
+  if (!rows.length) {
     return (
-      <div className="relative mx-auto max-w-2xl space-y-4 pb-10">
-        <h1 className="lux-heading-page">Финансы</h1>
-        <p className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-          Для супер-владельца нужен контекст компании. Перейдите в{" "}
-          <Link to="/companies" className="font-medium text-[var(--mo-text)] underline">
-            Компании
-          </Link>
-          , нажмите «Войти в компанию», затем откройте раздел Финансы снова.
-        </p>
+      <div className="rounded-2xl border border-dashed border-[var(--mo-border)] p-10 text-center">
+        <p className="text-sm mo-muted">ОСВ пуста. Нажмите «Интегрировать» после подключения Gmail или дождитесь загрузки оплат из CRM.</p>
       </div>
     );
   }
-
   return (
-    <div className="relative mx-auto max-w-5xl space-y-6 pb-12">
-      <header className="flex flex-col gap-3 print:hidden sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <p className="text-sm text-[#5c6b7a]">{financeLex.financePageIntro}</p>
-        </div>
-        <div className="flex items-end gap-2">
-          <label className="flex flex-col gap-1 text-xs text-[#5c6b7a]">
-            Валюта отображения
-            <select
-              value={displayCurrency}
-              onChange={(e) => setDisplayCurrency(e.target.value as FinanceDisplayCurrency)}
-              className="mo-input py-2 text-sm"
-            >
-              <option value="TJS">TJS</option>
-              <option value="RUB">RUB</option>
-              <option value="USD">USD</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={() => refetchAll()}
-            className="btn-secondary shrink-0"
-          >
-            Обновить данные
-          </button>
-        </div>
-      </header>
-      {financeLex.financeBannerTitle ? (
-        <div className="rounded-2xl border border-[#b8d4c8] bg-[#edf5f1] px-4 py-3 print:hidden">
-          <p className="text-sm font-semibold text-[#2d6a5a]">{financeLex.financeBannerTitle}</p>
-          <p className="mt-1 text-sm text-[#5c6b7a]">{financeLex.financeBannerBody}</p>
-        </div>
-      ) : null}
-      {displayCurrency !== "TJS" ? (
-        <p className="text-xs text-[#5c6b7a]">
-          Курс для отображения: 1 TJS = {Number(fxRateQuery.data ?? 1).toFixed(4)} {displayCurrency}
-        </p>
-      ) : null}
-      {fxRateQuery.isError ? (
-        <p className="text-xs text-amber-300">
-          {(fxRateQuery.error as Error).message}. Используется 1:1 до обновления курса.
-        </p>
-      ) : null}
-
-      {readOnlyFinance ? (
-        <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-50">
-          Вы вошли как <strong>финансовый аналитик</strong>: доступны обзор, отчёты и дебиторка; создание и изменение проводок
-          недоступны.
-        </div>
-      ) : null}
-      {isAccountantOnly ? (
-        <div className="rounded-2xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-50">
-          Вы вошли как <strong>бухгалтер</strong>: ввод расходов, Gmail, дебиторка и отчёты ОПУ/ДДС/ОСВ.
-        </div>
-      ) : null}
-
-      {remindersQuery.data?.messages?.length ? (
-        <div className="rounded-2xl border border-[var(--mo-border-strong)]/40 bg-[var(--mo-surface)] px-4 py-3 text-sm text-[var(--mo-text)]">
-          <div className="font-medium text-[var(--mo-text)]">Напоминания</div>
-          <ul className="mt-2 list-inside list-disc space-y-1 mo-muted">
-            {remindersQuery.data.messages.map((m) => (
-              <li key={`${m.kind}-${m.text.slice(0, 40)}`}>{m.text}</li>
+    <div className="overflow-auto rounded-2xl border border-[var(--mo-border)] shadow-sm">
+      <table className="min-w-[1200px] w-full text-left text-xs sm:text-sm">
+        <thead>
+          <tr className="bg-[#217346] text-white">
+            {[
+              "Дата",
+              "Выручка",
+              "Расход",
+              "Банк",
+              "Основание",
+              "Контрагент",
+              "Телефон",
+              "Чрз",
+              "Товар/услуга",
+              "Статья",
+              "Подробно",
+              "Кратко",
+            ].map((h) => (
+              <th key={h} className="whitespace-nowrap px-2 py-2 font-semibold sm:px-3">
+                {h}
+              </th>
             ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {settingsQuery.isLoading && <p className="text-sm text-[#5c6b7a]">Загрузка…</p>}
-      {settingsQuery.isError && (
-        <p className="text-sm text-[#6b1d2f]">{(settingsQuery.error as Error).message}</p>
-      )}
-
-      {tab === "overview" && effective && (
-        <>
-          <FinanceOverviewKpiRow year={overviewYear} />
-          <FinanceDemoHint />
-          <section className="mo-section">
-            <h2 className="text-lg font-medium text-[#1e3348]">Настройки учёта</h2>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <label className="flex flex-col gap-1 text-sm mo-muted">
-                Выручка: товары (политика)
-                <select
-                  value={gPol}
-                  onChange={(e) => setDraftGoodsPol(e.target.value)}
-                  className="mo-input"
-                >
-                  <option value="shipment">Отгрузка</option>
-                  <option value="payment">Оплата</option>
-                  <option value="invoice">Акт / счёт</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm mo-muted">
-                Выручка: услуги (политика)
-                <select
-                  value={sPol}
-                  onChange={(e) => setDraftServPol(e.target.value)}
-                  className="mo-input"
-                >
-                  <option value="deferred_period">По периодам (отложенная)</option>
-                  <option value="payment">По оплате</option>
-                  <option value="shipment">По отгрузке / оказанию</option>
-                </select>
-              </label>
-              <label className="sm:col-span-2 flex flex-col gap-1 text-sm mo-muted">
-                Блокировка проводок до (включительно)
-                <input
-                  type="date"
-                  value={draftPostingLock}
-                  onChange={(e) => setDraftPostingLock(e.target.value)}
-                  className="max-w-xs mo-input"
-                />
-                <span className="text-[11px] mo-muted">
-                  Пусто — без блокировки. Проводки с датой ≤ выбранной даты будут запрещены (импорт ОСВ, ручные,
-                  признание отложенной выручки).
-                </span>
-              </label>
-            </div>
-            <button
-              type="button"
-              disabled={patchSettings.isPending}
-              onClick={() =>
-                patchSettings.mutate({
-                  revenue_goods_policy: draftGoodsPol ?? undefined,
-                  revenue_services_policy: draftServPol ?? undefined,
-                  posting_locked_until: draftPostingLock ? draftPostingLock : null,
-                })
-              }
-              className="btn-primary mt-4 disabled:opacity-50"
-            >
-              Сохранить настройки
-            </button>
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">План счетов (кратко)</h2>
-            <p className="mt-1 text-xs mo-muted">Полный список и журнал — во вкладке «Бухгалтерия».</p>
-            <div className="mt-3 max-h-52 overflow-auto rounded-xl border border-[var(--mo-border)]">
-              <table className="w-full text-left text-xs mo-muted">
-                <thead className="sticky top-0 bg-white/95 mo-muted">
-                  <tr>
-                    <th className="px-3 py-2">Код</th>
-                    <th className="px-3 py-2">Наименование</th>
-                    <th className="px-3 py-2">Тип</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(accountsQuery.data ?? []).slice(0, 24).map((a) => (
-                    <tr key={a.id} className="border-t border-[var(--mo-border)]">
-                      <td className="px-3 py-1.5 font-mono text-[var(--mo-text)]">{a.code}</td>
-                      <td className="px-3 py-1.5">{a.name}</td>
-                      <td className="px-3 py-1.5 mo-muted">{a.account_type}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Отложенная выручка (услуги по периодам)</h2>
-            <p className="mt-1 text-xs mo-muted">
-              Создайте договор — периоды распределятся автоматически. «Признать» — проводка Дт 2090 / Кт 4010.
-            </p>
-            <div className="mt-4 flex flex-wrap items-end gap-2">
-              <label className="min-w-[180px] flex-1 text-sm mo-muted">
-                Название
-                <input
-                  value={defTitle}
-                  onChange={(e) => setDefTitle(e.target.value)}
-                  className="mt-1 w-full mo-input"
-                />
-              </label>
-              <label className="w-28 text-sm mo-muted">
-                Сумма
-                <input
-                  value={defAmount}
-                  onChange={(e) => setDefAmount(e.target.value)}
-                  className="mt-1 w-full mo-input"
-                />
-              </label>
-              <label className="w-20 text-sm mo-muted">
-                Периодов
-                <input
-                  value={defPeriods}
-                  onChange={(e) => setDefPeriods(e.target.value)}
-                  className="mt-1 w-full mo-input"
-                />
-              </label>
-              <label className="w-36 text-sm mo-muted">
-                Начало
-                <input
-                  type="date"
-                  value={defStart}
-                  onChange={(e) => setDefStart(e.target.value)}
-                  className="mt-1 w-full mo-input"
-                />
-              </label>
-              <label className="w-36 text-sm mo-muted">
-                Конец
-                <input
-                  type="date"
-                  value={defEnd}
-                  onChange={(e) => setDefEnd(e.target.value)}
-                  className="mt-1 w-full mo-input"
-                />
-              </label>
-              <button
-                type="button"
-                disabled={!defTitle.trim() || createDef.isPending}
-                onClick={() => createDef.mutate()}
-                className="btn-secondary text-sm disabled:opacity-40"
-              >
-                Создать договор
-              </button>
-            </div>
-
-            <ul className="mt-6 space-y-2">
-              {(deferredQuery.data ?? []).map((c) => (
-                <li key={c.id} className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white/30 px-3 py-2 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium text-[var(--mo-text)]">{c.title}</span>
-                    <span className="text-[#0f4c3a]">{parseMoney(c.total_amount)}</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="mt-2 text-xs text-indigo-300 hover:underline"
-                    onClick={() => setPeriodsFor(periodsFor === c.id ? null : c.id)}
-                  >
-                    {periodsFor === c.id ? "Скрыть периоды" : "Периоды"}
-                  </button>
-                  {periodsFor === c.id && periodsQuery.data && (
-                    <ul className="mt-2 space-y-1 border-t border-[var(--mo-border)] pt-2 text-xs lux-caption">
-                      {periodsQuery.data.map((p) => (
-                        <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
-                          <span>
-                            №{p.period_no} — {parseMoney(p.amount)} — до {p.due_date?.slice(0, 10) ?? "—"}
-                            {p.posted_at && <span className="ml-2 text-emerald-400">признан</span>}
-                          </span>
-                          {!p.posted_at && (
-                            <button
-                              type="button"
-                              disabled={recognizeMut.isPending}
-                              onClick={() => recognizeMut.mutate({ contractId: c.id, periodNo: p.period_no })}
-                              className="btn-primary text-xs px-2 py-1"
-                            >
-                              Признать
-                            </button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        </>
-      )}
-
-      {tab === "accounting" && (
-        <>
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">План счетов</h2>
-            {accountsQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
-            <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-[var(--mo-border)]">
-              <table className="w-full text-left text-sm mo-muted">
-                <thead className="sticky top-0 bg-white/95 text-xs uppercase mo-muted">
-                  <tr>
-                    <th className="px-3 py-2">Код</th>
-                    <th className="px-3 py-2">Наименование</th>
-                    <th className="px-3 py-2">Тип</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(accountsQuery.data ?? []).map((a) => (
-                    <tr key={a.id} className="border-t border-[var(--mo-border)]">
-                      <td className="px-3 py-2 font-mono text-[var(--mo-text)]">{a.code}</td>
-                      <td className="px-3 py-2">{a.name}</td>
-                      <td className="px-3 py-2 mo-muted">{a.account_type}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Импорт ОСВ (CSV)</h2>
-            <p className="mt-1 text-xs mo-muted">
-              UTF-8; разделитель «;» или «,». Поддерживаются 2 формата: классическая ОСВ (счет/дебет/кредит) и
-              кассовая таблица с колонками Дата/Банк/Статья/Кратко. В начале файла можно указать{" "}
-              <code className="font-mono lux-caption">#PERIOD=YYYY-MM-DD..YYYY-MM-DD</code> — тогда во вкладке
-              «Отчёты» автоматически подставятся даты периода. Колонки: код счёта, оборот по дебету, по кредиту
-              (допустимы русские или английские заголовки).
-            </p>
-            <input ref={osvFileRef} type="file" accept=".csv,text/csv" className="hidden" />
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => osvFileRef.current?.click()}
-                className="btn-secondary text-sm"
-              >
-                Выбрать файл…
-              </button>
-              <label className="flex cursor-pointer items-center gap-2 text-sm mo-muted">
-                <input type="checkbox" checked={osvReplace} onChange={(e) => setOsvReplace(e.target.checked)} />
-                Удалить прежние проводки импорта ОСВ за этот период перед записью
-              </label>
-              <label className="text-sm mo-muted">
-                Год для дат вида <span className="font-mono lux-caption">2 янв.</span>
-                <input
-                  type="number"
-                  min={2000}
-                  max={2100}
-                  value={osvDefaultYear}
-                  onChange={(e) => setOsvDefaultYear(e.target.value)}
-                  className="ml-2 w-24 rounded-lg border border-[var(--mo-border-strong)]/60 bg-white/50 px-2 py-1 text-[var(--mo-text)]"
-                />
-              </label>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={osvImportMut.isPending}
-                onClick={() => {
-                  const f = osvFileRef.current?.files?.[0];
-                  if (!f) {
-                    toast.error("Сначала выберите CSV-файл");
-                    osvFileRef.current?.click();
-                    return;
-                  }
-                  osvImportMut.mutate({ file: f, apply: false });
-                }}
-                className="rounded-xl border border-amber-500/40 px-4 py-2 text-sm text-amber-100 hover:bg-amber-950/20 disabled:opacity-40"
-              >
-                Только разбор
-              </button>
-              <button
-                type="button"
-                disabled={osvImportMut.isPending}
-                onClick={() => {
-                  const f = osvFileRef.current?.files?.[0];
-                  if (!f) {
-                    toast.error("Сначала выберите CSV-файл");
-                    osvFileRef.current?.click();
-                    return;
-                  }
-                  osvImportMut.mutate({ file: f, apply: true });
-                }}
-                className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-medium text-[var(--mo-text)] disabled:opacity-50"
-              >
-                Записать в журнал
-              </button>
-            </div>
-            <p className="mt-2 text-[11px] mo-muted">
-              Несбалансированный файл доводится техническим счётом 2999 (если есть в плане). Заблокированный период
-              настроек учёта импорт не пройдёт.
-            </p>
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Шаблоны проводок</h2>
-            <p className="mt-1 text-xs mo-muted">
-              JSON-массив строк <code className="lux-caption">account_code</code>, <code className="lux-caption">debit</code>,{" "}
-              <code className="lux-caption">credit</code>. «Провести» спросит дату — как в ручной проводке, берётся
-              подсказка из поля даты ниже.
-            </p>
-            <div className="mt-3 flex flex-wrap items-end gap-2">
-              <label className="min-w-[180px] flex-1 text-sm mo-muted">
-                Название
-                <input
-                  value={tplName}
-                  onChange={(e) => setTplName(e.target.value)}
-                  className="mt-1 w-full mo-input"
-                  placeholder="Например, аренда"
-                />
-              </label>
-              <button
-                type="button"
-                disabled={!tplName.trim() || createTemplateMut.isPending}
-                onClick={() => createTemplateMut.mutate()}
-                className="btn-secondary text-sm disabled:opacity-40"
-              >
-                Сохранить шаблон
-              </button>
-            </div>
-            <textarea
-              value={tplJson}
-              onChange={(e) => setTplJson(e.target.value)}
-              rows={6}
-              className="mt-3 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-[var(--mo-surface)] p-3 font-mono text-xs text-[var(--mo-text)]"
-            />
-            <ul className="mt-4 space-y-2 text-sm mo-muted">
-              {(templatesQuery.data ?? []).map((t) => (
-                <li
-                  key={t.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--mo-border)] bg-white/30 px-3 py-2"
-                >
-                  <span className="font-medium text-[var(--mo-text)]">{t.name}</span>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => applyTemplateMut.mutate(t.id)}
-                      disabled={applyTemplateMut.isPending}
-                      className="rounded-lg border border-emerald-600/50 px-2 py-1 text-xs text-emerald-200 hover:bg-emerald-950/30 disabled:opacity-40"
-                    >
-                      Провести
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!window.confirm("Удалить шаблон?")) return;
-                        deleteTemplateMut.mutate(t.id);
-                      }}
-                      disabled={deleteTemplateMut.isPending}
-                      className="rounded-lg border border-rose-600/40 px-2 py-1 text-xs text-rose-200 hover:bg-rose-950/20 disabled:opacity-40"
-                    >
-                      Удалить
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            {!templatesQuery.isLoading && (templatesQuery.data ?? []).length === 0 && (
-              <p className="mt-2 text-sm mo-muted">Шаблонов пока нет.</p>
-            )}
-          </section>
-
-          <section className="mo-section p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="lux-subheading">Журнал проводок</h2>
-              <label className="text-sm mo-muted">
-                Источник
-                <select
-                  value={journalSource}
-                  onChange={(e) => setJournalSource(e.target.value)}
-                  className="ml-2 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-1.5 text-[var(--mo-text)]"
-                >
-                  <option value="">Все</option>
-                  <option value="manual">Ручные</option>
-                  <option value="stock_receipt">Приход ТМЦ</option>
-                  <option value="stock_issue">Списание ТМЦ</option>
-                  <option value="deferred_revenue">Отложенная выручка</option>
-                  <option value="osv_import">Импорт ОСВ</option>
-                  <option value="template">Шаблон</option>
-                </select>
-              </label>
-            </div>
-            {journalQuery.isLoading && <p className="mt-3 text-sm lux-caption">Загрузка…</p>}
-            <div className="mt-4 space-y-4">
-              {(journalQuery.data ?? []).map((ent) => (
-                <article
-                  key={ent.id}
-                  className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white/35 px-4 py-3 text-sm mo-muted"
-                >
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-medium text-[var(--mo-text)]">
-                      №{ent.id} · {ent.entry_date?.slice(0, 19)?.replace("T", " ")}
-                    </span>
-                    <span className="text-xs text-[var(--mo-accent-hover)]">{sourceTypeLabel(ent.source_type)}</span>
-                  </div>
-                  {ent.memo ? <p className="mt-1 text-xs lux-caption">{ent.memo}</p> : null}
-                  <table className="mt-2 w-full text-xs">
-                    <tbody>
-                      {ent.lines.map((ln, i) => (
-                        <tr key={i}>
-                          <td className="py-0.5 pr-2 font-mono lux-caption">{ln.account_code}</td>
-                          <td className="py-0.5 pr-2">{ln.account_name}</td>
-                          <td className="py-0.5 text-right text-amber-200/90">
-                            {Number(ln.debit) > 0 ? parseMoney(ln.debit) : "—"}
-                          </td>
-                          <td className="py-0.5 text-right text-emerald-200/90">
-                            {Number(ln.credit) > 0 ? parseMoney(ln.credit) : "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </article>
-              ))}
-            </div>
-            {(journalQuery.data ?? []).length === 0 && !journalQuery.isLoading && (
-              <p className="mt-3 text-sm mo-muted">Проводок пока нет.</p>
-            )}
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Ручная проводка</h2>
-            <p className="mt-1 text-xs mo-muted">Сумма дебета по строкам должна равняться сумме кредита.</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <label className="text-sm mo-muted">
-                Дата и время
-                <input
-                  type="datetime-local"
-                  value={manualDate}
-                  onChange={(e) => setManualDate(e.target.value)}
-                  className="mt-1 w-full mo-input"
-                />
-              </label>
-              <label className="text-sm mo-muted">
-                Комментарий
-                <input
-                  value={manualMemo}
-                  onChange={(e) => setManualMemo(e.target.value)}
-                  className="mt-1 w-full mo-input"
-                  placeholder="Необязательно"
-                />
-              </label>
-            </div>
-            <div className="mt-4 space-y-2">
-              {manualLines.map((row, idx) => (
-                <div key={idx} className="flex flex-wrap items-end gap-2">
-                  <label className="min-w-[200px] flex-1 text-xs mo-muted">
-                    Счёт
-                    <select
-                      value={row.accountId}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        setManualLines((prev) => prev.map((r, i) => (i === idx ? { ...r, accountId: v } : r)));
-                      }}
-                      className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-sm text-[var(--mo-text)]"
-                    >
-                      <option value={0}>— выберите —</option>
-                      {accountsForSelect.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.code} {a.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="w-28 text-xs mo-muted">
-                    Дебет
-                    <input
-                      value={row.debit}
-                      onChange={(e) =>
-                        setManualLines((prev) => prev.map((r, i) => (i === idx ? { ...r, debit: e.target.value } : r)))
-                      }
-                      className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-sm text-[var(--mo-text)]"
-                    />
-                  </label>
-                  <label className="w-28 text-xs mo-muted">
-                    Кредит
-                    <input
-                      value={row.credit}
-                      onChange={(e) =>
-                        setManualLines((prev) => prev.map((r, i) => (i === idx ? { ...r, credit: e.target.value } : r)))
-                      }
-                      className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-sm text-[var(--mo-text)]"
-                    />
-                  </label>
-                  {manualLines.length > 2 ? (
-                    <button
-                      type="button"
-                      className="rounded-lg border border-[var(--mo-border-strong)] px-2 py-1 text-xs lux-caption hover:bg-white/5"
-                      onClick={() => setManualLines((prev) => prev.filter((_, i) => i !== idx))}
-                    >
-                      Удалить
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="btn-secondary text-sm"
-                onClick={() => setManualLines((prev) => [...prev, { accountId: 0, debit: "", credit: "" }])}
-              >
-                Добавить строку
-              </button>
-              <button
-                type="button"
-                disabled={postManualJournal.isPending}
-                onClick={() => postManualJournal.mutate()}
-                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-[var(--mo-text)] disabled:opacity-50"
-              >
-                Провести
-              </button>
-            </div>
-          </section>
-        </>
-      )}
-
-      {tab === "accountant" && <FinanceAccountantPanel />}
-
-      {tab === "receivables" && <FinanceReceivablesPanel />}
-
-      {tab === "reports" && (
-        <>
-          <section className="rounded-2xl border border-indigo-500/25 bg-gradient-to-br from-[#f7f2e8] via-white to-[var(--mo-surface)] p-5">
-            <h2 className="lux-subheading">Финансы: просто и по делу</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed mo-muted">
-              Ниже — три ключевые формы в духе управленческой отчётности: <strong className="font-medium text-[var(--mo-text)]">ОПиУ</strong>{" "}
-              (прибыли и убытки), <strong className="font-medium text-[var(--mo-text)]">баланс</strong> на дату окончания периода и{" "}
-              <strong className="font-medium text-[var(--mo-text)]">ДДС</strong> по движению денег на счетах «Касса» и «Расчётный счёт».
-              Данные берутся из журнала проводок и импорта ОСВ — как в вашей кассовой таблице, но без ручной сводки в
-              Google Sheets.
-            </p>
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Период</h2>
-            <p className="mt-1 text-xs mo-muted">Сводка, отчёт по счетам и ОСВ считаются по дате проводки в журнале.</p>
-            <div className="mt-3 flex flex-wrap items-end gap-3">
-              <label className="text-sm mo-muted">
-                С
-                <input
-                  type="date"
-                  value={reportFrom}
-                  onChange={(e) => setReportFrom(e.target.value)}
-                  className="mt-1 block mo-input"
-                />
-              </label>
-              <label className="text-sm mo-muted">
-                По
-                <input
-                  type="date"
-                  value={reportTo}
-                  onChange={(e) => setReportTo(e.target.value)}
-                  className="mt-1 block mo-input"
-                />
-              </label>
-              {effective?.last_osv_import_from && effective?.last_osv_import_to ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReportFrom(effective.last_osv_import_from!.slice(0, 10));
-                    setReportTo(effective.last_osv_import_to!.slice(0, 10));
-                    toast.success("Подставлен период последнего импорта ОСВ");
-                  }}
-                  className="rounded-xl border border-purple-500/40 px-3 py-2 text-xs text-[#614b70] hover:bg-purple-950/30"
-                >
-                  Период последнего ОСВ
-                </button>
-              ) : null}
-              <button
-                type="button"
-                disabled={periodSummaryQuery.isFetching}
-                onClick={() => void downloadReportPack()}
-                className="rounded-xl border border-cyan-500/40 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-950/25 disabled:opacity-40"
-              >
-                Пакет CSV (4 файла)
-              </button>
-              <button
-                type="button"
-                disabled={periodSummaryQuery.isFetching}
-                onClick={() =>
-                  void downloadWorkbookXlsx().catch((e: unknown) =>
-                    toast.error(e instanceof Error ? e.message : "Не удалось скачать XLSX"),
-                  )
-                }
-                className="rounded-xl border border-violet-500/40 px-3 py-2 text-xs text-violet-100 hover:bg-violet-950/25 disabled:opacity-40"
-              >
-                XLSX (ОСВ + формы)
-              </button>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-accent-soft)]/20 p-5 shadow-lg shadow-black/10">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <h2 className="lux-subheading">ОПиУ, баланс и ДДС</h2>
-                <p className="mt-1 max-w-xl text-xs mo-muted">
-                  Переключатель форм. ОПиУ за выбранный период; баланс — на конец даты «По»; ДДС — движение денег на 1010
-                  и 1020 за период (оценка статей по корреспондирующим счетам проводок).
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-1 rounded-xl border border-[var(--mo-border-strong)]/40 bg-[var(--mo-surface)] p-1">
-                {(
-                  [
-                    { id: "opiu" as const, label: "ОПиУ" },
-                    { id: "balance" as const, label: "Баланс" },
-                    { id: "dds" as const, label: "ДДС" },
-                  ] as const
-                ).map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setStatementsTab(t.id)}
-                    className={[
-                      "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                      statementsTab === t.id
-                        ? "border border-[#d4af37] bg-[#f7f2e8] text-[var(--mo-text)] shadow-[var(--mo-shadow-luxury)]"
-                        : "lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]",
-                    ].join(" ")}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {statementsTab === "opiu" && (
-              <div className="mt-6 space-y-4">
-                {periodSummaryQuery.data && (
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/25 px-4 py-4">
-                      <div className="text-xs uppercase tracking-wide text-emerald-200/80">Выручка (период)</div>
-                      <div className="mt-2 lux-heading-page text-2xl">
-                        {parseMoney(periodSummaryQuery.data.revenue_total)}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-rose-500/25 bg-rose-950/25 px-4 py-4">
-                      <div className="text-xs uppercase tracking-wide text-rose-200/80">Расходы (период)</div>
-                      <div className="mt-2 lux-heading-page text-2xl">
-                        {parseMoney(periodSummaryQuery.data.expense_total)}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-violet-500/25 bg-violet-950/25 px-4 py-4">
-                      <div className="text-xs uppercase tracking-wide text-violet-200/80">Чистая прибыль</div>
-                      <div className="mt-2 lux-heading-page text-2xl">
-                        {parseMoney(periodSummaryQuery.data.net_income)}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--mo-border-strong)]/40 bg-white px-4 py-3">
-                  <p className="text-sm mo-muted">
-                    Разбивка по счетам выручки и расходов — в таблице ниже на этой странице.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => document.getElementById("finance-opiu-pl")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                    className="rounded-lg border border-indigo-500/50 bg-indigo-600/30 px-3 py-1.5 text-sm text-indigo-100 hover:bg-indigo-600/50"
-                  >
-                    К таблице ОПиУ
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {statementsTab === "balance" && (
-              <div className="mt-6">
-                {balanceSheetQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
-                {balanceSheetQuery.isError && (
-                  <p className="text-sm text-[#6b1d2f]">{(balanceSheetQuery.error as Error).message}</p>
-                )}
-                {balanceSheetQuery.data && (
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-3 text-xs lux-caption">
-                      <span>
-                        На дату:{" "}
-                        <span className="font-mono text-[var(--mo-text)]">
-                          {balanceSheetQuery.data.as_of_date?.slice(0, 10)}
-                        </span>
-                      </span>
-                      {balanceSheetQuery.data.balanced ? (
-                        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[#0f4c3a]">Актив ≈ пассив</span>
-                      ) : (
-                        <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-amber-200">
-                          Контроль: расхождение актив и пассива (проверьте полноту импорта ОСВ и проводок)
-                        </span>
-                      )}
-                    </div>
-                    <div className="overflow-x-auto rounded-xl border border-[var(--mo-border)]">
-                      <table className="w-full min-w-[480px] text-left text-sm text-[var(--mo-text)]">
-                        <thead className="bg-[var(--mo-surface-elevated)] text-xs uppercase mo-muted">
-                          <tr>
-                            <th className="px-4 py-2">Показатель</th>
-                            <th className="px-4 py-2 text-right">Сумма</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {balanceSheetQuery.data.rows.map((row, idx) => (
-                            <tr
-                              key={`${row.section}-${idx}-${row.label}`}
-                              className={[
-                                "border-t border-[var(--mo-border)]",
-                                row.line_kind === "header" ? "bg-white/60" : "",
-                                row.line_kind === "total" ? "bg-white font-semibold text-[var(--mo-text)]" : "",
-                              ].join(" ")}
-                            >
-                              <td className="px-4 py-2 pl-5 mo-muted">
-                                <span
-                                  className={
-                                    row.line_kind === "header"
-                                      ? "font-semibold text-[var(--mo-text)]"
-                                      : row.line_kind === "total"
-                                        ? "text-[var(--mo-text)]"
-                                        : ""
-                                  }
-                                >
-                                  {row.label}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2 text-right font-mono">
-                                {row.line_kind === "header" ? "—" : parseMoney(row.amount)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <p className="text-[11px] mo-muted">
-                      Итого пассив включает обязательства, счета капитала (если есть) и накопленную прибыль по ОПиУ с
-                      начала учёта. Упрощённая модель для SMB; при необходимости доработайте план счетов.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {statementsTab === "dds" && (
-              <div className="mt-6 space-y-4">
-                {cashFlowQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
-                {cashFlowQuery.isError && (
-                  <p className="text-sm text-[#6b1d2f]">{(cashFlowQuery.error as Error).message}</p>
-                )}
-                {cashFlowQuery.data && (
-                  <>
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-4">
-                        <div className="text-xs uppercase tracking-wide text-cyan-200/80">Остаток ДС на начало</div>
-                        <div className="mt-2 text-xl font-semibold text-[var(--mo-text)]">
-                          {parseMoney(cashFlowQuery.data.opening_cash)}
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-4">
-                        <div className="text-xs uppercase tracking-wide text-cyan-200/80">Изменение за период</div>
-                        <div className="mt-2 text-xl font-semibold text-[var(--mo-text)]">
-                          {parseMoney(cashFlowQuery.data.net_change)}
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-4">
-                        <div className="text-xs uppercase tracking-wide text-cyan-200/80">Остаток ДС на конец</div>
-                        <div className="mt-2 text-xl font-semibold text-[var(--mo-text)]">
-                          {parseMoney(cashFlowQuery.data.closing_cash)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="overflow-x-auto rounded-xl border border-[var(--mo-border)]">
-                      <table className="w-full min-w-[480px] text-left text-sm text-[var(--mo-text)]">
-                        <thead className="bg-[var(--mo-surface-elevated)] text-xs uppercase mo-muted">
-                          <tr>
-                            <th className="px-4 py-2">Статья движения (оценка)</th>
-                            <th className="px-4 py-2 text-right">Влияние на деньги</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {cashFlowQuery.data.buckets.map((b) => (
-                            <tr key={b.bucket_key} className="border-t border-[var(--mo-border)]">
-                              <td className="px-4 py-2 mo-muted">{b.label}</td>
-                              <td
-                                className={[
-                                  "px-4 py-2 text-right font-mono",
-                                  Number(b.amount) < 0 ? "text-[#6b1d2f]" : Number(b.amount) > 0 ? "text-[#0f4c3a]" : "mo-muted",
-                                ].join(" ")}
-                              >
-                                {parseMoney(b.amount)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <p className="text-[11px] mo-muted">
-                      Положительное значение — приток денег на кассу/р/с, отрицательное — отток. Классификация по
-                      доминирующей некассовой строке проводки (как упрощённый аналог вашей «кассы» по статьям).
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Сверка журнала и запасов</h2>
-            <p className="mt-1 text-xs mo-muted">
-              Сумма дебета и кредита за период; сравнение сальдо по счёту запасов в журнале с оценкой запасов из модуля
-              склада.
-            </p>
-            {consistencyQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
-            {consistencyQuery.data && (
-              <ul className="mt-3 space-y-2 text-sm mo-muted">
-                <li>
-                  Обороты: Дт <span className="font-mono text-[var(--mo-text)]">{parseMoney(consistencyQuery.data.debit_total)}</span>
-                  {" · "}
-                  Кт <span className="font-mono text-[var(--mo-text)]">{parseMoney(consistencyQuery.data.credit_total)}</span>
-                  {consistencyQuery.data.balanced ? (
-                    <span className="ml-2 text-emerald-400">· сходится</span>
-                  ) : (
-                    <span className="ml-2 text-rose-400">
-                      · расхождение {parseMoney(consistencyQuery.data.difference)}
-                    </span>
-                  )}
-                </li>
-                <li>
-                  Счёт запасов <span className="font-mono lux-caption">{consistencyQuery.data.inventory_account_code}</span>
-                  : в журнале (нетто){" "}
-                  <span className="text-[var(--mo-text)]">{parseMoney(consistencyQuery.data.inventory_gl_net)}</span>, по складу{" "}
-                  <span className="text-[var(--mo-text)]">{parseMoney(consistencyQuery.data.inventory_stock_value)}</span>
-                </li>
-              </ul>
-            )}
-          </section>
-
-          <section className="relative mo-section p-5">
-            <h2 className="lux-subheading">Дашборд за период</h2>
-            <p className="mt-1 text-xs mo-muted">
-              Текущий период отчёта: <span className="mo-muted">{reportFrom}</span> —{" "}
-              <span className="mo-muted">{reportTo}</span>
-            </p>
-            {prevRange ? (
-              <p className="mt-1 text-xs mo-muted">
-                Сравнение с предыдущим периодом: {prevRange.from} — {prevRange.to}
-                {prevPeriodSummaryQuery.isLoading ? " · загрузка базы…" : null}
-              </p>
-            ) : null}
-            {periodSummaryQuery.isFetching && !periodSummaryQuery.isLoading ? (
-              <div
-                className="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-white/35 backdrop-blur-[1px]"
-                aria-busy
-              />
-            ) : null}
-            {periodSummaryQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
-            {periodSummaryQuery.isError && (
-              <p className="mt-2 text-sm text-[#6b1d2f]">{(periodSummaryQuery.error as Error).message}</p>
-            )}
-            {periodSummaryQuery.data && periodSummaryQuery.data.budget_alert ? (
-              <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-950/25 px-4 py-2 text-sm text-amber-100">
-                План–факт: отклонение по выручке или расходам от месячного плана более 10% (см. блок бюджета ниже в
-                карточках).
-              </div>
-            ) : null}
-            {periodSummaryQuery.data && (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 px-4 py-3">
-                  <div className="text-xs text-emerald-200/80">Выручка</div>
-                  <div className="mt-1 lux-subheading">
-                    {parseMoney(periodSummaryQuery.data.revenue_total)}
-                  </div>
-                  <PeriodDelta
-                    current={periodSummaryQuery.data.revenue_total}
-                    previous={prevPeriodSummaryQuery.data?.revenue_total}
-                  />
-                </div>
-                <div className="rounded-xl border border-rose-500/20 bg-rose-950/20 px-4 py-3">
-                  <div className="text-xs text-rose-200/80">Расходы (в т.ч. себестоимость)</div>
-                  <div className="mt-1 lux-subheading">
-                    {parseMoney(periodSummaryQuery.data.expense_total)}
-                  </div>
-                  <PeriodDelta
-                    current={periodSummaryQuery.data.expense_total}
-                    previous={prevPeriodSummaryQuery.data?.expense_total}
-                    invert
-                  />
-                </div>
-                <div className="rounded-xl border border-purple-500/20 bg-purple-950/20 px-4 py-3">
-                  <div className="text-xs text-[#614b70]/80">Чистый результат</div>
-                  <div className="mt-1 lux-subheading">
-                    {parseMoney(periodSummaryQuery.data.net_income)}
-                  </div>
-                  <PeriodDelta
-                    current={periodSummaryQuery.data.net_income}
-                    previous={prevPeriodSummaryQuery.data?.net_income}
-                  />
-                </div>
-                {periodSummaryQuery.data.net_margin_pct != null && (
-                  <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/20 px-4 py-3">
-                    <div className="text-xs text-cyan-200/80">Чистая маржа к выручке</div>
-                    <div className="mt-1 lux-subheading">
-                      {periodSummaryQuery.data.net_margin_pct}%
-                    </div>
-                    {prevPeriodSummaryQuery.data?.net_margin_pct != null ? (
-                      <PeriodDelta
-                        current={String(periodSummaryQuery.data.net_margin_pct)}
-                        previous={String(prevPeriodSummaryQuery.data.net_margin_pct)}
-                      />
-                    ) : null}
-                  </div>
-                )}
-                <div className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white px-4 py-3">
-                  <div className="text-xs lux-caption">Оценка запасов</div>
-                  <div className="mt-1 text-sm font-medium text-[var(--mo-text)]">
-                    {parseMoney(periodSummaryQuery.data.inventory_value)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white px-4 py-3">
-                  <div className="text-xs lux-caption">Отложенная выручка (не признана)</div>
-                  <div className="mt-1 text-sm font-medium text-amber-200">
-                    {parseMoney(periodSummaryQuery.data.deferred_unrecognized)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white px-4 py-3">
-                  <div className="text-xs lux-caption">Проводок за период</div>
-                  <div className="mt-1 text-sm font-medium text-[var(--mo-text)]">{periodSummaryQuery.data.journal_entries_count}</div>
-                </div>
-                {periodSummaryQuery.data.cash_balance != null ? (
-                  <div className="rounded-xl border border-sky-500/25 bg-sky-950/20 px-4 py-3">
-                    <div className="text-xs text-sky-200/80">Деньги на счетах (1010+1020)</div>
-                    <div className="mt-1 lux-subheading">{parseMoney(periodSummaryQuery.data.cash_balance)}</div>
-                  </div>
-                ) : null}
-                {periodSummaryQuery.data.ar_crm_total != null ? (
-                  <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3">
-                    <div className="text-xs text-amber-200/80">Дебиторка (CRM)</div>
-                    <div className="mt-1 lux-subheading">{parseMoney(periodSummaryQuery.data.ar_crm_total)}</div>
-                    <p className="mt-1 text-[10px] text-amber-200/70">
-                      Записи: {parseMoney(periodSummaryQuery.data.ar_appointments ?? "0")} · доп. услуги:{" "}
-                      {parseMoney(periodSummaryQuery.data.ar_deals ?? "0")}
-                    </p>
-                  </div>
-                ) : null}
-                {periodSummaryQuery.data.crm_collected_total != null ? (
-                  <div className="rounded-xl border border-teal-500/25 bg-teal-950/20 px-4 py-3">
-                    <div className="text-xs text-teal-200/80">Поступления за период (CRM)</div>
-                    <div className="mt-1 lux-subheading">{parseMoney(periodSummaryQuery.data.crm_collected_total)}</div>
-                    {periodSummaryQuery.data.crm_service_volume ? (
-                      <p className="mt-1 text-[10px] text-teal-200/70">
-                        Объём услуг по записям: {parseMoney(periodSummaryQuery.data.crm_service_volume)}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {periodSummaryQuery.data.budget_revenue_plan != null &&
-                periodSummaryQuery.data.budget_revenue_plan !== "" ? (
-                  <>
-                    <div className="rounded-xl border border-indigo-500/25 bg-indigo-950/30 px-4 py-3 sm:col-span-2">
-                      <div className="text-xs text-indigo-200/80">Бюджет месяца (план)</div>
-                      <div className="mt-1 flex flex-wrap gap-4 text-sm text-[var(--mo-text)]">
-                        <span>
-                          Выручка план:{" "}
-                          <span className="font-medium text-[var(--mo-text)]">
-                            {parseMoney(periodSummaryQuery.data.budget_revenue_plan)}
-                          </span>
-                        </span>
-                        <span>
-                          Расходы план:{" "}
-                          <span className="font-medium text-[var(--mo-text)]">
-                            {parseMoney(periodSummaryQuery.data.budget_expense_plan ?? "0")}
-                          </span>
-                        </span>
-                      </div>
-                      {(periodSummaryQuery.data.budget_revenue_variance_pct != null ||
-                        periodSummaryQuery.data.budget_expense_variance_pct != null) && (
-                        <div className="mt-2 text-xs lux-caption">
-                          Отклонение факта от плана: выручка{" "}
-                          <span className="text-[var(--mo-text)]">
-                            {periodSummaryQuery.data.budget_revenue_variance_pct ?? "—"}%
-                          </span>
-                          , расходы{" "}
-                          <span className="text-[var(--mo-text)]">
-                            {periodSummaryQuery.data.budget_expense_variance_pct ?? "—"}%
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            )}
-          </section>
-
-          {clinicSummaryQuery.data ? (
-            <section className="mo-section">
-              <h2 className="text-lg font-medium text-[#1e3348]">Клиника: дебиторка и сборы</h2>
-              <p className="mt-1 text-sm text-[#5c6b7a]">
-                Долги пациентов по записям и доп. услугам, факт поступлений по менеджерам за выбранный период.
-              </p>
-              {clinicSummaryQuery.isLoading ? <p className="mt-3 text-sm lux-caption">Загрузка…</p> : null}
-              {clinicSummaryQuery.isError ? (
-                <p className="mt-3 text-sm text-[#6b1d2f]">{(clinicSummaryQuery.error as Error).message}</p>
-              ) : null}
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <div className="overflow-x-auto rounded-xl border border-[var(--mo-border)]">
-                  <table className="w-full min-w-[320px] text-left text-sm">
-                    <thead className="border-b border-[var(--mo-border)] bg-[var(--mo-surface)] text-xs uppercase text-[#5c6b7a]">
-                      <tr>
-                        <th className="px-3 py-2">Клиент / услуга</th>
-                        <th className="px-3 py-2">Долг</th>
-                        <th className="px-3 py-2">Всего</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {clinicSummaryQuery.data.receivable_lines.length === 0 ? (
-                        <tr>
-                          <td colSpan={3} className="px-3 py-4 text-[#5c6b7a]">
-                            Нет открытой дебиторки
-                          </td>
-                        </tr>
-                      ) : (
-                        clinicSummaryQuery.data.receivable_lines.map((row) => (
-                          <tr key={`${row.kind}-${row.source_id}`} className="border-b border-[var(--mo-border)]/60">
-                            <td className="px-3 py-2">
-                              <div className="font-medium text-[var(--mo-text)]">{row.counterparty}</div>
-                              <div className="text-[10px] lux-caption">
-                                {row.kind === "appointment" ? "Запись" : "Доп. услуга"}
-                                {row.lead_id ? (
-                                  <>
-                                    {" "}
-                                    ·{" "}
-                                    <Link to={`/leads/${row.lead_id}`} className="underline">
-                                      лид #{row.lead_id}
-                                    </Link>
-                                  </>
-                                ) : null}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 font-medium text-amber-200">{parseMoney(row.amount_due)}</td>
-                            <td className="px-3 py-2 lux-caption">{parseMoney(row.amount_total)}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="overflow-x-auto rounded-xl border border-[var(--mo-border)]">
-                  <h3 className="border-b border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm font-medium text-[var(--mo-text)]">
-                    Сбор денег менеджерами за период
-                  </h3>
-                  <table className="w-full text-left text-sm">
-                    <thead className="border-b border-[var(--mo-border)] text-xs uppercase text-[#5c6b7a]">
-                      <tr>
-                        <th className="px-3 py-2">Менеджер</th>
-                        <th className="px-3 py-2">Собрано</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {clinicSummaryQuery.data.manager_collections.length === 0 ? (
-                        <tr>
-                          <td colSpan={2} className="px-3 py-4 text-[#5c6b7a]">
-                            Нет оплат по записям в выбранном периоде
-                          </td>
-                        </tr>
-                      ) : (
-                        clinicSummaryQuery.data.manager_collections.map((m) => (
-                          <tr key={m.manager_id} className="border-b border-[var(--mo-border)]/60">
-                            <td className="px-3 py-2">{m.manager_name}</td>
-                            <td className="px-3 py-2 font-medium">{parseMoney(m.collected_amount)}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                  <p className="px-3 py-2 text-[10px] lux-caption">
-                    Основа для KPI и выплат: факт оплат по записям, привязанных к менеджеру.
-                  </p>
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Графики</h2>
-            <p className="mt-1 text-xs mo-muted">
-              По году из блока «План–факт» и прогнозу из блока «Прогноз» ниже (параметры года и горизонта там же).
-            </p>
-            <div className="mt-4">
-              <FinanceReportsChartsLazy
-                yearRows={yearOverviewQuery.data}
-                forecast={forecastQuery.data}
-                loadingYear={yearOverviewQuery.isLoading}
-                loadingForecast={forecastQuery.isLoading}
-              />
-            </div>
-          </section>
-
-          <section
-            id="finance-opiu-pl"
-            className="print-zone print-zone-pl relative mo-section p-5"
-          >
-            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-              <h2 className="lux-subheading">ОПиУ — прибыли и убытки по счетам (выручка и расходы)</h2>
-              <div className="flex flex-wrap gap-2 print:hidden">
-                <button
-                  type="button"
-                  onClick={() => printFinanceZone("pl")}
-                  className="btn-secondary text-xs"
-                >
-                  Печать
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const rows = (plLinesQuery.data ?? []).map((r) => [
-                      r.account_code,
-                      r.account_name,
-                      r.account_type,
-                      r.amount,
-                    ]);
-                    downloadCsv(`pl_${reportFrom}_${reportTo}.csv`, ["Код", "Счёт", "Тип", "Сумма"], rows);
-                  }}
-                  className="btn-secondary text-xs"
-                >
-                  CSV
-                </button>
-              </div>
-            </div>
-            {plLinesQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
-            <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-[var(--mo-border)]">
-              <table className="w-full text-left text-sm mo-muted">
-                <thead className="sticky top-0 bg-white/95 text-xs mo-muted">
-                  <tr>
-                    <th className="px-3 py-2">Код</th>
-                    <th className="px-3 py-2">Счёт</th>
-                    <th className="px-3 py-2">Тип</th>
-                    <th className="px-3 py-2 text-right">Сумма</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(plLinesQuery.data ?? []).map((r, idx) => (
-                    <tr key={`${r.account_code}-${r.account_type}-${idx}`} className="border-t border-[var(--mo-border)]">
-                      <td className="px-3 py-2 font-mono lux-caption">{r.account_code}</td>
-                      <td className="px-3 py-2 text-[var(--mo-text)]">{r.account_name}</td>
-                      <td className="px-3 py-2 mo-muted">{r.account_type}</td>
-                      <td className="px-3 py-2 text-right">{parseMoney(r.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {(plLinesQuery.data ?? []).length === 0 && !plLinesQuery.isLoading && (
-              <p className="mt-2 text-sm mo-muted">Нет движений по счетам выручки и расходов за период.</p>
-            )}
-          </section>
-
-          <section className="print-zone print-zone-tb relative mo-section p-5">
-            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-              <h2 className="lux-subheading">Оборотно-сальдовая ведомость (по журналу)</h2>
-              <div className="flex flex-wrap gap-2 print:hidden">
-                <button
-                  type="button"
-                  onClick={() => printFinanceZone("tb")}
-                  className="btn-secondary text-xs"
-                >
-                  Печать
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const rows = (trialBalanceQuery.data ?? []).map((r) => [
-                      r.account_code,
-                      r.account_name,
-                      r.account_type,
-                      r.debit_total,
-                      r.credit_total,
-                      r.net_balance,
-                    ]);
-                    downloadCsv(`trial_balance_${reportFrom}_${reportTo}.csv`, ["Код", "Счёт", "Тип", "Дт", "Кт", "Сальдо"], rows);
-                  }}
-                  className="btn-secondary text-xs"
-                >
-                  CSV
-                </button>
-              </div>
-            </div>
-            {trialBalanceQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
-            <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-[var(--mo-border)]">
-              <table className="w-full text-left text-xs mo-muted">
-                <thead className="sticky top-0 bg-white/95 mo-muted">
-                  <tr>
-                    <th className="px-2 py-2">Код</th>
-                    <th className="px-2 py-2">Счёт</th>
-                    <th className="px-2 py-2 text-right">Дт</th>
-                    <th className="px-2 py-2 text-right">Кт</th>
-                    <th className="px-2 py-2 text-right">Сальдо</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(trialBalanceQuery.data ?? []).map((r) => (
-                    <tr key={r.account_code} className="border-t border-[var(--mo-border)]">
-                      <td className="px-2 py-1.5 font-mono lux-caption">{r.account_code}</td>
-                      <td className="px-2 py-1.5">{r.account_name}</td>
-                      <td className="px-2 py-1.5 text-right">{parseMoney(r.debit_total)}</td>
-                      <td className="px-2 py-1.5 text-right">{parseMoney(r.credit_total)}</td>
-                      <td className="px-2 py-1.5 text-right text-[var(--mo-text)]">{parseMoney(r.net_balance)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Свертка по типам счетов</h2>
-            <p className="mt-1 text-xs mo-muted">Обороты за выбранный период по классу (asset, liability, revenue, …).</p>
-            {typeRollupQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
-            <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--mo-border)]">
-              <table className="w-full text-left text-sm mo-muted">
-                <thead className="bg-white/95 text-xs mo-muted">
-                  <tr>
-                    <th className="px-3 py-2">Тип</th>
-                    <th className="px-3 py-2 text-right">Дт</th>
-                    <th className="px-3 py-2 text-right">Кт</th>
-                    <th className="px-3 py-2 text-right">Сальдо Дт−Кт</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(typeRollupQuery.data ?? []).map((r) => (
-                    <tr key={r.account_type} className="border-t border-[var(--mo-border)]">
-                      <td className="px-3 py-2 text-[var(--mo-text)]">{r.account_type}</td>
-                      <td className="px-3 py-2 text-right">{parseMoney(r.debit_total)}</td>
-                      <td className="px-3 py-2 text-right">{parseMoney(r.credit_total)}</td>
-                      <td className="px-3 py-2 text-right">{parseMoney(r.net_balance)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Проводки по счёту</h2>
-            <p className="mt-1 text-xs mo-muted">
-              Фильтр по периоду отчёта (сверху) и счёту из плана счетов. Полный журнал — вкладка «Бухгалтерия».
-            </p>
-            <div className="mt-3 flex flex-wrap items-end gap-3">
-              <label className="min-w-[220px] text-sm mo-muted">
-                Счёт
-                <select
-                  value={drillAccountId}
-                  onChange={(e) => setDrillAccountId(Number(e.target.value))}
-                  className="mt-1 block w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
-                >
-                  <option value={0}>— выберите —</option>
-                  {(accountsQuery.data ?? []).map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.code} {a.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            {drillAccountId > 0 && drillJournalQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
-            {drillAccountId > 0 && (drillJournalQuery.data ?? []).length === 0 && !drillJournalQuery.isLoading && (
-              <p className="mt-2 text-sm mo-muted">Нет проводок за период.</p>
-            )}
-            <div className="mt-4 space-y-3">
-              {(drillJournalQuery.data ?? []).map((ent) => (
-                <article
-                  key={ent.id}
-                  className="rounded-xl border border-[var(--mo-border-strong)]/40 bg-white/35 px-3 py-2 text-xs mo-muted"
-                >
-                  <div className="flex flex-wrap justify-between gap-2">
-                    <span className="font-medium text-[var(--mo-text)]">№{ent.id}</span>
-                    <span className="text-[var(--mo-accent-hover)]">{sourceTypeLabel(ent.source_type)}</span>
-                  </div>
-                  <div className="mo-muted">{ent.entry_date?.slice(0, 19)?.replace("T", " ")}</div>
-                  {ent.memo ? <div className="mo-muted">{ent.memo}</div> : null}
-                  <table className="mt-1 w-full">
-                    <tbody>
-                      {ent.lines.map((ln, i) => (
-                        <tr key={i}>
-                          <td className="py-0.5 font-mono lux-caption">{ln.account_code}</td>
-                          <td className="py-0.5">{ln.account_name}</td>
-                          <td className="py-0.5 text-right">{Number(ln.debit) > 0 ? parseMoney(ln.debit) : "—"}</td>
-                          <td className="py-0.5 text-right">{Number(ln.credit) > 0 ? parseMoney(ln.credit) : "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">План–факт по году</h2>
-            <p className="mt-1 text-xs mo-muted">Факт из журнала; план — из сохранённых помесячных бюджетов.</p>
-            <div className="mt-3 flex flex-wrap items-end gap-3">
-              <label className="text-sm mo-muted">
-                Год
-                <input
-                  type="number"
-                  min={2000}
-                  max={2100}
-                  value={overviewYear}
-                  onChange={(e) => setOverviewYear(Number(e.target.value) || overviewYear)}
-                  className="mt-1 block w-28 mo-input"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => {
-                  const rows = (yearOverviewQuery.data ?? []).map((row) => [
-                    row.month,
-                    row.revenue_actual,
-                    row.revenue_plan,
-                    Number(row.revenue_actual) - Number(row.revenue_plan),
-                    row.expense_actual,
-                    row.expense_plan,
-                    row.net_actual,
-                  ]);
-                  downloadCsv(`plan_fact_${overviewYear}.csv`, ["Мес", "Выр.факт", "Выр.план", "Δ выручка", "Расх.факт", "Расх.план", "Чистый"], rows);
-                }}
-                className="btn-secondary text-xs"
-              >
-                CSV года
-              </button>
-            </div>
-            {yearOverviewQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
-            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--mo-border)]/30 bg-white/30 px-3 py-2 text-[11px] lux-caption print:hidden">
-              <span>
-                <span className="inline-block h-2 w-6 rounded-full bg-emerald-500 align-middle" title="≥100% плана" />{" "}
-                выручка: план выполнен или перевыполнен
-              </span>
-              <span>
-                <span className="inline-block h-2 w-6 rounded-full bg-amber-500 align-middle" title="<90% плана" />{" "}
-                ниже 90% плана
-              </span>
-              <span>
-                <span className="inline-block h-2 w-6 rounded-full bg-violet-500 align-middle" /> в процессе
-              </span>
-              <span className="mo-muted" title="Полоски %% В и %% Р — факт к плану по выручке и расходам">
-                Колонки «%% В / %% Р»: доля факта от плана (при плане 0 — только факт).
-              </span>
-            </div>
-            <div className="mt-4 max-h-80 overflow-auto rounded-xl border border-[var(--mo-border)]">
-              <table className="w-full text-left text-xs mo-muted">
-                <thead className="sticky top-0 bg-white/95 mo-muted">
-                  <tr>
-                    <th className="px-2 py-2">Мес.</th>
-                    <th className="px-2 py-2 text-right">Выручка факт</th>
-                    <th className="px-2 py-2 text-right">Выручка план</th>
-                    <th className="px-2 py-2 text-center" title="Факт к плану по выручке">
-                      %% В
-                    </th>
-                    <th className="px-2 py-2 text-right">Δ выручка</th>
-                    <th className="px-2 py-2 text-right">Расх. факт</th>
-                    <th className="px-2 py-2 text-right">Расх. план</th>
-                    <th className="px-2 py-2 text-center" title="Факт к плану по расходам">
-                      %% Р
-                    </th>
-                    <th className="px-2 py-2 text-right">Чистый факт</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(yearOverviewQuery.data ?? []).map((row) => {
-                    const dv = Number(row.revenue_actual) - Number(row.revenue_plan);
-                    return (
-                      <tr key={row.month} className="border-t border-[var(--mo-border)]">
-                        <td className="px-2 py-1.5 text-[var(--mo-text)]">{row.month}</td>
-                        <td className="px-2 py-1.5 text-right">{parseMoney(row.revenue_actual)}</td>
-                        <td className="px-2 py-1.5 text-right mo-muted">{parseMoney(row.revenue_plan)}</td>
-                        <td className="px-2 py-1.5 align-middle">
-                          <div className="flex justify-center">
-                            <PlanFactBar actual={Number(row.revenue_actual)} plan={Number(row.revenue_plan)} />
-                          </div>
-                        </td>
-                        <td className="px-2 py-1.5 text-right lux-caption">{moneyFmt.format(dv)}</td>
-                        <td className="px-2 py-1.5 text-right">{parseMoney(row.expense_actual)}</td>
-                        <td className="px-2 py-1.5 text-right mo-muted">{parseMoney(row.expense_plan)}</td>
-                        <td className="px-2 py-1.5 align-middle">
-                          <div className="flex justify-center">
-                            <PlanFactBar actual={Number(row.expense_actual)} plan={Number(row.expense_plan)} />
-                          </div>
-                        </td>
-                        <td className="px-2 py-1.5 text-right font-medium text-[var(--mo-text)]">{parseMoney(row.net_actual)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Бюджет на месяц</h2>
-            <p className="mt-1 text-xs mo-muted">
-              Плановые выручка и расходы для года из блока «План–факт» ({overviewYear}). Можно подставить текущие планы
-              из таблицы.
-            </p>
-            <div className="mt-4 flex flex-wrap items-end gap-3">
-              <button
-                type="button"
-                className="btn-secondary text-xs"
-                onClick={() => {
-                  const row = yearOverviewQuery.data?.find((x) => x.month === budgetMonth);
-                  if (!row) {
-                    toast.error("Нет данных таблицы для этого месяца");
-                    return;
-                  }
-                  setBudgetRev(Number(row.revenue_plan) !== 0 ? String(row.revenue_plan) : "");
-                  setBudgetExp(Number(row.expense_plan) !== 0 ? String(row.expense_plan) : "");
-                  toast.success("Подставлены значения из плана–факта");
-                }}
-              >
-                Подставить из таблицы
-              </button>
-              <label className="text-sm mo-muted">
-                Месяц
-                <select
-                  value={budgetMonth}
-                  onChange={(e) => setBudgetMonth(Number(e.target.value))}
-                  className="mt-1 block rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="min-w-[120px] text-sm mo-muted">
-                План выручки
-                <input
-                  value={budgetRev}
-                  onChange={(e) => setBudgetRev(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
-                  placeholder="0"
-                />
-              </label>
-              <label className="min-w-[120px] text-sm mo-muted">
-                План расходов
-                <input
-                  value={budgetExp}
-                  onChange={(e) => setBudgetExp(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
-                  placeholder="0"
-                />
-              </label>
-              <button
-                type="button"
-                disabled={saveBudgetMutation.isPending}
-                onClick={() => saveBudgetMutation.mutate()}
-                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-[var(--mo-text)] disabled:opacity-50"
-              >
-                Сохранить план
-              </button>
-            </div>
-          </section>
-
-          <section className="mo-section p-5">
-            <h2 className="lux-subheading">Прогноз выручки (простая модель)</h2>
-            <p className="mt-1 text-xs mo-muted">
-              Средняя выручка за несколько месяцев до опорного месяца; далее — горизонт вперёд с той же средней (база
-              для «финмодели»; сценарии «что если» добавляйте во внешнем BI).
-            </p>
-            <div className="mt-4 flex flex-wrap items-end gap-3">
-              <label className="text-sm mo-muted">
-                Год (опора)
-                <input
-                  type="number"
-                  value={fcYear}
-                  onChange={(e) => setFcYear(Number(e.target.value) || fcYear)}
-                  className="mt-1 block w-24 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
-                />
-              </label>
-              <label className="text-sm mo-muted">
-                Месяц
-                <select
-                  value={fcMonth}
-                  onChange={(e) => setFcMonth(Number(e.target.value))}
-                  className="mt-1 block rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm mo-muted">
-                Горизонт, мес.
-                <input
-                  type="number"
-                  min={1}
-                  max={24}
-                  value={fcHorizon}
-                  onChange={(e) => setFcHorizon(Number(e.target.value) || 3)}
-                  className="mt-1 block w-20 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-2 py-2 text-[var(--mo-text)]"
-                />
-              </label>
-            </div>
-            {forecastQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}
-            {forecastQuery.data && (
-              <div className="mt-4 space-y-2 text-sm mo-muted">
-                <p>
-                  База: средняя выручка ≈{" "}
-                  <span className="font-medium text-[var(--mo-text)]">{parseMoney(forecastQuery.data.average_monthly_revenue)}</span>{" "}
-                  (месяцев в истории: {forecastQuery.data.baseline_months_used})
-                </p>
-                <ul className="space-y-1 rounded-xl border border-[var(--mo-border)] bg-white/30 p-3 text-xs">
-                  {forecastQuery.data.points.map((p) => (
-                    <li key={`${p.year}-${p.month}`}>
-                      {p.year}-{String(p.month).padStart(2, "0")}: прогноз {parseMoney(p.projected_revenue)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </section>
-        </>
-      )}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className="border-t border-[var(--mo-border)] odd:bg-white even:bg-slate-50/80">
+              <td className="whitespace-nowrap px-2 py-1.5 sm:px-3">{r.txn_date}</td>
+              <td className="whitespace-nowrap bg-sky-50/80 px-2 py-1.5 font-medium text-sky-900 tabular-nums sm:px-3">
+                {Number(r.revenue) > 0 ? money(r.revenue) : ""}
+              </td>
+              <td className="whitespace-nowrap bg-rose-50/70 px-2 py-1.5 font-medium text-rose-900 tabular-nums sm:px-3">
+                {Number(r.expense) > 0 ? money(r.expense) : ""}
+              </td>
+              <td className="px-2 py-1.5 sm:px-3">{r.bank || "—"}</td>
+              <td className="max-w-[180px] truncate px-2 py-1.5 sm:px-3" title={r.basis || ""}>
+                {r.basis || "—"}
+              </td>
+              <td className="px-2 py-1.5 sm:px-3">{r.counterparty || "—"}</td>
+              <td className="px-2 py-1.5 sm:px-3">{r.phone || "—"}</td>
+              <td className="px-2 py-1.5 sm:px-3">{r.via_person || "—"}</td>
+              <td className="px-2 py-1.5 sm:px-3">{r.product_service || "—"}</td>
+              <td className="px-2 py-1.5 sm:px-3">{r.article || "—"}</td>
+              <td className="px-2 py-1.5 sm:px-3">{r.detail_category || "—"}</td>
+              <td className="px-2 py-1.5 sm:px-3">{r.brief_category || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="bg-[#f3f0e8] font-semibold">
+            <td className="px-3 py-2">Итого</td>
+            <td className="px-3 py-2 tabular-nums text-emerald-800">{money(data?.revenue_total)}</td>
+            <td className="px-3 py-2 tabular-nums text-rose-800">{money(data?.expense_total)}</td>
+            <td colSpan={9} className="px-3 py-2 tabular-nums">
+              Остаток: {money(data?.balance)}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
+  );
+}
+
+function DdsTable({ loading, data }: { loading: boolean; data?: FinanceDdsReport }) {
+  if (loading) return <p className="text-sm mo-muted">Построение ДДС…</p>;
+  if (!data) return null;
+  const months = data.month_labels;
+  return (
+    <div className="overflow-auto rounded-2xl border border-[var(--mo-border)] shadow-sm">
+      <table className="min-w-[1100px] w-full text-left text-xs sm:text-sm">
+        <thead>
+          <tr className="bg-[#1e3a5f] text-white">
+            <th className="sticky left-0 z-10 min-w-[220px] bg-[#1e3a5f] px-3 py-2">Категория</th>
+            {months.map((m) => (
+              <th key={m} className="whitespace-nowrap px-2 py-2 text-right">
+                {m.replace(` ${data.year}`, "")}
+              </th>
+            ))}
+            <th className="px-3 py-2 text-right">ИТОГ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ReportAmountRow label="Остаток на начало месяца" values={data.opening_balance} kind="total" />
+          {data.sections.flatMap((sec) => [
+            <tr key={`${sec.key}-head`} className="bg-[#1e3a5f] text-white">
+              <td colSpan={months.length + 2} className="px-3 py-2 text-sm font-bold uppercase tracking-wide">
+                {sec.label}
+              </td>
+            </tr>,
+            ...sec.groups.flatMap((grp) => [
+              <tr key={`${sec.key}-${grp.key}-head`} className="bg-[#f9e547] text-[#1a1a1a]">
+                <td colSpan={months.length + 2} className="px-3 py-1.5 font-semibold">
+                  {grp.label}
+                </td>
+              </tr>,
+              ...grp.rows.map((row) => (
+                <ReportAmountRow key={row.key} label={row.label} values={row.values} total={row.total} />
+              )),
+            ]),
+          ])}
+          <ReportAmountRow label="ОСТАТОК НА КОНЕЦ МЕСЯЦА" values={data.closing_balance} kind="total" />
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function OpiuTable({ loading, data }: { loading: boolean; data?: FinanceOpiuReport }) {
+  if (loading) return <p className="text-sm mo-muted">Построение ОПиУ…</p>;
+  if (!data) return null;
+  return (
+    <div className="overflow-auto rounded-2xl border border-[var(--mo-border)] shadow-sm">
+      <table className="min-w-[1100px] w-full text-left text-xs sm:text-sm">
+        <thead>
+          <tr className="bg-[#1e3a5f] text-white">
+            <th className="sticky left-0 z-10 min-w-[240px] bg-[#1e3a5f] px-3 py-2">Статья / Месяц</th>
+            {data.month_labels.map((m) => (
+              <th key={m} className="whitespace-nowrap px-2 py-2 text-right">
+                {m.split(" ")[0]}
+              </th>
+            ))}
+            <th className="px-3 py-2 text-right">ИТОГО</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.rows.map((row) => (
+            <tr
+              key={row.key}
+              className={[
+                "border-t border-[var(--mo-border)]",
+                row.bold ? "bg-slate-100 font-bold" : "odd:bg-white even:bg-slate-50/70",
+              ].join(" ")}
+            >
+              <td className="sticky left-0 bg-inherit px-3 py-1.5">{row.label}</td>
+              {row.values.map((v, i) => (
+                <td key={i} className="px-2 py-1.5 text-right tabular-nums">
+                  {row.key === "margin_pct" ? pct(v) : money(v)}
+                </td>
+              ))}
+              <td className="px-3 py-1.5 text-right tabular-nums font-medium">
+                {row.key === "margin_pct" ? pct(row.total) : money(row.total)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ReportAmountRow({
+  label,
+  values,
+  total,
+  kind,
+}: {
+  label: string;
+  values: (string | number)[];
+  total?: string | number;
+  kind?: "total";
+}) {
+  const sum = total ?? values.reduce((a, b) => Number(a) + Number(b), 0);
+  return (
+    <tr
+      className={[
+        "border-t border-[var(--mo-border)]",
+        kind === "total" ? "bg-[#1e3a5f] font-bold text-white" : "odd:bg-white even:bg-cyan-50/50",
+      ].join(" ")}
+    >
+      <td
+        className={[
+          "sticky left-0 px-3 py-1.5",
+          kind === "total" ? "bg-[#1e3a5f]" : "bg-inherit",
+        ].join(" ")}
+      >
+        {label}
+      </td>
+      {values.map((v, i) => (
+        <td key={i} className="px-2 py-1.5 text-right tabular-nums">
+          {money(v)}
+        </td>
+      ))}
+      <td className="px-3 py-1.5 text-right tabular-nums">{money(sum)}</td>
+    </tr>
   );
 }

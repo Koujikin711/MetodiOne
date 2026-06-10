@@ -8,7 +8,6 @@ const steps = [
   { title: "Воронка и лиды", desc: "Канбан, стадии и карточки лидов.", to: "/crm", done: "Открыть CRM" },
   { title: "Онлайн-запись", desc: "Направления, специалисты и слоты в календаре.", to: "/booking", done: "К записи" },
   { title: "Интеграции каналов", desc: "WhatsApp, Google Sheets и вебхуки.", to: "/integrations", done: "К интеграциям" },
-  { title: "Финансы (по желанию)", desc: "План счетов, журнал, отчёты и склад.", to: "/finance", done: "К финансам" },
 ];
 
 export function OnboardingPage() {
