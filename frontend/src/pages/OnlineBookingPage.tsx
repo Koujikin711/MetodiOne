@@ -746,8 +746,8 @@ export function OnlineBookingPage() {
                 <p className="mt-3 text-sm lux-caption">Загрузка записей…</p>
               )}
             </div>
-            <aside className="flex w-full min-w-0 flex-col gap-2 xl:sticky xl:top-4 xl:max-h-[calc(100vh-3rem)] xl:max-w-[280px] xl:overflow-y-auto">
-              <section className="hidden mo-section p-3 shadow-inner backdrop-blur-sm xl:block">
+            <aside className="flex w-full min-w-0 flex-col gap-2 xl:sticky xl:top-4 xl:max-w-[280px]">
+              <section className="hidden mo-section p-3 shadow-inner backdrop-blur-sm xl:block xl:max-h-[min(38vh,260px)] xl:overflow-y-auto">
                 <h2 className="mb-2 lux-subheading text-sm">Дата записи</h2>
                 <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
                 <label className="mt-3 block text-xs lux-caption">
@@ -763,7 +763,7 @@ export function OnlineBookingPage() {
               {canEditBooking ? (
                 <section
                   ref={formPanelRef}
-                  className="mo-section p-4 ring-1 ring-[#d4af37]/20"
+                  className="mo-section overflow-visible p-4 ring-1 ring-[#d4af37]/20"
                 >
                   <h2 className="mb-3 lux-subheading">Новая запись</h2>
                   <form onSubmit={onSubmit} className="space-y-2.5">
@@ -807,7 +807,12 @@ export function OnlineBookingPage() {
                     />
                   </label>
                   {patientSuggestOpen && patientSuggestDebounced.length >= 2 ? (
-                    <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] py-1 shadow-lg">
+                    <div className="absolute left-0 right-0 top-full z-[200] mt-1 max-h-56 overflow-y-auto rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] py-1 shadow-lg">
+                      {patientSuggestQuery.isError ? (
+                        <p className="px-3 py-2 text-xs text-red-500">
+                          {(patientSuggestQuery.error as Error).message || "Не удалось загрузить подсказки"}
+                        </p>
+                      ) : null}
                       {patientSuggestQuery.isLoading ? (
                         <p className="px-3 py-2 text-xs mo-muted">Поиск…</p>
                       ) : null}
