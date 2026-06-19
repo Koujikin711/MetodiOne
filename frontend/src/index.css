@@ -27,12 +27,12 @@
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
-  --mo-bg: #f4efe6;
-  --mo-bg-top: #fdfbf7;
-  --mo-surface: #faf8f4;
+  --mo-bg: #f3efe8;
+  --mo-bg-top: #fcfaf7;
+  --mo-surface: #faf8f5;
   --mo-surface-elevated: #ffffff;
-  --mo-border: #e1d9c6;
-  --mo-border-strong: #dcd1b4;
+  --mo-border: #e8e2d8;
+  --mo-border-strong: #ddd4c4;
   --mo-text: #2c2520;
   --mo-text-muted: #7a7265;
   --mo-accent: #9e844d;
@@ -46,8 +46,17 @@
   --mo-warning: #8c6d31;
   --mo-danger: #6b1d2f;
   --mo-shell-bg: #f7f4eb;
-  --mo-nav-hover: rgba(255, 255, 255, 0.45);
-  --mo-nav-active-bg: rgba(255, 255, 255, 0.72);
+  --mo-nav-hover: rgba(255, 255, 255, 0.55);
+  --mo-nav-active-bg: rgba(255, 255, 255, 0.82);
+  --mo-sidebar-surface: #f6f2eb;
+  --mo-sidebar-surface-end: #efe9df;
+  --mo-sidebar-glow: rgba(255, 252, 247, 0.75);
+  --mo-sidebar-fg: #4a433c;
+  --mo-sidebar-fg-muted: #8a8072;
+  --mo-sidebar-item-hover: rgba(255, 255, 255, 0.52);
+  --mo-sidebar-item-active: rgba(255, 255, 255, 0.88);
+  --mo-sidebar-border: #e6dfd3;
+  --mo-sidebar-shadow: 2px 0 28px -14px rgba(140, 120, 90, 0.1);
   --booking-grid-hatch: rgba(148, 163, 184, 0.18);
   --booking-appt-booked-bg: #dbeafe;
   --booking-appt-booked-border: #2563eb;
@@ -93,7 +102,16 @@
   --mo-danger: #f87171;
   --mo-shell-bg: #1a1714;
   --mo-nav-hover: rgba(255, 255, 255, 0.06);
-  --mo-nav-active-bg: rgba(212, 175, 55, 0.12);
+  --mo-nav-active-bg: rgba(212, 175, 55, 0.14);
+  --mo-sidebar-surface: #1c1916;
+  --mo-sidebar-surface-end: #14120f;
+  --mo-sidebar-glow: rgba(212, 175, 55, 0.06);
+  --mo-sidebar-fg: #e8e2d6;
+  --mo-sidebar-fg-muted: #a89880;
+  --mo-sidebar-item-hover: rgba(255, 255, 255, 0.05);
+  --mo-sidebar-item-active: rgba(212, 175, 55, 0.1);
+  --mo-sidebar-border: #342f28;
+  --mo-sidebar-shadow: 2px 0 28px -14px rgba(0, 0, 0, 0.35);
   --booking-grid-hatch: rgba(255, 255, 255, 0.06);
   --booking-appt-booked-bg: #1e3a5f;
   --booking-appt-booked-border: #60a5fa;
@@ -137,30 +155,30 @@ body {
   display: none;
 }
 
-/* Шёлковый фон приложения */
+/* Мягкий фон приложения */
 .app-shell-bg {
   background:
-    radial-gradient(ellipse 90% 60% at 0% 0%, rgba(99, 102, 241, 0.12), transparent 50%),
-    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(124, 98, 140, 0.1), transparent 45%),
-    linear-gradient(165deg, #f8f6f1 0%, #f0ebe3 48%, #ebe4da 100%);
+    radial-gradient(ellipse 110% 75% at 50% -15%, rgba(255, 253, 249, 0.95), transparent 68%),
+    radial-gradient(ellipse 55% 45% at 100% 35%, rgba(237, 230, 218, 0.28), transparent 58%),
+    radial-gradient(ellipse 45% 40% at 0% 75%, rgba(228, 220, 206, 0.22), transparent 55%),
+    linear-gradient(180deg, #fcfaf7 0%, #f6f2eb 52%, #f0ebe3 100%);
 }
 
 :root[data-theme="dark"] .app-shell-bg {
   background:
-    radial-gradient(ellipse 100% 70% at 10% -10%, rgba(212, 175, 55, 0.08), transparent 55%),
-    radial-gradient(ellipse 80% 60% at 90% 0%, rgba(124, 98, 140, 0.1), transparent 50%),
-    linear-gradient(165deg, #0f0d0b 0%, #1a1714 50%, #12100e 100%);
+    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(212, 175, 55, 0.05), transparent 62%),
+    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(124, 98, 140, 0.06), transparent 55%),
+    linear-gradient(180deg, #12100e 0%, #1a1714 55%, #14120f 100%);
 }
 
 .shell-sidebar {
   position: relative;
   overflow: hidden;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid var(--mo-sidebar-border);
   background:
-    radial-gradient(ellipse 90% 55% at 10% -5%, rgba(130, 150, 255, 0.32), transparent 58%),
-    radial-gradient(ellipse 70% 45% at 90% 105%, rgba(100, 70, 190, 0.22), transparent 52%),
-    linear-gradient(180deg, #322a5c 0%, #272145 42%, #1d1935 100%);
-  box-shadow: 4px 0 28px -8px rgba(15, 10, 40, 0.45);
+    radial-gradient(ellipse 90% 55% at 50% -8%, var(--mo-sidebar-glow), transparent 72%),
+    linear-gradient(180deg, var(--mo-sidebar-surface) 0%, var(--mo-sidebar-surface-end) 100%);
+  box-shadow: var(--mo-sidebar-shadow);
   transition: width 0.22s ease;
 }
 
@@ -185,12 +203,12 @@ body {
 }
 
 .shell-nav-sortable.is-dragging .shell-nav-link {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--mo-sidebar-item-hover);
 }
 
 .shell-nav-drag-handle {
   @apply absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1 opacity-0 transition;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--mo-sidebar-fg-muted);
   cursor: grab;
   touch-action: none;
 }
@@ -204,20 +222,17 @@ body {
   cursor: grabbing;
 }
 
-.shell-sidebar-toggle {
-  @apply flex shrink-0 items-center justify-center rounded-xl border transition;
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.92);
+.shell-sidebar-brand {
+  @apply flex w-full min-w-0 items-center gap-2 rounded-xl border-0 bg-transparent px-2 py-1.5 text-left transition;
+  color: var(--mo-sidebar-fg);
 }
 
-.shell-sidebar.is-collapsed .shell-sidebar-toggle {
-  border-color: rgba(96, 165, 250, 0.55);
-  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.25);
+.shell-sidebar-brand:hover {
+  background: var(--mo-sidebar-item-hover);
 }
 
-.shell-sidebar-toggle:hover {
-  background: rgba(255, 255, 255, 0.12);
+.shell-sidebar.is-collapsed .shell-sidebar-brand {
+  @apply justify-center px-1;
 }
 
 .shell-sidebar-header {
@@ -225,12 +240,12 @@ body {
 }
 
 .shell-sidebar.is-collapsed .shell-sidebar-header {
-  @apply flex-col items-center;
+  @apply justify-center px-1;
 }
 
 .shell-sidebar .shell-nav-link {
   @apply rounded-xl transition duration-200;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--mo-sidebar-fg-muted);
 }
 
 .shell-sidebar .shell-nav-link--expanded {
@@ -243,23 +258,19 @@ body {
 }
 
 .shell-sidebar .shell-nav-link:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: var(--mo-sidebar-item-hover);
+  color: var(--mo-sidebar-fg);
 }
 
 .shell-sidebar .shell-nav-link.is-active {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-  border: none;
-  box-shadow: none;
+  background: var(--mo-sidebar-item-active);
+  color: var(--mo-sidebar-fg);
+  border: 1px solid color-mix(in srgb, var(--mo-gold) 35%, transparent);
+  box-shadow: 0 1px 10px -4px rgba(184, 164, 126, 0.22);
 }
 
 .shell-sidebar .shell-nav-icon-box {
   @apply h-11 w-11 shrink-0;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  color: rgba(255, 255, 255, 0.95);
 }
 
 .shell-sidebar .shell-nav-icon-glyph {
@@ -281,8 +292,7 @@ body {
 }
 
 .shell-sidebar.is-collapsed .shell-nav-link.is-active .shell-nav-icon-box {
-  background: rgba(255, 255, 255, 0.14) !important;
-  border-radius: 0.75rem;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-gold) 45%, transparent);
 }
 
 .shell-sidebar .shell-nav-text {
@@ -292,11 +302,11 @@ body {
 
 .shell-sidebar .shell-nav-label {
   @apply max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--mo-sidebar-fg-muted);
 }
 
 .shell-sidebar .shell-nav-link.is-active .shell-nav-label {
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--mo-sidebar-fg);
   font-weight: 600;
 }
 
@@ -328,12 +338,12 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .shell-sidebar-footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--mo-sidebar-border);
 }
 
 .shell-sidebar-logout {
   @apply flex w-full items-center rounded-xl text-left transition duration-200;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--mo-sidebar-fg-muted);
 }
 
 .shell-sidebar.is-expanded .shell-sidebar-logout {
@@ -345,14 +355,20 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .shell-sidebar-logout:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: var(--mo-sidebar-item-hover);
+  color: var(--mo-sidebar-fg);
 }
 
 .auth-gradient-bg {
   background:
-    radial-gradient(ellipse 90% 70% at 50% -20%, rgba(124, 98, 140, 0.08), transparent 55%),
-    linear-gradient(180deg, #fdfbf7 0%, #f4efe6 55%, #efe8dc 100%);
+    radial-gradient(ellipse 100% 75% at 50% -20%, rgba(255, 252, 247, 0.9), transparent 62%),
+    linear-gradient(180deg, #fcfaf7 0%, #f5f0e8 55%, #efe9df 100%);
+}
+
+:root[data-theme="dark"] .auth-gradient-bg {
+  background:
+    radial-gradient(ellipse 90% 70% at 50% -20%, rgba(212, 175, 55, 0.08), transparent 55%),
+    linear-gradient(180deg, #0f0d0b 0%, #1a1714 55%, #12100e 100%);
 }
 
 .glass-card,

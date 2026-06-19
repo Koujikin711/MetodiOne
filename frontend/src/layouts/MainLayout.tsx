@@ -6,7 +6,6 @@ import {
   CheckSquare,
   Funnel,
   LogOut,
-  Menu,
   MessageCircle,
   UserRound,
   Users,
@@ -220,18 +219,15 @@ export function MainLayout() {
             <button
               type="button"
               onClick={toggleSidebar}
-              className="shell-sidebar-toggle h-10 w-10"
+              className="shell-sidebar-brand"
               title={sidebarExpanded ? "Свернуть меню" : "Развернуть меню"}
               aria-label={sidebarExpanded ? "Свернуть меню" : "Развернуть меню"}
             >
-              <Menu className="h-5 w-5" />
+              <MetodiBrandMark className={sidebarExpanded ? "h-8 w-8" : "h-9 w-9"} />
+              {sidebarExpanded ? (
+                <span className="truncate text-sm font-semibold">MetodiOne</span>
+              ) : null}
             </button>
-            {sidebarExpanded ? (
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <MetodiBrandMark className="h-8 w-8" />
-                <span className="truncate text-sm font-semibold text-white/90">MetodiOne</span>
-              </div>
-            ) : null}
           </div>
           <nav className="shell-sidebar-nav no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto py-0">
             <ShellSidebarNav
