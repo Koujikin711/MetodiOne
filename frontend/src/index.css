@@ -76,6 +76,13 @@
   --booking-appt-replied-text: #5b21b6;
   --booking-appt-meta: #5c554c;
   --booking-appt-badge-bg: rgba(255, 255, 255, 0.85);
+  --mo-medical-primary: #2a7c8f;
+  --mo-medical-primary-hover: #236b7c;
+  --mo-medical-primary-soft: #e9f3f6;
+  --mo-medical-primary-muted: #5b9aab;
+  --mo-medical-surface: #ffffff;
+  --mo-medical-rail: #f7fafb;
+  --mo-medical-chat-bg: #f3f7f8;
 }
 
 :root[data-theme="dark"] {
@@ -129,6 +136,13 @@
   --booking-appt-replied-text: #ede9fe;
   --booking-appt-meta: #c4b8a8;
   --booking-appt-badge-bg: rgba(0, 0, 0, 0.25);
+  --mo-medical-primary: #5eb4c5;
+  --mo-medical-primary-hover: #7ec5d3;
+  --mo-medical-primary-soft: #1a2e33;
+  --mo-medical-primary-muted: #8ec9d6;
+  --mo-medical-surface: #242019;
+  --mo-medical-rail: #1e1c19;
+  --mo-medical-chat-bg: #1a1714;
 }
 
 body {
@@ -936,6 +950,276 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   @apply rounded-2xl border border-dashed p-8 text-center;
   border-color: var(--mo-border-strong);
   background: var(--mo-surface);
+  color: var(--mo-text-muted);
+}
+
+/* Мессенджер — медицинский современный UI */
+.team-messenger {
+  @apply relative mx-auto flex w-full max-w-6xl flex-col gap-4 pb-28 sm:pb-10;
+}
+
+.team-messenger-header {
+  @apply shrink-0 px-0.5;
+}
+
+.team-messenger-header h1 {
+  @apply text-xl font-semibold tracking-tight sm:text-2xl;
+  color: var(--mo-text);
+}
+
+.team-messenger-header p {
+  @apply mt-1 text-sm;
+  color: var(--mo-text-muted);
+}
+
+.team-messenger-shell {
+  @apply grid min-h-0 overflow-hidden rounded-3xl border;
+  border-color: var(--mo-border);
+  background: var(--mo-medical-surface);
+  box-shadow: var(--mo-shadow-luxury);
+  min-height: min(calc(100dvh - 13rem), 720px);
+}
+
+@media (min-width: 1024px) {
+  .team-messenger-shell {
+    grid-template-columns: minmax(0, 19rem) minmax(0, 1fr);
+  }
+}
+
+.team-messenger-rail {
+  @apply flex min-h-0 flex-col border-b lg:border-b-0 lg:border-r;
+  border-color: var(--mo-border);
+  background: var(--mo-medical-rail);
+}
+
+.team-messenger-rail.is-hidden-mobile {
+  @apply hidden lg:flex;
+}
+
+.team-messenger-rail.is-visible-mobile {
+  @apply flex max-lg:max-h-[calc(100dvh-11rem)];
+}
+
+.team-messenger-search {
+  @apply shrink-0 p-3 sm:p-4;
+}
+
+.team-messenger-search input {
+  @apply w-full rounded-2xl border px-4 py-2.5 text-base outline-none transition sm:text-sm;
+  border-color: var(--mo-border);
+  background: var(--mo-medical-surface);
+  color: var(--mo-text);
+  box-shadow: inset 0 1px 2px rgba(42, 124, 143, 0.04);
+}
+
+.team-messenger-search input::placeholder {
+  color: var(--mo-text-muted);
+}
+
+.team-messenger-search input:focus {
+  border-color: var(--mo-medical-primary-muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mo-medical-primary) 14%, transparent);
+}
+
+.team-messenger-list {
+  @apply min-h-0 flex-1 overflow-y-auto overscroll-contain;
+}
+
+.team-messenger-section-label {
+  @apply sticky top-0 z-[1] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em];
+  color: var(--mo-medical-primary);
+  background: color-mix(in srgb, var(--mo-medical-rail) 92%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.team-messenger-row {
+  @apply relative flex w-full items-center gap-3 px-3 py-2.5 text-left transition;
+  border-bottom: 1px solid color-mix(in srgb, var(--mo-border) 55%, transparent);
+}
+
+.team-messenger-row:hover {
+  background: color-mix(in srgb, var(--mo-medical-primary-soft) 65%, var(--mo-medical-surface));
+}
+
+.team-messenger-row.is-active {
+  background: var(--mo-medical-primary-soft);
+}
+
+.team-messenger-row.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--mo-medical-primary);
+}
+
+.team-messenger-avatar {
+  @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold;
+  background: var(--mo-medical-primary-soft);
+  color: var(--mo-medical-primary);
+}
+
+.team-messenger-row-meta {
+  @apply min-w-0 flex-1;
+}
+
+.team-messenger-row-title {
+  @apply flex items-center justify-between gap-2;
+}
+
+.team-messenger-row-name {
+  @apply truncate text-sm font-semibold;
+  color: var(--mo-text);
+}
+
+.team-messenger-row-time {
+  @apply shrink-0 text-[10px] tabular-nums;
+  color: var(--mo-text-muted);
+}
+
+.team-messenger-row-sub {
+  @apply mt-0.5 flex items-center justify-between gap-2;
+}
+
+.team-messenger-row-preview {
+  @apply truncate text-xs;
+  color: var(--mo-text-muted);
+}
+
+.team-messenger-row-role {
+  @apply text-xs;
+  color: var(--mo-medical-primary-muted);
+}
+
+.team-messenger-unread {
+  @apply shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold text-white;
+  background: var(--mo-medical-primary);
+}
+
+.team-messenger-chat {
+  @apply flex min-h-0 flex-col bg-[var(--mo-medical-surface)];
+}
+
+.team-messenger-chat.is-hidden-mobile {
+  @apply hidden lg:flex;
+}
+
+.team-messenger-chat.is-visible-mobile {
+  @apply flex max-lg:min-h-[calc(100dvh-11rem)] max-lg:max-h-[calc(100dvh-11rem)];
+}
+
+.team-messenger-empty {
+  @apply flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center;
+  background: var(--mo-medical-chat-bg);
+}
+
+.team-messenger-empty-icon {
+  @apply flex h-14 w-14 items-center justify-center rounded-2xl;
+  background: var(--mo-medical-primary-soft);
+  color: var(--mo-medical-primary);
+}
+
+.team-messenger-empty p {
+  @apply max-w-xs text-sm leading-relaxed;
+  color: var(--mo-text-muted);
+}
+
+.team-messenger-chat-header {
+  @apply flex shrink-0 items-center gap-3 border-b px-4 py-3;
+  border-color: var(--mo-border);
+  background: var(--mo-medical-surface);
+}
+
+.team-messenger-chat-header-name {
+  @apply truncate font-semibold;
+  color: var(--mo-text);
+}
+
+.team-messenger-chat-header-role {
+  @apply truncate text-xs;
+  color: var(--mo-medical-primary-muted);
+}
+
+.team-messenger-messages {
+  @apply min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4;
+  background: var(--mo-medical-chat-bg);
+}
+
+.team-messenger-bubble {
+  @apply max-w-[min(85%,20rem)] rounded-2xl px-3.5 py-2.5 text-sm break-words;
+}
+
+.team-messenger-bubble.is-mine {
+  background: var(--mo-medical-primary);
+  color: #fff;
+  border-bottom-right-radius: 0.35rem;
+}
+
+.team-messenger-bubble.is-theirs {
+  border: 1px solid var(--mo-border);
+  background: var(--mo-medical-surface);
+  color: var(--mo-text);
+  border-bottom-left-radius: 0.35rem;
+}
+
+.team-messenger-bubble-time {
+  @apply mt-1.5 text-[10px] tabular-nums;
+}
+
+.team-messenger-bubble.is-mine .team-messenger-bubble-time {
+  @apply text-right;
+  color: color-mix(in srgb, #fff 72%, transparent);
+}
+
+.team-messenger-bubble.is-theirs .team-messenger-bubble-time {
+  color: var(--mo-text-muted);
+}
+
+.team-messenger-compose {
+  @apply flex shrink-0 gap-2 border-t p-3 sm:p-4;
+  border-color: var(--mo-border);
+  background: var(--mo-medical-surface);
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.team-messenger-compose input {
+  @apply min-w-0 flex-1 rounded-2xl border px-4 py-2.5 text-base outline-none transition sm:text-sm;
+  border-color: var(--mo-border);
+  background: var(--mo-medical-chat-bg);
+  color: var(--mo-text);
+}
+
+.team-messenger-compose input:focus {
+  border-color: var(--mo-medical-primary-muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mo-medical-primary) 12%, transparent);
+}
+
+.team-messenger-send {
+  @apply shrink-0 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[7rem];
+  background: var(--mo-medical-primary);
+}
+
+.team-messenger-send:hover:not(:disabled) {
+  background: var(--mo-medical-primary-hover);
+}
+
+.team-messenger-back {
+  @apply shrink-0 rounded-xl border px-3 py-2 text-sm font-medium transition lg:hidden;
+  border-color: var(--mo-border);
+  background: var(--mo-medical-surface);
+  color: var(--mo-text);
+}
+
+.team-messenger-back:hover {
+  border-color: var(--mo-medical-primary-muted);
+  color: var(--mo-medical-primary);
+}
+
+.team-messenger-muted {
+  @apply px-4 py-2 text-sm;
   color: var(--mo-text-muted);
 }
 
