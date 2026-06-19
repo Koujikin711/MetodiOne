@@ -140,10 +140,9 @@ body {
 /* Шёлковый фон приложения */
 .app-shell-bg {
   background:
-    radial-gradient(ellipse 120% 80% at 8% -5%, rgba(253, 251, 247, 0.95), transparent 58%),
-    radial-gradient(ellipse 90% 70% at 92% 12%, rgba(244, 239, 230, 0.9), transparent 52%),
-    radial-gradient(ellipse 70% 55% at 50% 100%, rgba(228, 218, 200, 0.35), transparent 60%),
-    linear-gradient(165deg, #fdfbf7 0%, #f4efe6 48%, #efe8dc 100%);
+    radial-gradient(ellipse 90% 60% at 0% 0%, rgba(99, 102, 241, 0.12), transparent 50%),
+    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(124, 98, 140, 0.1), transparent 45%),
+    linear-gradient(165deg, #f8f6f1 0%, #f0ebe3 48%, #ebe4da 100%);
 }
 
 :root[data-theme="dark"] .app-shell-bg {
@@ -153,51 +152,149 @@ body {
     linear-gradient(165deg, #0f0d0b 0%, #1a1714 50%, #12100e 100%);
 }
 
-:root[data-theme="dark"] .auth-gradient-bg {
-  background:
-    radial-gradient(ellipse 90% 70% at 50% -20%, rgba(124, 98, 140, 0.15), transparent 55%),
-    linear-gradient(180deg, #0f0d0b 0%, #1a1714 55%, #12100e 100%);
-}
-
 .shell-sidebar {
-  background-color: var(--mo-shell-bg);
-  border-right: 1px solid var(--mo-border);
-  box-shadow: 2px 0 16px -4px rgba(184, 164, 126, 0.12);
+  position: relative;
+  overflow: hidden;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(ellipse 90% 55% at 10% -5%, rgba(130, 150, 255, 0.32), transparent 58%),
+    radial-gradient(ellipse 70% 45% at 90% 105%, rgba(100, 70, 190, 0.22), transparent 52%),
+    linear-gradient(180deg, #322a5c 0%, #272145 42%, #1d1935 100%);
+  box-shadow: 4px 0 28px -8px rgba(15, 10, 40, 0.45);
+  transition: width 0.22s ease;
 }
 
-:root[data-theme="dark"] .shell-sidebar {
-  box-shadow: 2px 0 20px -4px rgba(0, 0, 0, 0.35);
+.shell-sidebar.is-expanded {
+  width: 15.5rem;
 }
 
-.shell-nav-icon {
-  width: 2.5rem;
-  height: 2.5rem;
-  box-shadow: var(--mo-shadow-luxury);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+.shell-sidebar.is-collapsed {
+  width: 4.25rem;
 }
 
-.shell-nav-link {
+.shell-sidebar-toggle {
+  @apply flex shrink-0 items-center justify-center rounded-xl border transition;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.shell-sidebar.is-collapsed .shell-sidebar-toggle {
+  border-color: rgba(96, 165, 250, 0.55);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.25);
+}
+
+.shell-sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.shell-sidebar-header {
+  @apply flex shrink-0 items-center gap-2 px-2 pb-2;
+}
+
+.shell-sidebar.is-collapsed .shell-sidebar-header {
+  @apply flex-col items-center;
+}
+
+.shell-sidebar .shell-nav-link {
   @apply rounded-xl transition duration-200;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.shell-sidebar .shell-nav-link--expanded {
+  @apply mx-2 flex w-[calc(100%-1rem)] flex-row items-center gap-3 px-3 py-2.5 text-left;
+}
+
+.shell-sidebar .shell-nav-link--collapsed {
+  @apply flex w-full flex-col items-center gap-1 px-1 py-2 text-center;
+}
+
+.shell-sidebar .shell-nav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.shell-sidebar .shell-nav-link.is-active {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  border: none;
+  box-shadow: none;
+}
+
+.shell-sidebar .shell-nav-icon-box {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.shell-sidebar.is-collapsed .shell-nav-link.is-active .shell-nav-icon-box {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-radius: 0.75rem;
+}
+
+.shell-sidebar .shell-nav-text {
+  @apply min-w-0 flex-1 text-sm font-medium leading-snug;
+  color: inherit;
+}
+
+.shell-sidebar .shell-nav-label {
+  @apply max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.shell-sidebar .shell-nav-link.is-active .shell-nav-label {
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 600;
+}
+
+.shell-sidebar.is-expanded .shell-nav-label {
+  display: none;
+}
+
+.shell-sidebar.is-collapsed .shell-nav-text,
+.shell-sidebar.is-collapsed .shell-nav-label {
+  display: none;
+}
+
+/* Нижняя мобильная навигация — светлая палитра */
+nav[aria-label="Основная навигация"] .shell-nav-link {
+  @apply rounded-2xl transition duration-200;
   color: var(--mo-text-muted);
 }
-.shell-nav-link:hover {
+
+nav[aria-label="Основная навигация"] .shell-nav-link:hover {
   background: var(--mo-nav-hover);
   color: var(--mo-text);
 }
-.shell-nav-link.is-active {
+
+nav[aria-label="Основная навигация"] .shell-nav-link.is-active {
   background: var(--mo-nav-active-bg);
   border: 1px solid var(--mo-gold);
-  box-shadow: 0 0 14px rgba(212, 175, 55, 0.18), var(--mo-shadow-luxury);
   color: var(--mo-text);
+  box-shadow: none;
 }
 
-.shell-nav-label {
-  @apply max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide;
-  color: var(--mo-text-muted);
+.shell-sidebar-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
-.shell-nav-link.is-active .shell-nav-label {
-  color: var(--mo-text);
-  font-weight: 600;
+
+.shell-sidebar-logout {
+  @apply flex w-full items-center rounded-xl text-left transition duration-200;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.shell-sidebar.is-collapsed .shell-sidebar-logout {
+  @apply flex-col items-center gap-1 px-1 py-2 text-center;
+}
+
+.shell-sidebar.is-expanded .shell-sidebar-logout {
+  @apply mx-2 flex-row gap-3 px-3 py-2.5;
+}
+
+.shell-sidebar-logout:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 
 .auth-gradient-bg {

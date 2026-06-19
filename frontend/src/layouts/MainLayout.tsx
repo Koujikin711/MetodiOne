@@ -6,6 +6,7 @@ import {
   CheckSquare,
   Funnel,
   LogOut,
+  Menu,
   MessageCircle,
   Plug,
   UserRound,
@@ -13,6 +14,7 @@ import {
   Wallet,
 } from "@/components/icons";
 import { AppBanners } from "@/components/AppBanners";
+import { ShellNavLink } from "@/components/ShellNavLink";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TariffFeatureOutletGate } from "@/components/TariffFeatureOutletGate";
 import { GradientIconBox } from "@/components/GradientIconBox";
@@ -24,14 +26,9 @@ import metodiMarkUrl from "@/assets/metodione-mark.svg?url";
 import { apiFetch, getStoredToken, setStoredToken } from "@/lib/api";
 import { decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
+import { useShellSidebarExpanded } from "@/hooks/useShellSidebarExpanded";
 import { appLexicon } from "@/lib/appLexicon";
 import type { ChatThread, Task, TaskListResponse } from "@/lib/types";
-
-function navLinkClass({ isActive }: { isActive: boolean }) {
-  return ["shell-nav-link group flex flex-col items-center gap-2 px-1 py-2.5 text-center", isActive ? "is-active" : ""]
-    .filter(Boolean)
-    .join(" ");
-}
 
 function mobileBottomNavLinkClass({ isActive }: { isActive: boolean }) {
   return [
@@ -79,6 +76,7 @@ export function MainLayout() {
   const showIntegrationsHub = role === "owner";
   const showKpi = role === "owner" || role === "super_owner" || role === "manager" || role === "admin";
   const { showNavForFeature } = useTariffNavAccess();
+  const { expanded: sidebarExpanded, toggle: toggleSidebar } = useShellSidebarExpanded();
   const navLex = appLexicon;
 
   function logout() {
@@ -212,267 +210,366 @@ export function MainLayout() {
     <div className="relative h-screen overflow-hidden app-shell-bg">
 
       <div className="relative z-10 flex h-screen min-h-0 flex-col sm:flex-row">
-        <aside className="shell-sidebar print:hidden hidden h-screen min-h-0 w-[5.5rem] shrink-0 py-6 sm:flex sm:flex-col">
-          <div className="mr-2 shrink-0 flex flex-col items-center gap-1 px-1 sm:mb-6 sm:mr-0">
-            <MetodiBrandMark className="h-10 w-10" />
-            <span className="sr-only">MetodiOne</span>
+        <aside
+          className={[
+            "shell-sidebar print:hidden hidden h-screen min-h-0 shrink-0 py-4 sm:flex sm:flex-col",
+            sidebarExpanded ? "is-expanded" : "is-collapsed",
+          ].join(" ")}
+        >
+          <div className="shell-sidebar-header">
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="shell-sidebar-toggle h-10 w-10"
+              title={sidebarExpanded ? "Свернуть меню" : "Развернуть меню"}
+              aria-label={sidebarExpanded ? "Свернуть меню" : "Развернуть меню"}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            {sidebarExpanded ? (
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <MetodiBrandMark className="h-8 w-8" />
+                <span className="truncate text-sm font-semibold text-white/90">MetodiOne</span>
+              </div>
+            ) : null}
           </div>
-          <nav className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1.5">
+          <nav className="no-scrollbar flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto py-1">
             {isSuperOwner ? (
-              <>
-                <NavLink to="/companies" className={navLinkClass} title="Компании">
-                  <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                    <Users className="h-[18px] w-[18px]" />
-                  </GradientIconBox>
-                  <span className="shell-nav-label max-w-[4rem]">Компании</span>
-                </NavLink>
-</>
+              <ShellNavLink
+                to="/companies"
+                title="Компании"
+                labelShort="Компании"
+                labelFull="Компании"
+                variant="purple"
+                icon={<Users className="h-[18px] w-[18px]" />}
+                expanded={sidebarExpanded}
+              />
             ) : isManagerNav ? (
-                <>
-                  <NavLink to="/desk" className={navLinkClass} title="Рабочий стол">
-                    <GradientIconBox variant="crm" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <LayoutDashboard className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Стол</span>
-                  </NavLink>
-                  <NavIf show={showNavForFeature("chat")}>
-                    <NavLink to="/chat" className={navLinkClass} title="Чат">
-                      <GradientIconBox variant="chat" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <MessageCircle className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Чат</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("booking")}>
-                    <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
-                      <GradientIconBox variant="online" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Calendar className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Онлайн</span>
-                    </NavLink>
-                  </NavIf>
-<NavIf show={showNavForFeature("crm")}>
-                    <NavLink to="/crm" className={navLinkClass} title={navLex.navKanbanTitle}>
-                      <GradientIconBox variant="crm" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Funnel className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">{navLex.navKanban}</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("crm")}>
-                    <NavLink to="/my-leads" className={navLinkClass} title={navLex.navGuestsTitle}>
-                      <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <UserRound className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">{navLex.navGuests}</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("tasks")}>
-                    <NavLink to="/tasks" className={navLinkClass} title="Задачи">
-                      <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <CheckSquare className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Задачи</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavLink to="/messenger" className={navLinkClass} title="Мессенджер">
-                    <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Users className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Команда</span>
-                  </NavLink>
-
-{showKpi ? (
-                    <NavIf show={showNavForFeature("kpi")}>
-                      <NavLink to="/kpi" className={navLinkClass} title={navLex.navKpiTitle}>
-                        <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                          <Target className="h-[18px] w-[18px]" />
-                        </GradientIconBox>
-                        <span className="shell-nav-label max-w-[4rem]">{navLex.navKpi}</span>
-                      </NavLink>
-                    </NavIf>
-                  ) : null}
-                  {showFinance ? (
-                    <NavIf show={showNavForFeature("finance")}>
-                      <NavLink to="/finance" className={navLinkClass} title={navLex.navFinanceTitle}>
-                        <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                          <Wallet className="h-[18px] w-[18px]" />
-                        </GradientIconBox>
-                        <span className="shell-nav-label max-w-[4rem]">{navLex.navFinance}</span>
-                      </NavLink>
-                    </NavIf>
-                  ) : null}
-                  {showServices ? (
-                    <NavLink to="/services" className={navLinkClass} title="Каталог услуг">
-                      <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Funnel className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Услуги</span>
-                    </NavLink>
-                  ) : null}
-</>
-            ) : isExpert ? (
               <>
-                <NavIf show={showNavForFeature("booking")}>
-                  <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
-                    <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Calendar className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Онлайн</span>
-                  </NavLink>
-                </NavIf>
-                <NavIf show={showNavForFeature("reports")}>
-                  <NavLink to="/reports" className={navLinkClass} title="Отчёты">
-                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <BarChart3 className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Отчёты</span>
-                  </NavLink>
-                </NavIf>
+                <ShellNavLink
+                  to="/desk"
+                  title="Рабочий стол"
+                  labelShort="Стол"
+                  labelFull="Рабочий стол"
+                  variant="crm"
+                  icon={<LayoutDashboard className="h-[18px] w-[18px]" />}
+                  expanded={sidebarExpanded}
+                />
                 <NavIf show={showNavForFeature("chat")}>
-                  <NavLink to="/chat" className={navLinkClass} title="Чат">
-                    <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <MessageCircle className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Чат</span>
-                  </NavLink>
+                  <ShellNavLink
+                    to="/chat"
+                    title="Чат"
+                    labelShort="Чат"
+                    labelFull="Чат"
+                    variant="chat"
+                    icon={<MessageCircle className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
                 </NavIf>
-                <NavIf show={showNavForFeature("tasks")}>
-                  <NavLink to="/tasks" className={navLinkClass} title="Задачи">
-                    <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <CheckSquare className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Задачи</span>
-                  </NavLink>
+                <NavIf show={showNavForFeature("booking")}>
+                  <ShellNavLink
+                    to="/booking"
+                    title="Онлайн-записи"
+                    labelShort="Онлайн"
+                    labelFull="Онлайн-запись"
+                    variant="online"
+                    icon={<Calendar className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
                 </NavIf>
-                  <NavLink to="/messenger" className={navLinkClass} title="Мессенджер">
-                    <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Users className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Команда</span>
-                  </NavLink>
-
-</>
-            ) : (
-                <>
                 <NavIf show={showNavForFeature("crm")}>
-                  <NavLink to="/app" end className={navLinkClass} title={navLex.navOwnerHomeTitle}>
-                    <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Funnel className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">{navLex.navOwnerHomeShort}</span>
-                  </NavLink>
+                  <ShellNavLink
+                    to="/crm"
+                    title={navLex.navKanbanTitle}
+                    labelShort={navLex.navKanban}
+                    labelFull={navLex.navKanbanTitle}
+                    variant="crm"
+                    icon={<Funnel className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
                 </NavIf>
-<NavIf show={showNavForFeature("booking")}>
-                  <NavLink to="/booking" className={navLinkClass} title="Онлайн-записи">
-                    <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Calendar className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Онлайн</span>
-                  </NavLink>
+                <NavIf show={showNavForFeature("crm")}>
+                  <ShellNavLink
+                    to="/my-leads"
+                    title={navLex.navGuestsTitle}
+                    labelShort={navLex.navGuests}
+                    labelFull={navLex.navGuestsTitle}
+                    variant="indigo"
+                    icon={<UserRound className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
                 </NavIf>
                 <NavIf show={showNavForFeature("tasks")}>
-                  <NavLink to="/tasks" className={navLinkClass} title="Задачи">
-                    <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <CheckSquare className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Задачи</span>
-                  </NavLink>
+                  <ShellNavLink
+                    to="/tasks"
+                    title="Задачи"
+                    labelShort="Задачи"
+                    labelFull="Задачи и проекты"
+                    variant="tasks"
+                    icon={<CheckSquare className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
                 </NavIf>
-                  <NavLink to="/messenger" className={navLinkClass} title="Мессенджер">
-                    <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Users className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Команда</span>
-                  </NavLink>
-
-<NavIf show={showNavForFeature("analytics")}>
-                  <NavLink to="/analytics" className={navLinkClass} title={navLex.navAnalyticsTitle}>
-                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <BarChart3 className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">{navLex.navAnalytics}</span>
-                  </NavLink>
-                </NavIf>
+                <ShellNavLink
+                  to="/messenger"
+                  title="Мессенджер"
+                  labelShort="Команда"
+                  labelFull="Совместная работа"
+                  variant="tasks"
+                  icon={<Users className="h-[18px] w-[18px]" />}
+                  expanded={sidebarExpanded}
+                />
                 {showKpi ? (
                   <NavIf show={showNavForFeature("kpi")}>
-                    <NavLink to="/kpi" className={navLinkClass} title={navLex.navKpiTitle}>
-                      <GradientIconBox variant="indigo" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Target className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">{navLex.navKpi}</span>
-                    </NavLink>
+                    <ShellNavLink
+                      to="/kpi"
+                      title={navLex.navKpiTitle}
+                      labelShort={navLex.navKpi}
+                      labelFull={navLex.navKpiTitle}
+                      variant="indigo"
+                      icon={<Target className="h-[18px] w-[18px]" />}
+                      expanded={sidebarExpanded}
+                    />
                   </NavIf>
                 ) : null}
                 {showFinance ? (
                   <NavIf show={showNavForFeature("finance")}>
-                    <NavLink to="/finance" className={navLinkClass} title={navLex.navFinanceTitle}>
-                      <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Wallet className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">{navLex.navFinance}</span>
-                    </NavLink>
+                    <ShellNavLink
+                      to="/finance"
+                      title={navLex.navFinanceTitle}
+                      labelShort={navLex.navFinance}
+                      labelFull={navLex.navFinanceTitle}
+                      variant="blue"
+                      icon={<Wallet className="h-[18px] w-[18px]" />}
+                      expanded={sidebarExpanded}
+                    />
                   </NavIf>
                 ) : null}
                 {showServices ? (
-                  <NavLink to="/services" className={navLinkClass} title="Каталог услуг">
-                    <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Funnel className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Услуги</span>
-                  </NavLink>
+                  <ShellNavLink
+                    to="/services"
+                    title="Каталог услуг"
+                    labelShort="Услуги"
+                    labelFull="Каталог услуг"
+                    variant="purple"
+                    icon={<Funnel className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
                 ) : null}
-                <NavIf show={showNavForFeature("employees")}>
-                  <NavLink to="/employees" className={navLinkClass} title="Сотрудники">
-                    <GradientIconBox variant="purple" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <Users className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Сотр.</span>
-                  </NavLink>
+              </>
+            ) : isExpert ? (
+              <>
+                <NavIf show={showNavForFeature("booking")}>
+                  <ShellNavLink
+                    to="/booking"
+                    title="Онлайн-записи"
+                    labelShort="Онлайн"
+                    labelFull="Онлайн-запись"
+                    variant="tasks"
+                    icon={<Calendar className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
+                </NavIf>
+                <NavIf show={showNavForFeature("reports")}>
+                  <ShellNavLink
+                    to="/reports"
+                    title="Отчёты"
+                    labelShort="Отчёты"
+                    labelFull="Отчёты"
+                    variant="blue"
+                    icon={<BarChart3 className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
                 </NavIf>
                 <NavIf show={showNavForFeature("chat")}>
-                  <NavLink to="/chat" className={navLinkClass} title="Чат">
-                    <GradientIconBox variant="tasks" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <MessageCircle className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Чат</span>
-                  </NavLink>
+                  <ShellNavLink
+                    to="/chat"
+                    title="Чат"
+                    labelShort="Чат"
+                    labelFull="Чат"
+                    variant="tasks"
+                    icon={<MessageCircle className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
+                </NavIf>
+                <NavIf show={showNavForFeature("tasks")}>
+                  <ShellNavLink
+                    to="/tasks"
+                    title="Задачи"
+                    labelShort="Задачи"
+                    labelFull="Задачи и проекты"
+                    variant="purple"
+                    icon={<CheckSquare className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
+                </NavIf>
+                <ShellNavLink
+                  to="/messenger"
+                  title="Мессенджер"
+                  labelShort="Команда"
+                  labelFull="Совместная работа"
+                  variant="tasks"
+                  icon={<Users className="h-[18px] w-[18px]" />}
+                  expanded={sidebarExpanded}
+                />
+              </>
+            ) : (
+              <>
+                <NavIf show={showNavForFeature("crm")}>
+                  <ShellNavLink
+                    to="/app"
+                    end
+                    title={navLex.navOwnerHomeTitle}
+                    labelShort={navLex.navOwnerHomeShort}
+                    labelFull={navLex.navOwnerHomeTitle}
+                    variant="indigo"
+                    icon={<Funnel className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
+                </NavIf>
+                <NavIf show={showNavForFeature("booking")}>
+                  <ShellNavLink
+                    to="/booking"
+                    title="Онлайн-записи"
+                    labelShort="Онлайн"
+                    labelFull="Онлайн-запись"
+                    variant="tasks"
+                    icon={<Calendar className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
+                </NavIf>
+                <NavIf show={showNavForFeature("tasks")}>
+                  <ShellNavLink
+                    to="/tasks"
+                    title="Задачи"
+                    labelShort="Задачи"
+                    labelFull="Задачи и проекты"
+                    variant="purple"
+                    icon={<CheckSquare className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
+                </NavIf>
+                <ShellNavLink
+                  to="/messenger"
+                  title="Мессенджер"
+                  labelShort="Команда"
+                  labelFull="Совместная работа"
+                  variant="tasks"
+                  icon={<Users className="h-[18px] w-[18px]" />}
+                  expanded={sidebarExpanded}
+                />
+                <NavIf show={showNavForFeature("analytics")}>
+                  <ShellNavLink
+                    to="/analytics"
+                    title={navLex.navAnalyticsTitle}
+                    labelShort={navLex.navAnalytics}
+                    labelFull={navLex.navAnalyticsTitle}
+                    variant="blue"
+                    icon={<BarChart3 className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
+                </NavIf>
+                {showKpi ? (
+                  <NavIf show={showNavForFeature("kpi")}>
+                    <ShellNavLink
+                      to="/kpi"
+                      title={navLex.navKpiTitle}
+                      labelShort={navLex.navKpi}
+                      labelFull={navLex.navKpiTitle}
+                      variant="indigo"
+                      icon={<Target className="h-[18px] w-[18px]" />}
+                      expanded={sidebarExpanded}
+                    />
+                  </NavIf>
+                ) : null}
+                {showFinance ? (
+                  <NavIf show={showNavForFeature("finance")}>
+                    <ShellNavLink
+                      to="/finance"
+                      title={navLex.navFinanceTitle}
+                      labelShort={navLex.navFinance}
+                      labelFull={navLex.navFinanceTitle}
+                      variant="blue"
+                      icon={<Wallet className="h-[18px] w-[18px]" />}
+                      expanded={sidebarExpanded}
+                    />
+                  </NavIf>
+                ) : null}
+                {showServices ? (
+                  <ShellNavLink
+                    to="/services"
+                    title="Каталог услуг"
+                    labelShort="Услуги"
+                    labelFull="Каталог услуг"
+                    variant="purple"
+                    icon={<Funnel className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
+                ) : null}
+                <NavIf show={showNavForFeature("employees")}>
+                  <ShellNavLink
+                    to="/employees"
+                    title="Сотрудники"
+                    labelShort="Сотр."
+                    labelFull="Сотрудники"
+                    variant="purple"
+                    icon={<Users className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
+                </NavIf>
+                <NavIf show={showNavForFeature("chat")}>
+                  <ShellNavLink
+                    to="/chat"
+                    title="Чат"
+                    labelShort="Чат"
+                    labelFull="Чат"
+                    variant="tasks"
+                    icon={<MessageCircle className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
                 </NavIf>
                 <NavIf show={showNavForFeature("audit")}>
-                  <NavLink to="/audit" className={navLinkClass} title="Аудит">
-                    <GradientIconBox variant="blue" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                      <BarChart3 className="h-[18px] w-[18px]" />
-                    </GradientIconBox>
-                    <span className="shell-nav-label max-w-[4rem]">Аудит</span>
-                  </NavLink>
+                  <ShellNavLink
+                    to="/audit"
+                    title="Аудит"
+                    labelShort="Аудит"
+                    labelFull="Аудит"
+                    variant="blue"
+                    icon={<BarChart3 className="h-[18px] w-[18px]" />}
+                    expanded={sidebarExpanded}
+                  />
                 </NavIf>
                 {showIntegrationsHub ? (
                   <NavIf show={showNavForFeature("integrations")}>
-                    <NavLink to="/integrations" className={navLinkClass} title="Интеграции">
-                      <GradientIconBox variant="integrations" className="h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                        <Plug className="h-[18px] w-[18px]" />
-                      </GradientIconBox>
-                      <span className="shell-nav-label max-w-[4rem]">Интегр.</span>
-                    </NavLink>
+                    <ShellNavLink
+                      to="/integrations"
+                      title="Интеграции"
+                      labelShort="Интегр."
+                      labelFull="Интеграции"
+                      variant="integrations"
+                      icon={<Plug className="h-[18px] w-[18px]" />}
+                      expanded={sidebarExpanded}
+                    />
                   </NavIf>
                 ) : null}
-                </>
+              </>
             )}
-            <div className="mt-2 border-t border-[var(--mo-border)] pt-3">
-              <ThemeToggle />
-            </div>
+          </nav>
+          <div className="shell-sidebar-footer shrink-0 px-1 pt-3">
+            <ThemeToggle sidebar expanded={sidebarExpanded} />
             <button
               type="button"
               onClick={logout}
               title="Выход"
-              className="mt-2 flex w-full flex-col items-center gap-2 rounded-2xl py-2 mo-muted transition-all duration-500 hover:bg-[var(--mo-nav-hover)] hover:text-[var(--mo-text)]"
+              className="shell-sidebar-logout"
             >
-              <GradientIconBox variant="pink" className="h-9 w-9 opacity-80 [&_svg]:h-4 [&_svg]:w-4">
-                <LogOut className="h-4 w-4" />
+              <GradientIconBox variant="pink" className="shell-nav-icon-box h-10 w-10 opacity-90 [&_svg]:h-[18px] [&_svg]:w-[18px]">
+                <LogOut className="h-[18px] w-[18px]" />
               </GradientIconBox>
-              <span className="text-[10px] font-medium">Выход</span>
+              <span className="shell-nav-text">Выход</span>
+              <span className="shell-nav-label">Выход</span>
             </button>
-          </nav>
+          </div>
         </aside>
 
         <main className="relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:px-10 sm:py-10 sm:pb-10 lg:px-14 text-[var(--mo-text)]">

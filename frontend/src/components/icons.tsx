@@ -241,6 +241,16 @@ export function Moon(props: IconProps) {
   );
 }
 
+export function Menu(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M4 5h16" />
+      <path d="M4 12h16" />
+      <path d="M4 19h16" />
+    </svg>
+  );
+}
+
 /** HoReCa / ресторан */
 export function UtensilsCrossed(props: IconProps) {
   return (

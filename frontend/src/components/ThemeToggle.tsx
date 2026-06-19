@@ -6,9 +6,11 @@ import { getStoredTheme, toggleTheme, type ThemeMode } from "@/lib/themeMode";
 type Props = {
   compact?: boolean;
   className?: string;
+  sidebar?: boolean;
+  expanded?: boolean;
 };
 
-export function ThemeToggle({ compact = false, className = "" }: Props) {
+export function ThemeToggle({ compact = false, className = "", sidebar = false, expanded = true }: Props) {
   const [mode, setMode] = useState<ThemeMode>(() => getStoredTheme());
 
   useEffect(() => {
@@ -41,6 +43,28 @@ export function ThemeToggle({ compact = false, className = "" }: Props) {
         aria-label={label}
       >
         {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      </button>
+    );
+  }
+
+  if (sidebar) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={[
+          "shell-nav-link group",
+          expanded ? "shell-nav-link--expanded" : "shell-nav-link--collapsed",
+          className,
+        ].join(" ")}
+        title={label}
+        aria-label={label}
+      >
+        <span className="shell-nav-icon-box inline-flex h-10 w-10 items-center justify-center rounded-xl">
+          {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+        </span>
+        <span className="shell-nav-text">{isDark ? "Светлая тема" : "Тёмная тема"}</span>
+        <span className="shell-nav-label">{isDark ? "Светлая" : "Тёмная"}</span>
       </button>
     );
   }
