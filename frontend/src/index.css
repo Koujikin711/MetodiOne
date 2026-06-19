@@ -27,9 +27,10 @@
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
-  --mo-bg: #f3efe8;
-  --mo-bg-top: #fcfaf7;
-  --mo-surface: #faf8f5;
+  --mo-canvas: #f7f4eb;
+  --mo-bg: var(--mo-canvas);
+  --mo-bg-top: var(--mo-canvas);
+  --mo-surface: var(--mo-canvas);
   --mo-surface-elevated: #ffffff;
   --mo-border: #e8e2d8;
   --mo-border-strong: #ddd4c4;
@@ -37,26 +38,23 @@
   --mo-text-muted: #7a7265;
   --mo-accent: #9e844d;
   --mo-accent-hover: #a38a53;
-  --mo-accent-soft: #f7f2e8;
+  --mo-accent-soft: #f0ebe3;
   --mo-gold: #d4af37;
-  --mo-shadow-luxury: 0 4px 20px -2px rgba(184, 164, 126, 0.15);
+  --mo-shadow-luxury: 0 4px 20px -2px rgba(184, 164, 126, 0.12);
   --mo-plum-from: #7c628c;
   --mo-plum-to: #614b70;
   --mo-success: #0f4c3a;
   --mo-warning: #8c6d31;
   --mo-danger: #6b1d2f;
-  --mo-shell-bg: #f7f4eb;
-  --mo-nav-hover: rgba(255, 255, 255, 0.55);
-  --mo-nav-active-bg: rgba(255, 255, 255, 0.82);
-  --mo-sidebar-surface: #f6f2eb;
-  --mo-sidebar-surface-end: #efe9df;
-  --mo-sidebar-glow: rgba(255, 252, 247, 0.75);
+  --mo-shell-bg: var(--mo-canvas);
+  --mo-nav-hover: #efe9df;
+  --mo-nav-active-bg: #ffffff;
   --mo-sidebar-fg: #4a433c;
   --mo-sidebar-fg-muted: #8a8072;
-  --mo-sidebar-item-hover: rgba(255, 255, 255, 0.52);
-  --mo-sidebar-item-active: rgba(255, 255, 255, 0.88);
-  --mo-sidebar-border: #e6dfd3;
-  --mo-sidebar-shadow: 2px 0 28px -14px rgba(140, 120, 90, 0.1);
+  --mo-sidebar-item-hover: #efe9df;
+  --mo-sidebar-item-active: #ffffff;
+  --mo-sidebar-border: var(--mo-canvas);
+  --mo-sidebar-shadow: none;
   --booking-grid-hatch: rgba(148, 163, 184, 0.18);
   --booking-appt-booked-bg: #dbeafe;
   --booking-appt-booked-border: #2563eb;
@@ -82,9 +80,10 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --mo-bg: #12100e;
-  --mo-bg-top: #0f0d0b;
-  --mo-surface: #1a1714;
+  --mo-canvas: #1a1714;
+  --mo-bg: var(--mo-canvas);
+  --mo-bg-top: var(--mo-canvas);
+  --mo-surface: var(--mo-canvas);
   --mo-surface-elevated: #242019;
   --mo-border: #3d3830;
   --mo-border-strong: #4f483f;
@@ -94,24 +93,21 @@
   --mo-accent-hover: #d4af37;
   --mo-accent-soft: #2e2a24;
   --mo-gold: #d4af37;
-  --mo-shadow-luxury: 0 4px 24px -4px rgba(0, 0, 0, 0.45);
+  --mo-shadow-luxury: 0 4px 24px -4px rgba(0, 0, 0, 0.35);
   --mo-plum-from: #9a7fb0;
   --mo-plum-to: #7c628c;
   --mo-success: #34d399;
   --mo-warning: #fbbf24;
   --mo-danger: #f87171;
-  --mo-shell-bg: #1a1714;
-  --mo-nav-hover: rgba(255, 255, 255, 0.06);
-  --mo-nav-active-bg: rgba(212, 175, 55, 0.14);
-  --mo-sidebar-surface: #1c1916;
-  --mo-sidebar-surface-end: #14120f;
-  --mo-sidebar-glow: rgba(212, 175, 55, 0.06);
+  --mo-shell-bg: var(--mo-canvas);
+  --mo-nav-hover: #242019;
+  --mo-nav-active-bg: #2e2a24;
   --mo-sidebar-fg: #e8e2d6;
   --mo-sidebar-fg-muted: #a89880;
-  --mo-sidebar-item-hover: rgba(255, 255, 255, 0.05);
-  --mo-sidebar-item-active: rgba(212, 175, 55, 0.1);
-  --mo-sidebar-border: #342f28;
-  --mo-sidebar-shadow: 2px 0 28px -14px rgba(0, 0, 0, 0.35);
+  --mo-sidebar-item-hover: #242019;
+  --mo-sidebar-item-active: #2e2a24;
+  --mo-sidebar-border: var(--mo-canvas);
+  --mo-sidebar-shadow: none;
   --booking-grid-hatch: rgba(255, 255, 255, 0.06);
   --booking-appt-booked-bg: #1e3a5f;
   --booking-appt-booked-border: #60a5fa;
@@ -138,7 +134,7 @@
 body {
   @apply min-h-screen antialiased font-sans;
   color: var(--mo-text);
-  background-color: var(--mo-bg-top);
+  background-color: var(--mo-canvas);
 }
 
 .font-display {
@@ -155,29 +151,16 @@ body {
   display: none;
 }
 
-/* Мягкий фон приложения */
+/* Однотонный фон платформы */
 .app-shell-bg {
-  background:
-    radial-gradient(ellipse 110% 75% at 50% -15%, rgba(255, 253, 249, 0.95), transparent 68%),
-    radial-gradient(ellipse 55% 45% at 100% 35%, rgba(237, 230, 218, 0.28), transparent 58%),
-    radial-gradient(ellipse 45% 40% at 0% 75%, rgba(228, 220, 206, 0.22), transparent 55%),
-    linear-gradient(180deg, #fcfaf7 0%, #f6f2eb 52%, #f0ebe3 100%);
-}
-
-:root[data-theme="dark"] .app-shell-bg {
-  background:
-    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(212, 175, 55, 0.05), transparent 62%),
-    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(124, 98, 140, 0.06), transparent 55%),
-    linear-gradient(180deg, #12100e 0%, #1a1714 55%, #14120f 100%);
+  background-color: var(--mo-canvas);
 }
 
 .shell-sidebar {
   position: relative;
   overflow: hidden;
   border-right: 1px solid var(--mo-sidebar-border);
-  background:
-    radial-gradient(ellipse 90% 55% at 50% -8%, var(--mo-sidebar-glow), transparent 72%),
-    linear-gradient(180deg, var(--mo-sidebar-surface) 0%, var(--mo-sidebar-surface-end) 100%);
+  background-color: var(--mo-canvas);
   box-shadow: var(--mo-sidebar-shadow);
   transition: width 0.22s ease;
 }
@@ -265,8 +248,8 @@ body {
 .shell-sidebar .shell-nav-link.is-active {
   background: var(--mo-sidebar-item-active);
   color: var(--mo-sidebar-fg);
-  border: 1px solid color-mix(in srgb, var(--mo-gold) 35%, transparent);
-  box-shadow: 0 1px 10px -4px rgba(184, 164, 126, 0.22);
+  border: 1px solid var(--mo-border-strong);
+  box-shadow: none;
 }
 
 .shell-sidebar .shell-nav-icon-box {
@@ -292,7 +275,7 @@ body {
 }
 
 .shell-sidebar.is-collapsed .shell-nav-link.is-active .shell-nav-icon-box {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-gold) 45%, transparent);
+  box-shadow: 0 0 0 1px var(--mo-border-strong);
 }
 
 .shell-sidebar .shell-nav-text {
@@ -332,13 +315,13 @@ nav[aria-label="Основная навигация"] .shell-nav-link:hover {
 
 nav[aria-label="Основная навигация"] .shell-nav-link.is-active {
   background: var(--mo-nav-active-bg);
-  border: 1px solid var(--mo-gold);
+  border: 1px solid var(--mo-border-strong);
   color: var(--mo-text);
   box-shadow: none;
 }
 
 .shell-sidebar-footer {
-  border-top: 1px solid var(--mo-sidebar-border);
+  border-top: 1px solid var(--mo-border);
 }
 
 .shell-sidebar-logout {
@@ -360,15 +343,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .auth-gradient-bg {
-  background:
-    radial-gradient(ellipse 100% 75% at 50% -20%, rgba(255, 252, 247, 0.9), transparent 62%),
-    linear-gradient(180deg, #fcfaf7 0%, #f5f0e8 55%, #efe9df 100%);
-}
-
-:root[data-theme="dark"] .auth-gradient-bg {
-  background:
-    radial-gradient(ellipse 90% 70% at 50% -20%, rgba(212, 175, 55, 0.08), transparent 55%),
-    linear-gradient(180deg, #0f0d0b 0%, #1a1714 55%, #12100e 100%);
+  background-color: var(--mo-canvas);
 }
 
 .glass-card,
@@ -539,16 +514,16 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 /* Промо / уведомления */
 .executive-banner {
   @apply relative overflow-hidden rounded-xl px-4 py-2.5 text-center text-sm font-semibold text-white;
-  background: linear-gradient(90deg, var(--mo-plum-from), var(--mo-plum-to));
+  background-color: var(--mo-plum-from);
   border: 1px solid rgba(212, 175, 55, 0.55);
-  box-shadow: var(--mo-shadow-luxury), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  box-shadow: var(--mo-shadow-luxury);
 }
 .executive-banner::before {
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: linear-gradient(180deg, #e8d5a3, var(--mo-gold), #b89446);
+  background-color: var(--mo-gold);
 }
 
 /* CRM — executive kanban */
@@ -584,9 +559,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .crm-view-switch {
   @apply inline-flex rounded-full border p-0.5;
-  border-color: #d1c4a9;
-  background: linear-gradient(180deg, #f8f6f1 0%, #ece6da 100%);
-  box-shadow: inset 0 1px 3px rgba(44, 37, 32, 0.08);
+  border-color: var(--mo-border-strong);
+  background-color: var(--mo-canvas);
+  box-shadow: none;
 }
 
 .crm-view-switch button {
@@ -594,9 +569,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--mo-text-muted);
 }
 .crm-view-switch button[data-active="true"] {
-  background: linear-gradient(180deg, #ffffff 0%, #f3efe6 100%);
+  background-color: var(--mo-surface-elevated);
   color: var(--mo-text);
-  border: 1px solid #d1c4a9;
+  border: 1px solid var(--mo-border-strong);
   box-shadow: var(--mo-shadow-luxury);
 }
 
@@ -622,7 +597,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .crm-kanban-col {
   @apply flex w-[min(100%,300px)] min-w-[268px] shrink-0 flex-col overflow-hidden rounded-2xl border;
   border-color: var(--mo-border);
-  background: rgba(255, 255, 255, 0.35);
+  background-color: var(--mo-surface-elevated);
   box-shadow: var(--mo-shadow-luxury);
 }
 
@@ -633,8 +608,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .crm-kanban-col-header {
   @apply flex items-center gap-2.5 border-b px-4 py-3.5;
-  border-color: #efebe1;
-  background: linear-gradient(180deg, #ffffff 0%, #f9f6f0 100%);
+  border-color: var(--mo-border);
+  background-color: var(--mo-surface-elevated);
 }
 
 .crm-stage-gem {
@@ -818,9 +793,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .mo-tabs {
   @apply inline-flex flex-wrap gap-1 rounded-full border p-1;
-  border-color: #d1c4a9;
-  background: linear-gradient(180deg, #f8f6f1 0%, #ece6da 100%);
-  box-shadow: inset 0 1px 3px rgba(44, 37, 32, 0.06);
+  border-color: var(--mo-border-strong);
+  background-color: var(--mo-canvas);
+  box-shadow: none;
 }
 
 .mo-tabs button {
@@ -829,9 +804,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 .mo-tabs button[data-active="true"],
 .mo-tabs button.active {
-  background: #fff;
+  background-color: var(--mo-surface-elevated);
   color: var(--mo-text);
-  border: 1px solid #d1c4a9;
+  border: 1px solid var(--mo-border-strong);
   box-shadow: var(--mo-shadow-luxury);
 }
 
