@@ -60,8 +60,8 @@ export function ThemeToggle({ compact = false, className = "", sidebar = false, 
         title={label}
         aria-label={label}
       >
-        <span className="shell-nav-icon-box inline-flex h-10 w-10 items-center justify-center rounded-xl">
-          {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+        <span className="shell-nav-icon-box inline-flex items-center justify-center rounded-xl">
+          {isDark ? <Sun className="shell-nav-icon-glyph" /> : <Moon className="shell-nav-icon-glyph" />}
         </span>
         <span className="shell-nav-text">{isDark ? "Светлая тема" : "Тёмная тема"}</span>
         <span className="shell-nav-label">{isDark ? "Светлая" : "Тёмная"}</span>

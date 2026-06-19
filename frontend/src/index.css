@@ -169,7 +169,39 @@ body {
 }
 
 .shell-sidebar.is-collapsed {
-  width: 4.25rem;
+  width: 4.5rem;
+}
+
+.shell-sidebar-nav {
+  gap: 0;
+}
+
+.shell-nav-sortable {
+  position: relative;
+}
+
+.shell-nav-sortable.is-dragging {
+  opacity: 0.92;
+}
+
+.shell-nav-sortable.is-dragging .shell-nav-link {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.shell-nav-drag-handle {
+  @apply absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1 opacity-0 transition;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: grab;
+  touch-action: none;
+}
+
+.shell-nav-sortable:hover .shell-nav-drag-handle,
+.shell-nav-sortable.is-dragging .shell-nav-drag-handle {
+  opacity: 1;
+}
+
+.shell-nav-drag-handle:active {
+  cursor: grabbing;
 }
 
 .shell-sidebar-toggle {
@@ -202,11 +234,12 @@ body {
 }
 
 .shell-sidebar .shell-nav-link--expanded {
-  @apply mx-2 flex w-[calc(100%-1rem)] flex-row items-center gap-3 px-3 py-2.5 text-left;
+  @apply mx-1.5 flex w-[calc(100%-0.75rem)] flex-row items-center gap-2 px-2 py-1.5 text-left;
+  padding-right: 1.75rem;
 }
 
 .shell-sidebar .shell-nav-link--collapsed {
-  @apply flex w-full flex-col items-center gap-1 px-1 py-2 text-center;
+  @apply flex w-full flex-col items-center px-0.5 py-1 text-center;
 }
 
 .shell-sidebar .shell-nav-link:hover {
@@ -222,10 +255,29 @@ body {
 }
 
 .shell-sidebar .shell-nav-icon-box {
+  @apply h-11 w-11 shrink-0;
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   color: rgba(255, 255, 255, 0.95);
+}
+
+.shell-sidebar .shell-nav-icon-glyph {
+  @apply h-[22px] w-[22px];
+}
+
+.shell-sidebar.is-collapsed .shell-nav-icon-box {
+  @apply h-12 w-12;
+  cursor: grab;
+  touch-action: none;
+}
+
+.shell-sidebar.is-collapsed .shell-nav-icon-box:active {
+  cursor: grabbing;
+}
+
+.shell-sidebar.is-collapsed .shell-nav-icon-glyph {
+  @apply h-6 w-6;
 }
 
 .shell-sidebar.is-collapsed .shell-nav-link.is-active .shell-nav-icon-box {
@@ -284,12 +336,12 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   color: rgba(255, 255, 255, 0.55);
 }
 
-.shell-sidebar.is-collapsed .shell-sidebar-logout {
-  @apply flex-col items-center gap-1 px-1 py-2 text-center;
+.shell-sidebar.is-expanded .shell-sidebar-logout {
+  @apply mx-1.5 flex-row gap-2 px-2 py-1.5;
 }
 
-.shell-sidebar.is-expanded .shell-sidebar-logout {
-  @apply mx-2 flex-row gap-3 px-3 py-2.5;
+.shell-sidebar.is-collapsed .shell-sidebar-logout {
+  @apply flex-col items-center px-0.5 py-1 text-center;
 }
 
 .shell-sidebar-logout:hover {

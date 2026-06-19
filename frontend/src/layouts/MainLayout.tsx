@@ -1,24 +1,22 @@
 import {
   BarChart3,
   Calendar,
-  LayoutDashboard,
   Target,
   CheckSquare,
   Funnel,
   LogOut,
   Menu,
   MessageCircle,
-  Plug,
   UserRound,
   Users,
   Wallet,
 } from "@/components/icons";
 import { AppBanners } from "@/components/AppBanners";
-import { ShellNavLink } from "@/components/ShellNavLink";
+import { ShellSidebarNav } from "@/components/ShellSidebarNav";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TariffFeatureOutletGate } from "@/components/TariffFeatureOutletGate";
 import { GradientIconBox } from "@/components/GradientIconBox";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import toast from "react-hot-toast";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
@@ -78,6 +76,7 @@ export function MainLayout() {
   const { showNavForFeature } = useTariffNavAccess();
   const { expanded: sidebarExpanded, toggle: toggleSidebar } = useShellSidebarExpanded();
   const navLex = appLexicon;
+  const sidebarOrderScope = useMemo(() => `${role ?? "guest"}:${userId ?? "0"}`, [role, userId]);
 
   function logout() {
     setStoredToken(null);
@@ -233,327 +232,19 @@ export function MainLayout() {
               </div>
             ) : null}
           </div>
-          <nav className="no-scrollbar flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto py-1">
-            {isSuperOwner ? (
-              <ShellNavLink
-                to="/companies"
-                title="Компании"
-                labelShort="Компании"
-                labelFull="Компании"
-                variant="purple"
-                icon={<Users className="h-[18px] w-[18px]" />}
-                expanded={sidebarExpanded}
-              />
-            ) : isManagerNav ? (
-              <>
-                <ShellNavLink
-                  to="/desk"
-                  title="Рабочий стол"
-                  labelShort="Стол"
-                  labelFull="Рабочий стол"
-                  variant="crm"
-                  icon={<LayoutDashboard className="h-[18px] w-[18px]" />}
-                  expanded={sidebarExpanded}
-                />
-                <NavIf show={showNavForFeature("chat")}>
-                  <ShellNavLink
-                    to="/chat"
-                    title="Чат"
-                    labelShort="Чат"
-                    labelFull="Чат"
-                    variant="chat"
-                    icon={<MessageCircle className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <NavIf show={showNavForFeature("booking")}>
-                  <ShellNavLink
-                    to="/booking"
-                    title="Онлайн-записи"
-                    labelShort="Онлайн"
-                    labelFull="Онлайн-запись"
-                    variant="online"
-                    icon={<Calendar className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <NavIf show={showNavForFeature("crm")}>
-                  <ShellNavLink
-                    to="/crm"
-                    title={navLex.navKanbanTitle}
-                    labelShort={navLex.navKanban}
-                    labelFull={navLex.navKanbanTitle}
-                    variant="crm"
-                    icon={<Funnel className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <NavIf show={showNavForFeature("crm")}>
-                  <ShellNavLink
-                    to="/my-leads"
-                    title={navLex.navGuestsTitle}
-                    labelShort={navLex.navGuests}
-                    labelFull={navLex.navGuestsTitle}
-                    variant="indigo"
-                    icon={<UserRound className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <NavIf show={showNavForFeature("tasks")}>
-                  <ShellNavLink
-                    to="/tasks"
-                    title="Задачи"
-                    labelShort="Задачи"
-                    labelFull="Задачи и проекты"
-                    variant="tasks"
-                    icon={<CheckSquare className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <ShellNavLink
-                  to="/messenger"
-                  title="Мессенджер"
-                  labelShort="Команда"
-                  labelFull="Совместная работа"
-                  variant="tasks"
-                  icon={<Users className="h-[18px] w-[18px]" />}
-                  expanded={sidebarExpanded}
-                />
-                {showKpi ? (
-                  <NavIf show={showNavForFeature("kpi")}>
-                    <ShellNavLink
-                      to="/kpi"
-                      title={navLex.navKpiTitle}
-                      labelShort={navLex.navKpi}
-                      labelFull={navLex.navKpiTitle}
-                      variant="indigo"
-                      icon={<Target className="h-[18px] w-[18px]" />}
-                      expanded={sidebarExpanded}
-                    />
-                  </NavIf>
-                ) : null}
-                {showFinance ? (
-                  <NavIf show={showNavForFeature("finance")}>
-                    <ShellNavLink
-                      to="/finance"
-                      title={navLex.navFinanceTitle}
-                      labelShort={navLex.navFinance}
-                      labelFull={navLex.navFinanceTitle}
-                      variant="blue"
-                      icon={<Wallet className="h-[18px] w-[18px]" />}
-                      expanded={sidebarExpanded}
-                    />
-                  </NavIf>
-                ) : null}
-                {showServices ? (
-                  <ShellNavLink
-                    to="/services"
-                    title="Каталог услуг"
-                    labelShort="Услуги"
-                    labelFull="Каталог услуг"
-                    variant="purple"
-                    icon={<Funnel className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                ) : null}
-              </>
-            ) : isExpert ? (
-              <>
-                <NavIf show={showNavForFeature("booking")}>
-                  <ShellNavLink
-                    to="/booking"
-                    title="Онлайн-записи"
-                    labelShort="Онлайн"
-                    labelFull="Онлайн-запись"
-                    variant="tasks"
-                    icon={<Calendar className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <NavIf show={showNavForFeature("reports")}>
-                  <ShellNavLink
-                    to="/reports"
-                    title="Отчёты"
-                    labelShort="Отчёты"
-                    labelFull="Отчёты"
-                    variant="blue"
-                    icon={<BarChart3 className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <NavIf show={showNavForFeature("chat")}>
-                  <ShellNavLink
-                    to="/chat"
-                    title="Чат"
-                    labelShort="Чат"
-                    labelFull="Чат"
-                    variant="tasks"
-                    icon={<MessageCircle className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <NavIf show={showNavForFeature("tasks")}>
-                  <ShellNavLink
-                    to="/tasks"
-                    title="Задачи"
-                    labelShort="Задачи"
-                    labelFull="Задачи и проекты"
-                    variant="purple"
-                    icon={<CheckSquare className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <ShellNavLink
-                  to="/messenger"
-                  title="Мессенджер"
-                  labelShort="Команда"
-                  labelFull="Совместная работа"
-                  variant="tasks"
-                  icon={<Users className="h-[18px] w-[18px]" />}
-                  expanded={sidebarExpanded}
-                />
-              </>
-            ) : (
-              <>
-                <NavIf show={showNavForFeature("crm")}>
-                  <ShellNavLink
-                    to="/app"
-                    end
-                    title={navLex.navOwnerHomeTitle}
-                    labelShort={navLex.navOwnerHomeShort}
-                    labelFull={navLex.navOwnerHomeTitle}
-                    variant="indigo"
-                    icon={<Funnel className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <NavIf show={showNavForFeature("booking")}>
-                  <ShellNavLink
-                    to="/booking"
-                    title="Онлайн-записи"
-                    labelShort="Онлайн"
-                    labelFull="Онлайн-запись"
-                    variant="tasks"
-                    icon={<Calendar className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <NavIf show={showNavForFeature("tasks")}>
-                  <ShellNavLink
-                    to="/tasks"
-                    title="Задачи"
-                    labelShort="Задачи"
-                    labelFull="Задачи и проекты"
-                    variant="purple"
-                    icon={<CheckSquare className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <ShellNavLink
-                  to="/messenger"
-                  title="Мессенджер"
-                  labelShort="Команда"
-                  labelFull="Совместная работа"
-                  variant="tasks"
-                  icon={<Users className="h-[18px] w-[18px]" />}
-                  expanded={sidebarExpanded}
-                />
-                <NavIf show={showNavForFeature("analytics")}>
-                  <ShellNavLink
-                    to="/analytics"
-                    title={navLex.navAnalyticsTitle}
-                    labelShort={navLex.navAnalytics}
-                    labelFull={navLex.navAnalyticsTitle}
-                    variant="blue"
-                    icon={<BarChart3 className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                {showKpi ? (
-                  <NavIf show={showNavForFeature("kpi")}>
-                    <ShellNavLink
-                      to="/kpi"
-                      title={navLex.navKpiTitle}
-                      labelShort={navLex.navKpi}
-                      labelFull={navLex.navKpiTitle}
-                      variant="indigo"
-                      icon={<Target className="h-[18px] w-[18px]" />}
-                      expanded={sidebarExpanded}
-                    />
-                  </NavIf>
-                ) : null}
-                {showFinance ? (
-                  <NavIf show={showNavForFeature("finance")}>
-                    <ShellNavLink
-                      to="/finance"
-                      title={navLex.navFinanceTitle}
-                      labelShort={navLex.navFinance}
-                      labelFull={navLex.navFinanceTitle}
-                      variant="blue"
-                      icon={<Wallet className="h-[18px] w-[18px]" />}
-                      expanded={sidebarExpanded}
-                    />
-                  </NavIf>
-                ) : null}
-                {showServices ? (
-                  <ShellNavLink
-                    to="/services"
-                    title="Каталог услуг"
-                    labelShort="Услуги"
-                    labelFull="Каталог услуг"
-                    variant="purple"
-                    icon={<Funnel className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                ) : null}
-                <NavIf show={showNavForFeature("employees")}>
-                  <ShellNavLink
-                    to="/employees"
-                    title="Сотрудники"
-                    labelShort="Сотр."
-                    labelFull="Сотрудники"
-                    variant="purple"
-                    icon={<Users className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <NavIf show={showNavForFeature("chat")}>
-                  <ShellNavLink
-                    to="/chat"
-                    title="Чат"
-                    labelShort="Чат"
-                    labelFull="Чат"
-                    variant="tasks"
-                    icon={<MessageCircle className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                <NavIf show={showNavForFeature("audit")}>
-                  <ShellNavLink
-                    to="/audit"
-                    title="Аудит"
-                    labelShort="Аудит"
-                    labelFull="Аудит"
-                    variant="blue"
-                    icon={<BarChart3 className="h-[18px] w-[18px]" />}
-                    expanded={sidebarExpanded}
-                  />
-                </NavIf>
-                {showIntegrationsHub ? (
-                  <NavIf show={showNavForFeature("integrations")}>
-                    <ShellNavLink
-                      to="/integrations"
-                      title="Интеграции"
-                      labelShort="Интегр."
-                      labelFull="Интеграции"
-                      variant="integrations"
-                      icon={<Plug className="h-[18px] w-[18px]" />}
-                      expanded={sidebarExpanded}
-                    />
-                  </NavIf>
-                ) : null}
-              </>
-            )}
+          <nav className="shell-sidebar-nav no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto py-0.5">
+            <ShellSidebarNav
+              expanded={sidebarExpanded}
+              scope={sidebarOrderScope}
+              isSuperOwner={isSuperOwner}
+              isManagerNav={isManagerNav}
+              isExpert={isExpert}
+              showServices={showServices}
+              showFinance={showFinance}
+              showIntegrationsHub={showIntegrationsHub}
+              showKpi={showKpi}
+              showNavForFeature={showNavForFeature}
+            />
           </nav>
           <div className="shell-sidebar-footer shrink-0 px-1 pt-3">
             <ThemeToggle sidebar expanded={sidebarExpanded} />
@@ -563,8 +254,8 @@ export function MainLayout() {
               title="Выход"
               className="shell-sidebar-logout"
             >
-              <GradientIconBox variant="pink" className="shell-nav-icon-box h-10 w-10 opacity-90 [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                <LogOut className="h-[18px] w-[18px]" />
+              <GradientIconBox variant="pink" className="shell-nav-icon-box opacity-90">
+                <LogOut className="shell-nav-icon-glyph" />
               </GradientIconBox>
               <span className="shell-nav-text">Выход</span>
               <span className="shell-nav-label">Выход</span>

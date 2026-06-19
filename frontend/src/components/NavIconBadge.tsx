@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
 /** Корпоративные цвета микро-бейджей сайдбара (ivory & gold). */
 const variants = {
@@ -27,18 +27,19 @@ type Props = {
   children: ReactNode;
   variant?: NavIconVariant;
   className?: string;
-};
+} & HTMLAttributes<HTMLDivElement>;
 
-export function NavIconBadge({ children, variant = "crm", className = "" }: Props) {
+export function NavIconBadge({ children, variant = "crm", className = "", ...rest }: Props) {
   return (
     <div
+      {...rest}
       className={[
         "shell-nav-icon flex shrink-0 items-center justify-center rounded-lg text-[var(--mo-text)]",
         variants[variant],
         className,
       ].join(" ")}
     >
-      <span className="flex items-center justify-center [&_svg]:h-[18px] [&_svg]:w-[18px] [&_svg]:stroke-[1.5] [&_svg]:stroke-current [&_svg]:fill-none">
+      <span className="flex items-center justify-center [&_svg]:stroke-[1.5] [&_svg]:stroke-current [&_svg]:fill-none">
         {children}
       </span>
     </div>
