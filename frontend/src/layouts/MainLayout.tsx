@@ -89,6 +89,13 @@ export function MainLayout() {
   const notificationsInitializedRef = useRef(false);
   const notificationsInFlightRef = useRef(false);
   const isPageVisibleRef = useRef(typeof document !== "undefined" ? document.visibilityState === "visible" : true);
+  const mainRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    main.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname]);
 
   useEffect(() => {
     function pushBrowserNotification(title: string, body: string) {
@@ -258,7 +265,10 @@ export function MainLayout() {
           </div>
         </aside>
 
-        <main className="shell-main relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:px-10 sm:py-10 sm:pb-10 lg:px-14 text-[var(--mo-text)]">
+        <main
+          ref={mainRef}
+          className="shell-main relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:px-10 sm:py-10 sm:pb-10 lg:flex lg:flex-col lg:px-14 text-[var(--mo-text)]"
+        >
           <div className="pointer-events-none fixed right-3 top-3 z-40 sm:hidden">
             <div className="pointer-events-auto">
               <ThemeToggle compact />
@@ -274,7 +284,7 @@ export function MainLayout() {
         >
           {isSuperOwner ? (
             <>
-              <NavLink to="/companies" className={mobileBottomNavLinkClass} title="Компании">
+              <NavLink preventScrollReset to="/companies" className={mobileBottomNavLinkClass} title="Компании">
                 <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <Users className="h-4 w-4" />
                 </GradientIconBox>
@@ -295,7 +305,7 @@ export function MainLayout() {
           ) : isManagerNav ? (
             <>
               <NavIf show={showNavForFeature("crm")}>
-                <NavLink to="/crm" className={mobileBottomNavLinkClass} title={navLex.navKanbanTitle}>
+                <NavLink preventScrollReset to="/crm" className={mobileBottomNavLinkClass} title={navLex.navKanbanTitle}>
                   <GradientIconBox variant="crm" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Funnel className="h-4 w-4" />
                   </GradientIconBox>
@@ -303,7 +313,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("crm")}>
-                <NavLink to="/my-leads" className={mobileBottomNavLinkClass} title={navLex.navGuestsTitle}>
+                <NavLink preventScrollReset to="/my-leads" className={mobileBottomNavLinkClass} title={navLex.navGuestsTitle}>
                   <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <UserRound className="h-4 w-4" />
                   </GradientIconBox>
@@ -311,7 +321,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
 <NavIf show={showNavForFeature("booking")}>
-                <NavLink to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
+                <NavLink preventScrollReset to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Calendar className="h-4 w-4" />
                   </GradientIconBox>
@@ -319,7 +329,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("chat")}>
-                <NavLink to="/chat" className={mobileBottomNavLinkClass} title="Чаты">
+                <NavLink preventScrollReset to="/chat" className={mobileBottomNavLinkClass} title="Чаты">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <MessageCircle className="h-4 w-4" />
                   </GradientIconBox>
@@ -327,14 +337,14 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("tasks")}>
-                <NavLink to="/tasks" className={mobileBottomNavLinkClass} title="Задачи">
+                <NavLink preventScrollReset to="/tasks" className={mobileBottomNavLinkClass} title="Задачи">
                   <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <CheckSquare className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Задачи</span>
                 </NavLink>
               </NavIf>
-              <NavLink to="/messenger" className={mobileBottomNavLinkClass} title="Мессенджер">
+              <NavLink preventScrollReset to="/messenger" className={mobileBottomNavLinkClass} title="Мессенджер">
                 <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <Users className="h-4 w-4" />
                 </GradientIconBox>
@@ -342,7 +352,7 @@ export function MainLayout() {
               </NavLink>
               {showKpi ? (
                 <NavIf show={showNavForFeature("kpi")}>
-                  <NavLink to="/kpi" className={mobileBottomNavLinkClass} title={navLex.navKpiTitle}>
+                  <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title={navLex.navKpiTitle}>
                     <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                       <Target className="h-4 w-4" />
                     </GradientIconBox>
@@ -352,7 +362,7 @@ export function MainLayout() {
               ) : null}
               {showFinance ? (
                 <NavIf show={showNavForFeature("finance")}>
-                  <NavLink to="/finance" className={mobileBottomNavLinkClass} title={navLex.navFinanceTitle}>
+                  <NavLink preventScrollReset to="/finance" className={mobileBottomNavLinkClass} title={navLex.navFinanceTitle}>
                     <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                       <Wallet className="h-4 w-4" />
                     </GradientIconBox>
@@ -361,7 +371,7 @@ export function MainLayout() {
                 </NavIf>
               ) : null}
               {showServices ? (
-                <NavLink to="/services" className={mobileBottomNavLinkClass} title="Каталог услуг">
+                <NavLink preventScrollReset to="/services" className={mobileBottomNavLinkClass} title="Каталог услуг">
                   <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <ClipboardList className="h-4 w-4" />
                   </GradientIconBox>
@@ -383,7 +393,7 @@ export function MainLayout() {
           ) : isExpert ? (
             <>
               <NavIf show={showNavForFeature("booking")}>
-                <NavLink to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
+                <NavLink preventScrollReset to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Calendar className="h-4 w-4" />
                   </GradientIconBox>
@@ -391,7 +401,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("reports")}>
-                <NavLink to="/reports" className={mobileBottomNavLinkClass} title="Отчёты">
+                <NavLink preventScrollReset to="/reports" className={mobileBottomNavLinkClass} title="Отчёты">
                   <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <BarChart3 className="h-4 w-4" />
                   </GradientIconBox>
@@ -399,7 +409,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("chat")}>
-                <NavLink to="/chat" className={mobileBottomNavLinkClass} title="Чаты">
+                <NavLink preventScrollReset to="/chat" className={mobileBottomNavLinkClass} title="Чаты">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <MessageCircle className="h-4 w-4" />
                   </GradientIconBox>
@@ -407,14 +417,14 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("tasks")}>
-                <NavLink to="/tasks" className={mobileBottomNavLinkClass} title="Задачи">
+                <NavLink preventScrollReset to="/tasks" className={mobileBottomNavLinkClass} title="Задачи">
                   <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <CheckSquare className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Задачи</span>
                 </NavLink>
               </NavIf>
-                  <NavLink to="/messenger" className={mobileBottomNavLinkClass} title="Мессенджер">
+                  <NavLink preventScrollReset to="/messenger" className={mobileBottomNavLinkClass} title="Мессенджер">
                     <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                       <Users className="h-4 w-4" />
                     </GradientIconBox>
@@ -436,7 +446,7 @@ export function MainLayout() {
           ) : (
             <>
               <NavIf show={showNavForFeature("crm")}>
-                <NavLink to="/app" end className={mobileBottomNavLinkClass} title={navLex.navOwnerHomeTitle}>
+                <NavLink preventScrollReset to="/app" end className={mobileBottomNavLinkClass} title={navLex.navOwnerHomeTitle}>
                   <GradientIconBox variant="crm" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Funnel className="h-4 w-4" />
                   </GradientIconBox>
@@ -444,7 +454,7 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
 <NavIf show={showNavForFeature("booking")}>
-                <NavLink to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
+                <NavLink preventScrollReset to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Calendar className="h-4 w-4" />
                   </GradientIconBox>
@@ -453,7 +463,7 @@ export function MainLayout() {
               </NavIf>
               {showKpi ? (
                 <NavIf show={showNavForFeature("kpi")}>
-                  <NavLink to="/kpi" className={mobileBottomNavLinkClass} title={navLex.navKpiTitle}>
+                  <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title={navLex.navKpiTitle}>
                     <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                       <Target className="h-4 w-4" />
                     </GradientIconBox>
@@ -463,7 +473,7 @@ export function MainLayout() {
               ) : null}
               {showFinance ? (
                 <NavIf show={showNavForFeature("finance")}>
-                  <NavLink to="/finance" className={mobileBottomNavLinkClass} title={navLex.navFinanceTitle}>
+                  <NavLink preventScrollReset to="/finance" className={mobileBottomNavLinkClass} title={navLex.navFinanceTitle}>
                     <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                       <Wallet className="h-4 w-4" />
                     </GradientIconBox>
@@ -472,7 +482,7 @@ export function MainLayout() {
                 </NavIf>
               ) : null}
               {showServices ? (
-                <NavLink to="/services" className={mobileBottomNavLinkClass} title="Каталог услуг">
+                <NavLink preventScrollReset to="/services" className={mobileBottomNavLinkClass} title="Каталог услуг">
                   <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <ClipboardList className="h-4 w-4" />
                   </GradientIconBox>
@@ -480,7 +490,7 @@ export function MainLayout() {
                 </NavLink>
               ) : null}
               <NavIf show={showNavForFeature("chat")}>
-                <NavLink to="/chat" className={mobileBottomNavLinkClass} title="Чаты">
+                <NavLink preventScrollReset to="/chat" className={mobileBottomNavLinkClass} title="Чаты">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <MessageCircle className="h-4 w-4" />
                   </GradientIconBox>

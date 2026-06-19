@@ -71,6 +71,7 @@ export function TeamMessengerPage() {
   const [contactSearch, setContactSearch] = useState("");
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null);
 
   useChatRealtime(true);
 
@@ -130,7 +131,9 @@ export function TeamMessengerPage() {
   const closeChat = () => setActiveThreadId(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const box = messagesScrollRef.current;
+    if (!box) return;
+    box.scrollTo({ top: box.scrollHeight, behavior: "smooth" });
   }, [messagesQ.data, activeThreadId]);
 
   useEffect(() => {
@@ -247,7 +250,7 @@ export function TeamMessengerPage() {
                 </div>
               </div>
 
-              <div className="team-messenger-messages">
+              <div ref={messagesScrollRef} className="team-messenger-messages">
                 {messagesQ.isLoading ? <p className="team-messenger-muted">Загрузка…</p> : null}
                 {(messagesQ.data ?? []).length === 0 && !messagesQ.isLoading ? (
                   <p className="py-8 text-center text-sm" style={{ color: "var(--mo-text-muted)" }}>

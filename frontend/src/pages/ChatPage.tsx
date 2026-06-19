@@ -210,6 +210,7 @@ export function ChatPage() {
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
   const threadsListRef = useRef<HTMLDivElement>(null);
   const threadsLoadMoreRef = useRef<HTMLDivElement>(null);
   const [tabVisible, setTabVisible] = useState(
@@ -391,7 +392,9 @@ export function ChatPage() {
   const msgCount = messagesQuery.data?.length ?? 0;
   useEffect(() => {
     if (msgCount === 0) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+    const box = messagesScrollRef.current;
+    if (!box) return;
+    box.scrollTo({ top: box.scrollHeight, behavior: "auto" });
   }, [threadId, lastMsgId, msgCount]);
 
   useEffect(() => {
@@ -796,7 +799,7 @@ export function ChatPage() {
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col">
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-0.5 py-2 lg:max-h-[56vh]">
+              <div ref={messagesScrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-0.5 py-2 lg:max-h-[56vh]">
                 {messagesQuery.isLoading && <p className="text-sm lux-caption">Загрузка сообщений…</p>}
                 {(messagesQuery.data ?? []).map((m, idx, arr) => {
                   const isOut = m.direction === "out";

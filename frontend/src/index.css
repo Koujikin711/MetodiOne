@@ -955,7 +955,22 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 /* Мессенджер — медицинский современный UI */
 .team-messenger {
-  @apply relative mx-auto flex w-full max-w-6xl flex-col gap-4 pb-28 sm:pb-10;
+  @apply relative mx-auto flex w-full max-w-6xl flex-col gap-4 pb-28 sm:pb-4;
+}
+
+@media (min-width: 1024px) {
+  .team-messenger {
+    flex: 1;
+    min-height: 0;
+    max-height: 100%;
+    padding-bottom: 0;
+  }
+
+  .team-messenger-shell {
+    flex: 1;
+    min-height: 0;
+    max-height: 100%;
+  }
 }
 
 .team-messenger-header {

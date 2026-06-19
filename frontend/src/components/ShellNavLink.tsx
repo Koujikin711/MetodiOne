@@ -90,6 +90,7 @@ export function ShellNavLink({
     <NavLink
       to={to}
       end={end}
+      preventScrollReset
       title={expanded ? title : `${title} — удерживайте для перемещения`}
       className={({ isActive }) => ["shell-nav-link group", isActive ? "is-active" : ""].filter(Boolean).join(" ")}
     >
