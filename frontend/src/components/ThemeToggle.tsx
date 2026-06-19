@@ -54,7 +54,6 @@ export function ThemeToggle({ compact = false, className = "", sidebar = false, 
         onClick={onClick}
         className={[
           "shell-nav-link group",
-          expanded ? "shell-nav-link--expanded" : "shell-nav-link--collapsed",
           className,
         ].join(" ")}
         title={label}

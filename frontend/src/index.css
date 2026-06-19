@@ -157,12 +157,17 @@ body {
 }
 
 .shell-sidebar {
+  --mo-sidebar-duration: 0.44s;
+  --mo-sidebar-ease: cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
   overflow: hidden;
   border-right: 1px solid var(--mo-sidebar-border);
   background-color: var(--mo-canvas);
   box-shadow: var(--mo-sidebar-shadow);
-  transition: width 0.22s ease;
+  transition:
+    width var(--mo-sidebar-duration) var(--mo-sidebar-ease),
+    border-color var(--mo-sidebar-duration) var(--mo-sidebar-ease);
+  will-change: width;
 }
 
 .shell-sidebar.is-expanded {
@@ -171,6 +176,10 @@ body {
 
 .shell-sidebar.is-collapsed {
   width: 4.5rem;
+}
+
+.shell-main {
+  transition: padding var(--mo-sidebar-duration, 0.44s) var(--mo-sidebar-ease, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 .shell-sidebar-nav {
@@ -194,24 +203,66 @@ body {
   color: var(--mo-sidebar-fg-muted);
   cursor: grab;
   touch-action: none;
+  transition:
+    opacity 0.28s ease,
+    transform 0.28s var(--mo-sidebar-ease, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
-.shell-nav-sortable:hover .shell-nav-drag-handle,
-.shell-nav-sortable.is-dragging .shell-nav-drag-handle {
-  opacity: 1;
+.shell-sidebar.is-expanded .shell-nav-drag-handle {
+  transition-delay: 0.12s;
 }
 
-.shell-nav-drag-handle:active {
-  cursor: grabbing;
+.shell-sidebar.is-collapsed .shell-nav-drag-handle {
+  opacity: 0 !important;
+  pointer-events: none;
+  transition-delay: 0s;
 }
 
 .shell-sidebar-brand {
-  @apply flex w-full min-w-0 items-center gap-2 rounded-xl border-0 bg-transparent px-2 py-1.5 text-left transition;
+  @apply flex w-full min-w-0 items-center gap-2 rounded-xl border-0 bg-transparent px-2 py-1.5 text-left;
   color: var(--mo-sidebar-fg);
+  transition:
+    background-color 0.22s ease,
+    padding var(--mo-sidebar-duration) var(--mo-sidebar-ease),
+    justify-content var(--mo-sidebar-duration) var(--mo-sidebar-ease);
 }
 
 .shell-sidebar-brand:hover {
   background: var(--mo-sidebar-item-hover);
+}
+
+.shell-sidebar-brand-mark {
+  @apply shrink-0 select-none drop-shadow-lg;
+  width: 2rem;
+  height: 2rem;
+  transition:
+    width var(--mo-sidebar-duration) var(--mo-sidebar-ease),
+    height var(--mo-sidebar-duration) var(--mo-sidebar-ease),
+    transform var(--mo-sidebar-duration) var(--mo-sidebar-ease);
+}
+
+.shell-sidebar.is-collapsed .shell-sidebar-brand-mark {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.shell-sidebar-brand-text {
+  @apply truncate text-sm font-semibold;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  max-width: 9rem;
+  transform: translateX(0);
+  transition:
+    opacity calc(var(--mo-sidebar-duration) * 0.85) var(--mo-sidebar-ease),
+    max-width var(--mo-sidebar-duration) var(--mo-sidebar-ease),
+    transform var(--mo-sidebar-duration) var(--mo-sidebar-ease);
+}
+
+.shell-sidebar.is-collapsed .shell-sidebar-brand-text {
+  opacity: 0;
+  max-width: 0;
+  transform: translateX(-0.35rem);
 }
 
 .shell-sidebar.is-collapsed .shell-sidebar-brand {
@@ -220,6 +271,7 @@ body {
 
 .shell-sidebar-header {
   @apply flex shrink-0 items-center gap-2 px-2 pb-2;
+  transition: padding var(--mo-sidebar-duration) var(--mo-sidebar-ease);
 }
 
 .shell-sidebar.is-collapsed .shell-sidebar-header {
@@ -227,16 +279,22 @@ body {
 }
 
 .shell-sidebar .shell-nav-link {
-  @apply rounded-xl transition duration-200;
+  @apply rounded-xl;
   color: var(--mo-sidebar-fg-muted);
+  transition:
+    background-color 0.22s ease,
+    color 0.22s ease,
+    border-color 0.22s ease,
+    padding var(--mo-sidebar-duration) var(--mo-sidebar-ease),
+    gap var(--mo-sidebar-duration) var(--mo-sidebar-ease);
 }
 
-.shell-sidebar .shell-nav-link--expanded {
+.shell-sidebar.is-expanded .shell-nav-link {
   @apply mx-1.5 flex w-[calc(100%-0.75rem)] flex-row items-center gap-1.5 px-2 py-1 text-left;
   padding-right: 1.75rem;
 }
 
-.shell-sidebar .shell-nav-link--collapsed {
+.shell-sidebar.is-collapsed .shell-nav-link {
   @apply flex w-full flex-col items-center px-0.5 py-0.5 text-center;
 }
 
@@ -254,10 +312,17 @@ body {
 
 .shell-sidebar .shell-nav-icon-box {
   @apply h-11 w-11 shrink-0;
+  transition:
+    width var(--mo-sidebar-duration) var(--mo-sidebar-ease),
+    height var(--mo-sidebar-duration) var(--mo-sidebar-ease),
+    box-shadow 0.22s ease;
 }
 
 .shell-sidebar .shell-nav-icon-glyph {
   @apply h-[22px] w-[22px];
+  transition:
+    width var(--mo-sidebar-duration) var(--mo-sidebar-ease),
+    height var(--mo-sidebar-duration) var(--mo-sidebar-ease);
 }
 
 .shell-sidebar.is-collapsed .shell-nav-icon-box {
@@ -281,11 +346,29 @@ body {
 .shell-sidebar .shell-nav-text {
   @apply min-w-0 flex-1 text-sm font-medium leading-snug;
   color: inherit;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  max-width: 12rem;
+  transform: translateX(0);
+  transition:
+    opacity calc(var(--mo-sidebar-duration) * 0.8) var(--mo-sidebar-ease),
+    max-width var(--mo-sidebar-duration) var(--mo-sidebar-ease),
+    transform var(--mo-sidebar-duration) var(--mo-sidebar-ease);
 }
 
 .shell-sidebar .shell-nav-label {
   @apply max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide;
   color: var(--mo-sidebar-fg-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  max-width: 0;
+  transform: translateY(0.15rem);
+  transition:
+    opacity calc(var(--mo-sidebar-duration) * 0.7) var(--mo-sidebar-ease),
+    max-width var(--mo-sidebar-duration) var(--mo-sidebar-ease),
+    transform var(--mo-sidebar-duration) var(--mo-sidebar-ease);
 }
 
 .shell-sidebar .shell-nav-link.is-active .shell-nav-label {
@@ -294,12 +377,59 @@ body {
 }
 
 .shell-sidebar.is-expanded .shell-nav-label {
-  display: none;
+  opacity: 0;
+  max-width: 0;
+  pointer-events: none;
 }
 
-.shell-sidebar.is-collapsed .shell-nav-text,
+.shell-sidebar.is-collapsed .shell-nav-text {
+  opacity: 0;
+  max-width: 0;
+  transform: translateX(-0.25rem);
+  pointer-events: none;
+}
+
 .shell-sidebar.is-collapsed .shell-nav-label {
-  display: none;
+  opacity: 0;
+  max-width: 0;
+  pointer-events: none;
+}
+
+.shell-sidebar-footer {
+  border-top: 1px solid var(--mo-border);
+  transition: padding var(--mo-sidebar-duration) var(--mo-sidebar-ease);
+}
+
+.shell-sidebar-logout {
+  @apply flex w-full items-center rounded-xl text-left;
+  color: var(--mo-sidebar-fg-muted);
+  transition:
+    background-color 0.22s ease,
+    color 0.22s ease,
+    padding var(--mo-sidebar-duration) var(--mo-sidebar-ease),
+    gap var(--mo-sidebar-duration) var(--mo-sidebar-ease);
+}
+
+.shell-sidebar.is-expanded .shell-sidebar-logout {
+  @apply mx-1.5 flex-row gap-1.5 px-2 py-1;
+}
+
+.shell-sidebar.is-collapsed .shell-sidebar-logout {
+  @apply flex-col items-center px-0.5 py-0.5 text-center;
+}
+
+.shell-sidebar-logout:hover {
+  background: var(--mo-sidebar-item-hover);
+  color: var(--mo-sidebar-fg);
+}
+
+.shell-nav-sortable:hover .shell-nav-drag-handle,
+.shell-nav-sortable.is-dragging .shell-nav-drag-handle {
+  opacity: 1;
+}
+
+.shell-nav-drag-handle:active {
+  cursor: grabbing;
 }
 
 /* Нижняя мобильная навигация — светлая палитра */
@@ -320,26 +450,18 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   box-shadow: none;
 }
 
-.shell-sidebar-footer {
-  border-top: 1px solid var(--mo-border);
-}
-
-.shell-sidebar-logout {
-  @apply flex w-full items-center rounded-xl text-left transition duration-200;
-  color: var(--mo-sidebar-fg-muted);
-}
-
-.shell-sidebar.is-expanded .shell-sidebar-logout {
-  @apply mx-1.5 flex-row gap-1.5 px-2 py-1;
-}
-
-.shell-sidebar.is-collapsed .shell-sidebar-logout {
-  @apply flex-col items-center px-0.5 py-0.5 text-center;
-}
-
-.shell-sidebar-logout:hover {
-  background: var(--mo-sidebar-item-hover);
-  color: var(--mo-sidebar-fg);
+@media (prefers-reduced-motion: reduce) {
+  .shell-sidebar,
+  .shell-sidebar *,
+  .shell-sidebar-brand-mark,
+  .shell-sidebar-brand-text,
+  .shell-nav-icon-box,
+  .shell-nav-icon-glyph,
+  .shell-nav-text,
+  .shell-nav-label {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
 }
 
 .auth-gradient-bg {

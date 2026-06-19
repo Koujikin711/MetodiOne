@@ -91,11 +91,7 @@ export function ShellNavLink({
       to={to}
       end={end}
       title={expanded ? title : `${title} — удерживайте для перемещения`}
-      className={({ isActive }) =>
-        ["shell-nav-link group", expanded ? "shell-nav-link--expanded" : "shell-nav-link--collapsed", isActive ? "is-active" : ""]
-          .filter(Boolean)
-          .join(" ")
-      }
+      className={({ isActive }) => ["shell-nav-link group", isActive ? "is-active" : ""].filter(Boolean).join(" ")}
     >
       <GradientIconBox variant={variant} className="shell-nav-icon-box" {...collapsedDragProps}>
         {renderIcon(iconKey)}

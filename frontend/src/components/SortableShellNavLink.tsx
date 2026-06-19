@@ -42,17 +42,15 @@ export function SortableShellNavLink(props: Props) {
       className={["shell-nav-sortable", isDragging ? "is-dragging" : ""].filter(Boolean).join(" ")}
     >
       <ShellNavLink {...linkProps} expanded={expanded} dragHandleProps={expanded ? undefined : dragHandleProps} />
-      {expanded ? (
-        <button
-          type="button"
-          className="shell-nav-drag-handle"
-          aria-label="Переместить пункт меню"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-3.5 w-3.5" />
-        </button>
-      ) : null}
+      <button
+        type="button"
+        className="shell-nav-drag-handle"
+        aria-label="Переместить пункт меню"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }

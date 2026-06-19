@@ -45,12 +45,12 @@ function NavIf({ show, children }: { show: boolean; children: ReactNode }) {
   return <>{children}</>;
 }
 
-function MetodiBrandMark({ className = "h-10 w-10" }: { className?: string }) {
+function MetodiBrandMark({ className = "" }: { className?: string }) {
   return (
     <img
       src={metodiMarkUrl}
       alt=""
-      className={["shrink-0 select-none drop-shadow-lg", className].filter(Boolean).join(" ")}
+      className={["shell-sidebar-brand-mark", className].filter(Boolean).join(" ")}
       decoding="async"
     />
   );
@@ -223,10 +223,8 @@ export function MainLayout() {
               title={sidebarExpanded ? "Свернуть меню" : "Развернуть меню"}
               aria-label={sidebarExpanded ? "Свернуть меню" : "Развернуть меню"}
             >
-              <MetodiBrandMark className={sidebarExpanded ? "h-8 w-8" : "h-9 w-9"} />
-              {sidebarExpanded ? (
-                <span className="truncate text-sm font-semibold">MetodiOne</span>
-              ) : null}
+              <MetodiBrandMark />
+              <span className="shell-sidebar-brand-text">MetodiOne</span>
             </button>
           </div>
           <nav className="shell-sidebar-nav no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto py-0">
@@ -260,7 +258,7 @@ export function MainLayout() {
           </div>
         </aside>
 
-        <main className="relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:px-10 sm:py-10 sm:pb-10 lg:px-14 text-[var(--mo-text)]">
+        <main className="shell-main relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:px-10 sm:py-10 sm:pb-10 lg:px-14 text-[var(--mo-text)]">
           <div className="pointer-events-none fixed right-3 top-3 z-40 sm:hidden">
             <div className="pointer-events-auto">
               <ThemeToggle compact />
