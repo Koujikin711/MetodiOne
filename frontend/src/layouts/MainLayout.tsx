@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Calendar,
+  ClipboardList,
   Target,
   CheckSquare,
   Funnel,
@@ -232,7 +233,7 @@ export function MainLayout() {
               </div>
             ) : null}
           </div>
-          <nav className="shell-sidebar-nav no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto py-0.5">
+          <nav className="shell-sidebar-nav no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto py-0">
             <ShellSidebarNav
               expanded={sidebarExpanded}
               scope={sidebarOrderScope}
@@ -324,11 +325,11 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("chat")}>
-                <NavLink to="/chat" className={mobileBottomNavLinkClass} title="Чат">
+                <NavLink to="/chat" className={mobileBottomNavLinkClass} title="Чаты">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <MessageCircle className="h-4 w-4" />
                   </GradientIconBox>
-                  <span className="text-[9px]">Чат</span>
+                  <span className="text-[9px]">Чаты</span>
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("tasks")}>
@@ -343,7 +344,7 @@ export function MainLayout() {
                 <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <Users className="h-4 w-4" />
                 </GradientIconBox>
-                <span className="text-[9px]">Команда</span>
+                <span className="text-[9px]">Мессенджер</span>
               </NavLink>
               {showKpi ? (
                 <NavIf show={showNavForFeature("kpi")}>
@@ -368,7 +369,7 @@ export function MainLayout() {
               {showServices ? (
                 <NavLink to="/services" className={mobileBottomNavLinkClass} title="Каталог услуг">
                   <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Funnel className="h-4 w-4" />
+                    <ClipboardList className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Услуги</span>
                 </NavLink>
@@ -404,11 +405,11 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("chat")}>
-                <NavLink to="/chat" className={mobileBottomNavLinkClass} title="Чат">
+                <NavLink to="/chat" className={mobileBottomNavLinkClass} title="Чаты">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <MessageCircle className="h-4 w-4" />
                   </GradientIconBox>
-                  <span className="text-[9px]">Чат</span>
+                  <span className="text-[9px]">Чаты</span>
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("tasks")}>
@@ -423,7 +424,7 @@ export function MainLayout() {
                     <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                       <Users className="h-4 w-4" />
                     </GradientIconBox>
-                    <span className="text-[9px]">Команда</span>
+                    <span className="text-[9px]">Мессенджер</span>
                   </NavLink>
 
 <button
@@ -479,17 +480,17 @@ export function MainLayout() {
               {showServices ? (
                 <NavLink to="/services" className={mobileBottomNavLinkClass} title="Каталог услуг">
                   <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Funnel className="h-4 w-4" />
+                    <ClipboardList className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Услуги</span>
                 </NavLink>
               ) : null}
               <NavIf show={showNavForFeature("chat")}>
-                <NavLink to="/chat" className={mobileBottomNavLinkClass} title="Чат">
+                <NavLink to="/chat" className={mobileBottomNavLinkClass} title="Чаты">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <MessageCircle className="h-4 w-4" />
                   </GradientIconBox>
-                  <span className="text-[9px]">Чат</span>
+                  <span className="text-[9px]">Чаты</span>
                 </NavLink>
               </NavIf>
 <button

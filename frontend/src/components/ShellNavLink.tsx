@@ -7,7 +7,9 @@ import {
   BarChart3,
   Calendar,
   CheckSquare,
+  ClipboardList,
   Funnel,
+  IdCard,
   LayoutDashboard,
   MessageCircle,
   Plug,
@@ -46,8 +48,12 @@ function renderIcon(iconKey: ShellSidebarIconKey): ReactNode {
       return <Calendar className={ICON_CLASS} />;
     case "check-square":
       return <CheckSquare className={ICON_CLASS} />;
+    case "clipboard-list":
+      return <ClipboardList className={ICON_CLASS} />;
     case "funnel":
       return <Funnel className={ICON_CLASS} />;
+    case "id-card":
+      return <IdCard className={ICON_CLASS} />;
     case "layout-dashboard":
       return <LayoutDashboard className={ICON_CLASS} />;
     case "message-circle":

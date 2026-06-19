@@ -4,7 +4,9 @@ export type ShellSidebarIconKey =
   | "bar-chart"
   | "calendar"
   | "check-square"
+  | "clipboard-list"
   | "funnel"
+  | "id-card"
   | "layout-dashboard"
   | "message-circle"
   | "plug"
@@ -92,9 +94,9 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       items.push({
         id: "chat",
         to: "/chat",
-        title: "Чат",
-        labelShort: "Чат",
-        labelFull: "Чат",
+        title: "Чаты",
+        labelShort: "Чаты",
+        labelFull: "Чаты",
         variant: "chat",
         iconKey: "message-circle",
       });
@@ -138,7 +140,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         to: "/tasks",
         title: "Задачи",
         labelShort: "Задачи",
-        labelFull: "Задачи и проекты",
+        labelFull: "Задачи",
         variant: "tasks",
         iconKey: "check-square",
       });
@@ -147,8 +149,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       id: "messenger",
       to: "/messenger",
       title: "Мессенджер",
-      labelShort: "Команда",
-      labelFull: "Совместная работа",
+      labelShort: "Мессендж.",
+      labelFull: "Мессенджер",
       variant: "tasks",
       iconKey: "users",
     });
@@ -182,7 +184,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         labelShort: "Услуги",
         labelFull: "Каталог услуг",
         variant: "purple",
-        iconKey: "funnel",
+        iconKey: "clipboard-list",
       });
     }
     return items;
@@ -216,9 +218,9 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       items.push({
         id: "chat",
         to: "/chat",
-        title: "Чат",
-        labelShort: "Чат",
-        labelFull: "Чат",
+        title: "Чаты",
+        labelShort: "Чаты",
+        labelFull: "Чаты",
         variant: "tasks",
         iconKey: "message-circle",
       });
@@ -229,7 +231,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         to: "/tasks",
         title: "Задачи",
         labelShort: "Задачи",
-        labelFull: "Задачи и проекты",
+        labelFull: "Задачи",
         variant: "purple",
         iconKey: "check-square",
       });
@@ -238,8 +240,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       id: "messenger",
       to: "/messenger",
       title: "Мессенджер",
-      labelShort: "Команда",
-      labelFull: "Совместная работа",
+      labelShort: "Мессендж.",
+      labelFull: "Мессенджер",
       variant: "tasks",
       iconKey: "users",
     });
@@ -276,7 +278,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       to: "/tasks",
       title: "Задачи",
       labelShort: "Задачи",
-      labelFull: "Задачи и проекты",
+      labelFull: "Задачи",
       variant: "purple",
       iconKey: "check-square",
     });
@@ -285,8 +287,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     id: "messenger",
     to: "/messenger",
     title: "Мессенджер",
-    labelShort: "Команда",
-    labelFull: "Совместная работа",
+    labelShort: "Мессендж.",
+    labelFull: "Мессенджер",
     variant: "tasks",
     iconKey: "users",
   });
@@ -331,7 +333,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       labelShort: "Услуги",
       labelFull: "Каталог услуг",
       variant: "purple",
-      iconKey: "funnel",
+      iconKey: "clipboard-list",
     });
   }
   if (showNavForFeature("employees")) {
@@ -342,16 +344,16 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       labelShort: "Сотр.",
       labelFull: "Сотрудники",
       variant: "purple",
-      iconKey: "users",
+      iconKey: "id-card",
     });
   }
   if (showNavForFeature("chat")) {
     items.push({
       id: "chat",
       to: "/chat",
-      title: "Чат",
-      labelShort: "Чат",
-      labelFull: "Чат",
+      title: "Чаты",
+      labelShort: "Чаты",
+      labelFull: "Чаты",
       variant: "tasks",
       iconKey: "message-circle",
     });
