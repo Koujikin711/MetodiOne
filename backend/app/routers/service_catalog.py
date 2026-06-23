@@ -35,6 +35,8 @@ from app.services.service_enrollment import create_enrollment_from_template, ref
 
 from app.services.chief_expert_access import assert_service_catalog_write, can_write_service_catalog
 
+router = APIRouter(prefix="/services", tags=["services"])
+
 
 def _catalog_write_roles() -> frozenset[UserRole]:
     return frozenset({UserRole.owner, UserRole.admin, UserRole.super_owner})
