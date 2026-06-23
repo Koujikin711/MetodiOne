@@ -1,4 +1,8 @@
-"""Номера визитов и потоки курсов (формат поток:день, например 1:10)."""
+"""Номера визитов и потоки курсов (формат поток:день, например 1:10).
+
+День в потоке — порядковый номер сеанса (1, 2, 3…), а не календарный день с начала курса.
+В расчёт входят только записи со статусом completed и booked; no_show и cancelled не считаются.
+"""
 
 from __future__ import annotations
 
@@ -43,13 +47,6 @@ def _booking_tz() -> ZoneInfo:
     return ZoneInfo(settings.booking_timezone)
 
 
-def _calendar_day_in_stream(stream_start: datetime, at: datetime) -> int:
-    tz = _booking_tz()
-    d0 = stream_start.astimezone(tz).date()
-    d1 = at.astimezone(tz).date()
-    return max(1, (d1 - d0).days + 1)
-
-
 def _gap_days_between(last_at: datetime, at: datetime) -> int:
     tz = _booking_tz()
     return (at.astimezone(tz).date() - last_at.astimezone(tz).date()).days
@@ -59,42 +56,33 @@ def compute_course_stream_labels(
     appointments: list[tuple[int, datetime]],
     cfg: CourseStreamSettings,
 ) -> dict[int, VisitLabelInfo]:
-    """appointments: [(id, start_at)] отсортированы по start_at."""
+    """appointments: [(id, start_at)] отсортированы по start_at. День = номер сеанса в потоке."""
     if not appointments:
         return {}
     stream = 1
-    stream_start: datetime | None = None
+    stream_day = 0
     last_visit_at: datetime | None = None
-    max_day_in_stream = 0
     out: dict[int, VisitLabelInfo] = {}
 
     for appt_id, at in appointments:
-        if stream_start is None:
-            stream_start = at
-            day = 1
-            max_day_in_stream = 1
+        if stream_day == 0:
+            stream_day = 1
         else:
-            day_candidate = _calendar_day_in_stream(stream_start, at)
             gap = _gap_days_between(last_visit_at, at) if last_visit_at else 0
-            new_stream = False
-            if day_candidate > cfg.max_days:
-                new_stream = True
-            elif max_day_in_stream >= cfg.min_day_for_next and gap >= cfg.gap_days:
+            new_stream = stream_day >= cfg.max_days
+            if not new_stream and stream_day >= cfg.min_day_for_next and gap >= cfg.gap_days:
                 new_stream = True
             if new_stream:
                 stream += 1
-                stream_start = at
-                day = 1
-                max_day_in_stream = 1
+                stream_day = 1
             else:
-                day = day_candidate
-                max_day_in_stream = max(max_day_in_stream, day)
+                stream_day += 1
 
-        label = f"{stream}:{day}"
+        label = f"{stream}:{stream_day}"
         out[int(appt_id)] = VisitLabelInfo(
-            visit_number=day,
+            visit_number=stream_day,
             visit_stream=stream,
-            visit_stream_day=day,
+            visit_stream_day=stream_day,
             visit_label=label,
         )
         last_visit_at = at
@@ -184,11 +172,12 @@ async def visit_labels_for_ids(
                 BookingAppointment.direction_id,
                 BookingAppointment.patient_phone,
                 BookingAppointment.start_at,
+                BookingAppointment.status,
             )
             .where(
                 BookingAppointment.company_id == company_id,
                 BookingAppointment.specialist_id.in_(spec_ids),
-                BookingAppointment.status != "cancelled",
+                BookingAppointment.status.in_(("completed", "booked")),
             )
             .order_by(BookingAppointment.start_at.asc(), BookingAppointment.id.asc())
         )
@@ -196,7 +185,7 @@ async def visit_labels_for_ids(
 
     groups: dict[tuple[str, int], list[tuple[int, datetime]]] = defaultdict(list)
     group_meta: dict[tuple[str, int], tuple[bool, CourseStreamSettings]] = {}
-    for aid, sid, did, phone, start in rows:
+    for aid, sid, did, phone, start, _status in rows:
         did_int = int(did) if did is not None else None
         d_cfg = dir_cfg.get(did_int, CourseStreamSettings()) if did_int else CourseStreamSettings()
         s_cfg = spec_cfg.get(int(sid), CourseStreamSettings())
@@ -224,4 +213,25 @@ async def visit_labels_for_ids(
         visit_map.update(labeled)
 
     default = VisitLabelInfo(visit_number=1, visit_label="1")
-    return {int(aid): visit_map.get(int(aid), default) for aid in appointment_ids}
+    empty = VisitLabelInfo()
+    status_by_id = {
+        int(r[0]): str(r[1])
+        for r in (
+            await db.execute(
+                select(BookingAppointment.id, BookingAppointment.status).where(
+                    BookingAppointment.id.in_(appointment_ids),
+                    BookingAppointment.company_id == company_id,
+                )
+            )
+        ).all()
+    }
+    out: dict[int, VisitLabelInfo] = {}
+    for aid in appointment_ids:
+        aid_int = int(aid)
+        if aid_int in visit_map:
+            out[aid_int] = visit_map[aid_int]
+        elif status_by_id.get(aid_int) in ("no_show", "cancelled"):
+            out[aid_int] = empty
+        else:
+            out[aid_int] = default
+    return out
