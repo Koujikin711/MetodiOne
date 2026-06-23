@@ -48,6 +48,18 @@ function formatDt(iso: string) {
   }
 }
 
+function phoneFromPatientSuggest(item: BookingPatientSuggestItem): string {
+  if (item.patient_phone_can_view_full) {
+    const p = (item.patient_phone || "").trim();
+    return p && p !== "—" ? p : "";
+  }
+  return "";
+}
+
+function patientSuggestItemKey(item: BookingPatientSuggestItem): string {
+  return `${item.lead_id ?? "n"}|${item.patient_name}|${item.patient_phone}`;
+}
+
 export function OnlineBookingPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -57,6 +69,8 @@ export function OnlineBookingPage() {
   const [journalSearch, setJournalSearch] = useState("");
   const [calendarDrawerOpen, setCalendarDrawerOpen] = useState(false);
   const formPanelRef = useRef<HTMLDivElement>(null);
+  const patientSuggestRef = useRef<HTMLDivElement>(null);
+  const lastAutoSuggestKeyRef = useRef<string | null>(null);
 
   const [leadId, setLeadId] = useState<number | null>(null);
   const [newLeadPipelineId, setNewLeadPipelineId] = useState<number | null>(null);
@@ -71,7 +85,6 @@ export function OnlineBookingPage() {
   const [comment, setComment] = useState("");
   const [patientSuggestOpen, setPatientSuggestOpen] = useState(false);
   const [patientSuggestDebounced, setPatientSuggestDebounced] = useState("");
-  const patientSuggestRef = useRef<HTMLDivElement>(null);
   const token = getStoredToken();
   const currentRole = decodeRoleFromToken(token);
   const currentUserId = decodeUserIdFromToken(token);
@@ -216,23 +229,75 @@ export function OnlineBookingPage() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [patientSuggestOpen]);
 
-  function applyPatientSuggestion(item: BookingPatientSuggestItem) {
+  function applyPatientSuggestion(item: BookingPatientSuggestItem, opts?: { silent?: boolean }) {
     setPatientName(item.patient_name);
-    if (item.lead_id != null) {
-      setPatientPhone("");
-    } else if (item.patient_phone_can_view_full) {
-      setPatientPhone(item.patient_phone === "—" ? "" : item.patient_phone);
-    } else {
-      setPatientPhone("");
-    }
+    setPatientPhone(phoneFromPatientSuggest(item));
     if (item.lead_id != null) {
       setLeadId(item.lead_id);
       setNewLeadPipelineId(null);
       setNewLeadStageId(null);
     }
     setPatientSuggestOpen(false);
-    toast.success(item.lead_id != null ? "Клиент из CRM подставлен" : "Данные клиента подставлены");
+    if (!opts?.silent) {
+      toast.success(item.lead_id != null ? "Клиент из CRM подставлен" : "Данные клиента подставлены");
+    }
   }
+
+  useEffect(() => {
+    if (!canEditBooking || !patientSuggestOpen) return;
+    if (patientSuggestDebounced.length < 2) {
+      lastAutoSuggestKeyRef.current = null;
+      return;
+    }
+    if (!patientSuggestQuery.isSuccess || patientSuggestQuery.isFetching) return;
+    const items = patientSuggestQuery.data ?? [];
+    if (items.length !== 1) {
+      lastAutoSuggestKeyRef.current = null;
+      return;
+    }
+    const item = items[0];
+    const term = patientSuggestDebounced.trim().toLowerCase();
+    const itemName = item.patient_name.trim().toLowerCase();
+    const phoneDigits = patientSuggestDebounced.replace(/\D/g, "");
+    const itemPhoneDigits = (item.patient_phone || "").replace(/\D/g, "");
+    const nameMatches =
+      itemName === term ||
+      (term.length >= 3 && itemName.startsWith(term)) ||
+      (term.length >= 3 && itemName.includes(term));
+    const phoneMatches =
+      phoneDigits.length >= 4 &&
+      itemPhoneDigits.length >= 4 &&
+      (itemPhoneDigits.includes(phoneDigits) ||
+        (phoneDigits.length >= 9 &&
+          itemPhoneDigits.length >= 9 &&
+          phoneDigits.slice(-9) === itemPhoneDigits.slice(-9)));
+    if (!nameMatches && !phoneMatches) return;
+
+    const key = patientSuggestItemKey(item);
+    if (lastAutoSuggestKeyRef.current === key) return;
+
+    const alreadyFilled =
+      patientName.trim() === item.patient_name.trim() &&
+      (item.lead_id != null ? leadId === item.lead_id : leadId == null) &&
+      (patientPhone.trim() !== "" || item.lead_id != null || phoneFromPatientSuggest(item) === "");
+    if (alreadyFilled) {
+      lastAutoSuggestKeyRef.current = key;
+      return;
+    }
+
+    lastAutoSuggestKeyRef.current = key;
+    applyPatientSuggestion(item, { silent: true });
+  }, [
+    canEditBooking,
+    patientSuggestOpen,
+    patientSuggestDebounced,
+    patientSuggestQuery.isSuccess,
+    patientSuggestQuery.isFetching,
+    patientSuggestQuery.data,
+    patientName,
+    patientPhone,
+    leadId,
+  ]);
 
   const createMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -774,7 +839,7 @@ export function OnlineBookingPage() {
                 )}
                 <div ref={patientSuggestRef} className="relative space-y-2.5">
                   <p className="text-[11px] mo-muted">
-                    Начните вводить имя или телефон — если клиент уже есть, выберите его из списка.
+                    Начните вводить имя или телефон — если клиент уже есть, данные подставятся автоматически.
                   </p>
                   <label className="block text-sm mo-muted">
                     Пациент / клиент
@@ -785,6 +850,7 @@ export function OnlineBookingPage() {
                         setPatientName(e.target.value);
                         setPatientSuggestOpen(true);
                         if (leadId != null) setLeadId(null);
+                        lastAutoSuggestKeyRef.current = null;
                       }}
                       onFocus={() => setPatientSuggestOpen(true)}
                       className="mt-1 w-full mo-input"
@@ -794,14 +860,16 @@ export function OnlineBookingPage() {
                   <label className="block text-sm mo-muted">
                     Телефон
                     <input
-                      required
+                      required={leadId == null}
                       value={patientPhone}
                       onChange={(e) => {
                         setPatientPhone(e.target.value);
                         setPatientSuggestOpen(true);
                         if (leadId != null) setLeadId(null);
+                        lastAutoSuggestKeyRef.current = null;
                       }}
                       onFocus={() => setPatientSuggestOpen(true)}
+                      placeholder={leadId != null ? "Возьмётся из карточки CRM" : undefined}
                       className="mt-1 w-full mo-input"
                       autoComplete="off"
                     />

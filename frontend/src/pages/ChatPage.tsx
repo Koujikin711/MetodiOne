@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -26,6 +26,38 @@ function threadPhoneForDisplay(t: ChatThread): string {
 }
 
 const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|bmp|svg|avif|heic|heif)(\?|#|$)/i;
+
+function localDateKey(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatChatDateSeparator(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const msgKey = localDateKey(raw);
+  const todayKey = localDateKey(now.toISOString());
+  if (msgKey === todayKey) return "Сегодня";
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (msgKey === localDateKey(yesterday.toISOString())) return "Вчера";
+  try {
+    const opts: Intl.DateTimeFormatOptions =
+      d.getFullYear() === now.getFullYear()
+        ? { day: "numeric", month: "long" }
+        : { day: "numeric", month: "long", year: "numeric" };
+    return new Intl.DateTimeFormat("ru-RU", opts).format(d);
+  } catch {
+    return d.toLocaleDateString("ru-RU");
+  }
+}
 
 function formatChatTime(raw: string | null | undefined): string {
   if (!raw) return "";
@@ -806,6 +838,9 @@ export function ChatPage() {
                   const time = formatChatTime(m.created_at);
                   const meta = isOut ? deliveryMeta(m.delivery_status) : null;
                   const isLastOut = isOut && arr.slice(idx + 1).every((x) => x.direction !== "out");
+                  const dayKey = localDateKey(m.created_at);
+                  const prevDayKey = idx > 0 ? localDateKey(arr[idx - 1]?.created_at) : "";
+                  const showDateSep = !!dayKey && dayKey !== prevDayKey;
 
                   const metaToneClass =
                     meta?.tone === "seen"
@@ -817,26 +852,36 @@ export function ChatPage() {
                           : "lux-caption";
 
                   return (
-                    <div
-                      key={m.id}
-                      className={[
-                        "max-w-[85%] rounded-xl px-3 py-2 text-sm",
-                        isOut
-                          ? "ml-auto border border-[#2f5f85]/25 bg-[#e8f0f7] text-[var(--mo-text)]"
-                          : "border border-[var(--mo-border)] bg-[var(--mo-surface)] text-[var(--mo-text)]",
-                      ].join(" ")}
-                    >
-                      <MessageBody m={m} />
-                      <div className="mt-1 flex items-center justify-end gap-2 text-[10px] tabular-nums lux-caption">
-                        {time ? <span>{time}</span> : null}
-                        {isOut && meta?.label ? <span className={metaToneClass}>{meta.label}</span> : null}
-                      </div>
-                      {isLastOut && isOut && meta?.label === "Просмотрено" && time ? (
-                        <div className="mt-0.5 text-right text-[10px] tabular-nums text-sky-200/95">
-                          {meta.label} · {time}
+                    <Fragment key={m.id}>
+                      {showDateSep ? (
+                        <div className="flex justify-center py-2">
+                          <span className="rounded-lg bg-[var(--mo-surface-elevated)] px-3 py-1 text-[11px] font-medium shadow-sm ring-1 ring-[var(--mo-border)] lux-caption">
+                            {formatChatDateSeparator(m.created_at)}
+                          </span>
                         </div>
                       ) : null}
-                    </div>
+                      <div
+                        className={[
+                          "max-w-[85%] rounded-xl px-3 py-2 text-sm",
+                          isOut
+                            ? "ml-auto border border-[#2f5f85]/25 bg-[#e8f0f7] text-[var(--mo-text)]"
+                            : "border border-[var(--mo-border)] bg-[var(--mo-surface)] text-[var(--mo-text)]",
+                        ].join(" ")}
+                      >
+                        <MessageBody m={m} />
+                        <div className="mt-1 flex items-center justify-end gap-2 text-[10px] tabular-nums lux-caption">
+                          {time ? (
+                            <span title={formatChatDateSeparator(m.created_at)}>{time}</span>
+                          ) : null}
+                          {isOut && meta?.label ? <span className={metaToneClass}>{meta.label}</span> : null}
+                        </div>
+                        {isLastOut && isOut && meta?.label === "Просмотрено" && time ? (
+                          <div className="mt-0.5 text-right text-[10px] tabular-nums text-sky-200/95">
+                            {meta.label} · {time}
+                          </div>
+                        ) : null}
+                      </div>
+                    </Fragment>
                   );
                 })}
                 {!messagesQuery.isLoading && (messagesQuery.data ?? []).length === 0 && (
