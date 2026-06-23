@@ -9,6 +9,7 @@ from sqlalchemy.orm import aliased
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import Lead, Pipeline, Task, TaskStatus, User, UserRole
+from app.schemas.task import TaskAssigneeRead, TaskCreate, TaskListResponse, TaskRead, TaskReviewUpdate, TaskUpdate
 from app.services.chief_expert_access import is_chief_expert
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])

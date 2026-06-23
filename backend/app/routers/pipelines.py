@@ -13,6 +13,7 @@ from app.services.audit import write_audit_event
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.phone_match import parse_allowed_phones_json, serialize_allowed_phones
+from app.services.stage_delete_checks import pipeline_delete_block_reason
 from app.services.chief_expert_access import is_chief_expert, is_pipeline_admin_role
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])

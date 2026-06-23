@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.services.chief_expert_access import is_chief_expert
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
