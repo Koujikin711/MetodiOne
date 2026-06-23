@@ -44,6 +44,7 @@ from app.models import (
     UserRole,
 )
 from app.services.chief_expert_access import assert_owner_or_chief_expert
+from app.schemas.integrations import IntegrationCreate, IntegrationRead, IntegrationUpdate
 from app.schemas.lead import LeadRead
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
