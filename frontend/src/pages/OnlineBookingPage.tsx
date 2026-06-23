@@ -91,7 +91,11 @@ export function OnlineBookingPage() {
   const currentUserName = decodeDisplayNameFromToken(token) || "Текущий пользователь";
   const isExpert = currentRole === "expert";
   const isManagerOrAdmin = currentRole === "manager" || currentRole === "admin";
-  const canEditBooking = !isExpert;
+  const bookingViewerQuery = useQuery({
+    queryKey: ["booking-viewer-context"],
+    queryFn: () => apiFetch<BookingViewerContext>("/api/booking/viewer-context"),
+  });
+  const canEditBooking = !isExpert || Boolean(bookingViewerQuery.data?.is_chief_expert);
   const canEditDirectionStreams = currentRole === "owner" || currentRole === "admin";
 
   const [specialistModalOpen, setSpecialistModalOpen] = useState(false);
@@ -107,10 +111,6 @@ export function OnlineBookingPage() {
     }
   }, [startAt]);
 
-  const bookingViewerQuery = useQuery({
-    queryKey: ["booking-viewer-context"],
-    queryFn: () => apiFetch<BookingViewerContext>("/api/booking/viewer-context"),
-  });
   const showSessionInsteadOfTime = bookingViewerQuery.data?.show_session_instead_of_time ?? false;
 
   const specialistsQuery = useQuery({

@@ -5,6 +5,7 @@ import { Navigate } from "react-router-dom";
 import { AccessDenied } from "@/components/AccessDenied";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import type { Pipeline } from "@/lib/types";
 import { CrmPage } from "@/pages/CrmPage";
 
@@ -37,14 +38,22 @@ function ManagerNavHomeEntry({ role }: { role: "manager" | "admin" }) {
   return <Navigate to="/my-leads" replace />;
 }
 
+function isChiefExpertFromMe(role: ReturnType<typeof decodeRoleFromToken>, isChiefExpert?: boolean) {
+  return role === "expert" && Boolean(isChiefExpert);
+}
+
 export function HomeEntry() {
   const token = getStoredToken();
   const role = decodeRoleFromToken(token);
+  const meQuery = useCurrentUserMe();
   if (role === "super_owner") {
     return <Navigate to="/companies" replace />;
   }
   if (role === "accountant" || role === "finance_analyst") {
     return <Navigate to="/finance" replace />;
+  }
+  if (role === "expert" && meQuery.data?.is_chief_expert) {
+    return <Navigate to="/crm" replace />;
   }
   if (role === "manager" || role === "admin") {
     if (role === "manager") {
@@ -73,23 +82,26 @@ export function RequireOwner({ children }: { children: ReactNode }) {
 
 export function RequireOwnerOrAdmin({ children }: { children: ReactNode }) {
   const r = decodeRoleFromToken(getStoredToken());
-  if (r !== "owner" && r !== "admin") {
-    return <AccessDenied message="Раздел доступен владельцу или администратору компании." />;
+  const meQuery = useCurrentUserMe();
+  if (r !== "owner" && r !== "admin" && !isChiefExpertFromMe(r, meQuery.data?.is_chief_expert)) {
+    return <AccessDenied message="Раздел доступен владельцу, администратору или главному эксперту воронки." />;
   }
   return <>{children}</>;
 }
 
 export function RequireFinance({ children }: { children: ReactNode }) {
   const r = decodeRoleFromToken(getStoredToken());
+  const meQuery = useCurrentUserMe();
   if (
     r !== "owner" &&
     r !== "admin" &&
     r !== "super_owner" &&
     r !== "finance_analyst" &&
-    r !== "accountant"
+    r !== "accountant" &&
+    !isChiefExpertFromMe(r, meQuery.data?.is_chief_expert)
   ) {
     return (
-      <AccessDenied message="Раздел «Финансы» доступен владельцу, администратору, бухгалтеру и финансовому аналитику." />
+      <AccessDenied message="Раздел «Финансы» доступен владельцу, администратору, бухгалтеру, финансовому аналитику или главному эксперту воронки." />
     );
   }
   return <>{children}</>;

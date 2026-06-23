@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Pipeline, User, UserRole
+from app.services.chief_expert_access import is_chief_expert
 
 _FULL_PHONE_ROLES = frozenset(
     {
@@ -37,6 +38,8 @@ async def can_view_full_patient_phone(
         pipe = await db.get(Pipeline, int(pipeline_id))
         if pipe is not None and pipe.expert_user_id is not None:
             return int(pipe.expert_user_id) == int(user.id)
+    if user.role == UserRole.expert and await is_chief_expert(db, user):
+        return True
     return False
 
 

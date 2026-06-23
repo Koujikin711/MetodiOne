@@ -9,7 +9,7 @@ from sqlalchemy.orm import aliased
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import Lead, Pipeline, Task, TaskStatus, User, UserRole
-from app.schemas.task import TaskAssigneeRead, TaskCreate, TaskListResponse, TaskRead, TaskReviewUpdate, TaskUpdate
+from app.services.chief_expert_access import is_chief_expert
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -206,11 +206,20 @@ async def list_tasks(
             )
         )
     elif current_user.role == UserRole.expert:
-        query = query.where(or_(Task.assigned_to == current_user.id, Task.created_by_user_id == current_user.id))
+        if await is_chief_expert(db, current_user):
+            query = query.where(
+                or_(
+                    Task.assigned_to == current_user.id,
+                    Task.created_by_user_id == current_user.id,
+                    assignee_u.role.in_([UserRole.manager, UserRole.expert, UserRole.admin]),
+                )
+            )
+        else:
+            query = query.where(or_(Task.assigned_to == current_user.id, Task.created_by_user_id == current_user.id))
     elif current_user.role != UserRole.owner:
         query = query.where(Task.assigned_to == current_user.id)
 
-    if current_user.role == UserRole.expert:
+    if current_user.role == UserRole.expert and not await is_chief_expert(db, current_user):
         query = query.where(
             or_(
                 Task.assigned_to != current_user.id,

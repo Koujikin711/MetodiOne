@@ -18,40 +18,12 @@ from app.schemas.finance_v2 import (
     FinanceSettingsPatch,
     FinanceSettingsRead,
 )
+from app.services.chief_expert_access import assert_finance_access, assert_finance_settings_access, is_chief_expert
 from app.services.finance_integrate import ensure_finance_settings, get_gmail_integration, run_finance_integrate
 from app.services.finance_report_build import build_dds_report, build_opiu_report, load_osv_summary
 from app.services.google_sheets_sync import _google_service_account_ready
 
 router = APIRouter(prefix="/finance", tags=["finance"])
-
-_FINANCE_ROLES = frozenset(
-    {
-        UserRole.owner,
-        UserRole.admin,
-        UserRole.super_owner,
-        UserRole.finance_analyst,
-        UserRole.accountant,
-    },
-)
-
-_SETTINGS_ROLES = frozenset(
-    {
-        UserRole.owner,
-        UserRole.admin,
-        UserRole.super_owner,
-        UserRole.accountant,
-    },
-)
-
-
-def _require_finance(user: CurrentUser) -> None:
-    if user.role not in _FINANCE_ROLES:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к финансам")
-
-
-def _require_finance_settings(user: CurrentUser) -> None:
-    if user.role not in _SETTINGS_ROLES:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Настройки финансов доступны владельцу и бухгалтеру")
 
 
 def _settings_read(row: FinanceCompanySettings | None) -> FinanceSettingsRead:
@@ -72,7 +44,7 @@ async def get_finance_settings(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceSettingsRead:
-    _require_finance(current_user)
+    await assert_finance_access(db, current_user)
     row = (
         await db.execute(select(FinanceCompanySettings).where(FinanceCompanySettings.company_id == company_id))
     ).scalars().first()
@@ -86,7 +58,7 @@ async def patch_finance_settings(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceSettingsRead:
-    _require_finance_settings(current_user)
+    await assert_finance_settings_access(db, current_user)
     row = await ensure_finance_settings(db, company_id)
     if body.osv_sheet_url is not None:
         url = body.osv_sheet_url.strip() or None
@@ -106,7 +78,7 @@ async def integration_status(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> FinanceIntegrationStatusRead:
-    _require_finance(current_user)
+    await assert_finance_access(db, current_user)
     integ = await get_gmail_integration(db, company_id)
     cfg = integ.config if integ and isinstance(integ.config, dict) else {}
     email = str(cfg.get("email") or cfg.get("gmail_email") or "").strip() or None
@@ -138,7 +110,7 @@ async def integrate_finance(
     company_id: CurrentCompanyId,
 ) -> FinanceIntegrateResultRead:
     """Забрать ОСВ из Google Sheets, Gmail и CRM."""
-    _require_finance(current_user)
+    await assert_finance_access(db, current_user)
     if current_user.role == UserRole.finance_analyst:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Интеграция доступна владельцу и бухгалтеру")
     result = await run_finance_integrate(db, company_id)
@@ -155,7 +127,7 @@ async def get_osv(
     month: int | None = Query(default=None, ge=1, le=12),
     limit: int = Query(default=500, ge=1, le=2000),
 ) -> FinanceOsvSummaryRead:
-    _require_finance(current_user)
+    await assert_finance_access(db, current_user)
     return await load_osv_summary(db, company_id=company_id, year=year, month=month, limit=limit)
 
 
@@ -166,7 +138,7 @@ async def get_dds_report(
     company_id: CurrentCompanyId,
     year: int = Query(default_factory=lambda: datetime.now().year, ge=2020, le=2100),
 ) -> FinanceDdsReportRead:
-    _require_finance(current_user)
+    await assert_finance_access(db, current_user)
     return await build_dds_report(db, company_id=company_id, year=year)
 
 
@@ -177,5 +149,5 @@ async def get_opiu_report(
     company_id: CurrentCompanyId,
     year: int = Query(default_factory=lambda: datetime.now().year, ge=2020, le=2100),
 ) -> FinanceOpiuReportRead:
-    _require_finance(current_user)
+    await assert_finance_access(db, current_user)
     return await build_opiu_report(db, company_id=company_id, year=year)

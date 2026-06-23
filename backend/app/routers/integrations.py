@@ -43,7 +43,7 @@ from app.models import (
     PipelineStage,
     UserRole,
 )
-from app.schemas.integrations import IntegrationCreate, IntegrationRead, IntegrationUpdate
+from app.services.chief_expert_access import assert_owner_or_chief_expert
 from app.schemas.lead import LeadRead
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -194,8 +194,7 @@ async def list_integrations(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> list[IntegrationRead]:
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_or_chief_expert(db, current_user)
     r = await db.execute(select(Integration).where(Integration.company_id == company_id).order_by(Integration.id.desc()))
     return [_integration_read(x) for x in r.scalars().all()]
 
@@ -208,8 +207,7 @@ async def create_integration(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> IntegrationRead:
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_or_chief_expert(db, current_user)
     provider = _provider_from_str(body.provider)
     await _assert_pipeline_stage(db, body.pipeline_id, body.stage_id, company_id)
     cfg = dict(body.config or {})
@@ -353,8 +351,7 @@ async def patch_integration(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> IntegrationRead:
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_or_chief_expert(db, current_user)
 
     row = await db.get(Integration, integration_id)
     if row is None or row.company_id != company_id:
@@ -470,8 +467,7 @@ async def sync_integration_now(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> dict[str, int]:
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_or_chief_expert(db, current_user)
     row = await db.get(Integration, integration_id)
     if row is None or row.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
@@ -553,8 +549,7 @@ async def green_broadcast_preview(
     excel_phone_column: Annotated[str, Form()] = "phone",
     file: UploadFile | None = File(default=None),
 ) -> GreenBroadcastPreviewRead:
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_or_chief_expert(db, current_user)
     row = await db.get(Integration, integration_id)
     if row is None or row.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
@@ -585,8 +580,7 @@ async def green_broadcast(
     excel_phone_column: Annotated[str, Form()] = "phone",
     file: UploadFile | None = File(default=None),
 ) -> GreenBroadcastResult:
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_or_chief_expert(db, current_user)
     row = await db.get(Integration, integration_id)
     if row is None or row.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
@@ -627,8 +621,7 @@ async def green_broadcast(
 async def generate_secret(
     current_user: CurrentUser,
 ) -> dict[str, str]:
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_or_chief_expert(db, current_user)
     return {"secret": secrets.token_urlsafe(24)}
 
 

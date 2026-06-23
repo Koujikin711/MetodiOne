@@ -21,6 +21,7 @@ import { PatientPhone } from "@/components/PatientPhone";
 import { apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
 import { theme } from "@/lib/theme";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { isOnboardingDone } from "@/lib/onboarding";
 import type {
   Lead,
@@ -530,7 +531,11 @@ export function CrmPage() {
   const queryClient = useQueryClient();
 
   const currentRole = useMemo(() => decodeRoleFromToken(getStoredToken()), []);
-  const isCompanyAdmin = currentRole === "owner" || currentRole === "admin";
+  const meQuery = useCurrentUserMe();
+  const isCompanyAdmin =
+    currentRole === "owner" ||
+    currentRole === "admin" ||
+    (currentRole === "expert" && Boolean(meQuery.data?.is_chief_expert));
 
   const refreshAll = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["leads"] });

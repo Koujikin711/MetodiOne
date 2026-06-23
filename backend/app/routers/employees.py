@@ -16,7 +16,7 @@ from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.security import hash_password
 from app.database import get_db
 from app.models import BookingDirection, BookingSpecialist, Pipeline, User, UserPipelineAssignment, UserRole
-from app.services.audit import write_audit_event
+from app.services.chief_expert_access import assert_owner_admin_or_chief_expert, assert_owner_or_chief_expert
 from app.services.mail import send_email
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -292,8 +292,7 @@ async def list_employees(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> list[EmployeeRead]:
-    if current_user.role not in (UserRole.owner, UserRole.admin):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_admin_or_chief_expert(db, current_user, detail="Недостаточно прав для просмотра сотрудников")
     r = await db.execute(select(User).where(User.company_id == company_id, User.is_active.is_(True)).order_by(User.id.desc()))
     users = r.scalars().all()
     return [await _employee_read(db, u) for u in users]
@@ -306,8 +305,7 @@ async def invite_employee(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> InviteEmployeeResult:
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_or_chief_expert(db, current_user)
 
     if body.role == UserRole.admin and not body.pipeline_ids:
         raise HTTPException(
@@ -487,8 +485,7 @@ async def patch_employee_contact(
     company_id: CurrentCompanyId,
 ) -> PatchEmployeeContactResult:
     """Обновить email и/или телефон. При смене email — новый пароль на новую почту, старый логин отключается."""
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_or_chief_expert(db, current_user)
 
     if body.email is None and body.phone is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите email или телефон")
@@ -592,8 +589,7 @@ async def patch_employee_pipelines(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> EmployeeRead:
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_or_chief_expert(db, current_user)
 
     target = await db.get(User, employee_id)
     if target is None or target.company_id != company_id or not target.is_active:
@@ -663,8 +659,7 @@ async def terminate_employee(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> Response:
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_or_chief_expert(db, current_user)
     if employee_id == current_user.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя уволить самого себя")
 
@@ -706,8 +701,7 @@ async def list_experts(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> list[dict[str, object]]:
-    if current_user.role != UserRole.owner:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    await assert_owner_or_chief_expert(db, current_user)
     rows = (
         await db.execute(
             select(User.id, User.email, User.full_name)

@@ -5,6 +5,7 @@ import { IntegrationSetupPanel } from "@/components/integrations/IntegrationSetu
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import type { BackgroundEventRow, TariffStatus } from "@/lib/types";
 
 function fmtTs(ts: string) {
@@ -22,9 +23,11 @@ function limitLabel(current: number, max: number) {
 
 export function IntegrationsHubPage() {
   const role = decodeRoleFromToken(getStoredToken());
-  if (role !== "owner") {
+  const meQuery = useCurrentUserMe();
+  const allowed = role === "owner" || (role === "expert" && Boolean(meQuery.data?.is_chief_expert));
+  if (!allowed) {
     return (
-      <AccessDenied message="Раздел «Интеграции» доступен владельцу компании. Попросите владельца подключить каналы или выдать вам соответствующие права." />
+      <AccessDenied message="Раздел «Интеграции» доступен владельцу или главному эксперту воронки." />
     );
   }
 

@@ -6,6 +6,15 @@ export interface User {
   role: UserRole;
 }
 
+export interface UserMe extends User {
+  company_id?: number | null;
+  phone?: string | null;
+  full_name?: string | null;
+  must_change_password?: boolean;
+  impersonated_by_user_id?: number | null;
+  is_chief_expert?: boolean;
+}
+
 export interface PipelineStage {
   id: number;
   name: string;

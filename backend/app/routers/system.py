@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.services.chief_expert_access import assert_owner_admin_or_chief_expert
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import Company, TariffPlan, UserRole
@@ -109,11 +110,11 @@ class BackgroundEventRead(BaseModel):
 
 @router.get("/background-events", response_model=list[BackgroundEventRead])
 async def get_background_events(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     limit: int = Query(50, ge=1, le=100),
 ) -> list[BackgroundEventRead]:
-    if current_user.role not in (UserRole.owner, UserRole.admin, UserRole.super_owner):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
+    await assert_owner_admin_or_chief_expert(db, current_user)
     raw = list_background_events(limit)
     return [BackgroundEventRead(**x) for x in raw]
 
@@ -147,8 +148,7 @@ async def get_tariff_status(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> TariffStatusRead:
-    if current_user.role not in (UserRole.owner, UserRole.admin, UserRole.super_owner):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
+    await assert_owner_admin_or_chief_expert(db, current_user)
     from app.services.tariff_effective import effective_tariff_max_active_users, effective_tariff_max_integrations
 
     au = await count_company_active_users(db, company_id)

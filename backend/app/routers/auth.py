@@ -90,10 +90,16 @@ async def login(
 
 
 @router.get("/me", response_model=UserMeRead)
-async def me(current_user: CurrentUser) -> UserMeRead:
+async def me(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> UserMeRead:
+    from app.services.chief_expert_access import is_chief_expert
+
     payload = getattr(current_user, "_jwt_payload", {}) or {}
     imp = payload.get("impersonated_by")
     imp_id = int(imp) if imp is not None and str(imp).isdigit() else None
+    chief = await is_chief_expert(db, current_user)
     return UserMeRead(
         id=current_user.id,
         email=current_user.email,
@@ -103,6 +109,7 @@ async def me(current_user: CurrentUser) -> UserMeRead:
         full_name=current_user.full_name,
         must_change_password=bool(getattr(current_user, "must_change_password", False)),
         impersonated_by_user_id=imp_id,
+        is_chief_expert=chief,
     )
 
 
