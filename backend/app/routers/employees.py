@@ -144,6 +144,7 @@ async def _sync_expert_calendar_profile(
         spec.phone = phone_norm or None
         spec.specialization = specialization.strip()
         spec.direction_id = booking_direction_id
+        spec.company_id = user.company_id
         spec.is_active = True
         spec.course_streams_enabled = course_streams_enabled
         spec.course_stream_max_days = course_stream_max_days
@@ -155,6 +156,7 @@ async def _sync_expert_calendar_profile(
     mx = await db.scalar(select(func.coalesce(func.max(BookingSpecialist.sort_order), -1)))
     next_sort = int(mx if mx is not None else -1) + 1
     spec = BookingSpecialist(
+        company_id=user.company_id,
         full_name=full_name.strip(),
         direction_id=booking_direction_id,
         phone=phone_norm or None,

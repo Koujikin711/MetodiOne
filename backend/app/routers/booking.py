@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.services.chief_expert_access import is_chief_expert
+from app.services.booking_expert_sync import ensure_active_expert_booking_profiles
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import (
@@ -686,6 +687,7 @@ async def list_specialists(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> list[BookingSpecialistRead]:
+    await ensure_active_expert_booking_profiles(db, company_id)
     q = (
         select(BookingSpecialist, BookingDirection.name)
         .join(BookingDirection, BookingSpecialist.direction_id == BookingDirection.id)
@@ -1399,6 +1401,7 @@ async def create_appointment(
     company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
     await _assert_expert_readonly_for_booking(db, current_user)
+    await ensure_active_expert_booking_profiles(db, company_id)
     specialist = await db.get(BookingSpecialist, body.specialist_id)
     if specialist is None or specialist.company_id != company_id or not specialist.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
