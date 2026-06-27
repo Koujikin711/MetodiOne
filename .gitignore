@@ -39,3 +39,7 @@ htmlcov/
 
 # Локальные утилиты, не часть продукта
 tools/
+
+*.session
+
+demo-desktop/runtime/.venv
