@@ -28,6 +28,7 @@ from app.services.green_api_settings import (
 )
 from app.services.google_sheets_sync import sync_google_sheet_integration
 from app.services.green_api_backfill import sync_green_api_backfill
+from app.services.green_incoming_media import persist_incoming_green_media_if_needed
 from app.services.instagram_webhook import handle_instagram_webhook, meta_hub_challenge_response
 from app.services.integration_inbound import (
     add_incoming_message as _add_incoming_message,
@@ -893,6 +894,7 @@ async def integration_webhook(
             )
         source_name = "GREEN API"
         text, mtype, murl, mmime, mfn = parse_green_message_data(message_data)
+        green_msg_id = str(payload.get("idMessage") or "").strip() or None
         ext_chat = chat_id or None
         lead = await _create_lead_from_integration(
             db,
@@ -913,7 +915,7 @@ async def integration_webhook(
             external_chat_id=ext_chat,
             title=str(sender_name),
         )
-        await _add_incoming_message(
+        incoming_msg = await _add_incoming_message(
             db,
             company_id,
             thread.id,
@@ -922,6 +924,18 @@ async def integration_webhook(
             media_url=murl,
             media_mime=mmime,
             file_name=mfn,
+            provider_message_id=green_msg_id,
+        )
+        await persist_incoming_green_media_if_needed(
+            db,
+            msg=incoming_msg,
+            config=integ.config if isinstance(integ.config, dict) else {},
+            chat_id=chat_id,
+            id_message=green_msg_id,
+            message_type=mtype,
+            download_url=murl,
+            file_name=mfn,
+            media_mime=mmime,
         )
         await send_welcome_if_first_incoming(
             db,

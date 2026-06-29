@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 
 import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
-import { apiFetch, getStoredToken, resolveMediaUrl } from "@/lib/api";
+import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl, resolveMediaUrl } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import type { ChatMessage, ChatThread, ChatThreadBucket, ChatThreadBucketCounts } from "@/lib/types";
 
@@ -111,9 +111,55 @@ function imageCaptionToShow(m: ChatMessage): string | null {
   return m.text;
 }
 
+function useProtectedMediaSrc(message: ChatMessage, enabled: boolean): string | null {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!enabled) {
+      setSrc(null);
+      return;
+    }
+    const external = (message.media_url || "").trim();
+    if (external && /^https?:\/\//i.test(external) && !external.toLowerCase().includes("downloadfile")) {
+      setSrc(external);
+      return;
+    }
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    const path = `/api/chat/messages/${message.id}/media`;
+
+    void (async () => {
+      try {
+        const headers = new Headers();
+        const token = getStoredToken();
+        if (token) headers.set("Authorization", `Bearer ${token}`);
+        const companyId = getActiveCompanyId();
+        if (companyId != null) headers.set("X-Company-Id", String(companyId));
+        const res = await fetch(resolveApiUrl(path), { headers });
+        if (!res.ok) throw new Error(String(res.status));
+        const blob = await res.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) setSrc(objectUrl);
+      } catch {
+        if (!cancelled) setSrc(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [message.id, message.media_url, enabled]);
+
+  return src;
+}
+
 function MessageBody({ m }: { m: ChatMessage }) {
-  const url = resolveMediaUrl(m.media_url);
   const mt = m.message_type ?? "text";
+  const hasMedia = mt !== "text" || Boolean((m.media_url || "").trim());
+  const protectedSrc = useProtectedMediaSrc(m, hasMedia);
+  const url = protectedSrc ?? resolveMediaUrl(m.media_url);
   const showAsImage =
     !!url &&
     mt !== "video" &&

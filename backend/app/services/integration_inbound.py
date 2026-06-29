@@ -197,33 +197,33 @@ async def add_incoming_message(
     file_name: str | None = None,
     provider_message_id: str | None = None,
     created_at: datetime | None = None,
-) -> bool:
-    """Добавляет входящее сообщение. Возвращает False, если дубликат по provider_message_id."""
+) -> ChatMessage | None:
+    """Добавляет входящее сообщение. None — дубликат по provider_message_id."""
     if await message_exists_by_provider_id(db, company_id, provider_message_id):
-        return False
+        return None
     body = (text or "").strip()
     if not body and not media_url:
-        return False
+        return None
     if not body:
         body = " "
-    db.add(
-        ChatMessage(
-            company_id=company_id,
-            thread_id=thread_id,
-            author_user_id=None,
-            direction="in",
-            text=body,
-            message_type=message_type,
-            media_url=media_url,
-            media_mime=media_mime,
-            file_name=file_name,
-            provider_message_id=(provider_message_id or "").strip() or None,
-            delivery_status="sent",
-            created_at=created_at or datetime.now(UTC),
-        )
+    msg = ChatMessage(
+        company_id=company_id,
+        thread_id=thread_id,
+        author_user_id=None,
+        direction="in",
+        text=body,
+        message_type=message_type,
+        media_url=media_url,
+        media_mime=media_mime,
+        file_name=file_name,
+        provider_message_id=(provider_message_id or "").strip() or None,
+        delivery_status="sent",
+        created_at=created_at or datetime.now(UTC),
     )
+    db.add(msg)
     await db.flush()
-    return True
+    await db.refresh(msg)
+    return msg
 
 
 async def add_outgoing_message(

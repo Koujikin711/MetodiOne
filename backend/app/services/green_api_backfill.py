@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Integration, IntegrationProvider
 from app.services.green_api_journal import fetch_chat_history, fetch_last_incoming_messages
 from app.services.green_incoming import parse_green_journal_message
+from app.services.green_incoming_media import persist_incoming_green_media_if_needed
 from app.services.integration_inbound import (
     add_incoming_message,
     add_outgoing_message,
@@ -250,7 +251,7 @@ async def sync_green_api_backfill(
             msg_id = str(msg.get("idMessage") or "").strip() or None
             created_at = datetime.fromtimestamp(_msg_ts(msg), tz=UTC)
             if direction == "incoming":
-                ok = await add_incoming_message(
+                incoming_msg = await add_incoming_message(
                     db,
                     company_id,
                     thread.id,
@@ -262,6 +263,18 @@ async def sync_green_api_backfill(
                     provider_message_id=msg_id,
                     created_at=created_at,
                 )
+                await persist_incoming_green_media_if_needed(
+                    db,
+                    msg=incoming_msg,
+                    config=cfg,
+                    chat_id=chat_id,
+                    id_message=msg_id,
+                    message_type=mtype,
+                    download_url=murl,
+                    file_name=mfn,
+                    media_mime=mmime,
+                )
+                ok = incoming_msg is not None
             else:
                 ok = await add_outgoing_message(
                     db,

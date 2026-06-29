@@ -43,8 +43,8 @@ def parse_green_message_data(message_data: dict[str, Any]) -> tuple[str, str, st
         txt = (message_data.get("extendedTextMessageData") or {}).get("text") or ""
         return (txt or "").strip(), "text", None, None, None
 
-    if t in ("imagemessage", "image"):
-        d = message_data.get("imageMessageData") or message_data.get("fileMessageData") or {}
+    if t in ("imagemessage", "image", "stickermessage", "sticker"):
+        d = message_data.get("imageMessageData") or message_data.get("fileMessageData") or message_data.get("stickerMessageData") or {}
         url = d.get("downloadUrl") or d.get("url")
         cap = (d.get("caption") or "").strip()
         mime = d.get("mimeType") or "image/jpeg"
@@ -134,7 +134,7 @@ def parse_green_journal_message(msg: dict[str, Any]) -> tuple[str, str, str | No
             txt = str(msg.get("textMessage") or "").strip()
         return txt, "text", None, None, None
 
-    if tm in ("imagemessage", "image"):
+    if tm in ("imagemessage", "image", "stickermessage", "sticker"):
         url = msg.get("downloadUrl")
         cap = str(msg.get("caption") or "").strip()
         mime = msg.get("mimeType") or "image/jpeg"
