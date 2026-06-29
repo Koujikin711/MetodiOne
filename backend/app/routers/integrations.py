@@ -3,7 +3,6 @@ import csv
 import io
 import json
 import logging
-import re
 import secrets
 from typing import Annotated, Any
 
@@ -11,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query
 from openpyxl import load_workbook
 from pydantic import BaseModel, Field
 from starlette.responses import Response
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -21,7 +20,6 @@ from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.services.green_incoming import parse_green_message_data
 from app.services.green_api_send import send_green_text_async
-from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.whatsapp_automation import send_welcome_if_first_incoming
 from app.services.green_api_settings import (
     green_api_base_from_config,
@@ -29,16 +27,21 @@ from app.services.green_api_settings import (
     resolve_public_api_base,
 )
 from app.services.google_sheets_sync import sync_google_sheet_integration
+from app.services.green_api_backfill import sync_green_api_backfill
 from app.services.instagram_webhook import handle_instagram_webhook, meta_hub_challenge_response
+from app.services.integration_inbound import (
+    add_incoming_message as _add_incoming_message,
+    create_lead_from_integration,
+    norm_phone as _norm_phone,
+    upsert_thread as _upsert_thread,
+)
 from datetime import UTC, datetime
 
 from app.models import (
-    ChatMessage,
     ChatThread,
     Integration,
     IntegrationProvider,
     Lead,
-    LeadSource,
     Pipeline,
     PipelineStage,
     UserRole,
@@ -482,6 +485,47 @@ async def sync_integration_now(
     return stats
 
 
+class GreenBackfillResult(BaseModel):
+    days: int
+    chats_scanned: int
+    chats_imported: int
+    leads_created: int
+    leads_updated: int
+    messages_added: int
+    skipped_answered: int
+    skipped_no_match: int
+    errors: list[str] = Field(default_factory=list)
+
+
+@router.post("/{integration_id}/green-backfill", response_model=GreenBackfillResult)
+async def green_api_backfill_now(
+    integration_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    days: int = Query(default=7, ge=1, le=30),
+) -> GreenBackfillResult:
+    """
+    Догрузка пропущенных WhatsApp-диалогов из журнала Green API.
+    Импортирует чаты за последние N дней, где клиент написал после приветствия
+    (или при сбое webhook — написал вообще) и не получил ответ менеджера.
+    """
+    await assert_owner_or_chief_expert(db, current_user)
+    row = await db.get(Integration, integration_id)
+    if row is None or row.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+    if row.provider != IntegrationProvider.green_api:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Догрузка доступна только для Green API")
+    if not row.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Интеграция выключена")
+    try:
+        stats = await sync_green_api_backfill(db, integ=row, company_id=company_id, days=days)
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    await db.commit()
+    return GreenBackfillResult(**stats)
+
+
 class GreenBroadcastResult(BaseModel):
     requested_count: int
     sent_count: int
@@ -626,22 +670,34 @@ async def generate_secret(
     return {"secret": secrets.token_urlsafe(24)}
 
 
-async def _ensure_source_exists(db: AsyncSession, company_id: int, name: str) -> None:
-    existing = await db.scalar(select(LeadSource.id).where(LeadSource.company_id == company_id, LeadSource.name == name))
-    if existing is None:
-        db.add(LeadSource(name=name, is_active=True, company_id=company_id))
-        await db.flush()
-
-
-def _norm_phone(raw: str | None) -> str | None:
-    if not raw:
-        return None
-    digits = re.sub(r"\D+", "", raw)
-    return digits or None
-
-
 def _to_green_chat_id(phone: str) -> str:
     return f"{phone}@c.us"
+
+
+async def _create_lead_from_integration(
+    db: AsyncSession,
+    *,
+    integ: Integration,
+    company_id: int,
+    name: str,
+    phone: str | None,
+    email: str | None,
+    source_name: str,
+    external_chat_id: str | None = None,
+    thread_provider: str | None = None,
+) -> Lead:
+    lead, _ = await create_lead_from_integration(
+        db,
+        integ=integ,
+        company_id=company_id,
+        name=name,
+        phone=phone,
+        email=email,
+        source_name=source_name,
+        external_chat_id=external_chat_id,
+        thread_provider=thread_provider,
+    )
+    return lead
 
 
 def _extract_phones_from_excel(content: bytes, *, phone_column: str) -> list[str]:
@@ -675,187 +731,6 @@ def _extract_phones_from_csv(content: bytes) -> list[str]:
         if p:
             out.append(p)
     return out
-
-
-async def _find_existing_lead(
-    db: AsyncSession,
-    *,
-    company_id: int,
-    phone: str | None,
-    source_name: str,
-    pipeline_id: int,
-    external_chat_id: str | None = None,
-    thread_provider: str | None = None,
-) -> Lead | None:
-    if phone:
-        # Дедуп: один и тот же номер + источник в той же воронке
-        res = await db.execute(
-            select(Lead)
-            .join(PipelineStage, PipelineStage.id == Lead.status_id)
-            .where(
-                and_(
-                    Lead.phone == phone,
-                    Lead.company_id == company_id,
-                    Lead.source == source_name,
-                    PipelineStage.pipeline_id == pipeline_id,
-                )
-            )
-            .order_by(Lead.id.desc())
-            .limit(1),
-        )
-        found = res.scalars().first()
-        if found is not None:
-            return found
-    # Без телефона (или не распарсился): тот же WhatsApp/Telegram chat → один лид
-    if external_chat_id and thread_provider:
-        res = await db.execute(
-            select(Lead)
-            .join(ChatThread, ChatThread.lead_id == Lead.id)
-            .join(PipelineStage, PipelineStage.id == Lead.status_id)
-            .where(
-                and_(
-                    Lead.source == source_name,
-                    Lead.company_id == company_id,
-                    PipelineStage.pipeline_id == pipeline_id,
-                    ChatThread.provider == thread_provider,
-                    ChatThread.external_chat_id == external_chat_id,
-                ),
-            )
-            .order_by(Lead.id.desc())
-            .limit(1),
-        )
-        found = res.scalars().first()
-        if found is not None:
-            return found
-    return None
-
-
-async def _create_lead_from_integration(
-    db: AsyncSession,
-    *,
-    integ: Integration,
-    company_id: int,
-    name: str,
-    phone: str | None,
-    email: str | None,
-    source_name: str,
-    external_chat_id: str | None = None,
-    thread_provider: str | None = None,
-) -> Lead:
-    await _ensure_source_exists(db, company_id, source_name)
-    norm_phone = _norm_phone(phone)
-    existing = await _find_existing_lead(
-        db,
-        company_id=company_id,
-        phone=norm_phone,
-        source_name=source_name,
-        pipeline_id=integ.pipeline_id,
-        external_chat_id=(external_chat_id or "").strip() or None,
-        thread_provider=thread_provider,
-    )
-    if existing is not None:
-        existing.status_id = integ.stage_id
-        if not existing.name and name.strip():
-            existing.name = name.strip()
-        if not existing.email and (email or "").strip():
-            existing.email = (email or "").strip()
-        await db.flush()
-        await db.refresh(existing, ["stage"])
-        return existing
-
-    lead = Lead(
-        company_id=company_id,
-        name=name.strip() or "Лид",
-        phone=norm_phone,
-        email=(email or "").strip() or None,
-        source=source_name,
-        status_id=integ.stage_id,
-        manager_id=None,
-    )
-    db.add(lead)
-    await db.flush()
-    await db.refresh(lead, ["stage"])
-    pipe = await db.get(Pipeline, int(integ.pipeline_id))
-    exclude_id = int(pipe.intake_manager_user_id) if pipe and pipe.intake_manager_user_id is not None else None
-    mid = await assign_manager_for_new_lead(db, pipeline_id=integ.pipeline_id, exclude_user_id=exclude_id)
-    if mid is not None:
-        lead.manager_id = mid
-        await db.flush()
-    return lead
-
-
-async def _upsert_thread(
-    db: AsyncSession,
-    *,
-    company_id: int,
-    lead: Lead,
-    provider: str,
-    external_chat_id: str | None,
-    title: str | None = None,
-) -> ChatThread:
-    q = select(ChatThread).where(
-        ChatThread.company_id == company_id,
-        ChatThread.lead_id == lead.id,
-        ChatThread.provider == provider,
-    )
-    if external_chat_id:
-        q = q.where(ChatThread.external_chat_id == external_chat_id)
-    found = (await db.execute(q.limit(1))).scalars().first()
-    if found is not None:
-        found.updated_at = datetime.now(UTC)
-        if title and not found.title:
-            found.title = title
-        if external_chat_id and not found.external_chat_id:
-            found.external_chat_id = external_chat_id
-        await db.flush()
-        return found
-    t = ChatThread(
-        company_id=company_id,
-        lead_id=lead.id,
-        pipeline_id=lead.stage.pipeline_id if lead.stage else None,
-        provider=provider,
-        external_chat_id=external_chat_id,
-        title=title,
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
-    )
-    db.add(t)
-    await db.flush()
-    return t
-
-
-async def _add_incoming_message(
-    db: AsyncSession,
-    company_id: int,
-    thread_id: int,
-    text: str,
-    *,
-    message_type: str = "text",
-    media_url: str | None = None,
-    media_mime: str | None = None,
-    file_name: str | None = None,
-) -> None:
-    body = (text or "").strip()
-    if not body and not media_url:
-        return
-    if not body:
-        body = " "
-    db.add(
-        ChatMessage(
-            company_id=company_id,
-            thread_id=thread_id,
-            author_user_id=None,
-            direction="in",
-            text=body,
-            message_type=message_type,
-            media_url=media_url,
-            media_mime=media_mime,
-            file_name=file_name,
-            delivery_status="sent",
-            created_at=datetime.now(UTC),
-        )
-    )
-    await db.flush()
 
 
 @router.get("/webhook/{integration_id}")

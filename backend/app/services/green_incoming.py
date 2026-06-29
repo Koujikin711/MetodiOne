@@ -107,3 +107,75 @@ def parse_green_message_data(message_data: dict[str, Any]) -> tuple[str, str, st
         or ""
     )
     return (txt or "").strip(), "text", None, None, None
+
+
+def parse_green_journal_message(msg: dict[str, Any]) -> tuple[str, str, str | None, str | None, str | None]:
+    """
+    Разбор сообщения из журнала Green API (getChatHistory / lastIncomingMessages).
+    Возвращает: text, message_type, media_url, media_mime, file_name
+    """
+    if not msg:
+        return "", "text", None, None, None
+
+    tm = str(msg.get("typeMessage") or "").lower()
+    skip_types = {"reactionmessage", "pollupdatemessage", "deletedmessage"}
+    if tm in skip_types or msg.get("isDeleted"):
+        return "", "text", None, None, None
+
+    if tm in ("textmessage",):
+        txt = str(msg.get("textMessage") or "").strip()
+        return txt, "text", None, None, None
+
+    if tm in ("extendedtextmessage", "quotedmessage"):
+        ext = msg.get("extendedTextMessage")
+        if isinstance(ext, dict):
+            txt = str(ext.get("text") or "").strip()
+        else:
+            txt = str(msg.get("textMessage") or "").strip()
+        return txt, "text", None, None, None
+
+    if tm in ("imagemessage", "image"):
+        url = msg.get("downloadUrl")
+        cap = str(msg.get("caption") or "").strip()
+        mime = msg.get("mimeType") or "image/jpeg"
+        fn = msg.get("fileName") or "image.jpg"
+        return cap or "📷 Фото", "image", url, mime, fn
+
+    if tm in ("videomessage", "video"):
+        url = msg.get("downloadUrl")
+        cap = str(msg.get("caption") or "").strip()
+        mime = msg.get("mimeType") or "video/mp4"
+        fn = msg.get("fileName") or "video.mp4"
+        return cap or "🎬 Видео", "video", url, mime, fn
+
+    if tm in ("audiomessage", "audio"):
+        url = msg.get("downloadUrl")
+        mime = msg.get("mimeType") or "audio/ogg"
+        fn = msg.get("fileName") or "audio.ogg"
+        return "🎵 Аудио", "audio", url, mime, fn
+
+    if tm in ("voicemessage", "voice", "ptt"):
+        url = msg.get("downloadUrl")
+        mime = msg.get("mimeType") or "audio/ogg"
+        fn = msg.get("fileName") or "voice.ogg"
+        return "🎤 Голосовое сообщение", "audio", url, mime, fn
+
+    if tm in ("documentmessage", "document", "stickermessage", "sticker"):
+        url = msg.get("downloadUrl")
+        cap = str(msg.get("caption") or "").strip()
+        fn = msg.get("fileName") or "file"
+        mime = msg.get("mimeType") or "application/octet-stream"
+        if _is_image_file(str(fn), mime):
+            return cap or "📷 Фото", "image", url, mime, fn
+        return cap or f"📎 {fn}", "document", url, mime, fn
+
+    if tm in ("locationmessage",):
+        loc = msg.get("location") or {}
+        name = str(loc.get("nameLocation") or loc.get("address") or "📍 Локация").strip()
+        return name, "text", None, None, None
+
+    if tm in ("contactmessage", "contactsarraymessage"):
+        return "👤 Контакт", "text", None, None, None
+
+    txt = str(msg.get("textMessage") or "").strip()
+    return txt, "text", None, None, None

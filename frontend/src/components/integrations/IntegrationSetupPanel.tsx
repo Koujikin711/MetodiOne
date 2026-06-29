@@ -116,11 +116,15 @@ function IntegrationCard({
   onEdit,
   onSync,
   onBroadcast,
+  onBackfill,
+  backfillLoading,
 }: {
   it: Integration;
   onEdit: () => void;
   onSync: () => void;
   onBroadcast: () => void;
+  onBackfill: () => void;
+  backfillLoading: boolean;
 }) {
   const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
   const base = apiBase && apiBase.endsWith("/") ? apiBase.slice(0, apiBase.length - 1) : apiBase;
@@ -159,13 +163,23 @@ function IntegrationCard({
           <div className="lux-caption leading-relaxed">
             WhatsApp через Green API: лиды, чат и рассылка. При сбое webhook откройте «Изменить» и сохраните настройки заново.
           </div>
-          <button
-            type="button"
-            onClick={onBroadcast}
-            className="crm-pill-btn px-2 py-1 text-[11px]"
-          >
-            Массовая рассылка
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onBackfill}
+              disabled={backfillLoading}
+              className="rounded-lg border border-[#DCD1B4] px-2 py-1 text-[11px] text-[#2C2520] transition hover:bg-[#F7F4EB]/50 disabled:opacity-50"
+            >
+              {backfillLoading ? "Догрузка…" : "Догрузить лиды за 7 дней"}
+            </button>
+            <button
+              type="button"
+              onClick={onBroadcast}
+              className="crm-pill-btn px-2 py-1 text-[11px]"
+            >
+              Массовая рассылка
+            </button>
+          </div>
         </div>
       )}
       <div className="mt-2 text-[11px] text-[#7A7265]">
@@ -269,6 +283,7 @@ export function IntegrationSetupPanel() {
   const [gmailAppPassword, setGmailAppPassword] = useState("");
   const [gmailImapHost, setGmailImapHost] = useState("imap.gmail.com");
   const [broadcastIntegrationId, setBroadcastIntegrationId] = useState<number | null>(null);
+  const [backfillLoadingIntegrationId, setBackfillLoadingIntegrationId] = useState<number | null>(null);
   const [broadcastSource, setBroadcastSource] = useState<"database" | "excel">("database");
   const [broadcastText, setBroadcastText] = useState("");
   const [broadcastExcelColumn, setBroadcastExcelColumn] = useState("phone");
@@ -463,6 +478,35 @@ export function IntegrationSetupPanel() {
       void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Не удалось синхронизировать таблицу");
+    }
+  }
+
+  async function greenBackfillNow(integrationId: number) {
+    setBackfillLoadingIntegrationId(integrationId);
+    try {
+      const stats = await apiFetch<{
+        chats_scanned: number;
+        chats_imported: number;
+        leads_created: number;
+        leads_updated: number;
+        messages_added: number;
+        skipped_answered: number;
+        skipped_no_match: number;
+        errors: string[];
+      }>(`/api/integrations/${integrationId}/green-backfill?days=7`, { method: "POST" });
+      const errNote = stats.errors.length ? ` Ошибок: ${stats.errors.length}.` : "";
+      toast.success(
+        `Догрузка: чатов ${stats.chats_imported} из ${stats.chats_scanned}, новых лидов ${stats.leads_created}, сообщений ${stats.messages_added}.${errNote}`,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
+      void queryClient.invalidateQueries({ queryKey: ["chat-threads"] });
+      void queryClient.invalidateQueries({ queryKey: ["desk-awaiting-threads"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось догрузить диалоги из Green API");
+    } finally {
+      setBackfillLoadingIntegrationId(null);
     }
   }
 
@@ -762,6 +806,8 @@ export function IntegrationSetupPanel() {
                   it={it}
                   onEdit={() => beginEditIntegration(it)}
                   onSync={() => void syncSheetsNow(it.id)}
+                  onBackfill={() => void greenBackfillNow(it.id)}
+                  backfillLoading={backfillLoadingIntegrationId === it.id}
                   onBroadcast={() => {
                     setBroadcastIntegrationId(it.id);
                     setBroadcastSource("database");
@@ -1242,6 +1288,8 @@ export function IntegrationSetupPanel() {
                     it={it}
                     onEdit={() => beginEditIntegration(it)}
                     onSync={() => void syncSheetsNow(it.id)}
+                    onBackfill={() => void greenBackfillNow(it.id)}
+                    backfillLoading={backfillLoadingIntegrationId === it.id}
                     onBroadcast={() => {
                       setBroadcastIntegrationId(it.id);
                       setBroadcastSource("database");
