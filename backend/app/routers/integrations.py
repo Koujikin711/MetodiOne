@@ -34,6 +34,7 @@ from app.services.green_incoming_media import persist_incoming_green_media_if_ne
 from app.services.instagram_webhook import handle_instagram_webhook, meta_hub_challenge_response
 from app.services.integration_inbound import (
     add_incoming_message as _add_incoming_message,
+    find_incoming_message_by_provider_id as _find_incoming_message_by_provider_id,
     create_lead_from_integration,
     norm_phone as _norm_phone,
     upsert_thread as _upsert_thread,
@@ -1132,6 +1133,8 @@ async def integration_webhook(
             file_name=mfn,
             provider_message_id=green_msg_id,
         )
+        if incoming_msg is None and green_msg_id:
+            incoming_msg = await _find_incoming_message_by_provider_id(db, company_id, green_msg_id)
         await persist_incoming_green_media_if_needed(
             db,
             msg=incoming_msg,

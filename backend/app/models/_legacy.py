@@ -265,6 +265,33 @@ class Lead(Base):
         back_populates="lead",
     )
     audit_events: Mapped[list["LeadAuditEvent"]] = relationship(back_populates="lead")
+    extra_phones: Mapped[list["LeadExtraPhone"]] = relationship(
+        back_populates="lead",
+        order_by="LeadExtraPhone.sort_order",
+        cascade="all, delete-orphan",
+    )
+
+
+class LeadExtraPhone(Base):
+    __tablename__ = "lead_extra_phones"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int | None] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    phone: Mapped[str] = mapped_column(String(64))
+    label: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sort_order: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=_utc_now,
+        insert_default=_utc_now,
+    )
+
+    lead: Mapped["Lead"] = relationship(back_populates="extra_phones")
 
 
 class LeadAuditEvent(Base):

@@ -35,8 +35,9 @@ from app.models import (
 _INTEGRATION_CLOSE_DEAL_TYPE = "integration_close"
 from app.services.audio_prepare import prepare_file_for_green_whatsapp
 from app.services.chat_media_store import resolve_chat_media, save_outgoing_chat_media
-from app.services.green_incoming_media import ensure_chat_message_media_local
+from app.services.green_incoming_media import ensure_chat_message_media_local, repair_thread_media
 from app.services.green_api_send import send_green_file_upload, send_green_text_async
+from app.services.whatsapp_phone_fallback import resolve_outbound_green_chat_id
 from app.services.patient_phone_visibility import (
     can_view_full_patient_phone,
     mask_patient_phone,
@@ -378,7 +379,7 @@ async def _resolve_green_send(
     if thread.provider != IntegrationProvider.green_api.value:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provider send is not implemented yet")
 
-    chat_id = thread.external_chat_id or ""
+    chat_id, _used_extra = await resolve_outbound_green_chat_id(db, thread=thread)
     if not chat_id:
         lead = await db.get(Lead, thread.lead_id) if thread.lead_id else None
         if lead and lead.phone:
@@ -954,11 +955,13 @@ async def get_message_media(
     company_id: CurrentCompanyId,
 ):
     msg = await db.get(ChatMessage, message_id)
-    if msg is None or msg.company_id != company_id:
+    if msg is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
     thread = await db.get(ChatThread, msg.thread_id)
     if thread is None or thread.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+    if msg.company_id is not None and msg.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
     await _assert_thread_access(db, thread, current_user)
     fpath = resolve_chat_media(message_id)
     if fpath is None or not fpath.exists():
@@ -968,6 +971,29 @@ async def get_message_media(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
     media_type = (msg.media_mime or "").strip() or mimetypes.guess_type(fpath.name)[0] or "application/octet-stream"
     return FileResponse(path=fpath, media_type=media_type, filename=msg.file_name or fpath.name)
+
+
+class RepairMediaResult(BaseModel):
+    checked: int
+    repaired: int
+    failed: int
+
+
+@router.post("/threads/{thread_id}/repair-media", response_model=RepairMediaResult)
+async def repair_thread_chat_media(
+    thread_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    limit: int = Query(default=80, ge=1, le=200),
+) -> RepairMediaResult:
+    """Догрузить отсутствующие медиа (голосовые, фото) для сообщений в диалоге."""
+    thread = await db.get(ChatThread, thread_id)
+    if thread is None or thread.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+    await _assert_thread_access(db, thread, current_user)
+    stats = await repair_thread_media(db, thread=thread, limit=limit)
+    return RepairMediaResult(**stats)
 
 
 @router.post("/threads/{thread_id}/messages/attachment", response_model=ChatMessageRead)

@@ -1,4 +1,4 @@
-"""Подготовка аудио для отправки в WhatsApp через Green API (форматы без webm)."""
+"""Подготовка аудио для WhatsApp (Green API) и воспроизведения в браузере."""
 
 from __future__ import annotations
 
@@ -7,8 +7,21 @@ import logging
 import os
 import tempfile
 import uuid
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+async def _run_ffmpeg(args: list[str]) -> None:
+    proc = await asyncio.create_subprocess_exec(
+        *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        err = (stderr or b"").decode("utf-8", errors="replace")[:800]
+        raise RuntimeError(err or f"ffmpeg exit {proc.returncode}")
 
 
 async def _webm_to_ogg_opus(webm_bytes: bytes) -> bytes:
@@ -19,27 +32,23 @@ async def _webm_to_ogg_opus(webm_bytes: bytes) -> bytes:
     try:
         with open(path_in, "wb") as f:
             f.write(webm_bytes)
-        proc = await asyncio.create_subprocess_exec(
-            "ffmpeg",
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-i",
-            path_in,
-            "-vn",
-            "-c:a",
-            "libopus",
-            "-b:a",
-            "48k",
-            path_out,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        await _run_ffmpeg(
+            [
+                "ffmpeg",
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                path_in,
+                "-vn",
+                "-c:a",
+                "libopus",
+                "-b:a",
+                "48k",
+                path_out,
+            ]
         )
-        _stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            err = (stderr or b"").decode("utf-8", errors="replace")[:800]
-            raise RuntimeError(err or f"ffmpeg exit {proc.returncode}")
         with open(path_out, "rb") as f:
             return f.read()
     finally:
@@ -48,6 +57,95 @@ async def _webm_to_ogg_opus(webm_bytes: bytes) -> bytes:
                 os.unlink(p)
             except OSError:
                 pass
+
+
+def _input_ext(filename: str | None, mime: str | None) -> str:
+    ext = (Path(filename or "audio").suffix or "").lower()
+    if ext in {".ogg", ".opus", ".webm", ".m4a", ".mp4", ".aac", ".amr", ".wav", ".bin"}:
+        return ext
+    m = (mime or "").split(";")[0].strip().lower()
+    if "ogg" in m or "opus" in m:
+        return ".ogg"
+    if "webm" in m:
+        return ".webm"
+    if "mpeg" in m or "mp3" in m:
+        return ".mp3"
+    if "mp4" in m or "m4a" in m:
+        return ".m4a"
+    return ".ogg"
+
+
+async def transcode_audio_to_mp3(
+    audio_bytes: bytes,
+    *,
+    filename: str | None = None,
+    mime: str | None = None,
+) -> bytes:
+    """Конвертация входящего аудио (OGG Opus и др.) в MP3 для Safari и старых браузеров."""
+    tmp = tempfile.gettempdir()
+    uid = uuid.uuid4().hex
+    ext = _input_ext(filename, mime)
+    path_in = os.path.join(tmp, f"crm-in-audio-{uid}{ext}")
+    path_out = os.path.join(tmp, f"crm-in-audio-{uid}.mp3")
+    try:
+        with open(path_in, "wb") as f:
+            f.write(audio_bytes)
+        await _run_ffmpeg(
+            [
+                "ffmpeg",
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                path_in,
+                "-vn",
+                "-c:a",
+                "libmp3lame",
+                "-b:a",
+                "64k",
+                path_out,
+            ]
+        )
+        with open(path_out, "rb") as f:
+            out = f.read()
+        if len(out) < 64:
+            raise RuntimeError("empty mp3 after transcode")
+        return out
+    finally:
+        for p in (path_in, path_out):
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
+
+
+async def prepare_incoming_audio_for_playback(
+    content: bytes,
+    filename: str | None,
+    mime: str | None,
+) -> tuple[bytes, str, str]:
+    """
+    Входящие голосовые WhatsApp — часто OGG Opus; Safari не играет.
+    Возвращает (bytes, filename, mime) — при успехе MP3.
+    """
+    low = (filename or "").lower()
+    m = (mime or "").split(";")[0].strip().lower()
+    is_audio = m.startswith("audio/") or low.endswith((".ogg", ".opus", ".webm", ".m4a", ".amr"))
+    if not is_audio:
+        return content, filename or "audio", mime or "application/octet-stream"
+    if m == "audio/mpeg" or low.endswith(".mp3"):
+        return content, filename or "voice.mp3", "audio/mpeg"
+    try:
+        mp3 = await transcode_audio_to_mp3(content, filename=filename, mime=mime)
+    except FileNotFoundError:
+        logger.warning("ffmpeg not found; incoming audio kept as-is")
+        return content, filename or "audio", mime or "audio/ogg"
+    except Exception:
+        logger.exception("incoming audio transcode failed; keeping original")
+        return content, filename or "audio", mime or "audio/ogg"
+    base = (filename or "voice").rsplit(".", 1)[0] if filename and "." in filename else "voice"
+    return mp3, f"{base}.mp3", "audio/mpeg"
 
 
 async def prepare_file_for_green_whatsapp(

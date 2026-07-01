@@ -8,8 +8,18 @@ from datetime import UTC, datetime
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ChatMessage, ChatThread, Integration, Lead, LeadSource, Pipeline, PipelineStage
+from app.models import (
+    ChatMessage,
+    ChatThread,
+    Integration,
+    Lead,
+    LeadExtraPhone,
+    LeadSource,
+    Pipeline,
+    PipelineStage,
+)
 from app.services.lead_assignment import assign_manager_for_new_lead
+from app.services.lead_extra_phones import find_lead_by_any_phone
 
 
 def norm_phone(raw: str | None) -> str | None:
@@ -54,6 +64,23 @@ async def find_existing_lead(
         found = res.scalars().first()
         if found is not None:
             return found
+        res = await db.execute(
+            select(Lead)
+            .join(LeadExtraPhone, LeadExtraPhone.lead_id == Lead.id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(
+                and_(
+                    LeadExtraPhone.phone == phone,
+                    Lead.company_id == company_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                ),
+            )
+            .order_by(Lead.id.desc())
+            .limit(1),
+        )
+        found = res.scalars().first()
+        if found is not None:
+            return found
     if external_chat_id and thread_provider:
         res = await db.execute(
             select(Lead)
@@ -72,6 +99,15 @@ async def find_existing_lead(
             .limit(1),
         )
         found = res.scalars().first()
+        if found is not None:
+            return found
+    if phone:
+        found = await find_lead_by_any_phone(
+            db,
+            company_id=company_id,
+            phone=phone,
+            pipeline_id=pipeline_id,
+        )
         if found is not None:
             return found
     return None
@@ -187,6 +223,28 @@ async def message_exists_by_provider_id(db: AsyncSession, company_id: int, provi
         ChatMessage.provider_message_id == pid,
     ).limit(1)
     return (await db.execute(q)).scalar() is not None
+
+
+async def find_incoming_message_by_provider_id(
+    db: AsyncSession,
+    company_id: int,
+    provider_message_id: str | None,
+) -> ChatMessage | None:
+    pid = (provider_message_id or "").strip()
+    if not pid:
+        return None
+    return (
+        await db.execute(
+            select(ChatMessage)
+            .where(
+                ChatMessage.company_id == company_id,
+                ChatMessage.provider_message_id == pid,
+                ChatMessage.direction == "in",
+            )
+            .order_by(ChatMessage.id.desc())
+            .limit(1),
+        )
+    ).scalars().first()
 
 
 async def add_incoming_message(

@@ -49,6 +49,7 @@ from app.schemas.lead import LeadRead
 from app.services.automation import process_lead_automation
 from app.services.audit import write_audit_event
 from app.services.lead_assignment import assign_manager_for_new_lead
+from app.services.lead_extra_phones import find_lead_by_any_phone, sync_lead_extra_phones
 from app.services.sales_kpi import get_kpi_service_price
 from app.services.whatsapp_automation import send_booking_confirmation_if_needed
 
@@ -901,41 +902,7 @@ async def _find_lead_by_phone_for_booking(
     company_id: int,
     phone_digits: str,
 ) -> Lead | None:
-    if len(phone_digits) < 7:
-        return None
-    exact = (
-        await db.execute(
-            select(Lead)
-            .where(Lead.company_id == company_id, Lead.phone == phone_digits)
-            .order_by(Lead.id.desc())
-            .limit(1),
-        )
-    ).scalars().first()
-    if exact is not None:
-        return exact
-
-    tail = phone_digits[-9:] if len(phone_digits) >= 9 else phone_digits
-    candidates = (
-        await db.execute(
-            select(Lead)
-            .where(
-                Lead.company_id == company_id,
-                Lead.phone.is_not(None),
-                Lead.phone.ilike(f"%{tail}"),
-            )
-            .order_by(Lead.id.desc())
-            .limit(40),
-        )
-    ).scalars().all()
-    for lead in candidates:
-        norm = _norm_phone(lead.phone)
-        if not norm:
-            continue
-        if norm == phone_digits:
-            return lead
-        if len(norm) >= 9 and len(phone_digits) >= 9 and norm[-9:] == phone_digits[-9:]:
-            return lead
-    return None
+    return await find_lead_by_any_phone(db, company_id=company_id, phone=phone_digits)
 
 
 async def _find_lead_by_name_for_booking(
@@ -1487,6 +1454,17 @@ async def create_appointment(
             service_amount_value = float(fixed_price)
     if float(body.paid_amount or 0) > float(service_amount_value):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Оплата не может быть больше стоимости услуги")
+
+    if lead_id is not None and body.extra_phones:
+        lead_for_extras = await db.get(Lead, lead_id)
+        if lead_for_extras is not None:
+            await sync_lead_extra_phones(
+                db,
+                company_id=company_id,
+                lead_id=lead_id,
+                extra_phones=body.extra_phones,
+                primary_phone=lead_for_extras.phone or body.patient_phone,
+            )
 
     now = datetime.now(UTC)
     service_title = (body.service_title or "").strip()

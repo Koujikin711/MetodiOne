@@ -1737,3 +1737,47 @@ async def ensure_finance_osv_tables(conn: AsyncConnection, database_url: str) ->
                 text(f"ALTER TABLE finance_company_settings ADD COLUMN IF NOT EXISTS {col} {ddl_pg}"),
             )
 
+
+async def ensure_lead_extra_phones_tables(conn: AsyncConnection, database_url: str) -> None:
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    pg = "postgresql" in low or "postgres" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS lead_extra_phones (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER,
+                    lead_id INTEGER NOT NULL,
+                    phone VARCHAR(64) NOT NULL,
+                    label VARCHAR(64),
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at DATETIME,
+                    FOREIGN KEY(company_id) REFERENCES companies(id) ON DELETE CASCADE,
+                    FOREIGN KEY(lead_id) REFERENCES leads(id) ON DELETE CASCADE
+                )"""
+            ),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_lead_extra_phones_lead_id ON lead_extra_phones (lead_id)"),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_lead_extra_phones_phone ON lead_extra_phones (phone)"),
+        )
+    elif pg:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS lead_extra_phones (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+                    lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+                    phone VARCHAR(64) NOT NULL,
+                    label VARCHAR(64),
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )"""
+            ),
+        )
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_lead_extra_phones_lead_id ON lead_extra_phones (lead_id)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_lead_extra_phones_phone ON lead_extra_phones (phone)"))
+
