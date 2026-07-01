@@ -350,6 +350,14 @@ export function ChatPage() {
   /** Снимок открытого диалога — не теряется, если после ответа он выпал из вкладки/списка. */
   const [pinnedThread, setPinnedThread] = useState<ChatThread | null>(null);
   const leadFromQuery = Number(searchParams.get("lead_id"));
+  const leadFromQueryValid = Number.isFinite(leadFromQuery) && leadFromQuery > 0;
+
+  const threadByLeadQuery = useQuery({
+    queryKey: ["chat-thread-by-lead", leadFromQuery],
+    queryFn: () => apiFetch<ChatThread>(`/api/chat/threads/by-lead/${leadFromQuery}`),
+    enabled: leadFromQueryValid && threadId == null,
+    retry: false,
+  });
 
   const allThreads = useMemo(() => {
     const pages = threadsQuery.data?.pages ?? [];
@@ -366,11 +374,20 @@ export function ChatPage() {
   }, [threadsQuery.data]);
 
   useEffect(() => {
-    if (!Number.isFinite(leadFromQuery) || leadFromQuery <= 0) return;
-    if (threadId != null) return;
+    if (!leadFromQueryValid || threadId != null) return;
+    if (threadByLeadQuery.data) {
+      openThread(threadByLeadQuery.data);
+      return;
+    }
     const match = allThreads.find((t) => t.lead_id === leadFromQuery);
     if (match) openThread(match);
-  }, [leadFromQuery, threadId, allThreads]);
+  }, [leadFromQueryValid, leadFromQuery, threadId, threadByLeadQuery.data, allThreads]);
+
+  useEffect(() => {
+    if (!threadByLeadQuery.isError) return;
+    const msg = (threadByLeadQuery.error as Error).message || "Чат не найден";
+    toast.error(msg, { id: `chat-lead-${leadFromQuery}` });
+  }, [threadByLeadQuery.isError, threadByLeadQuery.error, leadFromQuery]);
 
   function openThread(t: ChatThread) {
     setThreadId(t.id);
@@ -434,8 +451,11 @@ export function ChatPage() {
     return list;
   }, [allThreads, showManagerChatBuckets]);
 
+  const prevChatBucketRef = useRef(chatBucket);
   useEffect(() => {
     if (!showManagerChatBuckets) return;
+    if (prevChatBucketRef.current === chatBucket) return;
+    prevChatBucketRef.current = chatBucket;
     closeChat();
   }, [chatBucket, showManagerChatBuckets]);
 
