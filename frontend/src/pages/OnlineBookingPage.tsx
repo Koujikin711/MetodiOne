@@ -71,6 +71,7 @@ export function OnlineBookingPage() {
   const [comment, setComment] = useState("");
   const [patientSuggestOpen, setPatientSuggestOpen] = useState(false);
   const [patientSuggestDebounced, setPatientSuggestDebounced] = useState("");
+  const [patientFieldFocus, setPatientFieldFocus] = useState<"name" | "phone" | null>(null);
   const patientSuggestRef = useRef<HTMLDivElement>(null);
   const token = getStoredToken();
   const currentRole = decodeRoleFromToken(token);
@@ -202,7 +203,8 @@ export function OnlineBookingPage() {
       canEditBooking &&
       leadId == null &&
       patientSuggestDebounced.length >= 2 &&
-      patientSuggestOpen,
+      patientSuggestOpen &&
+      patientFieldFocus === "name",
   });
 
   useEffect(() => {
@@ -219,18 +221,21 @@ export function OnlineBookingPage() {
   function applyPatientSuggestion(item: BookingPatientSuggestItem) {
     setPatientName(item.patient_name);
     if (item.lead_id != null) {
-      setPatientPhone("");
-    } else if (item.patient_phone_can_view_full) {
-      setPatientPhone(item.patient_phone === "—" ? "" : item.patient_phone);
-    } else {
-      setPatientPhone("");
-    }
-    if (item.lead_id != null) {
       setLeadId(item.lead_id);
       setNewLeadPipelineId(null);
       setNewLeadStageId(null);
+      if (item.patient_phone_can_view_full && item.patient_phone && item.patient_phone !== "—") {
+        setPatientPhone(item.patient_phone);
+      } else {
+        setPatientPhone("");
+      }
+    } else if (item.patient_phone_can_view_full && item.patient_phone && item.patient_phone !== "—") {
+      setPatientPhone(item.patient_phone);
+    } else {
+      setPatientPhone("");
     }
     setPatientSuggestOpen(false);
+    setPatientFieldFocus(null);
     toast.success(item.lead_id != null ? "Клиент из CRM подставлен" : "Данные клиента подставлены");
   }
 
@@ -774,7 +779,8 @@ export function OnlineBookingPage() {
                 )}
                 <div ref={patientSuggestRef} className="relative space-y-2.5">
                   <p className="text-[11px] mo-muted">
-                    Начните вводить имя или телефон — если клиент уже есть, выберите его из списка.
+                    Начните вводить имя или телефон — если клиент уже есть, выберите его из списка или продолжайте
+                    ввод вручную.
                   </p>
                   <label className="block text-sm mo-muted">
                     Пациент / клиент
@@ -786,7 +792,15 @@ export function OnlineBookingPage() {
                         setPatientSuggestOpen(true);
                         if (leadId != null) setLeadId(null);
                       }}
-                      onFocus={() => setPatientSuggestOpen(true)}
+                      onFocus={() => {
+                        setPatientFieldFocus("name");
+                        setPatientSuggestOpen(true);
+                      }}
+                      onBlur={() => {
+                        window.setTimeout(() => {
+                          setPatientFieldFocus((prev) => (prev === "name" ? null : prev));
+                        }, 120);
+                      }}
                       className="mt-1 w-full mo-input"
                       autoComplete="off"
                     />
@@ -794,20 +808,48 @@ export function OnlineBookingPage() {
                   <label className="block text-sm mo-muted">
                     Телефон
                     <input
-                      required
+                      required={leadId == null}
                       value={patientPhone}
                       onChange={(e) => {
                         setPatientPhone(e.target.value);
-                        setPatientSuggestOpen(true);
                         if (leadId != null) setLeadId(null);
                       }}
-                      onFocus={() => setPatientSuggestOpen(true)}
+                      onFocus={() => {
+                        setPatientFieldFocus("phone");
+                        setPatientSuggestOpen(false);
+                      }}
+                      onBlur={() => {
+                        window.setTimeout(() => {
+                          setPatientFieldFocus((prev) => (prev === "phone" ? null : prev));
+                        }, 120);
+                      }}
+                      placeholder={leadId != null ? "Необязательно — возьмём из карточки CRM" : undefined}
                       className="mt-1 w-full mo-input"
                       autoComplete="off"
+                      inputMode="tel"
                     />
                   </label>
-                  {patientSuggestOpen && patientSuggestDebounced.length >= 2 ? (
-                    <div className="absolute left-0 right-0 top-full z-[200] mt-1 max-h-56 overflow-y-auto rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] py-1 shadow-lg">
+                  {leadId != null && !patientPhone.trim() ? (
+                    <p className="text-[11px] text-[var(--mo-success)]">
+                      Телефон подставится из карточки лида #{leadId}. Можете изменить имя или дописать телефон.
+                    </p>
+                  ) : null}
+                  {patientSuggestOpen && patientFieldFocus === "name" && patientSuggestDebounced.length >= 2 ? (
+                    <div className="absolute left-0 right-0 top-[4.5rem] z-[200] max-h-48 overflow-y-auto overscroll-contain rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] py-1 shadow-lg sm:top-full sm:max-h-56">
+                      <div className="flex items-center justify-between gap-2 border-b border-[var(--mo-border)] px-3 py-1.5">
+                        <span className="text-[10px] font-medium mo-muted">Найдено в CRM</span>
+                        <button
+                          type="button"
+                          className="text-[10px] font-medium text-[var(--mo-text)] underline"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setPatientSuggestOpen(false);
+                            setPatientFieldFocus(null);
+                          }}
+                        >
+                          Закрыть
+                        </button>
+                      </div>
                       {patientSuggestQuery.isError ? (
                         <p className="px-3 py-2 text-xs text-red-500">
                           {(patientSuggestQuery.error as Error).message || "Не удалось загрузить подсказки"}

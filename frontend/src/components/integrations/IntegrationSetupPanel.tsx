@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ComponentType } from "react";
 import toast from "react-hot-toast";
 
@@ -111,6 +111,88 @@ const CHANNELS: Array<{
   },
 ];
 
+type GreenWebhookStatus = {
+  integration_id: number;
+  expected_webhook_url: string;
+  public_api_base_url: string;
+  green_webhook_url?: string | null;
+  green_incoming_webhook?: string | null;
+  green_state_instance?: string | null;
+  webhook_url_matches: boolean;
+  incoming_enabled: boolean;
+  instance_authorized?: boolean | null;
+  sync_error?: string | null;
+  hint?: string | null;
+};
+
+function GreenApiWebhookPanel({ integrationId }: { integrationId: number }) {
+  const queryClient = useQueryClient();
+  const statusQuery = useQuery({
+    queryKey: ["green-webhook-status", integrationId],
+    queryFn: () => apiFetch<GreenWebhookStatus>(`/api/integrations/${integrationId}/green-webhook-status`),
+    refetchInterval: 30_000,
+  });
+  const syncMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<Integration>(`/api/integrations/${integrationId}/green-webhook-sync`, { method: "POST" }),
+    onSuccess: (saved) => {
+      toast.success(saved.setup_note ?? "Webhook переподключён");
+      void queryClient.invalidateQueries({ queryKey: ["green-webhook-status", integrationId] });
+      void queryClient.invalidateQueries({ queryKey: ["integrations"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const st = statusQuery.data;
+  const ok = st?.webhook_url_matches && st?.incoming_enabled && st?.instance_authorized !== false;
+
+  return (
+    <div className="mt-2 space-y-2 rounded-lg border border-[#E1D9C6] bg-[#FAF8F4] p-2 text-[11px] text-[#7A7265]">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium text-[#2C2520]">Входящие WhatsApp → «Чаты»</span>
+        {statusQuery.isLoading ? (
+          <span className="text-[#A89880]">Проверка…</span>
+        ) : ok ? (
+          <span className="font-medium text-[#0F4C3A]">Подключено</span>
+        ) : (
+          <span className="font-medium text-[#9A3412]">Требует настройки</span>
+        )}
+      </div>
+      {st?.expected_webhook_url ? (
+        <div>
+          <span className="font-medium text-[#2C2520]">Webhook CRM (Amvera):</span>
+          <div className="mt-1 break-all rounded border border-[#E1D9C6] bg-white px-2 py-1 font-mono text-[10px]">
+            {st.expected_webhook_url}
+          </div>
+        </div>
+      ) : null}
+      {st?.green_webhook_url ? (
+        <div>
+          <span className="font-medium text-[#2C2520]">Сейчас в Green API:</span>
+          <div className="mt-1 break-all font-mono text-[10px]">{st.green_webhook_url}</div>
+        </div>
+      ) : null}
+      {st?.green_state_instance ? <div>Статус инстанса: {st.green_state_instance}</div> : null}
+      {st?.sync_error ? <p className="text-[#9A3412]">{st.sync_error}</p> : null}
+      {st?.hint ? <p className="leading-relaxed text-[#9A3412]">{st.hint}</p> : null}
+      {!st?.public_api_base_url ? (
+        <p className="leading-relaxed text-[#9A3412]">
+          На Amvera задайте переменную <span className="font-mono">PUBLIC_API_BASE_URL</span> ={" "}
+          <span className="font-mono">https://metodi-one-koujikin.amvera.io</span>
+        </p>
+      ) : null}
+      <button
+        type="button"
+        onClick={() => syncMutation.mutate()}
+        disabled={syncMutation.isPending}
+        className="crm-pill-btn px-2 py-1 text-[11px]"
+      >
+        {syncMutation.isPending ? "Отправка…" : "Переподключить webhook"}
+      </button>
+    </div>
+  );
+}
+
 function IntegrationCard({
   it,
   onEdit,
@@ -157,8 +239,9 @@ function IntegrationCard({
       {it.provider === "green_api" && (
         <div className="mt-2 space-y-2">
           <div className="lux-caption leading-relaxed">
-            WhatsApp через Green API: лиды, чат и рассылка. При сбое webhook откройте «Изменить» и сохраните настройки заново.
+            WhatsApp через Green API: входящие попадают в раздел «Чаты» и в выбранную воронку.
           </div>
+          <GreenApiWebhookPanel integrationId={it.id} />
           <button
             type="button"
             onClick={onBroadcast}

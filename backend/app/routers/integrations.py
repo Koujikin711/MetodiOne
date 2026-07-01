@@ -24,6 +24,8 @@ from app.services.green_api_send import send_green_text_async
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.whatsapp_automation import send_welcome_if_first_incoming
 from app.services.green_api_settings import (
+    fetch_green_settings,
+    fetch_green_state_instance,
     green_api_base_from_config,
     push_green_incoming_webhook,
     resolve_public_api_base,
@@ -64,24 +66,37 @@ _SECRET_CFG_KEYS = frozenset(
 )
 
 
+def _normalize_webhook_token(raw: str | None) -> str | None:
+    """Убирает префиксы Bearer/Basic — Green API иногда шлёт их дважды."""
+    if not raw or not str(raw).strip():
+        return None
+    s = str(raw).strip()
+    for _ in range(3):
+        low = s.lower()
+        if low.startswith("bearer "):
+            s = s[7:].strip()
+            continue
+        if low.startswith("basic "):
+            s = s[6:].strip()
+            continue
+        break
+    return s or None
+
+
 def _webhook_token_matches(provided: str | None, expected: str) -> bool:
     """compare_digest падает ValueError при разной длине строк — для вебхука это 400/500 вместо 403."""
-    if not provided or not expected:
+    got = _normalize_webhook_token(provided)
+    exp = _normalize_webhook_token(expected)
+    if not got or not exp:
         return False
-    if len(provided) != len(expected):
+    if len(got) != len(exp):
         return False
-    return secrets.compare_digest(provided, expected)
+    return secrets.compare_digest(got, exp)
 
 
 def _token_from_authorization_header(raw: str | None) -> str | None:
     """Green API шлёт webhookUrlToken в заголовке Authorization: Bearer <token>."""
-    if not raw or not str(raw).strip():
-        return None
-    s = str(raw).strip()
-    low = s.lower()
-    if low.startswith("bearer "):
-        return s[7:].strip() or None
-    return s
+    return _normalize_webhook_token(raw)
 
 
 def _integration_read(row: Integration, *, setup_note: str | None = None) -> IntegrationRead:
@@ -463,6 +478,196 @@ async def patch_integration(
     return _integration_read(row)
 
 
+class GreenWebhookStatusRead(BaseModel):
+    integration_id: int
+    expected_webhook_url: str
+    public_api_base_url: str
+    green_webhook_url: str | None = None
+    green_incoming_webhook: str | None = None
+    green_state_instance: str | None = None
+    webhook_url_matches: bool = False
+    incoming_enabled: bool = False
+    instance_authorized: bool | None = None
+    sync_error: str | None = None
+    hint: str | None = None
+
+
+async def _green_webhook_apply(
+    request: Request,
+    row: Integration,
+) -> tuple[str, str]:
+    cfg = row.config or {}
+    instance_id = cfg.get("instance_id") or cfg.get("instanceId")
+    api_token = cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance")
+    if not instance_id or not api_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="У интеграции нет instance_id или api_token в config",
+        )
+    pub = resolve_public_api_base(request, settings.public_api_base_url)
+    if not pub:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Задайте PUBLIC_API_BASE_URL на сервере Amvera "
+                "(например https://metodi-one-koujikin.amvera.io) и пересохраните интеграцию."
+            ),
+        )
+    webhook_url = f"{pub.rstrip('/')}/api/integrations/webhook/{row.id}"
+    api_base = green_api_base_from_config(cfg)
+    ok, err = await asyncio.to_thread(
+        push_green_incoming_webhook,
+        instance_id=str(instance_id).strip(),
+        api_token_instance=str(api_token).strip(),
+        api_base=api_base,
+        webhook_url=webhook_url,
+        webhook_token=row.secret,
+    )
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Green API не принял настройки: {err}",
+        )
+    return webhook_url, pub
+
+
+def _green_webhook_status_hint(
+    *,
+    expected: str,
+    actual: str | None,
+    incoming: str | None,
+    authorized: bool | None,
+) -> str | None:
+    if authorized is False:
+        return "Инстанс WhatsApp не авторизован — отсканируйте QR в кабинете Green API."
+    if not actual:
+        return "В Green API не задан webhookUrl. Нажмите «Переподключить webhook» в CRM."
+    if actual.rstrip("/") != expected.rstrip("/"):
+        return (
+            "Webhook в Green API указывает на другой адрес. "
+            "Нажмите «Переподключить webhook» — CRM пропишет правильный URL на Amvera."
+        )
+    if (incoming or "").lower() != "yes":
+        return "В Green API выключен incomingWebhook. Переподключите webhook из CRM."
+    return None
+
+
+@router.get("/{integration_id}/green-webhook-status", response_model=GreenWebhookStatusRead)
+async def green_webhook_status(
+    integration_id: int,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> GreenWebhookStatusRead:
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    row = await db.get(Integration, integration_id)
+    if row is None or row.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+    if row.provider != IntegrationProvider.green_api:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Только для Green API")
+
+    pub = resolve_public_api_base(request, settings.public_api_base_url)
+    expected = f"{pub.rstrip('/')}/api/integrations/webhook/{row.id}" if pub else ""
+    cfg = row.config or {}
+    instance_id = str(cfg.get("instance_id") or cfg.get("instanceId") or "").strip()
+    api_token = str(cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance") or "").strip()
+    api_base = green_api_base_from_config(cfg)
+
+    out = GreenWebhookStatusRead(
+        integration_id=row.id,
+        expected_webhook_url=expected,
+        public_api_base_url=pub or settings.public_api_base_url or "",
+    )
+    if not pub:
+        out.hint = (
+            "На Amvera не задан PUBLIC_API_BASE_URL. "
+            "Добавьте переменную и нажмите «Переподключить webhook»."
+        )
+        return out
+    if not instance_id or not api_token:
+        out.hint = "Укажите Instance ID и API Token в настройках интеграции."
+        return out
+
+    ok, data = await asyncio.to_thread(
+        fetch_green_settings,
+        instance_id=instance_id,
+        api_token_instance=api_token,
+        api_base=api_base,
+    )
+    if not ok:
+        out.sync_error = str(data)
+        out.hint = "Не удалось прочитать настройки Green API — проверьте Instance ID, токен и api_base_url."
+        return out
+
+    settings_body = data
+    if isinstance(settings_body, dict) and isinstance(settings_body.get("settings"), dict):
+        settings_body = settings_body["settings"]
+
+    green_url = str((settings_body or {}).get("webhookUrl") or "").strip() or None
+    incoming = str((settings_body or {}).get("incomingWebhook") or "").strip() or None
+    green_token = _normalize_webhook_token(str((settings_body or {}).get("webhookUrlToken") or "").strip() or None)
+    crm_token = _normalize_webhook_token(row.secret)
+    token_matches = bool(green_token and crm_token and green_token == crm_token)
+
+    state_ok, state_val = await asyncio.to_thread(
+        fetch_green_state_instance,
+        instance_id=instance_id,
+        api_token_instance=api_token,
+        api_base=api_base,
+    )
+    state = str(state_val).strip() if state_ok and isinstance(state_val, str) else None
+
+    out.green_webhook_url = green_url
+    out.green_incoming_webhook = incoming
+    out.green_state_instance = state
+    out.webhook_url_matches = bool(green_url and green_url.rstrip("/") == expected.rstrip("/"))
+    out.incoming_enabled = (incoming or "").lower() == "yes"
+    if state:
+        out.instance_authorized = state.lower() in ("authorized", "starting")
+    out.hint = _green_webhook_status_hint(
+        expected=expected,
+        actual=green_url,
+        incoming=incoming,
+        authorized=out.instance_authorized,
+    )
+    if out.hint is None and green_token and crm_token and not token_matches:
+        out.hint = (
+            "Токен webhook в Green API не совпадает с секретом интеграции в CRM. "
+            "Нажмите «Переподключить webhook»."
+        )
+    return out
+
+
+@router.post("/{integration_id}/green-webhook-sync", response_model=IntegrationRead)
+async def green_webhook_sync(
+    integration_id: int,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> IntegrationRead:
+    if current_user.role != UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    row = await db.get(Integration, integration_id)
+    if row is None or row.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+    if row.provider != IntegrationProvider.green_api:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Только для Green API")
+    if not row.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Интеграция выключена")
+
+    await _green_webhook_apply(request, row)
+    return _integration_read(
+        row,
+        setup_note=(
+            "Webhook WhatsApp отправлен в Green API. Применение до 5 минут. "
+            "После этого входящие сообщения появятся в разделе «Чаты»."
+        ),
+    )
+
+
 @router.post("/{integration_id}/sync")
 async def sync_integration_now(
     integration_id: int,
@@ -798,7 +1003,9 @@ async def _upsert_thread(
     provider: str,
     external_chat_id: str | None,
     title: str | None = None,
+    pipeline_id: int | None = None,
 ) -> ChatThread:
+    resolved_pipeline_id = pipeline_id or (lead.stage.pipeline_id if lead.stage else None)
     q = select(ChatThread).where(
         ChatThread.company_id == company_id,
         ChatThread.lead_id == lead.id,
@@ -813,12 +1020,14 @@ async def _upsert_thread(
             found.title = title
         if external_chat_id and not found.external_chat_id:
             found.external_chat_id = external_chat_id
+        if resolved_pipeline_id and not found.pipeline_id:
+            found.pipeline_id = resolved_pipeline_id
         await db.flush()
         return found
     t = ChatThread(
         company_id=company_id,
         lead_id=lead.id,
-        pipeline_id=lead.stage.pipeline_id if lead.stage else None,
+        pipeline_id=resolved_pipeline_id,
         provider=provider,
         external_chat_id=external_chat_id,
         title=title,
@@ -1043,6 +1252,7 @@ async def integration_webhook(
             provider=IntegrationProvider.green_api.value,
             external_chat_id=ext_chat,
             title=str(sender_name),
+            pipeline_id=int(integ.pipeline_id),
         )
         await _add_incoming_message(
             db,

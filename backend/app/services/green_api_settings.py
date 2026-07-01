@@ -54,6 +54,58 @@ def resolve_public_api_base(request: Any, env_base: str) -> str:
     return f"{proto}://{host}".rstrip("/")
 
 
+def fetch_green_state_instance(
+    *,
+    instance_id: str,
+    api_token_instance: str,
+    api_base: str,
+) -> tuple[bool, str]:
+    base = api_base.rstrip("/")
+    url = f"{base}/waInstance{instance_id}/getStateInstance/{api_token_instance}"
+    req = urlrequest.Request(url, method="GET")
+    try:
+        with urlrequest.urlopen(req, timeout=35) as resp:
+            raw = resp.read().decode("utf-8")
+            data = json.loads(raw) if raw else {}
+            if isinstance(data, dict):
+                state = str(data.get("stateInstance") or "").strip()
+                return True, state
+            return False, (raw or str(data))[:500]
+    except urlerror.HTTPError as e:
+        chunk = e.read().decode("utf-8", errors="replace")[:400]
+        return False, f"HTTP {e.code}: {chunk}"
+    except urlerror.URLError as e:
+        return False, str(e.reason) if e.reason else str(e)
+    except Exception as e:
+        return False, str(e)
+
+
+def fetch_green_settings(
+    *,
+    instance_id: str,
+    api_token_instance: str,
+    api_base: str,
+) -> tuple[bool, dict[str, Any] | str]:
+    """Читает getSettings у Green API (webhookUrl, incomingWebhook и т.д.)."""
+    base = api_base.rstrip("/")
+    url = f"{base}/waInstance{instance_id}/getSettings/{api_token_instance}"
+    req = urlrequest.Request(url, method="GET")
+    try:
+        with urlrequest.urlopen(req, timeout=35) as resp:
+            raw = resp.read().decode("utf-8")
+            data = json.loads(raw) if raw else {}
+            if isinstance(data, dict):
+                return True, data
+            return False, (raw or str(data))[:500]
+    except urlerror.HTTPError as e:
+        chunk = e.read().decode("utf-8", errors="replace")[:400]
+        return False, f"HTTP {e.code}: {chunk}"
+    except urlerror.URLError as e:
+        return False, str(e.reason) if e.reason else str(e)
+    except Exception as e:
+        return False, str(e)
+
+
 def push_green_incoming_webhook(
     *,
     instance_id: str,

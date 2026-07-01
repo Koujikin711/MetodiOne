@@ -106,4 +106,8 @@ def parse_green_message_data(message_data: dict[str, Any]) -> tuple[str, str, st
         or message_data.get("textMessageData", {}).get("textMessage")
         or ""
     )
-    return (txt or "").strip(), "text", None, None, None
+    if (txt or "").strip():
+        return (txt or "").strip(), "text", None, None, None
+    if t:
+        return f"📱 Сообщение WhatsApp ({t})", "text", None, None, None
+    return "📱 Сообщение WhatsApp", "text", None, None, None
