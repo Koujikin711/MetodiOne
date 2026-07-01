@@ -31,6 +31,7 @@ class UserRead(BaseModel):
 
 class UserMeRead(UserRead):
     impersonated_by_user_id: int | None = None
+    is_chief_expert: bool = False
 
 
 class ChangePasswordBody(BaseModel):

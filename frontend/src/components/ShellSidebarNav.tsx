@@ -25,6 +25,7 @@ type Props = {
   isSuperOwner: boolean;
   isManagerNav: boolean;
   isExpert: boolean;
+  isChiefExpert: boolean;
   showServices: boolean;
   showFinance: boolean;
   showIntegrationsHub: boolean;
@@ -38,6 +39,7 @@ export function ShellSidebarNav({
   isSuperOwner,
   isManagerNav,
   isExpert,
+  isChiefExpert,
   showServices,
   showFinance,
   showIntegrationsHub,
@@ -50,6 +52,7 @@ export function ShellSidebarNav({
         isSuperOwner,
         isManagerNav,
         isExpert,
+        isChiefExpert,
         showServices,
         showFinance,
         showIntegrationsHub,
@@ -61,6 +64,7 @@ export function ShellSidebarNav({
       isSuperOwner,
       isManagerNav,
       isExpert,
+      isChiefExpert,
       showServices,
       showFinance,
       showIntegrationsHub,

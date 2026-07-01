@@ -14,6 +14,7 @@ from app.services.default_pipeline_stages import default_pipeline_stage_creates
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.phone_match import parse_allowed_phones_json, serialize_allowed_phones
 from app.services.stage_delete_checks import pipeline_delete_block_reason
+from app.services.chief_expert_access import is_chief_expert, is_pipeline_admin_role
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
@@ -45,8 +46,10 @@ async def _manager_pipeline_ids(db: AsyncSession, user_id: int) -> set[int]:
     return {int(r[0]) for r in rows.all()}
 
 
-def _is_pipeline_admin(role: UserRole) -> bool:
-    return role in (UserRole.owner, UserRole.admin)
+async def _is_pipeline_admin_user(db: AsyncSession, user: User) -> bool:
+    if is_pipeline_admin_role(user.role):
+        return True
+    return await is_chief_expert(db, user)
 
 
 class DistributeLeadsBody(BaseModel):
@@ -91,7 +94,7 @@ async def create_pipeline(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> PipelineRead:
-    if not _is_pipeline_admin(current_user.role):
+    if not await _is_pipeline_admin_user(db, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
     exists = await db.scalar(select(Pipeline.id).where(Pipeline.company_id == company_id, Pipeline.name == body.name))
@@ -181,7 +184,7 @@ async def patch_pipeline(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> PipelineRead:
-    if not _is_pipeline_admin(current_user.role):
+    if not await _is_pipeline_admin_user(db, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None or pipe.company_id != company_id:
@@ -260,7 +263,7 @@ async def delete_pipeline(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> None:
-    if not _is_pipeline_admin(current_user.role):
+    if not await _is_pipeline_admin_user(db, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None or pipe.company_id != company_id:
@@ -303,7 +306,7 @@ async def distribute_leads_from_stage(
     Массово назначить менеджеров лидам на выбранной стадии.
     Работает для owner/admin; назначение идёт только на пользователей роли manager.
     """
-    if not _is_pipeline_admin(current_user.role):
+    if not await _is_pipeline_admin_user(db, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
 
     pipe = await db.get(Pipeline, pipeline_id)

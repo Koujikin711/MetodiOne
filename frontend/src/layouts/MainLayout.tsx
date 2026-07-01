@@ -24,6 +24,7 @@ import metodiMarkUrl from "@/assets/metodione-mark.svg?url";
 import { apiFetch, getStoredToken, setStoredToken } from "@/lib/api";
 import { decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
+import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { useShellSidebarExpanded } from "@/hooks/useShellSidebarExpanded";
 import { appLexicon } from "@/lib/appLexicon";
 import type { ChatThread, Task, TaskListResponse } from "@/lib/types";
@@ -64,14 +65,19 @@ export function MainLayout() {
   const isSuperOwner = role === "super_owner";
   const isManagerNav = role === "manager" || role === "admin";
   const isExpert = role === "expert";
-  const showServices = role === "owner" || role === "admin";
+  const meQuery = useCurrentUserMe();
+  const isChiefExpert = Boolean(meQuery.data?.is_chief_expert);
+  const isExpertElevated = isExpert && isChiefExpert;
+  const isManagerLikeNav = isManagerNav || isExpertElevated;
+  const showServices = role === "owner" || role === "admin" || isChiefExpert;
   const showFinance =
     role === "owner" ||
     role === "admin" ||
     role === "super_owner" ||
     role === "finance_analyst" ||
-    role === "accountant";
-  const showIntegrationsHub = role === "owner";
+    role === "accountant" ||
+    isChiefExpert;
+  const showIntegrationsHub = role === "owner" || isChiefExpert;
   const showKpi = role === "owner" || role === "super_owner" || role === "manager" || role === "admin";
   const { showNavForFeature } = useTariffNavAccess();
   const { expanded: sidebarExpanded, toggle: toggleSidebar } = useShellSidebarExpanded();
@@ -241,6 +247,7 @@ export function MainLayout() {
               isSuperOwner={isSuperOwner}
               isManagerNav={isManagerNav}
               isExpert={isExpert}
+              isChiefExpert={isChiefExpert}
               showServices={showServices}
               showFinance={showFinance}
               showIntegrationsHub={showIntegrationsHub}
@@ -302,7 +309,7 @@ export function MainLayout() {
                 <span className="text-[9px]">Выход</span>
               </button>
             </>
-          ) : isManagerNav ? (
+          ) : isManagerLikeNav ? (
             <>
               <NavIf show={showNavForFeature("crm")}>
                 <NavLink preventScrollReset to="/crm" className={mobileBottomNavLinkClass} title={navLex.navKanbanTitle}>
@@ -390,7 +397,7 @@ export function MainLayout() {
                 <span className="text-[9px]">Выход</span>
               </button>
             </>
-          ) : isExpert ? (
+          ) : isExpert && !isChiefExpert ? (
             <>
               <NavIf show={showNavForFeature("booking")}>
                 <NavLink preventScrollReset to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">

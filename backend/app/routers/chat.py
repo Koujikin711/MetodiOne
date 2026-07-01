@@ -34,7 +34,8 @@ from app.models import (
 
 _INTEGRATION_CLOSE_DEAL_TYPE = "integration_close"
 from app.services.audio_prepare import prepare_file_for_green_whatsapp
-from app.services.chat_media_store import resolve_outgoing_chat_media, save_outgoing_chat_media
+from app.services.chat_media_store import resolve_chat_media, save_outgoing_chat_media
+from app.services.green_incoming_media import ensure_chat_message_media_local
 from app.services.green_api_send import send_green_file_upload, send_green_text_async
 from app.services.patient_phone_visibility import (
     can_view_full_patient_phone,
@@ -819,7 +820,10 @@ async def get_message_media(
     if thread is None or thread.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
     await _assert_thread_access(db, thread, current_user)
-    fpath = resolve_outgoing_chat_media(message_id)
+    fpath = resolve_chat_media(message_id)
+    if fpath is None or not fpath.exists():
+        await ensure_chat_message_media_local(db, msg=msg, thread=thread)
+        fpath = resolve_chat_media(message_id)
     if fpath is None or not fpath.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
     media_type = (msg.media_mime or "").strip() or mimetypes.guess_type(fpath.name)[0] or "application/octet-stream"

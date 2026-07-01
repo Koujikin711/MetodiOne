@@ -33,6 +33,8 @@ from app.schemas.service_catalog import (
 )
 from app.services.service_enrollment import create_enrollment_from_template, refresh_overdue_installments
 
+from app.services.chief_expert_access import assert_service_catalog_write, can_write_service_catalog
+
 router = APIRouter(prefix="/services", tags=["services"])
 
 
@@ -77,7 +79,7 @@ async def list_service_templates(
     pipeline_id: int = Query(..., ge=1),
     active_only: bool = Query(True),
 ) -> list[ServiceTemplateRead]:
-    if current_user.role not in _catalog_write_roles():
+    if not await can_write_service_catalog(db, current_user):
         if current_user.role not in (UserRole.manager, UserRole.expert):
             raise HTTPException(status_code=403, detail="Нет доступа")
     q = select(ServiceTemplate).where(
@@ -99,8 +101,7 @@ async def create_service_template(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> ServiceTemplateRead:
-    if current_user.role not in _catalog_write_roles():
-        raise HTTPException(status_code=403, detail="Только владелец или админ")
+    await assert_service_catalog_write(db, current_user)
     pct_sum = sum(
         (r.value for r in body.payment_rules if (r.kind or "percent") == "percent"),
         Decimal("0"),
@@ -152,8 +153,7 @@ async def update_service_template(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> ServiceTemplateRead:
-    if current_user.role not in _catalog_write_roles():
-        raise HTTPException(status_code=403, detail="Только владелец или админ")
+    await assert_service_catalog_write(db, current_user)
     t = await db.get(ServiceTemplate, template_id)
     if t is None or t.company_id != company_id:
         raise HTTPException(status_code=404, detail="Шаблон не найден")
@@ -273,8 +273,7 @@ async def mark_installment_paid(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> InstallmentRead:
-    if current_user.role not in _catalog_write_roles():
-        raise HTTPException(status_code=403, detail="Нет доступа")
+    await assert_service_catalog_write(db, current_user)
     inst = await db.get(PaymentInstallment, installment_id)
     if inst is None:
         raise HTTPException(status_code=404, detail="Этап не найден")
@@ -297,8 +296,7 @@ async def list_receivables(
     company_id: CurrentCompanyId,
     pipeline_id: int | None = Query(None, ge=1),
 ) -> ReceivablesSummaryRead:
-    if current_user.role not in _catalog_write_roles():
-        raise HTTPException(status_code=403, detail="Нет доступа")
+    await assert_service_catalog_write(db, current_user)
     await refresh_overdue_installments(db, company_id)
     now = datetime.now(UTC)
     month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
@@ -376,8 +374,7 @@ async def migrate_legacy_service_templates(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> MigrateLegacyResultRead:
-    if current_user.role not in _catalog_write_roles():
-        raise HTTPException(status_code=403, detail="Только владелец или админ")
+    await assert_service_catalog_write(db, current_user)
     rows = (
         await db.execute(
             select(

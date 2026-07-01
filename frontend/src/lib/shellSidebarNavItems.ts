@@ -30,6 +30,7 @@ type BuildParams = {
   isSuperOwner: boolean;
   isManagerNav: boolean;
   isExpert: boolean;
+  isChiefExpert: boolean;
   showServices: boolean;
   showFinance: boolean;
   showIntegrationsHub: boolean;
@@ -56,6 +57,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     isSuperOwner,
     isManagerNav,
     isExpert,
+    isChiefExpert,
     showServices,
     showFinance,
     showIntegrationsHub,
@@ -63,6 +65,11 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     showNavForFeature,
     navLex,
   } = params;
+
+  const managerLikeNav = isManagerNav || (isExpert && isChiefExpert);
+  const showFinanceNav = showFinance || isChiefExpert;
+  const showServicesNav = showServices || isChiefExpert;
+  const showIntegrationsNav = showIntegrationsHub || isChiefExpert;
 
   if (isSuperOwner) {
     return [
@@ -78,7 +85,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     ];
   }
 
-  if (isManagerNav) {
+  if (managerLikeNav) {
     const items: ShellSidebarNavItem[] = [
       {
         id: "desk",
@@ -165,7 +172,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "target",
       });
     }
-    if (showFinance && showNavForFeature("finance")) {
+    if (showFinanceNav && showNavForFeature("finance")) {
       items.push({
         id: "finance",
         to: "/finance",
@@ -176,7 +183,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "wallet",
       });
     }
-    if (showServices) {
+    if (showServicesNav) {
       items.push({
         id: "services",
         to: "/services",
@@ -185,6 +192,39 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         labelFull: "Каталог услуг",
         variant: "purple",
         iconKey: "clipboard-list",
+      });
+    }
+    if (isChiefExpert && showNavForFeature("reports")) {
+      items.push({
+        id: "reports",
+        to: "/reports",
+        title: "Отчёты",
+        labelShort: "Отчёты",
+        labelFull: "Отчёты",
+        variant: "blue",
+        iconKey: "bar-chart",
+      });
+    }
+    if (showNavForFeature("employees")) {
+      items.push({
+        id: "employees",
+        to: "/employees",
+        title: "Сотрудники",
+        labelShort: "Сотр.",
+        labelFull: "Сотрудники",
+        variant: "purple",
+        iconKey: "id-card",
+      });
+    }
+    if (showIntegrationsNav && showNavForFeature("integrations")) {
+      items.push({
+        id: "integrations",
+        to: "/integrations",
+        title: "Интеграции",
+        labelShort: "Интегр.",
+        labelFull: "Интеграции",
+        variant: "integrations",
+        iconKey: "plug",
       });
     }
     return items;

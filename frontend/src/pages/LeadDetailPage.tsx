@@ -159,7 +159,11 @@ export function LeadDetailPage() {
   const canRejectLead = role === "owner" || role === "admin" || role === "manager";
   const canEditLeadProfile = role === "owner" || role === "admin";
   const canDeleteLead = role === "owner";
-  const canEditBooking = role !== "expert";
+  const bookingViewerQuery = useQuery({
+    queryKey: ["booking-viewer-context"],
+    queryFn: () => apiFetch<BookingViewerContext>("/api/booking/viewer-context"),
+  });
+  const canEditBooking = role !== "expert" || Boolean(bookingViewerQuery.data?.is_chief_expert);
   const homeLink = role === "manager" || role === "admin" ? "/crm" : "/app";
   const homeLabel = "Канбан";
 
@@ -171,10 +175,6 @@ export function LeadDetailPage() {
     enabled: Number.isFinite(leadId) && leadId > 0,
   });
 
-  const bookingViewerQuery = useQuery({
-    queryKey: ["booking-viewer-context"],
-    queryFn: () => apiFetch<BookingViewerContext>("/api/booking/viewer-context"),
-  });
   const showSessionInsteadOfTime = bookingViewerQuery.data?.show_session_instead_of_time ?? false;
 
   const leadSessionNumber = useMemo(() => {

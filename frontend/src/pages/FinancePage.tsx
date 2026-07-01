@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import type {
   FinanceDdsReport,
   FinanceIntegrateResult,
@@ -37,7 +38,14 @@ function pct(n: string | number | null | undefined): string {
 export function FinancePage() {
   const qc = useQueryClient();
   const role = decodeRoleFromToken(getStoredToken());
-  const canIntegrate = role === "owner" || role === "admin" || role === "super_owner" || role === "accountant";
+  const meQuery = useCurrentUserMe();
+  const isChiefExpert = role === "expert" && Boolean(meQuery.data?.is_chief_expert);
+  const canIntegrate =
+    role === "owner" ||
+    role === "admin" ||
+    role === "super_owner" ||
+    role === "accountant" ||
+    isChiefExpert;
   const year = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(year);
   const [tab, setTab] = useState<FinanceTab>("osv");
