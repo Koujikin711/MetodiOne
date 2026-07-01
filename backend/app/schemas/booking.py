@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Literal
+import re
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -199,7 +200,23 @@ class BookingAppointmentCreate(BaseModel):
     service_amount: float = Field(..., ge=0)
     paid_amount: float = Field(..., ge=0)
     responsible_manager_id: int | None = None
+    extra_phones: list[str] = Field(default_factory=list, max_length=5)
     comment: str | None = Field(None, max_length=2000)
+
+    @field_validator("extra_phones")
+    @classmethod
+    def normalize_extra_phones(cls, v: list[str]) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()
+        for raw in v:
+            digits = re.sub(r"\D+", "", str(raw or ""))
+            if len(digits) < 7 or digits in seen:
+                continue
+            seen.add(digits)
+            out.append(digits)
+            if len(out) >= 5:
+                break
+        return out
 
     @model_validator(mode="after")
     def validate_money(self) -> "BookingAppointmentCreate":

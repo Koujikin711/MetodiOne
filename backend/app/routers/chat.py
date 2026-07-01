@@ -37,6 +37,7 @@ from app.services.audio_prepare import prepare_file_for_green_whatsapp
 from app.services.chat_media_store import resolve_chat_media, save_outgoing_chat_media
 from app.services.green_incoming_media import ensure_chat_message_media_local
 from app.services.green_api_send import send_green_file_upload, send_green_text_async
+from app.services.whatsapp_phone_fallback import resolve_outbound_green_chat_id
 from app.services.patient_phone_visibility import (
     can_view_full_patient_phone,
     mask_patient_phone,
@@ -378,7 +379,7 @@ async def _resolve_green_send(
     if thread.provider != IntegrationProvider.green_api.value:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provider send is not implemented yet")
 
-    chat_id = thread.external_chat_id or ""
+    chat_id, _used_extra = await resolve_outbound_green_chat_id(db, thread=thread)
     if not chat_id:
         lead = await db.get(Lead, thread.lead_id) if thread.lead_id else None
         if lead and lead.phone:

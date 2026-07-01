@@ -8,8 +8,18 @@ from datetime import UTC, datetime
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ChatMessage, ChatThread, Integration, Lead, LeadSource, Pipeline, PipelineStage
+from app.models import (
+    ChatMessage,
+    ChatThread,
+    Integration,
+    Lead,
+    LeadExtraPhone,
+    LeadSource,
+    Pipeline,
+    PipelineStage,
+)
 from app.services.lead_assignment import assign_manager_for_new_lead
+from app.services.lead_extra_phones import find_lead_by_any_phone
 
 
 def norm_phone(raw: str | None) -> str | None:
@@ -54,6 +64,23 @@ async def find_existing_lead(
         found = res.scalars().first()
         if found is not None:
             return found
+        res = await db.execute(
+            select(Lead)
+            .join(LeadExtraPhone, LeadExtraPhone.lead_id == Lead.id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(
+                and_(
+                    LeadExtraPhone.phone == phone,
+                    Lead.company_id == company_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                ),
+            )
+            .order_by(Lead.id.desc())
+            .limit(1),
+        )
+        found = res.scalars().first()
+        if found is not None:
+            return found
     if external_chat_id and thread_provider:
         res = await db.execute(
             select(Lead)
@@ -72,6 +99,15 @@ async def find_existing_lead(
             .limit(1),
         )
         found = res.scalars().first()
+        if found is not None:
+            return found
+    if phone:
+        found = await find_lead_by_any_phone(
+            db,
+            company_id=company_id,
+            phone=phone,
+            pipeline_id=pipeline_id,
+        )
         if found is not None:
             return found
     return None

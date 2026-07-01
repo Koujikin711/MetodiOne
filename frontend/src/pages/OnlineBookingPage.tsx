@@ -99,6 +99,7 @@ export function OnlineBookingPage() {
   const [newLeadStageId, setNewLeadStageId] = useState<number | null>(null);
   const [patientName, setPatientName] = useState("");
   const [patientPhone, setPatientPhone] = useState("");
+  const [extraPhones, setExtraPhones] = useState<string[]>([""]);
   const [specialistId, setSpecialistId] = useState(0);
   const [serviceTitle, setServiceTitle] = useState("");
   const [startAt, setStartAt] = useState("");
@@ -343,6 +344,7 @@ export function OnlineBookingPage() {
       }
       setPatientName("");
       setPatientPhone("");
+      setExtraPhones([""]);
       setComment("");
       setServiceTitle("");
       setServiceAmount("");
@@ -687,6 +689,7 @@ export function OnlineBookingPage() {
     const payload: Record<string, unknown> = {
       patient_name: patientName.trim(),
       patient_phone: patientPhone.trim(),
+      extra_phones: extraPhones.map((p) => p.trim()).filter(Boolean),
       specialist_id: specialistId,
       service_title: serviceTitle.trim(),
       start_at: startIso,
@@ -931,6 +934,46 @@ export function OnlineBookingPage() {
                       В запись сохранится: «{patientName.trim()}». WhatsApp уйдёт на номер из CRM.
                     </p>
                   ) : null}
+                  <div className="space-y-2">
+                    <p className="text-[11px] mo-muted leading-relaxed">
+                      Доп. номера (родитель / WhatsApp). Привязываются к лиду. Если основной номер не ответит менеджеру
+                      в течение 72 часов — следующие сообщения уйдут на первый доп. номер.
+                    </p>
+                    {extraPhones.map((ep, idx) => (
+                      <div key={idx} className="flex gap-2">
+                        <input
+                          type="tel"
+                          value={ep}
+                          onChange={(e) => {
+                            const next = [...extraPhones];
+                            next[idx] = e.target.value;
+                            setExtraPhones(next);
+                          }}
+                          placeholder={idx === 0 ? "+992 … доп. номер" : "Ещё номер"}
+                          className="min-w-0 flex-1 mo-input text-sm"
+                          autoComplete="off"
+                        />
+                        {extraPhones.length > 1 ? (
+                          <button
+                            type="button"
+                            className="shrink-0 rounded-lg border border-[var(--mo-border)] px-2 text-xs mo-muted hover:bg-[var(--mo-accent-soft)]"
+                            onClick={() => setExtraPhones(extraPhones.filter((_, i) => i !== idx))}
+                          >
+                            ✕
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                    {extraPhones.length < 5 ? (
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-[#8C6D31] hover:underline"
+                        onClick={() => setExtraPhones([...extraPhones, ""])}
+                      >
+                        + Добавить номер
+                      </button>
+                    ) : null}
+                  </div>
                   {patientSuggestOpen && patientFieldFocus === "name" && patientSuggestDebounced.length >= 2 ? (
                     <div className="absolute left-0 right-0 top-[4.5rem] z-[200] max-h-48 overflow-y-auto overscroll-contain rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] py-1 shadow-lg sm:top-full sm:max-h-56">
                       <div className="flex items-center justify-between gap-2 border-b border-[var(--mo-border)] px-3 py-1.5">

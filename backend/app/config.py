@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     # Часовой пояс для проверки графика специалистов и слотов записи
     # По умолчанию: Таджикистан (Душанбе)
     booking_timezone: str = "Asia/Dushanbe"
+    # Если основной номер лида не ответил менеджеру за N часов — WhatsApp уходит на доп. номер
+    whatsapp_primary_reply_timeout_hours: int = 72
 
     # Public URL фронтенда (для invite ссылок)
     public_app_url: str = ""
