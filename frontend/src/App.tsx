@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import {
@@ -99,6 +100,21 @@ export default function App() {
           </Route>
         </Route>
       </Routes>
+      <Toaster
+        position="top-center"
+        containerStyle={{ top: "5.5rem" }}
+        toastOptions={{
+          duration: 3800,
+          style: {
+            background: "#faf8f4",
+            color: "#1e3348",
+            padding: "14px 18px",
+            borderRadius: "12px",
+            boxShadow: "0 8px 24px -6px rgba(30, 51, 72, 0.15)",
+            border: "1px solid #d8d2c6",
+          },
+        }}
+      />
     </>
   );
 }

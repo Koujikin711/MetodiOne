@@ -31,8 +31,6 @@ import type {
   LeadTablePage,
   Pipeline,
   PipelineStage,
-  Task,
-  TaskListResponse,
   UserRole,
 } from "@/lib/types";
 
@@ -543,32 +541,6 @@ export function CrmPage() {
     void queryClient.invalidateQueries({ queryKey: ["tasks"] });
     void queryClient.invalidateQueries({ queryKey: ["analytics"] });
   }, [queryClient]);
-
-  const tasksQuery = useQuery({
-    queryKey: ["tasks"],
-    queryFn: () => apiFetch<Task[] | TaskListResponse>("/api/tasks?limit=120&offset=0&include_total=false"),
-    refetchInterval: 15000,
-  });
-  const tasks = useMemo(() => {
-    const d = tasksQuery.data;
-    if (!d) return [];
-    if (Array.isArray(d)) return d;
-    const items = (d as TaskListResponse).items;
-    return Array.isArray(items) ? items : [];
-  }, [tasksQuery.data]);
-  const [seenTaskIds, setSeenTaskIds] = useState<Set<number>>(() => new Set());
-  useEffect(() => {
-    if (tasks.length === 0) return;
-    const pendingNew = tasks.filter((t) => t.status === "pending" && !seenTaskIds.has(t.id));
-    if (pendingNew.length === 0) return;
-    pendingNew.forEach((t) => toast.success(t.title));
-    setSeenTaskIds((prev) => {
-      const next = new Set(prev);
-      pendingNew.forEach((t) => next.add(t.id));
-      return next;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks]);
 
   const pipelinesQuery = useQuery({
     queryKey: ["pipelines"],

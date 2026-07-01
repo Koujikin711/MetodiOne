@@ -20,13 +20,12 @@ import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import metodiMarkUrl from "@/assets/metodione-mark.svg?url";
-import { apiFetch, getStoredToken, setStoredToken } from "@/lib/api";
+import { getStoredToken, setStoredToken } from "@/lib/api";
 import { decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { useShellSidebarExpanded } from "@/hooks/useShellSidebarExpanded";
 import { appLexicon } from "@/lib/appLexicon";
-import type { ChatThread, Task, TaskListResponse } from "@/lib/types";
 
 function mobileBottomNavLinkClass({ isActive }: { isActive: boolean }) {
   return [
@@ -88,12 +87,6 @@ export function MainLayout() {
     navigate("/login", { replace: true });
   }
 
-  const prevUnreadRef = useRef<Record<number, number>>({});
-  const prevMyTaskIdsRef = useRef<Set<number>>(new Set());
-  const prevCreatedStatusesRef = useRef<Record<number, string>>({});
-  const notificationsInitializedRef = useRef(false);
-  const notificationsInFlightRef = useRef(false);
-  const isPageVisibleRef = useRef(typeof document !== "undefined" ? document.visibilityState === "visible" : true);
   const mainRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -101,118 +94,6 @@ export function MainLayout() {
     if (!main) return;
     main.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [location.pathname]);
-
-  useEffect(() => {
-    function pushBrowserNotification(title: string, body: string) {
-      if (typeof window === "undefined" || typeof Notification === "undefined") return;
-      if (Notification.permission === "granted") {
-        try {
-          const n = new Notification(title, { body });
-          window.setTimeout(() => n.close(), 7000);
-        } catch {
-          /* ignore browser notification errors */
-        }
-      } else if (Notification.permission === "default") {
-        void Notification.requestPermission();
-      }
-    }
-
-    const canUseTeamTasks = role === "owner" || role === "admin" || role === "manager";
-    const canUseChatNotifications = role === "owner" || role === "admin" || role === "manager" || role === "expert";
-    const isChatPage = location.pathname.startsWith("/chat");
-    const isTasksPage = location.pathname.startsWith("/tasks");
-    const isCrmPage = location.pathname.startsWith("/crm");
-
-    async function pollNotifications() {
-      if (notificationsInFlightRef.current) return;
-      if (!isPageVisibleRef.current) return;
-      try {
-        notificationsInFlightRef.current = true;
-        const [threads, myActiveTasks, createdActiveTasks, createdJournalTasks] = await Promise.all([
-          canUseChatNotifications && !isChatPage
-            ? apiFetch<ChatThread[]>("/api/chat/threads?limit=60&offset=0")
-            : Promise.resolve([]),
-          !isTasksPage && !isCrmPage
-            ? apiFetch<TaskListResponse>("/api/tasks?scope=my&journal=false&limit=80&offset=0&include_total=false")
-            : Promise.resolve({ items: [] } as TaskListResponse),
-          canUseTeamTasks && !isTasksPage && !isCrmPage
-            ? apiFetch<TaskListResponse>("/api/tasks?scope=team&journal=false&limit=120&offset=0&include_total=false")
-            : Promise.resolve({ items: [] } as TaskListResponse),
-          canUseTeamTasks && !isTasksPage && !isCrmPage
-            ? apiFetch<TaskListResponse>("/api/tasks?scope=team&journal=true&limit=120&offset=0&include_total=false")
-            : Promise.resolve({ items: [] } as TaskListResponse),
-        ]);
-
-        const nextUnread: Record<number, number> = {};
-        for (const th of threads) {
-          nextUnread[th.id] = Number(th.unread_count ?? 0);
-        }
-        if (notificationsInitializedRef.current) {
-          for (const th of threads) {
-            const prev = prevUnreadRef.current[th.id] ?? 0;
-            const curr = Number(th.unread_count ?? 0);
-            if (curr > prev) {
-              const label = th.lead_name || th.title || `Диалог #${th.id}`;
-              pushBrowserNotification("Новое сообщение", label);
-            }
-          }
-        }
-        prevUnreadRef.current = nextUnread;
-
-        const myTasks = myActiveTasks.items ?? [];
-        const nextMyIds = new Set(myTasks.map((t) => t.id));
-        if (notificationsInitializedRef.current) {
-          for (const t of myTasks) {
-            if (!prevMyTaskIdsRef.current.has(t.id)) {
-              pushBrowserNotification("Новая задача", t.title);
-            }
-          }
-        }
-        prevMyTaskIdsRef.current = nextMyIds;
-
-        if (userId != null) {
-          const createdTasks = [...(createdActiveTasks.items ?? []), ...(createdJournalTasks.items ?? [])].filter(
-            (t) => t.created_by_user_id === userId,
-          );
-          const nextStatuses: Record<number, string> = {};
-          for (const t of createdTasks) nextStatuses[t.id] = t.status;
-          if (notificationsInitializedRef.current) {
-            for (const t of createdTasks) {
-              const prevStatus = prevCreatedStatusesRef.current[t.id];
-              if (prevStatus && prevStatus !== t.status) {
-                const msg = `Статус задачи "${t.title}" изменён: ${t.status}`;
-                pushBrowserNotification("Обновление задачи", msg);
-              }
-            }
-          }
-          prevCreatedStatusesRef.current = nextStatuses;
-        }
-
-        notificationsInitializedRef.current = true;
-      } catch {
-        // silent: notifications should not break UI
-      } finally {
-        notificationsInFlightRef.current = false;
-      }
-    }
-
-    const onVisibilityChange = () => {
-      isPageVisibleRef.current = document.visibilityState === "visible";
-      if (isPageVisibleRef.current && location.pathname !== "/login") {
-        void pollNotifications();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    void pollNotifications();
-    const timer = window.setInterval(() => {
-      if (location.pathname === "/login") return;
-      void pollNotifications();
-    }, 15000);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.clearInterval(timer);
-    };
-  }, [location.pathname, role, userId]);
 
   return (
     <div className="relative h-screen overflow-hidden app-shell-bg">
