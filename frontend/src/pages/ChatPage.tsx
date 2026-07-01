@@ -86,6 +86,7 @@ function deliveryMeta(statusRaw: string | null | undefined): { label: string; to
 }
 
 function looksLikeImageAttachment(m: ChatMessage): boolean {
+  if ((m.message_type ?? "text") === "image") return true;
   const mime = (m.media_mime || "").toLowerCase();
   if (mime.startsWith("image/")) return true;
   const name = (m.file_name || "").trim();
@@ -130,23 +131,54 @@ function imageCaptionToShow(m: ChatMessage): string | null {
   return m.text;
 }
 
-function useProtectedMediaSrc(message: ChatMessage, enabled: boolean): string | null {
+function isProtectedApiMediaUrl(url: string | null | undefined): boolean {
+  const u = (url || "").trim();
+  if (!u) return true;
+  if (u.startsWith("/api/chat/messages/")) return true;
+  try {
+    const path = new URL(u, "https://example.com").pathname;
+    return /^\/api\/chat\/messages\/\d+\/media\/?$/i.test(path);
+  } catch {
+    return false;
+  }
+}
+
+function useProtectedMediaSrc(message: ChatMessage, enabled: boolean): {
+  src: string | null;
+  loading: boolean;
+  failed: boolean;
+} {
   const [src, setSrc] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (!enabled) {
       setSrc(null);
+      setLoading(false);
+      setFailed(false);
       return;
     }
     const external = (message.media_url || "").trim();
-    if (external && /^https?:\/\//i.test(external) && !external.toLowerCase().includes("downloadfile")) {
+    if (
+      external &&
+      /^https?:\/\//i.test(external) &&
+      !external.toLowerCase().includes("downloadfile") &&
+      !isProtectedApiMediaUrl(external)
+    ) {
       setSrc(external);
+      setLoading(false);
+      setFailed(false);
       return;
     }
 
     let cancelled = false;
     let objectUrl: string | null = null;
     const path = `/api/chat/messages/${message.id}/media`;
+
+    setLoading(true);
+    setFailed(false);
+    setSrc(null);
 
     void (async () => {
       try {
@@ -159,9 +191,17 @@ function useProtectedMediaSrc(message: ChatMessage, enabled: boolean): string | 
         if (!res.ok) throw new Error(String(res.status));
         const blob = await res.blob();
         objectUrl = URL.createObjectURL(blob);
-        if (!cancelled) setSrc(objectUrl);
+        if (!cancelled) {
+          setSrc(objectUrl);
+          setFailed(false);
+        }
       } catch {
-        if (!cancelled) setSrc(null);
+        if (!cancelled) {
+          setSrc(null);
+          setFailed(true);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
 
@@ -171,32 +211,63 @@ function useProtectedMediaSrc(message: ChatMessage, enabled: boolean): string | 
     };
   }, [message.id, message.media_url, enabled]);
 
-  return src;
+  return { src, loading, failed };
 }
 
 function MessageBody({ m }: { m: ChatMessage }) {
   const mt = m.message_type ?? "text";
   const showAsAudio = mt === "audio" || looksLikeAudioAttachment(m);
   const hasMedia = mt !== "text" || Boolean((m.media_url || "").trim());
-  const protectedSrc = useProtectedMediaSrc(m, hasMedia);
-  const url = protectedSrc ?? resolveMediaUrl(m.media_url);
+  const rawMedia = (m.media_url || "").trim();
+  const needsProtectedFetch =
+    hasMedia &&
+    (isProtectedApiMediaUrl(rawMedia) || !/^https?:\/\//i.test(rawMedia) || rawMedia.toLowerCase().includes("downloadfile"));
+  const { src: protectedSrc, loading: mediaLoading, failed: mediaFailed } = useProtectedMediaSrc(
+    m,
+    needsProtectedFetch,
+  );
+  const directUrl =
+    !needsProtectedFetch && rawMedia && /^https?:\/\//i.test(rawMedia) ? resolveMediaUrl(rawMedia) : null;
+  const url = protectedSrc ?? directUrl;
   const showAsImage =
-    !!url &&
     !showAsAudio &&
     mt !== "video" &&
     mt !== "audio" &&
     (mt === "image" || looksLikeImageAttachment(m));
 
-  if (showAsImage && url) {
+  if (showAsImage) {
     const cap = imageCaptionToShow(m);
-    return (
-      <div className="space-y-2">
-        <a href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg">
-          <img src={url} alt="" className="max-h-64 w-full object-contain" />
-        </a>
-        {cap ? <div>{cap}</div> : null}
-      </div>
-    );
+    if (url) {
+      return (
+        <div className="space-y-2">
+          <a href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg">
+            <img src={url} alt="" className="max-h-64 w-full object-contain" />
+          </a>
+          {cap ? <div>{cap}</div> : null}
+        </div>
+      );
+    }
+    if (mediaLoading) {
+      return (
+        <div className="space-y-2">
+          <div className="flex h-32 max-w-xs items-center justify-center rounded-lg bg-[var(--mo-surface-elevated)] text-xs lux-caption">
+            Загрузка фото…
+          </div>
+          {cap ? <div>{cap}</div> : null}
+        </div>
+      );
+    }
+    if (mediaFailed || m.text) {
+      return (
+        <div className="space-y-1">
+          <div className="text-sm">{m.text || "📷 Фото"}</div>
+          {mediaFailed ? (
+            <div className="text-[11px] lux-caption">Файл не найден — нажмите «Догрузить медиа» вверху чата</div>
+          ) : null}
+        </div>
+      );
+    }
+    return <div>{m.text || "📷 Фото"}</div>;
   }
 
   if (mt === "video" && url) {

@@ -955,11 +955,13 @@ async def get_message_media(
     company_id: CurrentCompanyId,
 ):
     msg = await db.get(ChatMessage, message_id)
-    if msg is None or msg.company_id != company_id:
+    if msg is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
     thread = await db.get(ChatThread, msg.thread_id)
     if thread is None or thread.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+    if msg.company_id is not None and msg.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
     await _assert_thread_access(db, thread, current_user)
     fpath = resolve_chat_media(message_id)
     if fpath is None or not fpath.exists():

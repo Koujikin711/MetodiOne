@@ -29,6 +29,16 @@ _MIME_EXT: dict[str, str] = {
 }
 
 
+def _media_search_directories() -> list[Path]:
+    """Основной каталог + legacy uploads/chat_media (файлы до persistent volume)."""
+    primary = chat_media_directory()
+    dirs = [primary]
+    legacy = _ROOT / "uploads" / "chat_media"
+    if legacy.resolve() != primary.resolve():
+        dirs.append(legacy)
+    return dirs
+
+
 def chat_media_directory() -> Path:
     """Путь к медиа: CHAT_MEDIA_DIR, /app/data/chat_media (Amvera), или uploads/chat_media локально."""
     configured = (settings.chat_media_dir or "").strip()
@@ -90,8 +100,10 @@ def resolve_outgoing_chat_media(message_id: int) -> Path | None:
 
 
 def resolve_chat_media(message_id: int) -> Path | None:
-    media_dir = chat_media_directory()
-    if not media_dir.exists():
-        return None
-    matches = sorted(media_dir.glob(f"{message_id}.*"))
-    return matches[0] if matches else None
+    for media_dir in _media_search_directories():
+        if not media_dir.exists():
+            continue
+        matches = sorted(media_dir.glob(f"{message_id}.*"))
+        if matches:
+            return matches[0]
+    return None
