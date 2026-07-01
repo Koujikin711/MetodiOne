@@ -17,7 +17,6 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { TariffFeatureOutletGate } from "@/components/TariffFeatureOutletGate";
 import { GradientIconBox } from "@/components/GradientIconBox";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
-import toast from "react-hot-toast";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import metodiMarkUrl from "@/assets/metodione-mark.svg?url";
@@ -154,7 +153,6 @@ export function MainLayout() {
             const curr = Number(th.unread_count ?? 0);
             if (curr > prev) {
               const label = th.lead_name || th.title || `Диалог #${th.id}`;
-              toast(`Новое сообщение в чате: ${label}`);
               pushBrowserNotification("Новое сообщение", label);
             }
           }
@@ -166,7 +164,6 @@ export function MainLayout() {
         if (notificationsInitializedRef.current) {
           for (const t of myTasks) {
             if (!prevMyTaskIdsRef.current.has(t.id)) {
-              toast(`Вам назначена новая задача: ${t.title}`);
               pushBrowserNotification("Новая задача", t.title);
             }
           }
@@ -184,7 +181,6 @@ export function MainLayout() {
               const prevStatus = prevCreatedStatusesRef.current[t.id];
               if (prevStatus && prevStatus !== t.status) {
                 const msg = `Статус задачи "${t.title}" изменён: ${t.status}`;
-                toast(msg);
                 pushBrowserNotification("Обновление задачи", msg);
               }
             }
