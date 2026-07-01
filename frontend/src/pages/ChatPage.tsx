@@ -102,6 +102,25 @@ function looksLikeImageAttachment(m: ChatMessage): boolean {
   return false;
 }
 
+const AUDIO_EXT_RE = /\.(ogg|opus|mp3|m4a|aac|amr|webm|wav)(\?|#|$)/i;
+
+function looksLikeAudioAttachment(m: ChatMessage): boolean {
+  const mime = (m.media_mime || "").toLowerCase().split(";")[0].trim();
+  if (mime.startsWith("audio/")) return true;
+  const name = (m.file_name || "").trim();
+  if (name && AUDIO_EXT_RE.test(name)) return true;
+  const raw = (m.media_url || "").trim();
+  if (raw) {
+    try {
+      const path = new URL(raw, "https://example.com").pathname;
+      if (AUDIO_EXT_RE.test(path)) return true;
+    } catch {
+      /* ignore */
+    }
+  }
+  return false;
+}
+
 function imageCaptionToShow(m: ChatMessage): string | null {
   const t = (m.text || "").trim();
   if (!t) return null;
@@ -157,11 +176,13 @@ function useProtectedMediaSrc(message: ChatMessage, enabled: boolean): string | 
 
 function MessageBody({ m }: { m: ChatMessage }) {
   const mt = m.message_type ?? "text";
+  const showAsAudio = mt === "audio" || looksLikeAudioAttachment(m);
   const hasMedia = mt !== "text" || Boolean((m.media_url || "").trim());
   const protectedSrc = useProtectedMediaSrc(m, hasMedia);
   const url = protectedSrc ?? resolveMediaUrl(m.media_url);
   const showAsImage =
     !!url &&
+    !showAsAudio &&
     mt !== "video" &&
     mt !== "audio" &&
     (mt === "image" || looksLikeImageAttachment(m));
@@ -187,10 +208,10 @@ function MessageBody({ m }: { m: ChatMessage }) {
     );
   }
 
-  if (mt === "audio" && url) {
+  if (showAsAudio && url) {
     return (
       <div className="space-y-2">
-        <audio src={url} controls className="w-full max-w-sm" />
+        <audio src={url} controls className="w-full max-w-sm" preload="metadata" />
         {m.text && !m.text.startsWith("🎵") && !m.text.startsWith("🎤") && <div>{m.text}</div>}
       </div>
     );
@@ -529,6 +550,27 @@ export function ChatPage() {
       void qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
       void qc.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const repairMediaMutation = useMutation({
+    mutationFn: async () => {
+      if (threadId == null) throw new Error("Нет диалога");
+      return apiFetch<{ checked: number; repaired: number; failed: number }>(
+        `/api/chat/threads/${threadId}/repair-media`,
+        { method: "POST" },
+      );
+    },
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
+      if (data.repaired > 0) {
+        toast.success(`Догружено медиа: ${data.repaired}`);
+      } else if (data.failed > 0) {
+        toast.error(`Не удалось догрузить: ${data.failed} (ссылки Green API могли истечь)`);
+      } else {
+        toast.success("Все медиа уже на сервере");
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -894,6 +936,15 @@ export function ChatPage() {
                     </>
                   ) : null}
                 </div>
+                <button
+                  type="button"
+                  className="btn-secondary shrink-0 px-2.5 py-1.5 text-xs sm:text-sm"
+                  disabled={repairMediaMutation.isPending}
+                  onClick={() => repairMediaMutation.mutate()}
+                  title="Догрузить голосовые и фото, если не отображаются"
+                >
+                  {repairMediaMutation.isPending ? "Догрузка…" : "Догрузить медиа"}
+                </button>
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col">

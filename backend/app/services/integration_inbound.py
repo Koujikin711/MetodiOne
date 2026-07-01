@@ -225,6 +225,28 @@ async def message_exists_by_provider_id(db: AsyncSession, company_id: int, provi
     return (await db.execute(q)).scalar() is not None
 
 
+async def find_incoming_message_by_provider_id(
+    db: AsyncSession,
+    company_id: int,
+    provider_message_id: str | None,
+) -> ChatMessage | None:
+    pid = (provider_message_id or "").strip()
+    if not pid:
+        return None
+    return (
+        await db.execute(
+            select(ChatMessage)
+            .where(
+                ChatMessage.company_id == company_id,
+                ChatMessage.provider_message_id == pid,
+                ChatMessage.direction == "in",
+            )
+            .order_by(ChatMessage.id.desc())
+            .limit(1),
+        )
+    ).scalars().first()
+
+
 async def add_incoming_message(
     db: AsyncSession,
     company_id: int,

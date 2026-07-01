@@ -18,6 +18,14 @@ _IMAGE_EXT = (
 )
 
 
+def _is_audio_file(name: str, mime: str | None) -> bool:
+    m = (mime or "").lower().split(";")[0].strip()
+    if m.startswith("audio/"):
+        return True
+    low = name.lower()
+    return low.endswith((".ogg", ".opus", ".mp3", ".m4a", ".aac", ".amr", ".webm", ".wav"))
+
+
 def _is_image_file(name: str, mime: str | None) -> bool:
     m = (mime or "").lower()
     if m.startswith("image/"):
@@ -84,6 +92,9 @@ def parse_green_message_data(message_data: dict[str, Any]) -> tuple[str, str, st
         if _is_image_file(fn, mime):
             label = cap or "📷 Фото"
             return label, "image", url, mime, fn
+        if _is_audio_file(fn, mime):
+            label = cap or "🎤 Голосовое сообщение"
+            return label, "audio", url, mime, fn
         label = cap or f"📎 {fn}"
         return label, "document", url, mime, fn
 
@@ -97,6 +108,9 @@ def parse_green_message_data(message_data: dict[str, Any]) -> tuple[str, str, st
         if _is_image_file(fn, mime):
             label = cap or "📷 Фото"
             return label, "image", url, mime or "image/jpeg", fn
+        if _is_audio_file(fn, mime):
+            label = cap or "🎤 Голосовое сообщение"
+            return label, "audio", url, mime or "audio/ogg", fn
         label = cap or "📎 Вложение"
         return label, "document", url, mime, fn
 
@@ -171,6 +185,8 @@ def parse_green_journal_message(msg: dict[str, Any]) -> tuple[str, str, str | No
         mime = msg.get("mimeType") or "application/octet-stream"
         if _is_image_file(str(fn), mime):
             return cap or "📷 Фото", "image", url, mime, fn
+        if _is_audio_file(str(fn), mime):
+            return cap or "🎤 Голосовое сообщение", "audio", url, mime, fn
         return cap or f"📎 {fn}", "document", url, mime, fn
 
     if tm in ("locationmessage",):

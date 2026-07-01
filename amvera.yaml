@@ -5,3 +5,5 @@ meta:
 
 run:
   containerPort: 8000
+  # Постоянное хранилище: медиа чата (голосовые, фото) в /app/data/chat_media
+  persistenceMount: /app/data

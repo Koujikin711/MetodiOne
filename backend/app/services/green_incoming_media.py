@@ -8,12 +8,48 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ChatMessage, ChatThread, Integration, IntegrationProvider
+from app.services.audio_prepare import prepare_incoming_audio_for_playback
 from app.services.chat_media_store import local_media_exists, save_chat_media
 from app.services.green_media_fetch import download_green_incoming_media, fetch_url_bytes
 
 logger = logging.getLogger(__name__)
 
 _MEDIA_TYPES = frozenset({"image", "video", "audio", "document"})
+
+
+def _should_transcode_audio(message_type: str | None, mime: str | None, file_name: str | None) -> bool:
+    mt = (message_type or "").strip().lower()
+    if mt == "audio":
+        return True
+    m = (mime or "").split(";")[0].strip().lower()
+    if m.startswith("audio/") and m != "audio/mpeg":
+        return True
+    low = (file_name or "").lower()
+    return low.endswith((".ogg", ".opus", ".webm", ".amr", ".m4a"))
+
+
+async def _store_message_media(
+    msg: ChatMessage,
+    *,
+    content: bytes,
+    file_name: str | None,
+    mime: str | None,
+    message_type: str | None = None,
+) -> bool:
+    if msg.id is None:
+        return False
+    out_bytes = content
+    out_name = file_name
+    out_mime = mime
+    if _should_transcode_audio(message_type or msg.message_type, mime, file_name):
+        out_bytes, out_name, out_mime = await prepare_incoming_audio_for_playback(content, file_name, mime)
+    stored = save_chat_media(msg.id, out_name, out_bytes, mime=out_mime)
+    msg.media_url = stored
+    if out_mime:
+        msg.media_mime = out_mime
+    if out_name and not msg.file_name:
+        msg.file_name = out_name
+    return True
 
 
 async def persist_incoming_green_media(
@@ -26,6 +62,7 @@ async def persist_incoming_green_media(
     download_url: str | None,
     file_name: str | None,
     media_mime: str | None,
+    message_type: str | None = None,
 ) -> bool:
     """Скачивает файл и подменяет media_url на /api/chat/messages/{id}/media."""
     if msg.id is None:
@@ -56,10 +93,13 @@ async def persist_incoming_green_media(
         logger.info("incoming green media not downloaded msg_id=%s chat=%s", msg.id, chat_id)
         return False
 
-    stored = save_chat_media(msg.id, file_name, content)
-    msg.media_url = stored
-    if mime:
-        msg.media_mime = mime
+    await _store_message_media(
+        msg,
+        content=content,
+        file_name=file_name,
+        mime=mime,
+        message_type=message_type or msg.message_type,
+    )
     await db.flush()
     return True
 
@@ -111,12 +151,58 @@ async def ensure_chat_message_media_local(
     if not content:
         return False
 
-    stored = save_chat_media(msg.id, msg.file_name, content)
-    msg.media_url = stored
-    if mime:
-        msg.media_mime = mime
+    await _store_message_media(
+        msg,
+        content=content,
+        file_name=msg.file_name,
+        mime=mime,
+        message_type=msg.message_type,
+    )
     await db.flush()
     return True
+
+
+async def repair_thread_media(
+    db: AsyncSession,
+    *,
+    thread: ChatThread,
+    limit: int = 80,
+) -> dict[str, int]:
+    """Догружает отсутствующие локальные файлы для медиа-сообщений в диалоге."""
+    rows = (
+        await db.execute(
+            select(ChatMessage)
+            .where(
+                ChatMessage.thread_id == thread.id,
+                ChatMessage.company_id == thread.company_id,
+                ChatMessage.message_type.in_(tuple(_MEDIA_TYPES)),
+            )
+            .order_by(ChatMessage.id.desc())
+            .limit(limit),
+        )
+    ).scalars().all()
+
+    checked = 0
+    repaired = 0
+    failed = 0
+    for msg in rows:
+        if msg.id is None:
+            continue
+        checked += 1
+        if local_media_exists(msg.id):
+            if (msg.media_url or "").strip() != f"/api/chat/messages/{msg.id}/media":
+                msg.media_url = f"/api/chat/messages/{msg.id}/media"
+                repaired += 1
+            continue
+        ok = await ensure_chat_message_media_local(db, msg=msg, thread=thread)
+        if ok:
+            repaired += 1
+        else:
+            failed += 1
+
+    if repaired:
+        await db.flush()
+    return {"checked": checked, "repaired": repaired, "failed": failed}
 
 
 async def persist_incoming_green_media_if_needed(
@@ -145,4 +231,5 @@ async def persist_incoming_green_media_if_needed(
         download_url=download_url,
         file_name=file_name,
         media_mime=media_mime,
+        message_type=mt,
     )
