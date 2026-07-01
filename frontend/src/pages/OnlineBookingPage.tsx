@@ -56,6 +56,28 @@ function phoneFromPatientSuggest(item: BookingPatientSuggestItem): string {
   return "";
 }
 
+function phonesMatchSuggest(termDigits: string, itemPhone: string): boolean {
+  const itemPhoneDigits = (itemPhone || "").replace(/\D/g, "");
+  if (termDigits.length < 4 || itemPhoneDigits.length < 4) return false;
+  return (
+    itemPhoneDigits.includes(termDigits) ||
+    (termDigits.length >= 9 &&
+      itemPhoneDigits.length >= 9 &&
+      termDigits.slice(-9) === itemPhoneDigits.slice(-9))
+  );
+}
+
+function nameMatchesSuggest(term: string, itemName: string): boolean {
+  const itemNameNorm = itemName.trim().toLowerCase();
+  const termNorm = term.trim().toLowerCase();
+  if (!termNorm || !itemNameNorm) return false;
+  return (
+    itemNameNorm === termNorm ||
+    (termNorm.length >= 3 && itemNameNorm.startsWith(termNorm)) ||
+    (termNorm.length >= 3 && itemNameNorm.includes(termNorm))
+  );
+}
+
 function patientSuggestItemKey(item: BookingPatientSuggestItem): string {
   return `${item.lead_id ?? "n"}|${item.patient_name}|${item.patient_phone}`;
 }
@@ -212,11 +234,7 @@ export function OnlineBookingPage() {
       apiFetch<BookingPatientSuggestItem[]>(
         `/api/booking/patient-suggest?q=${encodeURIComponent(patientSuggestDebounced)}&limit=12`,
       ),
-    enabled:
-      canEditBooking &&
-      leadId == null &&
-      patientSuggestDebounced.length >= 2 &&
-      patientSuggestOpen,
+    enabled: canEditBooking && patientSuggestDebounced.length >= 2,
   });
 
   useEffect(() => {
@@ -230,9 +248,10 @@ export function OnlineBookingPage() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [patientSuggestOpen]);
 
+  /** Явный выбор из списка — подставляет имя из CRM/WhatsApp. */
   function applyPatientSuggestion(item: BookingPatientSuggestItem, opts?: { silent?: boolean }) {
     setPatientName(item.patient_name);
-    setPatientPhone(phoneFromPatientSuggest(item));
+    setPatientPhone(phoneFromPatientSuggest(item) || patientPhone);
     if (item.lead_id != null) {
       setLeadId(item.lead_id);
       setNewLeadPipelineId(null);
@@ -240,13 +259,29 @@ export function OnlineBookingPage() {
     }
     setPatientSuggestOpen(false);
     setPatientFieldFocus(null);
+    lastAutoSuggestKeyRef.current = patientSuggestItemKey(item);
     if (!opts?.silent) {
       toast.success(item.lead_id != null ? "Клиент из CRM подставлен" : "Данные клиента подставлены");
     }
   }
 
+  /** Автопривязка по телефону: CRM остаётся, имя не перезаписываем, если уже введено. */
+  function autoLinkPatientFromSuggestion(item: BookingPatientSuggestItem) {
+    const phone = phoneFromPatientSuggest(item);
+    if (phone) setPatientPhone(phone);
+    if (item.lead_id != null) {
+      setLeadId(item.lead_id);
+      setNewLeadPipelineId(null);
+      setNewLeadStageId(null);
+    }
+    if (!patientName.trim()) {
+      setPatientName(item.patient_name);
+    }
+    lastAutoSuggestKeyRef.current = patientSuggestItemKey(item);
+  }
+
   useEffect(() => {
-    if (!canEditBooking || !patientSuggestOpen) return;
+    if (!canEditBooking) return;
     if (patientSuggestDebounced.length < 2) {
       lastAutoSuggestKeyRef.current = null;
       return;
@@ -258,40 +293,30 @@ export function OnlineBookingPage() {
       return;
     }
     const item = items[0];
-    const term = patientSuggestDebounced.trim().toLowerCase();
-    const itemName = item.patient_name.trim().toLowerCase();
-    const phoneDigits = patientSuggestDebounced.replace(/\D/g, "");
-    const itemPhoneDigits = (item.patient_phone || "").replace(/\D/g, "");
-    const nameMatches =
-      itemName === term ||
-      (term.length >= 3 && itemName.startsWith(term)) ||
-      (term.length >= 3 && itemName.includes(term));
-    const phoneMatches =
-      phoneDigits.length >= 4 &&
-      itemPhoneDigits.length >= 4 &&
-      (itemPhoneDigits.includes(phoneDigits) ||
-        (phoneDigits.length >= 9 &&
-          itemPhoneDigits.length >= 9 &&
-          phoneDigits.slice(-9) === itemPhoneDigits.slice(-9)));
-    if (!nameMatches && !phoneMatches) return;
+    const term = patientSuggestDebounced.trim();
+    const phoneDigits = term.replace(/\D/g, "");
+    const matched =
+      nameMatchesSuggest(term, item.patient_name) ||
+      phonesMatchSuggest(phoneDigits, item.patient_phone);
+
+    if (!matched) return;
 
     const key = patientSuggestItemKey(item);
     if (lastAutoSuggestKeyRef.current === key) return;
 
-    const alreadyFilled =
-      patientName.trim() === item.patient_name.trim() &&
-      (item.lead_id != null ? leadId === item.lead_id : leadId == null) &&
-      (patientPhone.trim() !== "" || item.lead_id != null || phoneFromPatientSuggest(item) === "");
-    if (alreadyFilled) {
+    const phoneOk = phonesMatchSuggest(patientPhone.replace(/\D/g, ""), item.patient_phone);
+    const alreadyLinked =
+      item.lead_id != null &&
+      leadId === item.lead_id &&
+      (phoneOk || phonesMatchSuggest(phoneDigits, item.patient_phone));
+    if (alreadyLinked) {
       lastAutoSuggestKeyRef.current = key;
       return;
     }
 
-    lastAutoSuggestKeyRef.current = key;
-    applyPatientSuggestion(item, { silent: true });
+    autoLinkPatientFromSuggestion(item);
   }, [
     canEditBooking,
-    patientSuggestOpen,
     patientSuggestDebounced,
     patientSuggestQuery.isSuccess,
     patientSuggestQuery.isFetching,
@@ -836,13 +861,14 @@ export function OnlineBookingPage() {
                   <form onSubmit={onSubmit} className="space-y-2.5">
                 {leadId != null && (
                   <p className="text-xs text-[var(--mo-success)]">
-                    Привязан лид #{leadId} — карточка уже в CRM, новая не создаётся. Менеджер сохранится.
+                    Телефон привязан к CRM (лид #{leadId}). Имя в записи можно изменить — например, указать
+                    ребёнка; карточка клиента в CRM не переименуется.
                   </p>
                 )}
                 <div ref={patientSuggestRef} className="relative space-y-2.5">
                   <p className="text-[11px] mo-muted">
-                    Начните вводить имя или телефон — если клиент уже есть, данные подставятся автоматически
-                    или выберите его из списка.
+                    Введите телефон — CRM подставит номер и привязку. Имя пациента (ФИО ребёнка) можно написать
+                    или изменить вручную.
                   </p>
                   <label className="block text-sm mo-muted">
                     Пациент / клиент
@@ -852,7 +878,6 @@ export function OnlineBookingPage() {
                       onChange={(e) => {
                         setPatientName(e.target.value);
                         setPatientSuggestOpen(true);
-                        if (leadId != null) setLeadId(null);
                         lastAutoSuggestKeyRef.current = null;
                       }}
                       onFocus={() => {
@@ -875,8 +900,11 @@ export function OnlineBookingPage() {
                       value={patientPhone}
                       onChange={(e) => {
                         setPatientPhone(e.target.value);
-                        if (leadId != null) setLeadId(null);
                         lastAutoSuggestKeyRef.current = null;
+                        if (leadId != null) {
+                          const digits = e.target.value.replace(/\D/g, "");
+                          if (digits.length < 4) setLeadId(null);
+                        }
                       }}
                       onFocus={() => {
                         setPatientFieldFocus("phone");
@@ -895,7 +923,12 @@ export function OnlineBookingPage() {
                   </label>
                   {leadId != null && !patientPhone.trim() ? (
                     <p className="text-[11px] text-[var(--mo-success)]">
-                      Телефон подставится из карточки лида #{leadId}. Можете изменить имя или дописать телефон.
+                      Телефон возьмётся из карточки лида #{leadId}.
+                    </p>
+                  ) : null}
+                  {leadId != null && patientName.trim() ? (
+                    <p className="text-[11px] mo-muted">
+                      В запись сохранится: «{patientName.trim()}». WhatsApp уйдёт на номер из CRM.
                     </p>
                   ) : null}
                   {patientSuggestOpen && patientFieldFocus === "name" && patientSuggestDebounced.length >= 2 ? (
