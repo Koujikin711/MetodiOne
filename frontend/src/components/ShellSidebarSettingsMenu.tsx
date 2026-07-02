@@ -16,11 +16,9 @@ type Props = {
 function SettingsSubLink({
   item,
   expanded,
-  onNavigate,
 }: {
   item: ShellSidebarNavItem;
   expanded: boolean;
-  onNavigate: () => void;
 }) {
   if (!expanded) {
     return (
@@ -29,7 +27,6 @@ function SettingsSubLink({
         end={item.end}
         preventScrollReset
         title={item.title}
-        onClick={onNavigate}
         className={({ isActive }) =>
           ["shell-nav-link shell-settings-sub-link", isActive ? "is-active" : ""].filter(Boolean).join(" ")
         }
@@ -48,7 +45,6 @@ function SettingsSubLink({
       end={item.end}
       preventScrollReset
       title={item.title}
-      onClick={onNavigate}
       className={({ isActive }) =>
         ["shell-settings-text-link", isActive ? "is-active" : ""].filter(Boolean).join(" ")
       }
@@ -69,8 +65,10 @@ export function ShellSidebarSettingsMenu({ items, expanded, onLogout }: Props) {
   });
 
   useEffect(() => {
-    setOpen(false);
-  }, [location.pathname]);
+    if (routeActive) {
+      setOpen(true);
+    }
+  }, [routeActive, location.pathname]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -104,7 +102,7 @@ export function ShellSidebarSettingsMenu({ items, expanded, onLogout }: Props) {
       {open ? (
         <div className="shell-settings-panel" role="menu">
           {items.map((item) => (
-            <SettingsSubLink key={item.id} item={item} expanded={expanded} onNavigate={() => setOpen(false)} />
+            <SettingsSubLink key={item.id} item={item} expanded={expanded} />
           ))}
           {!expanded ? (
             <>
@@ -119,7 +117,6 @@ export function ShellSidebarSettingsMenu({ items, expanded, onLogout }: Props) {
                 role="menuitem"
                 className="shell-nav-link shell-settings-sub-link shell-settings-sub-link--logout"
                 onClick={() => {
-                  setOpen(false);
                   onLogout();
                 }}
               >
@@ -139,7 +136,6 @@ export function ShellSidebarSettingsMenu({ items, expanded, onLogout }: Props) {
                 role="menuitem"
                 className="shell-settings-text-link shell-settings-text-link--logout"
                 onClick={() => {
-                  setOpen(false);
                   onLogout();
                 }}
               >
