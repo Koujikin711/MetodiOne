@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
@@ -65,19 +65,12 @@ export function ServiceCatalogPage() {
 
   const pipelineOptions = useMemo(() => pipelinesQ.data ?? [], [pipelinesQ.data]);
 
-  useEffect(() => {
-    if (!pipelineOptions.length) return;
-    if (pipelineId === "" || !pipelineOptions.some((p) => p.id === pipelineId)) {
-      setPipelineId(pipelineOptions[0].id);
-    }
-  }, [pipelineOptions, pipelineId]);
-
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-10">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--mo-text)]">Конструктор услуг</h1>
-          <p className="mt-1 text-sm lux-caption">Карточки клиента · произвольное число этапов оплаты.</p>
+          <p className="mt-1 text-sm lux-caption">Каталог привязан к воронке. Произвольное число этапов оплаты.</p>
         </div>
         <button type="button" className="btn-secondary text-sm" disabled={migrateMut.isPending} onClick={() => migrateMut.mutate()}>
           Импорт из записей
@@ -85,7 +78,21 @@ export function ServiceCatalogPage() {
       </header>
 
       <section className="mo-section p-4">
-        <h2 className="text-base font-semibold text-[var(--mo-text)]">Карточки клиента</h2>
+        <label className="text-sm lux-caption">
+          Воронка
+          <select
+            className="mo-input mt-1"
+            value={pipelineId}
+            onChange={(e) => setPipelineId(e.target.value ? Number(e.target.value) : "")}
+          >
+            <option value="">— выберите —</option>
+            {pipelineOptions.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </section>
 
       {pid != null && (
@@ -136,7 +143,7 @@ export function ServiceCatalogPage() {
           </section>
 
           <section className="mo-section p-4">
-            <h2 className="mb-3 lux-subheading">Карточки клиента</h2>
+            <h2 className="mb-3 lux-subheading">Каталог воронки</h2>
             {(templatesQ.data ?? []).map((t) => (
               <div key={t.id} className="mb-2 rounded-xl border border-[var(--mo-border)] p-3">
                 <div className="font-semibold">{t.name}</div>
