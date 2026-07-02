@@ -38,7 +38,7 @@ import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const GRID_START_HOUR = 7;
 const GRID_END_HOUR = 20;
-const PX_PER_HOUR = 48;
+const PX_PER_HOUR = 56;
 const SPEC_HEADER_PX = 42;
 const SLOT_STEP_MIN = 30;
 
@@ -443,16 +443,16 @@ function SortableSpecialistColumn({
           const narrow = laneCount > 1;
           const note = (a.comment || "").trim();
           const serviceLine = (a.service_title || "").trim();
-          const leadTitle = a.lead_id ? `Клиент #${a.lead_id} в CRM` : "Нет лида в MetodiOne";
+          const leadTitle = a.lead_id ? "Открыть карточку клиента" : "Нет лида в MetodiOne";
           const cardHeightPx = (heightPct / 100) * gridHeightPx;
-          const density: "xs" | "sm" | "md" | "lg" =
-            cardHeightPx < 52 ? "xs" : cardHeightPx < 72 ? "sm" : cardHeightPx < 104 ? "md" : "lg";
+          const showFooter = !narrow && cardHeightPx >= 72;
+          const showNoteLine = Boolean(note) && cardHeightPx >= 40;
           const cardTitle = [
             a.patient_name,
             formatAppointmentTimeOnCard(a.start_at, a.end_at, false),
             serviceLine || null,
             note ? `Заметка: ${note}` : null,
-            leadTitle,
+            a.lead_id ? `#${a.lead_id}` : "без лида",
           ]
             .filter(Boolean)
             .join(" · ");
@@ -469,6 +469,23 @@ function SortableSpecialistColumn({
                 zIndex: 20 + lane,
               }}
             >
+              {note ? (
+                <div
+                  role="tooltip"
+                  className="pointer-events-none absolute bottom-full left-1/2 z-[80] mb-1 hidden w-max max-w-[min(280px,92vw)] -translate-x-1/2 rounded-lg border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-2.5 py-1.5 text-[11px] leading-snug text-[var(--mo-text)] shadow-lg group-hover/appt:block"
+                >
+                  {serviceLine ? (
+                    <p>
+                      <span className="font-semibold text-[var(--mo-text-muted)]">Услуга: </span>
+                      {serviceLine}
+                    </p>
+                  ) : null}
+                  <p className={serviceLine ? "mt-1" : ""}>
+                    <span className="font-semibold text-[var(--mo-text-muted)]">Заметка: </span>
+                    {note}
+                  </p>
+                </div>
+              ) : null}
               <button
                 type="button"
                 draggable
@@ -478,30 +495,39 @@ function SortableSpecialistColumn({
                 }}
                 onClick={() => onAppointmentClick(a)}
                 className={[
-                  "booking-appt-card flex h-full min-h-0 w-full flex-col overflow-hidden rounded-lg text-left",
-                  narrow ? "px-1 py-0.5" : "px-1.5 py-1",
+                  "flex h-full min-h-0 w-full flex-col overflow-hidden rounded-lg text-left text-xs",
+                  narrow ? "px-1 py-0.5" : "px-2 py-1",
                   cls,
                   appointmentHoverClass,
                 ].join(" ")}
                 title={cardTitle}
               >
-                <div className="flex min-h-0 items-start justify-between gap-1">
+                <div className="flex min-h-0 shrink-0 items-start justify-between gap-1">
                   <span
                     className={[
                       "min-w-0 flex-1 font-semibold leading-tight",
-                      density === "xs" ? "line-clamp-1 text-[10px]" : "line-clamp-2 text-[11px]",
+                      narrow ? "line-clamp-1 text-[10px]" : "line-clamp-2 text-[12px]",
                     ].join(" ")}
                   >
                     {a.patient_name}
                   </span>
                   <div className="flex shrink-0 flex-col items-end leading-none">
                     {showSessionInsteadOfTime ? (
-                      <span className="whitespace-nowrap text-[10px] font-bold tabular-nums" title={visitDisplayTitle(a)}>
+                      <span
+                        className={[
+                          "whitespace-nowrap font-bold tabular-nums",
+                          narrow ? "text-[10px]" : "text-[11px]",
+                        ].join(" ")}
+                        title={visitDisplayTitle(a)}
+                      >
                         {visitDisplayValue(a) ?? "—"}
                       </span>
                     ) : (
                       <span
-                        className="whitespace-nowrap text-[10px] font-bold tabular-nums opacity-95"
+                        className={[
+                          "whitespace-nowrap font-bold tabular-nums",
+                          narrow ? "text-[9px]" : "text-[10px]",
+                        ].join(" ")}
                         title={formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
                       >
                         {formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow)}
@@ -514,20 +540,28 @@ function SortableSpecialistColumn({
                     ) : null}
                   </div>
                 </div>
-                {density !== "xs" && serviceLine ? (
-                  <p className="mt-0.5 line-clamp-1 text-[9px] font-medium leading-tight opacity-95">{serviceLine}</p>
-                ) : null}
-                {density === "md" || density === "lg" ? (
-                  note ? (
-                    <p className={["mt-0.5 leading-tight opacity-85", density === "lg" ? "line-clamp-2 text-[9px]" : "line-clamp-1 text-[9px]"].join(" ")}>
-                      {note}
-                    </p>
-                  ) : null
-                ) : null}
-                {density === "lg" && !showSessionInsteadOfTime && visitDisplayValue(a) ? (
-                  <p className="mt-auto line-clamp-1 pt-0.5 text-[9px] font-semibold tabular-nums opacity-80" title={visitDisplayTitle(a)}>
-                    {visitDisplayValue(a)}
+                <p className="mt-0.5 line-clamp-1 shrink-0 text-[9px] font-medium leading-tight opacity-95 booking-appt-meta">
+                  {serviceLine || "—"}
+                </p>
+                {showNoteLine ? (
+                  <p className="mt-0.5 line-clamp-1 shrink-0 text-[9px] italic leading-tight opacity-85" title={note}>
+                    {note}
                   </p>
+                ) : null}
+                {showFooter ? (
+                  <div className="booking-appt-meta mt-auto flex shrink-0 items-center gap-1 pt-0.5 text-[9px]">
+                    <span className="booking-appt-badge rounded px-1 py-0.5 font-medium">MetodiOne</span>
+                    {a.lead_id ? (
+                      <span className="font-semibold opacity-90">#{a.lead_id}</span>
+                    ) : (
+                      <span className="opacity-80">без лида</span>
+                    )}
+                    {!showSessionInsteadOfTime && visitDisplayValue(a) ? (
+                      <span className="font-bold tabular-nums" title={visitDisplayTitle(a)}>
+                        · {visitDisplayValue(a)}
+                      </span>
+                    ) : null}
+                  </div>
                 ) : null}
               </button>
             </div>

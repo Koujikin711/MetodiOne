@@ -769,11 +769,6 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   border-width: 1px;
   border-style: solid;
 }
-
-.booking-appt-card {
-  @apply text-xs;
-  justify-content: flex-start;
-}
 .booking-appt--booked {
   background: var(--booking-appt-booked-bg);
   border-color: var(--booking-appt-booked-border);
