@@ -843,9 +843,9 @@ export function OnlineBookingPage() {
               Месяц
             </button>
             <div className="flex flex-wrap items-center gap-2 text-[11px]">
-              <span className="booking-appt booking-appt--booked rounded-md px-2.5 py-1 font-semibold shadow-sm">Записан</span>
-              <span className="booking-appt booking-appt--notify rounded-md px-2.5 py-1 font-semibold shadow-sm">Уведомление отправлено</span>
-              <span className="booking-appt booking-appt--replied rounded-md px-2.5 py-1 font-semibold shadow-sm">Клиент ответил</span>
+              <span className="booking-appt booking-appt--booked rounded px-2 py-0.5 font-semibold">Записан</span>
+              <span className="booking-appt booking-appt--notify rounded px-2 py-0.5 font-semibold">Уведомление отправлено</span>
+              <span className="booking-appt booking-appt--replied rounded px-2 py-0.5 font-semibold">Клиент ответил</span>
             </div>
           </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_min(100%,280px)] xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">

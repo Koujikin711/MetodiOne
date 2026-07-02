@@ -24,7 +24,7 @@ import {
   type SetStateAction,
 } from "react";
 
-import { GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "@/components/icons";
+import { CheckCircle2, FileText, GripVertical, MessageCircle, MoreHorizontal, Pencil, Phone, Plus, Trash2 } from "@/components/icons";
 import {
   BOOKING_TIME_ZONE,
   formatAppointmentTimeOnCard,
@@ -38,7 +38,7 @@ import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const GRID_START_HOUR = 7;
 const GRID_END_HOUR = 20;
-const PX_PER_HOUR = 68;
+const PX_PER_HOUR = 64;
 const SPEC_HEADER_PX = 42;
 const SLOT_STEP_MIN = 30;
 
@@ -452,6 +452,8 @@ function SortableSpecialistColumn({
           const narrow = laneCount > 1;
           const note = (a.comment || "").trim();
           const serviceLine = (a.service_title || "").trim();
+          const phoneDigits = (a.patient_phone || "").replace(/\D+/g, "");
+          const isCompleted = a.status === "completed";
           const timeLabel = showSessionInsteadOfTime
             ? (visitDisplayValue(a) ?? "—")
             : formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow);
@@ -505,38 +507,84 @@ function SortableSpecialistColumn({
                 }}
                 onClick={() => onAppointmentClick(a)}
                 className={[
-                  "booking-appt-card relative flex h-full w-full min-h-[52px] flex-col gap-0.5 overflow-hidden text-left",
-                  narrow ? "px-1.5 py-1" : "px-2 py-1.5",
+                  "booking-appt-bitrix relative flex h-full w-full flex-col justify-between overflow-hidden rounded-md text-left",
+                  narrow ? "px-1 py-0.5" : "px-1.5 py-1",
                   cls,
                   appointmentHoverClass,
                 ].join(" ")}
                 title={cardTitle}
               >
-                <div className="booking-appt-card__head flex min-h-0 items-start justify-between gap-1">
-                  <span className="booking-appt-card__name line-clamp-2 min-w-0 flex-1 leading-tight">{a.patient_name}</span>
+                {isCompleted ? (
+                  <span className="booking-appt-done-badge pointer-events-none absolute -right-0.5 -top-0.5 z-10">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  </span>
+                ) : null}
+                <div className="flex min-h-0 items-center gap-0.5 pr-2">
+                  <span className="line-clamp-1 min-w-0 flex-1 text-[11px] font-bold leading-tight">{a.patient_name}</span>
+                  {canEditNotes || note ? (
+                    <button
+                      type="button"
+                      className={[
+                        "booking-appt-note-btn shrink-0 rounded p-0.5 transition hover:bg-black/10",
+                        note ? "is-filled" : "is-empty",
+                      ].join(" ")}
+                      title={note || "Добавить заметку"}
+                      aria-label={note ? "Редактировать заметку" : "Добавить заметку"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
+                      }}
+                    >
+                      <FileText className="h-3 w-3" />
+                    </button>
+                  ) : null}
+                </div>
+                <div className="mt-0.5 flex items-end justify-between gap-0.5">
                   <span
-                    className="booking-appt-card__time shrink-0 tabular-nums leading-none"
+                    className="text-[10px] font-semibold tabular-nums leading-none"
                     title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
                   >
                     {timeLabel}
                   </span>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    {phoneDigits.length >= 7 ? (
+                      <a
+                        href={`tel:${phoneDigits}`}
+                        className="booking-appt-action rounded p-0.5 hover:bg-black/10"
+                        title="Позвонить"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Phone className="h-3 w-3" />
+                      </a>
+                    ) : null}
+                    {a.lead_id != null && onOpenChat ? (
+                      <button
+                        type="button"
+                        className="booking-appt-action rounded p-0.5 hover:bg-black/10"
+                        title="Чат с клиентом"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenChat(a.lead_id!);
+                        }}
+                      >
+                        <MessageCircle className="h-3 w-3" />
+                      </button>
+                    ) : null}
+                    {a.lead_id != null ? (
+                      <button
+                        type="button"
+                        className="booking-appt-action rounded px-0.5 text-[8px] font-extrabold leading-none tracking-wide hover:bg-black/10"
+                        title="Карточка в CRM"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAppointmentClick(a);
+                        }}
+                      >
+                        CRM
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                {serviceLine ? (
-                  <p className="booking-appt-card__service line-clamp-2 leading-snug">{serviceLine}</p>
-                ) : null}
-                {canEditNotes || note ? (
-                  <button
-                    type="button"
-                    className={["booking-appt-card__note mt-auto text-left", note ? "is-filled" : "is-empty"].join(" ")}
-                    title={note || "Добавить заметку"}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
-                    }}
-                  >
-                    {note || "Заметка…"}
-                  </button>
-                ) : null}
               </button>
             </div>
           );
@@ -673,34 +721,36 @@ export function BookingCalendarGrid({
   return (
     <div className="relative overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]">
       <div className="flex min-w-full">
-        <div className="sticky left-0 z-30 flex w-9 shrink-0 flex-col border-r border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 backdrop-blur-sm">
+        <div className="sticky left-0 z-30 flex w-[52px] shrink-0 flex-col border-r border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 backdrop-blur-sm">
           <div
-            className="flex shrink-0 items-center justify-center border-b border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-0.5 py-1"
+            className="flex shrink-0 items-center justify-end border-b border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-0.5 py-1"
             style={{ minHeight: SPEC_HEADER_PX }}
           >
             {onAddSpecialist && (
               <button
                 type="button"
                 onClick={onAddSpecialist}
-                className="rounded-full border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-1 mo-muted shadow-sm transition-all duration-300 hover:bg-[var(--mo-accent-soft)] hover:text-[var(--mo-text)]"
+                className="rounded-full border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-1.5 mo-muted shadow-md transition-all duration-300 hover:bg-[var(--mo-accent-soft)] hover:text-[var(--mo-text)]"
                 aria-label="Добавить специалиста"
               >
                 <Plus className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
-          <div className="relative flex flex-col" aria-hidden>
+          <div className="relative flex flex-col pr-2">
             {SLOT_MINUTES.map((minuteOfDay) => (
               <div
                 key={minuteOfDay}
-                className="shrink-0"
+                className="flex shrink-0 items-start justify-end pr-0.5 text-[10px] tabular-nums mo-muted"
                 style={{ height: (SLOT_STEP_MIN / 60) * PX_PER_HOUR }}
-              />
+              >
+                {Math.floor(minuteOfDay / 60)}:{String(minuteOfDay % 60).padStart(2, "0")}
+              </div>
             ))}
             {nowTopPct != null && (
               <>
                 <div
-                  className="pointer-events-none absolute left-0 z-40 -translate-y-1/2 whitespace-nowrap rounded-r-md bg-red-500/92 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white shadow-md"
+                  className="pointer-events-none absolute right-0 z-40 h-4 w-10 -translate-y-1/2 rounded-r-md bg-red-500/90 px-1 text-right text-[10px] font-semibold tabular-nums text-white shadow-md"
                   style={{ top: `${nowTopPx - SPEC_HEADER_PX}px` }}
                 >
                   {nowLabel}
