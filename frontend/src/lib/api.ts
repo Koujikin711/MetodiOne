@@ -15,15 +15,15 @@ export function resolveApiUrl(path: string): string {
   return path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
 }
 
-function resolveApiCandidates(path: string, method: string): string[] {
+function resolveApiCandidates(path: string): string[] {
   const primary = resolveApiUrl(path);
   if (!import.meta.env.VITE_API_BASE_URL) return [primary];
   if (!path.startsWith("/")) return [primary];
   if (primary === path) return [primary];
-  const m = method.toUpperCase();
-  const mutating = m !== "GET" && m !== "HEAD";
-  // Same-origin fallback только для GET/HEAD: SPA на Vercel отвечает 405 на PATCH/POST/DELETE.
-  if (mutating) return [primary];
+
+  // Same-origin /api проксируется на бэкенд (vercel.json / nginx / vite dev).
+  // Сначала пробуем его — без cross-origin и CORS; прямой Amvera — запасной вариант.
+  if (typeof window !== "undefined") return [path, primary];
   return [primary, path];
 }
 
@@ -87,8 +87,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   let text = "";
   let data: unknown = null;
   try {
-    const method = (init.method ?? "GET").toUpperCase();
-    const candidates = resolveApiCandidates(path, method);
+    const candidates = resolveApiCandidates(path);
     let lastErr: unknown = null;
     for (let i = 0; i < candidates.length; i += 1) {
       const url = candidates[i];
@@ -103,8 +102,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       const hasMoreCandidates = i < candidates.length - 1;
       const isHtml = Boolean(bodyText && looksLikeHtmlPayload(bodyText, response.headers.get("content-type")));
       const isExternalPrimary = i === 0 && url.startsWith("http");
+      const isExternalCandidate = url.startsWith("http");
 
-      if (isExternalPrimary && !response.ok && !isHtml) {
+      if (isExternalCandidate && !response.ok && !isHtml) {
         res = response;
         text = bodyText;
         if (bodyText) {
@@ -119,6 +119,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
       if (isHtml) {
         if (hasMoreCandidates) continue;
+      } else if (hasMoreCandidates && response.status === 405) {
+        continue;
       } else if (bodyText) {
         try {
           data = JSON.parse(bodyText) as unknown;
