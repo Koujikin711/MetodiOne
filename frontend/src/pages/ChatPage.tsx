@@ -34,6 +34,19 @@ function threadProviderLabel(provider: string | null | undefined): string | null
   return raw;
 }
 
+function isHiddenIntegrationLabel(value: string | null | undefined): boolean {
+  const key = (value || "").trim().toLowerCase().replace(/\s+/g, "_");
+  return key === "green_api";
+}
+
+function threadDisplayTitle(t: ChatThread): string {
+  const name = (t.lead_name || "").trim();
+  if (name) return name;
+  const title = (t.title || "").trim();
+  if (title && !isHiddenIntegrationLabel(title)) return title;
+  return `Диалог #${t.id}`;
+}
+
 const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|bmp|svg|avif|heic|heif)(\?|#|$)/i;
 
 function localDateKey(raw: string | null | undefined): string {
@@ -367,21 +380,12 @@ function threadAttention(t: ChatThread): ThreadAttention {
 
 function threadRowClasses(t: ChatThread, selected: boolean) {
   const base =
-    "flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition max-lg:px-2.5 max-lg:py-1.5";
-  if (selected) {
-    return [base, "border-[#2f5f85] bg-[#e8f0f7] ring-1 ring-[#2f5f85]/25"].join(" ");
-  }
+    "chat-thread-row flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition max-lg:px-2.5 max-lg:py-1.5";
+  if (selected) return [base, "chat-thread-row--selected"].join(" ");
   const attn = threadAttention(t);
-  if (attn === "waiting_reply") {
-    return [
-      base,
-      "border-[#6db89a] bg-[#edf7f1] hover:bg-[#e3f3ea] ring-1 ring-[#2d6a5a]/15",
-    ].join(" ");
-  }
-  if (attn === "recent_window") {
-    return [base, "border-[#8eb4d4] bg-[#eef4fa] hover:bg-[#e5eff8] ring-1 ring-[#2f5f85]/10"].join(" ");
-  }
-  return [base, "border-[#d8d2c6] bg-white hover:border-[#2f5f85]/30 hover:shadow-sm"].join(" ");
+  if (attn === "waiting_reply") return [base, "chat-thread-row--waiting"].join(" ");
+  if (attn === "recent_window") return [base, "chat-thread-row--recent"].join(" ");
+  return [base, "chat-thread-row--default"].join(" ");
 }
 
 export function ChatPage() {
@@ -801,9 +805,9 @@ export function ChatPage() {
       ].join(" ")}
     >
       <header className="hidden shrink-0 lg:block">
-        <h1 className="text-xl font-semibold tracking-tight text-[#1e3348] sm:text-3xl">Чат</h1>
-        <p className="mt-1 hidden text-sm text-[#5c6b7a] sm:block">
-          Переписка с клиентами (WhatsApp через GREEN API): текст, фото, видео, голос, файлы.
+        <h1 className="lux-heading-page text-xl sm:text-3xl">Чат</h1>
+        <p className="mt-1 hidden text-sm lux-caption sm:block">
+          Переписка с клиентами: текст, фото, видео, голос, файлы.
         </p>
       </header>
 
@@ -820,7 +824,7 @@ export function ChatPage() {
             showListOnMobile ? "flex" : "hidden lg:flex",
           ].join(" ")}
         >
-          <div className="mb-2 hidden text-sm font-semibold text-[#1e3348] sm:block">Диалоги</div>
+          <div className="mb-2 hidden text-sm font-semibold text-[var(--mo-text)] sm:block">Диалоги</div>
 
           {showManagerChatBuckets ? (
             <div className="mb-2 grid shrink-0 grid-cols-2 gap-1 max-lg:mb-1.5 sm:mb-3 sm:grid-cols-4 sm:gap-1.5">
@@ -834,29 +838,22 @@ export function ChatPage() {
                       : tab.id === "sold"
                         ? bucketCountsQuery.data?.sold ?? 0
                         : bucketCountsQuery.data?.awaiting_reply ?? 0;
-                const activeShell =
-                  tab.id === "transferred"
-                    ? "border-[#c9b07a] bg-[#faf5eb] ring-1 ring-[#c9b07a]/40"
-                    : tab.id === "own"
-                      ? "border-[#2f5f85] bg-[#e8f0f7] ring-1 ring-[#2f5f85]/30"
-                      : tab.id === "sold"
-                        ? "border-[#7a5c9e] bg-[#f3edf8] ring-1 ring-[#7a5c9e]/35"
-                        : "border-[#2d6a5a] bg-[#edf7f1] ring-1 ring-[#2d6a5a]/30";
-                const idleShell = "border-[#d8d2c6] bg-white/80 hover:border-[#2f5f85]/30 hover:bg-white";
+                const activeShell = active ? "chat-bucket-tab is-active" : "chat-bucket-tab";
                 return (
                   <button
                     key={tab.id}
                     type="button"
+                    data-bucket={tab.id}
                     onClick={() => setChatBucket(tab.id)}
                     className={[
                       "flex min-h-[52px] flex-col items-center justify-center rounded-lg border px-1 py-1.5 text-center transition sm:min-h-[72px] sm:rounded-xl sm:py-2",
-                      active ? activeShell : idleShell,
+                      activeShell,
                     ].join(" ")}
                   >
-                    <span className="text-[9px] font-semibold uppercase tracking-wide text-[#5c6b7a] sm:text-[10px]">
+                    <span className="text-[9px] font-semibold uppercase tracking-wide lux-caption sm:text-[10px]">
                       {tab.label}
                     </span>
-                    <span className="mt-0.5 text-base font-bold tabular-nums text-[#1e3348] sm:text-xl">{count}</span>
+                    <span className="mt-0.5 text-base font-bold tabular-nums text-[var(--mo-text)] sm:text-xl">{count}</span>
                     <span className="mt-0.5 hidden text-[9px] leading-tight text-[#8a96a3] sm:block">{tab.hint}</span>
                   </button>
                 );
@@ -896,7 +893,7 @@ export function ChatPage() {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-[var(--mo-text)]">
-                      {t.lead_name || t.title || `Диалог #${t.id}`}
+                      {threadDisplayTitle(t)}
                     </div>
                     {threadPhoneForDisplay(t) !== "—" ? (
                       <div className="mt-0.5 truncate text-xs font-medium text-[var(--mo-text)]/90 tabular-nums max-lg:text-[11px] sm:mt-1">
@@ -985,7 +982,7 @@ export function ChatPage() {
                 </button>
                 <div className="min-w-0 flex-1">
                   <div className="lux-subheading truncate text-sm sm:text-base">
-                    {activeThread?.lead_name || activeThread?.title || `Диалог #${threadId}`}
+                    {activeThread ? threadDisplayTitle(activeThread) : `Диалог #${threadId}`}
                   </div>
                   {activeThread ? (
                     <>
@@ -1071,9 +1068,7 @@ export function ChatPage() {
                       <div
                         className={[
                           "max-w-[85%] rounded-xl px-3 py-2 text-sm",
-                          isOut
-                            ? "ml-auto border border-[#2f5f85]/25 bg-[#e8f0f7] text-[var(--mo-text)]"
-                            : "border border-[var(--mo-border)] bg-[var(--mo-surface)] text-[var(--mo-text)]",
+                          isOut ? "chat-msg-out" : "chat-msg-in",
                         ].join(" ")}
                       >
                         <MessageBody m={m} />

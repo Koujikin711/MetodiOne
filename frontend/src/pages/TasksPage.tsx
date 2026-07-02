@@ -14,10 +14,10 @@ const STATUS: { key: TaskStatus; label: string }[] = [
 ];
 
 function statusChip(status: string) {
-  if (status === "done") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-800";
-  if (status === "in_progress") return "border-indigo-500/40 bg-indigo-500/10 text-indigo-900";
-  if (status === "cancelled") return "border-[var(--mo-border-strong)] bg-[var(--mo-accent-soft)] lux-caption";
-  return "border-amber-500/40 bg-amber-500/10 text-amber-900";
+  if (status === "done") return "task-status task-status--done";
+  if (status === "in_progress") return "task-status task-status--in_progress";
+  if (status === "cancelled") return "task-status task-status--cancelled";
+  return "task-status task-status--pending";
 }
 
 function formatDeadline(iso: string | null) {
@@ -109,14 +109,14 @@ export function TasksPage() {
         <button
           type="button"
           onClick={() => setDoneTab(false)}
-          className={!doneTab ? "btn-primary text-xs" : "rounded-xl border px-3 py-1.5 text-xs lux-caption"}
+          className={!doneTab ? "btn-primary text-xs" : "task-filter-btn"}
         >
           Активные
         </button>
         <button
           type="button"
           onClick={() => setDoneTab(true)}
-          className={doneTab ? "btn-primary text-xs" : "rounded-xl border px-3 py-1.5 text-xs lux-caption"}
+          className={doneTab ? "btn-primary text-xs" : "task-filter-btn"}
         >
           Выполненные
         </button>
@@ -126,14 +126,14 @@ export function TasksPage() {
             <button
               type="button"
               onClick={() => setScope("my")}
-              className={scope === "my" ? "btn-primary text-xs" : "rounded-xl border px-3 py-1.5 text-xs lux-caption"}
+              className={scope === "my" ? "btn-primary text-xs" : "task-filter-btn"}
             >
               Мои
             </button>
             <button
               type="button"
               onClick={() => setScope("team")}
-              className={scope === "team" ? "btn-primary text-xs" : "rounded-xl border px-3 py-1.5 text-xs lux-caption"}
+              className={scope === "team" ? "btn-primary text-xs" : "task-filter-btn"}
             >
               Команда
             </button>
@@ -143,7 +143,7 @@ export function TasksPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Поиск…"
-          className="ml-auto min-w-[8rem] flex-1 rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/60 px-3 py-1.5 text-sm sm:max-w-[12rem]"
+          className="mo-input ml-auto min-w-[8rem] flex-1 py-1.5 text-sm sm:max-w-[12rem]"
         />
       </div>
 
@@ -169,7 +169,7 @@ export function TasksPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Что нужно сделать"
-              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/70 px-3 py-2 text-sm"
+              className="mo-input mt-1"
             />
           </label>
           <label className="w-full text-xs lux-caption sm:w-40">
@@ -177,7 +177,7 @@ export function TasksPage() {
             <select
               value={assignedTo}
               onChange={(e) => setAssignedTo(e.target.value ? Number(e.target.value) : "")}
-              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/70 px-3 py-2 text-sm"
+              className="mo-input mt-1"
             >
               <option value="">—</option>
               {(assigneesQ.data ?? []).map((u) => (
@@ -193,7 +193,7 @@ export function TasksPage() {
               type="datetime-local"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/70 px-3 py-2 text-sm"
+              className="mo-input mt-1"
             />
           </label>
           <button type="submit" disabled={createM.isPending} className="btn-primary shrink-0 sm:mb-0.5">
@@ -217,7 +217,7 @@ export function TasksPage() {
           return (
             <li
               key={t.id}
-              className="flex flex-wrap items-start gap-3 rounded-2xl border border-[var(--mo-border)] bg-white/50 px-4 py-3"
+              className="task-card"
             >
               {!doneTab && t.status !== "cancelled" ? (
                 <button

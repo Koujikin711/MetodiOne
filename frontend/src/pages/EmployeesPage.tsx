@@ -3,9 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { TerminateWithLeadsWizard } from "@/components/TerminateWithLeadsWizard";
-import { Button } from "@/components/ui/Button";
+import { Pencil } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
-import { theme } from "@/lib/theme";
 import { decodeUserIdFromToken } from "@/lib/auth";
 import type { BookingDirection, Pipeline, UserRole } from "@/lib/types";
 
@@ -61,6 +60,14 @@ interface PatchEmployeeContactResult {
   credentials_email_sent: boolean;
 }
 
+function roleLabel(role: UserRole): string {
+  if (role === "owner") return "Владелец";
+  if (role === "manager") return "Менеджер";
+  if (role === "expert") return "Эксперт";
+  if (role === "admin") return "Админ воронки";
+  return role;
+}
+
 export function EmployeesPage() {
   const qc = useQueryClient();
   const employeesQuery = useQuery({
@@ -103,7 +110,9 @@ export function EmployeesPage() {
   const [courseStreamMinDay, setCourseStreamMinDay] = useState(10);
   const [courseStreamGapDays, setCourseStreamGapDays] = useState(10);
   const [terminateTarget, setTerminateTarget] = useState<Employee | null>(null);
-  const [editPipelinesEmployee, setEditPipelinesEmployee] = useState<Employee | null>(null);
+  const [editEmployee, setEditEmployee] = useState<Employee | null>(null);
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const [editPipelineIds, setEditPipelineIds] = useState<number[]>([]);
 
   const pipelines = pipelinesQuery.data ?? [];
@@ -274,55 +283,62 @@ export function EmployeesPage() {
     setPipelineIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
-  const [editContactEmployee, setEditContactEmployee] = useState<Employee | null>(null);
-  const [editEmail, setEditEmail] = useState("");
-  const [editPhone, setEditPhone] = useState("");
-
-  function openEditPipelines(e: Employee) {
-    setEditPipelinesEmployee(e);
-    setEditPipelineIds([...e.pipeline_ids]);
-  }
-
-  function openEditContact(e: Employee) {
-    setEditContactEmployee(e);
+  function openEditEmployee(e: Employee) {
+    setEditEmployee(e);
     setEditEmail(e.email);
     setEditPhone(e.phone ?? "");
+    setEditPipelineIds([...e.pipeline_ids]);
   }
 
   function toggleEditPipeline(id: number) {
     setEditPipelineIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
-  const patchContactMutation = useMutation({
-    mutationFn: () =>
-      apiFetch<PatchEmployeeContactResult>(`/api/employees/${editContactEmployee!.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          email: editEmail.trim(),
-          phone: editPhone.trim(),
-        }),
-      }),
-    onSuccess: (res) => {
-      if (res.email_changed && res.credentials_email_sent) {
-        toast.success("Контакты обновлены. Новый логин и пароль отправлены на email.");
-      } else {
-        toast.success("Контакты сотрудника обновлены");
-      }
-      setEditContactEmployee(null);
-      void qc.invalidateQueries({ queryKey: ["employees"] });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+  const saveEmployeeMutation = useMutation({
+    mutationFn: async () => {
+      if (!editEmployee) throw new Error("Сотрудник не выбран");
 
-  const patchPipelinesMutation = useMutation({
-    mutationFn: () =>
-      apiFetch<Employee>(`/api/employees/${editPipelinesEmployee!.id}/pipelines`, {
-        method: "PATCH",
-        body: JSON.stringify({ pipeline_ids: editPipelineIds }),
-      }),
-    onSuccess: () => {
-      toast.success("Воронки сотрудника обновлены");
-      setEditPipelinesEmployee(null);
+      const emailChanged = editEmail.trim().toLowerCase() !== (editEmployee.email || "").trim().toLowerCase();
+      const phoneChanged = editPhone.trim() !== (editEmployee.phone || "").trim();
+      const pipelinesChanged =
+        canEditPipelines(editEmployee.role) &&
+        (editPipelineIds.length !== editEmployee.pipeline_ids.length ||
+          editPipelineIds.some((id) => !editEmployee.pipeline_ids.includes(id)));
+
+      if (!emailChanged && !phoneChanged && !pipelinesChanged) {
+        throw new Error("Нет изменений");
+      }
+
+      let contactResult: PatchEmployeeContactResult | null = null;
+      if (emailChanged || phoneChanged) {
+        contactResult = await apiFetch<PatchEmployeeContactResult>(`/api/employees/${editEmployee.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            email: editEmail.trim(),
+            phone: editPhone.trim(),
+          }),
+        });
+      }
+
+      if (pipelinesChanged) {
+        if (editPipelineIds.length === 0) {
+          throw new Error("Нужна хотя бы одна воронка");
+        }
+        await apiFetch<Employee>(`/api/employees/${editEmployee.id}/pipelines`, {
+          method: "PATCH",
+          body: JSON.stringify({ pipeline_ids: editPipelineIds }),
+        });
+      }
+
+      return contactResult;
+    },
+    onSuccess: (contactResult) => {
+      if (contactResult?.email_changed && contactResult.credentials_email_sent) {
+        toast.success("Сохранено. Новый логин и пароль отправлены на email.");
+      } else {
+        toast.success("Данные сотрудника обновлены");
+      }
+      setEditEmployee(null);
       void qc.invalidateQueries({ queryKey: ["employees"] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -344,7 +360,7 @@ export function EmployeesPage() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className={theme.btnPrimary}
+          className="btn-primary"
         >
           Пригласить сотрудника
         </button>
@@ -357,7 +373,7 @@ export function EmployeesPage() {
 
       {(sourcesWithLeads.length > 0 || redistributionSourcesQuery.isLoading) &&
         activeSalesManagers.length >= 1 && (
-        <section className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5 shadow-inner backdrop-blur-sm">
+        <section className="employees-redistribute-panel">
           <h2 className="lux-subheading">Перераспределение лидов</h2>
           <p className="mt-1 text-sm lux-caption">
             Все лиды выбранного менеджера равномерно передаются другим менеджерам (в том числе с уволенных
@@ -444,7 +460,7 @@ export function EmployeesPage() {
               redistributeToIds.length === 0 ||
               (redistributionPreviewQuery.data?.lead_count ?? selectedSource?.lead_count ?? 0) <= 0
             }
-            className="mt-4 rounded-xl border border-amber-500/40 bg-amber-600/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-600/30 disabled:opacity-50"
+            className="employees-redistribute-btn mt-4 disabled:opacity-50"
           >
             {redistributeMutation.isPending ? "Перераспределение…" : "Перераспределить лиды"}
           </button>
@@ -452,60 +468,52 @@ export function EmployeesPage() {
       )}
 
       <div className="grid gap-3">
-        {(employeesQuery.data ?? []).map((e) => (
-          <div
-            key={e.id}
-            className="mo-section p-4 shadow-inner backdrop-blur-sm"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="truncate lux-subheading">
-                  {e.full_name ?? "—"}
+        {(employeesQuery.data ?? []).map((e) => {
+          const pipelineNames = e.pipeline_ids.length
+            ? e.pipeline_ids.map((id) => pipelineById.get(id)?.name ?? `#${id}`).join(", ")
+            : "—";
+          return (
+          <div key={e.id} className="employee-card">
+            <div className="flex items-start gap-3">
+              <button
+                type="button"
+                onClick={() => openEditEmployee(e)}
+                className="employee-edit-handle"
+                title="Редактировать сотрудника"
+                aria-label={`Редактировать ${e.full_name ?? e.email}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="truncate lux-subheading">{e.full_name ?? "—"}</div>
+                  <span className="employee-role-badge">{roleLabel(e.role)}</span>
                 </div>
                 <div className="mt-1 text-sm lux-caption">
-                  {e.email} {e.phone ? `· ${e.phone}` : ""} · роль: {e.role}
+                  {e.email}
+                  {e.phone ? ` · ${e.phone}` : ""}
                   {e.role === "expert" && e.specialization ? ` · ${e.specialization}` : ""}
                 </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="text-xs lux-caption">
-                  Воронки:{" "}
-                  {e.pipeline_ids.length
-                    ? e.pipeline_ids
-                        .map((id) => pipelineById.get(id)?.name ?? `#${id}`)
-                        .join(", ")
-                    : "—"}
+                <div className="mt-2 inline-flex max-w-full">
+                  <span className="employee-pipelines-tag truncate">Воронки: {pipelineNames}</span>
                 </div>
+              </div>
+
+              {myUserId !== null && e.id !== myUserId ? (
                 <button
                   type="button"
-                  onClick={() => openEditContact(e)}
-                  className="shrink-0 rounded-lg border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                  onClick={() => confirmTerminate(e)}
+                  disabled={terminateTarget?.id === e.id}
+                  className="shrink-0 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-500/20 disabled:opacity-50 dark:text-red-300"
                 >
-                  Контакты
+                  Уволить
                 </button>
-                {canEditPipelines(e.role) ? (
-                  <button
-                    type="button"
-                    onClick={() => openEditPipelines(e)}
-                    className="shrink-0 rounded-lg border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
-                  >
-                    Воронки
-                  </button>
-                ) : null}
-                {myUserId !== null && e.id !== myUserId && (
-                  <button
-                    type="button"
-                    onClick={() => confirmTerminate(e)}
-                    disabled={terminateTarget?.id === e.id}
-                    className="shrink-0 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
-                  >
-                    Уволить
-                  </button>
-                )}
-              </div>
+              ) : null}
             </div>
           </div>
-        ))}
+          );
+        })}
         {!employeesQuery.isLoading && (employeesQuery.data ?? []).length === 0 && (
           <p className="text-sm mo-muted">Сотрудников пока нет.</p>
         )}
@@ -554,7 +562,7 @@ export function EmployeesPage() {
                 type="button"
                 onClick={() => smtpTestMutation.mutate()}
                 disabled={smtpTestMutation.isPending}
-                className="rounded-xl border border-[var(--mo-border)] px-4 py-2 text-sm text-[var(--mo-text)] hover:bg-white disabled:opacity-60"
+                className="btn-secondary disabled:opacity-60"
               >
                 {smtpTestMutation.isPending ? "Отправка…" : "Тестовое письмо"}
               </button>
@@ -576,21 +584,21 @@ export function EmployeesPage() {
         />
       )}
 
-      {editContactEmployee && (
+      {editEmployee && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-xl rounded-2xl crm-modal-panel border p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="lux-subheading">Контакты сотрудника</h2>
+              <h2 className="lux-subheading">Редактировать сотрудника</h2>
               <button
                 type="button"
-                onClick={() => setEditContactEmployee(null)}
-                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
+                onClick={() => setEditEmployee(null)}
+                className="mo-modal-close"
               >
                 Закрыть
               </button>
             </div>
             <p className="mt-2 text-sm mo-muted">
-              {editContactEmployee.full_name ?? editContactEmployee.email}
+              {editEmployee.full_name ?? editEmployee.email} · {roleLabel(editEmployee.role)}
             </p>
             <div className="mt-4 space-y-3">
               <label className="block text-sm mo-muted">
@@ -599,7 +607,7 @@ export function EmployeesPage() {
                   type="email"
                   value={editEmail}
                   onChange={(ev) => setEditEmail(ev.target.value)}
-                  className="mt-1 w-full mo-input"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
               <label className="block text-sm mo-muted">
@@ -608,72 +616,45 @@ export function EmployeesPage() {
                   type="tel"
                   value={editPhone}
                   onChange={(ev) => setEditPhone(ev.target.value)}
-                  className="mt-1 w-full mo-input"
+                  className="mo-input mt-1 w-full"
                 />
               </label>
               <p className="text-xs leading-relaxed mo-muted">
-                При смене email на новый адрес уйдёт письмо с новым логином и паролем. Старый email и пароль
-                перестанут работать.
+                При смене email на новый адрес уйдёт письмо с новым логином и паролем.
               </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => patchContactMutation.mutate()}
-              disabled={patchContactMutation.isPending || !editEmail.trim() || !editPhone.trim()}
-              className={`mt-4 w-full ${theme.btnPrimary} disabled:opacity-60`}
-            >
-              {patchContactMutation.isPending ? "Сохранение…" : "Сохранить"}
-            </button>
-          </div>
-        </div>
-      )}
 
-      {editPipelinesEmployee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-xl rounded-2xl crm-modal-panel border p-6 shadow-2xl">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="lux-subheading">Воронки сотрудника</h2>
-              <button
-                type="button"
-                onClick={() => setEditPipelinesEmployee(null)}
-                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
-              >
-                Закрыть
-              </button>
-            </div>
-            <p className="mt-2 text-sm mo-muted">
-              {editPipelinesEmployee.full_name ?? editPipelinesEmployee.email} ·{" "}
-              {editPipelinesEmployee.role === "manager"
-                ? "менеджер"
-                : editPipelinesEmployee.role === "admin"
-                  ? "админ воронки"
-                  : "эксперт"}
-            </p>
-            <div className="mt-4 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
-              <p className="text-[11px] mo-muted">
-                Отметьте воронки, в которых сотрудник видит лиды и записи. Нужна хотя бы одна воронка.
-              </p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {pipelines.map((p) => (
-                  <label key={p.id} className="flex items-center gap-2 text-sm text-[var(--mo-text)]">
-                    <input
-                      type="checkbox"
-                      checked={editPipelineIds.includes(p.id)}
-                      onChange={() => toggleEditPipeline(p.id)}
-                    />
-                    <span className="truncate">{p.name}</span>
-                  </label>
-                ))}
-                {pipelines.length === 0 && <div className="text-sm mo-muted">Нет воронок</div>}
-              </div>
+              {canEditPipelines(editEmployee.role) ? (
+                <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
+                  <div className="lux-subheading text-sm">Воронки</div>
+                  <p className="mt-1 text-[11px] mo-muted">Отметьте воронки, в которых сотрудник видит лиды и записи.</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {pipelines.map((p) => (
+                      <label key={p.id} className="flex items-center gap-2 text-sm text-[var(--mo-text)]">
+                        <input
+                          type="checkbox"
+                          checked={editPipelineIds.includes(p.id)}
+                          onChange={() => toggleEditPipeline(p.id)}
+                        />
+                        <span className="truncate">{p.name}</span>
+                      </label>
+                    ))}
+                    {pipelines.length === 0 && <div className="text-sm mo-muted">Нет воронок</div>}
+                  </div>
+                </div>
+              ) : null}
             </div>
             <button
               type="button"
-              onClick={() => patchPipelinesMutation.mutate()}
-              disabled={patchPipelinesMutation.isPending || editPipelineIds.length === 0}
-              className={`mt-4 w-full ${theme.btnPrimary} disabled:opacity-60`}
+              onClick={() => saveEmployeeMutation.mutate()}
+              disabled={
+                saveEmployeeMutation.isPending ||
+                !editEmail.trim() ||
+                !editPhone.trim() ||
+                (canEditPipelines(editEmployee.role) && editPipelineIds.length === 0)
+              }
+              className="btn-primary mt-4 w-full disabled:opacity-60"
             >
-              {patchPipelinesMutation.isPending ? "Сохранение…" : "Сохранить воронки"}
+              {saveEmployeeMutation.isPending ? "Сохранение…" : "Сохранить"}
             </button>
           </div>
         </div>
@@ -687,7 +668,7 @@ export function EmployeesPage() {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
+                className="mo-modal-close"
               >
                 Закрыть
               </button>
@@ -855,7 +836,7 @@ export function EmployeesPage() {
                 type="button"
                 onClick={() => inviteMutation.mutate()}
                 disabled={inviteMutation.isPending}
-                className={`mt-2 w-full ${theme.btnPrimary} disabled:opacity-60`}
+                className="btn-primary mt-2 w-full disabled:opacity-60"
               >
                 {inviteMutation.isPending ? "Добавление…" : "Добавить"}
               </button>

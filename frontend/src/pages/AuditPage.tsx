@@ -39,13 +39,13 @@ export function AuditPage() {
             value={entityType}
             onChange={(e) => setEntityType(e.target.value)}
             placeholder="Фильтр по entity_type (lead, booking_appointment, specialist...)"
-            className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
+            className="mo-input"
           />
           <input
             value={entityId}
             onChange={(e) => setEntityId(e.target.value)}
             placeholder="entity_id"
-            className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/50 px-3 py-2 text-sm text-[var(--mo-text)]"
+            className="mo-input"
           />
           <button
             type="button"
@@ -65,12 +65,12 @@ export function AuditPage() {
         )}
         <ul className="space-y-2">
           {(query.data ?? []).map((e) => (
-            <li key={e.id} className="rounded-xl border border-[var(--mo-border)] bg-white/35 p-3">
+            <li key={e.id} className="audit-event-row">
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="rounded bg-[#ece6f0] px-2 py-0.5 text-[#614b70]">
+                <span className="audit-entity-tag">
                   {e.entity_type}:{e.entity_id ?? "-"}
                 </span>
-                <span className="rounded bg-slate-700/60 px-2 py-0.5 text-[var(--mo-text)]">{e.action}</span>
+                <span className="audit-action-tag">{e.action}</span>
                 <span className="mo-muted">{e.user_name ?? `user#${e.user_id ?? "-"}`}</span>
                 <span className="mo-muted">{new Date(e.created_at).toLocaleString("ru-RU")}</span>
               </div>

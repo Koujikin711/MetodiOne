@@ -1102,10 +1102,19 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 :root[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: invert(0.82);
 }
-.mo-input::placeholder { color: #a89880; }
+.mo-input::placeholder {
+  color: var(--mo-text-muted);
+  opacity: 0.72;
+}
 .mo-input:focus {
   border-color: var(--mo-gold);
   box-shadow: inset 0 2px 6px rgba(44, 37, 32, 0.04), 0 0 0 2px rgba(212, 175, 55, 0.2);
+}
+:root[data-theme="dark"] .mo-input {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.22);
+}
+:root[data-theme="dark"] .mo-input:focus {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.22), 0 0 0 2px rgba(129, 140, 248, 0.28);
 }
 
 .mo-section {
@@ -1857,4 +1866,480 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   }
   body.printing-pl .print-zone-tb,
   body.printing-tb .print-zone-pl { display: none !important; }
+}
+
+/* ── Чат: список диалогов и сообщения ── */
+.chat-thread-row {
+  border-color: var(--mo-border);
+  background: var(--mo-surface-elevated);
+}
+.chat-thread-row:hover {
+  border-color: var(--mo-border-strong);
+}
+.chat-thread-row--selected {
+  border-color: #2f5f85;
+  background: #e8f0f7;
+  box-shadow: 0 0 0 1px rgba(47, 95, 133, 0.25);
+}
+.chat-thread-row--waiting {
+  border-color: #6db89a;
+  background: #edf7f1;
+  box-shadow: 0 0 0 1px rgba(45, 106, 90, 0.15);
+}
+.chat-thread-row--waiting:hover {
+  background: #e3f3ea;
+}
+.chat-thread-row--recent {
+  border-color: #8eb4d4;
+  background: #eef4fa;
+  box-shadow: 0 0 0 1px rgba(47, 95, 133, 0.1);
+}
+.chat-thread-row--recent:hover {
+  background: #e5eff8;
+}
+.chat-thread-row--default {
+  border-color: #d8d2c6;
+  background: #ffffff;
+}
+.chat-thread-row--default:hover {
+  border-color: rgba(47, 95, 133, 0.3);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+:root[data-theme="dark"] .chat-thread-row--selected {
+  border-color: rgba(96, 165, 250, 0.45);
+  background: rgba(30, 58, 95, 0.55);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.22);
+}
+:root[data-theme="dark"] .chat-thread-row--waiting {
+  border-color: rgba(52, 211, 153, 0.38);
+  background: rgba(6, 78, 59, 0.32);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.12);
+}
+:root[data-theme="dark"] .chat-thread-row--waiting:hover {
+  background: rgba(6, 95, 70, 0.38);
+}
+:root[data-theme="dark"] .chat-thread-row--recent {
+  border-color: rgba(96, 165, 250, 0.32);
+  background: rgba(30, 58, 95, 0.28);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.1);
+}
+:root[data-theme="dark"] .chat-thread-row--recent:hover {
+  background: rgba(30, 64, 110, 0.36);
+}
+:root[data-theme="dark"] .chat-thread-row--default {
+  border-color: var(--mo-border);
+  background: rgba(30, 41, 59, 0.55);
+}
+:root[data-theme="dark"] .chat-thread-row--default:hover {
+  border-color: rgba(129, 140, 248, 0.35);
+  background: rgba(30, 41, 59, 0.72);
+  box-shadow: none;
+}
+
+.chat-bucket-tab {
+  border-color: var(--mo-border);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--mo-text);
+}
+.chat-bucket-tab:hover {
+  border-color: rgba(47, 95, 133, 0.3);
+  background: #ffffff;
+}
+.chat-bucket-tab.is-active[data-bucket="transferred"] {
+  border-color: #c9b07a;
+  background: #faf5eb;
+  box-shadow: 0 0 0 1px rgba(201, 176, 122, 0.4);
+}
+.chat-bucket-tab.is-active[data-bucket="own"] {
+  border-color: #2f5f85;
+  background: #e8f0f7;
+  box-shadow: 0 0 0 1px rgba(47, 95, 133, 0.3);
+}
+.chat-bucket-tab.is-active[data-bucket="sold"] {
+  border-color: #7a5c9e;
+  background: #f3edf8;
+  box-shadow: 0 0 0 1px rgba(122, 92, 158, 0.35);
+}
+.chat-bucket-tab.is-active[data-bucket="awaiting_reply"] {
+  border-color: #2d6a5a;
+  background: #edf7f1;
+  box-shadow: 0 0 0 1px rgba(45, 106, 90, 0.3);
+}
+
+:root[data-theme="dark"] .chat-bucket-tab {
+  border-color: var(--mo-border);
+  background: rgba(30, 41, 59, 0.55);
+}
+:root[data-theme="dark"] .chat-bucket-tab:hover {
+  border-color: rgba(129, 140, 248, 0.3);
+  background: rgba(30, 41, 59, 0.72);
+}
+:root[data-theme="dark"] .chat-bucket-tab.is-active[data-bucket="transferred"] {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(120, 53, 15, 0.35);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.18);
+}
+:root[data-theme="dark"] .chat-bucket-tab.is-active[data-bucket="own"] {
+  border-color: rgba(96, 165, 250, 0.45);
+  background: rgba(30, 58, 95, 0.5);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.2);
+}
+:root[data-theme="dark"] .chat-bucket-tab.is-active[data-bucket="sold"] {
+  border-color: rgba(167, 139, 250, 0.45);
+  background: rgba(76, 29, 149, 0.32);
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.18);
+}
+:root[data-theme="dark"] .chat-bucket-tab.is-active[data-bucket="awaiting_reply"] {
+  border-color: rgba(52, 211, 153, 0.4);
+  background: rgba(6, 78, 59, 0.32);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.15);
+}
+
+.chat-msg-out {
+  margin-left: auto;
+  border: 1px solid rgba(47, 95, 133, 0.25);
+  background: #e8f0f7;
+  color: var(--mo-text);
+}
+.chat-msg-in {
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface);
+  color: var(--mo-text);
+}
+:root[data-theme="dark"] .chat-msg-out {
+  border-color: rgba(96, 165, 250, 0.28);
+  background: rgba(30, 58, 95, 0.55);
+}
+:root[data-theme="dark"] .chat-msg-in {
+  background: rgba(17, 24, 39, 0.85);
+}
+
+/* ── Аудит ── */
+.audit-event-row {
+  border: 1px solid var(--mo-border);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.35);
+  padding: 0.75rem;
+}
+:root[data-theme="dark"] .audit-event-row {
+  background: rgba(30, 41, 59, 0.45);
+}
+.audit-entity-tag {
+  border-radius: 0.25rem;
+  background: #ece6f0;
+  color: #614b70;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+}
+:root[data-theme="dark"] .audit-entity-tag {
+  background: rgba(99, 102, 241, 0.18);
+  color: #c4b5fd;
+}
+.audit-action-tag {
+  border-radius: 0.25rem;
+  background: rgba(51, 65, 85, 0.6);
+  color: var(--mo-text);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+}
+:root[data-theme="dark"] .audit-action-tag {
+  background: rgba(15, 23, 42, 0.75);
+  color: #e2e8f0;
+}
+
+/* ── Задачи ── */
+.task-filter-btn {
+  @apply rounded-xl border px-3 py-1.5 text-xs;
+  border-color: var(--mo-border);
+  color: var(--mo-text-muted);
+  background: transparent;
+}
+.task-filter-btn:hover {
+  border-color: var(--mo-border-strong);
+  background: var(--mo-nav-hover);
+}
+.task-card {
+  @apply flex flex-wrap items-start gap-3 rounded-2xl border px-4 py-3;
+  border-color: var(--mo-border);
+  background: rgba(255, 255, 255, 0.5);
+}
+:root[data-theme="dark"] .task-card {
+  background: rgba(30, 41, 59, 0.45);
+}
+.task-status {
+  @apply rounded-lg border px-2 py-1 text-xs font-medium;
+}
+.task-status--done {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.12);
+  color: #065f46;
+}
+.task-status--in_progress {
+  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.12);
+  color: #312e81;
+}
+.task-status--cancelled {
+  border-color: var(--mo-border-strong);
+  background: var(--mo-accent-soft);
+  color: var(--mo-text-muted);
+}
+.task-status--pending {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+}
+:root[data-theme="dark"] .task-status--done {
+  color: #6ee7b7;
+}
+:root[data-theme="dark"] .task-status--in_progress {
+  color: #a5b4fc;
+}
+:root[data-theme="dark"] .task-status--pending {
+  color: #fcd34d;
+}
+
+/* ── KPI ── */
+.kpi-matrix-row-highlight {
+  background: #ffffff;
+}
+:root[data-theme="dark"] .kpi-matrix-row-highlight {
+  background: rgba(30, 41, 59, 0.35);
+}
+.kpi-cell-input {
+  @apply rounded-lg border px-2 py-1;
+  border-color: rgba(200, 211, 230, 0.6);
+  background: var(--mo-surface-elevated);
+  color: var(--mo-text);
+}
+:root[data-theme="dark"] .kpi-cell-input {
+  border-color: var(--mo-border);
+  background: rgba(15, 23, 42, 0.65);
+}
+.kpi-actual-value {
+  color: #0f4c3a;
+}
+:root[data-theme="dark"] .kpi-actual-value {
+  color: var(--mo-success);
+}
+
+/* ── Сотрудники ── */
+.employee-card {
+  @apply rounded-2xl border p-4;
+  border-color: var(--mo-border);
+  background: var(--mo-surface-elevated);
+  box-shadow: var(--mo-shadow-luxury);
+}
+.employee-card:hover {
+  border-color: var(--mo-border-strong);
+}
+.employee-edit-handle {
+  @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition;
+  border-color: var(--mo-border);
+  background: var(--mo-surface);
+  color: var(--mo-text-muted);
+}
+.employee-edit-handle:hover {
+  border-color: var(--mo-accent);
+  background: var(--mo-accent-soft);
+  color: var(--mo-accent-hover);
+}
+.employee-role-badge {
+  @apply inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide;
+  background: var(--mo-accent-soft);
+  color: var(--mo-accent-hover);
+}
+.employees-redistribute-panel {
+  @apply rounded-2xl border p-5;
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.06);
+  box-shadow: var(--mo-shadow-luxury);
+}
+:root[data-theme="dark"] .employees-redistribute-panel {
+  border-color: rgba(251, 191, 36, 0.28);
+  background: rgba(120, 53, 15, 0.22);
+}
+.employees-redistribute-btn {
+  @apply rounded-xl border px-4 py-2 text-sm font-semibold transition disabled:opacity-50;
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(217, 119, 6, 0.18);
+  color: #92400e;
+}
+.employees-redistribute-btn:hover:not(:disabled) {
+  background: rgba(217, 119, 6, 0.28);
+}
+:root[data-theme="dark"] .employees-redistribute-btn {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(180, 83, 9, 0.28);
+  color: #fcd34d;
+}
+:root[data-theme="dark"] .employees-redistribute-btn:hover:not(:disabled) {
+  background: rgba(180, 83, 9, 0.4);
+}
+.employee-pipelines-tag {
+  @apply rounded-lg px-2 py-1 text-xs;
+  background: var(--mo-surface);
+  color: var(--mo-text-muted);
+  border: 1px solid var(--mo-border);
+}
+
+/* ── Финансы ── */
+.finance-panel {
+  @apply rounded-2xl border p-4;
+  border-color: var(--mo-border);
+  background: var(--mo-surface-elevated);
+  box-shadow: var(--mo-shadow-luxury);
+}
+.finance-stat-card {
+  @apply rounded-2xl border p-4;
+  box-shadow: var(--mo-shadow-luxury);
+}
+.finance-stat-card--emerald {
+  border-color: rgba(16, 185, 129, 0.28);
+  background: linear-gradient(145deg, rgba(236, 253, 245, 0.95), var(--mo-surface-elevated));
+}
+.finance-stat-card--violet {
+  border-color: rgba(139, 92, 246, 0.28);
+  background: linear-gradient(145deg, rgba(245, 243, 255, 0.95), var(--mo-surface-elevated));
+}
+.finance-stat-card--sky {
+  border-color: rgba(14, 165, 233, 0.28);
+  background: linear-gradient(145deg, rgba(240, 249, 255, 0.95), var(--mo-surface-elevated));
+}
+.finance-stat-card--amber {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: linear-gradient(145deg, rgba(255, 251, 235, 0.95), var(--mo-surface-elevated));
+}
+:root[data-theme="dark"] .finance-stat-card--emerald {
+  background: linear-gradient(145deg, rgba(6, 78, 59, 0.35), rgba(17, 24, 39, 0.85));
+}
+:root[data-theme="dark"] .finance-stat-card--violet {
+  background: linear-gradient(145deg, rgba(76, 29, 149, 0.28), rgba(17, 24, 39, 0.85));
+}
+:root[data-theme="dark"] .finance-stat-card--sky {
+  background: linear-gradient(145deg, rgba(12, 74, 110, 0.32), rgba(17, 24, 39, 0.85));
+}
+:root[data-theme="dark"] .finance-stat-card--amber {
+  background: linear-gradient(145deg, rgba(120, 53, 15, 0.32), rgba(17, 24, 39, 0.85));
+}
+.finance-stat-label {
+  @apply text-xs font-medium uppercase tracking-wide;
+  color: var(--mo-text-muted);
+}
+.finance-tab-btn {
+  @apply rounded-xl px-4 py-2 text-sm font-medium transition;
+  border: 1px solid transparent;
+  color: var(--mo-text-muted);
+  background: var(--mo-surface-elevated);
+}
+.finance-tab-btn:hover {
+  border-color: var(--mo-border);
+  background: var(--mo-accent-soft);
+  color: var(--mo-text);
+}
+.finance-tab-btn.is-active {
+  border-color: rgba(99, 102, 241, 0.45);
+  background: var(--mo-accent-hover);
+  color: #fff;
+  box-shadow: var(--mo-shadow-luxury);
+}
+:root[data-theme="dark"] .finance-tab-btn.is-active {
+  border-color: rgba(129, 140, 248, 0.45);
+  background: rgba(79, 70, 229, 0.85);
+}
+.finance-table-wrap {
+  @apply overflow-auto rounded-2xl border;
+  border-color: var(--mo-border);
+  background: var(--mo-surface-elevated);
+  box-shadow: var(--mo-shadow-luxury);
+}
+.finance-table-head--osv {
+  background: #217346;
+  color: #fff;
+}
+.finance-table-head--navy {
+  background: #1e3a5f;
+  color: #fff;
+}
+:root[data-theme="dark"] .finance-table-head--osv {
+  background: rgba(6, 95, 70, 0.85);
+}
+:root[data-theme="dark"] .finance-table-head--navy {
+  background: rgba(30, 58, 95, 0.9);
+}
+.finance-table-row {
+  border-top: 1px solid var(--mo-border);
+}
+.finance-table-row:nth-child(odd) {
+  background: var(--mo-surface-elevated);
+}
+.finance-table-row:nth-child(even) {
+  background: var(--mo-surface);
+}
+:root[data-theme="dark"] .finance-table-row:nth-child(even) {
+  background: rgba(15, 23, 42, 0.45);
+}
+.finance-table-cell-revenue {
+  background: rgba(14, 165, 233, 0.08);
+  color: #0c4a6e;
+  font-weight: 500;
+}
+.finance-table-cell-expense {
+  background: rgba(244, 63, 94, 0.08);
+  color: #881337;
+  font-weight: 500;
+}
+:root[data-theme="dark"] .finance-table-cell-revenue {
+  background: rgba(14, 165, 233, 0.12);
+  color: #7dd3fc;
+}
+:root[data-theme="dark"] .finance-table-cell-expense {
+  background: rgba(244, 63, 94, 0.12);
+  color: #fda4af;
+}
+.finance-table-foot {
+  background: var(--mo-accent-soft);
+  font-weight: 600;
+}
+:root[data-theme="dark"] .finance-table-foot {
+  background: rgba(30, 41, 59, 0.65);
+}
+.finance-revenue-total {
+  color: #047857;
+}
+.finance-expense-total {
+  color: #be123c;
+}
+:root[data-theme="dark"] .finance-revenue-total {
+  color: var(--mo-success);
+}
+:root[data-theme="dark"] .finance-expense-total {
+  color: #fb7185;
+}
+.finance-section-head {
+  background: #f9e547;
+  color: #1a1a1a;
+  font-weight: 600;
+}
+:root[data-theme="dark"] .finance-section-head {
+  background: rgba(161, 98, 7, 0.45);
+  color: #fef3c7;
+}
+.finance-warning {
+  @apply text-xs;
+  color: #b45309;
+}
+:root[data-theme="dark"] .finance-warning {
+  color: #fcd34d;
+}
+.mo-modal-close {
+  @apply rounded-full border px-3 py-1 text-sm transition;
+  border-color: var(--mo-border);
+  color: var(--mo-text-muted);
+}
+.mo-modal-close:hover {
+  border-color: var(--mo-border-strong);
+  background: var(--mo-nav-hover);
+  color: var(--mo-text);
 }

@@ -165,7 +165,7 @@ export function KpiPage() {
               type="button"
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending}
-              className="rounded-xl bg-purple-600 px-4 py-2 lux-subheading text-sm hover:bg-purple-500 disabled:opacity-50"
+              className="btn-primary text-sm disabled:opacity-50"
             >
               Сохранить
             </button>
@@ -232,7 +232,7 @@ function OwnerMatrixTable({
           </tr>
         </thead>
         <tbody>
-          <tr className="border-b border-[var(--mo-border)] bg-white">
+          <tr className="kpi-matrix-row-highlight border-b border-[var(--mo-border)]">
             <td className="py-2 pr-3 font-medium mo-muted">Цена услуги</td>
             {directions.map((d) => (
               <td key={d.direction_id} className="py-2 pr-3">
@@ -247,7 +247,7 @@ function OwnerMatrixTable({
                       [d.direction_id]: e.target.value,
                     })
                   }
-                  className="w-24 rounded-lg border border-[var(--mo-border-strong)]/60 bg-white px-2 py-1 text-[var(--mo-text)]"
+                  className="kpi-cell-input w-24"
                 />
               </td>
             ))}
@@ -268,7 +268,7 @@ function OwnerMatrixTable({
                         step={1}
                         value={qtyDraft[key] ?? ""}
                         onChange={(e) => onQtyChange({ ...qtyDraft, [key]: e.target.value })}
-                        className="w-20 rounded-lg border border-[var(--mo-border-strong)]/60 bg-white px-2 py-1 text-[var(--mo-text)]"
+                        className="kpi-cell-input w-20"
                         title="Плановое количество"
                       />
                       <div className="text-xs mo-muted">
@@ -283,7 +283,7 @@ function OwnerMatrixTable({
                 );
               })}
               <td className="py-2 pr-3">{moneyFmt.format(Number(m.total_plan_amount))}</td>
-              <td className="py-2 pr-3 text-[#0f4c3a]">{moneyFmt.format(Number(m.total_actual_paid))}</td>
+              <td className="py-2 pr-3 kpi-actual-value">{moneyFmt.format(Number(m.total_actual_paid))}</td>
               <td className="py-2 pr-3">{m.total_progress_percent != null ? `${m.total_progress_percent.toFixed(1)}%` : "—"}</td>
             </tr>
           ))}
@@ -320,17 +320,17 @@ function ManagerMatrixTable({ data }: { data: SalesKpiManagerMatrix }) {
               <td className="py-2 pr-3">{c.plan_qty}</td>
               <td className="py-2 pr-3">{c.actual_count}</td>
               <td className="py-2 pr-3">{moneyFmt.format(Number(c.plan_amount))}</td>
-              <td className="py-2 pr-3 text-[#0f4c3a]">{moneyFmt.format(Number(c.actual_paid))}</td>
+              <td className="py-2 pr-3 kpi-actual-value">{moneyFmt.format(Number(c.actual_paid))}</td>
               <td className="py-2 pr-3">{c.progress_percent != null ? `${c.progress_percent.toFixed(1)}%` : "—"}</td>
             </tr>
           ))}
-          <tr className="bg-white">
+          <tr className="kpi-matrix-row-highlight">
             <td className="py-2 pr-3 font-semibold">Итого</td>
             <td />
             <td />
             <td />
             <td className="py-2 pr-3 font-semibold">{moneyFmt.format(Number(data.manager.total_plan_amount))}</td>
-            <td className="py-2 pr-3 font-semibold text-[#0f4c3a]">
+            <td className="py-2 pr-3 font-semibold kpi-actual-value">
               {moneyFmt.format(Number(data.manager.total_actual_paid))}
             </td>
             <td className="py-2 pr-3 font-semibold">
