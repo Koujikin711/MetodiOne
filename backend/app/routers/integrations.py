@@ -339,7 +339,7 @@ async def create_integration(
                 detail=f"Green API не принял настройки (проверьте Instance ID, токен и адрес API в кабинете): {err}",
             )
         note = (
-            "WhatsApp подключён: входящие сообщения будут попадать в выбранную воронку. "
+            "WhatsApp подключён: входящие сообщения будут попадать в выбранную направление. "
             "Green API применяет настройки до 5 минут."
         )
         return _integration_read(row, setup_note=note)

@@ -98,7 +98,7 @@ async def _user_assigned_pipeline_ids(db: AsyncSession, user_id: int) -> set[int
 
 
 async def _expert_chief_pipeline_ids(db: AsyncSession, user: User) -> set[int]:
-    """Воронки, где пользователь — главный эксперт (expert_user_id в настройках воронки)."""
+    """Направления, где пользователь — главный эксперт (expert_user_id в настройках направления)."""
     if user.company_id is None:
         return set()
     r = await db.execute(
@@ -111,7 +111,7 @@ async def _expert_chief_pipeline_ids(db: AsyncSession, user: User) -> set[int]:
 
 
 def _appointment_in_pipelines(*, pipeline_ids: set[int]) -> object:
-    """Условие: запись относится к одной из воронок (снимок или направление календаря)."""
+    """Условие: запись относится к одной из направлений (снимок или направление календаря)."""
     if not pipeline_ids:
         return BookingAppointment.id == -1
     return or_(
@@ -125,7 +125,7 @@ def _specialists_visible_to_chief_expert(
     pipeline_ids: set[int],
     company_id: int,
 ) -> object:
-    """Колонки всех экспертов воронки: направление или учётная запись эксперта в назначениях воронки."""
+    """Колонки всех экспертов направления: направление или учётная запись эксперта в назначениях направления."""
     assigned_expert_ids = (
         select(UserPipelineAssignment.user_id)
         .where(
@@ -178,12 +178,12 @@ async def _assert_can_manage_appointment_journal(
     if current_user.role != UserRole.admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Только владелец или админ воронки по лиду записи",
+            detail="Только владелец или админ направления по лиду записи",
         )
     if not await compute_can_manage_journal(db, appt, current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Запись относится к воронке, к которой у вас нет прав администратора",
+            detail="Запись относится к направлении, к которой у вас нет прав администратора",
         )
 
 
@@ -268,7 +268,7 @@ def _appointment_pipeline_id(
 
 
 def _chief_expert_may_see_visit_numbers(viewer: User, pipeline_id: int | None, chief_pipeline_ids: set[int]) -> bool:
-    """Номер сеанса только у эксперта, назначенного главным на воронку."""
+    """Номер сеанса только у эксперта, назначенного главным на направление."""
     if viewer.role != UserRole.expert or not chief_pipeline_ids:
         return False
     if pipeline_id is None:
@@ -283,7 +283,7 @@ async def _visit_numbers_for_chief_expert_view(
     viewer: User,
     rows: list[tuple[BookingAppointment, str, int | None, str]],
 ) -> dict[int, int]:
-    """Считает visit_number только для записей воронок, где viewer — главный эксперт."""
+    """Считает visit_number только для записей направлений, где viewer — главный эксперт."""
     chief_pids = await _expert_chief_pipeline_ids(db, viewer)
     if not chief_pids:
         return {}
@@ -597,7 +597,7 @@ async def create_direction(
     await _assert_expert_readonly_for_booking(db, current_user)
     pipe = await db.get(Pipeline, body.pipeline_id)
     if pipe is None or pipe.company_id != company_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная воронка")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная направление")
     row = BookingDirection(
         name=body.name.strip(),
         duration_min=body.duration_min,
@@ -646,7 +646,7 @@ async def patch_direction(
     if "pipeline_id" in patch and body.pipeline_id is not None:
         p = await db.get(Pipeline, body.pipeline_id)
         if p is None or p.company_id != company_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная воронка")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная направление")
         d.pipeline_id = body.pipeline_id
     _apply_direction_course_stream_fields(d, patch)
     await db.flush()
@@ -968,7 +968,7 @@ async def _upsert_lead_for_appointment(
     if stage_id is not None and lead_pipeline_id is not None:
         stage = await db.get(PipelineStage, stage_id)
         if stage is None or stage.pipeline_id != lead_pipeline_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Стадия не относится к выбранной воронке")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Стадия не относится к выбранной направлении")
     if stage_id is None and lead_pipeline_id is not None:
         stage_id = await resolve_new_lead_stage_id(
             db,
@@ -1007,7 +1007,7 @@ async def booking_viewer_context(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> BookingViewerContext:
-    """Главный эксперт воронки видит номер сеанса вместо времени; остальные — у #ID MetodiOne на карточке."""
+    """Главный эксперт направления видит номер сеанса вместо времени; остальные — у #ID MetodiOne на карточке."""
     if current_user.role != UserRole.expert:
         return BookingViewerContext(is_chief_expert=False, show_session_instead_of_time=False)
     chief_pids = await _expert_chief_pipeline_ids(db, current_user)
@@ -1409,7 +1409,7 @@ async def create_appointment(
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Менеджер или админ воронки не может указать оплату без ответственного менеджера",
+            detail="Менеджер или админ направления не может указать оплату без ответственного менеджера",
         )
 
     lead_id = body.lead_id

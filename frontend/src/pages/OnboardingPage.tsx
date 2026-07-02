@@ -5,7 +5,7 @@ import { decodeRoleFromToken } from "@/lib/auth";
 import { setOnboardingDone } from "@/lib/onboarding";
 
 const steps = [
-  { title: "Воронка и лиды", desc: "Канбан, стадии и карточки лидов.", to: "/crm", done: "Открыть CRM" },
+  { title: "Направление и лиды", desc: "Канбан, стадии и карточки лидов.", to: "/crm", done: "Открыть CRM" },
   { title: "Онлайн-запись", desc: "Направления, специалисты и слоты в календаре.", to: "/booking", done: "К записи" },
   { title: "Интеграции каналов", desc: "WhatsApp, Google Sheets и вебхуки.", to: "/integrations", done: "К интеграциям" },
 ];

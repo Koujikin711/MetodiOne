@@ -315,13 +315,13 @@ async def invite_employee(
     if body.role == UserRole.admin and not body.pipeline_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Для роли «Админ» укажите хотя бы одну воронку (онлайн-запись и лиды по направлению)",
+            detail="Для роли «Админ» укажите хотя бы одну направление (онлайн-запись и лиды по направлению)",
         )
     if body.role == UserRole.expert:
         if not body.pipeline_ids:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Для эксперта укажите хотя бы одну воронку CRM",
+                detail="Для эксперта укажите хотя бы одну направление CRM",
             )
         spec_s = (body.specialization or "").strip()
         if len(spec_s) < 2:
@@ -477,7 +477,7 @@ def _validate_pipelines_for_role(role: UserRole, pipeline_ids: list[int]) -> Non
     if role in (UserRole.admin, UserRole.expert, UserRole.manager) and not pipeline_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Укажите хотя бы одну воронку для менеджера, админа или эксперта",
+            detail="Укажите хотя бы одну направление для менеджера, админа или эксперта",
         )
 
 
@@ -631,6 +631,18 @@ async def patch_employee_contact(
     )
 
 
+@router.post("/{employee_id}/profile", response_model=PatchEmployeeContactResult)
+async def post_employee_profile(
+    employee_id: int,
+    body: PatchEmployeeContactBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> PatchEmployeeContactResult:
+    """POST-алиас для обновления профиля (прокси/CDN иногда блокируют PATCH)."""
+    return await patch_employee_contact(employee_id, body, db, current_user, company_id)
+
+
 @router.patch("/{employee_id}/pipelines", response_model=EmployeeRead)
 async def patch_employee_pipelines(
     employee_id: int,
@@ -648,7 +660,7 @@ async def patch_employee_pipelines(
     if target.role == UserRole.owner:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Воронки владельца не редактируются — у владельца доступ ко всем воронкам",
+            detail="Направления владельца не редактируются — у владельца доступ ко всем направлением",
         )
 
     pipeline_ids = await _validate_pipeline_ids(db, company_id, body.pipeline_ids)
@@ -700,6 +712,18 @@ async def patch_employee_pipelines(
 
     await db.refresh(target)
     return await _employee_read(db, target)
+
+
+@router.post("/{employee_id}/pipelines/set", response_model=EmployeeRead)
+async def post_employee_pipelines(
+    employee_id: int,
+    body: PatchEmployeePipelinesBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> EmployeeRead:
+    """POST-алиас для назначения направлений (прокси/CDN иногда блокируют PATCH)."""
+    return await patch_employee_pipelines(employee_id, body, db, current_user, company_id)
 
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)

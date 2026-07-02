@@ -15,12 +15,15 @@ export function resolveApiUrl(path: string): string {
   return path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
 }
 
-function resolveApiCandidates(path: string): string[] {
+function resolveApiCandidates(path: string, method: string): string[] {
   const primary = resolveApiUrl(path);
   if (!import.meta.env.VITE_API_BASE_URL) return [primary];
   if (!path.startsWith("/")) return [primary];
   if (primary === path) return [primary];
-  // Fallback для reverse-proxy деплоев: если внешний API URL недоступен, пробуем same-origin /api.
+  const m = method.toUpperCase();
+  const mutating = m !== "GET" && m !== "HEAD";
+  // Same-origin fallback только для GET/HEAD: SPA на Vercel отвечает 405 на PATCH/POST/DELETE.
+  if (mutating) return [primary];
   return [primary, path];
 }
 
@@ -84,7 +87,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   let text = "";
   let data: unknown = null;
   try {
-    const candidates = resolveApiCandidates(path);
+    const method = (init.method ?? "GET").toUpperCase();
+    const candidates = resolveApiCandidates(path, method);
     let lastErr: unknown = null;
     for (let i = 0; i < candidates.length; i += 1) {
       const url = candidates[i];
@@ -97,7 +101,23 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       }
       const bodyText = await response.text();
       const hasMoreCandidates = i < candidates.length - 1;
-      if (bodyText && looksLikeHtmlPayload(bodyText, response.headers.get("content-type"))) {
+      const isHtml = Boolean(bodyText && looksLikeHtmlPayload(bodyText, response.headers.get("content-type")));
+      const isExternalPrimary = i === 0 && url.startsWith("http");
+
+      if (isExternalPrimary && !response.ok && !isHtml) {
+        res = response;
+        text = bodyText;
+        if (bodyText) {
+          try {
+            data = JSON.parse(bodyText) as unknown;
+          } catch {
+            data = null;
+          }
+        }
+        break;
+      }
+
+      if (isHtml) {
         if (hasMoreCandidates) continue;
       } else if (bodyText) {
         try {

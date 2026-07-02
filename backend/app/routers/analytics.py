@@ -199,7 +199,7 @@ async def analytics_full(
         by_pipeline.append(
             PipelineFullAnalyticsItem(
                 pipeline_id=pid,
-                pipeline_name=pname or "Без воронки",
+                pipeline_name=pname or "Без направления",
                 leads_count=int(leads_count or 0),
                 processed_by_manager_count=int(processed or 0),
                 received_amount=rec,

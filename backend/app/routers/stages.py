@@ -41,7 +41,7 @@ async def list_stages(
             return []
         if pipeline_id is not None:
             if pipeline_id not in allowed:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Воронка недоступна")
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Направление недоступна")
             q = q.where(PipelineStage.pipeline_id == pipeline_id)
         else:
             q = q.where(PipelineStage.pipeline_id.in_(allowed))

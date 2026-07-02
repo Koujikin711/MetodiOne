@@ -74,7 +74,7 @@ def _ensure_assign_permission(
         return
     if creator_role == UserRole.expert:
         if not expert_can_assign:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Эксперт не назначен в воронку и не может ставить задачи")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Эксперт не назначен в направление и не может ставить задачи")
         if target_role not in (UserRole.owner, UserRole.admin, UserRole.manager):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Эксперт может ставить задачи владельцу, администратору или менеджеру")
         return

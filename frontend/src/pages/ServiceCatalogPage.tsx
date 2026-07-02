@@ -41,7 +41,7 @@ export function ServiceCatalogPage() {
 
   const createMut = useMutation({
     mutationFn: () => {
-      if (pid == null) throw new Error("Выберите воронку");
+      if (pid == null) throw new Error("Выберите направление");
       return apiFetch<ServiceTemplateRead>("/api/services/templates", {
         method: "POST",
         body: JSON.stringify({
@@ -70,7 +70,7 @@ export function ServiceCatalogPage() {
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--mo-text)]">Конструктор услуг</h1>
-          <p className="mt-1 text-sm lux-caption">Каталог привязан к воронке. Произвольное число этапов оплаты.</p>
+          <p className="mt-1 text-sm lux-caption">Каталог привязан к направлении. Произвольное число этапов оплаты.</p>
         </div>
         <button type="button" className="btn-secondary text-sm" disabled={migrateMut.isPending} onClick={() => migrateMut.mutate()}>
           Импорт из записей
@@ -79,7 +79,7 @@ export function ServiceCatalogPage() {
 
       <section className="mo-section p-4">
         <label className="text-sm lux-caption">
-          Воронка
+          Направление
           <select
             className="mo-input mt-1"
             value={pipelineId}
@@ -143,7 +143,7 @@ export function ServiceCatalogPage() {
           </section>
 
           <section className="mo-section p-4">
-            <h2 className="mb-3 lux-subheading">Каталог воронки</h2>
+            <h2 className="mb-3 lux-subheading">Каталог направления</h2>
             {(templatesQ.data ?? []).map((t) => (
               <div key={t.id} className="mb-2 rounded-xl border border-[var(--mo-border)] p-3">
                 <div className="font-semibold">{t.name}</div>

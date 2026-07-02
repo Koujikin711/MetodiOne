@@ -64,7 +64,7 @@ function roleLabel(role: UserRole): string {
   if (role === "owner") return "Владелец";
   if (role === "manager") return "Менеджер";
   if (role === "expert") return "Эксперт";
-  if (role === "admin") return "Админ воронки";
+  if (role === "admin") return "Админ направления";
   return role;
 }
 
@@ -328,8 +328,8 @@ export function EmployeesPage() {
 
       let contactResult: PatchEmployeeContactResult | null = null;
       if (profileChanged) {
-        contactResult = await apiFetch<PatchEmployeeContactResult>(`/api/employees/${editEmployee.id}`, {
-          method: "PATCH",
+        contactResult = await apiFetch<PatchEmployeeContactResult>(`/api/employees/${editEmployee.id}/profile`, {
+          method: "POST",
           body: JSON.stringify({
             email: editEmail.trim(),
             phone: editPhone.trim(),
@@ -348,10 +348,10 @@ export function EmployeesPage() {
 
       if (pipelinesChanged) {
         if (editPipelineIds.length === 0) {
-          throw new Error("Нужна хотя бы одна воронка");
+          throw new Error("Нужно хотя бы одно направление");
         }
-        await apiFetch<Employee>(`/api/employees/${editEmployee.id}/pipelines`, {
-          method: "PATCH",
+        await apiFetch<Employee>(`/api/employees/${editEmployee.id}/pipelines/set`, {
+          method: "POST",
           body: JSON.stringify({ pipeline_ids: editPipelineIds }),
         });
       }
@@ -523,7 +523,7 @@ export function EmployeesPage() {
                   {e.role === "expert" && e.specialization ? ` · ${e.specialization}` : ""}
                 </div>
                 <div className="mt-2 inline-flex max-w-full">
-                  <span className="employee-pipelines-tag truncate">Воронки: {pipelineNames}</span>
+                  <span className="employee-pipelines-tag truncate">Направления: {pipelineNames}</span>
                 </div>
               </div>
 
@@ -704,9 +704,9 @@ export function EmployeesPage() {
 
               {canEditPipelines(editEmployee.role) ? (
                 <section className="employee-edit-section">
-                  <h3 className="employee-edit-section__title">Воронки</h3>
+                  <h3 className="employee-edit-section__title">Направления</h3>
                   <p className="mb-2 text-[11px] mo-muted">
-                    Воронки, в которых сотрудник видит лиды и записи.
+                    Направления, в которых сотрудник видит лиды и записи.
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {pipelines.map((p) => (
@@ -719,7 +719,7 @@ export function EmployeesPage() {
                         <span className="truncate">{p.name}</span>
                       </label>
                     ))}
-                    {pipelines.length === 0 && <div className="text-sm mo-muted">Нет воронок</div>}
+                    {pipelines.length === 0 && <div className="text-sm mo-muted">Нет направлений</div>}
                   </div>
                 </section>
               ) : null}
@@ -804,7 +804,7 @@ export function EmployeesPage() {
                   <option value="owner">Владелец</option>
                   <option value="manager">Менеджер</option>
                   <option value="expert">Эксперт</option>
-                  <option value="admin">Админ воронки</option>
+                  <option value="admin">Админ направления</option>
                 </select>
               </label>
 
@@ -897,10 +897,10 @@ export function EmployeesPage() {
               )}
 
               <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
-                <div className="lux-subheading text-sm">Направления (воронки)</div>
+                <div className="lux-subheading text-sm">Направления CRM</div>
                 <p className="mt-1 text-[11px] mo-muted">
-                  Для менеджера, админа и эксперта нужна хотя бы одна воронка. После приглашения воронки можно изменить кнопкой
-                  «Воронки» в карточке сотрудника.
+                  Для менеджера, админа и эксперта нужно хотя бы одно направление. После приглашения направления можно изменить в карточке
+                  сотрудника.
                 </p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {pipelines.map((p) => (
@@ -913,7 +913,7 @@ export function EmployeesPage() {
                       <span className="truncate">{p.name}</span>
                     </label>
                   ))}
-                  {pipelines.length === 0 && <div className="text-sm mo-muted">Нет воронок</div>}
+                  {pipelines.length === 0 && <div className="text-sm mo-muted">Нет направлений</div>}
                 </div>
               </div>
 

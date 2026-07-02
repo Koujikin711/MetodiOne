@@ -98,7 +98,7 @@ export function ManagerDeskPage() {
 
           <div className="grid gap-3 sm:grid-cols-3">
             <Link to="/crm" className={`${theme.surfaceElevated} block p-4 hover:border-[#2f5f85]/40`}>
-              <div className="text-sm font-semibold">Воронка CRM</div>
+              <div className="text-sm font-semibold">Направление CRM</div>
             </Link>
             <Link to="/my-leads" className={`${theme.surfaceElevated} block p-4 hover:border-[#2f5f85]/40`}>
               <div className="text-sm font-semibold">Мои лиды</div>

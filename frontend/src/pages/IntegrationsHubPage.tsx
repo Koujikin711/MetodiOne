@@ -27,7 +27,7 @@ export function IntegrationsHubPage() {
   const allowed = role === "owner" || (role === "expert" && Boolean(meQuery.data?.is_chief_expert));
   if (!allowed) {
     return (
-      <AccessDenied message="Раздел «Интеграции» доступен владельцу или главному эксперту воронки." />
+      <AccessDenied message="Раздел «Интеграции» доступен владельцу или главному эксперту направления." />
     );
   }
 

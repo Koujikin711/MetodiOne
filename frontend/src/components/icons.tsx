@@ -30,7 +30,7 @@ export function LayoutDashboard(props: IconProps) {
   );
 }
 
-/** CRM / воронка */
+/** CRM / направление */
 export function Funnel(props: IconProps) {
   return (
     <svg {...iconProps(props)}>

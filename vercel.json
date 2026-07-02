@@ -6,6 +6,10 @@
   "framework": null,
   "routes": [
     { "handle": "filesystem" },
+    {
+      "src": "/api/(.*)",
+      "dest": "https://metodi-one-koujikin.amvera.io/api/$1"
+    },
     { "src": "/.*", "dest": "/index.html" }
   ]
 }

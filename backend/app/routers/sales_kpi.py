@@ -73,7 +73,7 @@ def _manager_expr():
 async def _load_pipeline(db: AsyncSession, company_id: int, pipeline_id: int) -> Pipeline:
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None or pipe.company_id != company_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Воронка не найдена")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдена")
     return pipe
 
 
@@ -319,10 +319,10 @@ async def manager_matrix(
 ) -> SalesKpiManagerMatrix:
     _assert_kpi_access(current_user)
     if current_user.role not in (UserRole.manager, UserRole.admin):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только менеджер или админ воронки")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только менеджер или админ направления")
     pipe = await _load_pipeline(db, company_id, pipeline_id)
     if not await _is_user_assigned_pipeline(db, company_id, current_user.id, pipeline_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Вы не назначены на эту воронку")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Вы не назначены на эту направление")
     try:
         ym = _parse_year_month(year_month)
     except ValueError as e:
@@ -423,7 +423,7 @@ async def put_matrix(
         if not await _is_user_assigned_pipeline(db, company_id, m.manager_user_id, body.pipeline_id):
             raise HTTPException(
                 status_code=400,
-                detail=f"Менеджер {m.manager_user_id} не назначен на выбранную воронку",
+                detail=f"Менеджер {m.manager_user_id} не назначен на выбранную направление",
             )
         for c in m.cells:
             if c.plan_qty <= 0:
