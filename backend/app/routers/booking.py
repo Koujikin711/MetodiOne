@@ -49,6 +49,7 @@ from app.schemas.lead import LeadRead
 from app.services.automation import process_lead_automation
 from app.services.audit import write_audit_event
 from app.services.lead_assignment import assign_manager_for_new_lead
+from app.services.lead_sales_stages import resolve_new_lead_stage_id
 from app.services.lead_extra_phones import find_lead_by_any_phone, sync_lead_extra_phones
 from app.services.sales_kpi import get_kpi_service_price
 from app.services.whatsapp_automation import send_booking_confirmation_if_needed
@@ -968,11 +969,11 @@ async def _upsert_lead_for_appointment(
         if stage is None or stage.pipeline_id != lead_pipeline_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Стадия не относится к выбранной воронке")
     if stage_id is None and lead_pipeline_id is not None:
-        stage_id = await db.scalar(
-            select(PipelineStage.id)
-            .where(PipelineStage.pipeline_id == lead_pipeline_id)
-            .order_by(PipelineStage.order.asc(), PipelineStage.id.asc())
-            .limit(1),
+        stage_id = await resolve_new_lead_stage_id(
+            db,
+            pipeline_id=lead_pipeline_id,
+            preferred_stage_id=None,
+            default_name="Новый",
         )
     if stage_id is None:
         stage_id = await _stage_id_by_name(db, settings.booking_stage_after_book)

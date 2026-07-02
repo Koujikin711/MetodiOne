@@ -20,6 +20,7 @@ from app.models import (
 )
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.lead_extra_phones import find_lead_by_any_phone
+from app.services.lead_sales_stages import resolve_new_lead_stage_id
 
 
 def norm_phone(raw: str | None) -> str | None:
@@ -139,7 +140,6 @@ async def create_lead_from_integration(
         thread_provider=thread_provider,
     )
     if existing is not None:
-        existing.status_id = integ.stage_id
         if not existing.name and name.strip():
             existing.name = name.strip()
         if not existing.email and (email or "").strip():
@@ -148,13 +148,28 @@ async def create_lead_from_integration(
         await db.refresh(existing, ["stage"])
         return existing, False
 
+    stage_id = await resolve_new_lead_stage_id(
+        db,
+        pipeline_id=int(integ.pipeline_id),
+        preferred_stage_id=int(integ.stage_id) if integ.stage_id else None,
+        default_name="Новый",
+    )
+    if stage_id is None and integ.stage_id:
+        stage_id = int(integ.stage_id)
+    if stage_id is None:
+        stage_id = await db.scalar(
+            select(PipelineStage.id).where(PipelineStage.pipeline_id == integ.pipeline_id).limit(1),
+        )
+    if stage_id is None:
+        raise ValueError(f"No stages in pipeline {integ.pipeline_id}")
+
     lead = Lead(
         company_id=company_id,
         name=name.strip() or "Лид",
         phone=norm,
         email=(email or "").strip() or None,
         source=source_name,
-        status_id=integ.stage_id,
+        status_id=stage_id,
         manager_id=None,
     )
     db.add(lead)

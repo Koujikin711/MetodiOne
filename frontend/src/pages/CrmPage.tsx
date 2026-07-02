@@ -47,7 +47,11 @@ const DEFAULT_AUTO_PIPELINE_STAGES: Array<{ name: string; color: string }> = [
   { name: "Новый", color: "#64748b" },
   { name: "Квалифицирован", color: "#6366f1" },
   { name: "Запись", color: "#8b5cf6" },
-  { name: "Успешно реализован", color: "#22c55e" },
+  { name: "У эксперта", color: "#0ea5e9" },
+  { name: "Оказание услуги", color: "#14b8a6" },
+  { name: "Доп. услуги", color: "#f59e0b" },
+  { name: "Оплачено", color: "#22c55e" },
+  { name: "Успешно реализован", color: "#16a34a" },
   { name: "Потерян", color: "#ef4444" },
 ];
 
@@ -86,28 +90,35 @@ function resolveTargetStageId(
 function LeadCardBody({ lead, stageColor }: { lead: Lead; stageColor?: string }) {
   const paidNum =
     lead.paid_extras_amount == null ? 0 : typeof lead.paid_extras_amount === "number" ? lead.paid_extras_amount : Number(lead.paid_extras_amount);
-  const dotColor = stageColor ?? "#2f5f85";
+  const dotColor = stageColor ?? "#6366f1";
 
   return (
     <>
-      <p className="break-words text-base font-semibold leading-snug text-[#2C2520]">{lead.name}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 break-words text-[15px] font-semibold leading-snug text-[var(--mo-text)]">{lead.name}</p>
+        {lead.source ? (
+          <span className="crm-lead-source shrink-0" title="Источник">
+            {lead.source}
+          </span>
+        ) : null}
+      </div>
       {lead.manager_name ? (
-        <p className="mt-0.5 truncate text-sm text-[#7A7265]">{lead.manager_name}</p>
+        <p className="mt-1 truncate text-xs text-[var(--mo-text-muted)]">{lead.manager_name}</p>
       ) : (
-        <p className="mt-0.5 text-sm italic text-[#A89880]">Без ответственного</p>
+        <p className="mt-1 text-xs italic text-[var(--mo-text-muted)]">Без ответственного</p>
       )}
-      <p className="mt-2 break-all text-sm text-[#7A7265]">
+      <p className="mt-2 break-all text-sm font-medium text-[var(--mo-text)]">
         <PatientPhone value={lead} />
       </p>
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#EFEBE1] pt-2.5">
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--mo-border)] pt-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <span className="crm-stage-gem shrink-0" style={{ backgroundColor: dotColor }} />
-          <span className="truncate text-xs font-semibold text-[#7A7265]">{leadAgeLabel(lead.created_at)}</span>
+          <span className="truncate text-xs font-semibold text-[var(--mo-text-muted)]">{leadAgeLabel(lead.created_at)}</span>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {lead.protocol_file_attached && <span title="Протокол прикреплён">📄</span>}
-          {paidNum > 0 && <span title="Есть оплата по доп. услугам">💰</span>}
-          {lead.refusal_reason && <span title="Есть отказ">❌</span>}
+        <div className="flex shrink-0 items-center gap-1">
+          {lead.protocol_file_attached && <span className="crm-lead-badge" title="Протокол">📄</span>}
+          {paidNum > 0 && <span className="crm-lead-badge" title="Оплата">💰</span>}
+          {lead.refusal_reason && <span className="crm-lead-badge" title="Отказ">✕</span>}
         </div>
       </div>
     </>

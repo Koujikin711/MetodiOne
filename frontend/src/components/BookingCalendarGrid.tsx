@@ -442,7 +442,20 @@ function SortableSpecialistColumn({
           const cls = appointmentVisualClass(a);
           const narrow = laneCount > 1;
           const note = (a.comment || "").trim();
-          const leadTitle = a.lead_id ? "Открыть карточку клиента" : "Нет лида в MetodiOne";
+          const serviceLine = (a.service_title || "").trim();
+          const leadTitle = a.lead_id ? `Клиент #${a.lead_id} в CRM` : "Нет лида в MetodiOne";
+          const cardHeightPx = (heightPct / 100) * gridHeightPx;
+          const density: "xs" | "sm" | "md" | "lg" =
+            cardHeightPx < 52 ? "xs" : cardHeightPx < 72 ? "sm" : cardHeightPx < 104 ? "md" : "lg";
+          const cardTitle = [
+            a.patient_name,
+            formatAppointmentTimeOnCard(a.start_at, a.end_at, false),
+            serviceLine || null,
+            note ? `Заметка: ${note}` : null,
+            leadTitle,
+          ]
+            .filter(Boolean)
+            .join(" · ");
           return (
             <div
               key={a.id}
@@ -456,15 +469,6 @@ function SortableSpecialistColumn({
                 zIndex: 20 + lane,
               }}
             >
-              {note ? (
-                <div
-                  role="tooltip"
-                  className="pointer-events-none absolute bottom-full left-1/2 z-[80] mb-1 hidden w-max max-w-[min(260px,92vw)] -translate-x-1/2 rounded-lg border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-2.5 py-1.5 text-[11px] leading-snug text-[var(--mo-text)] shadow-lg group-hover/appt:block"
-                >
-                  <span className="font-semibold text-[var(--mo-text-muted)]">Заметка: </span>
-                  {note}
-                </div>
-              ) : null}
               <button
                 type="button"
                 draggable
@@ -474,73 +478,58 @@ function SortableSpecialistColumn({
                 }}
                 onClick={() => onAppointmentClick(a)}
                 className={[
-                  "h-full w-full overflow-hidden rounded-lg text-left text-xs",
-                  narrow ? "px-1 py-0.5" : "px-2 py-1.5",
+                  "booking-appt-card flex h-full min-h-0 w-full flex-col overflow-hidden rounded-lg text-left",
+                  narrow ? "px-1 py-0.5" : "px-1.5 py-1",
                   cls,
                   appointmentHoverClass,
                 ].join(" ")}
-                title={note ? `${leadTitle}. Заметка: ${note}` : leadTitle}
+                title={cardTitle}
               >
-              <div className="flex items-start justify-between gap-1.5">
-                <span
-                  className={[
-                    "min-w-0 flex-1 break-words pr-1 font-semibold leading-[1.25]",
-                    narrow ? "line-clamp-2 text-[10px]" : "line-clamp-2 text-[13px]",
-                  ].join(" ")}
-                >
-                  {a.patient_name}
-                </span>
-                <div className="flex shrink-0 flex-col items-end gap-0.5 leading-none">
-                  {showSessionInsteadOfTime ? (
-                    <span
-                      className={[
-                        "whitespace-nowrap font-bold tabular-nums text-indigo-900",
-                        narrow ? "text-[11px]" : "text-[13px]",
-                      ].join(" ")}
-                      title={visitDisplayTitle(a)}
-                    >
-                      {visitDisplayValue(a) ?? "—"}
-                    </span>
-                  ) : (
-                    <span
-                      className={[
-                        "whitespace-nowrap font-bold tabular-nums",
-                        narrow ? "text-[10px]" : "text-[11px]",
-                      ].join(" ")}
-                      title={formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
-                    >
-                      {formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow)}
-                    </span>
-                  )}
-                  {a.status === "completed" && (
-                    <span className="text-[10px] font-bold opacity-90" aria-hidden>
-                      ✓
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="mt-0.5 truncate text-[10px] font-medium opacity-90 booking-appt-meta">
-                {(a.service_title || "").trim() || "—"}
-              </div>
-              {note && !narrow ? (
-                <div className="mt-0.5 truncate text-[9px] italic opacity-80" title={note}>
-                  {note}
-                </div>
-              ) : null}
-              <div className="booking-appt-meta mt-1 flex items-center gap-1 text-[10px]">
-                <span className="booking-appt-badge rounded px-1 py-0.5 font-medium">MetodiOne</span>
-                {a.lead_id ? (
-                  <span className="font-semibold opacity-90">#{a.lead_id}</span>
-                ) : (
-                  <span className="opacity-80">без лида</span>
-                )}
-                {!showSessionInsteadOfTime && visitDisplayValue(a) ? (
-                  <span className="font-bold tabular-nums text-indigo-800" title={visitDisplayTitle(a)}>
-                    · {visitDisplayValue(a)}
+                <div className="flex min-h-0 items-start justify-between gap-1">
+                  <span
+                    className={[
+                      "min-w-0 flex-1 font-semibold leading-tight",
+                      density === "xs" ? "line-clamp-1 text-[10px]" : "line-clamp-2 text-[11px]",
+                    ].join(" ")}
+                  >
+                    {a.patient_name}
                   </span>
+                  <div className="flex shrink-0 flex-col items-end leading-none">
+                    {showSessionInsteadOfTime ? (
+                      <span className="whitespace-nowrap text-[10px] font-bold tabular-nums" title={visitDisplayTitle(a)}>
+                        {visitDisplayValue(a) ?? "—"}
+                      </span>
+                    ) : (
+                      <span
+                        className="whitespace-nowrap text-[10px] font-bold tabular-nums opacity-95"
+                        title={formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
+                      >
+                        {formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow)}
+                      </span>
+                    )}
+                    {a.status === "completed" ? (
+                      <span className="text-[9px] font-bold opacity-90" aria-hidden>
+                        ✓
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                {density !== "xs" && serviceLine ? (
+                  <p className="mt-0.5 line-clamp-1 text-[9px] font-medium leading-tight opacity-95">{serviceLine}</p>
                 ) : null}
-              </div>
-            </button>
+                {density === "md" || density === "lg" ? (
+                  note ? (
+                    <p className={["mt-0.5 leading-tight opacity-85", density === "lg" ? "line-clamp-2 text-[9px]" : "line-clamp-1 text-[9px]"].join(" ")}>
+                      {note}
+                    </p>
+                  ) : null
+                ) : null}
+                {density === "lg" && !showSessionInsteadOfTime && visitDisplayValue(a) ? (
+                  <p className="mt-auto line-clamp-1 pt-0.5 text-[9px] font-semibold tabular-nums opacity-80" title={visitDisplayTitle(a)}>
+                    {visitDisplayValue(a)}
+                  </p>
+                ) : null}
+              </button>
             </div>
           );
         })}
