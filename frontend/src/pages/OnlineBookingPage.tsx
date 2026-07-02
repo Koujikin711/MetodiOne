@@ -824,28 +824,28 @@ export function OnlineBookingPage() {
             </>
           )}
 
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="text-sm mo-muted">
-              Дата
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-xs mo-muted">
+              <span>Дата</span>
               <input
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
-                className="mo-input ml-2 inline-block w-auto py-1.5"
+                className="mo-input w-auto min-w-[148px] py-1.5"
               />
             </label>
             <button
               type="button"
               onClick={() => setCalendarDrawerOpen(true)}
-              className="btn-secondary inline-flex items-center gap-2 px-3 py-1.5 text-xs xl:hidden"
+              className="btn-secondary mb-0.5 inline-flex items-center gap-2 px-3 py-1.5 text-xs xl:hidden"
             >
               <Calendar className="h-4 w-4 text-[var(--mo-accent-hover)]" />
               Месяц
             </button>
-            <div className="flex flex-wrap items-center gap-2 text-[11px]">
-              <span className="booking-appt booking-appt--booked rounded px-2 py-0.5 font-semibold">Записан</span>
-              <span className="booking-appt booking-appt--notify rounded px-2 py-0.5 font-semibold">Уведомление отправлено</span>
-              <span className="booking-appt booking-appt--replied rounded px-2 py-0.5 font-semibold">Клиент ответил</span>
+            <div className="mb-0.5 flex flex-wrap items-center gap-2">
+              <span className="booking-appt booking-appt--booked booking-status-legend">Записан</span>
+              <span className="booking-appt booking-appt--notify booking-status-legend">Уведомление отправлено</span>
+              <span className="booking-appt booking-appt--replied booking-status-legend">Клиент ответил</span>
             </div>
           </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_min(100%,280px)] xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">

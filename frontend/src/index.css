@@ -56,24 +56,24 @@
   --mo-sidebar-border: #dbe2ef;
   --mo-sidebar-shadow: none;
   --booking-grid-hatch: rgba(148, 163, 184, 0.18);
-  --booking-appt-booked-bg: #dbeafe;
-  --booking-appt-booked-border: #2563eb;
-  --booking-appt-booked-text: #1e3a8a;
-  --booking-appt-completed-bg: #d1fae5;
-  --booking-appt-completed-border: #059669;
-  --booking-appt-completed-text: #064e3b;
+  --booking-appt-booked-bg: #eef2ff;
+  --booking-appt-booked-border: #3b82f6;
+  --booking-appt-booked-text: #1e40af;
+  --booking-appt-completed-bg: #ecfdf5;
+  --booking-appt-completed-border: #34d399;
+  --booking-appt-completed-text: #065f46;
   --booking-appt-neutral-bg: #f3f4f6;
   --booking-appt-neutral-border: #9ca3af;
   --booking-appt-neutral-text: #374151;
   --booking-appt-cancel-bg: #f5f5f4;
   --booking-appt-cancel-border: #a8a29e;
   --booking-appt-cancel-text: #78716c;
-  --booking-appt-notify-bg: #fef3c7;
-  --booking-appt-notify-border: #d97706;
-  --booking-appt-notify-text: #92400e;
-  --booking-appt-replied-bg: #ede9fe;
-  --booking-appt-replied-border: #7c3aed;
-  --booking-appt-replied-text: #5b21b6;
+  --booking-appt-notify-bg: #fff7ed;
+  --booking-appt-notify-border: #f97316;
+  --booking-appt-notify-text: #9a3412;
+  --booking-appt-replied-bg: #faf5ff;
+  --booking-appt-replied-border: #a855f7;
+  --booking-appt-replied-text: #581c87;
   --booking-appt-meta: #475569;
   --booking-appt-badge-bg: rgba(255, 255, 255, 0.85);
   --mo-medical-primary: #2a7c8f;
@@ -766,18 +766,21 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 
 /* Онлайн-запись — карточки с читаемым контрастом */
 .booking-appt {
-  @apply font-semibold shadow-sm;
+  @apply font-semibold;
   border-width: 1px;
   border-style: solid;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+.booking-status-legend {
+  @apply inline-flex items-center rounded-[10px] px-2.5 py-1 text-[11px] font-semibold leading-none;
+}
+.booking-appt-bitrix {
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 .booking-appt-bitrix.booking-appt--booked {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    transparent,
-    transparent 5px,
-    rgba(0, 0, 0, 0.045) 5px,
-    rgba(0, 0, 0, 0.045) 10px
-  );
+  background-image: none;
 }
 .booking-appt-bitrix.booking-appt--completed {
   background-image: none;

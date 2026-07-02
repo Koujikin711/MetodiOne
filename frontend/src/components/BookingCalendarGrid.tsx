@@ -47,6 +47,8 @@ const SLOT_MINUTES = Array.from(
   (_, i) => GRID_START_HOUR * 60 + i * SLOT_STEP_MIN,
 );
 
+const HOUR_LABELS = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => GRID_START_HOUR + i);
+
 const DEFAULT_WEEKDAYS = [0, 1, 2, 3, 4];
 
 const statusCardClass: Record<string, string> = {
@@ -737,14 +739,12 @@ export function BookingCalendarGrid({
               </button>
             )}
           </div>
-          <div className="relative flex flex-col pr-2">
-            {SLOT_MINUTES.map((minuteOfDay) => (
-              <div
-                key={minuteOfDay}
-                className="flex shrink-0 items-start justify-end pr-0.5 text-[10px] tabular-nums mo-muted"
-                style={{ height: (SLOT_STEP_MIN / 60) * PX_PER_HOUR }}
-              >
-                {Math.floor(minuteOfDay / 60)}:{String(minuteOfDay % 60).padStart(2, "0")}
+          <div className="relative flex flex-col pr-1.5">
+            {HOUR_LABELS.map((hour) => (
+              <div key={hour} className="relative shrink-0" style={{ height: PX_PER_HOUR }}>
+                <span className="absolute right-0 top-0 -translate-y-1/2 text-[10px] font-medium tabular-nums leading-none mo-muted">
+                  {hour}:00
+                </span>
               </div>
             ))}
             {nowTopPct != null && (
