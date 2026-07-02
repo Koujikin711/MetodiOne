@@ -140,8 +140,20 @@ export function KpiPage() {
             className="mo-input"
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm mo-muted sm:col-span-2">
-          <span className="text-base font-semibold text-[var(--mo-text)]">Карточки клиента</span>
+        <label className="flex flex-col gap-1 text-sm mo-muted">
+          Воронка
+          <select
+            value={pipelineId ?? ""}
+            onChange={(e) => setPipelineId(Number(e.target.value) || null)}
+            className="mo-input"
+          >
+            {(pipelinesQuery.data ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.expert_name ? ` — эксперт: ${p.expert_name}` : ""}
+              </option>
+            ))}
+          </select>
         </label>
       </section>
 
