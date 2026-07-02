@@ -1143,9 +1143,6 @@ export function OnlineBookingPage() {
                       readOnly
                       className="mt-1 w-full mo-input opacity-90"
                     />
-                    <p className="mt-1 text-xs mo-muted">
-                      Подставляется автоматически при оплате.
-                    </p>
                   </label>
                 ) : null}
                 <label className="block text-sm mo-muted">
