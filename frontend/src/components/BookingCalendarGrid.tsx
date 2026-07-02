@@ -24,7 +24,7 @@ import {
   type SetStateAction,
 } from "react";
 
-import { CheckCircle2, FileText, GripVertical, MessageCircle, MoreHorizontal, Pencil, Phone, Plus, Trash2 } from "@/components/icons";
+import { Check, FileText, GripVertical, MessageCircle, MoreHorizontal, Pencil, Phone, Plus, Trash2 } from "@/components/icons";
 import {
   BOOKING_TIME_ZONE,
   formatAppointmentTimeOnCard,
@@ -208,6 +208,8 @@ type Props = {
   canEditNotes?: boolean;
   onAppointmentNoteClick?: (a: BookingAppointment) => void;
   onOpenChat?: (leadId: number) => void;
+  canToggleComplete?: boolean;
+  onAppointmentCompleteToggle?: (a: BookingAppointment, completed: boolean) => void;
 };
 
 type SortableColProps = {
@@ -231,6 +233,8 @@ type SortableColProps = {
   canEditNotes?: boolean;
   onAppointmentNoteClick?: (a: BookingAppointment) => void;
   onOpenChat?: (leadId: number) => void;
+  canToggleComplete?: boolean;
+  onAppointmentCompleteToggle?: (a: BookingAppointment, completed: boolean) => void;
 };
 
 function SortableSpecialistColumn({
@@ -254,6 +258,8 @@ function SortableSpecialistColumn({
   canEditNotes,
   onAppointmentNoteClick,
   onOpenChat,
+  canToggleComplete,
+  onAppointmentCompleteToggle,
 }: SortableColProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: spec.id,
@@ -456,6 +462,8 @@ function SortableSpecialistColumn({
           const serviceLine = (a.service_title || "").trim();
           const phoneDigits = (a.patient_phone || "").replace(/\D+/g, "");
           const isCompleted = a.status === "completed";
+          const canShowCompleteMark =
+            isCompleted || (canToggleComplete && a.status !== "cancelled" && a.status !== "no_show");
           const timeLabel = showSessionInsteadOfTime
             ? (visitDisplayValue(a) ?? "—")
             : formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow);
@@ -516,11 +524,6 @@ function SortableSpecialistColumn({
                 ].join(" ")}
                 title={cardTitle}
               >
-                {isCompleted ? (
-                  <span className="booking-appt-done-badge pointer-events-none absolute -right-0.5 -top-0.5 z-10">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  </span>
-                ) : null}
                 <div className="flex min-h-0 items-center gap-0.5 pr-2">
                   <span className="line-clamp-1 min-w-0 flex-1 text-[11px] font-bold leading-tight">{a.patient_name}</span>
                   {canEditNotes || note ? (
@@ -585,6 +588,31 @@ function SortableSpecialistColumn({
                         CRM
                       </button>
                     ) : null}
+                    {canShowCompleteMark ? (
+                      canToggleComplete ? (
+                        <button
+                          type="button"
+                          className={["booking-appt-check", isCompleted ? "is-done" : ""].join(" ")}
+                          title={isCompleted ? "Снять отметку «завершён»" : "Отметить как завершён"}
+                          aria-label={isCompleted ? "Снять отметку завершён" : "Отметить как завершён"}
+                          aria-pressed={isCompleted}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAppointmentCompleteToggle?.(a, !isCompleted);
+                          }}
+                        >
+                          {isCompleted ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}
+                        </button>
+                      ) : (
+                        <span
+                          className="booking-appt-check is-done pointer-events-none"
+                          title="Завершён"
+                          aria-label="Завершён"
+                        >
+                          <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                        </span>
+                      )
+                    ) : null}
                   </div>
                 </div>
               </button>
@@ -612,6 +640,8 @@ export function BookingCalendarGrid({
   canEditNotes,
   onAppointmentNoteClick,
   onOpenChat,
+  canToggleComplete,
+  onAppointmentCompleteToggle,
 }: Props) {
   const totalHours = GRID_END_HOUR - GRID_START_HOUR;
   const gridHeightPx = totalHours * PX_PER_HOUR;
@@ -684,6 +714,8 @@ export function BookingCalendarGrid({
     canEditNotes,
     onAppointmentNoteClick,
     onOpenChat,
+    canToggleComplete,
+    onAppointmentCompleteToggle,
   };
 
   if (specialists.length === 0) {

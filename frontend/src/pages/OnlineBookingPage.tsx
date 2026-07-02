@@ -582,6 +582,10 @@ export function OnlineBookingPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [calendarDrawerOpen]);
 
+  function onAppointmentCompleteToggle(a: BookingAppointment, completed: boolean) {
+    statusMutation.mutate({ id: a.id, status: completed ? "completed" : "booked" });
+  }
+
   function onCalendarAppointmentClick(a: BookingAppointment) {
     if (a.lead_id) {
       navigate(`/leads/${a.lead_id}?appointment=${a.id}`);
@@ -846,6 +850,7 @@ export function OnlineBookingPage() {
               <span className="booking-appt booking-appt--booked booking-status-legend">Записан</span>
               <span className="booking-appt booking-appt--notify booking-status-legend">Уведомление отправлено</span>
               <span className="booking-appt booking-appt--replied booking-status-legend">Клиент ответил</span>
+              <span className="booking-appt booking-appt--completed booking-status-legend">Завершён</span>
             </div>
           </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_min(100%,280px)] xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">
@@ -865,6 +870,8 @@ export function OnlineBookingPage() {
                 canEditNotes={canEditBooking}
                 onAppointmentNoteClick={canEditBooking ? onAppointmentNoteClick : undefined}
                 onOpenChat={onOpenChat}
+                canToggleComplete={canEditBooking}
+                onAppointmentCompleteToggle={canEditBooking ? onAppointmentCompleteToggle : undefined}
               />
               {gridAppointmentsQuery.isLoading && (
                 <p className="mt-3 text-sm lux-caption">Загрузка записей…</p>

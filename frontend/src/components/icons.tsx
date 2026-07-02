@@ -224,6 +224,14 @@ export function CheckCircle2(props: IconProps) {
   );
 }
 
+export function Check(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
 /** Лиды / контакты (меню «Мои лиды») */
 export function UserRound(props: IconProps) {
   return (
