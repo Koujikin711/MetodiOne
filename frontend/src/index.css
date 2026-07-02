@@ -1018,6 +1018,12 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   @apply min-w-[9rem] px-1 text-center text-sm font-semibold capitalize;
 }
 
+.booking-form-calendar {
+  @apply rounded-xl border p-2.5;
+  border-color: var(--mo-border);
+  background: color-mix(in srgb, var(--mo-surface-elevated) 88%, var(--mo-accent-soft));
+}
+
 .booking-legend-item {
   @apply inline-flex items-center rounded-lg border px-2 py-1 text-[11px] font-semibold leading-none;
   white-space: nowrap;

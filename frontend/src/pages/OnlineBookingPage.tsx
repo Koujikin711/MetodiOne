@@ -843,16 +843,16 @@ export function OnlineBookingPage() {
               )}
             </div>
             <aside className="flex w-full min-w-0 flex-col gap-2 xl:sticky xl:top-4 xl:max-w-[280px]">
-              <section className="hidden mo-section p-3 shadow-inner backdrop-blur-sm xl:block xl:max-h-[min(38vh,260px)] xl:overflow-y-auto">
-                <h2 className="mb-2 lux-subheading text-sm">Дата записи</h2>
-                <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
-              </section>
               {canEditBooking ? (
                 <section
                   ref={formPanelRef}
                   className="mo-section overflow-visible p-4 ring-1 ring-[#d4af37]/20"
                 >
                   <h2 className="mb-3 lux-subheading">Новая запись</h2>
+                  <div className="booking-form-calendar mb-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide mo-muted">Дата записи</p>
+                    <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
+                  </div>
                   <form onSubmit={onSubmit} className="space-y-2.5">
                 <div ref={patientSuggestRef} className="relative space-y-2.5">
                   <label className="block text-sm mo-muted">
