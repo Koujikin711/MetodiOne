@@ -38,8 +38,7 @@ import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const GRID_START_HOUR = 7;
 const GRID_END_HOUR = 20;
-const PX_PER_HOUR = 96;
-const MIN_APPT_BLOCK_PX = 56;
+const PX_PER_HOUR = 72;
 const SPEC_HEADER_PX = 42;
 const SLOT_STEP_MIN = 30;
 
@@ -469,9 +468,13 @@ function SortableSpecialistColumn({
             ? (visitDisplayValue(a) ?? "—")
             : formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow);
           const blockHeightPx = (heightPct / 100) * gridHeightPx;
-          const cardPad = narrow ? "px-1.5 py-1" : "px-2 py-1.5";
-          const nameSize = blockHeightPx < 64 ? "text-[10px]" : "text-[11px]";
-          const timeSize = blockHeightPx < 64 ? "text-[9px]" : "text-[10px]";
+          const durationMin = Math.round((new Date(a.end_at).getTime() - new Date(a.start_at).getTime()) / 60_000);
+          const isCompactCard = blockHeightPx < 50 || durationMin <= 35 || narrow;
+          const cardPad = isCompactCard ? "px-1 py-0.5" : narrow ? "px-1.5 py-1" : "px-2 py-1";
+          const nameSize = isCompactCard ? "text-[9px]" : "text-[11px]";
+          const timeSize = isCompactCard ? "text-[8px]" : "text-[10px]";
+          const iconSize = isCompactCard ? "h-2.5 w-2.5" : "h-3 w-3";
+          const checkSize = isCompactCard ? "h-2 w-2" : "h-2.5 w-2.5";
           const cardTitle = [
             a.patient_name,
             timeLabel,
@@ -484,11 +487,10 @@ function SortableSpecialistColumn({
           return (
             <div
               key={a.id}
-              className="group/appt absolute z-20 overflow-visible"
+              className="group/appt absolute z-20 overflow-hidden"
               style={{
                 top: `${topPct}%`,
                 height: `${heightPct}%`,
-                minHeight: MIN_APPT_BLOCK_PX,
                 left: `calc(4px + ${lane} * (100% - 8px) / ${laneCount})`,
                 width: `calc((100% - 8px) / ${laneCount})`,
                 right: "auto",
@@ -523,20 +525,21 @@ function SortableSpecialistColumn({
                 }}
                 onClick={() => onAppointmentClick(a)}
                 className={[
-                  "booking-appt-bitrix relative flex h-full w-full min-h-[inherit] flex-col justify-center gap-1 text-left",
+                  "booking-appt-bitrix relative flex h-full max-h-full w-full flex-col overflow-hidden text-left",
+                  isCompactCard ? "justify-center gap-0.5" : "justify-center gap-1",
                   cardPad,
                   cls,
                   appointmentHoverClass,
                 ].join(" ")}
                 title={cardTitle}
               >
-                <div className="flex shrink-0 items-center gap-1 overflow-hidden">
+                <div className="flex min-h-0 shrink-0 items-center gap-0.5 overflow-hidden">
                   <span className={["booking-appt-name min-w-0 flex-1", nameSize].join(" ")}>{a.patient_name}</span>
                   {canShowCompleteMark ? (
                     canToggleComplete ? (
                       <button
                         type="button"
-                        className={["booking-appt-check shrink-0", isCompleted ? "is-done" : ""].join(" ")}
+                        className={["booking-appt-check shrink-0", isCompactCard ? "booking-appt-check--sm" : "", isCompleted ? "is-done" : ""].join(" ")}
                         title={isCompleted ? "Снять отметку «завершён»" : "Отметить как завершён"}
                         aria-label={isCompleted ? "Снять отметку завершён" : "Отметить как завершён"}
                         aria-pressed={isCompleted}
@@ -545,19 +548,19 @@ function SortableSpecialistColumn({
                           onAppointmentCompleteToggle?.(a, !isCompleted);
                         }}
                       >
-                        {isCompleted ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}
+                        {isCompleted ? <Check className={checkSize} strokeWidth={3} /> : null}
                       </button>
                     ) : (
-                      <span className="booking-appt-check is-done pointer-events-none shrink-0" title="Завершён" aria-label="Завершён">
-                        <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                      <span className={["booking-appt-check is-done pointer-events-none shrink-0", isCompactCard ? "booking-appt-check--sm" : ""].join(" ")} title="Завершён" aria-label="Завершён">
+                        <Check className={checkSize} strokeWidth={3} />
                       </span>
                     )
                   ) : null}
                 </div>
-                <div className="flex shrink-0 items-center justify-between gap-1">
+                <div className="flex min-h-0 shrink-0 items-center justify-between gap-0.5">
                   <div className="flex min-w-0 items-center gap-0.5">
                     <span
-                      className={[timeSize, "font-semibold tabular-nums leading-normal"].join(" ")}
+                      className={[timeSize, "font-semibold tabular-nums leading-none"].join(" ")}
                       title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
                     >
                       {timeLabel}
@@ -566,7 +569,7 @@ function SortableSpecialistColumn({
                       <button
                         type="button"
                         className={[
-                          "booking-appt-note-btn shrink-0 rounded p-0.5 transition hover:bg-black/10",
+                          "booking-appt-note-btn shrink-0 rounded p-0 transition hover:bg-black/10",
                           note ? "is-filled" : "is-empty",
                         ].join(" ")}
                         title={note || "Добавить заметку"}
@@ -576,7 +579,7 @@ function SortableSpecialistColumn({
                           if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
                         }}
                       >
-                        <FileText className="h-3 w-3" />
+                        <FileText className={iconSize} />
                       </button>
                     ) : null}
                   </div>
@@ -584,14 +587,14 @@ function SortableSpecialistColumn({
                     {phoneDigits.length >= 7 ? (
                       <a
                         href={`tel:${phoneDigits}`}
-                        className="booking-appt-action rounded p-0.5 hover:bg-black/10"
+                        className="booking-appt-action rounded p-0 hover:bg-black/10"
                         title="Позвонить"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <Phone className="h-3 w-3" />
+                        <Phone className={iconSize} />
                       </a>
                     ) : null}
-                    {a.lead_id != null && onOpenChat ? (
+                    {!isCompactCard && a.lead_id != null && onOpenChat ? (
                       <button
                         type="button"
                         className="booking-appt-action rounded p-0.5 hover:bg-black/10"
@@ -601,10 +604,10 @@ function SortableSpecialistColumn({
                           onOpenChat(a.lead_id!);
                         }}
                       >
-                        <MessageCircle className="h-3 w-3" />
+                        <MessageCircle className={iconSize} />
                       </button>
                     ) : null}
-                    {a.lead_id != null ? (
+                    {!isCompactCard && a.lead_id != null ? (
                       <button
                         type="button"
                         className="booking-appt-action rounded px-0.5 text-[8px] font-extrabold leading-none tracking-wide hover:bg-black/10"
