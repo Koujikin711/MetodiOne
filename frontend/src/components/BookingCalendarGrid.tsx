@@ -533,8 +533,7 @@ function SortableSpecialistColumn({
                 }}
                 onClick={() => onAppointmentClick(a)}
                 className={[
-                  "booking-appt-bitrix relative flex h-full max-h-full w-full flex-col overflow-hidden text-left",
-                  isCompactCard ? "justify-between gap-0.5" : "justify-between gap-1",
+                  "booking-appt-bitrix relative flex h-full max-h-full w-full flex-col justify-between overflow-hidden text-left gap-0.5",
                   isPastPending ? "booking-appt--past" : "",
                   cardPad,
                   cls,
@@ -563,7 +562,7 @@ function SortableSpecialistColumn({
                     </span>
                   ) : null
                 ) : null}
-                <div className="flex min-h-0 shrink-0 items-center gap-1 overflow-hidden pr-3">
+                <div className="flex min-h-0 shrink-0 items-center gap-1 overflow-hidden pr-4">
                   <span className={["booking-appt-name min-w-0 flex-1", nameSize].join(" ")}>{a.patient_name}</span>
                   {canEditNotes || note ? (
                     <button
@@ -583,101 +582,52 @@ function SortableSpecialistColumn({
                     </button>
                   ) : null}
                 </div>
-                {isCompactCard ? (
-                  <div className="flex min-h-0 shrink-0 items-center justify-between gap-1">
-                    <span
-                      className={[timeSize, "font-medium tabular-nums opacity-95"].join(" ")}
-                      title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
-                    >
-                      {timeLabel}
-                    </span>
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      {phoneDigits.length >= 7 ? (
-                        <a
-                          href={`tel:${phoneDigits}`}
-                          className="booking-appt-action rounded p-0.5 hover:bg-white/15"
-                          title="Позвонить"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Phone className={iconSize} />
-                        </a>
-                      ) : null}
-                      {a.lead_id != null && onOpenChat ? (
-                        <button
-                          type="button"
-                          className="booking-appt-action rounded p-0.5 hover:bg-white/15"
-                          title="Чат с клиентом"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenChat(a.lead_id!);
-                          }}
-                        >
-                          <MessageCircle className={iconSize} />
-                        </button>
-                      ) : null}
-                      {a.lead_id != null ? (
-                        <button
-                          type="button"
-                          className="booking-appt-action rounded px-0.5 text-[9px] font-bold leading-none tracking-wide hover:bg-white/15"
-                          title="Карточка в CRM"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAppointmentClick(a);
-                          }}
-                        >
-                          CRM
-                        </button>
-                      ) : null}
-                    </div>
+                <div className="mt-auto flex min-h-0 shrink-0 items-center justify-between gap-1">
+                  <span
+                    className={[timeSize, "min-w-0 font-medium tabular-nums opacity-95"].join(" ")}
+                    title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
+                  >
+                    {timeLabel}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    {phoneDigits.length >= 7 ? (
+                      <a
+                        href={`tel:${phoneDigits}`}
+                        className="booking-appt-action rounded p-0.5 hover:bg-white/15"
+                        title="Позвонить"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Phone className={iconSize} />
+                      </a>
+                    ) : null}
+                    {a.lead_id != null && onOpenChat ? (
+                      <button
+                        type="button"
+                        className="booking-appt-action rounded p-0.5 hover:bg-white/15"
+                        title="Чат с клиентом"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenChat(a.lead_id!);
+                        }}
+                      >
+                        <MessageCircle className={iconSize} />
+                      </button>
+                    ) : null}
+                    {a.lead_id != null ? (
+                      <button
+                        type="button"
+                        className="booking-appt-action rounded px-0.5 text-[9px] font-bold leading-none tracking-wide hover:bg-white/15"
+                        title="Карточка в CRM"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAppointmentClick(a);
+                        }}
+                      >
+                        CRM
+                      </button>
+                    ) : null}
                   </div>
-                ) : (
-                  <>
-                    <span
-                      className={[timeSize, "shrink-0 font-medium tabular-nums opacity-95"].join(" ")}
-                      title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
-                    >
-                      {timeLabel}
-                    </span>
-                    <div className="mt-auto flex shrink-0 items-center justify-end gap-0.5">
-                      {phoneDigits.length >= 7 ? (
-                        <a
-                          href={`tel:${phoneDigits}`}
-                          className="booking-appt-action rounded p-0.5 hover:bg-white/15"
-                          title="Позвонить"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Phone className={iconSize} />
-                        </a>
-                      ) : null}
-                      {a.lead_id != null && onOpenChat ? (
-                        <button
-                          type="button"
-                          className="booking-appt-action rounded p-0.5 hover:bg-white/15"
-                          title="Чат с клиентом"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenChat(a.lead_id!);
-                          }}
-                        >
-                          <MessageCircle className={iconSize} />
-                        </button>
-                      ) : null}
-                      {a.lead_id != null ? (
-                        <button
-                          type="button"
-                          className="booking-appt-action rounded px-0.5 text-[9px] font-bold leading-none tracking-wide hover:bg-white/15"
-                          title="Карточка в CRM"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAppointmentClick(a);
-                          }}
-                        >
-                          CRM
-                        </button>
-                      ) : null}
-                    </div>
-                  </>
-                )}
+                </div>
               </button>
             </div>
           );
