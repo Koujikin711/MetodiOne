@@ -333,6 +333,26 @@ export function IdCard(props: IconProps) {
   );
 }
 
+export function Filter(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M10 20v-6" />
+      <path d="M14 20V10" />
+      <path d="M18 20V4" />
+      <path d="M4 20v-4" />
+    </svg>
+  );
+}
+
+export function Search(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  );
+}
+
 /** HoReCa / ресторан */
 export function UtensilsCrossed(props: IconProps) {
   return (

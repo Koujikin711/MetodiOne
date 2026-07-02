@@ -8,10 +8,20 @@ import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { PatientPhone } from "@/components/PatientPhone";
+import { BookingSpecialistsFilter } from "@/components/BookingSpecialistsFilter";
 import { SpecialistModal, type SpecialistFormValues } from "@/components/SpecialistModal";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import { BOOKING_TIME_ZONE, datetimeLocalBookingToIsoUtc, ymdInBookingTz } from "@/lib/bookingTz";
+import {
+  allSpecialistsSelected,
+  allTypesSelected,
+  clearBookingSpecialistFilterPrefs,
+  collectTypeLabels,
+  filterCalendarSpecialists,
+  loadBookingSpecialistFilterPrefs,
+  saveBookingSpecialistFilterPrefs,
+} from "@/lib/bookingSpecialistFilter";
 import type {
   BookingAppointment,
   BookingPatientHistoryItem,
@@ -112,6 +122,10 @@ export function OnlineBookingPage() {
   const formPanelRef = useRef<HTMLDivElement>(null);
   const patientSuggestRef = useRef<HTMLDivElement>(null);
   const lastAutoSuggestKeyRef = useRef<string | null>(null);
+  const specialistFilterInitializedRef = useRef(false);
+
+  const [selectedFilterTypeNames, setSelectedFilterTypeNames] = useState<Set<string>>(() => new Set());
+  const [selectedFilterSpecialistIds, setSelectedFilterSpecialistIds] = useState<Set<number>>(() => new Set());
 
   const [leadId, setLeadId] = useState<number | null>(null);
   const [newLeadPipelineId, setNewLeadPipelineId] = useState<number | null>(null);
@@ -534,6 +548,58 @@ export function OnlineBookingPage() {
     return merged;
   }, [specialistsActive, specialistsQuery.data, gridAppointmentSpecIds]);
 
+  useEffect(() => {
+    if (!specialistsActive.length || specialistFilterInitializedRef.current) return;
+    specialistFilterInitializedRef.current = true;
+    const allTypes = collectTypeLabels(specialistsActive);
+    const allIds = specialistsActive.map((s) => s.id);
+    const saved = loadBookingSpecialistFilterPrefs();
+    if (saved) {
+      const validTypes = saved.typeNames.filter((t) => allTypes.includes(t));
+      const validIds = saved.specialistIds.filter((id) => specialistsActive.some((s) => s.id === id));
+      setSelectedFilterTypeNames(new Set(validTypes.length ? validTypes : allTypes));
+      setSelectedFilterSpecialistIds(new Set(validIds.length ? validIds : allIds));
+    } else {
+      setSelectedFilterTypeNames(new Set(allTypes));
+      setSelectedFilterSpecialistIds(new Set(allIds));
+    }
+  }, [specialistsActive]);
+
+  useEffect(() => {
+    if (!specialistFilterInitializedRef.current) return;
+    saveBookingSpecialistFilterPrefs({
+      typeNames: [...selectedFilterTypeNames],
+      specialistIds: [...selectedFilterSpecialistIds],
+    });
+  }, [selectedFilterTypeNames, selectedFilterSpecialistIds]);
+
+  const bookingFilterActive = useMemo(() => {
+    if (!specialistsActive.length) return false;
+    const allTypes = collectTypeLabels(specialistsActive);
+    return (
+      !allTypesSelected(allTypes, selectedFilterTypeNames) ||
+      !allSpecialistsSelected(specialistsActive, selectedFilterSpecialistIds)
+    );
+  }, [specialistsActive, selectedFilterTypeNames, selectedFilterSpecialistIds]);
+
+  const specialistsForCalendarView = useMemo(
+    () =>
+      filterCalendarSpecialists(
+        specialistsForCalendar,
+        selectedFilterTypeNames,
+        selectedFilterSpecialistIds,
+        gridAppointmentSpecIds,
+      ),
+    [specialistsForCalendar, selectedFilterTypeNames, selectedFilterSpecialistIds, gridAppointmentSpecIds],
+  );
+
+  function resetBookingSpecialistFilter() {
+    clearBookingSpecialistFilterPrefs();
+    const allTypes = collectTypeLabels(specialistsActive);
+    setSelectedFilterTypeNames(new Set(allTypes));
+    setSelectedFilterSpecialistIds(new Set(specialistsActive.map((s) => s.id)));
+  }
+
   /** Слот мог быть выбран в колонке неактивного специалиста — оставляем его в списке формы. */
   const specialistsForFormSelect = useMemo(() => {
     const list = [...specialistsActive];
@@ -799,30 +865,41 @@ export function OnlineBookingPage() {
 
       {tab === "online" && (
         <div className="space-y-3">
-          <div className="booking-page-date-nav" aria-label="Дата записи">
-            <button
-              type="button"
-              className="booking-page-date-nav-btn"
-              aria-label="Предыдущий день"
-              onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, -1))}
-            >
-              ‹
-            </button>
-            <span className="booking-page-date-label">{formatBookingToolbarDate(filterDate)}</span>
-            <button
-              type="button"
-              className="booking-page-date-nav-btn"
-              aria-label="Следующий день"
-              onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, 1))}
-            >
-              ›
-            </button>
+          <div className="booking-page-toolbar-row">
+            <div className="booking-page-date-nav" aria-label="Дата записи">
+              <button
+                type="button"
+                className="booking-page-date-nav-btn"
+                aria-label="Предыдущий день"
+                onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, -1))}
+              >
+                ‹
+              </button>
+              <span className="booking-page-date-label">{formatBookingToolbarDate(filterDate)}</span>
+              <button
+                type="button"
+                className="booking-page-date-nav-btn"
+                aria-label="Следующий день"
+                onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, 1))}
+              >
+                ›
+              </button>
+            </div>
+            <BookingSpecialistsFilter
+              specialists={specialistsActive}
+              selectedTypeNames={selectedFilterTypeNames}
+              selectedSpecialistIds={selectedFilterSpecialistIds}
+              onChangeTypes={setSelectedFilterTypeNames}
+              onChangeSpecialists={setSelectedFilterSpecialistIds}
+              onResetAll={resetBookingSpecialistFilter}
+              filterActive={bookingFilterActive}
+            />
           </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_min(100%,280px)] xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">
             <div className="min-w-0">
               <BookingCalendarGrid
                 dateYmd={filterDate}
-                specialists={specialistsForCalendar}
+                specialists={specialistsForCalendarView}
                 appointments={gridAppointmentsQuery.data ?? []}
                 onAppointmentClick={onCalendarAppointmentClick}
                 onSlotClick={canEditBooking ? handleSlotClick : undefined}

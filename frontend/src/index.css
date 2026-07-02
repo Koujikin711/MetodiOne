@@ -1024,6 +1024,160 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   background: color-mix(in srgb, var(--mo-surface-elevated) 88%, var(--mo-accent-soft));
 }
 
+.booking-page-toolbar-row {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.booking-filter-root {
+  @apply relative;
+}
+
+.booking-filter-trigger {
+  @apply inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition;
+  border-color: var(--mo-border);
+  background: var(--mo-surface-elevated);
+  color: var(--mo-text);
+}
+
+.booking-filter-trigger:hover,
+.booking-filter-trigger--active {
+  border-color: var(--mo-accent);
+  background: var(--mo-accent-soft);
+  color: var(--mo-accent-hover);
+}
+
+.booking-filter-trigger-dot {
+  @apply h-2 w-2 rounded-full;
+  background: var(--mo-accent);
+}
+
+.booking-filter-panel {
+  @apply absolute left-0 top-[calc(100%+0.35rem)] z-[300] flex w-[min(100vw-1rem,22rem)] flex-col overflow-hidden rounded-2xl border shadow-xl;
+  border-color: var(--mo-border-strong);
+  background: var(--mo-surface-elevated);
+  box-shadow: var(--mo-shadow-luxury);
+}
+
+.booking-filter-section {
+  @apply px-3 py-2.5;
+}
+
+.booking-filter-section-head {
+  @apply mb-2 flex items-start justify-between gap-2;
+}
+
+.booking-filter-section-title {
+  @apply text-sm font-semibold;
+  color: var(--mo-text);
+}
+
+.booking-filter-section-actions {
+  @apply flex shrink-0 flex-col items-end gap-0.5 text-[11px];
+}
+
+.booking-filter-section-actions button {
+  @apply transition;
+  color: var(--mo-text-muted);
+}
+
+.booking-filter-section-actions button:hover:not(:disabled) {
+  color: var(--mo-accent);
+}
+
+.booking-filter-section-actions button:disabled {
+  @apply opacity-40;
+}
+
+.booking-filter-list {
+  @apply max-h-40 space-y-1 overflow-y-auto;
+}
+
+.booking-filter-list--resources {
+  @apply max-h-52;
+}
+
+.booking-filter-row {
+  @apply flex cursor-pointer items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm transition;
+  color: var(--mo-text);
+}
+
+.booking-filter-row:hover {
+  background: var(--mo-accent-soft);
+}
+
+.booking-filter-row--checked {
+  background: color-mix(in srgb, var(--mo-accent-soft) 80%, transparent);
+}
+
+.booking-filter-checkbox {
+  @apply h-4 w-4 shrink-0 rounded border;
+  accent-color: var(--mo-accent);
+}
+
+.booking-filter-divider {
+  @apply mx-3 border-t;
+  border-color: var(--mo-border);
+}
+
+.booking-filter-search {
+  @apply mb-2 flex items-center gap-2 rounded-xl border px-2.5 py-1.5;
+  border-color: var(--mo-border);
+  background: var(--mo-surface);
+}
+
+.booking-filter-search-input {
+  @apply min-w-0 flex-1 border-0 bg-transparent text-sm outline-none;
+  color: var(--mo-text);
+}
+
+.booking-filter-resource {
+  @apply flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left transition;
+  color: var(--mo-text);
+}
+
+.booking-filter-resource:hover {
+  background: var(--mo-accent-soft);
+}
+
+.booking-filter-resource--checked {
+  background: color-mix(in srgb, var(--mo-accent-soft) 85%, #dbeafe);
+}
+
+.booking-filter-resource-icon {
+  @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-full border;
+  border-color: var(--mo-border);
+  background: var(--mo-surface-elevated);
+  color: var(--mo-accent-hover);
+}
+
+.booking-filter-resource-name {
+  @apply block truncate text-sm font-semibold leading-tight;
+}
+
+.booking-filter-resource-type {
+  @apply block truncate text-[11px] mo-muted;
+}
+
+.booking-filter-check {
+  @apply shrink-0 text-sm font-bold;
+  color: var(--mo-accent);
+}
+
+.booking-filter-empty {
+  @apply px-2 py-3 text-center text-xs mo-muted;
+}
+
+.booking-filter-reset-all {
+  @apply border-t px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-wide transition;
+  border-color: var(--mo-border);
+  color: var(--mo-text-muted);
+}
+
+.booking-filter-reset-all:hover {
+  background: var(--mo-accent-soft);
+  color: var(--mo-text);
+}
+
 .booking-legend-item {
   @apply inline-flex items-center rounded-lg border px-2 py-1 text-[11px] font-semibold leading-none;
   white-space: nowrap;
