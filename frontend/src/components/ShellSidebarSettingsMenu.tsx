@@ -55,7 +55,6 @@ function SettingsSubLink({
 }
 
 export function ShellSidebarSettingsMenu({ items, expanded, onLogout }: Props) {
-  const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
   const location = useLocation();
 
@@ -63,6 +62,8 @@ export function ShellSidebarSettingsMenu({ items, expanded, onLogout }: Props) {
     if (item.end) return location.pathname === item.to;
     return location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
   });
+
+  const [open, setOpen] = useState(routeActive);
 
   useEffect(() => {
     if (routeActive) {
