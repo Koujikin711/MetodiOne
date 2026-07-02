@@ -69,7 +69,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
   const managerLikeNav = isManagerNav || (isExpert && isChiefExpert);
   const showFinanceNav = showFinance || isChiefExpert;
   const showServicesNav = showServices || isChiefExpert;
-  const showIntegrationsNav = showIntegrationsHub || isChiefExpert;
 
   if (isSuperOwner) {
     return [
@@ -152,15 +151,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "check-square",
       });
     }
-    items.push({
-      id: "messenger",
-      to: "/messenger",
-      title: "Мессенджер",
-      labelShort: "Мессендж.",
-      labelFull: "Мессенджер",
-      variant: "tasks",
-      iconKey: "users",
-    });
     if (showKpi && showNavForFeature("kpi")) {
       items.push({
         id: "kpi",
@@ -216,17 +206,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "id-card",
       });
     }
-    if (showIntegrationsNav && showNavForFeature("integrations")) {
-      items.push({
-        id: "integrations",
-        to: "/integrations",
-        title: "Интеграции",
-        labelShort: "Интегр.",
-        labelFull: "Интеграции",
-        variant: "integrations",
-        iconKey: "plug",
-      });
-    }
     return items;
   }
 
@@ -276,15 +255,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "check-square",
       });
     }
-    items.push({
-      id: "messenger",
-      to: "/messenger",
-      title: "Мессенджер",
-      labelShort: "Мессендж.",
-      labelFull: "Мессенджер",
-      variant: "tasks",
-      iconKey: "users",
-    });
     return items;
   }
 
@@ -323,15 +293,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       iconKey: "check-square",
     });
   }
-  items.push({
-    id: "messenger",
-    to: "/messenger",
-    title: "Мессенджер",
-    labelShort: "Мессендж.",
-    labelFull: "Мессенджер",
-    variant: "tasks",
-    iconKey: "users",
-  });
   if (showNavForFeature("analytics")) {
     items.push({
       id: "analytics",
@@ -398,41 +359,16 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       iconKey: "message-circle",
     });
   }
-  if (showNavForFeature("audit")) {
-    items.push({
-      id: "audit",
-      to: "/audit",
-      title: "Аудит",
-      labelShort: "Аудит",
-      labelFull: "Аудит",
-      variant: "blue",
-      iconKey: "bar-chart",
-    });
-  }
-  if (showIntegrationsHub && showNavForFeature("integrations")) {
-    items.push({
-      id: "integrations",
-      to: "/integrations",
-      title: "Интеграции",
-      labelShort: "Интегр.",
-      labelFull: "Интеграции",
-      variant: "integrations",
-      iconKey: "plug",
-    });
-  }
   return items;
 }
 
 /** Пункты, которые уходят в меню «Настройки». */
 export const SHELL_SETTINGS_ITEM_IDS = new Set([
-  "messenger",
   "tasks",
   "finance",
   "kpi",
   "services",
   "employees",
-  "audit",
-  "integrations",
 ]);
 
 export function partitionShellSidebarNavItems(items: ShellSidebarNavItem[]): {

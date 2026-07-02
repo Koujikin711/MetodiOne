@@ -27,9 +27,9 @@ export function CrmToolbar({
   onTogglePipelineSettings,
   onCreateLead,
   onImport,
-  pipelines,
-  pipelineId,
-  onSelectPipeline,
+  pipelines: _pipelines,
+  pipelineId: _pipelineId,
+  onSelectPipeline: _onSelectPipeline,
   crmView,
   onSetView,
   boardSearchInput,
@@ -54,7 +54,7 @@ export function CrmToolbar({
       <div className="crm-toolbar__head">
         <div className="crm-toolbar__brand">
           <h1 className="crm-brand-title">MetodiOne</h1>
-          <p className="crm-toolbar__subtitle">CRM · управление воронкой и лидами</p>
+          <p className="crm-toolbar__subtitle">CRM · карточки клиента</p>
         </div>
         <div className="crm-toolbar__actions">
           {isCompanyAdmin ? (
@@ -74,19 +74,7 @@ export function CrmToolbar({
       {pipelines && pipelines.length > 0 ? (
         <div className="crm-toolbar__bar">
           <div className="crm-toolbar__funnels">
-            <span className="crm-toolbar__label">Воронка</span>
-            <div className="crm-toolbar__pills" role="group" aria-label="Воронка">
-              {pipelines.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => onSelectPipeline(p.id)}
-                  className={pipelineId === p.id ? "crm-pill-btn crm-pill-btn--active" : "crm-pill-btn"}
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
+            <span className="crm-toolbar__label text-base font-semibold text-[var(--mo-text)]">Карточки клиента</span>
           </div>
 
           {showBoardSearch ? (

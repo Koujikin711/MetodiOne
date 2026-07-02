@@ -214,12 +214,6 @@ export function MainLayout() {
                   <span className="text-[9px]">Задачи</span>
                 </NavLink>
               </NavIf>
-              <NavLink preventScrollReset to="/messenger" className={mobileBottomNavLinkClass} title="Мессенджер">
-                <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <Users className="h-4 w-4" />
-                </GradientIconBox>
-                <span className="text-[9px]">Мессенджер</span>
-              </NavLink>
               {showKpi ? (
                 <NavIf show={showNavForFeature("kpi")}>
                   <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title={navLex.navKpiTitle}>
@@ -294,14 +288,7 @@ export function MainLayout() {
                   <span className="text-[9px]">Задачи</span>
                 </NavLink>
               </NavIf>
-                  <NavLink preventScrollReset to="/messenger" className={mobileBottomNavLinkClass} title="Мессенджер">
-                    <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Users className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Мессенджер</span>
-                  </NavLink>
-
-<button
+              <button
                 type="button"
                 onClick={logout}
                 className={mobileBottomLogoutClass}
