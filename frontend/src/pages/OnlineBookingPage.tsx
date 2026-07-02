@@ -849,17 +849,7 @@ export function OnlineBookingPage() {
                 >
                   <h2 className="mb-3 lux-subheading">Новая запись</h2>
                   <form onSubmit={onSubmit} className="space-y-2.5">
-                {leadId != null && (
-                  <p className="text-xs text-[var(--mo-success)]">
-                    Телефон привязан к CRM (лид #{leadId}). Имя в записи можно изменить — например, указать
-                    ребёнка; карточка клиента в CRM не переименуется.
-                  </p>
-                )}
                 <div ref={patientSuggestRef} className="relative space-y-2.5">
-                  <p className="text-[11px] mo-muted">
-                    Введите телефон — CRM подставит номер и привязку. Имя пациента (ФИО ребёнка) можно написать
-                    или изменить вручную.
-                  </p>
                   <label className="block text-sm mo-muted">
                     Пациент / клиент
                     <input
@@ -905,27 +895,12 @@ export function OnlineBookingPage() {
                           setPatientFieldFocus((prev) => (prev === "phone" ? null : prev));
                         }, 120);
                       }}
-                      placeholder={leadId != null ? "Необязательно — возьмётся из карточки CRM" : undefined}
                       className="mt-1 w-full mo-input"
                       autoComplete="off"
                       inputMode="tel"
                     />
                   </label>
-                  {leadId != null && !patientPhone.trim() ? (
-                    <p className="text-[11px] text-[var(--mo-success)]">
-                      Телефон возьмётся из карточки лида #{leadId}.
-                    </p>
-                  ) : null}
-                  {leadId != null && patientName.trim() ? (
-                    <p className="text-[11px] mo-muted">
-                      В запись сохранится: «{patientName.trim()}». WhatsApp уйдёт на номер из CRM.
-                    </p>
-                  ) : null}
                   <div className="space-y-2">
-                    <p className="text-[11px] mo-muted leading-relaxed">
-                      Доп. номера (родитель / WhatsApp). Привязываются к лиду. Если основной номер не ответит менеджеру
-                      в течение 72 часов — следующие сообщения уйдут на первый доп. номер.
-                    </p>
                     {extraPhones.map((ep, idx) => (
                       <div key={idx} className="flex gap-2">
                         <input
@@ -1043,9 +1018,6 @@ export function OnlineBookingPage() {
                     onChange={(e) => setStartAt(e.target.value)}
                     className="mt-1 w-full mo-input"
                   />
-                  <p className="mt-1 text-[10px] mo-muted">
-                    Время в часовом поясе записи: {BOOKING_TIME_ZONE} (как на сервере).
-                  </p>
                 </label>
                 <label className="block text-sm mo-muted">
                   Стоимость услуги
@@ -1104,9 +1076,6 @@ export function OnlineBookingPage() {
                     placeholder="Например: перенос с прошлой недели, пожелания клиента…"
                     className="mt-1 w-full mo-input"
                   />
-                  <span className="mt-1 block text-[11px] mo-muted">
-                    Иконка заметки на карточке в календаре; нажмите её, чтобы изменить.
-                  </span>
                 </label>
                     <button
                       type="submit"
