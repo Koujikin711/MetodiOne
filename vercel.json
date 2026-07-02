@@ -4,12 +4,14 @@
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
   "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://metodi-one-koujikin.amvera.io/api/:path*"
+    }
+  ],
   "routes": [
     { "handle": "filesystem" },
-    {
-      "src": "/api/(.*)",
-      "dest": "https://metodi-one-koujikin.amvera.io/api/$1"
-    },
     { "src": "/.*", "dest": "/index.html" }
   ]
 }

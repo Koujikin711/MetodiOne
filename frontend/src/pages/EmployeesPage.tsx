@@ -328,32 +328,60 @@ export function EmployeesPage() {
 
       let contactResult: PatchEmployeeContactResult | null = null;
       if (profileChanged) {
-        contactResult = await apiFetch<PatchEmployeeContactResult>(`/api/employees/${editEmployee.id}/profile`, {
-          method: "POST",
-          body: JSON.stringify({
-            email: editEmail.trim(),
-            phone: editPhone.trim(),
-            full_name: editFullName.trim(),
-            ...(editEmployee.role === "expert"
-              ? {
-                  specialization: editSpecialization.trim(),
-                  ...(editBookingDirectionId !== ""
-                    ? { booking_direction_id: Number(editBookingDirectionId) }
-                    : {}),
-                }
-              : {}),
-          }),
+        const profileBody = JSON.stringify({
+          email: editEmail.trim(),
+          phone: editPhone.trim(),
+          full_name: editFullName.trim(),
+          ...(editEmployee.role === "expert"
+            ? {
+                specialization: editSpecialization.trim(),
+                ...(editBookingDirectionId !== ""
+                  ? { booking_direction_id: Number(editBookingDirectionId) }
+                  : {}),
+              }
+            : {}),
         });
+        const profilePath = `/api/employees/${editEmployee.id}`;
+        try {
+          contactResult = await apiFetch<PatchEmployeeContactResult>(`${profilePath}/profile`, {
+            method: "POST",
+            body: profileBody,
+          });
+        } catch (postErr) {
+          const msg = postErr instanceof Error ? postErr.message : "";
+          if (msg.includes("404") || msg.includes("405") || msg.includes("HTML")) {
+            contactResult = await apiFetch<PatchEmployeeContactResult>(profilePath, {
+              method: "PATCH",
+              body: profileBody,
+            });
+          } else {
+            throw postErr;
+          }
+        }
       }
 
       if (pipelinesChanged) {
         if (editPipelineIds.length === 0) {
           throw new Error("Нужна хотя бы одна воронка");
         }
-        await apiFetch<Employee>(`/api/employees/${editEmployee.id}/pipelines/set`, {
-          method: "POST",
-          body: JSON.stringify({ pipeline_ids: editPipelineIds }),
-        });
+        const pipelinesBody = JSON.stringify({ pipeline_ids: editPipelineIds });
+        const pipelinesPath = `/api/employees/${editEmployee.id}/pipelines`;
+        try {
+          await apiFetch<Employee>(`${pipelinesPath}/set`, {
+            method: "POST",
+            body: pipelinesBody,
+          });
+        } catch (postErr) {
+          const msg = postErr instanceof Error ? postErr.message : "";
+          if (msg.includes("404") || msg.includes("405") || msg.includes("HTML")) {
+            await apiFetch<Employee>(pipelinesPath, {
+              method: "PATCH",
+              body: pipelinesBody,
+            });
+          } else {
+            throw postErr;
+          }
+        }
       }
 
       return contactResult;

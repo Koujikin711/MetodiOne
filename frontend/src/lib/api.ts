@@ -2,29 +2,27 @@ const TOKEN_KEY = "crm_access_token";
 const ACTIVE_COMPANY_ID_KEY = "crm_active_company_id";
 
 const REQUEST_TIMEOUT_MS = 20_000;
+const MUTATION_REQUEST_TIMEOUT_MS = 45_000;
 /** Загрузка файлов/голоса (конвертация + Green) может занять дольше обычного JSON. */
 const FORM_DATA_REQUEST_TIMEOUT_MS = 120_000;
 
-export function resolveApiUrl(path: string): string {
+/** Публичный base URL API (Amvera) — для WebSocket, webhook-подсказок, SSR. */
+export function resolveExternalApiBase(): string {
   const raw = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
-  const base = raw.replace(/\/$/, "");
-  if (!base) {
-    // Для same-origin деплоев (nginx/vercel rewrites) используем /api без отдельного base URL.
-    return path;
-  }
-  return path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
+  if (raw) return raw.replace(/\/$/, "");
+  if (typeof window !== "undefined") return window.location.origin;
+  return "";
 }
 
-function resolveApiCandidates(path: string): string[] {
-  const primary = resolveApiUrl(path);
-  if (!import.meta.env.VITE_API_BASE_URL) return [primary];
-  if (!path.startsWith("/")) return [primary];
-  if (primary === path) return [primary];
-
-  // Same-origin /api проксируется на бэкенд (vercel.json / nginx / vite dev).
-  // Сначала пробуем его — без cross-origin и CORS; прямой Amvera — запасной вариант.
-  if (typeof window !== "undefined") return [path, primary];
-  return [primary, path];
+export function resolveApiUrl(path: string): string {
+  // В браузере всегда same-origin /api — Vercel/nginx/vite проксируют на бэкенд.
+  // Так нет cross-origin, CORS и блокировок прямого доступа к Amvera.
+  if (typeof window !== "undefined" && path.startsWith("/")) {
+    return path;
+  }
+  const base = resolveExternalApiBase();
+  if (!base) return path;
+  return path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
 }
 
 export function getStoredToken(): string | null {
@@ -59,6 +57,28 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
   return resolveApiUrl(u.startsWith("/") ? u : `/${u}`);
 }
 
+function requestTimeoutMs(init: RequestInit, isFormData: boolean): number {
+  if (isFormData) return FORM_DATA_REQUEST_TIMEOUT_MS;
+  const method = (init.method ?? "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") return MUTATION_REQUEST_TIMEOUT_MS;
+  return REQUEST_TIMEOUT_MS;
+}
+
+function looksLikeHtmlPayload(text: string, contentType: string | null): boolean {
+  const ct = (contentType || "").toLowerCase();
+  if (ct.includes("json")) return false;
+  const trimmed = text.trimStart().toLowerCase();
+  return trimmed.startsWith("<!doctype") || trimmed.startsWith("<html");
+}
+
+function formatFetchFailure(url: string, err: unknown): string {
+  const detail = err instanceof Error ? err.message : String(err);
+  if (url.startsWith("/")) {
+    return `Нет связи с сервером (${detail}). Обновите страницу или проверьте интернет.`;
+  }
+  return `Нет связи с API (${detail}).`;
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
@@ -66,93 +86,49 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const companyId = getActiveCompanyId();
   if (companyId != null) headers.set("X-Company-Id", String(companyId));
-  // Для FormData не ставим Content-Type вручную (fetch сам добавит boundary)
   const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
   if (init.body && !headers.has("Content-Type") && !isFormData) {
     headers.set("Content-Type", "application/json");
   }
 
-  const timeoutMs = isFormData ? FORM_DATA_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
+  const url = resolveApiUrl(path);
+  const timeoutMs = requestTimeoutMs(init, isFormData);
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
-  function looksLikeHtmlPayload(text: string, contentType: string | null): boolean {
-    const ct = (contentType || "").toLowerCase();
-    if (ct.includes("json")) return false;
-    const trimmed = text.trimStart().toLowerCase();
-    return trimmed.startsWith("<!doctype") || trimmed.startsWith("<html");
-  }
-
-  let res: Response | null = null;
+  let res: Response;
   let text = "";
   let data: unknown = null;
   try {
-    const candidates = resolveApiCandidates(path);
-    let lastErr: unknown = null;
-    for (let i = 0; i < candidates.length; i += 1) {
-      const url = candidates[i];
-      let response: Response;
+    res = await fetch(url, { ...init, headers, signal: controller.signal });
+    text = await res.text();
+    if (text && !looksLikeHtmlPayload(text, res.headers.get("content-type"))) {
       try {
-        response = await fetch(url, { ...init, headers, signal: controller.signal });
-      } catch (e: unknown) {
-        lastErr = e;
-        continue;
+        data = JSON.parse(text) as unknown;
+      } catch {
+        data = null;
       }
-      const bodyText = await response.text();
-      const hasMoreCandidates = i < candidates.length - 1;
-      const isHtml = Boolean(bodyText && looksLikeHtmlPayload(bodyText, response.headers.get("content-type")));
-      const isExternalPrimary = i === 0 && url.startsWith("http");
-      const isExternalCandidate = url.startsWith("http");
-
-      if (isExternalCandidate && !response.ok && !isHtml) {
-        res = response;
-        text = bodyText;
-        if (bodyText) {
-          try {
-            data = JSON.parse(bodyText) as unknown;
-          } catch {
-            data = null;
-          }
-        }
-        break;
-      }
-
-      if (isHtml) {
-        if (hasMoreCandidates) continue;
-      } else if (hasMoreCandidates && response.status === 405) {
-        continue;
-      } else if (bodyText) {
-        try {
-          data = JSON.parse(bodyText) as unknown;
-        } catch {
-          if (hasMoreCandidates) continue;
-        }
-      }
-      res = response;
-      text = bodyText;
-      break;
     }
-    if (!res) throw lastErr ?? new Error("Network error");
   } catch (e: unknown) {
     const aborted =
       (e instanceof DOMException && e.name === "AbortError") ||
       (e instanceof Error && e.name === "AbortError");
     if (aborted) {
       const sec = Math.round(timeoutMs / 1000);
-      throw new Error(
-        `Сервер не ответил за ${sec} с. Запустите API: в папке backend выполните python -m uvicorn app.main:app --reload --port 8000 (и поднимите БД или задайте SQLite: DATABASE_URL=sqlite+aiosqlite:///./crm.db).`,
-      );
+      throw new Error(`Сервер не ответил за ${sec} с. Попробуйте ещё раз.`);
     }
-    throw new Error(
-      import.meta.env.VITE_API_BASE_URL
-        ? "Нет связи с API. Проверьте URL бэкенда, CORS и доступность reverse-proxy для /api."
-        : "Нет связи с сервером. Убедитесь, что бэкенд слушает http://127.0.0.1:8000 и dev-сервер Vite запущен (прокси /api).",
-    );
+    throw new Error(formatFetchFailure(url, e));
   } finally {
     window.clearTimeout(timeoutId);
   }
 
-  if (res!.status === 204) return undefined as T;
+  if (text && looksLikeHtmlPayload(text, res.headers.get("content-type"))) {
+    throw new Error(
+      "Сервер вернул HTML вместо JSON — прокси /api недоступен. Обновите страницу через минуту.",
+    );
+  }
+
+  if (res.status === 204) return undefined as T;
 
   if (text && data == null) {
     try {
@@ -160,8 +136,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     } catch {
       throw new Error(
         res.ok
-          ? "Сервер вернул не JSON. Проверьте прокси /api и доступность бэкенда."
-          : `Ошибка сервера (${res.status}). Проверьте, что запущен FastAPI на порту 8000.`,
+          ? "Сервер вернул не JSON."
+          : `Ошибка сервера (${res.status}).`,
       );
     }
   }
@@ -202,14 +178,12 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       }
     }
 
-    /** Компания остановлена super_owner — старый JWT ещё валиден, но доступ к данным закрыт. */
     if (res.status === 403 && token && message === "Компания временно приостановлена") {
       setStoredToken(null);
       window.location.assign("/login?session=company_suspended");
       throw new Error("Доступ к компании приостановлен. Войдите снова после возобновления работы.");
     }
 
-    /** JWT с `must_change_password` — middleware блокирует все пути кроме смены пароля. */
     if (
       res.status === 403 &&
       token &&
@@ -261,7 +235,7 @@ export async function apiDownloadBlob(path: string, fallbackFilename: string): P
     if (aborted) {
       throw new Error("Сервер не ответил вовремя при скачивании файла.");
     }
-    throw new Error("Нет связи с сервером при скачивании файла.");
+    throw new Error(formatFetchFailure(resolveApiUrl(path), e));
   } finally {
     window.clearTimeout(timeoutId);
   }
