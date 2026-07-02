@@ -12,6 +12,10 @@
   ],
   "routes": [
     { "handle": "filesystem" },
-    { "src": "/.*", "dest": "/index.html" }
+    {
+      "src": "/api/(.*)",
+      "dest": "https://metodi-one-koujikin.amvera.io/api/$1"
+    },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
