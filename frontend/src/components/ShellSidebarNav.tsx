@@ -15,8 +15,9 @@ import {
 import { useMemo } from "react";
 
 import { SortableShellNavLink } from "@/components/SortableShellNavLink";
+import { ShellSidebarSettingsMenu } from "@/components/ShellSidebarSettingsMenu";
 import { useShellSidebarOrder } from "@/hooks/useShellSidebarOrder";
-import { buildShellSidebarNavItems } from "@/lib/shellSidebarNavItems";
+import { buildShellSidebarNavItems, partitionShellSidebarNavItems } from "@/lib/shellSidebarNavItems";
 import { appLexicon } from "@/lib/appLexicon";
 
 type Props = {
@@ -31,6 +32,7 @@ type Props = {
   showIntegrationsHub: boolean;
   showKpi: boolean;
   showNavForFeature: (feature: string) => boolean;
+  onLogout: () => void;
 };
 
 export function ShellSidebarNav({
@@ -45,8 +47,9 @@ export function ShellSidebarNav({
   showIntegrationsHub,
   showKpi,
   showNavForFeature,
+  onLogout,
 }: Props) {
-  const items = useMemo(
+  const allItems = useMemo(
     () =>
       buildShellSidebarNavItems({
         isSuperOwner,
@@ -73,7 +76,9 @@ export function ShellSidebarNav({
     ],
   );
 
-  const { orderedItems, order, reorder } = useShellSidebarOrder(scope, items);
+  const { main, settings } = useMemo(() => partitionShellSidebarNavItems(allItems), [allItems]);
+
+  const { orderedItems, order, reorder } = useShellSidebarOrder(scope, main);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -86,26 +91,29 @@ export function ShellSidebarNav({
     reorder(String(active.id), String(over.id));
   }
 
-  if (!orderedItems.length) return null;
+  if (!orderedItems.length && !settings.length) return null;
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={order} strategy={verticalListSortingStrategy}>
-        {orderedItems.map((item) => (
-          <SortableShellNavLink
-            key={item.id}
-            id={item.id}
-            to={item.to}
-            end={item.end}
-            title={item.title}
-            labelShort={item.labelShort}
-            labelFull={item.labelFull}
-            variant={item.variant}
-            iconKey={item.iconKey}
-            expanded={expanded}
-          />
-        ))}
-      </SortableContext>
-    </DndContext>
+    <>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={order} strategy={verticalListSortingStrategy}>
+          {orderedItems.map((item) => (
+            <SortableShellNavLink
+              key={item.id}
+              id={item.id}
+              to={item.to}
+              end={item.end}
+              title={item.title}
+              labelShort={item.labelShort}
+              labelFull={item.labelFull}
+              variant={item.variant}
+              iconKey={item.iconKey}
+              expanded={expanded}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
+      <ShellSidebarSettingsMenu items={settings} expanded={expanded} onLogout={onLogout} />
+    </>
   );
 }

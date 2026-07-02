@@ -423,6 +423,31 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
   return items;
 }
 
+/** Пункты, которые уходят в меню «Настройки». */
+export const SHELL_SETTINGS_ITEM_IDS = new Set([
+  "messenger",
+  "tasks",
+  "finance",
+  "kpi",
+  "services",
+  "employees",
+  "audit",
+  "integrations",
+]);
+
+export function partitionShellSidebarNavItems(items: ShellSidebarNavItem[]): {
+  main: ShellSidebarNavItem[];
+  settings: ShellSidebarNavItem[];
+} {
+  const main: ShellSidebarNavItem[] = [];
+  const settings: ShellSidebarNavItem[] = [];
+  for (const item of items) {
+    if (SHELL_SETTINGS_ITEM_IDS.has(item.id)) settings.push(item);
+    else main.push(item);
+  }
+  return { main, settings };
+}
+
 export function mergeShellSidebarOrder(defaultIds: string[], saved: string[] | null): string[] {
   if (!saved?.length) return defaultIds;
   const valid = new Set(defaultIds);

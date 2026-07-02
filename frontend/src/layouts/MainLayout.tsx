@@ -130,23 +130,9 @@ export function MainLayout() {
               showIntegrationsHub={showIntegrationsHub}
               showKpi={showKpi}
               showNavForFeature={showNavForFeature}
+              onLogout={logout}
             />
           </nav>
-          <div className="shell-sidebar-footer shrink-0 px-1 pt-3">
-            <ThemeToggle sidebar expanded={sidebarExpanded} />
-            <button
-              type="button"
-              onClick={logout}
-              title="Выход"
-              className="shell-sidebar-logout"
-            >
-              <GradientIconBox variant="pink" className="shell-nav-icon-box opacity-90">
-                <LogOut className="shell-nav-icon-glyph" />
-              </GradientIconBox>
-              <span className="shell-nav-text">Выход</span>
-              <span className="shell-nav-label">Выход</span>
-            </button>
-          </div>
         </aside>
 
         <main

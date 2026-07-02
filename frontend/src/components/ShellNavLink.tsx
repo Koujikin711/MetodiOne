@@ -40,7 +40,7 @@ type Props = {
 
 const ICON_CLASS = "shell-nav-icon-glyph";
 
-function renderIcon(iconKey: ShellSidebarIconKey): ReactNode {
+export function ShellNavIcon({ iconKey }: { iconKey: ShellSidebarIconKey }) {
   switch (iconKey) {
     case "bar-chart":
       return <BarChart3 className={ICON_CLASS} />;
@@ -71,6 +71,10 @@ function renderIcon(iconKey: ShellSidebarIconKey): ReactNode {
     default:
       return null;
   }
+}
+
+function renderIcon(iconKey: ShellSidebarIconKey): ReactNode {
+  return <ShellNavIcon iconKey={iconKey} />;
 }
 
 export function ShellNavLink({
