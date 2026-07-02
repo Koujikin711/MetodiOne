@@ -1459,31 +1459,41 @@ export function OnlineBookingPage() {
 
       {apptDetail ? (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--mo-text)]/40 p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--mo-text)]/40 p-4 backdrop-blur-[2px]"
           role="dialog"
           aria-modal="true"
           aria-labelledby="booking-appt-detail-title"
           onClick={() => setApptDetail(null)}
         >
-          <div className="mo-card w-full max-w-md p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 id="booking-appt-detail-title" className="lux-subheading text-base">
-              Запись клиента
-            </h2>
-            <p className="mt-1 text-sm font-medium text-[var(--mo-text)]">{apptDetail.patient_name}</p>
-            <p className="mt-0.5 text-sm mo-muted">{formatDt(apptDetail.start_at)}</p>
-            {(apptDetail.service_title || "").trim() ? (
-              <p className="mt-1 text-xs mo-muted">Услуга: {(apptDetail.service_title || "").trim()}</p>
-            ) : null}
-            {canEditBooking ? (
-              <div className="mt-4">
+          <div className="booking-appt-detail-modal mo-card" onClick={(e) => e.stopPropagation()}>
+            <header className="booking-appt-detail-modal__head">
+              <h2 id="booking-appt-detail-title" className="booking-appt-detail-modal__title">
+                Запись клиента
+              </h2>
+            </header>
+            <div className="booking-appt-detail-modal__body">
+              <div>
+                <p className="booking-appt-detail-modal__name">{apptDetail.patient_name}</p>
+                <div className="booking-appt-detail-modal__meta mt-2">
+                  <p>{formatDt(apptDetail.start_at)}</p>
+                  {(apptDetail.service_title || "").trim() ? (
+                    <p className="mt-2">
+                      <span className="booking-appt-detail-modal__service">
+                        Услуга: {(apptDetail.service_title || "").trim()}
+                      </span>
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              {canEditBooking ? (
                 <BookingAttendancePanel
                   status={apptDetail.status}
                   disabled={statusMutation.isPending}
                   onStatusChange={(status) => statusMutation.mutate({ id: apptDetail.id, status })}
                 />
-              </div>
-            ) : null}
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              ) : null}
+            </div>
+            <footer className="booking-appt-detail-modal__foot">
               {apptDetail.lead_id != null ? (
                 <button
                   type="button"
@@ -1499,7 +1509,7 @@ export function OnlineBookingPage() {
               <button type="button" className="btn-primary text-sm" onClick={() => setApptDetail(null)}>
                 Закрыть
               </button>
-            </div>
+            </footer>
           </div>
         </div>
       ) : null}

@@ -1057,6 +1057,141 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   );
 }
 
+/* Модалка записи — явка клиента */
+.booking-appt-detail-modal {
+  @apply w-full max-w-md overflow-hidden p-0 shadow-xl;
+  border: 1px solid var(--mo-border-strong);
+}
+
+.booking-appt-detail-modal__head {
+  @apply border-b px-5 py-4;
+  border-color: var(--mo-border);
+  background: linear-gradient(180deg, var(--mo-surface-elevated) 0%, var(--mo-surface) 100%);
+}
+
+.booking-appt-detail-modal__title {
+  @apply text-base font-semibold tracking-tight;
+  color: var(--mo-text);
+}
+
+.booking-appt-detail-modal__body {
+  @apply space-y-4 px-5 py-4;
+}
+
+.booking-appt-detail-modal__name {
+  @apply text-lg font-semibold leading-snug;
+  color: var(--mo-text);
+}
+
+.booking-appt-detail-modal__meta {
+  @apply space-y-1 text-sm;
+  color: var(--mo-text-muted);
+}
+
+.booking-appt-detail-modal__service {
+  @apply inline-flex rounded-lg px-2.5 py-1 text-xs font-medium;
+  background: var(--mo-accent-soft);
+  color: var(--mo-accent-hover);
+}
+
+.booking-appt-detail-modal__foot {
+  @apply flex flex-wrap justify-end gap-2 border-t px-5 py-4;
+  border-color: var(--mo-border);
+  background: var(--mo-surface);
+}
+
+.booking-attendance-panel {
+  @apply rounded-2xl border p-4;
+  border-color: var(--mo-border);
+  background: var(--mo-surface-elevated);
+}
+
+.booking-attendance-panel__label {
+  @apply text-xs font-bold uppercase tracking-wide;
+  color: var(--mo-text-muted);
+}
+
+.booking-attendance-panel__hint {
+  @apply mt-1 text-xs;
+  color: var(--mo-text-muted);
+}
+
+.booking-attendance-panel__actions {
+  @apply mt-3 grid gap-2 sm:grid-cols-2;
+}
+
+.booking-attendance-choice {
+  @apply flex min-h-[52px] cursor-pointer items-center gap-3 rounded-xl border-2 px-3 py-2.5 text-left text-sm font-semibold transition;
+  border-color: var(--mo-border-strong);
+  background: var(--mo-surface);
+  color: var(--mo-text);
+  box-shadow: var(--mo-shadow-luxury);
+}
+
+.booking-attendance-choice:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+}
+
+.booking-attendance-choice:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.booking-attendance-choice:disabled {
+  @apply cursor-not-allowed opacity-55;
+}
+
+.booking-attendance-choice__icon {
+  @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-full;
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--mo-text-muted);
+}
+
+.booking-attendance-choice--arrived:hover:not(:disabled),
+.booking-attendance-choice--arrived.is-active {
+  border-color: #059669;
+  background: var(--booking-appt-completed-bg);
+  color: var(--booking-appt-completed-text);
+}
+
+.booking-attendance-choice--arrived.is-active .booking-attendance-choice__icon,
+.booking-attendance-choice--arrived:hover:not(:disabled) .booking-attendance-choice__icon {
+  background: rgba(5, 150, 105, 0.18);
+  color: #059669;
+}
+
+.booking-attendance-choice--no-show:hover:not(:disabled),
+.booking-attendance-choice--no-show.is-active {
+  border-color: #dc2626;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.booking-attendance-choice--no-show.is-active .booking-attendance-choice__icon,
+.booking-attendance-choice--no-show:hover:not(:disabled) .booking-attendance-choice__icon {
+  background: rgba(220, 38, 38, 0.14);
+  color: #dc2626;
+}
+
+:root[data-theme="dark"] .booking-attendance-choice--no-show:hover:not(:disabled),
+:root[data-theme="dark"] .booking-attendance-choice--no-show.is-active {
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
+}
+
+.booking-attendance-reset {
+  @apply mt-3 w-full rounded-lg border px-3 py-2 text-xs font-medium transition;
+  border-color: var(--mo-border);
+  color: var(--mo-text-muted);
+  background: transparent;
+}
+
+.booking-attendance-reset:hover:not(:disabled) {
+  border-color: var(--mo-border-strong);
+  color: var(--mo-text);
+  background: var(--mo-surface);
+}
+
 .mo-text { color: var(--mo-text); }
 .mo-muted { color: var(--mo-text-muted); }
 .mo-input {

@@ -1,3 +1,5 @@
+import { Check, CheckCircle2 } from "@/components/icons";
+
 type AttendanceStatus = "booked" | "completed" | "no_show";
 
 type Props = {
@@ -6,41 +8,84 @@ type Props = {
   onStatusChange: (status: AttendanceStatus) => void;
 };
 
+function XCircleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className ?? "h-5 w-5"}
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="m15 9-6 6" />
+      <path d="m9 9 6 6" />
+    </svg>
+  );
+}
+
 export function BookingAttendancePanel({ status, disabled, onStatusChange }: Props) {
   if (status === "cancelled") return null;
 
+  const isCompleted = status === "completed";
+  const isNoShow = status === "no_show";
+
   return (
-    <div className="booking-attendance-box">
-      <p className="text-xs font-semibold uppercase tracking-wide mo-muted">Явка клиента</p>
-      <p className="mt-1 text-xs mo-muted">Отметьте, пришёл ли клиент на приём</p>
-      <div className="mt-3 flex flex-wrap gap-2">
+    <div className="booking-attendance-panel">
+      <p className="booking-attendance-panel__label">Явка клиента</p>
+      <p className="booking-attendance-panel__hint">Отметьте, пришёл ли клиент на приём</p>
+      <div className="booking-attendance-panel__actions" role="group" aria-label="Явка клиента">
         <button
           type="button"
           disabled={disabled}
-          className={["booking-attendance-btn", status === "completed" ? "is-arrived" : "is-idle"].join(" ")}
+          aria-pressed={isCompleted}
+          className={[
+            "booking-attendance-choice",
+            "booking-attendance-choice--arrived",
+            isCompleted ? "is-active" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           onClick={() => onStatusChange("completed")}
         >
-          ✓ Клиент пришёл
+          <span className="booking-attendance-choice__icon" aria-hidden>
+            {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : <Check className="h-5 w-5" />}
+          </span>
+          <span className="booking-attendance-choice__text">Клиент пришёл</span>
         </button>
         <button
           type="button"
           disabled={disabled}
-          className={["booking-attendance-btn", status === "no_show" ? "is-no-show" : "is-idle"].join(" ")}
+          aria-pressed={isNoShow}
+          className={[
+            "booking-attendance-choice",
+            "booking-attendance-choice--no-show",
+            isNoShow ? "is-active" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           onClick={() => onStatusChange("no_show")}
         >
-          ✗ Не явился
+          <span className="booking-attendance-choice__icon" aria-hidden>
+            <XCircleIcon className="h-5 w-5" />
+          </span>
+          <span className="booking-attendance-choice__text">Не явился</span>
         </button>
-        {(status === "completed" || status === "no_show") && (
-          <button
-            type="button"
-            disabled={disabled}
-            className="booking-attendance-btn is-idle"
-            onClick={() => onStatusChange("booked")}
-          >
-            Сбросить
-          </button>
-        )}
       </div>
+      {(isCompleted || isNoShow) && (
+        <button
+          type="button"
+          disabled={disabled}
+          className="booking-attendance-reset"
+          onClick={() => onStatusChange("booked")}
+        >
+          Сбросить отметку
+        </button>
+      )}
     </div>
   );
 }
