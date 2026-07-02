@@ -264,10 +264,12 @@ body {
 
 .shell-sidebar-nav {
   gap: 0;
+  padding-top: 2px;
 }
 
 .shell-nav-sortable {
   position: relative;
+  margin-bottom: 1px;
 }
 
 .shell-nav-sortable.is-dragging {
@@ -354,7 +356,7 @@ body {
 }
 
 .shell-sidebar-header {
-  @apply relative z-[1] flex shrink-0 items-center gap-2 px-2 pb-2;
+  @apply relative z-[1] flex shrink-0 items-center gap-2 px-2 pb-1;
   transition: padding var(--mo-sidebar-duration) var(--mo-sidebar-ease);
 }
 
@@ -387,7 +389,8 @@ body {
 }
 
 .shell-sidebar.is-collapsed .shell-nav-link {
-  @apply flex w-full flex-col items-center gap-0 px-0.5 py-0 text-center;
+  @apply flex w-full flex-col items-center justify-start gap-0 px-0 py-0.5 text-center;
+  line-height: 1;
 }
 
 .shell-sidebar .shell-nav-link:hover {
@@ -451,7 +454,7 @@ body {
 }
 
 .shell-sidebar.is-collapsed .shell-nav-icon-box {
-  @apply h-8 w-8;
+  @apply h-7 w-7 rounded-lg;
   cursor: grab;
   touch-action: none;
 }
@@ -461,7 +464,7 @@ body {
 }
 
 .shell-sidebar.is-collapsed .shell-nav-icon-glyph {
-  @apply h-4 w-4;
+  @apply h-3.5 w-3.5;
 }
 
 .shell-sidebar.is-collapsed .shell-nav-link.is-active .shell-nav-icon-box {
@@ -622,17 +625,18 @@ body {
 }
 
 .shell-sidebar .shell-nav-label {
-  @apply max-w-[4rem] text-[10px] font-medium leading-tight tracking-wide;
+  @apply max-w-[4.5rem] font-medium leading-none tracking-normal;
+  font-size: 8px;
   color: var(--mo-sidebar-fg-muted);
   overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
   opacity: 0;
   max-width: 0;
-  transform: translateY(0.15rem);
+  transform: none;
   transition:
     opacity calc(var(--mo-sidebar-duration) * 0.7) var(--mo-sidebar-ease),
-    max-width var(--mo-sidebar-duration) var(--mo-sidebar-ease),
-    transform var(--mo-sidebar-duration) var(--mo-sidebar-ease);
+    max-width var(--mo-sidebar-duration) var(--mo-sidebar-ease);
 }
 
 .shell-sidebar .shell-nav-link.is-active .shell-nav-label {
@@ -655,12 +659,9 @@ body {
 
 .shell-sidebar.is-collapsed .shell-nav-label {
   opacity: 1;
-  max-width: 4.25rem;
-  transform: translateY(0);
-  pointer-events: none;
-  font-size: 9px;
-  line-height: 1.1;
+  max-width: 4.5rem;
   margin-top: 1px;
+  pointer-events: none;
 }
 
 .shell-sidebar-footer {
@@ -703,6 +704,10 @@ body {
 
 .shell-settings-root {
   @apply relative shrink-0;
+}
+
+.shell-settings-root .shell-nav-link {
+  margin-bottom: 0;
 }
 
 .shell-settings-flyout {
@@ -1003,21 +1008,75 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 /* CRM — executive kanban */
 .crm-page {
-  @apply relative mx-auto max-w-[1600px] space-y-5 pb-10;
+  @apply relative mx-auto max-w-[1600px] space-y-3 pb-8;
+}
+
+.crm-toolbar {
+  @apply space-y-2;
+}
+
+.crm-toolbar__head {
+  @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-2;
+}
+
+.crm-toolbar__brand {
+  @apply min-w-0;
+}
+
+.crm-toolbar__subtitle {
+  @apply mt-0.5 text-xs font-medium leading-snug;
+  color: var(--mo-text-muted);
+}
+
+.crm-toolbar__actions {
+  @apply flex flex-wrap items-center gap-1.5;
+}
+
+.crm-toolbar__bar {
+  @apply flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2;
+  border-color: var(--mo-border);
+  background: var(--mo-surface-elevated);
+}
+
+.crm-toolbar__funnels {
+  @apply flex min-w-0 flex-wrap items-center gap-1.5;
+}
+
+.crm-toolbar__pills {
+  @apply flex flex-wrap gap-1;
+}
+
+.crm-toolbar__search {
+  @apply min-w-[10rem] flex-1;
+}
+
+.crm-toolbar__view {
+  @apply ml-auto flex shrink-0 items-center gap-1.5;
+}
+
+.crm-toolbar__label {
+  @apply shrink-0 text-[11px] font-semibold uppercase tracking-wide;
+  color: var(--mo-text-muted);
+}
+
+.crm-toolbar__hint {
+  @apply text-center text-[10px] leading-snug;
+  color: var(--mo-text-muted);
+  opacity: 0.85;
 }
 
 .crm-brand-title {
   font-family: var(--font-display);
-  @apply text-[2rem] font-semibold leading-tight tracking-tight sm:text-[2.2rem];
+  @apply text-xl font-semibold leading-tight tracking-tight sm:text-2xl;
   color: var(--mo-accent);
 }
 
 .crm-pill-btn {
-  @apply rounded-full border px-4 py-2 text-sm font-semibold transition;
-  border-color: #d1c4a9;
-  background: #fff;
-  color: var(--mo-accent-hover);
-  box-shadow: var(--mo-shadow-luxury);
+  @apply rounded-full border px-3 py-1.5 text-xs font-semibold transition sm:text-sm sm:px-3.5 sm:py-1.5;
+  border-color: var(--mo-border-strong);
+  background: var(--mo-surface);
+  color: var(--mo-text);
+  box-shadow: none;
 }
 .crm-pill-btn:hover {
   background: var(--mo-accent-soft);
@@ -1025,11 +1084,17 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--mo-text);
 }
 
+.crm-pill-btn--primary {
+  border-color: var(--mo-accent);
+  background: var(--mo-accent-soft);
+  color: var(--mo-accent-hover);
+}
+
 .crm-pill-btn--active {
   border-color: var(--mo-gold);
   background: var(--mo-accent-soft);
   color: var(--mo-text);
-  box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.25), var(--mo-shadow-luxury);
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.12);
 }
 
 .crm-view-switch {
@@ -1040,7 +1105,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-view-switch button {
-  @apply rounded-full px-4 py-1.5 text-sm font-semibold transition;
+  @apply rounded-full px-3 py-1 text-xs font-semibold transition sm:px-3.5 sm:text-sm;
   color: var(--mo-text-muted);
 }
 .crm-view-switch button[data-active="true"] {
@@ -1051,22 +1116,59 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-search-wrap {
-  @apply mx-auto w-full max-w-3xl;
+  @apply w-full;
 }
 
 .crm-search-input {
-  @apply w-full rounded-full border px-5 py-3.5 text-sm outline-none transition;
-  border-color: #dcd1b4;
-  background: #ffffff;
+  @apply w-full rounded-lg border px-3 py-1.5 text-sm outline-none transition;
+  border-color: var(--mo-border-strong);
+  background: var(--mo-surface);
   color: var(--mo-text);
-  box-shadow: inset 0 2px 8px rgba(44, 37, 32, 0.06);
+  box-shadow: none;
 }
 .crm-search-input::placeholder {
-  color: #a89880;
+  color: var(--mo-text-muted);
+  opacity: 0.75;
 }
 .crm-search-input:focus {
-  border-color: var(--mo-gold);
-  box-shadow: inset 0 2px 8px rgba(44, 37, 32, 0.06), 0 0 0 2px rgba(212, 175, 55, 0.22);
+  border-color: var(--mo-accent);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+:root[data-theme="dark"] .crm-toolbar__bar {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+:root[data-theme="dark"] .crm-pill-btn {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: #e2e8f0;
+}
+
+:root[data-theme="dark"] .crm-pill-btn--active,
+:root[data-theme="dark"] .crm-pill-btn--primary {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(129, 140, 248, 0.45);
+  color: #e0e7ff;
+}
+
+:root[data-theme="dark"] .crm-search-input {
+  background: rgba(15, 23, 42, 0.75);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #f1f5f9;
+}
+
+.crm-list-panel {
+  @apply space-y-3 rounded-xl border p-3 sm:p-4;
+  border-color: var(--mo-border);
+  background: var(--mo-surface-elevated);
+}
+
+.crm-list-table-wrap {
+  @apply overflow-x-auto rounded-lg border;
+  border-color: var(--mo-border);
+  background: var(--mo-surface);
 }
 
 .crm-kanban-col {
@@ -1082,7 +1184,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-kanban-col-header {
-  @apply flex items-center gap-2.5 border-b px-4 py-3.5;
+  @apply flex items-center gap-2 border-b px-3 py-2;
   border-color: var(--mo-border);
   background-color: var(--mo-surface-elevated);
 }
@@ -1097,7 +1199,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-kanban-col-body {
-  @apply flex min-h-[min(72vh,580px)] flex-1 flex-col gap-3 overflow-y-auto p-3;
+  @apply flex min-h-[min(72vh,580px)] flex-1 flex-col gap-2 overflow-y-auto p-2;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -1108,7 +1210,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-lead-card {
-  @apply relative cursor-grab touch-pan-y overflow-hidden rounded-2xl border p-3.5 transition active:cursor-grabbing;
+  @apply relative cursor-grab touch-pan-y overflow-hidden rounded-xl border p-3 transition active:cursor-grabbing;
   border-color: var(--mo-border);
   background-color: var(--mo-surface-elevated);
   box-shadow: var(--mo-shadow-luxury);

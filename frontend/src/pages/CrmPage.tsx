@@ -1862,9 +1862,9 @@ export function CrmPage() {
       )}
 
       {crmView === "list" && pipelineId != null && (
-        <section className="mo-section space-y-4">
+        <section className="crm-list-panel">
           <div className="flex flex-wrap items-end gap-3">
-            <label className="min-w-[200px] flex-1 text-sm text-[#5c6b7a]">
+            <label className="min-w-[200px] flex-1 text-sm lux-caption">
               Поиск
               <input
                 value={listSearchInput}
@@ -1873,7 +1873,7 @@ export function CrmPage() {
                 className={`${theme.input} mt-1`}
               />
             </label>
-            <label className="text-sm text-[#5c6b7a]">
+            <label className="text-sm lux-caption">
               Стадия
               <select
                 value={listStatusFilter === "" ? "" : String(listStatusFilter)}
@@ -1893,15 +1893,15 @@ export function CrmPage() {
             </label>
           </div>
           {leadsTableQuery.isError && (
-            <p className="text-sm text-[#9b3d3d]">{(leadsTableQuery.error as Error).message}</p>
+            <p className="text-sm text-[var(--mo-danger)]">{(leadsTableQuery.error as Error).message}</p>
           )}
-          {leadsTableQuery.isLoading && <p className="text-sm text-[#5c6b7a]">Загрузка…</p>}
+          {leadsTableQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
           {leadsTableQuery.data && !leadsTableQuery.isLoading && (
             <>
-              <p className="text-sm text-[#8a96a3]">
+              <p className="text-sm lux-caption">
                 Найдено: {leadsTableQuery.data.total} · страница {leadsTableQuery.data.page} из {listTotalPages}
               </p>
-              <div className="overflow-x-auto rounded-xl border border-[#d8d2c6] bg-white">
+              <div className="crm-list-table-wrap">
                 <table className="mo-table min-w-[720px]">
                   <thead>
                     <tr className="text-xs uppercase tracking-wide">
@@ -1916,20 +1916,20 @@ export function CrmPage() {
                   <tbody>
                     {leadsTableQuery.data.items.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-3 py-8 text-center text-[#8a96a3]">
+                        <td colSpan={6} className="px-3 py-8 text-center lux-caption">
                           Нет лидов по условиям
                         </td>
                       </tr>
                     ) : (
                       leadsTableQuery.data.items.map((lead) => (
-                        <tr key={lead.id} className="hover:bg-[#faf8f4]">
-                          <td className="px-3 py-2 text-[#8a96a3]">{lead.id}</td>
-                          <td className="px-3 py-2 font-medium text-[#1e3348]">{lead.name}</td>
+                        <tr key={lead.id} className="hover:bg-[var(--mo-nav-hover)]">
+                          <td className="px-3 py-2 lux-caption">{lead.id}</td>
+                          <td className="px-3 py-2 font-medium text-[var(--mo-text)]">{lead.name}</td>
                           <td className="px-3 py-2">
                             <PatientPhone value={lead} />
                           </td>
-                          <td className="px-3 py-2">{lead.email ?? "—"}</td>
-                          <td className="px-3 py-2 text-[#2f5f85]">{lead.stage_name ?? "—"}</td>
+                          <td className="px-3 py-2 text-[var(--mo-text-muted)]">{lead.email ?? "—"}</td>
+                          <td className="px-3 py-2 text-[var(--mo-accent)]">{lead.stage_name ?? "—"}</td>
                           <td className="px-3 py-2">
                             <Link
                               to={`/leads/${lead.id}`}

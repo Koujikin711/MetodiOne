@@ -37,10 +37,8 @@ export function CrmBusinessToolbar({
   showBoardSearch,
   showOnboardingBanner = false,
 }: Props) {
-  const activePipeline = pipelines?.find((p) => p.id === pipelineId);
-
   return (
-    <header className="space-y-4">
+    <header className="crm-toolbar">
       {showOnboardingBanner ? (
         <div className="executive-banner flex flex-wrap items-center justify-center gap-3">
           <span>Первый день в CRM: пройдите короткий мастер настройки воронки и команды.</span>
@@ -53,18 +51,18 @@ export function CrmBusinessToolbar({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <div className="crm-toolbar__head">
+        <div className="crm-toolbar__brand">
           <h1 className="crm-brand-title">MetodiOne</h1>
-          <p className="mt-1 text-sm font-medium text-[#7A7265]">CRM · управление воронкой и лидами</p>
+          <p className="crm-toolbar__subtitle">CRM · управление воронкой и лидами</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="crm-toolbar__actions">
           {isCompanyAdmin ? (
             <button type="button" onClick={onTogglePipelineSettings} className="crm-pill-btn">
-              {pipelineSettingsOpen ? "Скрыть настройки воронки" : "Настройки воронки"}
+              {pipelineSettingsOpen ? "Скрыть настройки" : "Настройки воронки"}
             </button>
           ) : null}
-          <button type="button" onClick={onCreateLead} className="crm-pill-btn">
+          <button type="button" onClick={onCreateLead} className="crm-pill-btn crm-pill-btn--primary">
             + Лид
           </button>
           <button type="button" onClick={onImport} className="crm-pill-btn">
@@ -74,13 +72,10 @@ export function CrmBusinessToolbar({
       </div>
 
       {pipelines && pipelines.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-[#7A7265]">Воронка:</span>
-            <span className="text-sm font-semibold text-[#2C2520]" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>
-              {activePipeline?.name ?? "—"}
-            </span>
-            <div className="flex flex-wrap gap-1.5">
+        <div className="crm-toolbar__bar">
+          <div className="crm-toolbar__funnels">
+            <span className="crm-toolbar__label">Воронка</span>
+            <div className="crm-toolbar__pills" role="group" aria-label="Воронка">
               {pipelines.map((p) => (
                 <button
                   key={p.id}
@@ -93,8 +88,25 @@ export function CrmBusinessToolbar({
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-[#7A7265]">Вид</span>
+
+          {showBoardSearch ? (
+            <div className="crm-toolbar__search">
+              <label className="sr-only" htmlFor="crm-board-search">
+                Поиск на доске
+              </label>
+              <input
+                id="crm-board-search"
+                name="board_search"
+                value={boardSearchInput}
+                onChange={(e) => onBoardSearchChange(e.target.value)}
+                placeholder="Поиск: имя, телефон, email или № лида…"
+                className="crm-search-input"
+              />
+            </div>
+          ) : null}
+
+          <div className="crm-toolbar__view">
+            <span className="crm-toolbar__label">Вид</span>
             <div className="crm-view-switch" role="group" aria-label="Вид CRM">
               <button type="button" data-active={crmView === "board"} onClick={() => onSetView("board")}>
                 Доска
@@ -108,22 +120,7 @@ export function CrmBusinessToolbar({
       ) : null}
 
       {showBoardSearch ? (
-        <div className="crm-search-wrap">
-          <label className="sr-only" htmlFor="crm-board-search">
-            Поиск на доске
-          </label>
-          <input
-            id="crm-board-search"
-            name="board_search"
-            value={boardSearchInput}
-            onChange={(e) => onBoardSearchChange(e.target.value)}
-            placeholder="Поиск: имя, телефон, email или № лида…"
-            className="crm-search-input"
-          />
-          <p className="mt-2 text-center text-[11px] text-[#A89880]">
-            Фильтр только на экране — перетаскивание и данные на сервере не меняются
-          </p>
-        </div>
+        <p className="crm-toolbar__hint">Фильтр только на экране — перетаскивание и данные на сервере не меняются</p>
       ) : null}
     </header>
   );
