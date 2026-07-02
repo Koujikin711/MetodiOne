@@ -25,6 +25,15 @@ function threadPhoneForDisplay(t: ChatThread): string {
   return local || "—";
 }
 
+/** Не показываем техническое имя интеграции в списке диалогов. */
+function threadProviderLabel(provider: string | null | undefined): string | null {
+  const raw = (provider || "").trim();
+  if (!raw) return null;
+  const key = raw.toLowerCase().replace(/\s+/g, "_");
+  if (key === "green_api") return null;
+  return raw;
+}
+
 const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|bmp|svg|avif|heic|heif)(\?|#|$)/i;
 
 function localDateKey(raw: string | null | undefined): string {
@@ -877,6 +886,7 @@ export function ChatPage() {
             {displayThreads.map((t) => {
               const unread = t.unread_count ?? 0;
               const manager = (t.manager_name || "").trim();
+              const providerLabel = threadProviderLabel(t.provider);
               return (
                 <button
                   key={t.id}
@@ -899,9 +909,11 @@ export function ChatPage() {
                         />
                       </div>
                     ) : null}
-                    <div className="mt-0.5 truncate text-[10px] lux-caption max-lg:hidden">
-                      {t.provider}
-                    </div>
+                    {providerLabel ? (
+                      <div className="mt-0.5 truncate text-[10px] lux-caption max-lg:hidden">
+                        {providerLabel}
+                      </div>
+                    ) : null}
                     {saleSummaryLine(t) ? (
                       <div className="mt-1 truncate text-[10px] font-medium text-[#5a3d7a] sm:text-[11px]">
                         {saleSummaryLine(t)}
@@ -996,14 +1008,22 @@ export function ChatPage() {
                           {saleSummaryLine(activeThread)}
                         </div>
                       ) : null}
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs lux-caption">
-                        <span>{activeThread.provider}</span>
-                        <span className="opacity-60">·</span>
-                        <span>
-                          Ответственный:{" "}
-                          <span className="text-[var(--mo-text)]/90">{selectedManagerLabel}</span>
-                        </span>
-                      </div>
+                      {(() => {
+                        const providerLabel = threadProviderLabel(activeThread.provider);
+                        if (!providerLabel && !selectedManagerLabel) return null;
+                        return (
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs lux-caption">
+                            {providerLabel ? <span>{providerLabel}</span> : null}
+                            {providerLabel && selectedManagerLabel ? <span className="opacity-60">·</span> : null}
+                            {selectedManagerLabel ? (
+                              <span>
+                                Ответственный:{" "}
+                                <span className="text-[var(--mo-text)]/90">{selectedManagerLabel}</span>
+                              </span>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
                     </>
                   ) : null}
                 </div>
