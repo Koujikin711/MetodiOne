@@ -31,6 +31,10 @@ git push -u origin main
 
 В **Project → Settings → Environment Variables** добавьте **`VITE_API_BASE_URL`** = публичный URL API (Amvera), **без** слэша в конце, например `https://xxx.amvera.app`. После изменения переменных сделайте **Redeploy**.
 
+**Если push в GitHub не обновляет сайт:** откройте Vercel → **Deployments** → **Redeploy** последнего коммита с ветки `main`. Убедитесь, что сборка **Ready** (не Failed). В CSS нельзя писать `@apply mo-muted` — только Tailwind-утилиты или `color: var(--mo-text-muted)`.
+
+**Автодеплой через GitHub Actions (опционально):** Vercel → Project → Settings → **Git** → **Deploy Hooks** → создать hook для `main`. В GitHub → Settings → Secrets → **`VERCEL_DEPLOY_HOOK`** = URL hook. Workflow `.github/workflows/deploy-vercel.yml` после успешной сборки вызовет hook.
+
 В `CORS_ORIGINS` на бэкенде перечислите домены Vercel и свой домен (например `https://metodi-one.vercel.app`, `https://www.metodione.com`).
 
 ## Локально
