@@ -30,7 +30,7 @@ export interface Pipeline {
   lead_assignment_mode?: string;
   expert_user_id?: number | null;
   intake_manager_user_id?: number | null;
-  /** Номера, которые менеджеры могут отправлять в чате этой направления */
+  /** Номера, которые менеджеры могут отправлять в чате этой воронки */
   manager_allowed_outbound_phones?: string[];
 }
 
@@ -47,7 +47,7 @@ export interface Integration {
   is_active: boolean;
   pipeline_id: number;
   stage_id: number;
-  /** Кнопка «Закрыть сделку» у менеджеров на карточке лида этой направления */
+  /** Кнопка «Закрыть сделку» у менеджеров на карточке лида этой воронки */
   manager_close_deal_enabled?: boolean;
   /** Без api_token; токен только на сервере */
   config: Record<string, unknown> | null;
@@ -496,7 +496,7 @@ export interface BookingAppointment {
   direction_name: string | null;
   specialist_name: string | null;
   comment: string | null;
-  /** Оплата/удаление в журнале (владелец или админ направления по лиду) */
+  /** Оплата/удаление в журнале (владелец или админ воронки по лиду) */
   can_manage_journal?: boolean;
   /** Когда клиенту отправили уведомление о записи */
   notification_sent_at?: string | null;
@@ -512,7 +512,7 @@ export interface BookingAppointment {
   whatsapp_confirmation_sent?: boolean;
 }
 
-/** Правила отображения номера сеанса в онлайн-записи (главный эксперт направления). */
+/** Правила отображения номера сеанса в онлайн-записи (главный эксперт воронки). */
 export interface BookingViewerContext {
   is_chief_expert: boolean;
   show_session_instead_of_time: boolean;
@@ -745,7 +745,7 @@ export interface TariffStatus {
   integrations: number;
 }
 
-/** KPI продаж по направлении (эксперт) и менеджерам */
+/** KPI продаж по воронке (эксперт) и менеджерам */
 export interface SalesKpiPipelineMeta {
   id: number;
   name: string;

@@ -67,7 +67,7 @@ export function HomeEntry() {
 export function RequireNotManager({ children }: { children: ReactNode }) {
   if (isManagerNavRole(decodeRoleFromToken(getStoredToken()))) {
     return (
-      <AccessDenied message="Этот раздел недоступен для роли менеджера или администратора направления. Обратитесь к владельцу компании." />
+      <AccessDenied message="Этот раздел недоступен для роли менеджера или администратора воронки. Обратитесь к владельцу компании." />
     );
   }
   return <>{children}</>;
@@ -84,7 +84,7 @@ export function RequireOwnerOrAdmin({ children }: { children: ReactNode }) {
   const r = decodeRoleFromToken(getStoredToken());
   const meQuery = useCurrentUserMe();
   if (r !== "owner" && r !== "admin" && !isChiefExpertFromMe(r, meQuery.data?.is_chief_expert)) {
-    return <AccessDenied message="Раздел доступен владельцу, администратору или главному эксперту направления." />;
+    return <AccessDenied message="Раздел доступен владельцу, администратору или главному эксперту воронки." />;
   }
   return <>{children}</>;
 }
@@ -101,7 +101,7 @@ export function RequireFinance({ children }: { children: ReactNode }) {
     !isChiefExpertFromMe(r, meQuery.data?.is_chief_expert)
   ) {
     return (
-      <AccessDenied message="Раздел «Финансы» доступен владельцу, администратору, бухгалтеру, финансовому аналитику или главному эксперту направления." />
+      <AccessDenied message="Раздел «Финансы» доступен владельцу, администратору, бухгалтеру, финансовому аналитику или главному эксперту воронки." />
     );
   }
   return <>{children}</>;

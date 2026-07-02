@@ -1,4 +1,4 @@
-"""Автовыдача демо-доступа с лендинга: компания, владелец, направление, письма."""
+"""Автовыдача демо-доступа с лендинга: компания, владелец, воронка, письма."""
 
 from __future__ import annotations
 
@@ -97,7 +97,7 @@ async def provision_demo_account(
     await db.flush()
 
     pipe = Pipeline(
-        name=f"Направление #{comp.id}",
+        name=f"Воронка #{comp.id}",
         type="sales",
         company_id=comp.id,
     )

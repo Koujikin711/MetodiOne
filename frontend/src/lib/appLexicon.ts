@@ -1,4 +1,4 @@
-/** Термины интерфейса CRM (лиды, направления, финансы). */
+/** Термины интерфейса CRM (лиды, воронки, финансы). */
 
 export type AppLexicon = {
   leadPlural: string;
@@ -40,7 +40,7 @@ export const appLexicon: AppLexicon = {
   leadCol: "Лидов",
   leadGenitive: "лидов",
   leadCycle: "Цикл лида",
-  funnel: "Направление",
+  funnel: "Воронка",
   sourcesTitle: "Источники лидов и деньги",
   analyticsTitle: "Аналитика",
   financeBannerTitle: "",
@@ -61,12 +61,12 @@ export const appLexicon: AppLexicon = {
   navFinance: "Финансы",
   navFinanceTitle: "Финансы",
   analyticsIntro:
-    "Полная — по направлениям. Детальная — по менеджерам. Доступно только владельцу компании.",
-  pipelineAll: "Все направления",
+    "Полная — по воронкам. Детальная — по менеджерам. Доступно только владельцу компании.",
+  pipelineAll: "Все воронки",
   sectionStageFlow: "Конверсия по стадиям",
   sectionPlanFact: "План / факт по менеджерам",
   thStaff: "Менеджер",
-  thPipelineOrOutlet: "Направление",
+  thPipelineOrOutlet: "Воронка",
   guestsMetricLabel: "Лиды",
   csvLeadSharePct: "Доля лидов %",
   processedByStaff: "Обработано менеджером",

@@ -61,7 +61,7 @@ export function DirectionStreamsPanel() {
         </p>
       </div>
       <label className="block text-sm lux-caption">
-        Направление
+        Воронка
         <select
           className="mo-input mt-1 max-w-xs"
           value={pipelineId}
@@ -82,7 +82,7 @@ export function DirectionStreamsPanel() {
         ))}
       </div>
       {!directionsQ.isLoading && directions.length === 0 && pipelineId !== "" && (
-        <p className="text-sm mo-muted">Нет активных направлений в этой направлении</p>
+        <p className="text-sm mo-muted">Нет активных направлений в этой воронке</p>
       )}
     </section>
   );

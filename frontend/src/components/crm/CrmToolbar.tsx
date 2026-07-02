@@ -21,7 +21,7 @@ type Props = {
   showOnboardingBanner?: boolean;
 };
 
-export function CrmBusinessToolbar({
+export function CrmToolbar({
   isCompanyAdmin,
   pipelineSettingsOpen,
   onTogglePipelineSettings,
@@ -41,7 +41,7 @@ export function CrmBusinessToolbar({
     <header className="crm-toolbar">
       {showOnboardingBanner ? (
         <div className="executive-banner flex flex-wrap items-center justify-center gap-3">
-          <span>Первый день в CRM: пройдите короткий мастер настройки направления и команды.</span>
+          <span>Первый день в CRM: пройдите короткий мастер настройки воронки и команды.</span>
           <Link
             to="/onboarding"
             className="rounded-lg border border-white/25 bg-white/10 px-3 py-1 text-xs font-semibold text-[var(--mo-text)] hover:bg-white/18"
@@ -54,12 +54,12 @@ export function CrmBusinessToolbar({
       <div className="crm-toolbar__head">
         <div className="crm-toolbar__brand">
           <h1 className="crm-brand-title">MetodiOne</h1>
-          <p className="crm-toolbar__subtitle">CRM · управление направлением и лидами</p>
+          <p className="crm-toolbar__subtitle">CRM · управление воронкой и лидами</p>
         </div>
         <div className="crm-toolbar__actions">
           {isCompanyAdmin ? (
             <button type="button" onClick={onTogglePipelineSettings} className="crm-pill-btn">
-              {pipelineSettingsOpen ? "Скрыть настройки" : "Настройки направления"}
+              {pipelineSettingsOpen ? "Скрыть настройки" : "Настройки воронки"}
             </button>
           ) : null}
           <button type="button" onClick={onCreateLead} className="crm-pill-btn crm-pill-btn--primary">
@@ -74,8 +74,8 @@ export function CrmBusinessToolbar({
       {pipelines && pipelines.length > 0 ? (
         <div className="crm-toolbar__bar">
           <div className="crm-toolbar__funnels">
-            <span className="crm-toolbar__label">Направление</span>
-            <div className="crm-toolbar__pills" role="group" aria-label="Направление">
+            <span className="crm-toolbar__label">Воронка</span>
+            <div className="crm-toolbar__pills" role="group" aria-label="Воронка">
               {pipelines.map((p) => (
                 <button
                   key={p.id}

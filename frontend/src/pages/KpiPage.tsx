@@ -125,7 +125,7 @@ export function KpiPage() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">KPI продаж</h1>
         <p className="text-sm lux-caption">
-          Месячная матрица по выбранной направлении: сверху услуги (специальности), справа менеджеры, план задаётся в
+          Месячная матрица по выбранной воронке: сверху услуги (специальности), справа менеджеры, план задаётся в
           количестве, цена задаётся отдельно, факт-сумма считается как факт-количество × цена услуги.
         </p>
       </header>
@@ -141,7 +141,7 @@ export function KpiPage() {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm mo-muted">
-          Направление
+          Воронка
           <select
             value={pipelineId ?? ""}
             onChange={(e) => setPipelineId(Number(e.target.value) || null)}

@@ -749,7 +749,7 @@ export function OnlineBookingPage() {
     if (leadId) payload.lead_id = leadId;
     if (!leadId) {
       if (!newLeadPipelineId || !newLeadStageId) {
-        toast.error("Выберите направление и стадию для создания карточки клиента");
+        toast.error("Выберите воронку и стадию для создания карточки клиента");
         return;
       }
       payload.lead_pipeline_id = newLeadPipelineId;
@@ -778,7 +778,7 @@ export function OnlineBookingPage() {
             <h1 className="booking-page-title">Онлайн-записи</h1>
             {isExpert ? (
               <p className="booking-page-note">
-                Главный эксперт видит всех специалистов направления; иначе — только свою колонку.
+                Главный эксперт видит всех специалистов воронки; иначе — только свою колонку.
               </p>
             ) : null}
           </div>
@@ -1037,7 +1037,7 @@ export function OnlineBookingPage() {
                 {!leadId && (
                   <>
                     <label className="block text-sm mo-muted">
-                      Направление для новой карточки
+                      Воронка для новой карточки
                       <select
                         required
                         value={newLeadPipelineId ?? ""}

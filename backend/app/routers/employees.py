@@ -315,13 +315,13 @@ async def invite_employee(
     if body.role == UserRole.admin and not body.pipeline_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Для роли «Админ» укажите хотя бы одну направление (онлайн-запись и лиды по направлению)",
+            detail="Для роли «Админ» укажите хотя бы одну воронку (онлайн-запись и лиды по направлению)",
         )
     if body.role == UserRole.expert:
         if not body.pipeline_ids:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Для эксперта укажите хотя бы одну направление CRM",
+                detail="Для эксперта укажите хотя бы одну воронку CRM",
             )
         spec_s = (body.specialization or "").strip()
         if len(spec_s) < 2:
@@ -477,7 +477,7 @@ def _validate_pipelines_for_role(role: UserRole, pipeline_ids: list[int]) -> Non
     if role in (UserRole.admin, UserRole.expert, UserRole.manager) and not pipeline_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Укажите хотя бы одну направление для менеджера, админа или эксперта",
+            detail="Укажите хотя бы одну воронку для менеджера, админа или эксперта",
         )
 
 
@@ -660,7 +660,7 @@ async def patch_employee_pipelines(
     if target.role == UserRole.owner:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Направления владельца не редактируются — у владельца доступ ко всем направлением",
+            detail="Воронки владельца не редактируются — у владельца доступ ко всем воронкам",
         )
 
     pipeline_ids = await _validate_pipeline_ids(db, company_id, body.pipeline_ids)
@@ -722,7 +722,7 @@ async def post_employee_pipelines(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> EmployeeRead:
-    """POST-алиас для назначения направлений (прокси/CDN иногда блокируют PATCH)."""
+    """POST-алиас для назначения воронок (прокси/CDN иногда блокируют PATCH)."""
     return await patch_employee_pipelines(employee_id, body, db, current_user, company_id)
 
 

@@ -16,7 +16,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Wheel
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
-import { CrmBusinessToolbar } from "@/components/crm/CrmBusinessToolbar";
+import { CrmToolbar } from "@/components/crm/CrmToolbar";
 import { PatientPhone } from "@/components/PatientPhone";
 import { apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
 import { theme } from "@/lib/theme";
@@ -640,7 +640,7 @@ export function CrmPage() {
 
   async function submitCreatePipeline() {
     if (!pipeName.trim()) {
-      toast.error("Название направления обязательно");
+      toast.error("Название воронки обязательно");
       return;
     }
     if (
@@ -666,7 +666,7 @@ export function CrmPage() {
             : [],
         }),
       });
-      toast.success("Направление создана");
+      toast.success("Воронка создана");
       setCreatePipelineOpen(false);
       setPipeName("");
       setPipeType("sales");
@@ -675,13 +675,13 @@ export function CrmPage() {
       setPipeStages(cloneDefaultStages());
       void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Не удалось создать направление");
+      toast.error(e instanceof Error ? e.message : "Не удалось создать воронку");
     }
   }
 
   async function submitCreateStage() {
     if (!pipelineId) {
-      toast.error("Сначала выберите направление");
+      toast.error("Сначала выберите воронку");
       return;
     }
     if (!newStageName.trim()) {
@@ -712,7 +712,7 @@ export function CrmPage() {
   const [distributeForce, setDistributeForce] = useState(false);
   const distributeMutation = useMutation({
     mutationFn: async () => {
-      if (!pipelineId) throw new Error("Сначала выберите направление");
+      if (!pipelineId) throw new Error("Сначала выберите воронку");
       if (distributeStageId === "") throw new Error("Выберите стадию");
       return apiFetch<{ total: number; assigned: number; skipped: number }>(
         `/api/pipelines/${pipelineId}/distribute-leads`,
@@ -800,7 +800,7 @@ export function CrmPage() {
   const deletePipelineMutation = useMutation({
     mutationFn: (id: number) => apiFetch<void>(`/api/pipelines/${id}`, { method: "DELETE" }),
     onSuccess: (_, deletedId) => {
-      toast.success("Направление удалена");
+      toast.success("Воронка удалена");
       if (pipelineId === deletedId) setPipelineId(null);
       void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
       void queryClient.invalidateQueries({ queryKey: ["stages"] });
@@ -1183,7 +1183,7 @@ export function CrmPage() {
 
   return (
     <div className="crm-page">
-      <CrmBusinessToolbar
+      <CrmToolbar
         isCompanyAdmin={isCompanyAdmin}
         pipelineSettingsOpen={pipelineSettingsOpen}
         onTogglePipelineSettings={() => setPipelineSettingsOpen((v) => !v)}
@@ -1212,10 +1212,10 @@ export function CrmPage() {
                 }}
                 className="crm-pill-btn"
               >
-                + Создать направление
+                + Создать воронку
               </button>
               <button type="button" onClick={() => setCreateStageOpen(true)} className="crm-pill-btn">
-                + Стадия в направлении
+                + Стадия в воронку
               </button>
             </div>
             {pipelineId != null && selectedPipelineForSettings && (
@@ -1306,7 +1306,7 @@ export function CrmPage() {
             )}
             {pipelineId != null && selectedPipelineForSettings && (
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-sm text-[#5c6b7a]">Эксперт этой направления:</span>
+                <span className="text-sm text-[#5c6b7a]">Эксперт этой воронки:</span>
                 <select
                   id="crm-pipeline-expert"
                   name="expert_user_id"
@@ -1332,7 +1332,7 @@ export function CrmPage() {
             )}
             {pipelineId != null && sortedStages.length > 0 && (
               <div className="mt-3 rounded-xl border border-[#d8d2c6] bg-[#faf8f4] p-4">
-                <div className="text-sm font-semibold text-[#1e3348]">Стадии этой направления</div>
+                <div className="text-sm font-semibold text-[#1e3348]">Стадии этой воронки</div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <button
                     type="button"
@@ -1371,13 +1371,13 @@ export function CrmPage() {
                       type="button"
                       disabled={deletePipelineMutation.isPending}
                       onClick={() => {
-                        if (!window.confirm(`Удалить направление «${selectedPipelineForSettings.name}» и все её стадии?`))
+                        if (!window.confirm(`Удалить воронку «${selectedPipelineForSettings.name}» и все её стадии?`))
                           return;
                         deletePipelineMutation.mutate(pipelineId);
                       }}
                       className={`${theme.btnDanger} disabled:opacity-50`}
                     >
-                      Удалить направление целиком
+                      Удалить воронку целиком
                     </button>
                   </div>
                 )}
@@ -1390,7 +1390,7 @@ export function CrmPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-xl rounded-2xl crm-modal-panel border p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="lux-subheading">Создать направление</h2>
+              <h2 className="lux-subheading">Создать воронку</h2>
               <button
                 type="button"
                 onClick={() => setCreatePipelineOpen(false)}
@@ -1419,7 +1419,7 @@ export function CrmPage() {
               </label>
               {currentRole === "owner" && (
                 <label className="text-sm mo-muted">
-                  Эксперт этой направления
+                  Эксперт этой воронки
                   <select
                     value={pipeExpertUserId === "" ? "" : String(pipeExpertUserId)}
                     onChange={(e) => {
@@ -1543,7 +1543,7 @@ export function CrmPage() {
             </div>
             <div className="mt-4 grid gap-3">
               <label className="text-sm mo-muted">
-                Направление
+                Воронка
                 <select
                   value={pipelineId ?? ""}
                   onChange={(e) => setPipelineId(Number(e.target.value))}
@@ -1617,7 +1617,7 @@ export function CrmPage() {
 
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
                 Это действие назначит ответственных менеджеров всем лидам на выбранной стадии, у которых ещё нет
-                менеджера. Распределение идёт по настройке направления (round_robin / least_loaded).
+                менеджера. Распределение идёт по настройке воронки (round_robin / least_loaded).
               </div>
               <label className="flex items-start gap-3 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/20 px-4 py-3 text-sm text-[var(--mo-text)]">
                 <input
@@ -1712,7 +1712,7 @@ export function CrmPage() {
 
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="text-sm mo-muted">
-                  Направление
+                  Воронка
                   <select
                     value={leadPipelineId ?? ""}
                     onChange={(e) => {
@@ -1793,7 +1793,7 @@ export function CrmPage() {
 
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="text-sm mo-muted">
-                  Направление
+                  Воронка
                   <select
                     value={importPipelineId ?? ""}
                     onChange={(e) => {
@@ -2022,7 +2022,7 @@ export function CrmPage() {
       )}
 
       {crmView === "board" && sortedStages.length === 0 && !stagesQuery.isLoading && !stagesQuery.isError && (
-        <p className="text-sm mo-muted">Этапы направления не загружены.</p>
+        <p className="text-sm mo-muted">Этапы воронки не загружены.</p>
       )}
     </div>
   );

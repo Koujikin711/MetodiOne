@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class PipelineFullAnalyticsItem(BaseModel):
     pipeline_id: int | None = None
-    pipeline_name: str = "Без направления"
+    pipeline_name: str = "Без воронки"
     leads_count: int = 0
     processed_by_manager_count: int = 0
     received_amount: Decimal = Field(default=Decimal("0"))

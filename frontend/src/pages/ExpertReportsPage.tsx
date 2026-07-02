@@ -29,7 +29,7 @@ export function ExpertReportsPage() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Отчёты</h1>
         <p className="text-sm lux-caption">
-          Направление(и), где вы назначены экспертом. Данные по лидам и онлайн‑записи за период.
+          Воронка(и), где вы назначены экспертом. Данные по лидам и онлайн‑записи за период.
         </p>
       </header>
 
@@ -159,7 +159,7 @@ export function ExpertReportsPage() {
 
       {!query.isLoading && (query.data?.items ?? []).length === 0 && (
         <p className="text-sm mo-muted">
-          У вас нет назначенной направления эксперта. Владелец должен привязать вас к направлении в настройках.
+          У вас нет назначенной воронки эксперта. Владелец должен привязать вас к воронке в настройках.
         </p>
       )}
     </div>

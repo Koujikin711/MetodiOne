@@ -307,7 +307,7 @@ export function CompaniesPage() {
             ["Остановлено", String(d.companies_suspended)],
             ["Пользователей (в компаниях)", String(d.users_total)],
             ["Лидов всего", String(d.leads_total)],
-            ["Направлений", String(d.pipelines_total)],
+            ["Воронок", String(d.pipelines_total)],
             ["Глоб. лимит пользов.", String(d.global_tariff_max_active_users)],
             ["Глоб. лимит интегр.", String(d.global_tariff_max_integrations)],
             ["Аудит за 7 дн.", String(d.recent_audit_count)],
@@ -563,7 +563,7 @@ export function CompaniesPage() {
             </p>
             <p className="mt-1 text-xs lux-caption">Владелец: {c.contact_email || "—"}</p>
             <p className="mt-1 text-xs lux-caption">
-              Пользователи: {c.users_count} · Лиды: {c.leads_count} · Направления: {c.pipelines_count}
+              Пользователи: {c.users_count} · Лиды: {c.leads_count} · Воронки: {c.pipelines_count}
             </p>
             <p className="mt-2 text-xs text-violet-200/90">
               Тарифный план: {c.tariff_plan_name ?? "не назначен (все функции)"}

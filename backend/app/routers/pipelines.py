@@ -267,12 +267,12 @@ async def delete_pipeline(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None or pipe.company_id != company_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдена")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Воронка не найдена")
     total_pipes = await db.scalar(select(func.count()).select_from(Pipeline).where(Pipeline.company_id == company_id))
     if total_pipes is not None and int(total_pipes) <= 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Нельзя удалить последнюю направление. Создайте другую, затем удалите эту.",
+            detail="Нельзя удалить последнюю воронку. Создайте другую, затем удалите эту.",
         )
     reason = await pipeline_delete_block_reason(db, pipeline_id)
     if reason:
@@ -317,7 +317,7 @@ async def distribute_leads_from_stage(
     if st is None or st.pipeline_id != pipeline_id or st.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="stage_id is not in this pipeline")
 
-    # Если в направлении не настроено автораспределение — это всё равно “распределить” не сможет.
+    # Если в воронке не настроено автораспределение — это всё равно “распределить” не сможет.
     any_manager = await db.scalar(
         select(func.count(UserPipelineAssignment.id))
         .join(User, User.id == UserPipelineAssignment.user_id)
@@ -332,7 +332,7 @@ async def distribute_leads_from_stage(
     if int(any_manager or 0) <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="В этой направлении нет активных менеджеров для распределения (назначьте менеджеров в Сотрудниках).",
+            detail="В этой воронке нет активных менеджеров для распределения (назначьте менеджеров в Сотрудниках).",
         )
 
     total = int(
@@ -381,7 +381,7 @@ async def distribute_leads_from_stage(
                 # Если mode=none — assign_manager_for_new_lead вернёт None
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Направление не настроена для автораспределения (lead_assignment_mode=round_robin/least_loaded).",
+                    detail="Воронка не настроена для автораспределения (lead_assignment_mode=round_robin/least_loaded).",
                 )
             lead.manager_id = mid
             assigned += 1

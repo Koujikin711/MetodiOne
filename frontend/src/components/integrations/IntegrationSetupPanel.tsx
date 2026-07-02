@@ -243,7 +243,7 @@ function IntegrationCard({
       {it.provider === "green_api" && (
         <div className="mt-2 space-y-2">
           <div className="lux-caption leading-relaxed">
-            WhatsApp через Green API: входящие попадают в раздел «Чаты» и в выбранную направление.
+            WhatsApp через Green API: входящие попадают в раздел «Чаты» и в выбранную воронку.
           </div>
           <GreenApiWebhookPanel integrationId={it.id} />
           <div className="flex flex-wrap gap-2">
@@ -266,7 +266,7 @@ function IntegrationCard({
         </div>
       )}
       <div className="mt-2 text-[11px] text-[#7A7265]">
-        Направление {it.pipeline_id}, стадия {it.stage_id}
+        Воронка {it.pipeline_id}, стадия {it.stage_id}
       </div>
       {it.provider === "telegram" && (
         <div className="mt-2 text-[11px] text-[#7A7265]">
@@ -283,7 +283,7 @@ function IntegrationCard({
       {it.provider === "instagram" && (
         <div className="mt-2 space-y-2 text-[11px] leading-relaxed text-[#7A7265]">
           <p>
-            Лиды из рекламы Meta и сообщения Instagram Direct. Новые заявки и диалоги попадают в выбранную направление CRM.
+            Лиды из рекламы Meta и сообщения Instagram Direct. Новые заявки и диалоги попадают в выбранную воронку CRM.
           </p>
           <div>
             <span className="font-medium text-[#2C2520]">Адрес webhook для Meta (GET и POST):</span>
@@ -595,7 +595,7 @@ export function IntegrationSetupPanel() {
 
   async function submitCreateIntegration() {
     if (!integrationName.trim()) return toast.error("Название обязательно");
-    if (!integrationPipelineId || !integrationStageId) return toast.error("Выберите направление и стадию");
+    if (!integrationPipelineId || !integrationStageId) return toast.error("Выберите воронку и стадию");
 
     const templates = {
       greeting: tplGreeting.trim(),
@@ -972,7 +972,7 @@ export function IntegrationSetupPanel() {
 
                 <div className="grid gap-2 sm:grid-cols-2">
                   <label className="text-sm text-[#7A7265]">
-                    Направление
+                    Воронка
                     <select
                       value={integrationPipelineId ?? ""}
                       onChange={(e) => {

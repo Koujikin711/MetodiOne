@@ -162,10 +162,10 @@ async def _assert_expert_lead_access(
     await db.refresh(lead, ["stage"])
     pid = lead.stage.pipeline_id if lead.stage else None
     if pid is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Лид не привязан к направлении эксперта")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Лид не привязан к воронке эксперта")
     allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
     if pid not in allowed:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Лид не относится к направлении эксперта")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Лид не относится к воронке эксперта")
 
 
 async def _pipelines_with_manager_close_deal(db: AsyncSession) -> set[int]:
@@ -556,12 +556,12 @@ async def list_leads(
             if not allowed or pipeline_id not in allowed:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Направление недоступна",
+                    detail="Воронка недоступна",
                 )
         if current_user.role == UserRole.expert:
             allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
             if not allowed or pipeline_id not in allowed:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Направление недоступна эксперту")
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Воронка недоступна эксперту")
         rn = func.row_number().over(partition_by=Lead.status_id, order_by=Lead.id.desc()).label("rn")
         ranked = (
             select(Lead.id.label("lead_id"), rn)
@@ -616,25 +616,25 @@ async def list_leads_table(
     q: str | None = Query(None, max_length=200),
     status_id: int | None = Query(None, ge=1),
 ) -> LeadTablePage:
-    """Полный список лидов направления с пагинацией и поиском (без лимита «на стадию» как в канбане)."""
+    """Полный список лидов воронки с пагинацией и поиском (без лимита «на стадию» как в канбане)."""
     if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if not allowed or pipeline_id not in allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Направление недоступна",
+                detail="Воронка недоступна",
             )
     if current_user.role == UserRole.expert:
         allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
         if not allowed or pipeline_id not in allowed:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Направление недоступна эксперту")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Воронка недоступна эксперту")
 
     if status_id is not None:
         st = await db.get(PipelineStage, status_id)
         if st is None or st.pipeline_id != pipeline_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Стадия не принадлежит выбранной направлении",
+                detail="Стадия не принадлежит выбранной воронке",
             )
 
     filters = [PipelineStage.pipeline_id == pipeline_id, PipelineStage.company_id == company_id, Lead.company_id == company_id]
@@ -856,7 +856,7 @@ async def _load_redistribution_manager(
     if not _is_redistribution_manager_role(user.role):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Перераспределение доступно только для ролей менеджер и админ направления",
+            detail="Перераспределение доступно только для ролей менеджер и админ воронки",
         )
     return user
 
@@ -869,7 +869,7 @@ async def lead_redistribution_sources(
 ) -> list[LeadRedistributionSource]:
     """Менеджеры/админы с числом лидов (в т.ч. уволенные, если лиды ещё на них)."""
     if not _is_lead_redistribution_admin(current_user.role):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ направления")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ воронки")
 
     lead_counts: dict[int, int] = {}
     rows = await db.execute(
@@ -915,7 +915,7 @@ async def lead_redistribution_preview(
     company_id: CurrentCompanyId,
 ) -> LeadRedistributionPreview:
     if not _is_lead_redistribution_admin(current_user.role):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ направления")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ воронки")
     src = await _load_redistribution_manager(
         db,
         manager_id=from_manager_id,
@@ -947,7 +947,7 @@ async def redistribute_manager_leads(
 ) -> LeadRedistributeResult:
     """Перенести все лиды менеджера к другим менеджерам (равномерно, round-robin)."""
     if not _is_lead_redistribution_admin(current_user.role):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ направления")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ воронки")
 
     from_id = int(body.from_manager_id)
     to_ids_raw = sorted({int(x) for x in body.to_manager_ids if int(x) != from_id})
@@ -1181,7 +1181,7 @@ async def patch_lead(
     else:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Редактирование карточки доступно только владельцу и админу назначенной направления",
+            detail="Редактирование карточки доступно только владельцу и админу назначенной воронки",
         )
 
     patch = body.model_dump(exclude_unset=True)
@@ -1302,7 +1302,7 @@ async def close_deal_from_integration_pipeline(
     company_id: CurrentCompanyId,
 ) -> LeadRead:
     if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец, админ направления или менеджер")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец, админ воронки или менеджер")
 
     lead = await db.get(Lead, lead_id)
     if lead is None or lead.company_id != company_id:
@@ -1313,7 +1313,7 @@ async def close_deal_from_integration_pipeline(
     if not await _pipeline_has_manager_close_deal(db, pipeline_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Для этой направления не включена кнопка закрытия сделки в настройках интеграции",
+            detail="Для этой воронки не включена кнопка закрытия сделки в настройках интеграции",
         )
 
     dup = await db.scalar(
@@ -1343,7 +1343,7 @@ async def close_deal_from_integration_pipeline(
     if success_stage_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"В направлении нет стадии «{settings.booking_stage_completed}» для успешного закрытия",
+            detail=f"В воронке нет стадии «{settings.booking_stage_completed}» для успешного закрытия",
         )
 
     last_appt = (
@@ -1477,7 +1477,7 @@ async def reject_lead(
     company_id: CurrentCompanyId,
 ) -> LeadRead:
     if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец, админ направления или менеджер")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец, админ воронки или менеджер")
 
     lead = await db.get(Lead, lead_id)
     if lead is None or lead.company_id != company_id:
@@ -1485,7 +1485,7 @@ async def reject_lead(
     await db.refresh(lead, ["stage"])
     pipeline_id = lead.stage.pipeline_id if lead.stage else None
     if pipeline_id is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Лид не привязан к направлении")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Лид не привязан к воронке")
 
     if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
@@ -1545,7 +1545,7 @@ async def update_lead_status(
     if stage.pipeline_id != from_stage.pipeline_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Переход между направлениеми недоступен",
+            detail="Переход между воронками недоступен",
         )
 
     # MVP-валидация для переходов через drag-and-drop/ручное изменение статуса.
@@ -1815,7 +1815,7 @@ async def add_extra_service_to_cart(
     company_id: CurrentCompanyId,
 ) -> DealRead:
     if not is_manager_like(current_user.role):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только менеджер или админ направления")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только менеджер или админ воронки")
 
     lead = await db.get(Lead, lead_id)
     if lead is None or lead.company_id != company_id:
