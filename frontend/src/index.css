@@ -810,10 +810,32 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   font-size: 10px;
   line-height: 1.3;
 }
-.booking-appt-popover p:last-child {
+.booking-appt-popover p:last-child:not(:only-child) {
   font-size: 12px;
   font-weight: 500;
   line-height: 1.35;
+}
+.booking-appt-note-top-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  border: none;
+  border-radius: 6px;
+  padding: 3px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.booking-appt-note-top-btn:hover {
+  background: rgba(255, 255, 255, 0.72);
+}
+.booking-appt-note-top-btn.is-empty {
+  opacity: 0.8;
+  font-style: italic;
 }
 .booking-appt-done-badge {
   color: #16a34a;
