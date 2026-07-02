@@ -925,11 +925,10 @@ export function OnlineBookingPage() {
                   ref={formPanelRef}
                   className="mo-section overflow-visible p-4 ring-1 ring-[#d4af37]/20"
                 >
-                  <h2 className="mb-3 lux-subheading">Новая запись</h2>
                   <div className="booking-form-calendar mb-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide mo-muted">Дата записи</p>
                     <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
                   </div>
+                  <h2 className="mb-3 lux-subheading">Новая запись</h2>
                   <form onSubmit={onSubmit} className="space-y-2.5">
                 <div ref={patientSuggestRef} className="relative space-y-2.5">
                   <label className="block text-sm mo-muted">
