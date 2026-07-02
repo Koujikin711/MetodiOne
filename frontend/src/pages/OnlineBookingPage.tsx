@@ -751,40 +751,31 @@ export function OnlineBookingPage() {
   }
 
   const tabBtn = (id: Tab, label: string) => (
-    <button
-      key={id}
-      type="button"
-      onClick={() => setTab(id)}
-      className={[
-        "rounded-xl border px-4 py-2 text-sm font-medium transition-all",
-        tab === id
-          ? "border-[#d4af37] bg-[#f7f2e8] text-[var(--mo-text)] shadow-[var(--mo-shadow-luxury)]"
-          : "border-transparent mo-muted hover:border-[var(--mo-border)] hover:bg-[var(--mo-accent-soft)] hover:text-[var(--mo-text)]",
-      ].join(" ")}
-    >
+    <button key={id} type="button" onClick={() => setTab(id)} data-active={tab === id}>
       {label}
     </button>
   );
 
   return (
     <div className="mo-page relative max-w-[min(1920px,calc(100%-1rem))] space-y-3">
-      <header className="mo-page-header">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="lux-heading-page">Онлайн-записи</h1>
-          <Link to="/app" className="mo-link text-sm font-medium">
-            ← К канбану
-          </Link>
+      <header className="booking-page-header">
+        <div className="booking-page-head">
+          <div className="booking-page-brand">
+            <Link to="/app" className="booking-page-back">
+              ← К канбану
+            </Link>
+            <h1 className="booking-page-title">Онлайн-записи</h1>
+            {isExpert ? (
+              <p className="booking-page-note">
+                Главный эксперт видит всех специалистов воронки; иначе — только свою колонку.
+              </p>
+            ) : null}
+          </div>
+          <div className="crm-view-switch booking-page-tabs" role="tablist" aria-label="Раздел записи">
+            {tabBtn("online", "Онлайн-записи")}
+            {tabBtn("journal", "Журнал")}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {tabBtn("online", "Онлайн-записи")}
-          {tabBtn("journal", "Журнал")}
-        </div>
-        {isExpert ? (
-          <p className="lux-caption max-w-3xl">
-            Если вы назначены главным экспертом воронки (в настройках канбана), здесь видны записи всех
-            экспертов этой воронки. Иначе — только ваша колонка (просмотр).
-          </p>
-        ) : null}
       </header>
 
       {tab === "online" && (
@@ -828,29 +819,29 @@ export function OnlineBookingPage() {
             </>
           )}
 
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-xs mo-muted">
-              <span>Дата</span>
+          <div className="booking-page-toolbar">
+            <label className="booking-page-date">
+              <span className="booking-page-date-label">Дата</span>
               <input
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
-                className="mo-input w-auto min-w-[148px] py-1.5"
+                className="mo-input booking-page-date-input"
               />
             </label>
             <button
               type="button"
               onClick={() => setCalendarDrawerOpen(true)}
-              className="btn-secondary mb-0.5 inline-flex items-center gap-2 px-3 py-1.5 text-xs xl:hidden"
+              className="btn-secondary booking-page-month-btn xl:hidden"
             >
               <Calendar className="h-4 w-4 text-[var(--mo-accent-hover)]" />
               Месяц
             </button>
-            <div className="mb-0.5 flex flex-wrap items-center gap-2">
-              <span className="booking-appt booking-appt--booked booking-status-legend">Записан</span>
-              <span className="booking-appt booking-appt--notify booking-status-legend">Уведомление отправлено</span>
-              <span className="booking-appt booking-appt--replied booking-status-legend">Клиент ответил</span>
-              <span className="booking-appt booking-appt--completed booking-status-legend">Завершён</span>
+            <div className="booking-page-legend" aria-label="Статусы записей">
+              <span className="booking-legend-item booking-legend-item--booked">Записан</span>
+              <span className="booking-legend-item booking-legend-item--notify">Уведомление отправлено</span>
+              <span className="booking-legend-item booking-legend-item--replied">Клиент ответил</span>
+              <span className="booking-legend-item booking-legend-item--completed">Завершён</span>
             </div>
           </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_min(100%,280px)] xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">
