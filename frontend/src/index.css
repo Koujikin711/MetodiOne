@@ -975,9 +975,13 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-page-title {
-  @apply mt-0.5 text-xl font-semibold leading-tight tracking-tight sm:text-2xl;
+  @apply text-xl font-semibold leading-tight tracking-tight sm:text-2xl;
   color: var(--mo-text);
   font-family: inherit;
+}
+
+.booking-page-title-row {
+  @apply mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-2;
 }
 
 .booking-page-note {
@@ -989,21 +993,29 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   @apply shrink-0 self-start sm:self-center;
 }
 
-.booking-page-toolbar {
-  @apply flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2;
+.booking-page-legend {
+  @apply flex min-w-0 flex-wrap items-center gap-1.5;
+}
+
+.booking-page-date-nav {
+  @apply inline-flex items-center gap-1 rounded-xl border px-2 py-1.5 text-sm font-medium;
   border-color: var(--mo-border);
   background: var(--mo-surface-elevated);
+  color: var(--mo-text);
 }
 
-.booking-page-date-btn {
-  @apply inline-flex min-w-0 max-w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium;
-}
-.booking-page-date-btn span {
-  @apply truncate;
+.booking-page-date-nav-btn {
+  @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg leading-none transition;
+  color: var(--mo-text-muted);
 }
 
-.booking-page-legend {
-  @apply ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5;
+.booking-page-date-nav-btn:hover {
+  background: var(--mo-accent-soft);
+  color: var(--mo-accent);
+}
+
+.booking-page-date-label {
+  @apply min-w-[9rem] px-1 text-center text-sm font-semibold capitalize;
 }
 
 .booking-legend-item {
@@ -1042,7 +1054,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   color: var(--booking-appt-completed-text);
 }
 
-:root[data-theme="dark"] .booking-page-toolbar {
+:root[data-theme="dark"] .booking-page-date-nav {
   background: rgba(15, 23, 42, 0.55);
   border-color: rgba(148, 163, 184, 0.2);
 }
