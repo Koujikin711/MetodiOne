@@ -255,7 +255,7 @@ body {
 }
 
 .shell-sidebar.is-collapsed {
-  width: 4.75rem;
+  width: 5rem;
 }
 
 .shell-main {
@@ -438,7 +438,7 @@ body {
 }
 
 .shell-sidebar .shell-nav-icon-box {
-  @apply h-9 w-9 shrink-0 rounded-xl;
+  @apply h-10 w-10 shrink-0 rounded-xl;
   transition:
     width var(--mo-sidebar-duration) var(--mo-sidebar-ease),
     height var(--mo-sidebar-duration) var(--mo-sidebar-ease),
@@ -446,7 +446,7 @@ body {
 }
 
 .shell-sidebar .shell-nav-icon-glyph {
-  @apply h-5 w-5;
+  @apply h-[1.35rem] w-[1.35rem];
   stroke-width: 1.65;
   transition:
     width var(--mo-sidebar-duration) var(--mo-sidebar-ease),
@@ -454,7 +454,7 @@ body {
 }
 
 .shell-sidebar.is-collapsed .shell-nav-icon-box {
-  @apply h-7 w-7 rounded-lg;
+  @apply h-10 w-10 rounded-xl;
   cursor: grab;
   touch-action: none;
 }
@@ -464,7 +464,7 @@ body {
 }
 
 .shell-sidebar.is-collapsed .shell-nav-icon-glyph {
-  @apply h-3.5 w-3.5;
+  @apply h-[1.35rem] w-[1.35rem];
 }
 
 .shell-sidebar.is-collapsed .shell-nav-link.is-active .shell-nav-icon-box {
@@ -625,8 +625,8 @@ body {
 }
 
 .shell-sidebar .shell-nav-label {
-  @apply max-w-[4.5rem] font-medium leading-none tracking-normal;
-  font-size: 8px;
+  @apply max-w-[4.75rem] font-medium leading-none tracking-normal;
+  font-size: 9px;
   color: var(--mo-sidebar-fg-muted);
   overflow: hidden;
   white-space: nowrap;
@@ -659,8 +659,9 @@ body {
 
 .shell-sidebar.is-collapsed .shell-nav-label {
   opacity: 1;
-  max-width: 4.5rem;
-  margin-top: 1px;
+  max-width: 4.75rem;
+  margin-top: 0;
+  padding-top: 1px;
   pointer-events: none;
 }
 
@@ -703,44 +704,47 @@ body {
 }
 
 .shell-settings-root {
-  @apply relative shrink-0;
+  @apply shrink-0;
 }
 
 .shell-settings-root .shell-nav-link {
   margin-bottom: 0;
 }
 
-.shell-settings-flyout {
-  @apply absolute z-[80] min-w-[12.5rem] rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] p-2 shadow-xl;
+.shell-settings-panel {
+  @apply flex flex-col;
+  gap: 1px;
+  margin-top: 1px;
+  padding-bottom: 2px;
+  border-top: 1px solid var(--mo-sidebar-border);
 }
 
-.shell-settings-flyout--collapsed {
-  left: calc(100% + 0.35rem);
-  top: 0;
+.shell-sidebar.is-expanded .shell-settings-panel {
+  @apply mx-1.5 gap-0.5 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/60 px-1 py-1;
+  border-top: none;
+  margin-top: 2px;
 }
 
-.shell-settings-flyout--expanded {
-  left: calc(100% - 0.25rem);
-  top: 0;
+.shell-settings-sub-link {
+  margin-bottom: 0 !important;
 }
 
-.shell-settings-flyout-title {
-  @apply px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wide;
-  color: var(--mo-text-muted);
-}
-
-.shell-settings-flyout-list {
-  @apply flex flex-col gap-0.5;
-}
-
-.shell-settings-flyout-divider {
-  @apply my-1.5 h-px;
+.shell-settings-panel-divider {
+  @apply my-0.5 h-px shrink-0;
   background: var(--mo-sidebar-border);
+}
+
+.shell-sidebar.is-expanded .shell-settings-panel-divider {
+  @apply my-1;
 }
 
 .shell-settings-row {
   @apply flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition;
   color: var(--mo-text);
+}
+
+.shell-settings-row-icon {
+  @apply h-8 w-8 shrink-0 rounded-lg [&_svg]:h-4 [&_svg]:w-4;
 }
 
 .shell-settings-row:hover {
@@ -752,12 +756,14 @@ body {
   font-weight: 600;
 }
 
-.shell-settings-row--logout {
-  color: var(--mo-text-muted);
+.shell-settings-row--logout,
+.shell-settings-sub-link--logout {
+  color: var(--mo-sidebar-fg-muted);
 }
 
-.shell-settings-row--logout:hover {
-  color: var(--mo-text);
+.shell-settings-row--logout:hover,
+.shell-settings-sub-link--logout:hover {
+  color: var(--mo-sidebar-fg);
 }
 
 /* Нижняя мобильная навигация — светлая палитра */
