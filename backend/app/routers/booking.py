@@ -32,6 +32,7 @@ from app.schemas.booking import (
     BookingAppointmentMove,
     BookingAppointmentPaymentUpdate,
     BookingAppointmentRead,
+    BookingAppointmentDetailsUpdate,
     BookingAppointmentStatusUpdate,
     BookingPatientHistoryItem,
     BookingPatientSuggestItem,
@@ -1596,6 +1597,51 @@ async def move_appointment(
         appt,
         direction_name=direction.name,
         specialist_name=specialist.full_name,
+        viewer=current_user,
+    )
+
+
+@router.patch("/appointments/{appointment_id}/details", response_model=BookingAppointmentRead)
+async def patch_appointment_details(
+    appointment_id: int,
+    body: BookingAppointmentDetailsUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> BookingAppointmentRead:
+    await _assert_expert_readonly_for_booking(db, current_user)
+    a = await db.get(BookingAppointment, appointment_id)
+    if a is None or a.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+    if current_user.role == UserRole.expert and a.specialist_id is not None:
+        specialist = await db.get(BookingSpecialist, a.specialist_id)
+        if specialist is not None:
+            await _assert_expert_specialist_access(db, current_user, specialist)
+
+    if body.comment is not None:
+        a.comment = (body.comment or "").strip() or None
+    if body.service_title is not None:
+        title = (body.service_title or "").strip()
+        if not title:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Название услуги не может быть пустым")
+        a.service_title = title
+    a.updated_at = datetime.now(UTC)
+    await write_audit_event(
+        db,
+        entity_type="booking_appointment",
+        entity_id=a.id,
+        action="appointment_details_updated",
+        current_user=current_user,
+        details="comment/service_title",
+    )
+
+    direction = await db.get(BookingDirection, a.direction_id)
+    specialist = await db.get(BookingSpecialist, a.specialist_id)
+    return await _booking_appointment_read(
+        db,
+        a,
+        direction_name=direction.name if direction else "",
+        specialist_name=specialist.full_name if specialist else "",
         viewer=current_user,
     )
 

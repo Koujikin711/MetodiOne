@@ -24,7 +24,7 @@ import {
   type SetStateAction,
 } from "react";
 
-import { GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "@/components/icons";
+import { CheckCircle2, FileText, GripVertical, MessageCircle, MoreHorizontal, Pencil, Phone, Plus, Trash2 } from "@/components/icons";
 import {
   BOOKING_TIME_ZONE,
   formatAppointmentTimeOnCard,
@@ -38,7 +38,7 @@ import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const GRID_START_HOUR = 7;
 const GRID_END_HOUR = 20;
-const PX_PER_HOUR = 56;
+const PX_PER_HOUR = 64;
 const SPEC_HEADER_PX = 42;
 const SLOT_STEP_MIN = 30;
 
@@ -203,6 +203,9 @@ type Props = {
   onReorderSpecialists?: (orderedIds: number[]) => void;
   /** Главный эксперт: вместо времени на карточке — номер сеанса */
   showSessionInsteadOfTime?: boolean;
+  canEditNotes?: boolean;
+  onAppointmentNoteClick?: (a: BookingAppointment) => void;
+  onOpenChat?: (leadId: number) => void;
 };
 
 type SortableColProps = {
@@ -223,6 +226,9 @@ type SortableColProps = {
   nowTopPct: number | null;
   slotClickSpecialistIds?: ReadonlySet<number>;
   showSessionInsteadOfTime?: boolean;
+  canEditNotes?: boolean;
+  onAppointmentNoteClick?: (a: BookingAppointment) => void;
+  onOpenChat?: (leadId: number) => void;
 };
 
 function SortableSpecialistColumn({
@@ -243,6 +249,9 @@ function SortableSpecialistColumn({
   nowTopPct,
   slotClickSpecialistIds,
   showSessionInsteadOfTime,
+  canEditNotes,
+  onAppointmentNoteClick,
+  onOpenChat,
 }: SortableColProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: spec.id,
@@ -443,16 +452,17 @@ function SortableSpecialistColumn({
           const narrow = laneCount > 1;
           const note = (a.comment || "").trim();
           const serviceLine = (a.service_title || "").trim();
-          const leadTitle = a.lead_id ? "Открыть карточку клиента" : "Нет лида в MetodiOne";
-          const cardHeightPx = (heightPct / 100) * gridHeightPx;
-          const showFooter = !narrow && cardHeightPx >= 72;
-          const showNoteLine = Boolean(note) && cardHeightPx >= 40;
+          const phoneDigits = (a.patient_phone || "").replace(/\D+/g, "");
+          const isCompleted = a.status === "completed";
+          const timeLabel = showSessionInsteadOfTime
+            ? (visitDisplayValue(a) ?? "—")
+            : formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow);
           const cardTitle = [
             a.patient_name,
-            formatAppointmentTimeOnCard(a.start_at, a.end_at, false),
-            serviceLine || null,
+            timeLabel,
+            serviceLine ? `Услуга: ${serviceLine}` : null,
             note ? `Заметка: ${note}` : null,
-            a.lead_id ? `#${a.lead_id}` : "без лида",
+            a.lead_id ? `CRM #${a.lead_id}` : null,
           ]
             .filter(Boolean)
             .join(" · ");
@@ -469,7 +479,7 @@ function SortableSpecialistColumn({
                 zIndex: 20 + lane,
               }}
             >
-              {note ? (
+              {(note || serviceLine) && (
                 <div
                   role="tooltip"
                   className="pointer-events-none absolute bottom-full left-1/2 z-[80] mb-1 hidden w-max max-w-[min(280px,92vw)] -translate-x-1/2 rounded-lg border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-2.5 py-1.5 text-[11px] leading-snug text-[var(--mo-text)] shadow-lg group-hover/appt:block"
@@ -480,12 +490,14 @@ function SortableSpecialistColumn({
                       {serviceLine}
                     </p>
                   ) : null}
-                  <p className={serviceLine ? "mt-1" : ""}>
-                    <span className="font-semibold text-[var(--mo-text-muted)]">Заметка: </span>
-                    {note}
-                  </p>
+                  {note ? (
+                    <p className={serviceLine ? "mt-1" : ""}>
+                      <span className="font-semibold text-[var(--mo-text-muted)]">Заметка: </span>
+                      {note}
+                    </p>
+                  ) : null}
                 </div>
-              ) : null}
+              )}
               <button
                 type="button"
                 draggable
@@ -495,74 +507,84 @@ function SortableSpecialistColumn({
                 }}
                 onClick={() => onAppointmentClick(a)}
                 className={[
-                  "flex h-full min-h-0 w-full flex-col overflow-hidden rounded-lg text-left text-xs",
-                  narrow ? "px-1 py-0.5" : "px-2 py-1",
+                  "booking-appt-bitrix relative flex h-full w-full flex-col justify-between overflow-hidden rounded-md text-left",
+                  narrow ? "px-1 py-0.5" : "px-1.5 py-1",
                   cls,
                   appointmentHoverClass,
                 ].join(" ")}
                 title={cardTitle}
               >
-                <div className="flex min-h-0 shrink-0 items-start justify-between gap-1">
-                  <span
-                    className={[
-                      "min-w-0 flex-1 font-semibold leading-tight",
-                      narrow ? "line-clamp-1 text-[10px]" : "line-clamp-2 text-[12px]",
-                    ].join(" ")}
-                  >
-                    {a.patient_name}
+                {isCompleted ? (
+                  <span className="booking-appt-done-badge pointer-events-none absolute -right-0.5 -top-0.5 z-10">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
                   </span>
-                  <div className="flex shrink-0 flex-col items-end leading-none">
-                    {showSessionInsteadOfTime ? (
-                      <span
-                        className={[
-                          "whitespace-nowrap font-bold tabular-nums",
-                          narrow ? "text-[10px]" : "text-[11px]",
-                        ].join(" ")}
-                        title={visitDisplayTitle(a)}
+                ) : null}
+                <div className="flex min-h-0 items-center gap-0.5 pr-2">
+                  <span className="line-clamp-1 min-w-0 flex-1 text-[11px] font-bold leading-tight">{a.patient_name}</span>
+                  {canEditNotes || note ? (
+                    <button
+                      type="button"
+                      className={[
+                        "booking-appt-note-btn shrink-0 rounded p-0.5 transition hover:bg-black/10",
+                        note ? "is-filled" : "is-empty",
+                      ].join(" ")}
+                      title={note || "Добавить заметку"}
+                      aria-label={note ? "Редактировать заметку" : "Добавить заметку"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
+                      }}
+                    >
+                      <FileText className="h-3 w-3" />
+                    </button>
+                  ) : null}
+                </div>
+                <div className="mt-0.5 flex items-end justify-between gap-0.5">
+                  <span
+                    className="text-[10px] font-semibold tabular-nums leading-none"
+                    title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
+                  >
+                    {timeLabel}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    {phoneDigits.length >= 7 ? (
+                      <a
+                        href={`tel:${phoneDigits}`}
+                        className="booking-appt-action rounded p-0.5 hover:bg-black/10"
+                        title="Позвонить"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        {visitDisplayValue(a) ?? "—"}
-                      </span>
-                    ) : (
-                      <span
-                        className={[
-                          "whitespace-nowrap font-bold tabular-nums",
-                          narrow ? "text-[9px]" : "text-[10px]",
-                        ].join(" ")}
-                        title={formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
+                        <Phone className="h-3 w-3" />
+                      </a>
+                    ) : null}
+                    {a.lead_id != null && onOpenChat ? (
+                      <button
+                        type="button"
+                        className="booking-appt-action rounded p-0.5 hover:bg-black/10"
+                        title="Чат с клиентом"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenChat(a.lead_id!);
+                        }}
                       >
-                        {formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow)}
-                      </span>
-                    )}
-                    {a.status === "completed" ? (
-                      <span className="text-[9px] font-bold opacity-90" aria-hidden>
-                        ✓
-                      </span>
+                        <MessageCircle className="h-3 w-3" />
+                      </button>
+                    ) : null}
+                    {a.lead_id != null ? (
+                      <button
+                        type="button"
+                        className="booking-appt-action rounded px-0.5 text-[8px] font-extrabold leading-none tracking-wide hover:bg-black/10"
+                        title="Карточка в CRM"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAppointmentClick(a);
+                        }}
+                      >
+                        CRM
+                      </button>
                     ) : null}
                   </div>
                 </div>
-                <p className="mt-0.5 line-clamp-1 shrink-0 text-[9px] font-medium leading-tight opacity-95 booking-appt-meta">
-                  {serviceLine || "—"}
-                </p>
-                {showNoteLine ? (
-                  <p className="mt-0.5 line-clamp-1 shrink-0 text-[9px] italic leading-tight opacity-85" title={note}>
-                    {note}
-                  </p>
-                ) : null}
-                {showFooter ? (
-                  <div className="booking-appt-meta mt-auto flex shrink-0 items-center gap-1 pt-0.5 text-[9px]">
-                    <span className="booking-appt-badge rounded px-1 py-0.5 font-medium">MetodiOne</span>
-                    {a.lead_id ? (
-                      <span className="font-semibold opacity-90">#{a.lead_id}</span>
-                    ) : (
-                      <span className="opacity-80">без лида</span>
-                    )}
-                    {!showSessionInsteadOfTime && visitDisplayValue(a) ? (
-                      <span className="font-bold tabular-nums" title={visitDisplayTitle(a)}>
-                        · {visitDisplayValue(a)}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
               </button>
             </div>
           );
@@ -585,6 +607,9 @@ export function BookingCalendarGrid({
   onReorderSpecialists,
   onMoveAppointment,
   showSessionInsteadOfTime,
+  canEditNotes,
+  onAppointmentNoteClick,
+  onOpenChat,
 }: Props) {
   const totalHours = GRID_END_HOUR - GRID_START_HOUR;
   const gridHeightPx = totalHours * PX_PER_HOUR;
@@ -654,6 +679,9 @@ export function BookingCalendarGrid({
     nowTopPct: nowLineTopPct(dateYmd, nowTick),
     slotClickSpecialistIds,
     showSessionInsteadOfTime,
+    canEditNotes,
+    onAppointmentNoteClick,
+    onOpenChat,
   };
 
   if (specialists.length === 0) {

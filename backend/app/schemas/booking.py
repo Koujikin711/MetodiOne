@@ -225,6 +225,11 @@ class BookingAppointmentCreate(BaseModel):
         return self
 
 
+class BookingAppointmentDetailsUpdate(BaseModel):
+    comment: str | None = Field(None, max_length=2000)
+    service_title: str | None = Field(None, min_length=1, max_length=500)
+
+
 class BookingAppointmentStatusUpdate(BaseModel):
     status: Literal["booked", "completed", "no_show", "cancelled"]
 

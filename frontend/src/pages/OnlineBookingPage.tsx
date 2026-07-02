@@ -125,6 +125,8 @@ export function OnlineBookingPage() {
   const [specialistModalOpen, setSpecialistModalOpen] = useState(false);
   const [specialistModalMode, setSpecialistModalMode] = useState<"add" | "edit">("add");
   const [specialistModalTarget, setSpecialistModalTarget] = useState<BookingSpecialist | null>(null);
+  const [noteEditAppt, setNoteEditAppt] = useState<BookingAppointment | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
   const pipelineForKpiPrice = leadId ? null : newLeadPipelineId;
   const startAtIsoForKpi = useMemo(() => {
     if (!startAt) return null;
@@ -533,6 +535,21 @@ export function OnlineBookingPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const noteMutation = useMutation({
+    mutationFn: ({ id, comment: noteText }: { id: number; comment: string }) =>
+      apiFetch<BookingAppointment>(`/api/booking/appointments/${id}/details`, {
+        method: "PATCH",
+        body: JSON.stringify({ comment: noteText.trim() || null }),
+      }),
+    onSuccess: () => {
+      setNoteEditAppt(null);
+      void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
+      toast.success("Заметка сохранена");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   useEffect(() => {
     if (specialistId !== 0 && specialistsActive.some((s) => s.id === specialistId)) return;
     const first = specialistsActive[0];
@@ -571,6 +588,15 @@ export function OnlineBookingPage() {
     } else {
       toast.error("К этой записи не привязан лид в MetodiOne.");
     }
+  }
+
+  function onAppointmentNoteClick(a: BookingAppointment) {
+    setNoteEditAppt(a);
+    setNoteDraft((a.comment || "").trim());
+  }
+
+  function onOpenChat(leadId: number) {
+    navigate(`/chat?lead_id=${leadId}`);
   }
 
   function openAddSpecialistModal() {
@@ -836,6 +862,9 @@ export function OnlineBookingPage() {
                 onDeleteSpecialist={canEditBooking ? (s) => deleteSpecialistUserMutation.mutate(s.id) : undefined}
                 onReorderSpecialists={canEditBooking ? (orderedIds) => reorderSpecialistsMutation.mutate(orderedIds) : undefined}
                 showSessionInsteadOfTime={showSessionInsteadOfTime}
+                canEditNotes={canEditBooking}
+                onAppointmentNoteClick={canEditBooking ? onAppointmentNoteClick : undefined}
+                onOpenChat={onOpenChat}
               />
               {gridAppointmentsQuery.isLoading && (
                 <p className="mt-3 text-sm lux-caption">Загрузка записей…</p>
@@ -1152,7 +1181,7 @@ export function OnlineBookingPage() {
                     className="mt-1 w-full mo-input"
                   />
                   <span className="mt-1 block text-[11px] mo-muted">
-                    Появится при наведении на запись в календаре.
+                    Иконка заметки на карточке в календаре; нажмите её, чтобы изменить.
                   </span>
                 </label>
                     <button
@@ -1444,6 +1473,49 @@ export function OnlineBookingPage() {
       )}
 
       {canEditDirectionStreams ? <DirectionStreamsPanel /> : null}
+
+      {noteEditAppt ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--mo-text)]/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="booking-note-title"
+          onClick={() => setNoteEditAppt(null)}
+        >
+          <div
+            className="mo-card w-full max-w-md p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="booking-note-title" className="lux-subheading text-base">
+              Заметка к записи
+            </h2>
+            <p className="mt-1 text-sm mo-muted">
+              {noteEditAppt.patient_name} · {formatDt(noteEditAppt.start_at)}
+            </p>
+            <textarea
+              value={noteDraft}
+              onChange={(e) => setNoteDraft(e.target.value)}
+              rows={4}
+              autoFocus
+              placeholder="Пожелания клиента, перенос, скидка…"
+              className="mo-input mt-3 w-full text-sm"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" className="btn-secondary text-sm" onClick={() => setNoteEditAppt(null)}>
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="btn-primary text-sm disabled:opacity-50"
+                disabled={noteMutation.isPending}
+                onClick={() => noteMutation.mutate({ id: noteEditAppt.id, comment: noteDraft })}
+              >
+                {noteMutation.isPending ? "Сохранение…" : "Сохранить"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
