@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
 import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
+import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { PatientPhone } from "@/components/PatientPhone";
 import { SpecialistModal, type SpecialistFormValues } from "@/components/SpecialistModal";
 import { apiFetch, getStoredToken } from "@/lib/api";
@@ -842,6 +843,10 @@ export function OnlineBookingPage() {
               )}
             </div>
             <aside className="flex w-full min-w-0 flex-col gap-2 xl:sticky xl:top-4 xl:max-w-[280px]">
+              <section className="hidden mo-section p-3 shadow-inner backdrop-blur-sm xl:block xl:max-h-[min(38vh,260px)] xl:overflow-y-auto">
+                <h2 className="mb-2 lux-subheading text-sm">Дата записи</h2>
+                <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
+              </section>
               {canEditBooking ? (
                 <section
                   ref={formPanelRef}

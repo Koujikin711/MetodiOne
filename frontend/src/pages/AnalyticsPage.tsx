@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { appLexicon } from "@/lib/appLexicon";
@@ -23,6 +23,42 @@ function downloadCsv(filename: string, headers: string[], rows: Array<Array<stri
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+function MetricCard({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: "default" | "success" | "warning" | "accent" | "neutral";
+}) {
+  return (
+    <div className={`mo-kpi analytics-kpi analytics-kpi--${tone}`}>
+      <div className="mo-kpi-label">{label}</div>
+      <div className="mo-kpi-value">{value}</div>
+    </div>
+  );
+}
+
+function AnalyticsPanel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="analytics-panel">
+      <h3 className="analytics-panel-title">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function AnalyticsTable({ children, minWidth = 480 }: { children: ReactNode; minWidth?: number }) {
+  return (
+    <div className="analytics-table-wrap">
+      <table className="mo-table analytics-table" style={{ minWidth }}>
+        {children}
+      </table>
+    </div>
+  );
 }
 
 export function AnalyticsPage() {
@@ -65,58 +101,73 @@ export function AnalyticsPage() {
   });
 
   return (
-    <div className="relative mx-auto max-w-6xl space-y-6 pb-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">{lex.analyticsTitle}</h1>
-        <p className="text-sm lux-caption">{lex.analyticsIntro}</p>
+    <div className="analytics-page mo-page relative mx-auto max-w-6xl space-y-5 pb-8">
+      <header className="analytics-page-header">
+        <h1 className="lux-heading-page">{lex.analyticsTitle}</h1>
+        <p className="lux-body mt-1 max-w-2xl">{lex.analyticsIntro}</p>
       </header>
 
-      <section className="mo-section p-4">
-        <div className="grid gap-3 md:grid-cols-[170px_170px_200px_1fr_1fr_auto]">
-          <select
-            value={mode}
-            onChange={(e) => setMode(e.target.value as "overview" | "full" | "detailed")}
-            className="mo-input"
-          >
-            <option value="overview">Обзор 360</option>
-            <option value="full">Полная</option>
-            <option value="detailed">Детальная</option>
-          </select>
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value as "day" | "month" | "custom")}
-            className="mo-input"
-          >
-            <option value="day">За день</option>
-            <option value="month">За месяц</option>
-            <option value="custom">За период</option>
-          </select>
-          <select
-            value={pipelineId === "all" ? "all" : String(pipelineId)}
-            onChange={(e) => setPipelineId(e.target.value === "all" ? "all" : Number(e.target.value))}
-            className="mo-input"
-          >
-            <option value="all">{lex.pipelineAll}</option>
-            {(pipelinesQuery.data ?? []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <input
-            type="date"
-            disabled={period !== "custom"}
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="mo-input disabled:opacity-50"
-          />
-          <input
-            type="date"
-            disabled={period !== "custom"}
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="mo-input disabled:opacity-50"
-          />
+      <section className="mo-section analytics-toolbar-section p-4 sm:p-5">
+        <div className="analytics-toolbar">
+          <label className="analytics-toolbar-field">
+            <span>Режим</span>
+            <select
+              value={mode}
+              onChange={(e) => setMode(e.target.value as "overview" | "full" | "detailed")}
+              className="mo-input"
+            >
+              <option value="overview">Обзор 360</option>
+              <option value="full">Полная</option>
+              <option value="detailed">Детальная</option>
+            </select>
+          </label>
+          <label className="analytics-toolbar-field">
+            <span>Период</span>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as "day" | "month" | "custom")}
+              className="mo-input"
+            >
+              <option value="day">За день</option>
+              <option value="month">За месяц</option>
+              <option value="custom">За период</option>
+            </select>
+          </label>
+          <label className="analytics-toolbar-field">
+            <span>Воронка</span>
+            <select
+              value={pipelineId === "all" ? "all" : String(pipelineId)}
+              onChange={(e) => setPipelineId(e.target.value === "all" ? "all" : Number(e.target.value))}
+              className="mo-input"
+            >
+              <option value="all">{lex.pipelineAll}</option>
+              {(pipelinesQuery.data ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="analytics-toolbar-field">
+            <span>С</span>
+            <input
+              type="date"
+              disabled={period !== "custom"}
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="mo-input disabled:opacity-50"
+            />
+          </label>
+          <label className="analytics-toolbar-field">
+            <span>По</span>
+            <input
+              type="date"
+              disabled={period !== "custom"}
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="mo-input disabled:opacity-50"
+            />
+          </label>
           <button
             type="button"
             onClick={() => {
@@ -161,7 +212,7 @@ export function AnalyticsPage() {
                 );
               }
             }}
-            className="rounded-xl border border-[var(--mo-border-strong)]/50 bg-white/60 px-4 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
+            className="btn-secondary analytics-export-btn"
           >
             Экспорт CSV
           </button>
@@ -169,187 +220,197 @@ export function AnalyticsPage() {
       </section>
 
       {mode === "overview" && (
-        <section className="space-y-4 mo-section p-4">
-          {overviewQuery.isError && <p className="text-sm text-red-300">{(overviewQuery.error as Error).message}</p>}
-          {overviewQuery.isLoading && <p className="text-sm lux-caption">Загрузка...</p>}
+        <section className="space-y-4">
+          {overviewQuery.isError && <p className="analytics-error">{(overviewQuery.error as Error).message}</p>}
+          {overviewQuery.isLoading && <p className="lux-caption px-1">Загрузка…</p>}
           {overviewQuery.data && (
             <>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
-                  {lex.guestsMetricLabel}: <b>{overviewQuery.data.executive.leads_total}</b>
-                </div>
-                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
-                  Win Rate: <b>{overviewQuery.data.executive.win_rate_pct}%</b>
-                </div>
-                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
-                  Оплачено: <b>{moneyFmt.format(Number(overviewQuery.data.executive.paid_amount))}</b>
-                </div>
-                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
-                  Не оплачено: <b>{moneyFmt.format(Number(overviewQuery.data.executive.unpaid_amount))}</b>
-                </div>
-                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
-                  Первый ответ:{" "}
-                  <b>
-                    {overviewQuery.data.executive.avg_first_response_minutes == null
+              <div className="analytics-kpi-grid">
+                <MetricCard label={lex.guestsMetricLabel} value={overviewQuery.data.executive.leads_total} tone="accent" />
+                <MetricCard label="Win Rate" value={`${overviewQuery.data.executive.win_rate_pct}%`} tone="neutral" />
+                <MetricCard
+                  label="Оплачено"
+                  value={moneyFmt.format(Number(overviewQuery.data.executive.paid_amount))}
+                  tone="success"
+                />
+                <MetricCard
+                  label="Не оплачено"
+                  value={moneyFmt.format(Number(overviewQuery.data.executive.unpaid_amount))}
+                  tone="warning"
+                />
+                <MetricCard
+                  label="Первый ответ"
+                  value={
+                    overviewQuery.data.executive.avg_first_response_minutes == null
                       ? "—"
-                      : `${overviewQuery.data.executive.avg_first_response_minutes} мин`}
-                  </b>
-                </div>
-                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
-                  {lex.leadCycle}:{" "}
-                  <b>
-                    {overviewQuery.data.executive.avg_lead_cycle_hours == null
+                      : `${overviewQuery.data.executive.avg_first_response_minutes} мин`
+                  }
+                  tone="default"
+                />
+                <MetricCard
+                  label={lex.leadCycle}
+                  value={
+                    overviewQuery.data.executive.avg_lead_cycle_hours == null
                       ? "—"
-                      : `${overviewQuery.data.executive.avg_lead_cycle_hours} ч`}
-                  </b>
-                </div>
+                      : `${overviewQuery.data.executive.avg_lead_cycle_hours} ч`
+                  }
+                  tone="neutral"
+                />
               </div>
 
-              <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
-                <h3 className="mb-2 lux-subheading text-sm">Алерты</h3>
+              <section
+                className={`analytics-alerts ${overviewQuery.data.alerts.summary.length === 0 ? "analytics-alerts--ok" : ""}`}
+              >
+                <h3 className="analytics-alerts-title">Алерты</h3>
                 {overviewQuery.data.alerts.summary.length === 0 ? (
-                  <p className="text-sm text-[#0f4c3a]">Критичных отклонений не найдено.</p>
+                  <p className="analytics-alerts-ok">Критичных отклонений не найдено.</p>
                 ) : (
-                  <ul className="space-y-1 text-sm text-amber-200">
+                  <ul className="analytics-alerts-list">
                     {overviewQuery.data.alerts.summary.map((item) => (
-                      <li key={item}>• {item}</li>
+                      <li key={item}>{item}</li>
                     ))}
                   </ul>
                 )}
-              </div>
+              </section>
 
               <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
-                  <h3 className="mb-2 lux-subheading text-sm">{lex.sectionStageFlow}</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[520px] text-left text-sm text-[var(--mo-text)]">
-                      <thead className="lux-caption">
-                        <tr>
-                          <th className="py-2 pr-3">Стадия</th>
-                          <th className="py-2 pr-3">{lex.leadCol}</th>
-                          <th className="py-2 pr-3">В след. стадию</th>
-                          <th className="py-2 pr-3">Ср. время</th>
+                <AnalyticsPanel title={lex.sectionStageFlow}>
+                  <AnalyticsTable minWidth={520}>
+                    <thead>
+                      <tr>
+                        <th className="py-2 pr-3">Стадия</th>
+                        <th className="py-2 pr-3">{lex.leadCol}</th>
+                        <th className="py-2 pr-3">В след. стадию</th>
+                        <th className="py-2 pr-3">Ср. время</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overviewQuery.data.stage_conversion.map((r) => (
+                        <tr key={r.stage_id}>
+                          <td className="py-2.5 pr-3 font-medium">{r.stage_name}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{r.leads_count}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {r.conversion_to_next_pct == null ? "—" : `${r.conversion_to_next_pct}%`}
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {r.avg_time_in_stage_hours == null ? "—" : `${r.avg_time_in_stage_hours} ч`}
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {overviewQuery.data.stage_conversion.map((r) => (
-                          <tr key={r.stage_id} className="border-t border-[var(--mo-border)]">
-                            <td className="py-2 pr-3">{r.stage_name}</td>
-                            <td className="py-2 pr-3">{r.leads_count}</td>
-                            <td className="py-2 pr-3">{r.conversion_to_next_pct == null ? "—" : `${r.conversion_to_next_pct}%`}</td>
-                            <td className="py-2 pr-3">{r.avg_time_in_stage_hours == null ? "—" : `${r.avg_time_in_stage_hours} ч`}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                      ))}
+                    </tbody>
+                  </AnalyticsTable>
+                </AnalyticsPanel>
 
-                <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
-                  <h3 className="mb-2 lux-subheading text-sm">Причины потерь</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[420px] text-left text-sm text-[var(--mo-text)]">
-                      <thead className="lux-caption">
-                        <tr>
-                          <th className="py-2 pr-3">Причина</th>
-                          <th className="py-2 pr-3">Кол-во</th>
-                          <th className="py-2 pr-3">Доля</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {overviewQuery.data.loss_reasons.map((r) => (
-                          <tr key={r.reason} className="border-t border-[var(--mo-border)]">
-                            <td className="py-2 pr-3">{r.reason}</td>
-                            <td className="py-2 pr-3">{r.count}</td>
-                            <td className="py-2 pr-3">{r.share_pct}%</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
-                <h3 className="mb-2 lux-subheading text-sm">{lex.sourcesTitle}</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-left text-sm text-[var(--mo-text)]">
-                      <thead className="lux-caption">
-                        <tr>
-                          <th className="py-2 pr-3">Источник</th>
-                          <th className="py-2 pr-3">{lex.leadCol}</th>
+                <AnalyticsPanel title="Причины потерь">
+                  <AnalyticsTable minWidth={420}>
+                    <thead>
+                      <tr>
+                        <th className="py-2 pr-3">Причина</th>
+                        <th className="py-2 pr-3">Кол-во</th>
                         <th className="py-2 pr-3">Доля</th>
-                        <th className="py-2 pr-3">Продано</th>
-                        <th className="py-2 pr-3">Оплачено</th>
-                        <th className="py-2 pr-3">Не оплачено</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {overviewQuery.data.by_source.map((r) => (
-                        <tr key={r.source} className="border-t border-[var(--mo-border)]">
-                          <td className="py-2 pr-3">{r.source}</td>
-                          <td className="py-2 pr-3">{r.leads_count}</td>
-                          <td className="py-2 pr-3">{r.lead_share_pct}%</td>
-                          <td className="py-2 pr-3">{moneyFmt.format(Number(r.sold_amount))}</td>
-                          <td className="py-2 pr-3">{moneyFmt.format(Number(r.paid_amount))}</td>
-                          <td className="py-2 pr-3">{moneyFmt.format(Number(r.unpaid_amount))}</td>
+                      {overviewQuery.data.loss_reasons.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="analytics-empty-cell">
+                            Нет данных за период
+                          </td>
                         </tr>
-                      ))}
+                      ) : (
+                        overviewQuery.data.loss_reasons.map((r) => (
+                          <tr key={r.reason}>
+                            <td className="py-2.5 pr-3">{r.reason}</td>
+                            <td className="py-2.5 pr-3 tabular-nums">{r.count}</td>
+                            <td className="py-2.5 pr-3 tabular-nums">{r.share_pct}%</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
-                  </table>
-                </div>
+                  </AnalyticsTable>
+                </AnalyticsPanel>
               </div>
 
-              <div className="rounded-xl border border-[var(--mo-border)] bg-white/30 p-3">
-                <h3 className="mb-2 lux-subheading text-sm">{lex.sectionPlanFact}</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[640px] text-left text-sm text-[var(--mo-text)]">
-                      <thead className="lux-caption">
-                        <tr>
-                          <th className="py-2 pr-3">{lex.thStaff}</th>
-                        <th className="py-2 pr-3">План</th>
-                        <th className="py-2 pr-3">Факт</th>
-                        <th className="py-2 pr-3">Выполнение</th>
+              <AnalyticsPanel title={lex.sourcesTitle}>
+                <AnalyticsTable minWidth={760}>
+                  <thead>
+                    <tr>
+                      <th className="py-2 pr-3">Источник</th>
+                      <th className="py-2 pr-3">{lex.leadCol}</th>
+                      <th className="py-2 pr-3">Доля</th>
+                      <th className="py-2 pr-3">Продано</th>
+                      <th className="py-2 pr-3">Оплачено</th>
+                      <th className="py-2 pr-3">Не оплачено</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overviewQuery.data.by_source.map((r) => (
+                      <tr key={r.source}>
+                        <td className="py-2.5 pr-3 font-medium">{r.source}</td>
+                        <td className="py-2.5 pr-3 tabular-nums">{r.leads_count}</td>
+                        <td className="py-2.5 pr-3 tabular-nums">{r.lead_share_pct}%</td>
+                        <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(r.sold_amount))}</td>
+                        <td className="py-2.5 pr-3 tabular-nums text-[var(--mo-success)]">
+                          {moneyFmt.format(Number(r.paid_amount))}
+                        </td>
+                        <td className="py-2.5 pr-3 tabular-nums text-amber-700 dark:text-amber-300">
+                          {moneyFmt.format(Number(r.unpaid_amount))}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {overviewQuery.data.manager_plan_fact.map((r) => (
-                        <tr key={`${r.manager_id ?? "none"}-${r.manager_name}`} className="border-t border-[var(--mo-border)]">
-                          <td className="py-2 pr-3">{r.manager_name}</td>
-                          <td className="py-2 pr-3">{moneyFmt.format(Number(r.plan_amount))}</td>
-                          <td className="py-2 pr-3">{moneyFmt.format(Number(r.fact_paid_amount))}</td>
-                          <td className="py-2 pr-3">{r.plan_completion_pct}%</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                    ))}
+                  </tbody>
+                </AnalyticsTable>
+              </AnalyticsPanel>
+
+              <AnalyticsPanel title={lex.sectionPlanFact}>
+                <AnalyticsTable minWidth={640}>
+                  <thead>
+                    <tr>
+                      <th className="py-2 pr-3">{lex.thStaff}</th>
+                      <th className="py-2 pr-3">План</th>
+                      <th className="py-2 pr-3">Факт</th>
+                      <th className="py-2 pr-3">Выполнение</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overviewQuery.data.manager_plan_fact.map((r) => (
+                      <tr key={`${r.manager_id ?? "none"}-${r.manager_name}`}>
+                        <td className="py-2.5 pr-3 font-medium">{r.manager_name}</td>
+                        <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(r.plan_amount))}</td>
+                        <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(r.fact_paid_amount))}</td>
+                        <td className="py-2.5 pr-3 tabular-nums">{r.plan_completion_pct}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </AnalyticsTable>
+              </AnalyticsPanel>
             </>
           )}
         </section>
       )}
 
       {mode === "full" && (
-        <section className="mo-section p-4">
-          {fullQuery.isError && <p className="text-sm text-red-300">{(fullQuery.error as Error).message}</p>}
-          {fullQuery.isLoading && <p className="text-sm lux-caption">Загрузка...</p>}
+        <section className="space-y-4">
+          {fullQuery.isError && <p className="analytics-error">{(fullQuery.error as Error).message}</p>}
+          {fullQuery.isLoading && <p className="lux-caption px-1">Загрузка…</p>}
           {fullQuery.data && (
             <>
-              <div className="mb-3 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
-                  {lex.guestsMetricLabel}: <b>{fullQuery.data.total_leads}</b>
-                </div>
-                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
-                  Получено: <b>{moneyFmt.format(Number(fullQuery.data.total_received_amount))}</b>
-                </div>
-                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
-                  Дебиторка: <b>{moneyFmt.format(Number(fullQuery.data.total_debt_amount))}</b>
-                </div>
+              <div className="analytics-kpi-grid sm:grid-cols-3">
+                <MetricCard label={lex.guestsMetricLabel} value={fullQuery.data.total_leads} tone="accent" />
+                <MetricCard
+                  label="Получено"
+                  value={moneyFmt.format(Number(fullQuery.data.total_received_amount))}
+                  tone="success"
+                />
+                <MetricCard
+                  label="Дебиторка"
+                  value={moneyFmt.format(Number(fullQuery.data.total_debt_amount))}
+                  tone="warning"
+                />
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-sm text-[var(--mo-text)]">
-                  <thead className="lux-caption">
+              <AnalyticsPanel title="По воронкам">
+                <AnalyticsTable minWidth={760}>
+                  <thead>
                     <tr>
                       <th className="py-2 pr-4">{lex.thPipelineOrOutlet}</th>
                       <th className="py-2 pr-4">{lex.leadCol}</th>
@@ -360,42 +421,44 @@ export function AnalyticsPage() {
                   </thead>
                   <tbody>
                     {fullQuery.data.by_pipeline.map((r) => (
-                      <tr key={`${r.pipeline_id ?? "none"}-${r.pipeline_name}`} className="border-t border-[var(--mo-border)]">
-                        <td className="py-2 pr-4">{r.pipeline_name}</td>
-                        <td className="py-2 pr-4">{r.leads_count}</td>
-                        <td className="py-2 pr-4">{r.processed_by_manager_count}</td>
-                        <td className="py-2 pr-4">{moneyFmt.format(Number(r.received_amount))}</td>
-                        <td className="py-2 pr-4">{moneyFmt.format(Number(r.debt_amount))}</td>
+                      <tr key={`${r.pipeline_id ?? "none"}-${r.pipeline_name}`}>
+                        <td className="py-2.5 pr-4 font-medium">{r.pipeline_name}</td>
+                        <td className="py-2.5 pr-4 tabular-nums">{r.leads_count}</td>
+                        <td className="py-2.5 pr-4 tabular-nums">{r.processed_by_manager_count}</td>
+                        <td className="py-2.5 pr-4 tabular-nums">{moneyFmt.format(Number(r.received_amount))}</td>
+                        <td className="py-2.5 pr-4 tabular-nums">{moneyFmt.format(Number(r.debt_amount))}</td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
+                </AnalyticsTable>
+              </AnalyticsPanel>
             </>
           )}
         </section>
       )}
 
       {mode === "detailed" && (
-        <section className="mo-section p-4">
-          {detailedQuery.isError && <p className="text-sm text-red-300">{(detailedQuery.error as Error).message}</p>}
-          {detailedQuery.isLoading && <p className="text-sm lux-caption">Загрузка...</p>}
+        <section className="space-y-4">
+          {detailedQuery.isError && <p className="analytics-error">{(detailedQuery.error as Error).message}</p>}
+          {detailedQuery.isLoading && <p className="lux-caption px-1">Загрузка…</p>}
           {detailedQuery.data && (
             <>
-              <div className="mb-3 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
-                  {lex.guestsMetricLabel}: <b>{detailedQuery.data.total_leads}</b>
-                </div>
-                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
-                  Продано: <b>{moneyFmt.format(Number(detailedQuery.data.total_sold_amount))}</b>
-                </div>
-                <div className="rounded-xl bg-white p-3 text-sm text-[var(--mo-text)]">
-                  Не оплачено: <b>{moneyFmt.format(Number(detailedQuery.data.total_unpaid_amount))}</b>
-                </div>
+              <div className="analytics-kpi-grid sm:grid-cols-3">
+                <MetricCard label={lex.guestsMetricLabel} value={detailedQuery.data.total_leads} tone="accent" />
+                <MetricCard
+                  label="Продано"
+                  value={moneyFmt.format(Number(detailedQuery.data.total_sold_amount))}
+                  tone="success"
+                />
+                <MetricCard
+                  label="Не оплачено"
+                  value={moneyFmt.format(Number(detailedQuery.data.total_unpaid_amount))}
+                  tone="warning"
+                />
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-sm text-[var(--mo-text)]">
-                  <thead className="lux-caption">
+              <AnalyticsPanel title="По менеджерам">
+                <AnalyticsTable minWidth={760}>
+                  <thead>
                     <tr>
                       <th className="py-2 pr-4">{lex.thStaff}</th>
                       <th className="py-2 pr-4">{lex.leadCol}</th>
@@ -408,22 +471,22 @@ export function AnalyticsPage() {
                   </thead>
                   <tbody>
                     {detailedQuery.data.by_manager.map((r) => (
-                      <tr key={`${r.manager_id ?? "none"}-${r.manager_name}`} className="border-t border-[var(--mo-border)]">
-                        <td className="py-2 pr-4">{r.manager_name}</td>
-                        <td className="py-2 pr-4">{r.leads_count}</td>
-                        <td className="py-2 pr-4">{moneyFmt.format(Number(r.sold_amount))}</td>
-                        <td className="py-2 pr-4">{moneyFmt.format(Number(r.unpaid_amount))}</td>
-                        <td className="py-2 pr-4 tabular-nums">
+                      <tr key={`${r.manager_id ?? "none"}-${r.manager_name}`}>
+                        <td className="py-2.5 pr-4 font-medium">{r.manager_name}</td>
+                        <td className="py-2.5 pr-4 tabular-nums">{r.leads_count}</td>
+                        <td className="py-2.5 pr-4 tabular-nums">{moneyFmt.format(Number(r.sold_amount))}</td>
+                        <td className="py-2.5 pr-4 tabular-nums">{moneyFmt.format(Number(r.unpaid_amount))}</td>
+                        <td className="py-2.5 pr-4 tabular-nums">
                           <span className="font-medium text-[var(--mo-text)]">{r.clients_messaged_count ?? 0}</span>
                           <span className="mo-muted"> / </span>
-                          <span className="font-medium text-indigo-800">{r.manager_replied_count ?? 0}</span>
+                          <span className="font-medium text-[var(--mo-accent-hover)]">{r.manager_replied_count ?? 0}</span>
                           <span className="mt-0.5 block text-[10px] mo-muted">клиент · ответ</span>
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
+                </AnalyticsTable>
+              </AnalyticsPanel>
             </>
           )}
         </section>
