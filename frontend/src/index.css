@@ -1155,7 +1155,8 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-filter-resource-type {
-  @apply block truncate text-[11px] mo-muted;
+  @apply block truncate text-[11px];
+  color: var(--mo-text-muted);
 }
 
 .booking-filter-check {
@@ -1164,7 +1165,8 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-filter-empty {
-  @apply px-2 py-3 text-center text-xs mo-muted;
+  @apply px-2 py-3 text-center text-xs;
+  color: var(--mo-text-muted);
 }
 
 .booking-filter-reset-all {

@@ -22,7 +22,7 @@ def test_stream_day_is_sequential_not_calendar():
 
 def test_max_days_starts_new_stream_by_session_count():
     cfg = CourseStreamSettings(enabled=True, max_days=3, min_day_for_next=10, gap_days=10)
-    appts = [(i, _dt(i)) for i in range(4)]
+    appts = [(i, _dt(i)) for i in range(1, 5)]
     out = compute_course_stream_labels(appts, cfg)
     assert out[1].visit_label == "1:1"
     assert out[2].visit_label == "1:2"
