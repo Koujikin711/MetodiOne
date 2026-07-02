@@ -35,6 +35,17 @@ const statusLabels: Record<string, string> = {
   cancelled: "Отменён",
 };
 
+function formatBookingToolbarDate(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    weekday: "short",
+  });
+}
+
 function formatDt(iso: string) {
   try {
     return new Date(iso).toLocaleString("ru-RU", {
@@ -806,36 +817,19 @@ export function OnlineBookingPage() {
                     setCalendarDrawerOpen(false);
                   }}
                 />
-                <label className="mt-4 block text-xs lux-caption">
-                  День (точно)
-                  <input
-                    type="date"
-                    value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                    className="mo-input mt-1 w-full text-sm"
-                  />
-                </label>
               </aside>
             </>
           )}
 
           <div className="booking-page-toolbar">
-            <label className="booking-page-date">
-              <span className="booking-page-date-label">Дата</span>
-              <input
-                type="date"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className="mo-input booking-page-date-input"
-              />
-            </label>
             <button
               type="button"
               onClick={() => setCalendarDrawerOpen(true)}
-              className="btn-secondary booking-page-month-btn xl:hidden"
+              className="btn-secondary booking-page-date-btn"
+              aria-label="Выбрать дату"
             >
-              <Calendar className="h-4 w-4 text-[var(--mo-accent-hover)]" />
-              Месяц
+              <Calendar className="h-4 w-4 shrink-0 text-[var(--mo-accent-hover)]" />
+              <span className="truncate">{formatBookingToolbarDate(filterDate)}</span>
             </button>
             <div className="booking-page-legend" aria-label="Статусы записей">
               <span className="booking-legend-item booking-legend-item--booked">Записан</span>
@@ -872,15 +866,6 @@ export function OnlineBookingPage() {
               <section className="hidden mo-section p-3 shadow-inner backdrop-blur-sm xl:block xl:max-h-[min(38vh,260px)] xl:overflow-y-auto">
                 <h2 className="mb-2 lux-subheading text-sm">Дата записи</h2>
                 <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
-                <label className="mt-3 block text-xs lux-caption">
-                  День (точно)
-                  <input
-                    type="date"
-                    value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                    className="mo-input mt-1 w-full text-sm"
-                  />
-                </label>
               </section>
               {canEditBooking ? (
                 <section

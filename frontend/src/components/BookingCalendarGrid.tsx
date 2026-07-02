@@ -36,16 +36,25 @@ import {
 import { visitDisplayTitle, visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
-const GRID_START_HOUR = 7;
+const GRID_START_HOUR = 8;
+const GRID_START_MIN = 30;
+const GRID_START_MINUTES = GRID_START_HOUR * 60 + GRID_START_MIN;
 const GRID_END_HOUR = 20;
+const GRID_END_MINUTES = GRID_END_HOUR * 60;
+const GRID_SPAN_MINUTES = GRID_END_MINUTES - GRID_START_MINUTES;
+const GRID_SPAN_HOURS = GRID_SPAN_MINUTES / 60;
 const PX_PER_HOUR = 64;
 const SPEC_HEADER_PX = 42;
 const SLOT_STEP_MIN = 30;
 
 const SLOT_MINUTES = Array.from(
-  { length: ((GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_STEP_MIN },
-  (_, i) => GRID_START_HOUR * 60 + i * SLOT_STEP_MIN,
+  { length: GRID_SPAN_MINUTES / SLOT_STEP_MIN },
+  (_, i) => GRID_START_MINUTES + i * SLOT_STEP_MIN,
 );
+
+function minutePct(minuteOfDay: number): number {
+  return ((minuteOfDay - GRID_START_MINUTES) / GRID_SPAN_MINUTES) * 100;
+}
 
 const DEFAULT_WEEKDAYS = [0, 1, 2, 3, 4];
 
@@ -90,17 +99,18 @@ function hatchForSpec(
   const wd = weekdayMon0InBookingTz(dateYmd);
   if (!specWeekdays(spec).includes(wd)) return { fullDay: true };
   const { start: ws, end: we } = specWorkBounds(spec);
-  const total = GRID_END_HOUR - GRID_START_HOUR;
+  const wsMin = ws * 60;
+  const weMin = we * 60;
   return {
-    morningPct: ((ws - GRID_START_HOUR) / total) * 100,
-    eveningPct: ((GRID_END_HOUR - we) / total) * 100,
-    eveningTopPct: ((we - GRID_START_HOUR) / total) * 100,
+    morningPct: ((wsMin - GRID_START_MINUTES) / GRID_SPAN_MINUTES) * 100,
+    eveningPct: ((GRID_END_MINUTES - weMin) / GRID_SPAN_MINUTES) * 100,
+    eveningTopPct: ((weMin - GRID_START_MINUTES) / GRID_SPAN_MINUTES) * 100,
   };
 }
 
 function dayWindowBounds(dateYmd: string): { startMs: number; endMs: number } {
   return {
-    startMs: zonedWallTimeToUtcMs(dateYmd, GRID_START_HOUR, 0),
+    startMs: zonedWallTimeToUtcMs(dateYmd, GRID_START_HOUR, GRID_START_MIN),
     endMs: zonedWallTimeToUtcMs(dateYmd, GRID_END_HOUR, 0),
   };
 }
@@ -163,8 +173,8 @@ function nowLineTopPct(dateYmd: string, nowMs: number): number | null {
   if (ymdInBookingTz(nowMs) !== dateYmd) return null;
   const { h, min } = utcMsToHourMinuteInBookingTz(nowMs);
   const mins = h * 60 + min;
-  const from = GRID_START_HOUR * 60;
-  const to = GRID_END_HOUR * 60;
+  const from = GRID_START_MINUTES;
+  const to = GRID_END_MINUTES;
   if (mins < from || mins > to) return null;
   return ((mins - from) / (to - from)) * 100;
 }
@@ -380,7 +390,7 @@ function SortableSpecialistColumn({
               "pointer-events-none absolute inset-x-0 border-t",
               minuteOfDay % 60 === 0 ? "border-[var(--mo-border)]/35" : "border-[var(--mo-border)]/20",
             ].join(" ")}
-            style={{ top: `${((minuteOfDay - GRID_START_HOUR * 60) / ((GRID_END_HOUR - GRID_START_HOUR) * 60)) * 100}%` }}
+            style={{ top: `${minutePct(minuteOfDay)}%` }}
           />
         ))}
 
@@ -398,7 +408,7 @@ function SortableSpecialistColumn({
             if (!ok) return null;
             const allowSlotClick =
               !slotClickSpecialistIds || slotClickSpecialistIds.size === 0 || slotClickSpecialistIds.has(spec.id);
-            const topPct = ((minuteOfDay - GRID_START_HOUR * 60) / ((GRID_END_HOUR - GRID_START_HOUR) * 60)) * 100;
+            const topPct = minutePct(minuteOfDay);
             const slotStyle = {
               top: `${topPct}%`,
               height: `${(SLOT_STEP_MIN / 60 / totalHours) * 100}%`,
@@ -637,7 +647,7 @@ export function BookingCalendarGrid({
   canToggleComplete,
   onAppointmentCompleteToggle,
 }: Props) {
-  const totalHours = GRID_END_HOUR - GRID_START_HOUR;
+  const totalHours = GRID_SPAN_HOURS;
   const gridHeightPx = totalHours * PX_PER_HOUR;
   const [menuSpecId, setMenuSpecId] = useState<number | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());

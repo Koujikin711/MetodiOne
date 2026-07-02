@@ -111,8 +111,11 @@ export function EmployeesPage() {
   const [courseStreamGapDays, setCourseStreamGapDays] = useState(10);
   const [terminateTarget, setTerminateTarget] = useState<Employee | null>(null);
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null);
+  const [editFullName, setEditFullName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editSpecialization, setEditSpecialization] = useState("");
+  const [editBookingDirectionId, setEditBookingDirectionId] = useState<number | "">("");
   const [editPipelineIds, setEditPipelineIds] = useState<number[]>([]);
 
   const pipelines = pipelinesQuery.data ?? [];
@@ -285,8 +288,11 @@ export function EmployeesPage() {
 
   function openEditEmployee(e: Employee) {
     setEditEmployee(e);
+    setEditFullName(e.full_name ?? "");
     setEditEmail(e.email);
     setEditPhone(e.phone ?? "");
+    setEditSpecialization(e.specialization ?? "");
+    setEditBookingDirectionId(e.booking_direction_id ?? "");
     setEditPipelineIds([...e.pipeline_ids]);
   }
 
@@ -300,22 +306,42 @@ export function EmployeesPage() {
 
       const emailChanged = editEmail.trim().toLowerCase() !== (editEmployee.email || "").trim().toLowerCase();
       const phoneChanged = editPhone.trim() !== (editEmployee.phone || "").trim();
+      const nameChanged = editFullName.trim() !== (editEmployee.full_name || "").trim();
+      const specChanged =
+        editEmployee.role === "expert" &&
+        editSpecialization.trim() !== (editEmployee.specialization || "").trim();
+      const directionChanged =
+        editEmployee.role === "expert" &&
+        editBookingDirectionId !== "" &&
+        Number(editBookingDirectionId) !== (editEmployee.booking_direction_id ?? null);
       const pipelinesChanged =
         canEditPipelines(editEmployee.role) &&
         (editPipelineIds.length !== editEmployee.pipeline_ids.length ||
           editPipelineIds.some((id) => !editEmployee.pipeline_ids.includes(id)));
 
-      if (!emailChanged && !phoneChanged && !pipelinesChanged) {
+      const profileChanged =
+        emailChanged || phoneChanged || nameChanged || specChanged || directionChanged;
+
+      if (!profileChanged && !pipelinesChanged) {
         throw new Error("Нет изменений");
       }
 
       let contactResult: PatchEmployeeContactResult | null = null;
-      if (emailChanged || phoneChanged) {
+      if (profileChanged) {
         contactResult = await apiFetch<PatchEmployeeContactResult>(`/api/employees/${editEmployee.id}`, {
           method: "PATCH",
           body: JSON.stringify({
             email: editEmail.trim(),
             phone: editPhone.trim(),
+            full_name: editFullName.trim(),
+            ...(editEmployee.role === "expert"
+              ? {
+                  specialization: editSpecialization.trim(),
+                  ...(editBookingDirectionId !== ""
+                    ? { booking_direction_id: Number(editBookingDirectionId) }
+                    : {}),
+                }
+              : {}),
           }),
         });
       }
@@ -340,6 +366,7 @@ export function EmployeesPage() {
       }
       setEditEmployee(null);
       void qc.invalidateQueries({ queryKey: ["employees"] });
+      void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -586,50 +613,104 @@ export function EmployeesPage() {
 
       {editEmployee && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-xl rounded-2xl crm-modal-panel border p-6 shadow-2xl">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="lux-subheading">Редактировать сотрудника</h2>
-              <button
-                type="button"
-                onClick={() => setEditEmployee(null)}
-                className="mo-modal-close"
-              >
+          <div className="employee-edit-modal w-full max-w-lg rounded-2xl crm-modal-panel border p-0 shadow-2xl">
+            <div className="employee-edit-modal__head">
+              <div>
+                <h2 className="lux-subheading">Редактировать сотрудника</h2>
+                <p className="mt-1 text-xs lux-caption">
+                  <span className="employee-role-badge">{roleLabel(editEmployee.role)}</span>
+                </p>
+              </div>
+              <button type="button" onClick={() => setEditEmployee(null)} className="mo-modal-close">
                 Закрыть
               </button>
             </div>
-            <p className="mt-2 text-sm mo-muted">
-              {editEmployee.full_name ?? editEmployee.email} · {roleLabel(editEmployee.role)}
-            </p>
-            <div className="mt-4 space-y-3">
-              <label className="block text-sm mo-muted">
-                Email (логин)
-                <input
-                  type="email"
-                  value={editEmail}
-                  onChange={(ev) => setEditEmail(ev.target.value)}
-                  className="mo-input mt-1 w-full"
-                />
-              </label>
-              <label className="block text-sm mo-muted">
-                Телефон
-                <input
-                  type="tel"
-                  value={editPhone}
-                  onChange={(ev) => setEditPhone(ev.target.value)}
-                  className="mo-input mt-1 w-full"
-                />
-              </label>
-              <p className="text-xs leading-relaxed mo-muted">
-                При смене email на новый адрес уйдёт письмо с новым логином и паролем.
-              </p>
+
+            <div className="employee-edit-modal__body space-y-4">
+              <section className="employee-edit-section">
+                <h3 className="employee-edit-section__title">Основное</h3>
+                <label className="employee-edit-field">
+                  <span>ФИО</span>
+                  <input
+                    value={editFullName}
+                    onChange={(ev) => setEditFullName(ev.target.value)}
+                    className="mo-input"
+                    placeholder="Фамилия Имя"
+                  />
+                </label>
+              </section>
+
+              <section className="employee-edit-section">
+                <h3 className="employee-edit-section__title">Контакты</h3>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="employee-edit-field sm:col-span-2">
+                    <span>Email (логин)</span>
+                    <input
+                      type="email"
+                      value={editEmail}
+                      onChange={(ev) => setEditEmail(ev.target.value)}
+                      className="mo-input"
+                    />
+                  </label>
+                  <label className="employee-edit-field sm:col-span-2">
+                    <span>Телефон</span>
+                    <input
+                      type="tel"
+                      value={editPhone}
+                      onChange={(ev) => setEditPhone(ev.target.value)}
+                      className="mo-input"
+                    />
+                  </label>
+                </div>
+                <p className="mt-2 text-[11px] leading-relaxed mo-muted">
+                  При смене email на новый адрес уйдёт письмо с новым логином и паролем.
+                </p>
+              </section>
+
+              {editEmployee.role === "expert" ? (
+                <section className="employee-edit-section">
+                  <h3 className="employee-edit-section__title">Онлайн-запись</h3>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="employee-edit-field sm:col-span-2">
+                      <span>Специальность</span>
+                      <input
+                        value={editSpecialization}
+                        onChange={(ev) => setEditSpecialization(ev.target.value)}
+                        className="mo-input"
+                        placeholder="Например: Невролог"
+                      />
+                    </label>
+                    <label className="employee-edit-field sm:col-span-2">
+                      <span>Направление записи</span>
+                      <select
+                        value={editBookingDirectionId === "" ? "" : String(editBookingDirectionId)}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setEditBookingDirectionId(v === "" ? "" : Number(v));
+                        }}
+                        className="mo-input"
+                      >
+                        <option value="">— не выбрано —</option>
+                        {bookingDirections.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </section>
+              ) : null}
 
               {canEditPipelines(editEmployee.role) ? (
-                <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
-                  <div className="lux-subheading text-sm">Воронки</div>
-                  <p className="mt-1 text-[11px] mo-muted">Отметьте воронки, в которых сотрудник видит лиды и записи.</p>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <section className="employee-edit-section">
+                  <h3 className="employee-edit-section__title">Воронки</h3>
+                  <p className="mb-2 text-[11px] mo-muted">
+                    Воронки, в которых сотрудник видит лиды и записи.
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
                     {pipelines.map((p) => (
-                      <label key={p.id} className="flex items-center gap-2 text-sm text-[var(--mo-text)]">
+                      <label key={p.id} className="employee-edit-check">
                         <input
                           type="checkbox"
                           checked={editPipelineIds.includes(p.id)}
@@ -640,22 +721,26 @@ export function EmployeesPage() {
                     ))}
                     {pipelines.length === 0 && <div className="text-sm mo-muted">Нет воронок</div>}
                   </div>
-                </div>
+                </section>
               ) : null}
             </div>
-            <button
-              type="button"
-              onClick={() => saveEmployeeMutation.mutate()}
-              disabled={
-                saveEmployeeMutation.isPending ||
-                !editEmail.trim() ||
-                !editPhone.trim() ||
-                (canEditPipelines(editEmployee.role) && editPipelineIds.length === 0)
-              }
-              className="btn-primary mt-4 w-full disabled:opacity-60"
-            >
-              {saveEmployeeMutation.isPending ? "Сохранение…" : "Сохранить"}
-            </button>
+
+            <div className="employee-edit-modal__foot">
+              <button
+                type="button"
+                onClick={() => saveEmployeeMutation.mutate()}
+                disabled={
+                  saveEmployeeMutation.isPending ||
+                  !editFullName.trim() ||
+                  !editEmail.trim() ||
+                  !editPhone.trim() ||
+                  (canEditPipelines(editEmployee.role) && editPipelineIds.length === 0)
+                }
+                className="btn-primary w-full disabled:opacity-60"
+              >
+                {saveEmployeeMutation.isPending ? "Сохранение…" : "Сохранить"}
+              </button>
+            </div>
           </div>
         </div>
       )}

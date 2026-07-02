@@ -62,6 +62,9 @@ class PatchEmployeePipelinesBody(BaseModel):
 class PatchEmployeeContactBody(BaseModel):
     email: str | None = Field(default=None, min_length=3, max_length=320)
     phone: str | None = Field(default=None, min_length=7, max_length=32)
+    full_name: str | None = Field(default=None, min_length=2, max_length=255)
+    specialization: str | None = Field(default=None, max_length=255)
+    booking_direction_id: int | None = None
 
 
 class PatchEmployeeContactResult(BaseModel):
@@ -486,11 +489,17 @@ async def patch_employee_contact(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> PatchEmployeeContactResult:
-    """Обновить email и/или телефон. При смене email — новый пароль на новую почту, старый логин отключается."""
+    """Обновить профиль сотрудника: ФИО, контакты, для эксперта — специальность и направление записи."""
     await assert_owner_or_chief_expert(db, current_user)
 
-    if body.email is None and body.phone is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите email или телефон")
+    if (
+        body.email is None
+        and body.phone is None
+        and body.full_name is None
+        and body.specialization is None
+        and body.booking_direction_id is None
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет данных для обновления")
 
     target = await db.get(User, employee_id)
     if target is None or target.company_id != company_id or not target.is_active:
@@ -563,6 +572,45 @@ async def patch_employee_contact(
                 if spec is not None:
                     spec.phone = phone
 
+    if body.full_name is not None:
+        name = body.full_name.strip()
+        if len(name) < 2:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректное ФИО")
+        if name != (target.full_name or "").strip():
+            changed = True
+            target.full_name = name
+            if target.role == UserRole.expert:
+                spec = (
+                    await db.execute(
+                        select(BookingSpecialist).where(BookingSpecialist.crm_user_id == target.id).limit(1),
+                    )
+                ).scalars().first()
+                if spec is not None:
+                    spec.full_name = name
+
+    if target.role == UserRole.expert and (body.specialization is not None or body.booking_direction_id is not None):
+        spec = (
+            await db.execute(
+                select(BookingSpecialist).where(BookingSpecialist.crm_user_id == target.id).limit(1),
+            )
+        ).scalars().first()
+        if spec is not None:
+            if body.specialization is not None:
+                new_spec = body.specialization.strip()
+                if new_spec != (spec.specialization or "").strip():
+                    changed = True
+                    spec.specialization = new_spec
+            if body.booking_direction_id is not None:
+                d = await db.get(BookingDirection, body.booking_direction_id)
+                if d is None or not d.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Неизвестное или неактивное направление онлайн-записи",
+                    )
+                if body.booking_direction_id != spec.direction_id:
+                    changed = True
+                    spec.direction_id = body.booking_direction_id
+
     if not changed:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет изменений")
 
@@ -571,9 +619,9 @@ async def patch_employee_contact(
         db,
         entity_type="employee",
         entity_id=target.id,
-        action="employee_contact_updated",
+        action="employee_updated",
         current_user=current_user,
-        details=f"email_changed={email_changed}, email={new_email}, phone={new_phone}",
+        details=f"email_changed={email_changed}, email={new_email}, phone={new_phone}, full_name={target.full_name}",
     )
     await db.refresh(target)
     return PatchEmployeeContactResult(
