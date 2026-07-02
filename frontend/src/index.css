@@ -704,66 +704,102 @@ body {
 }
 
 .shell-settings-root {
-  @apply shrink-0;
+  @apply shrink-0 px-0.5 pt-1;
 }
 
-.shell-settings-root .shell-nav-link {
-  margin-bottom: 0;
+.shell-settings-toggle {
+  @apply flex w-full items-center gap-1 rounded-lg border-0 bg-transparent text-left transition;
+  color: var(--mo-sidebar-fg-muted);
+  cursor: pointer;
+  padding: 0.25rem 0.35rem;
+}
+
+.shell-settings-toggle:hover {
+  color: var(--mo-sidebar-fg);
+  background: var(--mo-sidebar-item-hover);
+}
+
+.shell-settings-chevron {
+  @apply h-3.5 w-3.5 shrink-0;
+  stroke-width: 2;
+  transition: transform 0.2s ease;
+}
+
+.shell-settings-root.is-open .shell-settings-chevron {
+  transform: rotate(180deg);
+}
+
+.shell-settings-toggle-text {
+  @apply min-w-0 truncate text-[11px] font-medium leading-none;
+}
+
+.shell-sidebar.is-collapsed .shell-settings-toggle {
+  @apply flex-col justify-center gap-0 px-0 py-0.5 text-center;
+}
+
+.shell-sidebar.is-collapsed .shell-settings-toggle-text {
+  @apply max-w-[4.75rem] text-[9px];
+  margin-top: 1px;
+}
+
+.shell-sidebar.is-expanded .shell-settings-toggle {
+  @apply mx-1.5 w-[calc(100%-0.75rem)] px-2 py-1;
+}
+
+.shell-sidebar.is-expanded .shell-settings-toggle-text {
+  @apply text-xs;
 }
 
 .shell-settings-panel {
   @apply flex flex-col;
   gap: 1px;
-  margin-top: 1px;
+  margin-top: 0;
   padding-bottom: 2px;
-  border-top: 1px solid var(--mo-sidebar-border);
 }
 
 .shell-sidebar.is-expanded .shell-settings-panel {
-  @apply mx-1.5 gap-0.5 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/60 px-1 py-1;
-  border-top: none;
-  margin-top: 2px;
+  @apply mx-1.5 gap-0 pl-4 pr-1 py-0.5;
 }
 
-.shell-settings-sub-link {
-  margin-bottom: 0 !important;
+.shell-settings-text-link {
+  @apply w-full rounded-md px-2 py-1.5 text-left text-sm font-medium transition;
+  color: var(--mo-sidebar-fg-muted);
 }
 
-.shell-settings-panel-divider {
-  @apply my-0.5 h-px shrink-0;
-  background: var(--mo-sidebar-border);
-}
-
-.shell-sidebar.is-expanded .shell-settings-panel-divider {
-  @apply my-1;
-}
-
-.shell-settings-row {
-  @apply flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition;
-  color: var(--mo-text);
-}
-
-.shell-settings-row-icon {
-  @apply h-8 w-8 shrink-0 rounded-lg [&_svg]:h-4 [&_svg]:w-4;
-}
-
-.shell-settings-row:hover {
+.shell-settings-text-link:hover {
+  color: var(--mo-sidebar-fg);
   background: var(--mo-sidebar-item-hover);
 }
 
-.shell-settings-row.is-active {
+.shell-settings-text-link.is-active {
+  color: var(--mo-sidebar-fg);
   background: var(--mo-sidebar-item-active);
   font-weight: 600;
 }
 
-.shell-settings-row--logout,
+.shell-settings-text-link--logout {
+  color: var(--mo-sidebar-fg-muted);
+  opacity: 0.9;
+}
+
 .shell-settings-sub-link--logout {
   color: var(--mo-sidebar-fg-muted);
 }
 
-.shell-settings-row--logout:hover,
 .shell-settings-sub-link--logout:hover {
   color: var(--mo-sidebar-fg);
+}
+
+:root[data-theme="dark"] .shell-settings-toggle {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .shell-settings-toggle:hover {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .shell-settings-text-link.is-active {
+  color: #f8fafc;
 }
 
 /* Нижняя мобильная навигация — светлая палитра */

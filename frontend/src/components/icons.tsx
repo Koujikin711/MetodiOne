@@ -279,6 +279,14 @@ export function Settings(props: IconProps) {
   );
 }
 
+export function ChevronDown(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 export function Moon(props: IconProps) {
   return (
     <svg {...iconProps(props)}>
