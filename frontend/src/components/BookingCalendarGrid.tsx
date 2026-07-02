@@ -479,7 +479,7 @@ function SortableSpecialistColumn({
           return (
             <div
               key={a.id}
-              className="group/appt absolute z-20 flex flex-col gap-0.5"
+              className="group/appt absolute z-20"
               style={{
                 top: `${topPct}%`,
                 height: `${heightPct}%`,
@@ -489,48 +489,25 @@ function SortableSpecialistColumn({
                 zIndex: 20 + lane,
               }}
             >
-              {note || serviceLine ? (
-                <div className="booking-appt-external shrink-0 rounded-md border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-1.5 py-1 shadow-sm">
+              {(note || serviceLine) && (
+                <div
+                  role="tooltip"
+                  className="booking-appt-popover pointer-events-none absolute bottom-full left-0 right-0 z-[80] mb-1 hidden group-hover/appt:block"
+                >
                   {serviceLine ? (
-                    <p className="booking-appt-external__service line-clamp-1">
-                      <span className="font-semibold opacity-70">Услуга: </span>
+                    <p className="booking-appt-popover__service">
+                      <span className="font-semibold opacity-75">Услуга: </span>
                       {serviceLine}
                     </p>
                   ) : null}
                   {note ? (
-                    <p className={["booking-appt-external__note line-clamp-2", serviceLine ? "mt-0.5" : ""].join(" ")}>
-                      <span className="font-semibold opacity-70">Заметка: </span>
+                    <p className={serviceLine ? "mt-1" : ""}>
+                      <span className="font-semibold opacity-75">Заметка: </span>
                       {note}
                     </p>
                   ) : null}
-                  {canEditNotes ? (
-                    <button
-                      type="button"
-                      className="booking-appt-external__edit"
-                      title={note ? "Изменить заметку" : "Добавить заметку"}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onAppointmentNoteClick?.(a);
-                      }}
-                    >
-                      <FileText className="h-3 w-3 shrink-0" />
-                    </button>
-                  ) : null}
                 </div>
-              ) : canEditNotes ? (
-                <button
-                  type="button"
-                  className="booking-appt-external booking-appt-external--add shrink-0 opacity-0 transition-opacity group-hover/appt:opacity-100"
-                  title="Добавить заметку"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAppointmentNoteClick?.(a);
-                  }}
-                >
-                  <FileText className="h-3 w-3 shrink-0" />
-                  <span>Заметка</span>
-                </button>
-              ) : null}
+              )}
               <button
                 type="button"
                 draggable
@@ -540,7 +517,7 @@ function SortableSpecialistColumn({
                 }}
                 onClick={() => onAppointmentClick(a)}
                 className={[
-                  "booking-appt-bitrix relative min-h-0 w-full flex-1 flex-col justify-between overflow-hidden rounded-md text-left flex",
+                  "booking-appt-bitrix relative flex h-full w-full flex-col justify-between overflow-hidden rounded-md text-left",
                   narrow ? "px-1 py-0.5" : "px-1.5 py-1",
                   cls,
                   appointmentHoverClass,
@@ -572,12 +549,31 @@ function SortableSpecialistColumn({
                   ) : null}
                 </div>
                 <div className="mt-0.5 flex items-end justify-between gap-0.5">
-                  <span
-                    className="text-[10px] font-semibold tabular-nums leading-none"
-                    title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
-                  >
-                    {timeLabel}
-                  </span>
+                  <div className="flex min-w-0 items-center gap-0.5">
+                    <span
+                      className="text-[10px] font-semibold tabular-nums leading-none"
+                      title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
+                    >
+                      {timeLabel}
+                    </span>
+                    {canEditNotes || note ? (
+                      <button
+                        type="button"
+                        className={[
+                          "booking-appt-note-btn shrink-0 rounded p-0.5 transition hover:bg-black/10",
+                          note ? "is-filled" : "is-empty",
+                        ].join(" ")}
+                        title={note || "Добавить заметку"}
+                        aria-label={note ? "Редактировать заметку" : "Добавить заметку"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
+                        }}
+                      >
+                        <FileText className="h-3 w-3" />
+                      </button>
+                    ) : null}
+                  </div>
                   <div className="flex shrink-0 items-center gap-0.5">
                     {phoneDigits.length >= 7 ? (
                       <a
