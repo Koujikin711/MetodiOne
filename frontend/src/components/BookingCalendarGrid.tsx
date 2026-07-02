@@ -38,7 +38,7 @@ import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const GRID_START_HOUR = 7;
 const GRID_END_HOUR = 20;
-const PX_PER_HOUR = 64;
+const PX_PER_HOUR = 56;
 const SPEC_HEADER_PX = 42;
 const SLOT_STEP_MIN = 30;
 
@@ -479,13 +479,10 @@ function SortableSpecialistColumn({
           const isPastPending = new Date(a.end_at).getTime() < nowMs && a.status === "booked";
           const durationMin = Math.round((new Date(a.end_at).getTime() - new Date(a.start_at).getTime()) / 60_000);
           const isCompactCard = durationMin <= 35 || narrow;
-          const isTallCard = durationMin > 35 && !narrow;
-          const cardPad = isCompactCard ? "px-1 py-px" : "px-1.5 pt-1 pb-1";
-          const nameSize = "text-[10px] leading-snug";
-          const timeSize = "text-[9px] leading-snug";
-          const serviceSize = "text-[9px] leading-snug";
-          const iconSize = isCompactCard ? "h-2.5 w-2.5" : "h-3 w-3";
-          const checkSize = isCompactCard ? "h-2 w-2" : "h-2.5 w-2.5";
+          const cardPad = isCompactCard ? "px-1.5 py-1" : "px-2 py-1.5";
+          const nameSize = isCompactCard ? "text-[11px] leading-tight" : "text-xs leading-tight";
+          const timeSize = isCompactCard ? "text-[10px] leading-tight" : "text-[11px] leading-tight";
+          const iconSize = isCompactCard ? "h-3 w-3" : "h-3.5 w-3.5";
           const cardTitle = [
             a.patient_name,
             timeLabel,
@@ -537,8 +534,7 @@ function SortableSpecialistColumn({
                 onClick={() => onAppointmentClick(a)}
                 className={[
                   "booking-appt-bitrix relative flex h-full max-h-full w-full flex-col overflow-hidden text-left",
-                  isCompactCard ? "justify-center gap-px" : "justify-start gap-px",
-                  isTallCard ? "booking-appt-bitrix--tall" : "",
+                  isCompactCard ? "justify-between gap-0.5" : "justify-between gap-1",
                   isPastPending ? "booking-appt--past" : "",
                   cardPad,
                   cls,
@@ -546,98 +542,142 @@ function SortableSpecialistColumn({
                 ].join(" ")}
                 title={cardTitle}
               >
-                <div className="flex min-h-0 shrink-0 items-center gap-0.5 overflow-hidden">
+                {canShowCompleteMark ? (
+                  canToggleComplete ? (
+                    <button
+                      type="button"
+                      className={["booking-appt-check-float", isCompleted ? "is-done" : ""].join(" ")}
+                      title={isCompleted ? "Снять отметку «завершён»" : "Отметить как завершён"}
+                      aria-label={isCompleted ? "Снять отметку завершён" : "Отметить как завершён"}
+                      aria-pressed={isCompleted}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAppointmentCompleteToggle?.(a, !isCompleted);
+                      }}
+                    >
+                      {isCompleted ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                    </button>
+                  ) : isCompleted ? (
+                    <span className="booking-appt-check-float is-done pointer-events-none" title="Завершён" aria-label="Завершён">
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                    </span>
+                  ) : null
+                ) : null}
+                <div className="flex min-h-0 shrink-0 items-center gap-1 overflow-hidden pr-3">
                   <span className={["booking-appt-name min-w-0 flex-1", nameSize].join(" ")}>{a.patient_name}</span>
-                  {canShowCompleteMark ? (
-                    canToggleComplete ? (
-                      <button
-                        type="button"
-                        className={["booking-appt-check shrink-0", isCompactCard ? "booking-appt-check--sm" : "", isCompleted ? "is-done" : ""].join(" ")}
-                        title={isCompleted ? "Снять отметку «завершён»" : "Отметить как завершён"}
-                        aria-label={isCompleted ? "Снять отметку завершён" : "Отметить как завершён"}
-                        aria-pressed={isCompleted}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAppointmentCompleteToggle?.(a, !isCompleted);
-                        }}
-                      >
-                        {isCompleted ? <Check className={checkSize} strokeWidth={3} /> : null}
-                      </button>
-                    ) : (
-                      <span className={["booking-appt-check is-done pointer-events-none shrink-0", isCompactCard ? "booking-appt-check--sm" : ""].join(" ")} title="Завершён" aria-label="Завершён">
-                        <Check className={checkSize} strokeWidth={3} />
-                      </span>
-                    )
+                  {canEditNotes || note ? (
+                    <button
+                      type="button"
+                      className={[
+                        "booking-appt-note-btn shrink-0 rounded p-0.5 transition hover:bg-white/15",
+                        note ? "is-filled" : "is-empty",
+                      ].join(" ")}
+                      title={note || "Добавить заметку"}
+                      aria-label={note ? "Редактировать заметку" : "Добавить заметку"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
+                      }}
+                    >
+                      <FileText className={iconSize} />
+                    </button>
                   ) : null}
                 </div>
-                {isTallCard && serviceLine ? (
-                  <p className={["booking-appt-service shrink-0 truncate opacity-90", serviceSize].join(" ")}>{serviceLine}</p>
-                ) : null}
-                <div className="flex min-h-0 shrink-0 items-center justify-between gap-0.5">
-                  <div className="flex min-w-0 items-center gap-0.5">
+                {isCompactCard ? (
+                  <div className="flex min-h-0 shrink-0 items-center justify-between gap-1">
                     <span
-                      className={[timeSize, "font-semibold tabular-nums"].join(" ")}
+                      className={[timeSize, "font-medium tabular-nums opacity-95"].join(" ")}
                       title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
                     >
                       {timeLabel}
                     </span>
-                    {canEditNotes || note ? (
-                      <button
-                        type="button"
-                        className={[
-                          "booking-appt-note-btn shrink-0 rounded p-0 transition hover:bg-black/10",
-                          note ? "is-filled" : "is-empty",
-                        ].join(" ")}
-                        title={note || "Добавить заметку"}
-                        aria-label={note ? "Редактировать заметку" : "Добавить заметку"}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
-                        }}
-                      >
-                        <FileText className={iconSize} />
-                      </button>
-                    ) : null}
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      {phoneDigits.length >= 7 ? (
+                        <a
+                          href={`tel:${phoneDigits}`}
+                          className="booking-appt-action rounded p-0.5 hover:bg-white/15"
+                          title="Позвонить"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Phone className={iconSize} />
+                        </a>
+                      ) : null}
+                      {a.lead_id != null && onOpenChat ? (
+                        <button
+                          type="button"
+                          className="booking-appt-action rounded p-0.5 hover:bg-white/15"
+                          title="Чат с клиентом"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenChat(a.lead_id!);
+                          }}
+                        >
+                          <MessageCircle className={iconSize} />
+                        </button>
+                      ) : null}
+                      {a.lead_id != null ? (
+                        <button
+                          type="button"
+                          className="booking-appt-action rounded px-0.5 text-[9px] font-bold leading-none tracking-wide hover:bg-white/15"
+                          title="Карточка в CRM"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAppointmentClick(a);
+                          }}
+                        >
+                          CRM
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-0.5">
-                    {phoneDigits.length >= 7 ? (
-                      <a
-                        href={`tel:${phoneDigits}`}
-                        className="booking-appt-action rounded p-0 hover:bg-black/10"
-                        title="Позвонить"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Phone className={iconSize} />
-                      </a>
-                    ) : null}
-                    {!isCompactCard && a.lead_id != null && onOpenChat ? (
-                      <button
-                        type="button"
-                        className="booking-appt-action rounded p-0.5 hover:bg-black/10"
-                        title="Чат с клиентом"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenChat(a.lead_id!);
-                        }}
-                      >
-                        <MessageCircle className={iconSize} />
-                      </button>
-                    ) : null}
-                    {!isCompactCard && a.lead_id != null ? (
-                      <button
-                        type="button"
-                        className="booking-appt-action rounded px-0.5 text-[8px] font-extrabold leading-none tracking-wide hover:bg-black/10"
-                        title="Карточка в CRM"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAppointmentClick(a);
-                        }}
-                      >
-                        CRM
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <span
+                      className={[timeSize, "shrink-0 font-medium tabular-nums opacity-95"].join(" ")}
+                      title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
+                    >
+                      {timeLabel}
+                    </span>
+                    <div className="mt-auto flex shrink-0 items-center justify-end gap-0.5">
+                      {phoneDigits.length >= 7 ? (
+                        <a
+                          href={`tel:${phoneDigits}`}
+                          className="booking-appt-action rounded p-0.5 hover:bg-white/15"
+                          title="Позвонить"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Phone className={iconSize} />
+                        </a>
+                      ) : null}
+                      {a.lead_id != null && onOpenChat ? (
+                        <button
+                          type="button"
+                          className="booking-appt-action rounded p-0.5 hover:bg-white/15"
+                          title="Чат с клиентом"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenChat(a.lead_id!);
+                          }}
+                        >
+                          <MessageCircle className={iconSize} />
+                        </button>
+                      ) : null}
+                      {a.lead_id != null ? (
+                        <button
+                          type="button"
+                          className="booking-appt-action rounded px-0.5 text-[9px] font-bold leading-none tracking-wide hover:bg-white/15"
+                          title="Карточка в CRM"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAppointmentClick(a);
+                          }}
+                        >
+                          CRM
+                        </button>
+                      ) : null}
+                    </div>
+                  </>
+                )}
               </button>
             </div>
           );
