@@ -2541,11 +2541,11 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .analytics-toolbar {
-  @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end;
+  @apply flex flex-wrap items-end gap-3;
 }
 
 .analytics-toolbar-field {
-  @apply block min-w-0;
+  @apply block min-w-[9rem] flex-1 sm:max-w-[12rem];
 }
 
 .analytics-toolbar-field > span {
