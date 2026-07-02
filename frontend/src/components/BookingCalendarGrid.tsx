@@ -479,7 +479,7 @@ function SortableSpecialistColumn({
           return (
             <div
               key={a.id}
-              className="group/appt absolute z-20"
+              className="group/appt absolute z-20 flex flex-col gap-0.5"
               style={{
                 top: `${topPct}%`,
                 height: `${heightPct}%`,
@@ -489,43 +489,48 @@ function SortableSpecialistColumn({
                 zIndex: 20 + lane,
               }}
             >
-              {(note || serviceLine || canEditNotes) && (
-                <div
-                  role="tooltip"
-                  className="booking-appt-popover pointer-events-none absolute bottom-full left-0 right-0 z-[80] mb-1 hidden group-hover/appt:block"
-                >
+              {note || serviceLine ? (
+                <div className="booking-appt-external shrink-0 rounded-md border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-1.5 py-1 shadow-sm">
                   {serviceLine ? (
-                    <p className="booking-appt-popover__service">
-                      <span className="font-semibold opacity-75">Услуга: </span>
+                    <p className="booking-appt-external__service line-clamp-1">
+                      <span className="font-semibold opacity-70">Услуга: </span>
                       {serviceLine}
                     </p>
                   ) : null}
                   {note ? (
-                    <p className={serviceLine ? "mt-1" : ""}>
-                      <span className="font-semibold opacity-75">Заметка: </span>
+                    <p className={["booking-appt-external__note line-clamp-2", serviceLine ? "mt-0.5" : ""].join(" ")}>
+                      <span className="font-semibold opacity-70">Заметка: </span>
                       {note}
                     </p>
                   ) : null}
                   {canEditNotes ? (
                     <button
                       type="button"
-                      className={[
-                        "booking-appt-note-top-btn pointer-events-auto",
-                        serviceLine || note ? "mt-1.5" : "",
-                        note ? "is-filled" : "is-empty",
-                      ].join(" ")}
-                      title={note || "Добавить заметку"}
+                      className="booking-appt-external__edit"
+                      title={note ? "Изменить заметку" : "Добавить заметку"}
                       onClick={(e) => {
                         e.stopPropagation();
                         onAppointmentNoteClick?.(a);
                       }}
                     >
-                      <FileText className="h-3.5 w-3.5 shrink-0" />
-                      <span>{note ? "Изменить заметку" : "Добавить заметку"}</span>
+                      <FileText className="h-3 w-3 shrink-0" />
                     </button>
                   ) : null}
                 </div>
-              )}
+              ) : canEditNotes ? (
+                <button
+                  type="button"
+                  className="booking-appt-external booking-appt-external--add shrink-0 opacity-0 transition-opacity group-hover/appt:opacity-100"
+                  title="Добавить заметку"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAppointmentNoteClick?.(a);
+                  }}
+                >
+                  <FileText className="h-3 w-3 shrink-0" />
+                  <span>Заметка</span>
+                </button>
+              ) : null}
               <button
                 type="button"
                 draggable
@@ -535,7 +540,7 @@ function SortableSpecialistColumn({
                 }}
                 onClick={() => onAppointmentClick(a)}
                 className={[
-                  "booking-appt-bitrix relative flex h-full w-full flex-col justify-between overflow-hidden rounded-md text-left",
+                  "booking-appt-bitrix relative min-h-0 w-full flex-1 flex-col justify-between overflow-hidden rounded-md text-left flex",
                   narrow ? "px-1 py-0.5" : "px-1.5 py-1",
                   cls,
                   appointmentHoverClass,
