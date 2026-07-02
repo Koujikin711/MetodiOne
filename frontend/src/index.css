@@ -843,6 +843,10 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   background-image: none;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
+.booking-appt-bitrix.booking-appt--past {
+  opacity: 0.62;
+  filter: saturate(0.78);
+}
 .booking-appt-bitrix.booking-appt--cancelled,
 .booking-appt-bitrix.booking-appt--no_show {
   background-image: repeating-linear-gradient(
@@ -932,6 +936,34 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   background: var(--booking-appt-replied-bg);
   border-color: var(--booking-appt-replied-border);
   color: var(--booking-appt-replied-text);
+}
+.booking-attendance-box {
+  border-radius: 12px;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-accent-soft);
+  padding: 12px 14px;
+}
+.booking-attendance-btn {
+  @apply inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition;
+}
+.booking-attendance-btn.is-arrived {
+  border-color: #22c55e;
+  background: #dcfce7;
+  color: #14532d;
+}
+.booking-attendance-btn.is-no-show {
+  border-color: #f87171;
+  background: #fee2e2;
+  color: #991b1b;
+}
+.booking-attendance-btn.is-idle {
+  border-color: var(--mo-border-strong);
+  background: var(--mo-surface-elevated);
+  color: var(--mo-text);
+}
+.booking-attendance-btn.is-idle:hover {
+  border-color: var(--mo-accent);
+  background: var(--mo-surface);
 }
 .booking-appt-meta {
   color: var(--booking-appt-meta);

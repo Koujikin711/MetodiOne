@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
+import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
 import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
@@ -127,6 +128,7 @@ export function OnlineBookingPage() {
   const [specialistModalTarget, setSpecialistModalTarget] = useState<BookingSpecialist | null>(null);
   const [noteEditAppt, setNoteEditAppt] = useState<BookingAppointment | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
+  const [apptDetail, setApptDetail] = useState<BookingAppointment | null>(null);
   const pipelineForKpiPrice = leadId ? null : newLeadPipelineId;
   const startAtIsoForKpi = useMemo(() => {
     if (!startAt) return null;
@@ -367,10 +369,12 @@ export function OnlineBookingPage() {
         method: "PATCH",
         body: JSON.stringify({ status }),
       }),
-    onSuccess: () => {
+    onSuccess: (_data, { id, status }) => {
       toast.success("Статус обновлён. Этап лида на канбане синхронизирован.");
+      setApptDetail((cur) => (cur && cur.id === id ? { ...cur, status } : cur));
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-appointments-by-lead"] });
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics"] });
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -587,11 +591,7 @@ export function OnlineBookingPage() {
   }
 
   function onCalendarAppointmentClick(a: BookingAppointment) {
-    if (a.lead_id) {
-      navigate(`/leads/${a.lead_id}?appointment=${a.id}`);
-    } else {
-      toast.error("К этой записи не привязан лид в MetodiOne.");
-    }
+    setApptDetail(a);
   }
 
   function onAppointmentNoteClick(a: BookingAppointment) {
@@ -1480,6 +1480,53 @@ export function OnlineBookingPage() {
       )}
 
       {canEditDirectionStreams ? <DirectionStreamsPanel /> : null}
+
+      {apptDetail ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--mo-text)]/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="booking-appt-detail-title"
+          onClick={() => setApptDetail(null)}
+        >
+          <div className="mo-card w-full max-w-md p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 id="booking-appt-detail-title" className="lux-subheading text-base">
+              Запись клиента
+            </h2>
+            <p className="mt-1 text-sm font-medium text-[var(--mo-text)]">{apptDetail.patient_name}</p>
+            <p className="mt-0.5 text-sm mo-muted">{formatDt(apptDetail.start_at)}</p>
+            {(apptDetail.service_title || "").trim() ? (
+              <p className="mt-1 text-xs mo-muted">Услуга: {(apptDetail.service_title || "").trim()}</p>
+            ) : null}
+            {canEditBooking ? (
+              <div className="mt-4">
+                <BookingAttendancePanel
+                  status={apptDetail.status}
+                  disabled={statusMutation.isPending}
+                  onStatusChange={(status) => statusMutation.mutate({ id: apptDetail.id, status })}
+                />
+              </div>
+            ) : null}
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              {apptDetail.lead_id != null ? (
+                <button
+                  type="button"
+                  className="btn-secondary text-sm"
+                  onClick={() => {
+                    setApptDetail(null);
+                    navigate(`/leads/${apptDetail.lead_id}?appointment=${apptDetail.id}`);
+                  }}
+                >
+                  Карточка в CRM
+                </button>
+              ) : null}
+              <button type="button" className="btn-primary text-sm" onClick={() => setApptDetail(null)}>
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {noteEditAppt ? (
         <div

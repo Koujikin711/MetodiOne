@@ -15,6 +15,7 @@ import {
   zonedWallTimeToUtcMs,
 } from "@/lib/bookingTz";
 import { PatientPhone } from "@/components/PatientPhone";
+import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
 import type {
   BookingAppointment,
   BookingSpecialist,
@@ -269,6 +270,22 @@ export function LeadDetailPage() {
       void qc.invalidateQueries({ queryKey: ["analytics-detailed"] });
     },
     onError: (e: Error) => toast.error(e.message || "Не удалось удалить запись"),
+  });
+
+  const appointmentStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) =>
+      apiFetch(`/api/booking/appointments/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: () => {
+      toast.success("Явка обновлена");
+      void qc.invalidateQueries({ queryKey: ["booking-appointments-by-lead", leadId] });
+      void qc.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
+      void qc.invalidateQueries({ queryKey: ["booking-journal"] });
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const patchLeadMutation = useMutation({
@@ -648,6 +665,17 @@ export function LeadDetailPage() {
                               <span className="font-semibold mo-muted">Заметка: </span>
                               {(a.comment || "").trim()}
                             </p>
+                          ) : null}
+                          {canEditBooking ? (
+                            <div className="mt-3">
+                              <BookingAttendancePanel
+                                status={a.status}
+                                disabled={appointmentStatusMutation.isPending}
+                                onStatusChange={(status) =>
+                                  appointmentStatusMutation.mutate({ id: a.id, status })
+                                }
+                              />
+                            </div>
                           ) : null}
                         </div>
                         {canEditBooking && isBooked && (

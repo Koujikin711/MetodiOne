@@ -242,6 +242,7 @@ type SortableColProps = {
   onOpenChat?: (leadId: number) => void;
   canToggleComplete?: boolean;
   onAppointmentCompleteToggle?: (a: BookingAppointment, completed: boolean) => void;
+  nowMs: number;
 };
 
 function SortableSpecialistColumn({
@@ -267,6 +268,7 @@ function SortableSpecialistColumn({
   onOpenChat,
   canToggleComplete,
   onAppointmentCompleteToggle,
+  nowMs,
 }: SortableColProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: spec.id,
@@ -474,6 +476,7 @@ function SortableSpecialistColumn({
           const timeLabel = showSessionInsteadOfTime
             ? (visitDisplayValue(a) ?? "—")
             : formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow);
+          const isPastPending = new Date(a.end_at).getTime() < nowMs && a.status === "booked";
           const durationMin = Math.round((new Date(a.end_at).getTime() - new Date(a.start_at).getTime()) / 60_000);
           const isCompactCard = durationMin <= 35 || narrow;
           const isTallCard = durationMin > 35 && !narrow;
@@ -536,6 +539,7 @@ function SortableSpecialistColumn({
                   "booking-appt-bitrix relative flex h-full max-h-full w-full flex-col overflow-hidden text-left",
                   isCompactCard ? "justify-center gap-px" : "justify-start gap-px",
                   isTallCard ? "booking-appt-bitrix--tall" : "",
+                  isPastPending ? "booking-appt--past" : "",
                   cardPad,
                   cls,
                   appointmentHoverClass,
@@ -735,6 +739,7 @@ export function BookingCalendarGrid({
     onOpenChat,
     canToggleComplete,
     onAppointmentCompleteToggle,
+    nowMs: nowTick,
   };
 
   if (specialists.length === 0) {
