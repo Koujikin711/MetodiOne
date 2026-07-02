@@ -38,7 +38,8 @@ import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const GRID_START_HOUR = 7;
 const GRID_END_HOUR = 20;
-const PX_PER_HOUR = 64;
+const PX_PER_HOUR = 96;
+const MIN_APPT_BLOCK_PX = 56;
 const SPEC_HEADER_PX = 42;
 const SLOT_STEP_MIN = 30;
 
@@ -62,7 +63,7 @@ const notifySentClass = "booking-appt booking-appt--notify";
 const notifyRepliedClass = "booking-appt booking-appt--replied";
 
 const appointmentHoverClass =
-  "transition-[transform,box-shadow] duration-200 ease-out hover:z-30 hover:scale-[1.02] hover:shadow-md hover:ring-2 hover:ring-[var(--mo-gold)]/40";
+  "transition-[box-shadow] duration-200 ease-out hover:z-30 hover:shadow-md hover:ring-2 hover:ring-[var(--mo-gold)]/40";
 
 function specWeekdays(spec: BookingSpecialist): number[] {
   const w = spec.work_weekdays;
@@ -467,6 +468,10 @@ function SortableSpecialistColumn({
           const timeLabel = showSessionInsteadOfTime
             ? (visitDisplayValue(a) ?? "—")
             : formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow);
+          const blockHeightPx = (heightPct / 100) * gridHeightPx;
+          const cardPad = narrow ? "px-1.5 py-1" : "px-2 py-1.5";
+          const nameSize = blockHeightPx < 64 ? "text-[10px]" : "text-[11px]";
+          const timeSize = blockHeightPx < 64 ? "text-[9px]" : "text-[10px]";
           const cardTitle = [
             a.patient_name,
             timeLabel,
@@ -479,10 +484,11 @@ function SortableSpecialistColumn({
           return (
             <div
               key={a.id}
-              className="group/appt absolute z-20"
+              className="group/appt absolute z-20 overflow-visible"
               style={{
                 top: `${topPct}%`,
                 height: `${heightPct}%`,
+                minHeight: MIN_APPT_BLOCK_PX,
                 left: `calc(4px + ${lane} * (100% - 8px) / ${laneCount})`,
                 width: `calc((100% - 8px) / ${laneCount})`,
                 right: "auto",
@@ -517,40 +523,63 @@ function SortableSpecialistColumn({
                 }}
                 onClick={() => onAppointmentClick(a)}
                 className={[
-                  "booking-appt-bitrix relative flex h-full w-full flex-col justify-between overflow-hidden rounded-md text-left",
-                  narrow ? "px-1 py-0.5" : "px-1.5 py-1",
+                  "booking-appt-bitrix relative flex h-full w-full min-h-[inherit] flex-col justify-center gap-1 text-left",
+                  cardPad,
                   cls,
                   appointmentHoverClass,
                 ].join(" ")}
                 title={cardTitle}
               >
-                <div className="flex min-h-0 items-center gap-0.5 pr-2">
-                  <span className="line-clamp-1 min-w-0 flex-1 text-[11px] font-bold leading-tight">{a.patient_name}</span>
-                  {canEditNotes || note ? (
-                    <button
-                      type="button"
-                      className={[
-                        "booking-appt-note-btn shrink-0 rounded p-0.5 transition hover:bg-black/10",
-                        note ? "is-filled" : "is-empty",
-                      ].join(" ")}
-                      title={note || "Добавить заметку"}
-                      aria-label={note ? "Редактировать заметку" : "Добавить заметку"}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
-                      }}
-                    >
-                      <FileText className="h-3 w-3" />
-                    </button>
+                <div className="flex shrink-0 items-center gap-1 overflow-hidden">
+                  <span className={["booking-appt-name min-w-0 flex-1", nameSize].join(" ")}>{a.patient_name}</span>
+                  {canShowCompleteMark ? (
+                    canToggleComplete ? (
+                      <button
+                        type="button"
+                        className={["booking-appt-check shrink-0", isCompleted ? "is-done" : ""].join(" ")}
+                        title={isCompleted ? "Снять отметку «завершён»" : "Отметить как завершён"}
+                        aria-label={isCompleted ? "Снять отметку завершён" : "Отметить как завершён"}
+                        aria-pressed={isCompleted}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAppointmentCompleteToggle?.(a, !isCompleted);
+                        }}
+                      >
+                        {isCompleted ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}
+                      </button>
+                    ) : (
+                      <span className="booking-appt-check is-done pointer-events-none shrink-0" title="Завершён" aria-label="Завершён">
+                        <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                      </span>
+                    )
                   ) : null}
                 </div>
-                <div className="mt-0.5 flex items-end justify-between gap-0.5">
-                  <span
-                    className="text-[10px] font-semibold tabular-nums leading-none"
-                    title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
-                  >
-                    {timeLabel}
-                  </span>
+                <div className="flex shrink-0 items-center justify-between gap-1">
+                  <div className="flex min-w-0 items-center gap-0.5">
+                    <span
+                      className={[timeSize, "font-semibold tabular-nums leading-normal"].join(" ")}
+                      title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
+                    >
+                      {timeLabel}
+                    </span>
+                    {canEditNotes || note ? (
+                      <button
+                        type="button"
+                        className={[
+                          "booking-appt-note-btn shrink-0 rounded p-0.5 transition hover:bg-black/10",
+                          note ? "is-filled" : "is-empty",
+                        ].join(" ")}
+                        title={note || "Добавить заметку"}
+                        aria-label={note ? "Редактировать заметку" : "Добавить заметку"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
+                        }}
+                      >
+                        <FileText className="h-3 w-3" />
+                      </button>
+                    ) : null}
+                  </div>
                   <div className="flex shrink-0 items-center gap-0.5">
                     {phoneDigits.length >= 7 ? (
                       <a
@@ -587,31 +616,6 @@ function SortableSpecialistColumn({
                       >
                         CRM
                       </button>
-                    ) : null}
-                    {canShowCompleteMark ? (
-                      canToggleComplete ? (
-                        <button
-                          type="button"
-                          className={["booking-appt-check", isCompleted ? "is-done" : ""].join(" ")}
-                          title={isCompleted ? "Снять отметку «завершён»" : "Отметить как завершён"}
-                          aria-label={isCompleted ? "Снять отметку завершён" : "Отметить как завершён"}
-                          aria-pressed={isCompleted}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAppointmentCompleteToggle?.(a, !isCompleted);
-                          }}
-                        >
-                          {isCompleted ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}
-                        </button>
-                      ) : (
-                        <span
-                          className="booking-appt-check is-done pointer-events-none"
-                          title="Завершён"
-                          aria-label="Завершён"
-                        >
-                          <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                        </span>
-                      )
                     ) : null}
                   </div>
                 </div>
