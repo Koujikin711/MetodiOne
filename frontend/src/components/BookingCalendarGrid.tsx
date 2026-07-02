@@ -476,9 +476,11 @@ function SortableSpecialistColumn({
             : formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow);
           const durationMin = Math.round((new Date(a.end_at).getTime() - new Date(a.start_at).getTime()) / 60_000);
           const isCompactCard = durationMin <= 35 || narrow;
-          const cardPad = isCompactCard ? "px-1 py-px" : "px-1.5 py-0.5";
-          const nameSize = isCompactCard ? "text-[10px] leading-snug" : "text-[11px] leading-snug";
-          const timeSize = isCompactCard ? "text-[9px] leading-snug" : "text-[10px] leading-snug";
+          const isTallCard = durationMin > 35 && !narrow;
+          const cardPad = isCompactCard ? "px-1 py-px" : "px-1.5 pt-1 pb-1";
+          const nameSize = "text-[10px] leading-snug";
+          const timeSize = "text-[9px] leading-snug";
+          const serviceSize = "text-[9px] leading-snug";
           const iconSize = isCompactCard ? "h-2.5 w-2.5" : "h-3 w-3";
           const checkSize = isCompactCard ? "h-2 w-2" : "h-2.5 w-2.5";
           const cardTitle = [
@@ -532,7 +534,8 @@ function SortableSpecialistColumn({
                 onClick={() => onAppointmentClick(a)}
                 className={[
                   "booking-appt-bitrix relative flex h-full max-h-full w-full flex-col overflow-hidden text-left",
-                  isCompactCard ? "justify-center gap-px" : "justify-center gap-0.5",
+                  isCompactCard ? "justify-center gap-px" : "justify-start gap-px",
+                  isTallCard ? "booking-appt-bitrix--tall" : "",
                   cardPad,
                   cls,
                   appointmentHoverClass,
@@ -563,6 +566,9 @@ function SortableSpecialistColumn({
                     )
                   ) : null}
                 </div>
+                {isTallCard && serviceLine ? (
+                  <p className={["booking-appt-service shrink-0 truncate opacity-90", serviceSize].join(" ")}>{serviceLine}</p>
+                ) : null}
                 <div className="flex min-h-0 shrink-0 items-center justify-between gap-0.5">
                   <div className="flex min-w-0 items-center gap-0.5">
                     <span

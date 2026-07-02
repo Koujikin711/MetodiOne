@@ -805,6 +805,13 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   visibility: visible;
   transform: translate(-50%, 0);
 }
+.booking-appt-bitrix--tall {
+  align-content: flex-start;
+}
+.booking-appt-service {
+  font-weight: 600;
+  opacity: 0.88;
+}
 .booking-appt-bitrix.booking-appt--booked {
   background-image: repeating-linear-gradient(
     -45deg,
