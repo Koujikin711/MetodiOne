@@ -38,7 +38,7 @@ import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const GRID_START_HOUR = 7;
 const GRID_END_HOUR = 20;
-const PX_PER_HOUR = 72;
+const PX_PER_HOUR = 64;
 const SPEC_HEADER_PX = 42;
 const SLOT_STEP_MIN = 30;
 
@@ -62,7 +62,7 @@ const notifySentClass = "booking-appt booking-appt--notify";
 const notifyRepliedClass = "booking-appt booking-appt--replied";
 
 const appointmentHoverClass =
-  "transition-[box-shadow] duration-200 ease-out hover:z-30 hover:shadow-md hover:ring-2 hover:ring-[var(--mo-gold)]/40";
+  "transition-[box-shadow,z-index] duration-200 ease-out hover:z-50 hover:shadow-md hover:ring-2 hover:ring-[var(--mo-gold)]/40";
 
 function specWeekdays(spec: BookingSpecialist): number[] {
   const w = spec.work_weekdays;
@@ -356,7 +356,7 @@ function SortableSpecialistColumn({
       </div>
 
       <div
-        className={`relative ${isDragging ? "opacity-90 ring-2 ring-purple-500/40" : ""}`}
+        className={`relative overflow-visible ${isDragging ? "opacity-90 ring-2 ring-purple-500/40" : ""}`}
         style={{ height: gridHeightPx }}
       >
         {"fullDay" in hatch && hatch.fullDay ? (
@@ -474,12 +474,11 @@ function SortableSpecialistColumn({
           const timeLabel = showSessionInsteadOfTime
             ? (visitDisplayValue(a) ?? "—")
             : formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow);
-          const blockHeightPx = (heightPct / 100) * gridHeightPx;
           const durationMin = Math.round((new Date(a.end_at).getTime() - new Date(a.start_at).getTime()) / 60_000);
-          const isCompactCard = blockHeightPx < 50 || durationMin <= 35 || narrow;
-          const cardPad = isCompactCard ? "px-1 py-0.5" : narrow ? "px-1.5 py-1" : "px-2 py-1";
-          const nameSize = isCompactCard ? "text-[9px]" : "text-[11px]";
-          const timeSize = isCompactCard ? "text-[8px]" : "text-[10px]";
+          const isCompactCard = durationMin <= 35 || narrow;
+          const cardPad = isCompactCard ? "px-1 py-px" : "px-1.5 py-0.5";
+          const nameSize = isCompactCard ? "text-[10px] leading-snug" : "text-[11px] leading-snug";
+          const timeSize = isCompactCard ? "text-[9px] leading-snug" : "text-[10px] leading-snug";
           const iconSize = isCompactCard ? "h-2.5 w-2.5" : "h-3 w-3";
           const checkSize = isCompactCard ? "h-2 w-2" : "h-2.5 w-2.5";
           const cardTitle = [
@@ -494,7 +493,7 @@ function SortableSpecialistColumn({
           return (
             <div
               key={a.id}
-              className="group/appt absolute z-20 overflow-hidden"
+              className="group/appt absolute z-20 overflow-visible"
               style={{
                 top: `${topPct}%`,
                 height: `${heightPct}%`,
@@ -507,7 +506,7 @@ function SortableSpecialistColumn({
               {(note || serviceLine) && (
                 <div
                   role="tooltip"
-                  className="pointer-events-none absolute bottom-full left-1/2 z-[80] mb-1 hidden w-max max-w-[min(280px,92vw)] -translate-x-1/2 rounded-lg border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-2.5 py-1.5 text-[11px] leading-snug text-[var(--mo-text)] shadow-lg group-hover/appt:block"
+                  className="booking-appt-tooltip pointer-events-none absolute bottom-full left-1/2 z-[120] mb-1 w-max max-w-[min(300px,92vw)] -translate-x-1/2 rounded-lg border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-3 py-2 text-[12px] leading-snug text-[var(--mo-text)] shadow-xl"
                 >
                   {serviceLine ? (
                     <p>
@@ -533,7 +532,7 @@ function SortableSpecialistColumn({
                 onClick={() => onAppointmentClick(a)}
                 className={[
                   "booking-appt-bitrix relative flex h-full max-h-full w-full flex-col overflow-hidden text-left",
-                  isCompactCard ? "justify-center gap-0.5" : "justify-center gap-1",
+                  isCompactCard ? "justify-center gap-px" : "justify-center gap-0.5",
                   cardPad,
                   cls,
                   appointmentHoverClass,
@@ -567,7 +566,7 @@ function SortableSpecialistColumn({
                 <div className="flex min-h-0 shrink-0 items-center justify-between gap-0.5">
                   <div className="flex min-w-0 items-center gap-0.5">
                     <span
-                      className={[timeSize, "font-semibold tabular-nums leading-none"].join(" ")}
+                      className={[timeSize, "font-semibold tabular-nums"].join(" ")}
                       title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
                     >
                       {timeLabel}
@@ -767,7 +766,7 @@ export function BookingCalendarGrid({
       : "";
 
   return (
-    <div className="relative overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]">
+    <div className="relative overflow-x-auto overflow-y-visible rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]">
       <div className="flex min-w-full">
         <div className="sticky left-0 z-30 flex w-[52px] shrink-0 flex-col border-r border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 backdrop-blur-sm">
           <div
