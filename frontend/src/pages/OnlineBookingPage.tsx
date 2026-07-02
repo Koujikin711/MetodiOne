@@ -6,11 +6,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
 import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
-import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { PatientPhone } from "@/components/PatientPhone";
 import { SpecialistModal, type SpecialistFormValues } from "@/components/SpecialistModal";
-import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
-import { Calendar } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import { BOOKING_TIME_ZONE, datetimeLocalBookingToIsoUtc, ymdInBookingTz } from "@/lib/bookingTz";
@@ -44,6 +41,16 @@ function formatBookingToolbarDate(ymd: string): string {
     month: "long",
     weekday: "short",
   });
+}
+
+function shiftFilterDateYmd(ymd: string, deltaDays: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  const dt = new Date(y, m - 1, d + deltaDays);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
 }
 
 function formatDt(iso: string) {
@@ -101,7 +108,6 @@ export function OnlineBookingPage() {
   const [filterDate, setFilterDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalDate, setJournalDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalSearch, setJournalSearch] = useState("");
-  const [calendarDrawerOpen, setCalendarDrawerOpen] = useState(false);
   const formPanelRef = useRef<HTMLDivElement>(null);
   const patientSuggestRef = useRef<HTMLDivElement>(null);
   const lastAutoSuggestKeyRef = useRef<string | null>(null);
@@ -588,15 +594,6 @@ export function OnlineBookingPage() {
     setServiceAmount(String(fixedServiceAmount));
   }, [fixedServiceAmount]);
 
-  useEffect(() => {
-    if (!calendarDrawerOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setCalendarDrawerOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [calendarDrawerOpen]);
-
   function onAppointmentCompleteToggle(a: BookingAppointment, completed: boolean) {
     statusMutation.mutate({ id: a.id, status: completed ? "completed" : "booked" });
   }
@@ -749,7 +746,7 @@ export function OnlineBookingPage() {
     if (leadId) payload.lead_id = leadId;
     if (!leadId) {
       if (!newLeadPipelineId || !newLeadStageId) {
-        toast.error("Выберите воронку и стадию для создания карточки клиента");
+        toast.error("Не удалось подготовить карточку клиента — обновите страницу");
         return;
       }
       payload.lead_pipeline_id = newLeadPipelineId;
@@ -775,7 +772,17 @@ export function OnlineBookingPage() {
             <Link to="/app" className="booking-page-back">
               ← К канбану
             </Link>
-            <h1 className="booking-page-title">Онлайн-записи</h1>
+            <div className="booking-page-title-row">
+              <h1 className="booking-page-title">Онлайн-записи</h1>
+              {tab === "online" ? (
+                <div className="booking-page-legend" aria-label="Статусы записей">
+                  <span className="booking-legend-item booking-legend-item--booked">Записан</span>
+                  <span className="booking-legend-item booking-legend-item--notify">Уведомление отправлено</span>
+                  <span className="booking-legend-item booking-legend-item--replied">Клиент ответил</span>
+                  <span className="booking-legend-item booking-legend-item--completed">Завершён</span>
+                </div>
+              ) : null}
+            </div>
             {isExpert ? (
               <p className="booking-page-note">
                 Главный эксперт видит всех специалистов воронки; иначе — только свою колонку.
@@ -791,52 +798,24 @@ export function OnlineBookingPage() {
 
       {tab === "online" && (
         <div className="space-y-3">
-          {calendarDrawerOpen && (
-            <>
-              <button
-                type="button"
-                className="fixed inset-0 z-40 block bg-[var(--mo-surface-elevated)]/70"
-                aria-label="Закрыть календарь"
-                onClick={() => setCalendarDrawerOpen(false)}
-              />
-              <aside className="fixed left-0 top-0 z-50 flex h-full w-[min(100vw,18rem)] flex-col border-r border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4 shadow-2xl shadow-[var(--mo-shadow-luxury)] backdrop-blur-md">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="lux-subheading text-sm">Дата записи</h2>
-                  <button
-                    type="button"
-                    onClick={() => setCalendarDrawerOpen(false)}
-                    className="rounded-lg border border-[var(--mo-border-strong)] px-2 py-1 text-xs mo-muted hover:bg-white/10"
-                  >
-                    Закрыть
-                  </button>
-                </div>
-                <MiniMonthCalendar
-                  value={filterDate}
-                  onChange={(d) => {
-                    setFilterDate(d);
-                    setCalendarDrawerOpen(false);
-                  }}
-                />
-              </aside>
-            </>
-          )}
-
-          <div className="booking-page-toolbar">
+          <div className="booking-page-date-nav" aria-label="Дата записи">
             <button
               type="button"
-              onClick={() => setCalendarDrawerOpen(true)}
-              className="btn-secondary booking-page-date-btn"
-              aria-label="Выбрать дату"
+              className="booking-page-date-nav-btn"
+              aria-label="Предыдущий день"
+              onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, -1))}
             >
-              <Calendar className="h-4 w-4 shrink-0 text-[var(--mo-accent-hover)]" />
-              <span className="truncate">{formatBookingToolbarDate(filterDate)}</span>
+              ‹
             </button>
-            <div className="booking-page-legend" aria-label="Статусы записей">
-              <span className="booking-legend-item booking-legend-item--booked">Записан</span>
-              <span className="booking-legend-item booking-legend-item--notify">Уведомление отправлено</span>
-              <span className="booking-legend-item booking-legend-item--replied">Клиент ответил</span>
-              <span className="booking-legend-item booking-legend-item--completed">Завершён</span>
-            </div>
+            <span className="booking-page-date-label">{formatBookingToolbarDate(filterDate)}</span>
+            <button
+              type="button"
+              className="booking-page-date-nav-btn"
+              aria-label="Следующий день"
+              onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, 1))}
+            >
+              ›
+            </button>
           </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_min(100%,280px)] xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">
             <div className="min-w-0">
@@ -863,10 +842,6 @@ export function OnlineBookingPage() {
               )}
             </div>
             <aside className="flex w-full min-w-0 flex-col gap-2 xl:sticky xl:top-4 xl:max-w-[280px]">
-              <section className="hidden mo-section p-3 shadow-inner backdrop-blur-sm xl:block xl:max-h-[min(38vh,260px)] xl:overflow-y-auto">
-                <h2 className="mb-2 lux-subheading text-sm">Дата записи</h2>
-                <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
-              </section>
               {canEditBooking ? (
                 <section
                   ref={formPanelRef}
@@ -1034,40 +1009,6 @@ export function OnlineBookingPage() {
                     </div>
                   ) : null}
                 </div>
-                {!leadId && (
-                  <>
-                    <label className="block text-sm mo-muted">
-                      Воронка для новой карточки
-                      <select
-                        required
-                        value={newLeadPipelineId ?? ""}
-                        onChange={(e) => setNewLeadPipelineId(Number(e.target.value))}
-                        className="mt-1 w-full mo-input"
-                      >
-                        {(pipelinesQuery.data ?? []).map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block text-sm mo-muted">
-                      Стадия для новой карточки
-                      <select
-                        required
-                        value={newLeadStageId ?? ""}
-                        onChange={(e) => setNewLeadStageId(Number(e.target.value))}
-                        className="mt-1 w-full mo-input"
-                      >
-                        {(leadStagesQuery.data ?? []).map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </>
-                )}
                 <label className="block text-sm mo-muted">
                   Услуга (вручную)
                   <input
