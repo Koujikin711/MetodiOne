@@ -795,26 +795,6 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 .booking-appt-note-btn.is-empty:hover {
   opacity: 0.85;
 }
-.booking-appt-popover {
-  border-radius: 8px;
-  border: 1px solid var(--mo-border-strong);
-  background: var(--mo-surface-elevated);
-  padding: 6px 8px;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--mo-text);
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
-  word-break: break-word;
-}
-.booking-appt-popover__service {
-  font-size: 10px;
-  line-height: 1.3;
-}
-.booking-appt-popover p:last-child {
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.35;
-}
 .booking-appt-done-badge {
   color: #16a34a;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));

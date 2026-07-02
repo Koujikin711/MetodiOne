@@ -492,17 +492,17 @@ function SortableSpecialistColumn({
               {(note || serviceLine) && (
                 <div
                   role="tooltip"
-                  className="booking-appt-popover pointer-events-none absolute bottom-full left-0 right-0 z-[80] mb-1 hidden group-hover/appt:block"
+                  className="pointer-events-none absolute bottom-full left-1/2 z-[80] mb-1 hidden w-max max-w-[min(280px,92vw)] -translate-x-1/2 rounded-lg border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-2.5 py-1.5 text-[11px] leading-snug text-[var(--mo-text)] shadow-lg group-hover/appt:block"
                 >
                   {serviceLine ? (
-                    <p className="booking-appt-popover__service">
-                      <span className="font-semibold opacity-75">Услуга: </span>
+                    <p>
+                      <span className="font-semibold text-[var(--mo-text-muted)]">Услуга: </span>
                       {serviceLine}
                     </p>
                   ) : null}
                   {note ? (
                     <p className={serviceLine ? "mt-1" : ""}>
-                      <span className="font-semibold opacity-75">Заметка: </span>
+                      <span className="font-semibold text-[var(--mo-text-muted)]">Заметка: </span>
                       {note}
                     </p>
                   ) : null}
