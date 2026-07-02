@@ -524,56 +524,33 @@ function SortableSpecialistColumn({
                 ].join(" ")}
                 title={cardTitle}
               >
-                <div className="flex min-h-0 items-center gap-1 overflow-hidden">
-                  <span className="truncate text-[11px] font-bold leading-tight">{a.patient_name}</span>
-                  {canShowCompleteMark ? (
-                    canToggleComplete ? (
-                      <button
-                        type="button"
-                        className={["booking-appt-check shrink-0", isCompleted ? "is-done" : ""].join(" ")}
-                        title={isCompleted ? "Снять отметку «завершён»" : "Отметить как завершён"}
-                        aria-label={isCompleted ? "Снять отметку завершён" : "Отметить как завершён"}
-                        aria-pressed={isCompleted}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAppointmentCompleteToggle?.(a, !isCompleted);
-                        }}
-                      >
-                        {isCompleted ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}
-                      </button>
-                    ) : (
-                      <span className="booking-appt-check is-done pointer-events-none shrink-0" title="Завершён" aria-label="Завершён">
-                        <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                      </span>
-                    )
+                <div className="flex min-h-0 items-center gap-0.5 pr-2">
+                  <span className="line-clamp-1 min-w-0 flex-1 text-[11px] font-bold leading-tight">{a.patient_name}</span>
+                  {canEditNotes || note ? (
+                    <button
+                      type="button"
+                      className={[
+                        "booking-appt-note-btn shrink-0 rounded p-0.5 transition hover:bg-black/10",
+                        note ? "is-filled" : "is-empty",
+                      ].join(" ")}
+                      title={note || "Добавить заметку"}
+                      aria-label={note ? "Редактировать заметку" : "Добавить заметку"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
+                      }}
+                    >
+                      <FileText className="h-3 w-3" />
+                    </button>
                   ) : null}
                 </div>
                 <div className="mt-0.5 flex items-end justify-between gap-0.5">
-                  <div className="flex min-w-0 items-center gap-0.5">
-                    <span
-                      className="text-[10px] font-semibold tabular-nums leading-none"
-                      title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
-                    >
-                      {timeLabel}
-                    </span>
-                    {canEditNotes || note ? (
-                      <button
-                        type="button"
-                        className={[
-                          "booking-appt-note-btn shrink-0 rounded p-0.5 transition hover:bg-black/10",
-                          note ? "is-filled" : "is-empty",
-                        ].join(" ")}
-                        title={note || "Добавить заметку"}
-                        aria-label={note ? "Редактировать заметку" : "Добавить заметку"}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
-                        }}
-                      >
-                        <FileText className="h-3 w-3" />
-                      </button>
-                    ) : null}
-                  </div>
+                  <span
+                    className="text-[10px] font-semibold tabular-nums leading-none"
+                    title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
+                  >
+                    {timeLabel}
+                  </span>
                   <div className="flex shrink-0 items-center gap-0.5">
                     {phoneDigits.length >= 7 ? (
                       <a
@@ -610,6 +587,31 @@ function SortableSpecialistColumn({
                       >
                         CRM
                       </button>
+                    ) : null}
+                    {canShowCompleteMark ? (
+                      canToggleComplete ? (
+                        <button
+                          type="button"
+                          className={["booking-appt-check", isCompleted ? "is-done" : ""].join(" ")}
+                          title={isCompleted ? "Снять отметку «завершён»" : "Отметить как завершён"}
+                          aria-label={isCompleted ? "Снять отметку завершён" : "Отметить как завершён"}
+                          aria-pressed={isCompleted}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAppointmentCompleteToggle?.(a, !isCompleted);
+                          }}
+                        >
+                          {isCompleted ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}
+                        </button>
+                      ) : (
+                        <span
+                          className="booking-appt-check is-done pointer-events-none"
+                          title="Завершён"
+                          aria-label="Завершён"
+                        >
+                          <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                        </span>
+                      )
                     ) : null}
                   </div>
                 </div>
