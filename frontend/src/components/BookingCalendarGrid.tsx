@@ -492,17 +492,17 @@ function SortableSpecialistColumn({
               {(note || serviceLine) && (
                 <div
                   role="tooltip"
-                  className="pointer-events-none absolute bottom-full left-1/2 z-[80] mb-1 hidden w-max max-w-[min(280px,92vw)] -translate-x-1/2 rounded-lg border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-2.5 py-1.5 text-[11px] leading-snug text-[var(--mo-text)] shadow-lg group-hover/appt:block"
+                  className="booking-appt-popover pointer-events-none absolute bottom-full left-0 right-0 z-[80] mb-1 hidden group-hover/appt:block"
                 >
                   {serviceLine ? (
-                    <p>
-                      <span className="font-semibold text-[var(--mo-text-muted)]">Услуга: </span>
+                    <p className="booking-appt-popover__service">
+                      <span className="font-semibold opacity-75">Услуга: </span>
                       {serviceLine}
                     </p>
                   ) : null}
                   {note ? (
                     <p className={serviceLine ? "mt-1" : ""}>
-                      <span className="font-semibold text-[var(--mo-text-muted)]">Заметка: </span>
+                      <span className="font-semibold opacity-75">Заметка: </span>
                       {note}
                     </p>
                   ) : null}
@@ -517,7 +517,7 @@ function SortableSpecialistColumn({
                 }}
                 onClick={() => onAppointmentClick(a)}
                 className={[
-                  "booking-appt-bitrix relative flex h-full w-full min-h-[56px] flex-col gap-0.5 overflow-hidden rounded-md text-left",
+                  "booking-appt-bitrix relative flex h-full w-full flex-col justify-between overflow-hidden rounded-md text-left",
                   narrow ? "px-1 py-0.5" : "px-1.5 py-1",
                   cls,
                   appointmentHoverClass,
@@ -548,26 +548,7 @@ function SortableSpecialistColumn({
                     )
                   ) : null}
                 </div>
-                {serviceLine ? (
-                  <p className="booking-appt-card-service line-clamp-1 leading-tight">{serviceLine}</p>
-                ) : null}
-                {note || canEditNotes ? (
-                  <button
-                    type="button"
-                    className={[
-                      "booking-appt-card-note min-h-0 flex-1 text-left",
-                      note ? "is-filled" : "is-empty",
-                    ].join(" ")}
-                    title={note || "Добавить заметку"}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
-                    }}
-                  >
-                    {note || "Заметка…"}
-                  </button>
-                ) : null}
-                <div className="mt-auto flex items-end justify-between gap-0.5">
+                <div className="mt-0.5 flex items-end justify-between gap-0.5">
                   <div className="flex min-w-0 items-center gap-0.5">
                     <span
                       className="text-[10px] font-semibold tabular-nums leading-none"
