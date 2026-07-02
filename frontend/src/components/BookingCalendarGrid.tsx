@@ -176,11 +176,18 @@ function appointmentVisualClass(a: BookingAppointment): string {
     notification_sent_at?: string | null;
     notification_replied_at?: string | null;
   };
+
+  if (a.status === "cancelled") return statusCardClass.cancelled;
+  if (a.status === "no_show") return statusCardClass.no_show;
+  if (a.status === "completed") return statusCardClass.completed;
+
   if (anyA.notification_replied_at) return notifyRepliedClass;
-  if (anyA.notification_sent_at) return notifySentClass;
   const c = (a.comment || "").toLowerCase();
   if (c.includes("ответил") || c.includes("подтвердил")) return notifyRepliedClass;
+
+  if (anyA.notification_sent_at) return notifySentClass;
   if (c.includes("уведом") || c.includes("напомин")) return notifySentClass;
+
   return statusCardClass[a.status] ?? statusCardClass.booked;
 }
 
