@@ -64,7 +64,6 @@ def _aggregate_expert_visit_stats(
         lambda: {
             "first_phones": set(),
             "repeat_phones": set(),
-            "sessions_total": 0,
         },
     )
     for appt_id, sid, phone, st in rows:
@@ -73,8 +72,6 @@ def _aggregate_expert_visit_stats(
         sid = int(sid)
         li = visit_map.get(int(appt_id)) or VisitLabelInfo(visit_number=1, visit_label="1")
         key = _visit_group_key(phone, sid)
-        # Сеансы за период = число визитов (записей) в диапазоне, не сумма порядковых номеров.
-        stats[sid]["sessions_total"] += 1
         if li.visit_stream is not None and li.visit_stream_day is not None:
             if int(li.visit_stream) == 1 and int(li.visit_stream_day) == 1:
                 stats[sid]["first_phones"].add(key)
@@ -188,7 +185,7 @@ async def expert_reports(
             vs = visit_stats.get(sid_int, {})
             first_n = len(vs.get("first_phones", set()))
             repeat_n = len(vs.get("repeat_phones", set()))
-            sessions_n = int(vs.get("sessions_total", 0))
+            sessions_n = pa  # Сеансы = Пришло (уникальные пациенты со статусом completed)
             total_booked += pb
             total_arrived += pa
             total_first += first_n

@@ -17,7 +17,7 @@ class ExpertBookingItem(BaseModel):
     patients_arrived: int = 0
     first_visit_patients: int = Field(default=0, description="Новые пациенты (первое обращение к специалисту)")
     repeat_patients: int = Field(default=0, description="Повторные пациенты")
-    sessions_total: int = Field(default=0, description="Количество визитов (неотменённых записей) за период")
+    sessions_total: int = Field(default=0, description="Сеансы = Пришло (уникальные пациенты со статусом completed)")
 
 
 class PipelineExpertReport(BaseModel):
