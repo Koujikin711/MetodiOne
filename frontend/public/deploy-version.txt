@@ -1,1 +1,1 @@
-2026-07-03T01:05+0500 booking-form-cleanup
+2026-07-03T17:05+0500 no-form-hints
