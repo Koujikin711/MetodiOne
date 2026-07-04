@@ -18,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
 import { GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "@/components/icons";
+import { BookingAppointmentCardBody } from "@/components/BookingAppointmentCardBody";
 import {
   BOOKING_TIME_ZONE,
   formatTimeInBookingTz,
@@ -26,7 +27,6 @@ import {
   weekDayYmds,
   ymdInBookingTz,
 } from "@/lib/bookingTz";
-import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 export const MAX_BOOKINGS_PER_SPECIALIST_DAY = 15;
@@ -57,6 +57,10 @@ type Props = {
   onDeleteSpecialist?: (s: BookingSpecialist) => void;
   onReorderSpecialists?: (orderedIds: number[]) => void;
   showSessionInsteadOfTime?: boolean;
+  canEditNotes?: boolean;
+  onAppointmentNoteClick?: (a: BookingAppointment) => void;
+  canToggleComplete?: boolean;
+  onAppointmentCompleteToggle?: (a: BookingAppointment, completed: boolean) => void;
 };
 
 function sortSpecs(list: BookingSpecialist[]): BookingSpecialist[] {
@@ -73,9 +77,18 @@ function countsKey(specId: number, dateYmd: string): string {
 }
 
 function appointmentVisualClass(a: BookingAppointment): string {
+  const anyA = a as BookingAppointment & {
+    notification_sent_at?: string | null;
+    notification_replied_at?: string | null;
+  };
   if (a.status === "cancelled") return "booking-appt booking-appt--cancelled";
   if (a.status === "no_show") return "booking-appt booking-appt--no_show";
   if (a.status === "completed") return "booking-appt booking-appt--completed";
+  if (anyA.notification_replied_at) return "booking-appt booking-appt--replied";
+  if (anyA.notification_sent_at) return "booking-appt booking-appt--notify";
+  const c = (a.comment || "").toLowerCase();
+  if (c.includes("ответил") || c.includes("подтвердил")) return "booking-appt booking-appt--replied";
+  if (c.includes("уведом") || c.includes("напомин")) return "booking-appt booking-appt--notify";
   return "booking-appt booking-appt--booked";
 }
 
@@ -129,6 +142,10 @@ type SortableRowProps = {
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: WeekSlotClickPayload) => void;
   showSessionInsteadOfTime?: boolean;
+  canEditNotes?: boolean;
+  onAppointmentNoteClick?: (a: BookingAppointment) => void;
+  canToggleComplete?: boolean;
+  onAppointmentCompleteToggle?: (a: BookingAppointment, completed: boolean) => void;
   todayYmd: string;
 };
 
@@ -148,6 +165,10 @@ function SortableSpecialistRow({
   onAppointmentClick,
   onSlotClick,
   showSessionInsteadOfTime,
+  canEditNotes,
+  onAppointmentNoteClick,
+  canToggleComplete,
+  onAppointmentCompleteToggle,
   todayYmd,
 }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -317,7 +338,7 @@ function SortableSpecialistRow({
               <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
                 {dayAppts.map((a) => {
                   const timeLabel = showSessionInsteadOfTime
-                    ? (visitDisplayValue(a) ?? formatTimeInBookingTz(a.start_at))
+                    ? null
                     : formatTimeInBookingTz(a.start_at);
                   return (
                     <button
@@ -328,12 +349,18 @@ function SortableSpecialistRow({
                         onAppointmentClick(a);
                       }}
                       className={[
-                        "booking-appt-bitrix w-full rounded-md px-1.5 py-1 text-left text-[10px] leading-tight",
+                        "booking-appt-bitrix w-full rounded-md px-1 py-0.5 text-left sm:px-1.5 sm:py-1",
                         appointmentVisualClass(a),
                       ].join(" ")}
                     >
-                      <span className="block truncate font-semibold">{a.patient_name}</span>
-                      <span className="tabular-nums opacity-90">{timeLabel}</span>
+                      <BookingAppointmentCardBody
+                        appointment={a}
+                        timeLabel={timeLabel}
+                        canEditNotes={canEditNotes}
+                        onNoteClick={onAppointmentNoteClick}
+                        canToggleComplete={canToggleComplete}
+                        onCompleteToggle={onAppointmentCompleteToggle}
+                      />
                     </button>
                   );
                 })}
@@ -366,6 +393,10 @@ export function BookingWeekSpecialistGrid({
   onDeleteSpecialist,
   onReorderSpecialists,
   showSessionInsteadOfTime,
+  canEditNotes,
+  onAppointmentNoteClick,
+  canToggleComplete,
+  onAppointmentCompleteToggle,
 }: Props) {
   const weekDays = useMemo(() => weekDayYmds(anchorDateYmd), [anchorDateYmd]);
   const todayYmd = ymdInBookingTz(Date.now());
@@ -466,6 +497,10 @@ export function BookingWeekSpecialistGrid({
       onAppointmentClick={onAppointmentClick}
       onSlotClick={onSlotClick}
       showSessionInsteadOfTime={showSessionInsteadOfTime}
+      canEditNotes={canEditNotes}
+      onAppointmentNoteClick={onAppointmentNoteClick}
+      canToggleComplete={canToggleComplete}
+      onAppointmentCompleteToggle={onAppointmentCompleteToggle}
       todayYmd={todayYmd}
     />
   ));

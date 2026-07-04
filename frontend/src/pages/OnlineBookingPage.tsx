@@ -954,6 +954,10 @@ export function OnlineBookingPage() {
                 onDeleteSpecialist={canEditBooking ? (s) => deleteSpecialistUserMutation.mutate(s.id) : undefined}
                 onReorderSpecialists={canEditBooking ? (orderedIds) => reorderSpecialistsMutation.mutate(orderedIds) : undefined}
                 showSessionInsteadOfTime={showSessionInsteadOfTime}
+                canEditNotes={canEditBooking}
+                onAppointmentNoteClick={canEditBooking ? onAppointmentNoteClick : undefined}
+                canToggleComplete={canEditBooking}
+                onAppointmentCompleteToggle={canEditBooking ? onAppointmentCompleteToggle : undefined}
               />
               {gridAppointmentsQuery.isLoading && (
                 <p className="mt-3 text-sm lux-caption">Загрузка записей…</p>
