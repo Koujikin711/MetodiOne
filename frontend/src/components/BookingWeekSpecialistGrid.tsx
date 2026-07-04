@@ -335,7 +335,7 @@ function SortableSpecialistRow({
                   {count}/{MAX_BOOKINGS_PER_SPECIALIST_DAY}
                 </span>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+              <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-visible">
                 {dayAppts.map((a) => {
                   const timeLabel = showSessionInsteadOfTime
                     ? null
@@ -349,7 +349,7 @@ function SortableSpecialistRow({
                         onAppointmentClick(a);
                       }}
                       className={[
-                        "booking-appt-bitrix w-full rounded-md px-1 py-0.5 text-left sm:px-1.5 sm:py-1",
+                        "booking-appt-bitrix relative w-full overflow-visible rounded-md px-1 py-0.5 text-left sm:px-1.5 sm:py-1",
                         appointmentVisualClass(a),
                       ].join(" ")}
                     >

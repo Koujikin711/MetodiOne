@@ -913,7 +913,18 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   letter-spacing: 0.02em;
 }
 .booking-appt-head {
-  align-items: center;
+  align-items: flex-start;
+}
+.booking-appt-note-stack {
+  min-width: 1.125rem;
+}
+.booking-appt-note-tooltip {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.booking-appt-card-body {
+  min-width: 0;
+  width: 100%;
 }
 .booking-appt-done-badge {
   color: #16a34a;
