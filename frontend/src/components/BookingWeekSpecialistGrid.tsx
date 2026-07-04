@@ -22,6 +22,7 @@ import {
   BOOKING_TIME_ZONE,
   formatTimeInBookingTz,
   formatWeekdayHeader,
+  utcMsToHourMinuteInBookingTz,
   weekDayYmds,
   ymdInBookingTz,
 } from "@/lib/bookingTz";
@@ -78,9 +79,38 @@ function appointmentVisualClass(a: BookingAppointment): string {
   return "booking-appt booking-appt--booked";
 }
 
-function defaultMinuteForSpec(spec: BookingSpecialist): number {
-  const h = spec.work_start_hour ?? 9;
-  return h * 60;
+function suggestMinuteForDay(spec: BookingSpecialist, dayAppts: BookingAppointment[]): number {
+  const step = Math.max(15, spec.slot_duration_min ?? 30);
+  const startMin = (spec.work_start_hour ?? 9) * 60;
+  const endMin = (spec.work_end_hour ?? 18) * 60;
+  const active = dayAppts.filter((a) => a.status !== "cancelled");
+  if (active.length === 0) return startMin;
+
+  let latestEnd = startMin;
+  for (const a of active) {
+    const { h, min } = utcMsToHourMinuteInBookingTz(new Date(a.end_at).getTime());
+    const endMinute = h * 60 + min;
+    if (endMinute > latestEnd) latestEnd = endMinute;
+  }
+
+  let next = latestEnd;
+  if (next % step !== 0) next = Math.ceil(next / step) * step;
+  if (next >= endMin) return startMin;
+  return next;
+}
+
+function emitSlotClick(
+  onSlotClick: ((payload: WeekSlotClickPayload) => void) | undefined,
+  spec: BookingSpecialist,
+  dateYmd: string,
+  dayAppts: BookingAppointment[],
+) {
+  onSlotClick?.({
+    specialistId: spec.id,
+    directionId: spec.direction_id,
+    dateYmd,
+    minuteOfDay: suggestMinuteForDay(spec, dayAppts),
+  });
 }
 
 type SortableRowProps = {
@@ -218,38 +248,66 @@ function SortableSpecialistRow({
           const full = count >= MAX_BOOKINGS_PER_SPECIALIST_DAY;
           const isToday = dateYmd === todayYmd;
           const dayAppts = (bySpecDay.get(key) ?? []).slice().sort((a, b) => a.start_at.localeCompare(b.start_at));
+          const canAdd = Boolean(onSlotClick && !full);
 
           if (!expanded) {
             return (
-              <div
+              <button
                 key={key}
+                type="button"
+                disabled={!canAdd}
+                onClick={() => emitSlotClick(onSlotClick, spec, dateYmd, dayAppts)}
                 className={[
                   DAY_COL_COLLAPSED_CLASS,
                   isToday ? "bg-[var(--mo-accent-soft)]/40" : "bg-[var(--mo-surface)]",
+                  canAdd
+                    ? "cursor-pointer transition hover:bg-purple-500/10 hover:ring-1 hover:ring-inset hover:ring-purple-500/25"
+                    : "cursor-default",
                 ].join(" ")}
                 style={{ minHeight: COLLAPSED_ROW_PX }}
+                title={
+                  canAdd
+                    ? `Записать на ${dateYmd} (${count} из ${MAX_BOOKINGS_PER_SPECIALIST_DAY})`
+                    : full
+                      ? `Лимит ${MAX_BOOKINGS_PER_SPECIALIST_DAY} записей`
+                      : `Записей: ${count}`
+                }
               >
                 <span
                   className={[
                     "text-lg font-semibold tabular-nums",
                     full ? "text-red-600" : count > 0 ? "text-[var(--mo-text)]" : "mo-muted",
                   ].join(" ")}
-                  title={`Записей: ${count} из ${MAX_BOOKINGS_PER_SPECIALIST_DAY}`}
                 >
                   {count}
                 </span>
-              </div>
+              </button>
             );
           }
 
           return (
             <div
               key={key}
+              role={canAdd ? "button" : undefined}
+              tabIndex={canAdd ? 0 : undefined}
+              onClick={() => {
+                if (!canAdd) return;
+                emitSlotClick(onSlotClick, spec, dateYmd, dayAppts);
+              }}
+              onKeyDown={(e) => {
+                if (!canAdd || (e.key !== "Enter" && e.key !== " ")) return;
+                e.preventDefault();
+                emitSlotClick(onSlotClick, spec, dateYmd, dayAppts);
+              }}
               className={[
                 DAY_COL_CLASS,
                 isToday ? "bg-[var(--mo-accent-soft)]/30" : "bg-[var(--mo-surface)]",
+                canAdd
+                  ? "cursor-pointer transition hover:bg-purple-500/[0.06] hover:ring-1 hover:ring-inset hover:ring-purple-500/20"
+                  : "",
               ].join(" ")}
               style={{ minHeight: EXPANDED_ROW_MIN_PX }}
+              title={canAdd ? `Записать на ${dateYmd}` : full ? `Лимит ${MAX_BOOKINGS_PER_SPECIALIST_DAY}` : undefined}
             >
               <div className="flex items-center justify-between gap-1">
                 <span className={`text-[10px] font-semibold tabular-nums ${full ? "text-red-600" : "mo-muted"}`}>
@@ -265,7 +323,10 @@ function SortableSpecialistRow({
                     <button
                       key={a.id}
                       type="button"
-                      onClick={() => onAppointmentClick(a)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAppointmentClick(a);
+                      }}
                       className={[
                         "booking-appt-bitrix w-full rounded-md px-1.5 py-1 text-left text-[10px] leading-tight",
                         appointmentVisualClass(a),
@@ -277,21 +338,13 @@ function SortableSpecialistRow({
                   );
                 })}
               </div>
-              {onSlotClick && !full ? (
-                <button
-                  type="button"
-                  className="mt-auto rounded-md border border-dashed border-[var(--mo-border-strong)] py-1 text-[10px] mo-muted transition hover:border-purple-500/40 hover:bg-purple-500/10 hover:text-[var(--mo-text)]"
-                  onClick={() =>
-                    onSlotClick({
-                      specialistId: spec.id,
-                      directionId: spec.direction_id,
-                      dateYmd,
-                      minuteOfDay: defaultMinuteForSpec(spec),
-                    })
-                  }
+              {canAdd ? (
+                <span
+                  className="mt-auto rounded-md border border-dashed border-[var(--mo-border-strong)] py-1 text-center text-[10px] mo-muted pointer-events-none"
+                  aria-hidden
                 >
                   + Запись
-                </button>
+                </span>
               ) : null}
               {full ? <p className="text-center text-[9px] text-red-500">Лимит {MAX_BOOKINGS_PER_SPECIALIST_DAY}</p> : null}
             </div>
@@ -451,8 +504,8 @@ export function BookingWeekSpecialistGrid({
         )}
       </div>
       <p className="border-t border-[var(--mo-border)] px-3 py-2 text-[11px] mo-muted">
-        Нажмите на имя специалиста: развернуть список записей или свернуть до числа записей по дням. Часовой пояс:{" "}
-        {BOOKING_TIME_ZONE}.
+        Клик по ячейке дня — новая запись (форма справа). Имя специалиста — развернуть или свернуть список. Часовой
+        пояс: {BOOKING_TIME_ZONE}.
       </p>
     </div>
   );
