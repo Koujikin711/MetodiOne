@@ -637,9 +637,14 @@ async def ensure_multi_tenant_migration(conn: AsyncConnection, database_url: str
             await conn.execute(text("ALTER TABLE companies ADD COLUMN external_db_dsn TEXT"))
         cid = await conn.scalar(text("SELECT id FROM companies ORDER BY id LIMIT 1"))
         if cid is None:
+            ins_cols = ["name", "is_active", "created_at"]
+            ins_vals = ["'Default Company'", "1", "CURRENT_TIMESTAMP"]
+            if "billing_status" in company_cols:
+                ins_cols.append("billing_status")
+                ins_vals.append("'active'")
             await conn.execute(
                 text(
-                    "INSERT INTO companies(name, is_active, created_at) VALUES ('Default Company', 1, CURRENT_TIMESTAMP)",
+                    f"INSERT INTO companies({', '.join(ins_cols)}) VALUES ({', '.join(ins_vals)})",
                 )
             )
             cid = await conn.scalar(text("SELECT id FROM companies ORDER BY id LIMIT 1"))
@@ -1664,8 +1669,11 @@ async def ensure_service_catalog_tables(conn: AsyncConnection, database_url: str
 
 
 async def ensure_finance_osv_tables(conn: AsyncConnection, database_url: str) -> None:
-    sqlite = "sqlite" in database_url
-    pg = not sqlite
+    low = (database_url or "").lower()
+    sqlite = "sqlite" in low or "aiosqlite" in low
+    pg = "postgresql" in low or "postgres" in low
+    if not sqlite and not pg:
+        sqlite = True
     if sqlite:
         await conn.execute(
             text(

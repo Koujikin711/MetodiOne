@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
 import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
-import { BookingCalendarGrid } from "@/components/BookingCalendarGrid";
+import { BookingWeekSpecialistGrid } from "@/components/BookingWeekSpecialistGrid";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { PatientPhone } from "@/components/PatientPhone";
@@ -12,7 +12,7 @@ import { BookingSpecialistsFilter } from "@/components/BookingSpecialistsFilter"
 import { SpecialistModal, type SpecialistFormValues } from "@/components/SpecialistModal";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
-import { BOOKING_TIME_ZONE, datetimeLocalBookingToIsoUtc, ymdInBookingTz } from "@/lib/bookingTz";
+import { BOOKING_TIME_ZONE, addCalendarDaysInBookingTz, datetimeLocalBookingToIsoUtc, formatWeekRangeLabel, weekDayYmds, ymdInBookingTz } from "@/lib/bookingTz";
 import {
   allSpecialistsSelected,
   allTypesSelected,
@@ -24,6 +24,7 @@ import {
 } from "@/lib/bookingSpecialistFilter";
 import type {
   BookingAppointment,
+  BookingDirection,
   BookingPatientHistoryItem,
   BookingPatientSuggestItem,
   BookingSpecialist,
@@ -139,6 +140,8 @@ export function OnlineBookingPage() {
   const [serviceAmount, setServiceAmount] = useState("");
   const [paidAmount, setPaidAmount] = useState("");
   const [comment, setComment] = useState("");
+  const [seriesBookingEnabled, setSeriesBookingEnabled] = useState(false);
+  const [consecutiveDays, setConsecutiveDays] = useState(5);
   const [patientSuggestOpen, setPatientSuggestOpen] = useState(false);
   const [patientSuggestDebounced, setPatientSuggestDebounced] = useState("");
   const [patientFieldFocus, setPatientFieldFocus] = useState<"name" | "phone" | null>(null);
@@ -178,6 +181,11 @@ export function OnlineBookingPage() {
     queryFn: () => apiFetch<BookingSpecialist[]>("/api/booking/specialists"),
   });
 
+  const directionsQuery = useQuery({
+    queryKey: ["booking-directions-all"],
+    queryFn: () => apiFetch<BookingDirection[]>("/api/booking/directions"),
+  });
+
   const sourcesQuery = useQuery({
     queryKey: ["lead-sources"],
     queryFn: () => apiFetch<LeadSource[]>("/api/sources"),
@@ -197,6 +205,22 @@ export function OnlineBookingPage() {
     const s = list.find((x) => x.id === specialistId);
     return s?.direction_id ?? 0;
   }, [specialistsQuery.data, specialistId]);
+  const selectedSpecialistForForm = useMemo(() => {
+    const list = specialistsQuery.data?.filter((s) => s.is_active) ?? [];
+    return list.find((x) => x.id === specialistId);
+  }, [specialistsQuery.data, specialistId]);
+  const courseStreamsForForm = useMemo(() => {
+    if (!selectedSpecialistForForm) return false;
+    const dir = directionsQuery.data?.find((d) => d.id === selectedSpecialistForForm.direction_id);
+    if (dir?.course_streams_enabled) return true;
+    return Boolean(selectedSpecialistForForm.course_streams_enabled);
+  }, [selectedSpecialistForForm, directionsQuery.data]);
+  const seriesEndDateYmd = useMemo(() => {
+    if (!startAt || !seriesBookingEnabled || consecutiveDays < 2) return null;
+    const m = startAt.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (!m) return null;
+    return addCalendarDaysInBookingTz(m[1], consecutiveDays - 1);
+  }, [startAt, seriesBookingEnabled, consecutiveDays]);
   const kpiPriceHintQuery = useQuery({
     queryKey: ["sales-kpi-price-hint", pipelineForKpiPrice, specialistDirectionForKpi, startAtIsoForKpi],
     queryFn: () =>
@@ -223,11 +247,16 @@ export function OnlineBookingPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const gridWeekDays = useMemo(() => weekDayYmds(filterDate), [filterDate]);
+  const gridWeekStart = gridWeekDays[0];
+  const gridWeekEnd = gridWeekDays[6];
+
   const gridAppointmentsQuery = useQuery({
-    queryKey: ["booking-appointments-grid", filterDate],
+    queryKey: ["booking-appointments-grid", gridWeekStart, gridWeekEnd],
     queryFn: () => {
       const qs = new URLSearchParams();
-      qs.set("date", filterDate);
+      qs.set("date", gridWeekStart);
+      qs.set("date_to", gridWeekEnd);
       return apiFetch<BookingAppointment[]>(`/api/booking/appointments?${qs.toString()}`);
     },
     enabled: tab === "online",
@@ -264,6 +293,12 @@ export function OnlineBookingPage() {
     const t = window.setTimeout(() => setPatientSuggestDebounced(patientSuggestTerm), 220);
     return () => window.clearTimeout(t);
   }, [patientSuggestTerm]);
+
+  useEffect(() => {
+    if (!courseStreamsForForm) {
+      setSeriesBookingEnabled(false);
+    }
+  }, [courseStreamsForForm]);
 
   const patientSuggestQuery = useQuery({
     queryKey: ["booking-patient-suggest", patientSuggestDebounced],
@@ -369,12 +404,15 @@ export function OnlineBookingPage() {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    onSuccess: (created) => {
+    onSuccess: (created, variables) => {
+      const days = Math.max(1, Number(variables.consecutive_days ?? 1));
+      const seriesMsg =
+        days > 1 ? `Создано ${days} записей на ${days} дней подряд.` : "Запись создана.";
       if (created.whatsapp_confirmation_sent) {
-        toast.success("Запись создана. Клиенту отправлено подтверждение в WhatsApp.");
+        toast.success(`${seriesMsg} Клиенту отправлено подтверждение в WhatsApp.`);
       } else {
         toast.success(
-          "Запись создана. WhatsApp не отправлен — проверьте Green API, телефон лида и шаблон «confirm» в интеграции.",
+          `${seriesMsg} WhatsApp не отправлен — проверьте Green API, телефон лида и шаблон «confirm» в интеграции.`,
           { duration: 5500 },
         );
       }
@@ -386,6 +424,8 @@ export function OnlineBookingPage() {
       setServiceAmount("");
       setPaidAmount("");
       setLeadId(null);
+      setSeriesBookingEnabled(false);
+      setConsecutiveDays(5);
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
@@ -730,11 +770,12 @@ export function OnlineBookingPage() {
     }
   }
 
-  function handleSlotClick(payload: { specialistId: number; directionId: number; minuteOfDay: number }) {
+  function handleSlotClick(payload: { specialistId: number; directionId: number; dateYmd: string; minuteOfDay: number }) {
     setSpecialistId(payload.specialistId);
+    setFilterDate(payload.dateYmd);
     const hh = Math.floor(payload.minuteOfDay / 60);
     const mm = payload.minuteOfDay % 60;
-    setStartAt(`${filterDate}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
+    setStartAt(`${payload.dateYmd}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
     toast.success(`Слот ${hh}:${String(mm).padStart(2, "0")} — заполните форму справа`);
     window.setTimeout(() => {
       formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -822,6 +863,11 @@ export function OnlineBookingPage() {
     if (isManagerOrAdmin && resolvedPaidAmount > 0 && currentUserId) {
       payload.responsible_manager_id = currentUserId;
     }
+    if (seriesBookingEnabled && courseStreamsForForm) {
+      payload.consecutive_days = consecutiveDays;
+    } else {
+      payload.consecutive_days = 1;
+    }
     createMutation.mutate(payload);
   }
 
@@ -832,7 +878,7 @@ export function OnlineBookingPage() {
   );
 
   return (
-    <div className="mo-page relative max-w-[min(1920px,calc(100%-1rem))] space-y-3">
+    <div className="booking-page mo-page relative space-y-3">
       <header className="booking-page-header">
         <div className="booking-page-head">
           <div className="booking-page-brand">
@@ -870,17 +916,17 @@ export function OnlineBookingPage() {
               <button
                 type="button"
                 className="booking-page-date-nav-btn"
-                aria-label="Предыдущий день"
-                onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, -1))}
+                aria-label="Предыдущая неделя"
+                onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, -7))}
               >
                 ‹
               </button>
-              <span className="booking-page-date-label">{formatBookingToolbarDate(filterDate)}</span>
+              <span className="booking-page-date-label">{formatWeekRangeLabel(filterDate)}</span>
               <button
                 type="button"
                 className="booking-page-date-nav-btn"
-                aria-label="Следующий день"
-                onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, 1))}
+                aria-label="Следующая неделя"
+                onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, 7))}
               >
                 ›
               </button>
@@ -895,25 +941,19 @@ export function OnlineBookingPage() {
               filterActive={bookingFilterActive}
             />
           </div>
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_min(100%,280px)] xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">
+          <div className="booking-page-shell">
             <div className="min-w-0">
-              <BookingCalendarGrid
-                dateYmd={filterDate}
+              <BookingWeekSpecialistGrid
+                anchorDateYmd={filterDate}
                 specialists={specialistsForCalendarView}
                 appointments={gridAppointmentsQuery.data ?? []}
                 onAppointmentClick={onCalendarAppointmentClick}
                 onSlotClick={canEditBooking ? handleSlotClick : undefined}
-                onMoveAppointment={canEditBooking ? handleMoveAppointment : undefined}
                 onAddSpecialist={canEditBooking ? openAddSpecialistModal : undefined}
                 onEditSpecialist={canEditBooking ? openEditSpecialistModal : undefined}
                 onDeleteSpecialist={canEditBooking ? (s) => deleteSpecialistUserMutation.mutate(s.id) : undefined}
                 onReorderSpecialists={canEditBooking ? (orderedIds) => reorderSpecialistsMutation.mutate(orderedIds) : undefined}
                 showSessionInsteadOfTime={showSessionInsteadOfTime}
-                canEditNotes={canEditBooking}
-                onAppointmentNoteClick={canEditBooking ? onAppointmentNoteClick : undefined}
-                onOpenChat={onOpenChat}
-                canToggleComplete={canEditBooking}
-                onAppointmentCompleteToggle={canEditBooking ? onAppointmentCompleteToggle : undefined}
               />
               {gridAppointmentsQuery.isLoading && (
                 <p className="mt-3 text-sm lux-caption">Загрузка записей…</p>
@@ -1100,6 +1140,47 @@ export function OnlineBookingPage() {
                     className="mt-1 w-full mo-input"
                   />
                 </label>
+                {courseStreamsForForm ? (
+                  <div className="space-y-2 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface-soft)] p-3">
+                    <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--mo-text)]">
+                      <input
+                        type="checkbox"
+                        checked={seriesBookingEnabled}
+                        onChange={(e) => setSeriesBookingEnabled(e.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        Записать на несколько дней подряд
+                        <span className="mt-0.5 block text-xs mo-muted">
+                          Для курсов с потоками — одно время каждый календарный день
+                        </span>
+                      </span>
+                    </label>
+                    {seriesBookingEnabled ? (
+                      <label className="block text-sm mo-muted">
+                        Дней подряд
+                        <select
+                          value={consecutiveDays}
+                          onChange={(e) => setConsecutiveDays(Number(e.target.value))}
+                          className="mt-1 w-full mo-input"
+                        >
+                          {Array.from({ length: 15 }, (_, i) => i + 1).map((n) => (
+                            <option key={n} value={n}>
+                              {n} {n === 1 ? "день" : n < 5 ? "дня" : "дней"}
+                            </option>
+                          ))}
+                        </select>
+                        {seriesEndDateYmd && startAt ? (
+                          <p className="mt-1 text-xs text-[#0f4c3a]">
+                            Будет {consecutiveDays}{" "}
+                            {consecutiveDays === 1 ? "запись" : consecutiveDays < 5 ? "записи" : "записей"} с{" "}
+                            {startAt.slice(0, 10)} по {seriesEndDateYmd} в одно время
+                          </p>
+                        ) : null}
+                      </label>
+                    ) : null}
+                  </div>
+                ) : null}
                 <label className="block text-sm mo-muted">
                   Стоимость услуги
                   <input
@@ -1160,7 +1241,11 @@ export function OnlineBookingPage() {
                       disabled={createMutation.isPending}
                       className="btn-primary w-full py-3 disabled:opacity-50"
                     >
-                      {createMutation.isPending ? "Сохранение…" : "Записать"}
+                      {createMutation.isPending
+                        ? "Сохранение…"
+                        : seriesBookingEnabled && consecutiveDays > 1
+                          ? `Записать на ${consecutiveDays} дней`
+                          : "Записать"}
                     </button>
                   </form>
                 </section>

@@ -202,6 +202,12 @@ class BookingAppointmentCreate(BaseModel):
     responsible_manager_id: int | None = None
     extra_phones: list[str] = Field(default_factory=list, max_length=5)
     comment: str | None = Field(None, max_length=2000)
+    consecutive_days: int = Field(
+        1,
+        ge=1,
+        le=15,
+        description="Число календарных дней подряд (только для направлений с потоками)",
+    )
 
     @field_validator("extra_phones")
     @classmethod

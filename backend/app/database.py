@@ -28,6 +28,10 @@ def _effective_database_url() -> str:
     return "sqlite+aiosqlite:///./crm.db"
 
 
+def effective_database_url() -> str:
+    return _effective_database_url()
+
+
 def _engine_kwargs() -> dict:
     url = _effective_database_url()
     kw: dict = {"echo": False, "pool_pre_ping": True}

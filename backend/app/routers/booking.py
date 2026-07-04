@@ -57,6 +57,8 @@ from app.services.whatsapp_automation import send_booking_confirmation_if_needed
 
 router = APIRouter(prefix="/booking", tags=["booking"])
 
+MAX_BOOKINGS_PER_SPECIALIST_DAY = 15
+
 
 async def resolve_default_booking_direction_id(db: AsyncSession, company_id: int) -> int:
     """Первая активная строка booking_directions компании (внутренняя привязка специалиста без UI-справочника)."""
@@ -419,6 +421,77 @@ def _specialist_read(s: BookingSpecialist, direction_name: str | None) -> Bookin
         course_stream_min_day_for_next=int(getattr(s, "course_stream_min_day_for_next", 10) or 10),
         course_stream_gap_days=int(getattr(s, "course_stream_gap_days", 10) or 10),
     )
+
+
+def _course_streams_enabled_for_booking(specialist: BookingSpecialist, direction: BookingDirection) -> bool:
+    if bool(getattr(direction, "course_streams_enabled", False)):
+        return True
+    return bool(getattr(specialist, "course_streams_enabled", False))
+
+
+def _date_ymd_in_booking_tz(dt: datetime) -> str:
+    tz = ZoneInfo(settings.booking_timezone)
+    return dt.astimezone(tz).strftime("%Y-%m-%d")
+
+
+def _add_booking_calendar_days(start_at: datetime, days: int) -> datetime:
+    tz = ZoneInfo(settings.booking_timezone)
+    local = start_at.astimezone(tz)
+    return (local + timedelta(days=days)).astimezone(UTC)
+
+
+async def _count_booked_appointments_on_day(
+    db: AsyncSession,
+    specialist_id: int,
+    date_ymd: str,
+) -> int:
+    day_start, day_end = _day_bounds_utc_for_booking_tz(date_ymd)
+    r = await db.execute(
+        select(func.count())
+        .select_from(BookingAppointment)
+        .where(
+            BookingAppointment.specialist_id == specialist_id,
+            BookingAppointment.status == "booked",
+            BookingAppointment.start_at >= day_start,
+            BookingAppointment.start_at < day_end,
+        ),
+    )
+    return int(r.scalar_one())
+
+
+async def _assert_slot_available(
+    db: AsyncSession,
+    specialist: BookingSpecialist,
+    specialist_id: int,
+    start_at: datetime,
+    duration_min: int,
+) -> None:
+    _assert_slot_in_specialist_schedule(specialist, start_at)
+    end_at = start_at + timedelta(minutes=duration_min)
+    overlap = await db.execute(
+        select(BookingAppointment.id)
+        .where(
+            BookingAppointment.specialist_id == specialist_id,
+            BookingAppointment.status == "booked",
+            BookingAppointment.end_at > start_at,
+            BookingAppointment.start_at < end_at,
+        )
+        .limit(1),
+    )
+    if overlap.scalar_one_or_none() is not None:
+        date_ymd = _date_ymd_in_booking_tz(start_at)
+        local = start_at.astimezone(ZoneInfo(settings.booking_timezone))
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Слот занят: {date_ymd} {local.strftime('%H:%M')}",
+        )
+    day_ymd = _date_ymd_in_booking_tz(start_at)
+    booked_count = await _count_booked_appointments_on_day(db, specialist_id, day_ymd)
+    if booked_count >= MAX_BOOKINGS_PER_SPECIALIST_DAY:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Лимит записей на день ({MAX_BOOKINGS_PER_SPECIALIST_DAY}): {day_ymd}",
+        )
 
 
 def _assert_slot_in_specialist_schedule(s: BookingSpecialist, start_at: datetime) -> None:
@@ -1021,6 +1094,7 @@ async def list_appointments(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
     date: str | None = None,
+    date_to: str | None = None,
     specialist_id: int | None = None,
     lead_id: int | None = None,
 ) -> list[BookingAppointmentRead]:
@@ -1039,7 +1113,11 @@ async def list_appointments(
         q = q.where(BookingAppointment.lead_id == lead_id)
     if date:
         try:
-            day_start, day_end = _day_bounds_utc_for_booking_tz(date)
+            day_start, _ = _day_bounds_utc_for_booking_tz(date)
+            if date_to:
+                _, day_end = _day_bounds_utc_for_booking_tz(date_to)
+            else:
+                _, day_end = _day_bounds_utc_for_booking_tz(date)
         except ValueError:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверная дата")
         q = q.where(BookingAppointment.start_at >= day_start, BookingAppointment.start_at < day_end)
@@ -1386,22 +1464,17 @@ async def create_appointment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
 
     start_at = _from_payload_to_utc(body.start_at)
-    _assert_slot_in_specialist_schedule(specialist, start_at)
     duration_min = _appointment_duration_minutes(specialist, direction)
-    end_at = start_at + timedelta(minutes=duration_min)
-
-    overlap = await db.execute(
-        select(BookingAppointment.id)
-        .where(
-            BookingAppointment.specialist_id == body.specialist_id,
-            BookingAppointment.status == "booked",
-            BookingAppointment.end_at > start_at,
-            BookingAppointment.start_at < end_at,
-        )
-        .limit(1),
-    )
-    if overlap.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже занят")
+    consecutive_days = int(body.consecutive_days or 1)
+    if consecutive_days > 1:
+        if not _course_streams_enabled_for_booking(specialist, direction):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Запись на несколько дней подряд доступна только для направлений с потоками",
+            )
+    start_times = [_add_booking_calendar_days(start_at, offset) for offset in range(consecutive_days)]
+    for slot_start in start_times:
+        await _assert_slot_available(db, specialist, body.specialist_id, slot_start, duration_min)
     if (
         current_user.role in (UserRole.manager, UserRole.admin)
         and float(body.paid_amount or 0) > 0
@@ -1475,41 +1548,65 @@ async def create_appointment(
         lead_for_phone = await db.get(Lead, lead_id)
         if lead_for_phone is not None and (lead_for_phone.phone or "").strip():
             stored_phone = (lead_for_phone.phone or "").strip()
-    appt = BookingAppointment(
-        company_id=company_id,
-        lead_id=lead_id,
-        pipeline_id=appointment_pipeline_id,
-        patient_name=body.patient_name.strip(),
-        patient_phone=stored_phone,
-        direction_id=resolved_direction_id,
-        specialist_id=body.specialist_id,
-        start_at=start_at,
-        end_at=end_at,
-        status="booked",
-        service_amount=service_amount_value,
-        paid_amount=body.paid_amount,
-        responsible_manager_id=resolved_manager_id,
-        created_by_user_id=current_user.id,
-        comment=(body.comment or "").strip() or None,
-        service_title=service_title,
-        created_at=now,
-        updated_at=now,
-    )
-    db.add(appt)
-    await db.flush()
-    await write_audit_event(
-        db,
-        entity_type="booking_appointment",
-        entity_id=appt.id,
-        action="appointment_created",
-        current_user=current_user,
-        details=f"lead_id={appt.lead_id}, specialist_id={appt.specialist_id}, start_at={appt.start_at.isoformat()}",
-    )
+
+    created_appts: list[BookingAppointment] = []
+    wa_sent = False
+    for idx, slot_start in enumerate(start_times):
+        slot_end = slot_start + timedelta(minutes=duration_min)
+        slot_service_amount = float(body.service_amount)
+        if appointment_pipeline_id is not None:
+            fixed_price = await get_kpi_service_price(
+                db,
+                company_id=company_id,
+                pipeline_id=int(appointment_pipeline_id),
+                direction_id=resolved_direction_id,
+                at_datetime=slot_start,
+            )
+            if fixed_price is not None:
+                slot_service_amount = float(fixed_price)
+        slot_paid = float(body.paid_amount) if idx == 0 else 0.0
+        appt = BookingAppointment(
+            company_id=company_id,
+            lead_id=lead_id,
+            pipeline_id=appointment_pipeline_id,
+            patient_name=body.patient_name.strip(),
+            patient_phone=stored_phone,
+            direction_id=resolved_direction_id,
+            specialist_id=body.specialist_id,
+            start_at=slot_start,
+            end_at=slot_end,
+            status="booked",
+            service_amount=slot_service_amount,
+            paid_amount=slot_paid,
+            responsible_manager_id=resolved_manager_id,
+            created_by_user_id=current_user.id,
+            comment=((body.comment or "").strip() or None) if idx == 0 else None,
+            service_title=service_title,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(appt)
+        await db.flush()
+        await write_audit_event(
+            db,
+            entity_type="booking_appointment",
+            entity_id=appt.id,
+            action="appointment_created",
+            current_user=current_user,
+            details=(
+                f"lead_id={appt.lead_id}, specialist_id={appt.specialist_id}, "
+                f"start_at={appt.start_at.isoformat()}, series={idx + 1}/{consecutive_days}"
+            ),
+        )
+        created_appts.append(appt)
 
     if lead_id is not None:
         await _sync_lead_to_stage_name(db, lead_id, settings.booking_stage_after_book)
 
-    wa_sent = await send_booking_confirmation_if_needed(db, appointment=appt)
+    if created_appts:
+        wa_sent = await send_booking_confirmation_if_needed(db, appointment=created_appts[0])
+
+    appt = created_appts[0]
     await db.refresh(appt)
 
     dname = direction.name

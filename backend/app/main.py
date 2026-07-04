@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.database import AsyncSessionLocal, engine
+from app.database import AsyncSessionLocal, effective_database_url, engine
 from app.database_migrate import (
     ensure_attendance_tracker_tables,
     ensure_booking_specialist_columns,
@@ -107,19 +107,20 @@ async def _run_startup_migrations_with_retry() -> None:
     for attempt in range(1, max_attempts + 1):
         try:
             async with engine.begin() as conn:
+                db_url = effective_database_url()
                 await conn.run_sync(Base.metadata.create_all)
-                await ensure_booking_specialist_columns(conn, settings.database_url)
-                await ensure_multi_tenant_migration(conn, settings.database_url)
-                await ensure_finance_osv_tables(conn, settings.database_url)
-                await ensure_sales_kpi_plans(conn, settings.database_url)
-                await ensure_chat_performance_indexes(conn, settings.database_url)
-                await ensure_attendance_tracker_tables(conn, settings.database_url)
-                await ensure_super_owner_platform(conn, settings.database_url)
-                await ensure_tariff_plans_platform(conn, settings.database_url)
-                await ensure_demo_billing_platform(conn, settings.database_url)
-                await ensure_tariff_constructor_billing(conn, settings.database_url)
-                await ensure_service_catalog_tables(conn, settings.database_url)
-                await ensure_lead_extra_phones_tables(conn, settings.database_url)
+                await ensure_booking_specialist_columns(conn, db_url)
+                await ensure_multi_tenant_migration(conn, db_url)
+                await ensure_finance_osv_tables(conn, db_url)
+                await ensure_sales_kpi_plans(conn, db_url)
+                await ensure_chat_performance_indexes(conn, db_url)
+                await ensure_attendance_tracker_tables(conn, db_url)
+                await ensure_super_owner_platform(conn, db_url)
+                await ensure_tariff_plans_platform(conn, db_url)
+                await ensure_demo_billing_platform(conn, db_url)
+                await ensure_tariff_constructor_billing(conn, db_url)
+                await ensure_service_catalog_tables(conn, db_url)
+                await ensure_lead_extra_phones_tables(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts

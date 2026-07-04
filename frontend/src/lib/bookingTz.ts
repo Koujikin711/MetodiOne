@@ -48,6 +48,54 @@ export function weekdayMon0InBookingTz(dateYmd: string): number {
   return map[w ?? "Mon"] ?? 0;
 }
 
+/** YYYY-MM-DD понедельника недели, в которую попадает anchorYmd (Пн=0 … Вс=6). */
+export function weekMondayYmd(anchorYmd: string): string {
+  const wd = weekdayMon0InBookingTz(anchorYmd);
+  const ms = zonedWallTimeToUtcMs(anchorYmd, 12, 0);
+  return ymdInBookingTz(ms - wd * 24 * 60 * 60 * 1000);
+}
+
+/** Пн … Вс (7 дней) от недели anchorYmd. */
+export function weekDayYmds(anchorYmd: string): string[] {
+  const mon = weekMondayYmd(anchorYmd);
+  const [y, m, d] = mon.split("-").map(Number);
+  const base = new Date(y, m - 1, d);
+  return Array.from({ length: 7 }, (_, i) => {
+    const dt = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+    const yy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, "0");
+    const dd = String(dt.getDate()).padStart(2, "0");
+    return `${yy}-${mm}-${dd}`;
+  });
+}
+
+const weekdayRuFormatter = new Intl.DateTimeFormat("ru-RU", {
+  timeZone: BOOKING_TIME_ZONE,
+  weekday: "short",
+});
+
+export function formatWeekdayHeader(dateYmd: string): { weekday: string; dayMonth: string } {
+  const ms = zonedWallTimeToUtcMs(dateYmd, 12, 0);
+  const weekday = weekdayRuFormatter.format(new Date(ms));
+  const p = partsAtUtcMs(ms);
+  return { weekday, dayMonth: `${p.d}.${String(p.m).padStart(2, "0")}` };
+}
+
+export function formatWeekRangeLabel(anchorYmd: string): string {
+  const days = weekDayYmds(anchorYmd);
+  const first = days[0];
+  const last = days[6];
+  const [y1, m1, d1] = first.split("-").map(Number);
+  const [y2, m2, d2] = last.split("-").map(Number);
+  const mon = new Date(y1, m1 - 1, d1).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  const sun = new Date(y2, m2 - 1, d2).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: y1 !== y2 ? "numeric" : undefined,
+  });
+  return `${mon} — ${sun}`;
+}
+
 /**
  * UTC timestamp для «стеночных» часов dateYmd + hour:minute в TZ записи.
  */
@@ -111,6 +159,12 @@ function isGregorianLeapYear(y: number): boolean {
 function daysInGregorianMonth(year: number, month1to12: number): number {
   if (month1to12 === 2) return isGregorianLeapYear(year) ? 29 : 28;
   return [31, 0, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month1to12 - 1];
+}
+
+/** Сдвиг календарной даты YYYY-MM-DD в TZ записи на deltaDays дней. */
+export function addCalendarDaysInBookingTz(dateYmd: string, deltaDays: number): string {
+  const ms = zonedWallTimeToUtcMs(dateYmd, 12, 0);
+  return ymdInBookingTz(ms + deltaDays * 24 * 60 * 60 * 1000);
 }
 
 /**
