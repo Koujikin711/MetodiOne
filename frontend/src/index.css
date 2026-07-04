@@ -897,6 +897,24 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 .booking-appt-note-btn.is-empty:hover {
   opacity: 0.85;
 }
+.booking-appt-attendance.is-done {
+  color: #16a34a;
+  line-height: 0;
+}
+.booking-appt-attendance.is-pending {
+  opacity: 0.55;
+  line-height: 0;
+}
+.booking-appt-attendance.is-pending:hover {
+  opacity: 0.9;
+}
+.booking-appt-visit {
+  color: inherit;
+  letter-spacing: 0.02em;
+}
+.booking-appt-head {
+  align-items: center;
+}
 .booking-appt-done-badge {
   color: #16a34a;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));

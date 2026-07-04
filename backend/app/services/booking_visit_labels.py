@@ -1,7 +1,8 @@
 """Номера визитов и потоки курсов (формат поток:день, например 1:10).
 
 День в потоке — порядковый номер сеанса (1, 2, 3…), а не календарный день с начала курса.
-В расчёт входят только записи со статусом completed и booked; no_show и cancelled не считаются.
+В цепочку засчитываются только записи со статусом completed (клиент получил услугу).
+Записи booked получают плановый номер; no_show и cancelled не увеличивают счётчик.
 """
 
 from __future__ import annotations
@@ -124,6 +125,42 @@ def course_stream_settings_from_direction(d: BookingDirection) -> CourseStreamSe
     )
 
 
+def _labels_for_appointment_chain(
+    appointments: list[tuple[int, datetime]],
+    *,
+    enabled: bool,
+    cfg: CourseStreamSettings,
+) -> dict[int, VisitLabelInfo]:
+    if not appointments:
+        return {}
+    if enabled:
+        return compute_course_stream_labels(appointments, cfg)
+    return compute_simple_visit_numbers(appointments)
+
+
+def _labels_for_client_group(
+    completed: list[tuple[int, datetime]],
+    booked: list[tuple[int, datetime]],
+    *,
+    enabled: bool,
+    cfg: CourseStreamSettings,
+) -> dict[int, VisitLabelInfo]:
+    """completed — фактические визиты; booked — плановые номера после цепочки completed."""
+    out: dict[int, VisitLabelInfo] = {}
+    completed_sorted = sorted(completed, key=lambda x: (x[1], x[0]))
+    booked_sorted = sorted(booked, key=lambda x: (x[1], x[0]))
+    if completed_sorted:
+        out.update(_labels_for_appointment_chain(completed_sorted, enabled=enabled, cfg=cfg))
+    for bid, bstart in booked_sorted:
+        prior_completed = [(aid, at) for aid, at in completed_sorted if at < bstart]
+        prior_booked = [(aid, at) for aid, at in booked_sorted if at < bstart or (at == bstart and aid < bid)]
+        chain_with = prior_completed + prior_booked + [(bid, bstart)]
+        labeled = _labels_for_appointment_chain(chain_with, enabled=enabled, cfg=cfg)
+        if bid in labeled:
+            out[bid] = labeled[bid]
+    return out
+
+
 async def visit_labels_for_ids(
     db: AsyncSession,
     *,
@@ -183,9 +220,10 @@ async def visit_labels_for_ids(
         )
     ).all()
 
-    groups: dict[tuple[str, int], list[tuple[int, datetime]]] = defaultdict(list)
+    completed_groups: dict[tuple[str, int], list[tuple[int, datetime]]] = defaultdict(list)
+    booked_groups: dict[tuple[str, int], list[tuple[int, datetime]]] = defaultdict(list)
     group_meta: dict[tuple[str, int], tuple[bool, CourseStreamSettings]] = {}
-    for aid, sid, did, phone, start, _status in rows:
+    for aid, sid, did, phone, start, status in rows:
         did_int = int(did) if did is not None else None
         d_cfg = dir_cfg.get(did_int, CourseStreamSettings()) if did_int else CourseStreamSettings()
         s_cfg = spec_cfg.get(int(sid), CourseStreamSettings())
@@ -198,18 +236,22 @@ async def visit_labels_for_ids(
             direction_id=did_int,
             use_direction=use_dir,
         )
-        groups[key].append((int(aid), start))
         group_meta[key] = (bool(cfg.enabled), cfg)
+        entry = (int(aid), start)
+        if status == "completed":
+            completed_groups[key].append(entry)
+        else:
+            booked_groups[key].append(entry)
 
     visit_map: dict[int, VisitLabelInfo] = {}
-    for key, appts in groups.items():
-        if not appts:
-            continue
+    for key in set(completed_groups) | set(booked_groups):
         enabled, cfg = group_meta.get(key, (False, CourseStreamSettings()))
-        if enabled:
-            labeled = compute_course_stream_labels(appts, cfg)
-        else:
-            labeled = compute_simple_visit_numbers(appts)
+        labeled = _labels_for_client_group(
+            completed_groups.get(key, []),
+            booked_groups.get(key, []),
+            enabled=enabled,
+            cfg=cfg,
+        )
         visit_map.update(labeled)
 
     default = VisitLabelInfo(visit_number=1, visit_label="1")

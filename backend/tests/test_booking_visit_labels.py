@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
-from app.services.booking_visit_labels import CourseStreamSettings, compute_course_stream_labels
+from app.services.booking_visit_labels import (
+    CourseStreamSettings,
+    _labels_for_client_group,
+    compute_course_stream_labels,
+)
 
 
 def _dt(days: int, hour: int = 10) -> datetime:
@@ -41,3 +45,13 @@ def test_gap_after_min_day_starts_new_stream():
     assert out[1].visit_label == "1:1"
     assert out[2].visit_label == "1:2"
     assert out[3].visit_label == "2:1"
+
+
+def test_no_show_does_not_advance_stream_only_completed_count():
+    cfg = CourseStreamSettings(enabled=True, max_days=15, min_day_for_next=10, gap_days=10)
+    completed = [(1, _dt(0)), (3, _dt(5))]
+    booked = [(2, _dt(2))]
+    out = _labels_for_client_group(completed, booked, enabled=True, cfg=cfg)
+    assert out[1].visit_label == "1:1"
+    assert out[3].visit_label == "1:2"
+    assert out[2].visit_label == "1:2"

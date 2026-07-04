@@ -24,7 +24,7 @@ import {
   type SetStateAction,
 } from "react";
 
-import { CheckCircle2, FileText, GripVertical, MessageCircle, MoreHorizontal, Pencil, Phone, Plus, Trash2 } from "@/components/icons";
+import { CheckCircle2, CheckSquare, FileText, GripVertical, MessageCircle, MoreHorizontal, Pencil, Phone, Plus, Trash2 } from "@/components/icons";
 import {
   BOOKING_TIME_ZONE,
   formatAppointmentTimeOnCard,
@@ -473,11 +473,14 @@ function SortableSpecialistColumn({
           const serviceLine = (a.service_title || "").trim();
           const phoneDigits = (a.patient_phone || "").replace(/\D+/g, "");
           const isCompleted = a.status === "completed";
+          const visitLabel = visitDisplayValue(a);
+          const showVisitCounter = Boolean(visitLabel) && a.status !== "no_show" && a.status !== "cancelled";
           const timeLabel = showSessionInsteadOfTime
-            ? (visitDisplayValue(a) ?? "—")
+            ? null
             : formatAppointmentTimeOnCard(a.start_at, a.end_at, narrow);
           const cardTitle = [
             a.patient_name,
+            showVisitCounter ? visitLabel : null,
             timeLabel,
             serviceLine ? `Услуга: ${serviceLine}` : null,
             note ? `Заметка: ${note}` : null,
@@ -533,29 +536,9 @@ function SortableSpecialistColumn({
                 ].join(" ")}
                 title={cardTitle}
               >
-                {isCompleted ? (
-                  canToggleComplete ? (
-                    <button
-                      type="button"
-                      className="booking-appt-done-badge absolute -right-0.5 -top-0.5 z-10 rounded-full"
-                      title="Снять отметку «завершён»"
-                      aria-label="Снять отметку завершён"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onAppointmentCompleteToggle?.(a, false);
-                      }}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                    </button>
-                  ) : (
-                    <span className="booking-appt-done-badge pointer-events-none absolute -right-0.5 -top-0.5 z-10">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                    </span>
-                  )
-                ) : null}
-                <div className="flex min-h-0 items-center gap-0.5 pr-2">
+                <div className="booking-appt-head flex min-h-0 items-center gap-0.5">
                   <span className="line-clamp-1 min-w-0 flex-1 text-[11px] font-bold leading-tight">{a.patient_name}</span>
-                  {canEditNotes || note ? (
+                  {canEditNotes ? (
                     <button
                       type="button"
                       className={[
@@ -566,20 +549,58 @@ function SortableSpecialistColumn({
                       aria-label={note ? "Редактировать заметку" : "Добавить заметку"}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (canEditNotes && onAppointmentNoteClick) onAppointmentNoteClick(a);
+                        if (onAppointmentNoteClick) onAppointmentNoteClick(a);
                       }}
                     >
                       <FileText className="h-3 w-3" />
                     </button>
+                  ) : note ? (
+                    <span className="booking-appt-note-btn is-filled shrink-0 rounded p-0.5" title={note} aria-hidden>
+                      <FileText className="h-3 w-3" />
+                    </span>
+                  ) : null}
+                  {canToggleComplete && a.status !== "cancelled" ? (
+                    <button
+                      type="button"
+                      className={[
+                        "booking-appt-attendance shrink-0 rounded p-0.5 transition hover:bg-black/10",
+                        isCompleted ? "is-done" : "is-pending",
+                      ].join(" ")}
+                      title={isCompleted ? "Снять отметку «явился»" : "Отметить явку (услуга оказана)"}
+                      aria-label={isCompleted ? "Снять отметку явки" : "Отметить явку"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAppointmentCompleteToggle?.(a, !isCompleted);
+                      }}
+                    >
+                      {isCompleted ? (
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      ) : (
+                        <CheckSquare className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  ) : isCompleted ? (
+                    <span className="booking-appt-attendance is-done shrink-0 rounded p-0.5" aria-hidden>
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    </span>
                   ) : null}
                 </div>
-                <div className="mt-0.5 flex items-end justify-between gap-0.5">
-                  <span
-                    className="text-[10px] font-semibold tabular-nums leading-none"
-                    title={showSessionInsteadOfTime ? visitDisplayTitle(a) : formatAppointmentTimeOnCard(a.start_at, a.end_at, false)}
-                  >
-                    {timeLabel}
-                  </span>
+                <div className="booking-appt-meta-row mt-0.5 flex min-h-0 items-end justify-between gap-0.5">
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    {showVisitCounter ? (
+                      <span
+                        className="booking-appt-visit text-[10px] font-bold tabular-nums leading-none"
+                        title={visitDisplayTitle(a)}
+                      >
+                        {visitLabel}
+                      </span>
+                    ) : null}
+                    {timeLabel ? (
+                      <span className="text-[10px] font-semibold tabular-nums leading-none">{timeLabel}</span>
+                    ) : showSessionInsteadOfTime && !showVisitCounter ? (
+                      <span className="text-[10px] font-semibold tabular-nums leading-none">—</span>
+                    ) : null}
+                  </div>
                   <div className="flex shrink-0 items-center gap-0.5">
                     {phoneDigits.length >= 7 ? (
                       <a
