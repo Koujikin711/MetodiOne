@@ -1552,7 +1552,7 @@ export function OnlineBookingPage() {
                 <span>{formatDt(apptDetail.start_at)}</span>
                 {(apptDetail.service_title || "").trim() ? (
                   <span className="booking-appt-detail-modal__service">
-                    {(apptDetail.service_title || "").trim()}
+                    Услуга: {(apptDetail.service_title || "").trim()}
                   </span>
                 ) : null}
               </div>
