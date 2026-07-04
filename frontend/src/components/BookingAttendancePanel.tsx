@@ -18,7 +18,7 @@ function XCircleIcon({ className }: { className?: string }) {
       strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={className ?? "h-5 w-5"}
+      className={className ?? "h-4 w-4"}
       aria-hidden
     >
       <circle cx="12" cy="12" r="10" />
@@ -36,8 +36,6 @@ export function BookingAttendancePanel({ status, disabled, onStatusChange }: Pro
 
   return (
     <div className="booking-attendance-panel">
-      <p className="booking-attendance-panel__label">Явка клиента</p>
-      <p className="booking-attendance-panel__hint">Отметьте, пришёл ли клиент на приём</p>
       <div className="booking-attendance-panel__actions" role="group" aria-label="Явка клиента">
         <button
           type="button"
@@ -53,9 +51,9 @@ export function BookingAttendancePanel({ status, disabled, onStatusChange }: Pro
           onClick={() => onStatusChange("completed")}
         >
           <span className="booking-attendance-choice__icon" aria-hidden>
-            {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : <Check className="h-5 w-5" />}
+            {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <Check className="h-4 w-4" />}
           </span>
-          <span className="booking-attendance-choice__text">Клиент пришёл</span>
+          <span className="booking-attendance-choice__text">Пришёл</span>
         </button>
         <button
           type="button"
@@ -71,7 +69,7 @@ export function BookingAttendancePanel({ status, disabled, onStatusChange }: Pro
           onClick={() => onStatusChange("no_show")}
         >
           <span className="booking-attendance-choice__icon" aria-hidden>
-            <XCircleIcon className="h-5 w-5" />
+            <XCircleIcon />
           </span>
           <span className="booking-attendance-choice__text">Не явился</span>
         </button>
@@ -83,7 +81,7 @@ export function BookingAttendancePanel({ status, disabled, onStatusChange }: Pro
           className="booking-attendance-reset"
           onClick={() => onStatusChange("booked")}
         >
-          Сбросить отметку
+          Сбросить
         </button>
       )}
     </div>

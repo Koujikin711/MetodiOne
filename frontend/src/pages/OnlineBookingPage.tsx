@@ -1536,31 +1536,25 @@ export function OnlineBookingPage() {
 
       {apptDetail ? (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--mo-text)]/40 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--mo-text)]/40 p-3 backdrop-blur-[2px]"
           role="dialog"
           aria-modal="true"
           aria-labelledby="booking-appt-detail-title"
           onClick={() => setApptDetail(null)}
         >
           <div className="booking-appt-detail-modal mo-card" onClick={(e) => e.stopPropagation()}>
-            <header className="booking-appt-detail-modal__head">
-              <h2 id="booking-appt-detail-title" className="booking-appt-detail-modal__title">
-                Запись клиента
-              </h2>
-            </header>
             <div className="booking-appt-detail-modal__body">
-              <div>
-                <p className="booking-appt-detail-modal__name">{apptDetail.patient_name}</p>
-                <div className="booking-appt-detail-modal__meta mt-2">
-                  <p>{formatDt(apptDetail.start_at)}</p>
-                  {(apptDetail.service_title || "").trim() ? (
-                    <p className="mt-2">
-                      <span className="booking-appt-detail-modal__service">
-                        Услуга: {(apptDetail.service_title || "").trim()}
-                      </span>
-                    </p>
-                  ) : null}
-                </div>
+              <p id="booking-appt-detail-title" className="booking-appt-detail-modal__eyebrow">
+                Запись клиента
+              </p>
+              <p className="booking-appt-detail-modal__name">{apptDetail.patient_name}</p>
+              <div className="booking-appt-detail-modal__meta-row">
+                <span>{formatDt(apptDetail.start_at)}</span>
+                {(apptDetail.service_title || "").trim() ? (
+                  <span className="booking-appt-detail-modal__service">
+                    {(apptDetail.service_title || "").trim()}
+                  </span>
+                ) : null}
               </div>
               {canEditBooking ? (
                 <BookingAttendancePanel
@@ -1574,7 +1568,7 @@ export function OnlineBookingPage() {
               {apptDetail.lead_id != null ? (
                 <button
                   type="button"
-                  className="btn-secondary text-sm"
+                  className="btn-secondary px-3 py-1.5 text-xs"
                   onClick={() => {
                     setApptDetail(null);
                     navigate(`/leads/${apptDetail.lead_id}?appointment=${apptDetail.id}`);
@@ -1583,7 +1577,7 @@ export function OnlineBookingPage() {
                   Карточка в CRM
                 </button>
               ) : null}
-              <button type="button" className="btn-primary text-sm" onClick={() => setApptDetail(null)}>
+              <button type="button" className="btn-primary px-3 py-1.5 text-xs" onClick={() => setApptDetail(null)}>
                 Закрыть
               </button>
             </footer>

@@ -1287,82 +1287,66 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 
 /* Модалка записи — явка клиента */
 .booking-appt-detail-modal {
-  @apply w-full max-w-md overflow-hidden p-0 shadow-xl;
+  @apply w-full max-w-sm overflow-hidden p-0 shadow-xl;
   border: 1px solid var(--mo-border-strong);
+  border-radius: 14px;
 }
 
-.booking-appt-detail-modal__head {
-  @apply border-b px-5 py-4;
-  border-color: var(--mo-border);
-  background: linear-gradient(180deg, var(--mo-surface-elevated) 0%, var(--mo-surface) 100%);
-}
-
-.booking-appt-detail-modal__title {
-  @apply text-base font-semibold tracking-tight;
-  color: var(--mo-text);
+.booking-appt-detail-modal__eyebrow {
+  @apply text-[11px] font-semibold uppercase tracking-wide;
+  color: var(--mo-text-muted);
 }
 
 .booking-appt-detail-modal__body {
-  @apply space-y-4 px-5 py-4;
+  @apply space-y-2.5 px-4 py-3.5;
 }
 
 .booking-appt-detail-modal__name {
-  @apply text-lg font-semibold leading-snug;
+  @apply text-base font-semibold leading-tight;
   color: var(--mo-text);
 }
 
-.booking-appt-detail-modal__meta {
-  @apply space-y-1 text-sm;
+.booking-appt-detail-modal__meta-row {
+  @apply flex flex-wrap items-center gap-1.5 text-xs;
   color: var(--mo-text-muted);
 }
 
 .booking-appt-detail-modal__service {
-  @apply inline-flex rounded-lg px-2.5 py-1 text-xs font-medium;
+  @apply inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-medium;
   background: var(--mo-accent-soft);
   color: var(--mo-accent-hover);
 }
 
 .booking-appt-detail-modal__foot {
-  @apply flex flex-wrap justify-end gap-2 border-t px-5 py-4;
+  @apply flex flex-wrap justify-end gap-2 border-t px-4 py-2.5;
   border-color: var(--mo-border);
   background: var(--mo-surface);
 }
 
 .booking-attendance-panel {
-  @apply rounded-2xl border p-4;
+  @apply rounded-xl border px-2.5 py-2;
   border-color: var(--mo-border);
   background: var(--mo-surface-elevated);
 }
 
-.booking-attendance-panel__label {
-  @apply text-xs font-bold uppercase tracking-wide;
-  color: var(--mo-text-muted);
-}
-
-.booking-attendance-panel__hint {
-  @apply mt-1 text-xs;
-  color: var(--mo-text-muted);
-}
-
 .booking-attendance-panel__actions {
-  @apply mt-3 grid gap-2 sm:grid-cols-2;
+  @apply grid grid-cols-2 gap-1.5;
 }
 
 .booking-attendance-choice {
-  @apply flex min-h-[52px] cursor-pointer items-center gap-3 rounded-xl border-2 px-3 py-2.5 text-left text-sm font-semibold transition;
+  @apply flex min-h-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-left text-xs font-semibold transition;
   border-color: var(--mo-border-strong);
   background: var(--mo-surface);
   color: var(--mo-text);
-  box-shadow: var(--mo-shadow-luxury);
 }
 
 .booking-attendance-choice:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+  border-color: var(--mo-border-strong);
+  background: var(--mo-accent-soft);
 }
 
 .booking-attendance-choice:active:not(:disabled) {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
 
 .booking-attendance-choice:disabled {
@@ -1370,9 +1354,13 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-attendance-choice__icon {
-  @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-full;
+  @apply flex h-6 w-6 shrink-0 items-center justify-center rounded-full;
   background: rgba(148, 163, 184, 0.14);
   color: var(--mo-text-muted);
+}
+
+.booking-attendance-choice__text {
+  @apply leading-none;
 }
 
 .booking-attendance-choice--arrived:hover:not(:disabled),
@@ -1408,16 +1396,15 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-attendance-reset {
-  @apply mt-3 w-full rounded-lg border px-3 py-2 text-xs font-medium transition;
-  border-color: var(--mo-border);
+  @apply mt-1.5 w-full rounded-md px-2 py-1 text-[11px] font-medium transition;
+  border: none;
   color: var(--mo-text-muted);
   background: transparent;
 }
 
 .booking-attendance-reset:hover:not(:disabled) {
-  border-color: var(--mo-border-strong);
   color: var(--mo-text);
-  background: var(--mo-surface);
+  background: var(--mo-accent-soft);
 }
 
 .mo-text { color: var(--mo-text); }
