@@ -913,10 +913,10 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   letter-spacing: 0.02em;
 }
 .booking-appt-head {
-  align-items: flex-start;
+  align-items: center;
 }
-.booking-appt-note-stack {
-  min-width: 1.125rem;
+.booking-appt-foot {
+  min-height: 0.75rem;
 }
 .booking-appt-note-tooltip {
   white-space: pre-wrap;
