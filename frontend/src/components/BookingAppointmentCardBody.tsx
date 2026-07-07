@@ -1,4 +1,4 @@
-import { CheckCircle2, CheckSquare, FileText } from "@/components/icons";
+import { FileText } from "@/components/icons";
 import { visitDisplayTitle, visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import type { BookingAppointment } from "@/lib/types";
 
@@ -20,7 +20,6 @@ export function BookingAppointmentCardBody({
   onCompleteToggle,
 }: Props) {
   const note = (a.comment || "").trim();
-  const isCompleted = a.status === "completed";
   const visitLabel = visitDisplayValue(a);
   const showVisitCounter =
     Boolean(visitLabel) && a.status !== "no_show" && a.status !== "cancelled";
@@ -71,27 +70,6 @@ export function BookingAppointmentCardBody({
               </div>
             )}
           </div>
-        ) : null}
-        {canToggleComplete && a.status !== "cancelled" ? (
-          <button
-            type="button"
-            className={[
-              "booking-appt-attendance shrink-0 rounded p-0.5 transition hover:bg-black/10",
-              isCompleted ? "is-done" : "is-pending",
-            ].join(" ")}
-            title={isCompleted ? "Снять отметку «явился»" : "Отметить явку (услуга оказана)"}
-            aria-label={isCompleted ? "Снять отметку явки" : "Отметить явку"}
-            onClick={(e) => {
-              e.stopPropagation();
-              onCompleteToggle?.(a, !isCompleted);
-            }}
-          >
-            {isCompleted ? <CheckCircle2 className="h-3.5 w-3.5" /> : <CheckSquare className="h-3.5 w-3.5" />}
-          </button>
-        ) : isCompleted ? (
-          <span className="booking-appt-attendance is-done shrink-0 rounded p-0.5" aria-hidden>
-            <CheckCircle2 className="h-3.5 w-3.5" />
-          </span>
         ) : null}
       </div>
       {(timeLabel || showVisitCounter) ? (
