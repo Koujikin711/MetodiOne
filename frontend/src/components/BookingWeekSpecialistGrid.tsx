@@ -275,30 +275,38 @@ function SortableSpecialistRow({
         className="booking-week-grid__spec-col z-20 backdrop-blur-sm"
         style={{ minHeight: expanded ? EXPANDED_ROW_MIN_PX : COLLAPSED_ROW_PX }}
       >
-        <div className="relative flex h-full min-h-[inherit] items-center gap-1 px-2 py-1.5">
+        <div
+          className="relative flex h-full min-h-[inherit] cursor-pointer items-stretch gap-1 px-2 py-1.5"
+          role="button"
+          tabIndex={0}
+          onClick={() => onToggleExpand(spec.id)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
+            onToggleExpand(spec.id);
+          }}
+          title={expanded ? "Свернуть — только количество записей" : "Развернуть — список записей по дням"}
+        >
           {dragEnabled && (
             <button
               type="button"
-              className="shrink-0 rounded-md p-0.5 mo-muted hover:bg-[var(--mo-accent-soft)]"
+              className="shrink-0 self-center rounded-md p-0.5 mo-muted hover:bg-[var(--mo-accent-soft)]"
               aria-label="Изменить порядок"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
               {...attributes}
               {...listeners}
             >
               <GripVertical className="h-4 w-4" />
             </button>
           )}
-          <button
-            type="button"
-            className="min-w-0 flex-1 text-left"
-            onClick={() => onToggleExpand(spec.id)}
-            title={expanded ? "Свернуть — только количество записей" : "Развернуть — список записей по дням"}
-          >
+          <div className="flex min-w-0 flex-1 flex-col justify-center text-left">
             <p className="truncate text-sm font-semibold leading-tight text-[var(--mo-text)]">{spec.full_name}</p>
             <p className="truncate text-[11px] leading-tight mo-muted">
               {(spec.specialization ?? "").trim() || spec.direction_name || "—"}
             </p>
             <p className="mt-0.5 text-[10px] mo-muted">{expanded ? "▲ свернуть" : "▼ развернуть"}</p>
-          </button>
+          </div>
           {showSpecMenu && (
             <div className="absolute right-1 top-1" data-spec-menu-root>
               <button
