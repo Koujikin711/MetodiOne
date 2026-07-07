@@ -951,7 +951,6 @@ export function OnlineBookingPage() {
                 onSlotClick={canEditBooking ? handleSlotClick : undefined}
                 onAddSpecialist={canEditBooking ? openAddSpecialistModal : undefined}
                 onEditSpecialist={canEditBooking ? openEditSpecialistModal : undefined}
-                onDeleteSpecialist={canEditBooking ? (s) => deleteSpecialistUserMutation.mutate(s.id) : undefined}
                 onReorderSpecialists={canEditBooking ? (orderedIds) => reorderSpecialistsMutation.mutate(orderedIds) : undefined}
                 showSessionInsteadOfTime={showSessionInsteadOfTime}
                 canEditNotes={canEditBooking}

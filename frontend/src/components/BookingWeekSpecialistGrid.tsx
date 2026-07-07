@@ -15,9 +15,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useMemo, useState } from "react";
 
-import { GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "@/components/icons";
+import { GripVertical, Pencil, Plus } from "@/components/icons";
 import { BookingAppointmentCardBody } from "@/components/BookingAppointmentCardBody";
 import {
   BOOKING_TIME_ZONE,
@@ -57,7 +57,6 @@ type Props = {
   onSlotClick?: (payload: WeekSlotClickPayload) => void;
   onAddSpecialist?: () => void;
   onEditSpecialist?: (s: BookingSpecialist) => void;
-  onDeleteSpecialist?: (s: BookingSpecialist) => void;
   onReorderSpecialists?: (orderedIds: number[]) => void;
   showSessionInsteadOfTime?: boolean;
   canEditNotes?: boolean;
@@ -214,12 +213,9 @@ type SortableRowProps = {
   bySpecDay: Map<string, BookingAppointment[]>;
   expanded: boolean;
   onToggleExpand: (specId: number) => void;
-  menuSpecId: number | null;
-  setMenuSpecId: Dispatch<SetStateAction<number | null>>;
-  showSpecMenu: boolean;
+  showSpecEdit: boolean;
   dragEnabled: boolean;
   onEditSpecialist?: (s: BookingSpecialist) => void;
-  onDeleteSpecialist?: (s: BookingSpecialist) => void;
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: WeekSlotClickPayload) => void;
   showSessionInsteadOfTime?: boolean;
@@ -237,12 +233,9 @@ function SortableSpecialistRow({
   bySpecDay,
   expanded,
   onToggleExpand,
-  menuSpecId,
-  setMenuSpecId,
-  showSpecMenu,
+  showSpecEdit,
   dragEnabled,
   onEditSpecialist,
-  onDeleteSpecialist,
   onAppointmentClick,
   onSlotClick,
   showSessionInsteadOfTime,
@@ -307,46 +300,19 @@ function SortableSpecialistRow({
             </p>
             <p className="mt-0.5 text-[10px] mo-muted">{expanded ? "▲ свернуть" : "▼ развернуть"}</p>
           </div>
-          {showSpecMenu && (
-            <div className="absolute right-1 top-1" data-spec-menu-root>
-              <button
-                type="button"
-                className="rounded-lg p-1 mo-muted hover:bg-[var(--mo-accent-soft)]"
-                aria-label="Меню"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuSpecId((id) => (id === spec.id ? null : spec.id));
-                }}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
-              {menuSpecId === spec.id && (
-                <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-xl border border-[var(--mo-border)] bg-white py-1 shadow-lg">
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--mo-accent-soft)]"
-                    onClick={() => {
-                      setMenuSpecId(null);
-                      onEditSpecialist?.(spec);
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                    Редактировать
-                  </button>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-500 hover:bg-[var(--mo-accent-soft)]"
-                    onClick={() => {
-                      setMenuSpecId(null);
-                      onDeleteSpecialist?.(spec);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Удалить
-                  </button>
-                </div>
-              )}
-            </div>
+          {showSpecEdit && (
+            <button
+              type="button"
+              className="absolute right-1 top-1 rounded-lg p-1 mo-muted hover:bg-[var(--mo-accent-soft)]"
+              aria-label="Редактировать специалиста"
+              title="Редактировать"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditSpecialist?.(spec);
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
           )}
         </div>
       </div>
@@ -522,7 +488,6 @@ export function BookingWeekSpecialistGrid({
   onSlotClick,
   onAddSpecialist,
   onEditSpecialist,
-  onDeleteSpecialist,
   onReorderSpecialists,
   showSessionInsteadOfTime,
   canEditNotes,
@@ -534,7 +499,6 @@ export function BookingWeekSpecialistGrid({
   const todayYmd = ymdInBookingTz(Date.now());
   const sortedSpecs = useMemo(() => sortSpecs(specialists), [specialists]);
   const [expandedSpecId, setExpandedSpecId] = useState<number | null>(null);
-  const [menuSpecId, setMenuSpecId] = useState<number | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 10 } }),
@@ -562,7 +526,7 @@ export function BookingWeekSpecialistGrid({
     return { counts, bySpecDay };
   }, [appointments, sortedSpecs, weekDays]);
 
-  const showSpecMenu = Boolean(onEditSpecialist && onDeleteSpecialist);
+  const showSpecEdit = Boolean(onEditSpecialist);
   const dragEnabled = Boolean(onReorderSpecialists && sortedSpecs.length > 1);
 
   function handleToggleExpand(specId: number) {
@@ -620,12 +584,9 @@ export function BookingWeekSpecialistGrid({
       bySpecDay={bySpecDay}
       expanded={expandedSpecId === spec.id}
       onToggleExpand={handleToggleExpand}
-      menuSpecId={menuSpecId}
-      setMenuSpecId={setMenuSpecId}
-      showSpecMenu={showSpecMenu}
+      showSpecEdit={showSpecEdit}
       dragEnabled={dragEnabled}
       onEditSpecialist={onEditSpecialist}
-      onDeleteSpecialist={onDeleteSpecialist}
       onAppointmentClick={onAppointmentClick}
       onSlotClick={onSlotClick}
       showSessionInsteadOfTime={showSessionInsteadOfTime}
