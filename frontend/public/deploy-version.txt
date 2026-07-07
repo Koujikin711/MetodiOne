@@ -1,1 +1,1 @@
-2026-07-07T10:40+0500 card-no-attendance-icon
+2026-07-07T10:42+0500 card-layout-name-time-note-visit
