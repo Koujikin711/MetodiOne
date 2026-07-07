@@ -69,6 +69,11 @@ export function weekDayYmds(anchorYmd: string): string[] {
   });
 }
 
+/** Пн … Сб (6 дней) — без воскресенья. */
+export function weekWorkDayYmds(anchorYmd: string): string[] {
+  return weekDayYmds(anchorYmd).slice(0, 6);
+}
+
 const weekdayRuFormatter = new Intl.DateTimeFormat("ru-RU", {
   timeZone: BOOKING_TIME_ZONE,
   weekday: "short",
@@ -82,18 +87,18 @@ export function formatWeekdayHeader(dateYmd: string): { weekday: string; dayMont
 }
 
 export function formatWeekRangeLabel(anchorYmd: string): string {
-  const days = weekDayYmds(anchorYmd);
+  const days = weekWorkDayYmds(anchorYmd);
   const first = days[0];
-  const last = days[6];
+  const last = days[days.length - 1];
   const [y1, m1, d1] = first.split("-").map(Number);
   const [y2, m2, d2] = last.split("-").map(Number);
   const mon = new Date(y1, m1 - 1, d1).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
-  const sun = new Date(y2, m2 - 1, d2).toLocaleDateString("ru-RU", {
+  const sat = new Date(y2, m2 - 1, d2).toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "short",
     year: y1 !== y2 ? "numeric" : undefined,
   });
-  return `${mon} — ${sun}`;
+  return `${mon} — ${sat}`;
 }
 
 /**

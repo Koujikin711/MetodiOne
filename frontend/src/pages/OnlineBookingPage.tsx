@@ -12,7 +12,7 @@ import { BookingSpecialistsFilter } from "@/components/BookingSpecialistsFilter"
 import { SpecialistModal, type SpecialistFormValues } from "@/components/SpecialistModal";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
-import { BOOKING_TIME_ZONE, addCalendarDaysInBookingTz, datetimeLocalBookingToIsoUtc, formatWeekRangeLabel, weekDayYmds, ymdInBookingTz } from "@/lib/bookingTz";
+import { BOOKING_TIME_ZONE, addCalendarDaysInBookingTz, datetimeLocalBookingToIsoUtc, formatWeekRangeLabel, weekWorkDayYmds, ymdInBookingTz } from "@/lib/bookingTz";
 import {
   allSpecialistsSelected,
   allTypesSelected,
@@ -247,9 +247,9 @@ export function OnlineBookingPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const gridWeekDays = useMemo(() => weekDayYmds(filterDate), [filterDate]);
+  const gridWeekDays = useMemo(() => weekWorkDayYmds(filterDate), [filterDate]);
   const gridWeekStart = gridWeekDays[0];
-  const gridWeekEnd = gridWeekDays[6];
+  const gridWeekEnd = gridWeekDays[gridWeekDays.length - 1];
 
   const gridAppointmentsQuery = useQuery({
     queryKey: ["booking-appointments-grid", gridWeekStart, gridWeekEnd],

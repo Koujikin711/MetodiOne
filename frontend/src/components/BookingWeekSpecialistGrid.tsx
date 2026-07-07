@@ -24,12 +24,15 @@ import {
   formatTimeInBookingTz,
   formatWeekdayHeader,
   utcMsToHourMinuteInBookingTz,
-  weekDayYmds,
+  weekWorkDayYmds,
+  weekdayMon0InBookingTz,
   ymdInBookingTz,
 } from "@/lib/bookingTz";
 import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 export const MAX_BOOKINGS_PER_SPECIALIST_DAY = 15;
+
+const DEFAULT_WORK_WEEKDAYS = [0, 1, 2, 3, 4];
 
 const COLLAPSED_ROW_PX = 44;
 const EXPANDED_ROW_MIN_PX = 168;
@@ -110,6 +113,84 @@ function suggestMinuteForDay(spec: BookingSpecialist, dayAppts: BookingAppointme
   if (next % step !== 0) next = Math.ceil(next / step) * step;
   if (next >= endMin) return startMin;
   return next;
+}
+
+function specWorkWeekdays(spec: BookingSpecialist): number[] {
+  const w = spec.work_weekdays;
+  if (w?.length) return w;
+  return DEFAULT_WORK_WEEKDAYS;
+}
+
+function isSpecWorkingDay(spec: BookingSpecialist, dateYmd: string): boolean {
+  return specWorkWeekdays(spec).includes(weekdayMon0InBookingTz(dateYmd));
+}
+
+function dayTimeSlots(spec: BookingSpecialist, dateYmd: string): number[] {
+  if (!isSpecWorkingDay(spec, dateYmd)) return [];
+  const step = Math.max(15, spec.slot_duration_min ?? 30);
+  const startMin = (spec.work_start_hour ?? 9) * 60;
+  const endMin = (spec.work_end_hour ?? 18) * 60;
+  const slots: number[] = [];
+  for (let m = startMin; m < endMin && slots.length < MAX_BOOKINGS_PER_SPECIALIST_DAY; m += step) {
+    slots.push(m);
+  }
+  return slots;
+}
+
+function formatMinuteLabel(minuteOfDay: number): string {
+  const h = Math.floor(minuteOfDay / 60);
+  const m = minuteOfDay % 60;
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+function appointmentStartMinute(a: BookingAppointment): number {
+  const { h, min } = utcMsToHourMinuteInBookingTz(new Date(a.start_at).getTime());
+  return h * 60 + min;
+}
+
+type DayRow =
+  | { kind: "slot"; minute: number }
+  | { kind: "appt"; appointment: BookingAppointment };
+
+function buildDayRows(
+  spec: BookingSpecialist,
+  dateYmd: string,
+  dayAppts: BookingAppointment[],
+): DayRow[] | null {
+  const slots = dayTimeSlots(spec, dateYmd);
+  if (slots.length === 0) return null;
+
+  const step = Math.max(15, spec.slot_duration_min ?? 30);
+  const usedApptIds = new Set<number>();
+  const rows: DayRow[] = [];
+
+  for (const minute of slots) {
+    const match = dayAppts.find((a) => {
+      if (usedApptIds.has(a.id)) return false;
+      const startMin = appointmentStartMinute(a);
+      return startMin >= minute && startMin < minute + step;
+    });
+    if (match) {
+      usedApptIds.add(match.id);
+      rows.push({ kind: "appt", appointment: match });
+    } else {
+      rows.push({ kind: "slot", minute });
+    }
+  }
+
+  for (const a of dayAppts) {
+    if (!usedApptIds.has(a.id)) {
+      rows.push({ kind: "appt", appointment: a });
+    }
+  }
+
+  rows.sort((x, y) => {
+    const mx = x.kind === "slot" ? x.minute : appointmentStartMinute(x.appointment);
+    const my = y.kind === "slot" ? y.minute : appointmentStartMinute(y.appointment);
+    return mx - my;
+  });
+
+  return rows;
 }
 
 function emitSlotClick(
@@ -306,29 +387,41 @@ function SortableSpecialistRow({
             );
           }
 
+          const dayRows = buildDayRows(spec, dateYmd, dayAppts);
+          const workingDay = isSpecWorkingDay(spec, dateYmd);
+
           return (
             <div
               key={key}
-              role={canAdd ? "button" : undefined}
-              tabIndex={canAdd ? 0 : undefined}
+              role={canAdd && workingDay ? "button" : undefined}
+              tabIndex={canAdd && workingDay ? 0 : undefined}
               onClick={() => {
-                if (!canAdd) return;
+                if (!canAdd || !workingDay) return;
                 emitSlotClick(onSlotClick, spec, dateYmd, dayAppts);
               }}
               onKeyDown={(e) => {
-                if (!canAdd || (e.key !== "Enter" && e.key !== " ")) return;
+                if (!canAdd || !workingDay || (e.key !== "Enter" && e.key !== " ")) return;
                 e.preventDefault();
                 emitSlotClick(onSlotClick, spec, dateYmd, dayAppts);
               }}
               className={[
                 DAY_COL_CLASS,
                 isToday ? "bg-[var(--mo-accent-soft)]/30" : "bg-[var(--mo-surface)]",
-                canAdd
+                !workingDay ? "booking-week-grid__day-col--off" : "",
+                canAdd && workingDay
                   ? "cursor-pointer transition hover:bg-purple-500/[0.06] hover:ring-1 hover:ring-inset hover:ring-purple-500/20"
                   : "",
               ].join(" ")}
               style={{ minHeight: EXPANDED_ROW_MIN_PX }}
-              title={canAdd ? `Записать на ${dateYmd}` : full ? `Лимит ${MAX_BOOKINGS_PER_SPECIALIST_DAY}` : undefined}
+              title={
+                !workingDay
+                  ? "Выходной"
+                  : canAdd
+                    ? `Записать на ${dateYmd}`
+                    : full
+                      ? `Лимит ${MAX_BOOKINGS_PER_SPECIALIST_DAY}`
+                      : undefined
+              }
             >
               <div className="flex items-center justify-between gap-1">
                 <span className={`text-[10px] font-semibold tabular-nums ${full ? "text-red-600" : "mo-muted"}`}>
@@ -336,43 +429,74 @@ function SortableSpecialistRow({
                 </span>
               </div>
               <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-visible">
-                {dayAppts.map((a) => {
-                  const timeLabel = showSessionInsteadOfTime
-                    ? null
-                    : formatTimeInBookingTz(a.start_at);
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onAppointmentClick(a);
-                      }}
-                      className={[
-                        "booking-appt-bitrix relative w-full overflow-visible rounded-md px-1 py-0.5 text-left sm:px-1.5 sm:py-1",
-                        appointmentVisualClass(a),
-                      ].join(" ")}
-                    >
-                      <BookingAppointmentCardBody
-                        appointment={a}
-                        timeLabel={timeLabel}
-                        canEditNotes={canEditNotes}
-                        onNoteClick={onAppointmentNoteClick}
-                        canToggleComplete={canToggleComplete}
-                        onCompleteToggle={onAppointmentCompleteToggle}
-                      />
-                    </button>
-                  );
-                })}
+                {!workingDay ? (
+                  <div className="booking-week-grid__off-day flex flex-1 items-center justify-center rounded-md px-1 py-2 text-center text-[10px] mo-muted">
+                    Выходной
+                  </div>
+                ) : dayRows ? (
+                  dayRows.map((row) => {
+                    if (row.kind === "appt") {
+                      const a = row.appointment;
+                      const timeLabel = showSessionInsteadOfTime
+                        ? null
+                        : formatTimeInBookingTz(a.start_at);
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAppointmentClick(a);
+                          }}
+                          className={[
+                            "booking-appt-bitrix relative w-full overflow-visible rounded-md px-1 py-0.5 text-left sm:px-1.5 sm:py-1",
+                            appointmentVisualClass(a),
+                          ].join(" ")}
+                        >
+                          <BookingAppointmentCardBody
+                            appointment={a}
+                            timeLabel={timeLabel}
+                            canEditNotes={canEditNotes}
+                            onNoteClick={onAppointmentNoteClick}
+                            canToggleComplete={canToggleComplete}
+                            onCompleteToggle={onAppointmentCompleteToggle}
+                          />
+                        </button>
+                      );
+                    }
+
+                    const slotCanAdd = Boolean(onSlotClick && !full);
+                    return (
+                      <button
+                        key={`slot-${key}-${row.minute}`}
+                        type="button"
+                        disabled={!slotCanAdd}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!slotCanAdd) return;
+                          onSlotClick?.({
+                            specialistId: spec.id,
+                            directionId: spec.direction_id,
+                            dateYmd,
+                            minuteOfDay: row.minute,
+                          });
+                        }}
+                        className={[
+                          "booking-week-grid__empty-slot w-full rounded-md border border-dashed px-1 py-1 text-left sm:px-1.5",
+                          slotCanAdd
+                            ? "cursor-pointer border-[var(--mo-border-strong)]/55 transition hover:border-purple-500/40 hover:bg-purple-500/[0.06]"
+                            : "cursor-default border-[var(--mo-border)]/40 opacity-60",
+                        ].join(" ")}
+                        title={slotCanAdd ? `Записать на ${formatMinuteLabel(row.minute)}` : undefined}
+                      >
+                        <span className="text-[9px] font-semibold tabular-nums leading-none mo-muted sm:text-[10px]">
+                          {formatMinuteLabel(row.minute)}
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : null}
               </div>
-              {canAdd ? (
-                <span
-                  className="mt-auto rounded-md border border-dashed border-[var(--mo-border-strong)] py-1 text-center text-[10px] mo-muted pointer-events-none"
-                  aria-hidden
-                >
-                  + Запись
-                </span>
-              ) : null}
               {full ? <p className="text-center text-[9px] text-red-500">Лимит {MAX_BOOKINGS_PER_SPECIALIST_DAY}</p> : null}
             </div>
           );
@@ -398,7 +522,7 @@ export function BookingWeekSpecialistGrid({
   canToggleComplete,
   onAppointmentCompleteToggle,
 }: Props) {
-  const weekDays = useMemo(() => weekDayYmds(anchorDateYmd), [anchorDateYmd]);
+  const weekDays = useMemo(() => weekWorkDayYmds(anchorDateYmd), [anchorDateYmd]);
   const todayYmd = ymdInBookingTz(Date.now());
   const sortedSpecs = useMemo(() => sortSpecs(specialists), [specialists]);
   const [expandedSpecId, setExpandedSpecId] = useState<number | null>(null);

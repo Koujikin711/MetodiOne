@@ -1082,6 +1082,24 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   @apply sticky left-0 z-40 w-[10.5rem] shrink-0 border-r border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/98 sm:w-[11.5rem];
 }
 
+.booking-week-grid__day-col--off {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 4px,
+    color-mix(in srgb, var(--mo-border) 35%, transparent) 4px,
+    color-mix(in srgb, var(--mo-border) 35%, transparent) 8px
+  );
+}
+
+.booking-week-grid__off-day {
+  background: color-mix(in srgb, var(--mo-border) 18%, transparent);
+}
+
+.booking-week-grid__empty-slot {
+  min-height: 1.35rem;
+}
+
 .booking-filter-root {
   @apply relative;
 }
