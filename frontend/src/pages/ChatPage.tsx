@@ -971,14 +971,15 @@ export function ChatPage() {
           )}
           {threadId != null && (
             <>
-              <div className="flex shrink-0 items-start gap-2 border-b border-[var(--mo-border)] pb-2 pt-0.5 max-lg:pb-1.5">
+              <div className="chat-thread-header flex shrink-0 items-center gap-1.5 border-b border-[var(--mo-border)] pb-2 pt-0.5 max-lg:gap-1 max-lg:pb-1.5">
                 <button
                   type="button"
-                  className="btn-secondary shrink-0 px-2.5 py-1.5 text-sm max-lg:text-xs lg:hidden"
+                  className="chat-thread-header-btn chat-thread-header-btn--back lg:hidden"
                   onClick={closeChat}
                   aria-label="Назад к списку диалогов"
                 >
-                  ← Назад
+                  <span aria-hidden>←</span>
+                  <span className="max-lg:hidden">Назад</span>
                 </button>
                 <div className="min-w-0 flex-1">
                   <div className="lux-subheading truncate text-sm sm:text-base">
@@ -1026,12 +1027,17 @@ export function ChatPage() {
                 </div>
                 <button
                   type="button"
-                  className="btn-secondary shrink-0 px-2.5 py-1.5 text-xs sm:text-sm"
+                  className="chat-thread-header-btn shrink-0"
                   disabled={repairMediaMutation.isPending}
                   onClick={() => repairMediaMutation.mutate()}
                   title="Догрузить голосовые и фото, если не отображаются"
                 >
-                  {repairMediaMutation.isPending ? "Догрузка…" : "Догрузить медиа"}
+                  <span className="lg:hidden">
+                    {repairMediaMutation.isPending ? "…" : "Медиа"}
+                  </span>
+                  <span className="hidden lg:inline">
+                    {repairMediaMutation.isPending ? "Догрузка…" : "Догрузить медиа"}
+                  </span>
                 </button>
               </div>
 

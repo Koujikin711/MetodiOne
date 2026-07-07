@@ -869,6 +869,28 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   border-color: var(--mo-gold);
 }
 
+.chat-thread-header {
+  min-height: 0;
+}
+
+.chat-thread-header-btn {
+  @apply shrink-0 rounded-lg border px-2 py-1 text-[11px] font-medium leading-none transition disabled:opacity-50 sm:rounded-xl sm:px-2.5 sm:py-1.5 sm:text-xs;
+  border-color: var(--mo-border-strong);
+  background-color: var(--mo-surface-elevated);
+  color: var(--mo-accent-hover);
+  box-shadow: none;
+}
+
+.chat-thread-header-btn:hover:not(:disabled) {
+  background-color: var(--mo-accent-soft);
+  border-color: var(--mo-gold);
+}
+
+.chat-thread-header-btn--back {
+  @apply px-2 py-1 text-sm;
+  min-width: 2rem;
+}
+
 /* Онлайн-запись — карточки с читаемым контрастом */
 .booking-appt {
   @apply font-semibold shadow-sm;
