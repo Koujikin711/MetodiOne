@@ -54,6 +54,49 @@ async def register(
     return user
 
 
+SANDBOX_COMPANY_NAME = "Public Sandbox (MetodiOne Studio)"
+SANDBOX_EMAIL = "demo@sandbox.local"
+
+
+@router.post("/demo-login", response_model=Token)
+async def demo_login(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Token:
+    """Passwordless studio entry into an isolated sandbox company (not client tenants)."""
+    company = (
+        await db.execute(select(Company).where(Company.name == SANDBOX_COMPANY_NAME).limit(1))
+    ).scalars().first()
+    if company is None:
+        company = Company(name=SANDBOX_COMPANY_NAME, is_active=True)
+        db.add(company)
+        await db.flush()
+    user = (
+        await db.execute(select(User).where(User.email == SANDBOX_EMAIL).limit(1))
+    ).scalars().first()
+    if user is None:
+        user = User(
+            email=SANDBOX_EMAIL,
+            hashed_password=hash_password("sandbox-not-used"),
+            role=UserRole.owner,
+            company_id=int(company.id),
+            full_name="Studio Demo",
+            must_change_password=False,
+            is_active=True,
+        )
+        db.add(user)
+        await db.flush()
+    else:
+        user.company_id = int(company.id)
+        user.is_active = True
+        user.must_change_password = False
+    await db.flush()
+    await db.refresh(user)
+    extra = jwt_claims_for_user(user)
+    extra["sandbox"] = True
+    token = create_access_token(str(user.id), extra=extra)
+    return Token(access_token=token, must_change_password=False)
+
+
 @router.post("/login", response_model=Token)
 async def login(
     body: UserLogin,

@@ -92,7 +92,8 @@ const dict = {
     productsTitle: "Selected systems in market language",
     productsLead:
       "A living portfolio of products we designed, built and can open for you. Names are market-facing; each one maps to a real operational domain.",
-    openDemo: "Open demo",
+    openDemo: "Enter sandbox",
+    openDemoInstant: "Enter without password",
     viewAllDemos: "Open demo hub",
     statusLive: "Live demo",
     statusStarting: "Starting up",
@@ -303,7 +304,8 @@ const dict = {
     productsTitle: "Системы в рыночных именах",
     productsLead:
       "Живое портфолио продуктов, которые мы спроектировали, собрали и можем открыть вам. Имена — для рынка; за каждым — реальная предметная область.",
-    openDemo: "Открыть демо",
+    openDemo: "Войти в sandbox",
+    openDemoInstant: "Войти без пароля",
     viewAllDemos: "Открыть демо-хаб",
     statusLive: "Live демо",
     statusStarting: "Запускается",

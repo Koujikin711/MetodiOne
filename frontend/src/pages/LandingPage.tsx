@@ -280,7 +280,11 @@ export function LandingPage() {
                     className="studio-btn studio-btn-primary studio-btn-block"
                     onClick={() => trackStudioEvent("product_click", { id: p.id, from: "landing" })}
                   >
-                    {p.status === "showcase" ? t.openShowcase : t.openDemo}
+                    {p.status === "showcase"
+                      ? t.openShowcase
+                      : p.instantDemo
+                        ? t.openDemoInstant
+                        : t.openDemo}
                   </a>
                 ) : (
                   <button type="button" className="studio-btn studio-btn-secondary studio-btn-block" onClick={() => openContact(`product-${p.id}`)}>

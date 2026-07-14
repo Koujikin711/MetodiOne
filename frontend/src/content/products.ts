@@ -6,29 +6,19 @@ export type StudioProduct = {
   tagline: { en: string; ru: string };
   blurb: { en: string; ru: string };
   tags: string[];
+  /** Passwordless sandbox entry URL (opens app immediately). */
   demoUrl?: string;
   demoLogin?: { user: string; password: string; note?: { en: string; ru: string } };
   status: DemoStatus;
   industrySlugs?: string[];
+  /** When true, hub hides password block — one-click /demo only. */
+  instantDemo?: boolean;
 };
 
-/** Published sandbox login — never put client production credentials here. */
-export const STUDIO_SAFE_DEMO_LOGIN = {
-  user: "demo",
-  password: "StudioDemo2026",
-  note: {
-    en: "Shared sandbox login. If locked, use Contact — we issue a fresh walkthrough.",
-    ru: "Общий sandbox-логин. Если не пускает — напишите в Contact, выдадим доступ.",
-  },
+const INSTANT = {
+  en: "One click — sandbox DB, not client production.",
+  ru: "Один клик — sandbox-БД, не прод клиента.",
 } as const;
-
-function safeLogin(extraNote?: { en: string; ru: string }) {
-  return {
-    user: STUDIO_SAFE_DEMO_LOGIN.user,
-    password: STUDIO_SAFE_DEMO_LOGIN.password,
-    note: extraNote ?? STUDIO_SAFE_DEMO_LOGIN.note,
-  };
-}
 
 /** Portfolio catalog — market names (not client codenames). */
 export const STUDIO_PRODUCTS: StudioProduct[] = [
@@ -44,12 +34,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "Мультитенант CRM для растущих команд: стадии, WhatsApp/Telegram/Instagram, онлайн-запись, роли и аналитика.",
     },
     tags: ["CRM", "Chat", "Booking", "SaaS"],
-    demoUrl: "/login",
-    demoLogin: safeLogin({
-      en: "Sandbox entry via CRM login. Prefer Contact for a guided investor walkthrough.",
-      ru: "Вход через CRM login. Для инвестора удобнее запросить guided walkthrough.",
-    }),
+    demoUrl: "/demo",
     status: "live",
+    instantDemo: true,
     industrySlugs: ["crm-booking"],
   },
   {
@@ -64,9 +51,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "Поступления, реализации, банк, проводки, мультивалютные документы и учёт резервуаров для дистрибьюторов топлива.",
     },
     tags: ["ERP", "Finance", "Fuel"],
-    demoUrl: "https://benzobiznes-koujikin.amvera.io",
-    demoLogin: safeLogin(),
+    demoUrl: "https://benzobiznes-koujikin.amvera.io/demo",
     status: "live",
+    instantDemo: true,
     industrySlugs: ["fuel-erp"],
   },
   {
@@ -81,9 +68,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "Рабочее место оператора WeChat/WhatsApp: контрагенты, inbound webhooks, desktop-мосты, установка у клиента.",
     },
     tags: ["CRM", "WeChat", "WhatsApp"],
-    demoUrl: "https://wechat-koujikin.amvera.io/login",
-    demoLogin: safeLogin(),
+    demoUrl: "https://wechat-koujikin.amvera.io/demo",
     status: "live",
+    instantDemo: true,
     industrySlugs: ["whatsapp-automation", "crm-booking"],
   },
   {
@@ -98,9 +85,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "Водители присылают фото табло с подписью; OCR снимает вес, считает нетто и публикует отчёт в группу.",
     },
     tags: ["WhatsApp", "OCR", "Logistics"],
-    demoUrl: "https://bot-whatsapp-koujikin.amvera.io/login",
-    demoLogin: safeLogin(),
+    demoUrl: "https://bot-whatsapp-koujikin.amvera.io/demo",
     status: "live",
+    instantDemo: true,
     industrySlugs: ["whatsapp-automation"],
   },
   {
@@ -115,9 +102,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "FIFO-склад, мультистрочные документы, проведение/отмена, PDF, роли и аудит для мебельных производств.",
     },
     tags: ["ERP", "Production", "WMS"],
-    demoUrl: "https://mebel-erp-koujikin.amvera.io",
-    demoLogin: safeLogin(),
+    demoUrl: "https://mebel-erp-koujikin.amvera.io/demo",
     status: "live",
+    instantDemo: true,
     industrySlugs: ["warehouse-erp"],
   },
   {
@@ -164,9 +151,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "Номенклатура запчастей, операционные процессы и PIN-профили для складов автозапчастей.",
     },
     tags: ["WMS", "Auto parts"],
-    demoUrl: "https://nizom-koujikin.amvera.io",
-    demoLogin: safeLogin(),
+    demoUrl: "https://nizom-koujikin.amvera.io/demo",
     status: "live",
+    instantDemo: true,
     industrySlugs: ["warehouse-erp"],
   },
   {
@@ -181,9 +168,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "Операционное рабочее место под торговый процесс клиента — демо-хост.",
     },
     tags: ["ERP", "Ops"],
-    demoUrl: "https://akmal-koujikin.amvera.io",
-    demoLogin: safeLogin(),
+    demoUrl: "https://akmal-koujikin.amvera.io/demo",
     status: "live",
+    instantDemo: true,
     industrySlugs: ["warehouse-erp"],
   },
   {
@@ -198,9 +185,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "Карточки сотрудников, оргструктура, табель, отпуска, приказы, оповещения по иностранным работникам и отчёты по зарплате (тоҷ/ру/en).",
     },
     tags: ["HR", "Payroll", "Reports"],
-    demoUrl: "https://otdel-kadrov-koujikin.amvera.io",
-    demoLogin: safeLogin(),
+    demoUrl: "https://otdel-kadrov-koujikin.amvera.io/demo",
     status: "live",
+    instantDemo: true,
     industrySlugs: ["hr-system"],
   },
   {
@@ -229,3 +216,5 @@ export const LIVE_DEMO_TARGETS = STUDIO_PRODUCTS.filter(
   url: p.demoUrl!,
   slug: p.demoUrl!.replace(/^https?:\/\//, "").split(".")[0],
 }));
+
+export const INSTANT_DEMO_NOTE = INSTANT;

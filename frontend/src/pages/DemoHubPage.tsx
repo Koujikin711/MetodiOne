@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 
 import { StudioChrome } from "@/components/StudioChrome";
-import { STUDIO_PRODUCTS } from "@/content/products";
+import { INSTANT_DEMO_NOTE, STUDIO_PRODUCTS } from "@/content/products";
 import {
   detectLandingLang,
   LANDING_LANG_KEY,
@@ -68,7 +68,11 @@ export function DemoHubPage() {
                 ))}
               </div>
 
-              {p.demoLogin && (
+              {p.instantDemo ? (
+                <div className="studio-creds">
+                  <small>{INSTANT_DEMO_NOTE[lang]}</small>
+                </div>
+              ) : p.demoLogin ? (
                 <div className="studio-creds">
                   <code>
                     {p.demoLogin.user} / {p.demoLogin.password}
@@ -82,7 +86,7 @@ export function DemoHubPage() {
                   </button>
                   {p.demoLogin.note && <small>{p.demoLogin.note[lang]}</small>}
                 </div>
-              )}
+              ) : null}
 
               {p.demoUrl && (p.status === "live" || p.status === "starting" || p.status === "showcase") ? (
                 <a
@@ -92,7 +96,11 @@ export function DemoHubPage() {
                   rel={p.demoUrl.startsWith("http") ? "noreferrer" : undefined}
                   onClick={() => trackStudioEvent("demo_open", { id: p.id, status: p.status })}
                 >
-                  {p.status === "showcase" ? t.openShowcase : t.openDemo}
+                  {p.status === "showcase"
+                    ? t.openShowcase
+                    : p.instantDemo
+                      ? t.openDemoInstant
+                      : t.openDemo}
                 </a>
               ) : (
                 <p className="studio-muted">{t.noPublicDemo}</p>
