@@ -102,10 +102,11 @@ const dict = {
     statusShowcase: "Showcase",
     casesTitle: "Delivery cases — full portfolio",
     casesLead:
-      "Every product line as an anonymized story: industry → problem → what we shipped → operational result. Built for diligence, not vanity metrics.",
-    caseProblem: "Problem",
-    caseDid: "What we built",
-    caseResult: "Result",
+      "Anonymized stories with real operational pain: who the client was, what broke day-to-day, what we shipped, and how the business ran differently after. Built for diligence — impact without invented vanity percentages.",
+    caseProblem: "The problem",
+    caseDid: "What we did",
+    caseResult: "Business impact",
+    caseImpact: "What changed",
     offerTitle: "Clear engagement offer",
     offerLead: "One path from first call to evidence your stakeholders can reuse.",
     offerItems: [
@@ -314,10 +315,11 @@ const dict = {
     statusShowcase: "Showcase",
     casesTitle: "Кейсы внедрений — вся линейка",
     casesLead:
-      "Каждый продукт как анонимная история: отрасль → проблема → что собрали → операционный результат. Для due diligence, а не для vanity-метрик.",
+      "Анонимные истории с реальной операционной болью: кто клиент, что ломалось каждый день, что мы собрали и как иначе стал работать бизнес. Для due diligence — эффект без выдуманных «+400%».",
     caseProblem: "Проблема",
     caseDid: "Что сделали",
-    caseResult: "Результат",
+    caseResult: "Влияние на бизнес",
+    caseImpact: "Что изменилось",
     offerTitle: "Понятный оффер сотрудничества",
     offerLead: "Один путь от первого звонка до доказательств, которые можно показать снова.",
     offerItems: [

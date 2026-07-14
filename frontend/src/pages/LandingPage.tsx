@@ -213,21 +213,33 @@ export function LandingPage() {
           <div className="studio-cases">
             {STUDIO_CASES.map((c) => (
               <article key={c.id} className="studio-case">
-                <p className="studio-case-industry">{c.industry[lang]}</p>
+                <header className="studio-case-head">
+                  <p className="studio-case-industry">{c.industry[lang]}</p>
+                  <h3 className="studio-case-title">{c.title[lang]}</h3>
+                  <p className="studio-case-context">{c.context[lang]}</p>
+                </header>
                 <div className="studio-case-grid">
                   <div>
-                    <h3>{t.caseProblem}</h3>
+                    <h4>{t.caseProblem}</h4>
                     <p>{c.problem[lang]}</p>
                   </div>
                   <div>
-                    <h3>{t.caseDid}</h3>
+                    <h4>{t.caseDid}</h4>
                     <p>{c.did[lang]}</p>
                   </div>
                   <div>
-                    <h3>{t.caseResult}</h3>
+                    <h4>{t.caseResult}</h4>
                     <p>{c.result[lang]}</p>
                   </div>
                 </div>
+                <ul className="studio-case-metrics" aria-label={t.caseImpact}>
+                  {c.metrics.map((m) => (
+                    <li key={`${c.id}-${m.value}-${m.label.en}`}>
+                      <strong>{m.value}</strong>
+                      <span>{m.label[lang]}</span>
+                    </li>
+                  ))}
+                </ul>
               </article>
             ))}
           </div>
