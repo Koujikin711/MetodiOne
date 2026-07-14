@@ -99,9 +99,9 @@ const dict = {
     statusDesktop: "Desktop / private",
     statusPrivate: "On request",
     statusShowcase: "Showcase",
-    casesTitle: "Selected delivery cases",
+    casesTitle: "Delivery cases — full portfolio",
     casesLead:
-      "Anonymized stories: industry → problem → what we shipped → operational result. Built for diligence conversations, not vanity metrics.",
+      "Every product line as an anonymized story: industry → problem → what we shipped → operational result. Built for diligence, not vanity metrics.",
     caseProblem: "Problem",
     caseDid: "What we built",
     caseResult: "Result",
@@ -310,9 +310,9 @@ const dict = {
     statusDesktop: "Desktop / закрытое",
     statusPrivate: "По запросу",
     statusShowcase: "Showcase",
-    casesTitle: "Избранные кейсы внедрений",
+    casesTitle: "Кейсы внедрений — вся линейка",
     casesLead:
-      "Анонимные истории: отрасль → проблема → что собрали → операционный результат. Для due diligence, а не для vanity-метрик.",
+      "Каждый продукт как анонимная история: отрасль → проблема → что собрали → операционный результат. Для due diligence, а не для vanity-метрик.",
     caseProblem: "Проблема",
     caseDid: "Что сделали",
     caseResult: "Результат",
