@@ -26,7 +26,6 @@ export function LandingPage() {
   });
 
   const t = useMemo(() => landingCopy(lang), [lang]);
-  const featured = STUDIO_PRODUCTS.slice(0, 6);
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -41,6 +40,27 @@ export function LandingPage() {
     const id = requestAnimationFrame(() => setRevealed(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  useEffect(() => {
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+    if (!nodes.length || typeof IntersectionObserver === "undefined") {
+      nodes.forEach((n) => n.classList.add("is-visible"));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            io.unobserve(entry.target);
+          }
+        }
+      },
+      { rootMargin: "0px 0px -8% 0px", threshold: 0.12 },
+    );
+    nodes.forEach((n) => io.observe(n));
+    return () => io.disconnect();
+  }, [lang]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -69,9 +89,10 @@ export function LandingPage() {
   };
 
   return (
-    <div className="studio-root">
+    <div className={`studio-root studio-lang-${lang}`} key={lang}>
       <div className="studio-atmosphere" aria-hidden />
       <div className="studio-grid" aria-hidden />
+      <div className="studio-sheen" aria-hidden />
 
       <header className="studio-header">
         <div className="studio-header-inner">
@@ -83,25 +104,19 @@ export function LandingPage() {
             </span>
           </a>
           <nav className="studio-nav">
-            <a href="#work">{t.navWork}</a>
+            <a href="#audience">{t.navAudience}</a>
+            <a href="#custom">{t.navWork}</a>
             <a href="#products">{t.navProducts}</a>
             <a href="#demos">{t.navDemos}</a>
+            <a href="#engage">{t.navEngage}</a>
             <a href="#contact">{t.navContact}</a>
           </nav>
           <div className="studio-header-actions">
             <div className="studio-lang" role="group" aria-label="Language">
-              <button
-                type="button"
-                className={lang === "ru" ? "active" : ""}
-                onClick={() => setLang("ru")}
-              >
+              <button type="button" className={lang === "ru" ? "active" : ""} onClick={() => setLang("ru")}>
                 RU
               </button>
-              <button
-                type="button"
-                className={lang === "en" ? "active" : ""}
-                onClick={() => setLang("en")}
-              >
+              <button type="button" className={lang === "en" ? "active" : ""} onClick={() => setLang("en")}>
                 EN
               </button>
             </div>
@@ -115,7 +130,10 @@ export function LandingPage() {
       <main id="top">
         <section className={`studio-hero ${revealed ? "is-in" : ""}`}>
           <div className="studio-hero-copy">
-            <p className="studio-kicker">{t.brand} {t.brandSub}</p>
+            <p className="studio-brand-hero">
+              {t.brand}
+              <span>{t.brandSub}</span>
+            </p>
             <h1 className="studio-hero-title">{t.heroHeadline}</h1>
             <p className="studio-hero-lead">{t.heroLead}</p>
             <div className="studio-hero-cta">
@@ -130,23 +148,67 @@ export function LandingPage() {
           <div className="studio-hero-visual" aria-hidden>
             <div className="studio-hero-plane">
               <div className="studio-hero-orbit" />
-              <div className="studio-hero-panel">
-                <span>FuelOps</span>
-                <span>MessageHub</span>
-                <span>ScaleGate</span>
-                <span>CraftLine</span>
-                <span>MetodiOne CRM</span>
+              <div className="studio-hero-mosaic">
+                <div className="studio-mosaic-col">
+                  <span className="studio-mosaic-wide">MetodiOne CRM</span>
+                  <span>FuelOps</span>
+                  <span>StaffDesk</span>
+                </div>
+                <div className="studio-mosaic-col studio-mosaic-col-tall">
+                  <span>MessageHub</span>
+                  <span className="studio-mosaic-accent">ScaleGate</span>
+                  <span>CraftLine</span>
+                  <span>PartStock</span>
+                </div>
+                <div className="studio-mosaic-col">
+                  <span>BakeFlow</span>
+                  <span>TradeDesk</span>
+                  <span className="studio-mosaic-wide">Atelier Retail</span>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        <section id="work" className="studio-section">
+        <section id="audience" className="studio-section" data-reveal>
+          <div className="studio-section-head">
+            <h2>{t.audienceTitle}</h2>
+            <p>{t.audienceLead}</p>
+          </div>
+          <div className="studio-editorial-list">
+            {t.audienceItems.map((item, i) => (
+              <article key={item.t} className="studio-editorial-row">
+                <span className="studio-editorial-index">{String(i + 1).padStart(2, "0")}</span>
+                <div>
+                  <h3>{item.t}</h3>
+                  <p>{item.d}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="custom" className="studio-section studio-section-panel" data-reveal>
+          <div className="studio-section-head">
+            <h2>{t.customTitle}</h2>
+            <p>{t.customLead}</p>
+          </div>
+          <div className="studio-feature-stack">
+            {t.customItems.map((item) => (
+              <article key={item.t} className="studio-feature">
+                <h3>{item.t}</h3>
+                <p>{item.d}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="work" className="studio-section" data-reveal>
           <div className="studio-section-head">
             <h2>{t.whatTitle}</h2>
             <p>{t.whatLead}</p>
           </div>
-          <div className="studio-split-list">
+          <div className="studio-split-list studio-split-list-4">
             {t.whatItems.map((item) => (
               <article key={item.t} className="studio-split-item">
                 <h3>{item.t}</h3>
@@ -156,7 +218,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="products" className="studio-section">
+        <section id="products" className="studio-section" data-reveal>
           <div className="studio-section-head studio-section-head-row">
             <div>
               <h2>{t.productsTitle}</h2>
@@ -167,12 +229,8 @@ export function LandingPage() {
             </Link>
           </div>
           <div className="studio-product-rail">
-            {featured.map((p, i) => (
-              <article
-                key={p.id}
-                className="studio-product"
-                style={{ animationDelay: `${120 + i * 70}ms` }}
-              >
+            {STUDIO_PRODUCTS.map((p, i) => (
+              <article key={p.id} className="studio-product" style={{ animationDelay: `${80 + i * 45}ms` }}>
                 <div className="studio-product-top">
                   <h3>{p.name}</h3>
                   <span className={`studio-pill studio-pill-${p.status}`}>{statusLabel(lang, p.status)}</span>
@@ -194,7 +252,11 @@ export function LandingPage() {
                     {t.openDemo}
                   </a>
                 ) : (
-                  <button type="button" className="studio-btn studio-btn-secondary studio-btn-block" onClick={() => setContactOpen(true)}>
+                  <button
+                    type="button"
+                    className="studio-btn studio-btn-secondary studio-btn-block"
+                    onClick={() => setContactOpen(true)}
+                  >
                     {t.requestPrivate}
                   </button>
                 )}
@@ -203,7 +265,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="demos" className="studio-section studio-section-band">
+        <section id="demos" className="studio-section studio-section-band" data-reveal>
           <div className="studio-band">
             <div>
               <h2>{t.demosTitle}</h2>
@@ -216,7 +278,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="studio-section">
+        <section id="engage" className="studio-section" data-reveal>
           <div className="studio-section-head">
             <h2>{t.experienceTitle}</h2>
           </div>
@@ -233,7 +295,22 @@ export function LandingPage() {
           </ol>
         </section>
 
-        <section id="contact" className="studio-section studio-section-end">
+        <section className="studio-section studio-section-panel" data-reveal>
+          <div className="studio-section-head">
+            <h2>{t.investTitle}</h2>
+            <p>{t.investLead}</p>
+          </div>
+          <div className="studio-feature-stack">
+            {t.investItems.map((item) => (
+              <article key={item.t} className="studio-feature">
+                <h3>{item.t}</h3>
+                <p>{item.d}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="contact" className="studio-section studio-section-end" data-reveal>
           <div className="studio-finale">
             <h2>{t.contactTitle}</h2>
             <p>{t.contactLead}</p>
