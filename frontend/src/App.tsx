@@ -27,6 +27,7 @@ import { FinancePage } from "@/pages/FinancePage";
 import { IntegrationsHubPage } from "@/pages/IntegrationsHubPage";
 import { KpiPage } from "@/pages/KpiPage";
 import { LandingPage } from "@/pages/LandingPage";
+import { DemoHubPage } from "@/pages/DemoHubPage";
 import { OnboardingPage } from "@/pages/OnboardingPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { TeamMessengerPage } from "@/pages/TeamMessengerPage";
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/landing" element={<LandingPage />} />
+        <Route path="/demos" element={<DemoHubPage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/force-password" element={<ForcePasswordPage />} />
           <Route element={<MainLayout />}>
