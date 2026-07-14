@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 
+import { StudioChrome } from "@/components/StudioChrome";
 import { apiFetch } from "@/lib/api";
 import { STUDIO_CASES } from "@/content/cases";
 import { INDUSTRY_PAGES } from "@/content/industries";
@@ -105,38 +106,21 @@ export function LandingPage() {
       <div className="studio-grid" aria-hidden />
       <div className="studio-sheen" aria-hidden />
 
-      <header className="studio-header">
-        <div className="studio-header-inner">
-          <a href="#top" className="studio-brand">
-            <span className="studio-brand-mark">M</span>
-            <span className="studio-brand-text">
-              {t.brand}
-              <em>{t.brandSub}</em>
-            </span>
-          </a>
-          <nav className="studio-nav">
-            <a href="#audience">{t.navAudience}</a>
-            <a href="#cases">{t.navCases}</a>
-            <a href="#products">{t.navProducts}</a>
-            <a href="#offer">{t.navOffer}</a>
-            <Link to="/investors">{t.navInvestors}</Link>
-            <a href="#contact">{t.navContact}</a>
-          </nav>
-          <div className="studio-header-actions">
-            <div className="studio-lang" role="group" aria-label="Language">
-              <button type="button" className={lang === "ru" ? "active" : ""} onClick={() => setLang("ru")}>
-                RU
-              </button>
-              <button type="button" className={lang === "en" ? "active" : ""} onClick={() => setLang("en")}>
-                EN
-              </button>
-            </div>
-            <Link to="/demos" className="studio-btn studio-btn-ghost" onClick={() => trackStudioEvent("cta_demos", { from: "header" })}>
-              {t.ctaDemos}
-            </Link>
-          </div>
-        </div>
-      </header>
+      <StudioChrome
+        lang={lang}
+        setLang={setLang}
+        t={t}
+        active="home"
+        links={[
+          { href: "#audience", label: t.navAudience },
+          { href: "#cases", label: t.navCases },
+          { href: "#products", label: t.navProducts },
+          { href: "#offer", label: t.navOffer },
+          { href: "/demos", label: t.navDemos },
+          { href: "/investors", label: t.navInvestors },
+          { href: "#contact", label: t.navContact },
+        ]}
+      />
 
       <main id="top">
         <section className={`studio-hero ${revealed ? "is-in" : ""}`}>
@@ -352,7 +336,7 @@ export function LandingPage() {
               </article>
             ))}
           </div>
-          <div className="studio-hero-cta" style={{ marginTop: "1.75rem", padding: "0 1.35rem" }}>
+          <div className="studio-hero-cta studio-offer-cta-wrap" style={{ marginTop: "1.75rem" }}>
             <button type="button" className="studio-btn studio-btn-primary" onClick={() => openContact("offer")}>
               {t.offerCta}
             </button>
