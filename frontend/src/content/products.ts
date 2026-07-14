@@ -175,6 +175,29 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     status: "live",
   },
   {
+    id: "staffdesk",
+    name: "StaffDesk",
+    tagline: {
+      en: "HR department system — people, attendance, payroll",
+      ru: "Система отдела кадров — сотрудники, табель, зарплата",
+    },
+    blurb: {
+      en: "Employee cards, org chart, timesheets, leave, orders, foreign-worker alerts and payroll reports (TJ/RU/EN).",
+      ru: "Карточки сотрудников, оргструктура, табель, отпуска, приказы, оповещения по иностранным работникам и отчёты по зарплате (тоҷ/ру/en).",
+    },
+    tags: ["HR", "Payroll", "Reports"],
+    demoUrl: "https://otdel-kadrov-koujikin.amvera.io",
+    demoLogin: {
+      user: "kadrov",
+      password: "1234",
+      note: {
+        en: "HR head seed — also admin / admin123",
+        ru: "Начальник кадров — также admin / admin123",
+      },
+    },
+    status: "live",
+  },
+  {
     id: "clientops",
     name: "ClientOps",
     tagline: {
