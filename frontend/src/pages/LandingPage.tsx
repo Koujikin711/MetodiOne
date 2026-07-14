@@ -16,11 +16,14 @@ import {
 } from "@/i18n/landing";
 import { trackStudioEvent } from "@/lib/studioAnalytics";
 
+const FEATURED_CASE_IDS = ["fuel-wholesale", "weighbridge-whatsapp", "crm-service", "hr-department"] as const;
+
 export function LandingPage() {
   const [lang, setLang] = useState<LandingLang>(() => detectLandingLang());
   const [contactOpen, setContactOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [casesExpanded, setCasesExpanded] = useState(false);
   const [form, setForm] = useState({
     name: "",
     company: "",
@@ -30,6 +33,17 @@ export function LandingPage() {
   });
 
   const t = useMemo(() => landingCopy(lang), [lang]);
+
+  const featuredCases = useMemo(
+    () => FEATURED_CASE_IDS.map((id) => STUDIO_CASES.find((c) => c.id === id)).filter((c): c is NonNullable<typeof c> => Boolean(c)),
+    [],
+  );
+  const remainingCases = useMemo(
+    () => STUDIO_CASES.filter((c) => !(FEATURED_CASE_IDS as readonly string[]).includes(c.id)),
+    [],
+  );
+  const visibleCases = casesExpanded ? [...featuredCases, ...remainingCases] : featuredCases;
+  const hiddenCount = remainingCases.length;
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -129,6 +143,7 @@ export function LandingPage() {
               {t.brand}
               <span>{t.brandSub}</span>
             </p>
+            <p className="studio-hero-promise">{t.heroPromise}</p>
             <h1 className="studio-hero-title">{t.heroHeadline}</h1>
             <p className="studio-hero-lead">{t.heroLead}</p>
             <div className="studio-hero-cta">
@@ -142,34 +157,61 @@ export function LandingPage() {
               <button type="button" className="studio-btn studio-btn-secondary" onClick={() => openContact("hero")}>
                 {t.ctaContact}
               </button>
-              <Link to="/investors" className="studio-btn studio-btn-ghost" onClick={() => trackStudioEvent("cta_investors", { from: "hero" })}>
-                {t.ctaInvestors}
-              </Link>
             </div>
+            <Link
+              to="/investors"
+              className="studio-hero-sublink"
+              onClick={() => trackStudioEvent("cta_investors", { from: "hero" })}
+            >
+              {t.ctaInvestors} →
+            </Link>
           </div>
           <div className="studio-hero-visual" aria-hidden>
             <div className="studio-hero-plane">
               <div className="studio-hero-orbit" />
-              <div className="studio-hero-mosaic">
-                <div className="studio-mosaic-col">
-                  <span className="studio-mosaic-wide">MetodiOne CRM</span>
-                  <span>FuelOps</span>
-                  <span>StaffDesk</span>
+              <div className="studio-hero-proof">
+                <div className="studio-hero-proof-top">
+                  <span className="studio-live-dot" />
+                  <span>{t.heroProofLive}</span>
                 </div>
-                <div className="studio-mosaic-col studio-mosaic-col-tall">
-                  <span>MessageHub</span>
-                  <span className="studio-mosaic-accent">ScaleGate</span>
-                  <span>CraftLine</span>
-                  <span>PartStock</span>
+                <p className="studio-hero-proof-line">{t.heroProofLine}</p>
+                <div className="studio-hero-proof-stack">
+                  <div className="studio-proof-row is-accent">
+                    <span>ScaleGate</span>
+                    <em>42 180 → net</em>
+                  </div>
+                  <div className="studio-proof-row">
+                    <span>FuelOps</span>
+                    <em>posted · TJS/USD</em>
+                  </div>
+                  <div className="studio-proof-row">
+                    <span>StaffDesk</span>
+                    <em>visa alert</em>
+                  </div>
+                  <div className="studio-proof-row">
+                    <span>MessageHub</span>
+                    <em>WeChat desk</em>
+                  </div>
                 </div>
-                <div className="studio-mosaic-col">
-                  <span>BakeFlow</span>
-                  <span>TradeDesk</span>
-                  <span className="studio-mosaic-wide">Atelier Retail</span>
-                </div>
+                <p className="studio-hero-proof-caption">{t.heroProofCaption}</p>
               </div>
             </div>
           </div>
+        </section>
+
+        <section className="studio-offer-strip" aria-label={t.offerStripTitle} data-reveal>
+          <p className="studio-offer-strip-label">{t.offerStripTitle}</p>
+          <ol className="studio-offer-strip-steps">
+            {t.offerItems.map((item, i) => (
+              <li key={item.t}>
+                <span>{String(i + 1).padStart(2, "0")}</span>
+                <strong>{item.t}</strong>
+              </li>
+            ))}
+          </ol>
+          <a href="#offer" className="studio-link studio-offer-strip-link">
+            {t.navOffer} →
+          </a>
         </section>
 
         <section id="audience" className="studio-section" data-reveal>
@@ -211,7 +253,7 @@ export function LandingPage() {
             <p>{t.casesLead}</p>
           </div>
           <div className="studio-cases">
-            {STUDIO_CASES.map((c) => (
+            {visibleCases.map((c) => (
               <article key={c.id} className="studio-case">
                 <header className="studio-case-head">
                   <p className="studio-case-industry">{c.industry[lang]}</p>
@@ -243,6 +285,25 @@ export function LandingPage() {
               </article>
             ))}
           </div>
+          {hiddenCount > 0 && (
+            <div className="studio-cases-toggle-wrap">
+              <button
+                type="button"
+                className="studio-btn studio-btn-secondary studio-cases-toggle"
+                aria-expanded={casesExpanded}
+                onClick={() => {
+                  const next = !casesExpanded;
+                  setCasesExpanded(next);
+                  trackStudioEvent("cases_toggle", { expanded: next, lang });
+                  if (!next) {
+                    document.getElementById("cases")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                }}
+              >
+                {casesExpanded ? t.casesShowLess : `${t.casesShowMore} · ${hiddenCount} ${t.casesMoreHint}`}
+              </button>
+            </div>
+          )}
         </section>
 
         <section id="work" className="studio-section" data-reveal>
