@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
+import { STUDIO_CASES } from "@/content/cases";
+import { INDUSTRY_PAGES } from "@/content/industries";
 import { STUDIO_PRODUCTS } from "@/content/products";
 import {
   detectLandingLang,
@@ -11,6 +13,7 @@ import {
   statusLabel,
   type LandingLang,
 } from "@/i18n/landing";
+import { trackStudioEvent } from "@/lib/studioAnalytics";
 
 export function LandingPage() {
   const [lang, setLang] = useState<LandingLang>(() => detectLandingLang());
@@ -29,11 +32,13 @@ export function LandingPage() {
 
   useEffect(() => {
     document.documentElement.lang = lang;
+    document.title = "MetodiOne Studio — custom operational software";
     try {
       localStorage.setItem(LANDING_LANG_KEY, lang);
     } catch {
       /* ignore */
     }
+    trackStudioEvent("landing_view", { lang });
   }, [lang]);
 
   useEffect(() => {
@@ -62,26 +67,32 @@ export function LandingPage() {
     return () => io.disconnect();
   }, [lang]);
 
+  const openContact = (source: string) => {
+    trackStudioEvent("contact_open", { source, lang });
+    setContactOpen(true);
+  };
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSending(true);
     try {
+      const message = [form.company && `Company: ${form.company}`, form.comment].filter(Boolean).join("\n\n");
       const res = await apiFetch<{ ok?: boolean; message?: string }>("/api/system/demo-request", {
         method: "POST",
         body: JSON.stringify({
-          name: form.name,
+          full_name: form.name,
           company: form.company,
           email: form.email,
           phone: form.phone,
-          comment: form.comment,
-          source: "studio-landing",
-          lang,
+          message,
         }),
       });
+      trackStudioEvent("contact_submit", { lang, ok: true });
       toast.success(res.message || (lang === "ru" ? "Заявка отправлена" : "Request sent"));
       setContactOpen(false);
       setForm({ name: "", company: "", email: "", phone: "", comment: "" });
     } catch (err) {
+      trackStudioEvent("contact_submit", { lang, ok: false });
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setSending(false);
@@ -105,10 +116,10 @@ export function LandingPage() {
           </a>
           <nav className="studio-nav">
             <a href="#audience">{t.navAudience}</a>
-            <a href="#custom">{t.navWork}</a>
+            <a href="#cases">{t.navCases}</a>
             <a href="#products">{t.navProducts}</a>
-            <a href="#demos">{t.navDemos}</a>
-            <a href="#engage">{t.navEngage}</a>
+            <a href="#offer">{t.navOffer}</a>
+            <Link to="/investors">{t.navInvestors}</Link>
             <a href="#contact">{t.navContact}</a>
           </nav>
           <div className="studio-header-actions">
@@ -120,7 +131,7 @@ export function LandingPage() {
                 EN
               </button>
             </div>
-            <Link to="/demos" className="studio-btn studio-btn-ghost">
+            <Link to="/demos" className="studio-btn studio-btn-ghost" onClick={() => trackStudioEvent("cta_demos", { from: "header" })}>
               {t.ctaDemos}
             </Link>
           </div>
@@ -137,12 +148,19 @@ export function LandingPage() {
             <h1 className="studio-hero-title">{t.heroHeadline}</h1>
             <p className="studio-hero-lead">{t.heroLead}</p>
             <div className="studio-hero-cta">
-              <Link to="/demos" className="studio-btn studio-btn-primary">
+              <Link
+                to="/demos"
+                className="studio-btn studio-btn-primary"
+                onClick={() => trackStudioEvent("cta_demos", { from: "hero" })}
+              >
                 {t.ctaDemos}
               </Link>
-              <button type="button" className="studio-btn studio-btn-secondary" onClick={() => setContactOpen(true)}>
+              <button type="button" className="studio-btn studio-btn-secondary" onClick={() => openContact("hero")}>
                 {t.ctaContact}
               </button>
+              <Link to="/investors" className="studio-btn studio-btn-ghost" onClick={() => trackStudioEvent("cta_investors", { from: "hero" })}>
+                {t.ctaInvestors}
+              </Link>
             </div>
           </div>
           <div className="studio-hero-visual" aria-hidden>
@@ -203,6 +221,34 @@ export function LandingPage() {
           </div>
         </section>
 
+        <section id="cases" className="studio-section" data-reveal>
+          <div className="studio-section-head">
+            <h2>{t.casesTitle}</h2>
+            <p>{t.casesLead}</p>
+          </div>
+          <div className="studio-cases">
+            {STUDIO_CASES.map((c) => (
+              <article key={c.id} className="studio-case">
+                <p className="studio-case-industry">{c.industry[lang]}</p>
+                <div className="studio-case-grid">
+                  <div>
+                    <h3>{t.caseProblem}</h3>
+                    <p>{c.problem[lang]}</p>
+                  </div>
+                  <div>
+                    <h3>{t.caseDid}</h3>
+                    <p>{c.did[lang]}</p>
+                  </div>
+                  <div>
+                    <h3>{t.caseResult}</h3>
+                    <p>{c.result[lang]}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section id="work" className="studio-section" data-reveal>
           <div className="studio-section-head">
             <h2>{t.whatTitle}</h2>
@@ -242,25 +288,40 @@ export function LandingPage() {
                     <span key={tag}>{tag}</span>
                   ))}
                 </div>
-                {p.demoUrl && p.status !== "private" ? (
+                {p.demoUrl ? (
                   <a
                     href={p.demoUrl}
                     target={p.demoUrl.startsWith("http") ? "_blank" : undefined}
                     rel={p.demoUrl.startsWith("http") ? "noreferrer" : undefined}
                     className="studio-btn studio-btn-primary studio-btn-block"
+                    onClick={() => trackStudioEvent("product_click", { id: p.id, from: "landing" })}
                   >
-                    {t.openDemo}
+                    {p.status === "showcase" ? t.openShowcase : t.openDemo}
                   </a>
                 ) : (
-                  <button
-                    type="button"
-                    className="studio-btn studio-btn-secondary studio-btn-block"
-                    onClick={() => setContactOpen(true)}
-                  >
+                  <button type="button" className="studio-btn studio-btn-secondary studio-btn-block" onClick={() => openContact(`product-${p.id}`)}>
                     {t.requestPrivate}
                   </button>
                 )}
               </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="studio-section" data-reveal>
+          <div className="studio-section-head">
+            <h2>{t.industriesTitle}</h2>
+          </div>
+          <div className="studio-industry-links">
+            {INDUSTRY_PAGES.map((ind) => (
+              <Link
+                key={ind.slug}
+                to={`/solutions/${ind.slug}`}
+                className="studio-industry-link"
+                onClick={() => trackStudioEvent("industry_click", { slug: ind.slug })}
+              >
+                {ind.title[lang]}
+              </Link>
             ))}
           </div>
         </section>
@@ -272,9 +333,29 @@ export function LandingPage() {
               <p>{t.demosLead}</p>
               <p className="studio-disclaimer">{t.demoDisclaimer}</p>
             </div>
-            <Link to="/demos" className="studio-btn studio-btn-primary">
+            <Link to="/demos" className="studio-btn studio-btn-primary" onClick={() => trackStudioEvent("cta_demos", { from: "band" })}>
               {t.demosHubCta}
             </Link>
+          </div>
+        </section>
+
+        <section id="offer" className="studio-section studio-section-panel" data-reveal>
+          <div className="studio-section-head">
+            <h2>{t.offerTitle}</h2>
+            <p>{t.offerLead}</p>
+          </div>
+          <div className="studio-feature-stack">
+            {t.offerItems.map((item) => (
+              <article key={item.t} className="studio-feature">
+                <h3>{item.t}</h3>
+                <p>{item.d}</p>
+              </article>
+            ))}
+          </div>
+          <div className="studio-hero-cta" style={{ marginTop: "1.75rem", padding: "0 1.35rem" }}>
+            <button type="button" className="studio-btn studio-btn-primary" onClick={() => openContact("offer")}>
+              {t.offerCta}
+            </button>
           </div>
         </section>
 
@@ -308,6 +389,11 @@ export function LandingPage() {
               </article>
             ))}
           </div>
+          <div className="studio-hero-cta" style={{ marginTop: "1.5rem", padding: "0 1.35rem" }}>
+            <Link to="/investors" className="studio-btn studio-btn-primary">
+              {t.ctaInvestors}
+            </Link>
+          </div>
         </section>
 
         <section id="contact" className="studio-section studio-section-end" data-reveal>
@@ -315,10 +401,13 @@ export function LandingPage() {
             <h2>{t.contactTitle}</h2>
             <p>{t.contactLead}</p>
             <div className="studio-hero-cta">
-              <button type="button" className="studio-btn studio-btn-primary" onClick={() => setContactOpen(true)}>
-                {t.ctaContact}
+              <button type="button" className="studio-btn studio-btn-primary" onClick={() => openContact("finale")}>
+                {t.ctaOffer}
               </button>
-              <Link to="/login" className="studio-btn studio-btn-secondary">
+              <Link to="/demos" className="studio-btn studio-btn-secondary">
+                {t.ctaDemos}
+              </Link>
+              <Link to="/login" className="studio-btn studio-btn-ghost">
                 {t.ctaLogin}
               </Link>
             </div>
@@ -332,6 +421,11 @@ export function LandingPage() {
             {t.brand} {t.brandSub}
           </strong>
           <p>{t.footerNote}</p>
+          <p className="studio-footer-links">
+            <Link to="/investors">{t.navInvestors}</Link>
+            <Link to="/demos">{t.navDemos}</Link>
+            <Link to="/solutions/fuel-erp">{INDUSTRY_PAGES[0].title[lang]}</Link>
+          </p>
         </div>
       </footer>
 
@@ -364,7 +458,7 @@ export function LandingPage() {
               </label>
               <label>
                 {t.contactPhone}
-                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                <input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               </label>
               <label>
                 {t.contactMessage}

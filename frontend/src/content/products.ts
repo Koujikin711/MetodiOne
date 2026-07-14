@@ -1,4 +1,4 @@
-export type DemoStatus = "live" | "starting" | "desktop" | "private";
+export type DemoStatus = "live" | "starting" | "desktop" | "private" | "showcase";
 
 export type StudioProduct = {
   id: string;
@@ -9,7 +9,26 @@ export type StudioProduct = {
   demoUrl?: string;
   demoLogin?: { user: string; password: string; note?: { en: string; ru: string } };
   status: DemoStatus;
+  industrySlugs?: string[];
 };
+
+/** Published sandbox login — never put client production credentials here. */
+export const STUDIO_SAFE_DEMO_LOGIN = {
+  user: "demo",
+  password: "StudioDemo2026",
+  note: {
+    en: "Shared sandbox login. If locked, use Contact — we issue a fresh walkthrough.",
+    ru: "Общий sandbox-логин. Если не пускает — напишите в Contact, выдадим доступ.",
+  },
+} as const;
+
+function safeLogin(extraNote?: { en: string; ru: string }) {
+  return {
+    user: STUDIO_SAFE_DEMO_LOGIN.user,
+    password: STUDIO_SAFE_DEMO_LOGIN.password,
+    note: extraNote ?? STUDIO_SAFE_DEMO_LOGIN.note,
+  };
+}
 
 /** Portfolio catalog — market names (not client codenames). */
 export const STUDIO_PRODUCTS: StudioProduct[] = [
@@ -26,12 +45,12 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     },
     tags: ["CRM", "Chat", "Booking", "SaaS"],
     demoUrl: "/login",
-    demoLogin: {
-      user: "admin@crm.local",
-      password: "admin",
-      note: { en: "Local / staging seed account", ru: "Сидинговый аккаунт" },
-    },
+    demoLogin: safeLogin({
+      en: "Sandbox entry via CRM login. Prefer Contact for a guided investor walkthrough.",
+      ru: "Вход через CRM login. Для инвестора удобнее запросить guided walkthrough.",
+    }),
     status: "live",
+    industrySlugs: ["crm-booking"],
   },
   {
     id: "fuelops",
@@ -46,12 +65,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     },
     tags: ["ERP", "Finance", "Fuel"],
     demoUrl: "https://benzobiznes-koujikin.amvera.io",
-    demoLogin: {
-      user: "admin",
-      password: "admin",
-      note: { en: "Demo sandbox credentials", ru: "Демо-доступ" },
-    },
+    demoLogin: safeLogin(),
     status: "live",
+    industrySlugs: ["fuel-erp"],
   },
   {
     id: "messagehub",
@@ -66,12 +82,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     },
     tags: ["CRM", "WeChat", "WhatsApp"],
     demoUrl: "https://wechat-koujikin.amvera.io/login",
-    demoLogin: {
-      user: "admin",
-      password: "admin",
-      note: { en: "Operator login", ru: "Логин оператора" },
-    },
+    demoLogin: safeLogin(),
     status: "live",
+    industrySlugs: ["whatsapp-automation", "crm-booking"],
   },
   {
     id: "scalegate",
@@ -86,15 +99,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     },
     tags: ["WhatsApp", "OCR", "Logistics"],
     demoUrl: "https://bot-whatsapp-koujikin.amvera.io/login",
-    demoLogin: {
-      user: "admin",
-      password: "change_me",
-      note: {
-        en: "Default panel login — change in production",
-        ru: "Логин панели по умолчанию",
-      },
-    },
+    demoLogin: safeLogin(),
     status: "live",
+    industrySlugs: ["whatsapp-automation"],
   },
   {
     id: "craftline",
@@ -109,7 +116,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     },
     tags: ["ERP", "Production", "WMS"],
     demoUrl: "https://mebel-erp-koujikin.amvera.io",
+    demoLogin: safeLogin(),
     status: "live",
+    industrySlugs: ["warehouse-erp"],
   },
   {
     id: "bakeflow",
@@ -122,8 +131,10 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       en: "Ingredient stock, recipe costing, order confirmation with auto stock write-off, sales and finance views.",
       ru: "Склад сырья, себестоимость техкарт, заказы с автосписанием, продажи и финансы.",
     },
-    tags: ["ERP", "Food", "Desktop/PWA"],
-    status: "desktop",
+    tags: ["ERP", "Food", "Showcase"],
+    demoUrl: "/showcase/bakeflow",
+    status: "showcase",
+    industrySlugs: ["confectionery-erp"],
   },
   {
     id: "atelier",
@@ -136,8 +147,10 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       en: "SKU / size / color catalog, warehouse, sales floor, analytics and finance for apparel retail.",
       ru: "Каталог SKU / размер / цвет, склад, продажи, аналитика и финансы для магазина одежды.",
     },
-    tags: ["ERP", "Retail", "Desktop"],
-    status: "desktop",
+    tags: ["ERP", "Retail", "Showcase"],
+    demoUrl: "/showcase/atelier",
+    status: "showcase",
+    industrySlugs: ["retail-erp"],
   },
   {
     id: "partstock",
@@ -152,12 +165,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     },
     tags: ["WMS", "Auto parts"],
     demoUrl: "https://nizom-koujikin.amvera.io",
-    demoLogin: {
-      user: "nizom.mulloev@mail.ru",
-      password: "Abc8860888",
-      note: { en: "Demo PIN from deployment notes", ru: "PIN из заметки деплоя" },
-    },
+    demoLogin: safeLogin(),
     status: "live",
+    industrySlugs: ["warehouse-erp"],
   },
   {
     id: "tradedesk",
@@ -172,7 +182,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     },
     tags: ["ERP", "Ops"],
     demoUrl: "https://akmal-koujikin.amvera.io",
+    demoLogin: safeLogin(),
     status: "live",
+    industrySlugs: ["warehouse-erp"],
   },
   {
     id: "staffdesk",
@@ -187,15 +199,9 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     },
     tags: ["HR", "Payroll", "Reports"],
     demoUrl: "https://otdel-kadrov-koujikin.amvera.io",
-    demoLogin: {
-      user: "kadrov",
-      password: "1234",
-      note: {
-        en: "HR head seed — also admin / admin123",
-        ru: "Начальник кадров — также admin / admin123",
-      },
-    },
+    demoLogin: safeLogin(),
     status: "live",
+    industrySlugs: ["hr-system"],
   },
   {
     id: "clientops",
@@ -208,7 +214,18 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       en: "Custom ops suite delivered for a private client. Live public demo is available on request.",
       ru: "Кастомный операционный контур для клиента. Публичное демо — по запросу.",
     },
-    tags: ["Custom", "Private"],
-    status: "private",
+    tags: ["Custom", "Showcase"],
+    demoUrl: "/showcase/clientops",
+    status: "showcase",
+    industrySlugs: ["custom-ops"],
   },
 ];
+
+export const LIVE_DEMO_TARGETS = STUDIO_PRODUCTS.filter(
+  (p) => p.status === "live" && p.demoUrl?.startsWith("http"),
+).map((p) => ({
+  id: p.id,
+  name: p.name,
+  url: p.demoUrl!,
+  slug: p.demoUrl!.replace(/^https?:\/\//, "").split(".")[0],
+}));

@@ -20,12 +20,17 @@ const dict = {
     navAudience: "For whom",
     navWork: "What we build",
     navProducts: "Portfolio",
+    navCases: "Cases",
     navDemos: "Live demos",
     navEngage: "Engagement",
+    navOffer: "Offer",
     navContact: "Contact",
+    navInvestors: "Investors",
     ctaDemos: "Explore live demos",
     ctaContact: "Start a conversation",
     ctaLogin: "CRM login",
+    ctaInvestors: "Investor brief",
+    ctaOffer: "Book discovery call",
     heroHeadline: "Custom operational software — engineered for the way you actually work.",
     heroLead:
       "MetodiOne Studio designs and ships individual applications of any complexity: for companies, teams, and personal businesses. From a focused tool to a full ERP — built to run, not to pitch.",
@@ -93,6 +98,30 @@ const dict = {
     statusStarting: "Starting up",
     statusDesktop: "Desktop / private",
     statusPrivate: "On request",
+    statusShowcase: "Showcase",
+    casesTitle: "Selected delivery cases",
+    casesLead:
+      "Anonymized stories: industry → problem → what we shipped → operational result. Built for diligence conversations, not vanity metrics.",
+    caseProblem: "Problem",
+    caseDid: "What we built",
+    caseResult: "Result",
+    offerTitle: "Clear engagement offer",
+    offerLead: "One path from first call to evidence your stakeholders can reuse.",
+    offerItems: [
+      {
+        t: "30-minute discovery",
+        d: "We map roles, documents and the outcome that matters. No deck theater — a scoped recommendation and demo path.",
+      },
+      {
+        t: "Product brief in 5–10 days",
+        d: "Screens, data model options and a build plan with milestones. You leave with a written shape of the system.",
+      },
+      {
+        t: "Pilot in 2–4 weeks",
+        d: "A working slice in production or sandbox — train the team, reopen for the next investor or ops review.",
+      },
+    ],
+    offerCta: "Request discovery slot",
     demosTitle: "Proof you can click — live sandbox demos",
     demosLead:
       "Investors and partners should not rely on mockups. Enter a second door into running environments with sample data. Credentials are published in the hub for self-serve walkthroughs.",
@@ -151,6 +180,50 @@ const dict = {
       "Second entrance into MetodiOne systems — open a product, sign in with the demo account, and walk the real UI. Sandbox only.",
     noPublicDemo: "No public URL yet — request a live walkthrough.",
     requestPrivate: "Request private demo",
+    openShowcase: "Open showcase",
+    industriesTitle: "Industry pages",
+    backStudio: "Studio home",
+    printPdf: "Print / save PDF",
+    investorsTitle: "Investor brief",
+    investorsLead:
+      "MetodiOne Studio builds and runs individual operational applications — CRM, ERP, messenger automation and HR — with live demos capital partners can inspect.",
+    investorsWhatTitle: "What the studio is",
+    investorsWhat:
+      "A product engineering studio: we diagnose real workflows, ship named systems, and keep sandbox environments for diligence. Brand MetodiOne stands for the studio, not a single personal freelance offer.",
+    investorsLineTitle: "Product line (market names)",
+    investorsModelTitle: "Money model",
+    investorsModelItems: [
+      {
+        t: "Project delivery",
+        d: "Scoped custom builds billed by milestones — discovery, MVP, rollout. Ownership of the delivered application sits with the client unless otherwise agreed.",
+      },
+      {
+        t: "Productized verticals",
+        d: "Reusable craft packaged as market products (FuelOps, ScaleGate, StaffDesk…). Faster starts when the domain matches a proven core.",
+      },
+      {
+        t: "Retention & iteration",
+        d: "Hosting, support, training and feature iterations after go-live — recurring revenue tied to systems that stay in daily use.",
+      },
+    ],
+    investorsRoadTitle: "Roadmap of scale",
+    investorsRoadItems: [
+      {
+        t: "Now",
+        d: "Public studio site, bilingual narrative, demo hub, live Amvera sandboxes, watchdog for uptime, investor brief page.",
+      },
+      {
+        t: "Next",
+        d: "Dedicated sandboxes with isolated demo DBs, web demos for BakeFlow / Atelier / ClientOps, stronger case metrics under NDA.",
+      },
+      {
+        t: "Then",
+        d: "Partner channel for industry verticals, standardized pricing packs, and capital narrative backed by retention of production systems.",
+      },
+    ],
+    showcaseRequest: "Request live sandbox",
+    showcaseModules: "Modules",
+    showcaseAudience: "Built for",
   },
   ru: {
     brand: "MetodiOne",
@@ -158,12 +231,17 @@ const dict = {
     navAudience: "Для кого",
     navWork: "Что создаём",
     navProducts: "Портфолио",
+    navCases: "Кейсы",
     navDemos: "Живые демо",
     navEngage: "Как работаем",
+    navOffer: "Оффер",
     navContact: "Контакт",
+    navInvestors: "Инвесторам",
     ctaDemos: "Смотреть живые демо",
     ctaContact: "Начать разговор",
     ctaLogin: "Вход в CRM",
+    ctaInvestors: "Бриф для инвестора",
+    ctaOffer: "Записаться на discovery",
     heroHeadline: "Индивидуальное операционное ПО — под то, как вы реально работаете.",
     heroLead:
       "MetodiOne Studio проектирует и выпускает приложения любой сложности: для компаний, команд и личного бизнеса. От точечного инструмента до полноценной ERP — чтобы пользоваться, а не «презентовать».",
@@ -231,6 +309,30 @@ const dict = {
     statusStarting: "Запускается",
     statusDesktop: "Desktop / закрытое",
     statusPrivate: "По запросу",
+    statusShowcase: "Showcase",
+    casesTitle: "Избранные кейсы внедрений",
+    casesLead:
+      "Анонимные истории: отрасль → проблема → что собрали → операционный результат. Для due diligence, а не для vanity-метрик.",
+    caseProblem: "Проблема",
+    caseDid: "Что сделали",
+    caseResult: "Результат",
+    offerTitle: "Понятный оффер сотрудничества",
+    offerLead: "Один путь от первого звонка до доказательств, которые можно показать снова.",
+    offerItems: [
+      {
+        t: "Discovery 30 минут",
+        d: "Фиксируем роли, документы и нужный исход. Без театра слайдов — рекомендация по скоупу и путь к демо.",
+      },
+      {
+        t: "Бриф продукта за 5–10 дней",
+        d: "Экраны, варианты модели данных и план сборки с вехами. На руках — письменная форма системы.",
+      },
+      {
+        t: "Пилот за 2–4 недели",
+        d: "Рабочий срез в проде или песочнице — обучение команды и повторный показ инвестору или ops-директору.",
+      },
+    ],
+    offerCta: "Запросить слот discovery",
     demosTitle: "Доказательство кликом — живые песочницы",
     demosLead:
       "Инвесторам и партнёрам не нужны макеты. Второй вход — в работающие среды с тестовыми данными. Логины опубликованы в хабе для самостоятельного прохождения.",
@@ -289,6 +391,50 @@ const dict = {
       "Второй вход в системы MetodiOne — откройте продукт, войдите демо-аккаунтом и пройдите реальный интерфейс. Только песочница.",
     noPublicDemo: "Публичного URL пока нет — запросите живой разбор.",
     requestPrivate: "Запросить закрытое демо",
+    openShowcase: "Открыть showcase",
+    industriesTitle: "Отраслевые страницы",
+    backStudio: "На главную студии",
+    printPdf: "Печать / сохранить PDF",
+    investorsTitle: "Бриф для инвестора",
+    investorsLead:
+      "MetodiOne Studio собирает и сопровождает индивидуальные операционные приложения — CRM, ERP, автоматизацию мессенджеров и HR — с живыми демо, которые можно проверить.",
+    investorsWhatTitle: "Что такое студия",
+    investorsWhat:
+      "Продуктовая инженерная студия: диагностируем реальные процессы, выпускаем именные системы и держим песочницы для diligence. Бренд MetodiOne — про студию, а не разовый фриланс.",
+    investorsLineTitle: "Линейка продуктов (рыночные имена)",
+    investorsModelTitle: "Модель денег",
+    investorsModelItems: [
+      {
+        t: "Проектная поставка",
+        d: "Кастомные сборки по вехам — discovery, MVP, rollout. Владение поставленным приложением у клиента, если не договорено иначе.",
+      },
+      {
+        t: "Продуктивизированные вертикали",
+        d: "Общее ремесло в рыночных продуктах (FuelOps, ScaleGate, StaffDesk…). Быстрый старт, когда домен совпадает с проверенным ядром.",
+      },
+      {
+        t: "Retention и итерации",
+        d: "Хостинг, поддержка, обучение и доработки после запуска — регулярная выручка от систем в ежедневной эксплуатации.",
+      },
+    ],
+    investorsRoadTitle: "Roadmap масштабирования",
+    investorsRoadItems: [
+      {
+        t: "Сейчас",
+        d: "Публичный сайт студии, билингвальный нарратив, демо-хаб, живые Amvera-песочницы, watchdog аптайма, страница инвестора.",
+      },
+      {
+        t: "Дальше",
+        d: "Отдельные sandbox с изолированными demo-БД, web-демо BakeFlow / Atelier / ClientOps, метрики кейсов под NDA.",
+      },
+      {
+        t: "Затем",
+        d: "Партнёрский канал по вертикалям, стандартизованные пакеты цен и капитальный нарратив на retention боевых систем.",
+      },
+    ],
+    showcaseRequest: "Запросить живой sandbox",
+    showcaseModules: "Модули",
+    showcaseAudience: "Для кого",
   },
 } as const;
 
@@ -298,10 +444,14 @@ export function landingCopy(lang: LandingLang): LandingCopy {
   return dict[lang] as LandingCopy;
 }
 
-export function statusLabel(lang: LandingLang, status: "live" | "starting" | "desktop" | "private"): string {
+export function statusLabel(
+  lang: LandingLang,
+  status: "live" | "starting" | "desktop" | "private" | "showcase",
+): string {
   const t = landingCopy(lang);
   if (status === "live") return t.statusLive;
   if (status === "starting") return t.statusStarting;
   if (status === "desktop") return t.statusDesktop;
+  if (status === "showcase") return t.statusShowcase;
   return t.statusPrivate;
 }

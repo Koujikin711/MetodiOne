@@ -71,6 +71,25 @@ async def smtp_test(body: SmtpTestBody, current_user: CurrentUser) -> dict:
     return {"ok": True}
 
 
+class StudioEventBody(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    props: dict | None = None
+    path: str | None = Field(default=None, max_length=500)
+    lang: str | None = Field(default=None, max_length=16)
+
+
+@router.post("/studio-event")
+async def studio_event(body: StudioEventBody) -> dict:
+    """Public fire-and-forget funnel events from the studio landing / demos."""
+    # Keep light: structured log only — no auth, no persistence dependency.
+    safe_name = body.name.strip()[:120]
+    print(
+        f"[studio-event] name={safe_name!r} path={body.path!r} lang={body.lang!r} props={body.props!r}",
+        flush=True,
+    )
+    return {"ok": True}
+
+
 @router.post("/demo-request")
 async def demo_request(
     body: DemoRequestBody,

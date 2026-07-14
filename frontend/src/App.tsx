@@ -28,6 +28,9 @@ import { IntegrationsHubPage } from "@/pages/IntegrationsHubPage";
 import { KpiPage } from "@/pages/KpiPage";
 import { LandingPage } from "@/pages/LandingPage";
 import { DemoHubPage } from "@/pages/DemoHubPage";
+import { InvestorsPage } from "@/pages/InvestorsPage";
+import { IndustryPage } from "@/pages/IndustryPage";
+import { ShowcasePage } from "@/pages/ShowcasePage";
 import { OnboardingPage } from "@/pages/OnboardingPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { TeamMessengerPage } from "@/pages/TeamMessengerPage";
@@ -42,6 +45,9 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/landing" element={<LandingPage />} />
         <Route path="/demos" element={<DemoHubPage />} />
+        <Route path="/investors" element={<InvestorsPage />} />
+        <Route path="/solutions/:slug" element={<IndustryPage />} />
+        <Route path="/showcase/:id" element={<ShowcasePage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/force-password" element={<ForcePasswordPage />} />
           <Route element={<MainLayout />}>
