@@ -243,7 +243,7 @@ const dict = {
   },
   ru: {
     brand: "MetodiOne",
-    brandSub: "Студия",
+    brandSub: "Studio",
     navAudience: "Для кого",
     navWork: "Что создаём",
     navProducts: "Портфолио",
