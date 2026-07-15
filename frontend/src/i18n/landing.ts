@@ -92,9 +92,9 @@ const dict = {
         d: "Closed client systems with controlled demos — when the process cannot sit on a public SaaS, we still deliver a professional product story.",
       },
     ],
-    productsTitle: "Selected systems in market language",
+    productsTitle: "Products",
     productsLead:
-      "A living portfolio of products we designed, built and can open for you. Names are market-facing; each one maps to a real operational domain.",
+      "A living portfolio of products we designed, built and can provide for you.",
     openDemo: "Enter demo",
     openDemoInstant: "Open demo",
     viewAllDemos: "All demos",
