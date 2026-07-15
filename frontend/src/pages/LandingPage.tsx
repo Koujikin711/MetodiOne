@@ -126,7 +126,6 @@ export function LandingPage() {
         t={t}
         active="home"
         links={[
-          { href: "#audience", label: t.navAudience },
           { href: "#cases", label: t.navCases },
           { href: "#products", label: t.navProducts },
           { href: "#offer", label: t.navOffer },
@@ -217,24 +216,6 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="custom" className="studio-section studio-section-panel" data-reveal>
-          <div className="studio-section-head">
-            <h2>{t.customTitle}</h2>
-            <p>{t.customLead}</p>
-          </div>
-          <div className="studio-editorial-list studio-editorial-list-panel">
-            {t.customItems.map((item, i) => (
-              <article key={item.t} className="studio-editorial-row">
-                <span className="studio-editorial-index">{String(i + 1).padStart(2, "0")}</span>
-                <div>
-                  <h3>{item.t}</h3>
-                  <p>{item.d}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
         <section id="cases" className="studio-section" data-reveal>
           <div className="studio-section-head">
             <h2>{t.casesTitle}</h2>
@@ -294,21 +275,6 @@ export function LandingPage() {
           )}
         </section>
 
-        <section id="work" className="studio-section" data-reveal>
-          <div className="studio-section-head">
-            <h2>{t.whatTitle}</h2>
-            <p>{t.whatLead}</p>
-          </div>
-          <div className="studio-split-list studio-split-list-4">
-            {t.whatItems.map((item) => (
-              <article key={item.t} className="studio-split-item">
-                <h3>{item.t}</h3>
-                <p>{item.d}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
         <section id="products" className="studio-section" data-reveal>
           <div className="studio-section-head studio-section-head-row">
             <div>
@@ -355,13 +321,7 @@ export function LandingPage() {
               </article>
             ))}
           </div>
-        </section>
-
-        <section className="studio-section" data-reveal>
-          <div className="studio-section-head">
-            <h2>{t.industriesTitle}</h2>
-          </div>
-          <div className="studio-industry-links">
+          <div className="studio-industry-rail" aria-label={t.industriesTitle}>
             {INDUSTRY_PAGES.map((ind) => (
               <Link
                 key={ind.slug}
@@ -372,19 +332,6 @@ export function LandingPage() {
                 {ind.title[lang]}
               </Link>
             ))}
-          </div>
-        </section>
-
-        <section id="demos" className="studio-section studio-section-band" data-reveal>
-          <div className="studio-band">
-            <div>
-              <h2>{t.demosTitle}</h2>
-              <p>{t.demosLead}</p>
-              <p className="studio-disclaimer">{t.demoDisclaimer}</p>
-            </div>
-            <Link to="/demos" className="studio-btn studio-btn-primary" onClick={() => trackStudioEvent("cta_demos", { from: "band" })}>
-              {t.demosHubCta}
-            </Link>
           </div>
         </section>
 
@@ -411,24 +358,13 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="studio-section" data-reveal>
-          <div className="studio-section-head">
-            <h2>{t.investTitle}</h2>
-            <p>{t.investLead}</p>
-          </div>
-          <div className="studio-editorial-list">
-            {t.investItems.map((item, i) => (
-              <article key={item.t} className="studio-editorial-row">
-                <span className="studio-editorial-index">{String(i + 1).padStart(2, "0")}</span>
-                <div>
-                  <h3>{item.t}</h3>
-                  <p>{item.d}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-          <div className="studio-hero-cta" style={{ marginTop: "1.75rem" }}>
-            <Link to="/investors" className="studio-btn studio-btn-primary">
+        <section className="studio-section studio-invest-teaser" data-reveal>
+          <div className="studio-invest-teaser-inner">
+            <div>
+              <h2>{t.investTitle}</h2>
+              <p>{t.investLead}</p>
+            </div>
+            <Link to="/investors" className="studio-btn studio-btn-secondary">
               {t.ctaInvestors}
             </Link>
           </div>

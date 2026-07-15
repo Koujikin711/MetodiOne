@@ -64,11 +64,14 @@ export function InvestorsPage() {
 
         <section className="studio-section-block">
           <h2>{t.investorsModelTitle}</h2>
-          <div className="studio-feature-stack">
-            {t.investorsModelItems.map((item) => (
-              <article key={item.t} className="studio-feature">
-                <h3>{item.t}</h3>
-                <p>{item.d}</p>
+          <div className="studio-editorial-list">
+            {t.investorsModelItems.map((item, i) => (
+              <article key={item.t} className="studio-editorial-row">
+                <span className="studio-editorial-index">{String(i + 1).padStart(2, "0")}</span>
+                <div>
+                  <h3>{item.t}</h3>
+                  <p>{item.d}</p>
+                </div>
               </article>
             ))}
           </div>

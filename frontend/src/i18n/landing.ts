@@ -39,7 +39,7 @@ const dict = {
     heroProofCaption: "Named products. Real UIs. Separate demo databases.",
     audienceTitle: "Built for decision-makers who need systems, not slides",
     audienceLead:
-      "We partner with businesses that outgrew spreadsheets, founders who need a product-shaped operations core, and individuals who want a reliable system around their craft.",
+      "We partner with businesses that outgrew spreadsheets, founders who need a product-shaped operations core, and individuals who want a reliable system around their craft. Every build starts from your process — not a catalogue forced onto it.",
     audienceItems: [
       {
         t: "Companies & holdings",
@@ -244,7 +244,7 @@ const dict = {
     heroProofCaption: "Рыночные имена. Реальные UI. Отдельные демо-БД.",
     audienceTitle: "Для тех, кому нужны рабочие системы, а не слайды",
     audienceLead:
-      "Мы работаем с бизнесом, который вырос из Excel; с основателями, которым нужен операционный каркас продукта; и с частными заказчиками, которым нужна надёжная система вокруг своего дела.",
+      "Мы работаем с бизнесом, который вырос из Excel; с основателями, которым нужен операционный каркас продукта; и с частными заказчиками, которым нужна надёжная система вокруг своего дела. Каждый проект начинается с вашего процесса — без натягивания чужого каталога.",
     audienceItems: [
       {
         t: "Компании и холдинги",
