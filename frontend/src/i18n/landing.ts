@@ -186,13 +186,14 @@ const dict = {
     industriesTitle: "Industry pages",
     backStudio: "Studio home",
     printPdf: "Print / save PDF",
-    investorsTitle: "Investor brief",
+    investorsTitle: "For investors",
     investorsLead:
-      "MetodiOne Studio builds and runs individual operational applications — CRM, ERP, messenger automation and HR — with live demos capital partners can inspect.",
-    investorsWhatTitle: "What the studio is",
+      "MetodiOne Studio designs, builds and supports individual operational applications (CRM, ERP, messenger automation and HR systems). Every product has a live demo you can verify in real time.",
+    investorsWhatTitle: "What is MetodiOne Studio?",
     investorsWhat:
-      "A product engineering studio: we diagnose real workflows, ship named systems, and keep sandbox environments for diligence. Brand MetodiOne stands for the studio, not a single personal freelance offer.",
-    investorsLineTitle: "Product line (market names)",
+      "We are a product engineering studio. We diagnose real business processes, ship custom systems under your brand, and deploy isolated sandboxes for testing.",
+    investorsWhatNote: "MetodiOne is a systematic studio approach — not one-off freelance work.",
+    investorsLineTitle: "Product line (market cases)",
     investorsModelTitle: "Engagement formats",
     investorsModelItems: [
       {
@@ -414,11 +415,12 @@ const dict = {
     printPdf: "Печать / сохранить PDF",
     investorsTitle: "Для инвесторов",
     investorsLead:
-      "MetodiOne Studio собирает и сопровождает индивидуальные операционные приложения — CRM, ERP, автоматизацию мессенджеров и HR — с живыми демо, которые можно проверить.",
-    investorsWhatTitle: "Что такое студия",
+      "MetodiOne Studio проектирует, собирает и сопровождает индивидуальные операционные приложения (CRM, ERP, автоматизацию мессенджеров и HR-системы). Все продукты имеют живые демо-версии, работу которых можно проверить в реальном времени.",
+    investorsWhatTitle: "Что такое MetodiOne Studio?",
     investorsWhat:
-      "Продуктовая инженерная студия: диагностируем реальные процессы, выпускаем именные системы и держим песочницы для проверки. Бренд MetodiOne — про студию, а не разовый фриланс.",
-    investorsLineTitle: "Линейка продуктов (рыночные имена)",
+      "Мы — продуктовая инженерная студия. Мы диагностируем реальные бизнес-процессы, выпускаем кастомные системы под вашим брендом и разворачиваем изолированные песочницы для их тестирования.",
+    investorsWhatNote: "MetodiOne — это системный подход технологической студии, а не разовый фриланс.",
+    investorsLineTitle: "Линейка продуктов (рыночные кейсы)",
     investorsModelTitle: "Форматы сотрудничества",
     investorsModelItems: [
       {

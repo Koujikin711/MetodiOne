@@ -26,8 +26,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "metodione-crm",
     name: "MetodiOne CRM",
     tagline: {
-      en: "Pipelines, omnichannel chat, booking, KPI",
-      ru: "Воронки, омниканал-чат, запись, KPI",
+      en: "Sales pipelines, omnichannel chat, client booking, KPI",
+      ru: "Воронки продаж, омниканальный чат, запись клиентов, KPI",
     },
     blurb: {
       en: "Multi-tenant CRM for growing teams: stages, WhatsApp/Telegram/Instagram, online booking, roles and analytics.",
@@ -43,8 +43,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "fuelops",
     name: "FuelOps",
     tagline: {
-      en: "Wholesale fuel trade ERP",
-      ru: "ERP оптовой торговли топливом",
+      en: "Specialized ERP for wholesale fuel trade",
+      ru: "Специализированная ERP для оптовой торговли топливом",
     },
     blurb: {
       en: "Purchases, sales, bank, journals, multi-currency documents and tank accounting for fuel distributors.",
@@ -60,8 +60,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "messagehub",
     name: "MessageHub",
     tagline: {
-      en: "CRM with WeChat & messenger bridges",
-      ru: "CRM с WeChat и мессенджер-мостами",
+      en: "CRM platform with WeChat integration and messenger bridges",
+      ru: "CRM-платформа с интеграцией WeChat и мессенджер-мостами",
     },
     blurb: {
       en: "Operator desk for WeChat/WhatsApp traffic: counterparties, inbound webhooks, desktop bridges, install flow.",
@@ -77,8 +77,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "scalegate",
     name: "ScaleGate",
     tagline: {
-      en: "Truck weighbridge automation via WhatsApp",
-      ru: "Автоучёт взвешивания грузовиков из WhatsApp",
+      en: "Automated truck weighbridge accounting via WhatsApp",
+      ru: "Автоматизированный учёт взвешивания грузовиков через WhatsApp",
     },
     blurb: {
       en: "Drivers send scale photos with captions; OCR reads weight, computes net, posts reports to the ops group.",
@@ -94,8 +94,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "craftline",
     name: "CraftLine",
     tagline: {
-      en: "Furniture production & warehouse ERP",
-      ru: "ERP мебельного производства и склада",
+      en: "ERP for furniture production and warehouse management",
+      ru: "ERP-система для управления мебельным производством и складом",
     },
     blurb: {
       en: "FIFO stock, multi-line docs, posting/unposting, PDF prints, roles and audit for furniture factories.",
@@ -111,8 +111,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "bakeflow",
     name: "BakeFlow",
     tagline: {
-      en: "Confectionery ERP — recipes, stock, orders",
-      ru: "ERP кондитерской — техкарты, склад, заказы",
+      en: "Confectionery ERP: tech cards, warehouse accounting, orders",
+      ru: "ERP для кондитерских производств: технологические карты, складской учёт, заказы",
     },
     blurb: {
       en: "Ingredient stock, recipe costing, order confirmation with auto stock write-off, sales and finance views.",
@@ -127,8 +127,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "atelier",
     name: "Atelier Retail",
     tagline: {
-      en: "Fashion boutique ERP",
-      ru: "ERP для fashion-бутика",
+      en: "ERP system for fashion boutiques",
+      ru: "ERP-система для fashion-бутиков",
     },
     blurb: {
       en: "SKU / size / color catalog, warehouse, sales floor, analytics and finance for apparel retail.",
@@ -143,8 +143,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "partstock",
     name: "PartStock",
     tagline: {
-      en: "Auto-parts warehouse system",
-      ru: "Склад автозапчастей",
+      en: "Specialized warehouse accounting for auto parts",
+      ru: "Специализированный складской учёт автозапчастей",
     },
     blurb: {
       en: "Parts inventory, ops workflows and PIN profiles for spare-parts warehouses.",
@@ -160,8 +160,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "tradedesk",
     name: "TradeDesk",
     tagline: {
-      en: "Client operations ERP",
-      ru: "Операционная ERP клиента",
+      en: "Custom operational ERP built around client business logic",
+      ru: "Индивидуальная операционная ERP под бизнес-логику клиента",
     },
     blurb: {
       en: "Deployed operations desk tailored to a client trading workflow — sandbox demo host.",
@@ -177,8 +177,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "staffdesk",
     name: "StaffDesk",
     tagline: {
-      en: "HR department system — people, attendance, payroll",
-      ru: "Система отдела кадров — сотрудники, табель, зарплата",
+      en: "HR automation: employees, shift timesheets, payroll",
+      ru: "Автоматизация отдела кадров: учёт сотрудников, табель рабочей смены, расчёт зарплаты",
     },
     blurb: {
       en: "Employee cards, org chart, timesheets, leave, orders, foreign-worker alerts and payroll reports (TJ/RU/EN).",
@@ -194,8 +194,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "clientops",
     name: "ClientOps",
     tagline: {
-      en: "Private delivery case",
-      ru: "Закрытый кейс внедрения",
+      en: "Private custom delivery case",
+      ru: "Закрытый индивидуальный кейс внедрения",
     },
     blurb: {
       en: "Custom ops suite delivered for a private client. Live public demo is available on request.",

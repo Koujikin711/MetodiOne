@@ -4458,6 +4458,13 @@ html:has(.studio-root) {
   font-size: 1.05rem;
 }
 
+.studio-prose-note {
+  margin-top: 0.85rem;
+  color: var(--studio-ink);
+  font-family: var(--studio-display);
+  font-weight: 650;
+}
+
 .studio-investor-line {
   list-style: none;
   margin: 0;
