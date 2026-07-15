@@ -117,16 +117,16 @@ const dict = {
     offerLead: "One path from first call to evidence your stakeholders can reopen.",
     offerItems: [
       {
-        t: "30-minute discovery call",
-        d: "Roles, documents, the outcome that matters. Scoped recommendation and a demo path — no deck theater.",
+        t: "Express discovery (30 minutes)",
+        d: "No long calls or dull presentations. We discuss roles directly, lock in the inputs, and define the right project scope. You leave with a clear action plan and a direct path to a demo.",
       },
       {
-        t: "Product brief in 5–10 days",
-        d: "Screens, data model options and milestones. You leave with a written shape of the system.",
+        t: "System design (5–10 days)",
+        d: "We build a detailed map of the future product. You get interactive screens, a worked-out data model, and clear development milestones. Result — fully described system logic in your hands.",
       },
       {
-        t: "Pilot in 2–4 weeks",
-        d: "A working slice in production or sandbox — train the team, reopen for the next review.",
+        t: "Pilot launch (2–4 weeks)",
+        d: "We deploy a working prototype in a live or test environment. We don’t just hand over code — we train your team and run a joint detailed review of the results.",
       },
     ],
     offerCta: "Request a discovery slot",
