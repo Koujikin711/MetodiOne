@@ -31,7 +31,10 @@ const dict = {
     ctaLogin: "CRM login",
     ctaInvestors: "Investor brief",
     ctaOffer: "Express audit request",
-    heroHeadline: "Your process → a working system → proof you can click",
+    heroHeadline: "Your process — a working system — proof in a click",
+    heroPhrase1: "Your process",
+    heroPhrase2: "a working system",
+    heroPhrase3: "proof in a click",
     heroLead:
       "We build custom IT solutions for businesses, teams and private clients — from microservices to large-scale ERP. We spin up a test sandbox the day you reach out.",
     heroProofLive: "Live demos",
@@ -258,7 +261,10 @@ const dict = {
     ctaLogin: "Вход в CRM",
     ctaInvestors: "Для инвесторов",
     ctaOffer: "Заявка на экспресс-аудит",
-    heroHeadline: "Ваш процесс → рабочая система → доказательство в один клик",
+    heroHeadline: "Ваш процесс — рабочая система — доказательство в клик",
+    heroPhrase1: "Ваш процесс",
+    heroPhrase2: "рабочая система",
+    heroPhrase3: "доказательство в клик",
     heroLead:
       "Разрабатываем кастомные IT-решения для бизнеса, команд и частных заказчиков — от микросервисов до масштабных ERP. Тестовую песочницу разворачиваем в день обращения.",
     heroProofLive: "Живые демо",

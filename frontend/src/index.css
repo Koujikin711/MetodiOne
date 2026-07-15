@@ -3294,14 +3294,80 @@ html:has(.studio-root) {
 }
 
 .studio-hero-title {
-  font-family: var(--studio-display);
-  font-weight: 700;
-  letter-spacing: -0.035em;
-  font-size: clamp(1.28rem, 2.5vw, 1.85rem);
-  line-height: 1.22;
-  max-width: 22ch;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.7rem;
   margin: 0;
+  max-width: 22rem;
+  font-family: var(--studio-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-size: clamp(1.2rem, 2.35vw, 1.72rem);
+  line-height: 1.35;
   color: var(--studio-ink);
+  text-wrap: balance;
+}
+
+.studio-hero-phrase {
+  display: inline-block;
+}
+
+.studio-hero-phrase:last-child {
+  color: color-mix(in srgb, var(--studio-ink) 72%, var(--studio-accent));
+  font-weight: 500;
+}
+
+.studio-hero-sep {
+  display: inline-block;
+  width: 1.35rem;
+  height: 1px;
+  flex: 0 0 auto;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--studio-accent) 70%, transparent) 45%,
+    color-mix(in srgb, var(--studio-accent) 70%, transparent) 55%,
+    transparent 100%
+  );
+  transform: translateY(0.05em);
+}
+
+.studio-hero.is-in .studio-hero-phrase {
+  animation: studio-hero-phrase-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.studio-hero.is-in .studio-hero-phrase:nth-child(1) { animation-delay: 0.08s; }
+.studio-hero.is-in .studio-hero-phrase:nth-child(3) { animation-delay: 0.18s; }
+.studio-hero.is-in .studio-hero-phrase:nth-child(5) { animation-delay: 0.28s; }
+
+.studio-hero.is-in .studio-hero-sep {
+  animation: studio-hero-sep-in 0.65s ease both;
+}
+
+.studio-hero.is-in .studio-hero-sep:nth-child(2) { animation-delay: 0.14s; }
+.studio-hero.is-in .studio-hero-sep:nth-child(4) { animation-delay: 0.24s; }
+
+@keyframes studio-hero-phrase-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.45rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes studio-hero-sep-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.4) translateY(0.05em);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1) translateY(0.05em);
+  }
 }
 
 .studio-hero-lead {
@@ -4652,9 +4718,14 @@ html:has(.studio-root) {
   }
 
   .studio-hero-title {
-    font-size: clamp(1.15rem, 5vw, 1.4rem);
+    font-size: clamp(1.12rem, 4.8vw, 1.35rem);
     max-width: none;
-    line-height: 1.25;
+    line-height: 1.4;
+    gap: 0.45rem 0.55rem;
+  }
+
+  .studio-hero-sep {
+    width: 1rem;
   }
 
   .studio-hero-lead {
@@ -4878,6 +4949,8 @@ html:has(.studio-root) {
   .studio-sheen,
   .studio-hero-orbit,
   .studio-hero-roster,
+  .studio-hero-phrase,
+  .studio-hero-sep,
   .studio-live-dot,
   .studio-mobile-drawer,
   .studio-lang-ru main,
