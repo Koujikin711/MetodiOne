@@ -34,9 +34,9 @@ const dict = {
     heroHeadline: "Your process → a working system → proof you can click",
     heroLead:
       "We design and ship individual systems for companies, teams and private businesses — from a sharp tool to a full ERP. Open a sandbox the same day.",
-    heroProofLive: "Live sandboxes",
-    heroProofLine: "Fuel · WhatsApp OCR · CRM · HR · warehouses",
-    heroProofCaption: "Named products. Real UIs. Separate demo databases.",
+    heroProofLive: "Live demos",
+    heroProofLine: "FuelOps · ScaleGate · StaffDesk · MessageHub",
+    heroProofCaption: "Market product names. Real interfaces. Separate demo databases.",
     audienceTitle: "Built for decision-makers who need systems, not slides",
     audienceLead:
       "We partner with businesses that outgrew spreadsheets, founders who need a product-shaped operations core, and individuals who want a reliable system around their craft. Every build starts from your process — not a catalogue forced onto it.",
@@ -117,7 +117,7 @@ const dict = {
     offerLead: "One path from first call to evidence your stakeholders can reopen.",
     offerItems: [
       {
-        t: "30-minute discovery",
+        t: "30-minute discovery call",
         d: "Roles, documents, the outcome that matters. Scoped recommendation and a demo path — no deck theater.",
       },
       {
@@ -129,8 +129,9 @@ const dict = {
         d: "A working slice in production or sandbox — train the team, reopen for the next review.",
       },
     ],
-    offerCta: "Request discovery slot",
+    offerCta: "Request a discovery slot",
     offerStripTitle: "The offer in one line",
+    offerStripLink: "How it works",
     demosTitle: "Proof you can click — live sandbox demos",
     demosLead:
       "Investors and partners should not rely on mockups. Enter a second door into running environments with sample data. Credentials are published in the hub for self-serve walkthroughs.",
@@ -246,9 +247,9 @@ const dict = {
     heroHeadline: "Ваш процесс → рабочая система → доказательство в один клик",
     heroLead:
       "Проектируем и выпускаем индивидуальные системы для компаний, команд и личного бизнеса — от точного инструмента до ERP. Песочницу можно открыть в тот же день.",
-    heroProofLive: "Живые песочницы",
-    heroProofLine: "Топливо · WhatsApp OCR · CRM · кадры · склады",
-    heroProofCaption: "Рыночные имена. Реальные интерфейсы. Отдельные демо-базы.",
+    heroProofLive: "Живые демо",
+    heroProofLine: "FuelOps · ScaleGate · StaffDesk · MessageHub",
+    heroProofCaption: "Рыночные имена продуктов. Реальные интерфейсы. Отдельные демо-базы.",
     audienceTitle: "Для тех, кому нужны рабочие системы, а не слайды",
     audienceLead:
       "Мы работаем с бизнесом, который вырос из Excel; с основателями, которым нужен операционный каркас продукта; и с частными заказчиками, которым нужна надёжная система вокруг своего дела. Каждый проект начинается с вашего процесса — без натягивания чужого каталога.",
@@ -329,11 +330,11 @@ const dict = {
     offerLead: "Один путь от первого звонка до доказательств, которые можно открыть снова.",
     offerItems: [
       {
-        t: "Знакомство 30 минут",
+        t: "Знакомство за 30 минут",
         d: "Роли, документы, нужный исход. Рекомендация по объёму и путь к демо — без театра слайдов.",
       },
       {
-        t: "Бриф продукта за 5–10 дней",
+        t: "Описание продукта за 5–10 дней",
         d: "Экраны, модель данных и вехи. На руках — письменная форма системы.",
       },
       {
@@ -343,6 +344,7 @@ const dict = {
     ],
     offerCta: "Запросить слот знакомства",
     offerStripTitle: "Предложение в одну строку",
+    offerStripLink: "Как это работает",
     demosTitle: "Доказательство кликом — живые песочницы",
     demosLead:
       "Инвесторам и партнёрам не нужны макеты. Второй вход — в работающие среды с тестовыми данными. Логины опубликованы в хабе для самостоятельного прохождения.",

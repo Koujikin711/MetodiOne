@@ -178,7 +178,7 @@ export function LandingPage() {
               ))}
             </ol>
             <a href="#offer" className="studio-link studio-offer-strip-link">
-              {t.navOffer} →
+              {t.offerStripLink} →
             </a>
           </div>
           <p className="studio-offer-strip-proof">
