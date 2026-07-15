@@ -16,18 +16,24 @@ export const PRODUCT_SHOWCASES: ProductShowcase[] = [
       ru: "BakeFlow — операции кондитерской",
     },
     lead: {
-      en: "A dessert kitchen needs recipe costing and stock that moves when an order is confirmed — not a generic inventory app. BakeFlow is that desk; a full public sandbox is provisioned on request while this showcase explains the product shape.",
-      ru: "Кондитерской нужны техкарты и склад, который двигается при подтверждении заказа — не общий «учёт». BakeFlow — это рабочее место; публичную песочницу выдаём по запросу, здесь — форма продукта.",
+      en: "A pastry kitchen needs tech cards and a warehouse that recalculates automatically when an order is confirmed — not abstract generic accounting. BakeFlow is a ready workspace for running your production. We provision a public sandbox on request; below are the key product capabilities.",
+      ru: "Кондитерской нужны технологические карты и склад, который автоматически пересчитывается при подтверждении заказа, а не абстрактный общий учет. BakeFlow — это готовое рабочее место для управления вашим производством. Публичную песочницу мы разворачиваем по запросу, а ниже — ключевые возможности продукта.",
     },
     modules: [
-      { en: "Ingredients & FIFO stock", ru: "Сырьё и FIFO-склад" },
-      { en: "Recipe cards with costing", ru: "Техкарты с себестоимостью" },
-      { en: "Orders with auto write-off", ru: "Заказы с автосписанием" },
-      { en: "Sales & light finance views", ru: "Продажи и лёгкий финконтур" },
+      { en: "Ingredients & FIFO warehouse", ru: "Сырьё и FIFO-склад" },
+      {
+        en: "Tech cards with automatic cost calculation",
+        ru: "Технологические карты с автоматическим расчетом себестоимости",
+      },
+      { en: "Orders with automatic stock write-off", ru: "Заказы с автосписанием остатков" },
+      {
+        en: "Sales and an operational finance contour",
+        ru: "Продажи и операционный финансовый контур",
+      },
     ],
     audience: {
-      en: "Bakeries, dessert studios, small food manufacturers",
-      ru: "Кондитерские, dessert-студии, небольшие пищевые производства",
+      en: "Confectioneries, dessert studios and small food manufacturers.",
+      ru: "Кондитерские, десерт-студии и небольшие пищевые производства.",
     },
   },
   {
