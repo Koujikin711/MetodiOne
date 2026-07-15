@@ -34,8 +34,10 @@ htmlcov/
 .pytest_cache/
 .mypy_cache/
 
-# Cursor
-.cursor/
+# Cursor (keep shared project rules in git)
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 
 # Локальные утилиты, не часть продукта
 tools/
