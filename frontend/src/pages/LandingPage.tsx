@@ -389,7 +389,6 @@ export function LandingPage() {
           <p className="studio-footer-links">
             <Link to="/investors">{t.navInvestors}</Link>
             <Link to="/demos">{t.navDemos}</Link>
-            <Link to="/solutions/fuel-erp">{INDUSTRY_PAGES[0].title[lang]}</Link>
           </p>
         </div>
       </footer>

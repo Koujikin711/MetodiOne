@@ -138,7 +138,7 @@ const dict = {
     demosHubCta: "Enter the demo hub",
     investTitle: "Why MetodiOne for capital conversations",
     investLead:
-      "We build products that can be named, shown and operated. That is the difference between a services pitch and a studio that has already shipped multiple vertical systems.",
+      "We build products that can be launched, shown and operated. That is what sets a studio with a line of ready vertical systems apart from a services firm that only sells promises.",
     investItems: [
       {
         t: "Execution evidence",
@@ -155,7 +155,7 @@ const dict = {
     ],
     contactTitle: "Tell us what must work better",
     contactLead:
-      "Describe the business, the people involved and the outcome you need — for an internal ops system, a product for customers, or a personal workflow. We will propose shape, timeline and a demo path.",
+      "Describe the business, the people involved and the outcome you need — an internal system, a product for customers, or a personal workflow. We will propose format, timeline and a demo path.",
     contactName: "Name",
     contactCompany: "Company / project",
     contactEmail: "Email",
@@ -165,7 +165,7 @@ const dict = {
     contactSending: "Sending…",
     contactClose: "Close",
     footerNote:
-      "MetodiOne Studio — custom operational software for businesses, teams and individuals. Demo environments use sandbox data, not client production.",
+      "MetodiOne Studio — custom operational software for businesses, teams and individuals. Demo versions run on test data and are fully isolated from client production systems.",
     demoDisclaimer: "Sandboxes may restart; data resets.",
     copyLogin: "Copy login",
     copied: "Copied",
@@ -365,7 +365,7 @@ const dict = {
     demosHubCta: "Войти в демо-хаб",
     investTitle: "Почему MetodiOne уместен в разговоре с капиталом",
     investLead:
-      "Мы делаем продукты, которые можно назвать, показать и эксплуатировать. Это отличие студии с линейкой готовых вертикальных систем от сервиса, который продаёт только обещания.",
+      "Мы делаем продукты, которые можно запустить, показать и эксплуатировать. В этом отличие студии с линейкой готовых вертикальных систем от сервиса, который продаёт только обещания.",
     investItems: [
       {
         t: "Доказательства исполнения",
@@ -382,7 +382,7 @@ const dict = {
     ],
     contactTitle: "Расскажите, что должно работать лучше",
     contactLead:
-      "Опишите бизнес, людей и нужный результат — внутреннюю систему, продукт для клиентов или личный процесс. Предложим форму, сроки и путь к демо.",
+      "Опишите бизнес, людей и нужный результат — внутреннюю систему, продукт для клиентов или личный процесс. Предложим формат, сроки и путь к демо.",
     contactName: "Имя",
     contactCompany: "Компания / проект",
     contactEmail: "Email",
@@ -392,7 +392,7 @@ const dict = {
     contactSending: "Отправка…",
     contactClose: "Закрыть",
     footerNote:
-      "MetodiOne Studio — индивидуальное операционное ПО для бизнеса, команд и частных заказчиков. Демо на песочных данных, не на боевых системах клиентов.",
+      "MetodiOne Studio — индивидуальное операционное ПО для бизнеса, команд и частных заказчиков. Демо-версии работают на тестовых данных и полностью изолированы от боевых систем клиентов.",
     demoDisclaimer: "Песочницы могут перезапускаться; данные сбрасываются.",
     copyLogin: "Копировать логин",
     copied: "Скопировано",
