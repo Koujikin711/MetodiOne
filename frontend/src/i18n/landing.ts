@@ -33,7 +33,7 @@ const dict = {
     ctaOffer: "Express audit request",
     heroHeadline: "Your process → a working system → proof you can click",
     heroLead:
-      "We design and ship individual systems for companies, teams and private businesses — from a sharp tool to a full ERP. Open a sandbox the same day.",
+      "We build custom IT solutions for businesses, teams and private clients — from microservices to large-scale ERP. We spin up a test sandbox the day you reach out.",
     heroProofLive: "Live demos",
     heroProofLine: "FuelOps · ScaleGate · StaffDesk · MessageHub",
     heroProofCaption: "Market product names. Real interfaces. Separate demo databases.",
@@ -260,7 +260,7 @@ const dict = {
     ctaOffer: "Заявка на экспресс-аудит",
     heroHeadline: "Ваш процесс → рабочая система → доказательство в один клик",
     heroLead:
-      "Проектируем и выпускаем индивидуальные системы для компаний, команд и личного бизнеса — от точного инструмента до ERP. Песочницу можно открыть в тот же день.",
+      "Разрабатываем кастомные IT-решения для бизнеса, команд и частных заказчиков — от микросервисов до масштабных ERP. Тестовую песочницу разворачиваем в день обращения.",
     heroProofLive: "Живые демо",
     heroProofLine: "FuelOps · ScaleGate · StaffDesk · MessageHub",
     heroProofCaption: "Рыночные имена продуктов. Реальные интерфейсы. Отдельные демо-базы.",
