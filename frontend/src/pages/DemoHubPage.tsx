@@ -200,10 +200,10 @@ export function DemoHubPage() {
 
         <footer className="studio-demos-footer" data-reveal>
           <Link to="/" className="studio-link">
-            {t.demosBackHome}
+            {t.backStudio}
           </Link>
           <Link to="/investors" className="studio-link">
-            {t.navInvestors} →
+            {t.navInvestors}
           </Link>
         </footer>
       </main>

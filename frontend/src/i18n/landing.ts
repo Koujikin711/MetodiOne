@@ -185,7 +185,6 @@ const dict = {
     demosShowcaseLead:
       "Interactive interface walkthroughs for solutions whose full public sandbox is still being prepared.",
     demosOtherTitle: "On request",
-    demosBackHome: "← Home",
     noPublicDemo: "Available on request",
     requestPrivate: "Request private demo",
     openShowcase: "Read preview",
@@ -418,7 +417,6 @@ const dict = {
     demosShowcaseLead:
       "Интерактивный разбор интерфейсов для решений, полнофункциональная публичная песочница которых ещё находится в процессе подготовки.",
     demosOtherTitle: "По запросу",
-    demosBackHome: "← На главную",
     noPublicDemo: "Доступно по запросу",
     requestPrivate: "Запросить закрытое демо",
     openShowcase: "Читать обзор",
