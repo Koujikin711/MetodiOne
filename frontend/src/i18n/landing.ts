@@ -42,19 +42,19 @@ const dict = {
     heroProofCaption: "Market product names. Real interfaces. Separate demo databases.",
     audienceTitle: "Built for decision-makers who need systems, not slides",
     audienceLead:
-      "We partner with businesses that outgrew spreadsheets, founders who need a product-shaped operations core, and individuals who want a reliable system around their craft. Every build starts from your process — not a catalogue forced onto it.",
+      "We work with businesses that outgrew Excel spreadsheets, founders launching a product, and entrepreneurs who need a reliable system around their own processes. No forcing your work into someone else’s box — every project is built around your real logic.",
     audienceItems: [
       {
         t: "Companies & holdings",
-        d: "Industry processes, multi-role access, warehouses, finance documents, reporting — one coherent product instead of a patchwork of SaaS.",
+        d: "Industry processes, roles, warehouse, finance and reports — one coherent product instead of a zoo of third-party tools that constantly clash in day-to-day operations.",
       },
       {
         t: "Growing teams & founders",
-        d: "CRM, booking, messengers and KPI tied to your real funnel — shipped as a product your team can adopt in days, not quarters of consulting theatre.",
+        d: "CRM, booking, messengers and KPI tied to your funnel — a working product the team picks up in a couple of days, not after months of expensive, useless “consulting”.",
       },
       {
         t: "Specialists & private businesses",
-        d: "Tailored desks for a bakery, boutique, workshop or personal ops — ownership of the logic, not a rented template that breaks at the first exception.",
+        d: "Practical desks for bakeries, boutiques, workshops or your personal trade. Logic is written for you — not rented as a template that breaks on the first non-standard scenario.",
       },
     ],
     customTitle: "Individual custom applications — any scale of complexity",
@@ -272,19 +272,19 @@ const dict = {
     heroProofCaption: "Рыночные имена продуктов. Реальные интерфейсы. Отдельные демо-базы.",
     audienceTitle: "Для тех, кому нужны рабочие системы, а не слайды",
     audienceLead:
-      "Мы работаем с бизнесом, который вырос из Excel; с основателями, которым нужен операционный каркас продукта; и с частными заказчиками, которым нужна надёжная система вокруг своего дела. Каждый проект начинается с вашего процесса — без натягивания чужого каталога.",
+      "Мы работаем с бизнесом, который перерос таблицы Excel, основателями на этапе запуска продукта и предпринимателями, которым нужна надёжная система под их собственные процессы. Никаких попыток натянуть вашу работу на чужую коробку — каждый проект мы строим вокруг вашей реальной логики.",
     audienceItems: [
       {
         t: "Компании и холдинги",
-        d: "Отраслевые процессы, роли, склад, финансы, отчёты — один цельный продукт вместо набора чужих сервисов, которые не сходятся в операциях.",
+        d: "Отраслевые процессы, роли, склад, финансы и отчёты — один цельный продукт вместо «зоопарка» сторонних сервисов, которые постоянно конфликтуют друг с другом в реальных операциях.",
       },
       {
         t: "Растущие команды и основатели",
-        d: "CRM, запись, мессенджеры и KPI под вашу воронку — продукт, который команда начинает использовать за дни, а не после месяцев «консалтинга».",
+        d: "CRM, запись, мессенджеры и KPI под вашу воронку — работающий продукт, который команда осваивает за пару дней, а не после месяцев дорогого и бесполезного «консалтинга».",
       },
       {
-        t: "Специалисты и личный бизнес",
-        d: "Рабочие места для кондитерской, бутика, мастерской или личного операционного контура — логика ваша, а не арендованный шаблон с поломкой на первом исключении.",
+        t: "Специалисты и частный бизнес",
+        d: "Удобные рабочие места для кондитерских, бутиков, мастерских или вашего личного дела. Логика пишется под вас, а не арендуется в виде шаблона, который ломается при первом же нестандартном сценарии.",
       },
     ],
     customTitle: "Индивидуальные приложения — любой уровень сложности",
