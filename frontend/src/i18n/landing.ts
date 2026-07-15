@@ -173,7 +173,7 @@ const dict = {
       "Please note: sandboxes restart periodically, and any data you enter is reset.",
     copyLogin: "Copy login",
     copied: "Copied",
-    backHome: "Back to studio",
+    backHome: "Home",
     demosPageTitle: "MetodiOne demo hub",
     demosVersionLabel: "",
     demosPageLead:
@@ -185,12 +185,12 @@ const dict = {
     demosShowcaseLead:
       "Interactive interface walkthroughs for solutions whose full public sandbox is still being prepared.",
     demosOtherTitle: "On request",
-    demosBackHome: "← MetodiOne home",
+    demosBackHome: "← Home",
     noPublicDemo: "Available on request",
     requestPrivate: "Request private demo",
     openShowcase: "Read preview",
     industriesTitle: "Industry pages",
-    backStudio: "Studio home",
+    backStudio: "Home",
     printPdf: "Print / save PDF",
     investorsTitle: "For investors",
     investorsLead:
@@ -406,7 +406,7 @@ const dict = {
       "Обратите внимание: песочницы периодически перезапускаются, а внесенные данные сбрасываются.",
     copyLogin: "Копировать логин",
     copied: "Скопировано",
-    backHome: "На главную студии",
+    backHome: "На главную",
     demosPageTitle: "Демо-хаб MetodiOne",
     demosVersionLabel: "",
     demosPageLead:
@@ -418,12 +418,12 @@ const dict = {
     demosShowcaseLead:
       "Интерактивный разбор интерфейсов для решений, полнофункциональная публичная песочница которых ещё находится в процессе подготовки.",
     demosOtherTitle: "По запросу",
-    demosBackHome: "← На главную MetodiOne",
+    demosBackHome: "← На главную",
     noPublicDemo: "Доступно по запросу",
     requestPrivate: "Запросить закрытое демо",
     openShowcase: "Читать обзор",
     industriesTitle: "Отраслевые страницы",
-    backStudio: "На главную студии",
+    backStudio: "На главную",
     printPdf: "Печать / сохранить PDF",
     investorsTitle: "Для инвесторов",
     investorsLead:
