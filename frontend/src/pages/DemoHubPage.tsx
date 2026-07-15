@@ -37,6 +37,8 @@ function DemoRow({
   onCopy: (user: string, password: string, productId: string) => void;
 }) {
   const canOpen = Boolean(p.demoUrl && (p.status === "live" || p.status === "starting" || p.status === "showcase"));
+  const showBlurb = Boolean(featured || p.status === "showcase");
+  const detail = showBlurb ? p.blurb[lang] : p.tagline[lang];
 
   return (
     <article
@@ -48,8 +50,14 @@ function DemoRow({
           <h2>{p.name}</h2>
           <span className={`studio-pill studio-pill-${p.status}`}>{statusLabel(lang, p.status)}</span>
         </div>
-        <p className="studio-demo-row-tag">{p.tagline[lang]}</p>
-        {featured ? <p className="studio-demo-row-blurb">{p.blurb[lang]}</p> : null}
+        {featured ? (
+          <>
+            <p className="studio-demo-row-tag">{p.tagline[lang]}</p>
+            <p className="studio-demo-row-blurb">{p.blurb[lang]}</p>
+          </>
+        ) : (
+          <p className="studio-demo-row-tag">{detail}</p>
+        )}
         {!p.instantDemo && p.demoLogin ? (
           <div className="studio-creds studio-creds-inline">
             <code>
@@ -134,10 +142,13 @@ export function DemoHubPage() {
 
       <main className="studio-demos-main">
         <header className="studio-demos-hero" data-reveal>
-          <p className="studio-demos-kicker">{t.demosVersionLabel}</p>
+          {t.demosVersionLabel ? <p className="studio-demos-kicker">{t.demosVersionLabel}</p> : null}
           <h1 className="studio-demos-title">{t.demosPageTitle}</h1>
           <p className="studio-demos-lead">{t.demosPageLead}</p>
-          <p className="studio-demos-note">{t.demoDisclaimer}</p>
+          <p className="studio-demos-note studio-demos-warn" role="note">
+            <span aria-hidden="true">!</span>
+            {t.demoDisclaimer}
+          </p>
         </header>
 
         <section className="studio-demo-section studio-demo-section-live" aria-labelledby="demos-live">
@@ -189,10 +200,10 @@ export function DemoHubPage() {
 
         <footer className="studio-demos-footer" data-reveal>
           <Link to="/" className="studio-link">
-            {t.backStudio} →
+            {t.demosBackHome}
           </Link>
           <Link to="/investors" className="studio-link">
-            {t.ctaInvestors} →
+            {t.navInvestors} →
           </Link>
         </footer>
       </main>

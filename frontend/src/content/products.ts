@@ -26,12 +26,12 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "metodione-crm",
     name: "MetodiOne CRM",
     tagline: {
-      en: "Sales pipelines, omnichannel chat, client booking, KPI",
-      ru: "Воронки продаж, омниканальный чат, запись клиентов, KPI",
+      en: "Sales pipelines, omnichannel chat, client booking and KPI",
+      ru: "Воронки продаж, омниканальный чат, запись клиентов и KPI",
     },
     blurb: {
-      en: "Multi-tenant CRM for growing teams: stages, WhatsApp/Telegram/Instagram, online booking, roles and analytics.",
-      ru: "Мультитенант CRM для растущих команд: стадии, WhatsApp/Telegram/Instagram, онлайн-запись, роли и аналитика.",
+      en: "Multi-tenant CRM for growing teams: deal stages, WhatsApp/Telegram/Instagram integration, online booking, flexible roles and live analytics.",
+      ru: "Мультитенантная CRM для растущих команд: стадии сделок, интеграция с WhatsApp/Telegram/Instagram, онлайн-запись, гибкие роли и живая аналитика.",
     },
     tags: ["CRM", "Chat", "Booking", "SaaS"],
     demoUrl: "/demo",
@@ -47,8 +47,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "Специализированная ERP для оптовой торговли топливом",
     },
     blurb: {
-      en: "Purchases, sales, bank, journals, multi-currency documents and tank accounting for fuel distributors.",
-      ru: "Поступления, реализации, банк, проводки, мультивалютные документы и учёт резервуаров для дистрибьюторов топлива.",
+      en: "Receipts, sales, bank, journals, multi-currency documents and automatic tank accounting for distributors.",
+      ru: "Поступления, реализации, банк, проводки, мультивалютные документы и автоматический учёт резервуаров для дистрибьюторов.",
     },
     tags: ["ERP", "Finance", "Fuel"],
     demoUrl: "https://benzobiznes-koujikin.amvera.io/demo",
@@ -64,8 +64,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "CRM-платформа с интеграцией WeChat и мессенджер-мостами",
     },
     blurb: {
-      en: "Operator desk for WeChat/WhatsApp traffic: counterparties, inbound webhooks, desktop bridges, install flow.",
-      ru: "Рабочее место оператора WeChat/WhatsApp: контрагенты, входящие вебхуки, десктоп-мосты, установка у клиента.",
+      en: "A unified WeChat/WhatsApp operator desk: counterparties, inbound webhooks, desktop bridges and fast install on the client’s infrastructure.",
+      ru: "Единое рабочее место оператора WeChat/WhatsApp: ведение контрагентов, входящие вебхуки, десктоп-мосты и быстрая установка на мощностях клиента.",
     },
     tags: ["CRM", "WeChat", "WhatsApp"],
     demoUrl: "https://wechat-koujikin.amvera.io/demo",
@@ -111,12 +111,12 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "bakeflow",
     name: "BakeFlow",
     tagline: {
-      en: "Confectionery ERP: tech cards, warehouse accounting, orders",
-      ru: "ERP для кондитерских производств: технологические карты, складской учёт, заказы",
+      en: "Confectionery ERP: tech cards, warehouse, auto write-off and orders",
+      ru: "ERP для кондитерских производств: технологические карты, складской учёт, автоматическое списание и управление заказами",
     },
     blurb: {
-      en: "Ingredient stock, recipe costing, order confirmation with auto stock write-off, sales and finance views.",
-      ru: "Склад сырья, себестоимость техкарт, заказы с автосписанием, продажи и финансы.",
+      en: "Confectionery ERP: tech cards, warehouse accounting, automatic write-off and order management.",
+      ru: "ERP для кондитерских производств: технологические карты, складской учёт, автоматическое списание и управление заказами.",
     },
     tags: ["ERP", "Food", "Showcase"],
     demoUrl: "/showcase/bakeflow",
@@ -127,12 +127,12 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "atelier",
     name: "Atelier Retail",
     tagline: {
-      en: "ERP system for fashion boutiques",
-      ru: "ERP-система для fashion-бутиков",
+      en: "Fashion boutique ERP: size, color and sell-through in one loop",
+      ru: "ERP-система для fashion-бутиков: сквозной учет размеров, цветов и показателей sell-through",
     },
     blurb: {
-      en: "SKU / size / color catalog, warehouse, sales floor, analytics and finance for apparel retail.",
-      ru: "Каталог SKU / размер / цвет, склад, продажи, аналитика и финансы для магазина одежды.",
+      en: "Fashion boutique ERP: end-to-end tracking of sizes, colors and sell-through.",
+      ru: "ERP-система для fashion-бутиков: сквозной учет размеров, цветов и показателей sell-through.",
     },
     tags: ["ERP", "Retail", "Showcase"],
     demoUrl: "/showcase/atelier",
@@ -178,7 +178,7 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     name: "StaffDesk",
     tagline: {
       en: "HR automation: employees, shift timesheets, payroll",
-      ru: "Автоматизация отдела кадров: учёт сотрудников, табель рабочей смены, расчёт зарплаты",
+      ru: "Автоматизация отдела кадров: учёт сотрудников, табель смены, расчёт зарплаты",
     },
     blurb: {
       en: "Employee cards, org chart, timesheets, leave, orders, foreign-worker alerts and payroll reports (TJ/RU/EN).",
@@ -194,12 +194,12 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "clientops",
     name: "ClientOps",
     tagline: {
-      en: "Private custom delivery case",
-      ru: "Закрытый индивидуальный кейс внедрения",
+      en: "Private custom delivery of a complex ops contour under NDA",
+      ru: "Закрытый индивидуальный кейс внедрения сложного операционного контура под NDA",
     },
     blurb: {
-      en: "Custom ops suite delivered for a private client. Live public demo is available on request.",
-      ru: "Кастомный операционный контур для клиента. Публичное демо — по запросу.",
+      en: "A private custom delivery of a complex operational contour under NDA.",
+      ru: "Закрытый индивидуальный кейс внедрения сложного операционного контура под NDA.",
     },
     tags: ["Custom", "Showcase"],
     demoUrl: "/showcase/clientops",

@@ -4104,6 +4104,35 @@ html:has(.studio-root) {
   color: var(--studio-muted);
 }
 
+.studio-demos-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  max-width: 40rem;
+  margin-top: 1.1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--studio-accent) 22%, var(--studio-line));
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--studio-accent) 7%, #fff);
+  color: color-mix(in srgb, var(--studio-ink) 78%, var(--studio-accent));
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.studio-demos-warn span {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.08rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--studio-accent) 18%, #fff);
+  color: var(--studio-accent-2);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
 .studio-demo-section {
   margin-top: 2.5rem;
 }
