@@ -224,7 +224,7 @@ export function LandingPage() {
                 <header className="studio-case-head">
                   <p className="studio-case-industry">{c.industry[lang]}</p>
                   <h3 className="studio-case-title">{c.title[lang]}</h3>
-                  <p className="studio-case-context">{c.context[lang]}</p>
+                  {c.context[lang] ? <p className="studio-case-context">{c.context[lang]}</p> : null}
                 </header>
                 <div className="studio-case-grid">
                   <div>

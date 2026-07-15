@@ -18,6 +18,102 @@ export type StudioCase = {
 /** Anonymized delivery stories — problem → build → business impact. */
 export const STUDIO_CASES: StudioCase[] = [
   {
+    id: "fuel-wholesale",
+    title: {
+      en: "Month-end close: days became hours",
+      ru: "Закрытие месяца: дни превратились в часы",
+    },
+    industry: {
+      en: "Wholesale fuel distribution",
+      ru: "Оптовая дистрибуция топлива",
+    },
+    context: { en: "", ru: "" },
+    problem: {
+      en: "Purchases, sales and bank activity lived in Excel and were assembled from messenger screenshots of “deals”. Multi-currency contracts drifted from actual tank balances. Month-end close became a three-day reconciliation war. Auditors and partners constantly demanded reports that took endless calls and files to assemble.",
+      ru: "Данные о поступлениях, реализации и банковских операциях велись в Excel и собирались по скриншотам «сделок» из мессенджеров. Мультивалютные контракты расходились с фактическими остатками в резервуарах. Закрытие месяца превращалось в трехдневную «войну сверок». Аудиторы и партнеры постоянно требовали отчеты, на подготовку которых уходило множество звонков и файлов.",
+    },
+    did: {
+      en: "Shipped FuelOps — a single document system (receipts, sales, bank), operational journals and multi-currency print forms with role separation. Five scattered spreadsheets became one shared desk: ops posts on deal day, and finance sees current data immediately. Partners got a test sandbox with no access to production data.",
+      ru: "Внедрили FuelOps — единую систему документов (поступление, реализация, банк), операционных журналов и мультивалютных печатных форм с разграничением ролей. Пять разрозненных таблиц заменили одним общим рабочим столом: операции проводятся в день сделки, а финансовый отдел сразу видит актуальные данные. Для партнеров развернули тестовую песочницу без доступа к боевым данным.",
+    },
+    result: {
+      en: "Deal-to-posted-document compressed from several days to a couple of hours. Finance no longer gathers data from chats. Tank balances and cash flows reconcile in real time. Leadership and partners work from reliable data — not slide decks rebuilt for every meeting.",
+      ru: "Процесс от сделки до проведения документа сократился с нескольких дней до пары часов. Финансовому отделу больше не нужно собирать данные по чатам. Остатки в резервуарах и денежные потоки сходятся в реальном времени. Руководство и партнеры работают с достоверными данными, а не заново собранными презентациями.",
+    },
+    metrics: [
+      {
+        value: "3d → hours",
+        label: {
+          en: "month-end close cycle reduced to hours",
+          ru: "цикл закрытия месяца сократился до часов",
+        },
+      },
+      {
+        value: "1 journal",
+        label: {
+          en: "one shared journal instead of five reconciling files",
+          ru: "один общий журнал вместо пяти файлов сверки",
+        },
+      },
+      {
+        value: "same day",
+        label: {
+          en: "deal posted and reflected in accounting the same day",
+          ru: "проведение сделки и отражение в учете в тот же день",
+        },
+      },
+    ],
+    productIds: ["fuelops"],
+  },
+  {
+    id: "weighbridge-whatsapp",
+    title: {
+      en: "Weighbridge totals the whole shift trusts",
+      ru: "Итоги весовой, которым верит вся смена",
+    },
+    industry: {
+      en: "Logistics / industrial weighbridge",
+      ru: "Логистика / Промышленная весовая",
+    },
+    context: { en: "", ru: "" },
+    problem: {
+      en: "Drivers sent scale-board photos into a WhatsApp group. Dispatchers retyped weights by hand — typos and approximate nets were normal. Gross and tare were negotiated by voice, and the daily total was rebuilt at night in Excel from chat history. Numbers disagreed, so drivers and clients argued constantly, and leadership did not trust the final tonnage.",
+      ru: "Водители отправляли фото табло весов в WhatsApp-группу. Диспетчеры переносили вес вручную, из-за чего опечатки и примерные показатели нетто были нормой. Брутто и тару постоянно согласовывали голосом, а дневной итог собирали по ночам в Excel из истории чата. Из-за расхождения цифр водители и клиенты регулярно спорили, а руководство не доверяло итоговому тоннажу.",
+    },
+    did: {
+      en: "Built ScaleGate around the habit they already had: photo + caption in the group. OCR reads gross from the photo, computes net for the linked truck, and the bot posts a confirmed report back to chat. A web panel keeps full history, search and roles. No new hardware on the scale — the process stayed in convenient WhatsApp.",
+      ru: "Собрали ScaleGate вокруг привычного процесса: фото и подпись в группе. Алгоритм OCR автоматически распознает брутто на фото, вычисляет нетто для конкретной машины, а бот сразу публикует подтверждённый отчёт в чат. Веб-панель хранит всю историю, поддерживает поиск и разграничение ролей. Никакого нового железа на весах — весь процесс остался в удобном WhatsApp.",
+    },
+    result: {
+      en: "Every weighing leaves a confirmed trail in minutes. Chat and web panel show the same numbers, so disputes fade. Nightly Excel rebuilds are gone — leadership sees ready totals on the panel. Drivers get a clear automatic confirmation instead of a subjective “ok” in chat.",
+      ru: "Каждое взвешивание оставляет подтверждённый след в системе за считаные минуты. В чате и на веб-панели отображаются одинаковые цифры, что исключает споры. Ночной сбор данных в Excel полностью ушёл в прошлое — руководство видит готовые итоги на панели. Водитель получает четкое автоматическое подтверждение вместо субъективного «ок» в чате.",
+    },
+    metrics: [
+      {
+        value: "minutes",
+        label: {
+          en: "from scale photo to confirmed report",
+          ru: "от фото на весах до подтверждённого отчета",
+        },
+      },
+      {
+        value: "1 truth",
+        label: {
+          en: "group chat and web panel numbers strictly match",
+          ru: "данные чат-группы и веб-панели строго совпадают",
+        },
+      },
+      {
+        value: "no night Excel",
+        label: {
+          en: "manual nightly tonnage rebuild fully removed",
+          ru: "ночной сбор тоннажа вручную полностью ликвидирован",
+        },
+      },
+    ],
+    productIds: ["scalegate"],
+  },
+  {
     id: "crm-service",
     title: {
       en: "From personal WhatsApp to a shared service desk",
@@ -27,246 +123,183 @@ export const STUDIO_CASES: StudioCase[] = [
       en: "Multi-location service business",
       ru: "Сервисный бизнес с несколькими точками",
     },
-    context: {
-      en: "Growing chain: several sites, shared call center, owners reviewing weekly KPIs remotely.",
-      ru: "Растущая сеть: несколько точек, общий кол-центр, владельцы смотрят KPI удалённо раз в неделю.",
-    },
+    context: { en: "", ru: "" },
     problem: {
-      en: "Inbound requests landed in managers’ personal WhatsApp. Booking lived in a shared Google Sheet that lagged reality. Each site ran its own “funnel” in chat labels. When a manager left, half the conversation history left with the phone. Owners asked for conversion and got screenshots of chats plus an Excel export someone assembled the night before.",
-      ru: "Заявки падали в личные WhatsApp менеджеров. Запись жила в общей Google Sheet и отставала от факта. Каждая точка вела свою «воронку» ярлыками в чатах. Увольнение менеджера уносило половину истории вместе с телефоном. Владельцы просили конверсию — получали скриншоты чатов и Excel, который кто-то собирал ночью накануне.",
+      en: "Inbound requests landed on managers’ personal WhatsApp numbers. Booking lived in a shared Google Sheet that lagged reality. Each site marked funnel stages its own way with chat labels. When an employee left, conversation history left with their phone. Owners received “reports” as screenshots of chats.",
+      ru: "Заявки поступали на личные номера WhatsApp менеджеров. Запись велась в общем документе Google Sheets и постоянно отставала от реальности. Каждая точка отмечала стадии воронки по-своему с помощью ярлыков в чатах. Увольнение сотрудника приводило к потере истории общения вместе с его телефоном. Владельцы бизнеса получали отчеты в виде скриншотов переписок.",
     },
     did: {
-      en: "Delivered MetodiOne CRM as a multi-tenant product: common pipeline stages per service line, omnichannel chat into one desk, online booking tied to the same customer card, roles for site vs HQ, and live analytics the owners could open without asking the team. Piloted on one location, then rolled the same model to the rest.",
-      ru: "Поставили MetodiOne CRM как мультитенант-продукт: общие стадии воронки по линейкам услуг, омниканал-чат в одном столе, онлайн-запись на той же карточке клиента, роли «точка / головной офис» и живая аналитика без запроса к команде. Пилот на одной точке — затем тот же контур на остальные.",
+      en: "Delivered MetodiOne CRM as a multi-tenant product: end-to-end pipeline stages across service lines, all chats in one desk, online booking inside the customer card, site vs HQ permissions, and live analytics. Piloted on one location, then rolled the finished contour to the whole network.",
+      ru: "Внедрили MetodiOne CRM как мультитенантный продукт: настроили сквозные стадии воронки по всем линейкам услуг, объединили все чаты в одном рабочем окне и добавили онлайн-запись прямо в карточку клиента. Разграничили права доступа («точка» / «головной офис») и вывели живую аналитику. Запустили пилот на одной точке, после чего перенесли готовый контур на всю сеть.",
     },
     result: {
-      en: "Leads stopped vanishing into private phones. Booking and pipeline finally described the same customer. Shift handovers became a status change, not a voice note. Owners check a live desk instead of chasing “the table”. The business gained a repeatable sales process they can train new staff on in days, not weeks of shadowing chats.",
-      ru: "Заявки перестали пропадать в личных телефонах. Запись и воронка описывают одного клиента. Передача смены — смена статуса, а не голосовое. Владельцы смотрят живое рабочее место, а не гоняются за «таблицей». Появился повторяемый процесс продаж: нового сотрудника учат днями, а не неделями «тени» в чужих чатах.",
+      en: "Customer requests no longer vanish on personal phones. Booking and the sales funnel sit on one profile. Shift handover is a task-status change, not a voice-note exchange. Leadership runs the business from a live dashboard. Training a new hire takes a couple of days instead of weeks shadowing other people’s chats.",
+      ru: "Обращения клиентов больше не теряются на личных телефонах сотрудников. Запись и воронка продаж привязаны к одному профилю. Сдача смены теперь происходит простым изменением статуса задачи, а не обменом голосовыми сообщениями. Руководство контролирует бизнес через живой дашборд. Обучение нового сотрудника занимает пару дней вместо недель стажировки в чужих чатах.",
     },
     metrics: [
       {
         value: "0",
         label: {
-          en: "leads stuck only on personal phones",
-          ru: "лидов только на личных телефонах",
+          en: "leads left only on employees’ personal phones",
+          ru: "лидов на личных телефонах сотрудников",
         },
       },
       {
         value: "1",
         label: {
-          en: "shared funnel across all sites",
-          ru: "общая воронка на все точки",
+          en: "shared controlled funnel across all branches and sites",
+          ru: "общая контролируемая воронка на все филиалы и точки",
         },
       },
       {
         value: "same day",
         label: {
-          en: "team working in the product after go-live",
-          ru: "команда в продукте в день запуска",
+          en: "team working in the product on launch day",
+          ru: "команда начинает работать в продукте в день запуска",
         },
       },
     ],
     productIds: ["metodione-crm"],
   },
   {
-    id: "fuel-wholesale",
+    id: "hr-department",
     title: {
-      en: "Month-end that used to take days now closes in hours",
-      ru: "Закрытие месяца: дни превратились в часы",
+      en: "Visas and timesheets: caught before the incident",
+      ru: "Визы и табель: ловим до инцидента",
     },
     industry: {
-      en: "Wholesale fuel distribution",
-      ru: "Оптовая дистрибуция топлива",
+      en: "HR / people operations",
+      ru: "Отдел кадров / People Ops",
     },
-    context: {
-      en: "Regional trader: purchases and sales in multiple currencies, bank statements, tank movements, thin back-office team.",
-      ru: "Региональный трейдер: закупки и продажи в нескольких валютах, банк, движения по резервуарам, тонкий бэк-офис.",
-    },
+    context: { en: "", ru: "" },
     problem: {
-      en: "Purchases, sales and bank confirmations lived in Excel plus messenger screenshots of “done deals”. Multi-currency contracts drifted from tank reality: finance closed numbers that ops had never posted the same way. Month-end became a reconciliation war — three days of re-keying, still with disputed balances. Auditors and partners asked for a journal; the answer was five files and a phone call.",
-      ru: "Поступления, реализации и банк жили в Excel и скриншотах «сделок» из мессенджеров. Мультивалютные контракты расходились с фактом по резервуарам: финансы закрывали цифры, которые операции проводили иначе. Закрытие месяца — война сверки: три дня перебивки, и всё равно спорные остатки. Аудиторы и партнёры просили журнал — в ответ пять файлов и звонок.",
+      en: "Employee cards, visas and timesheets lived across scattered folders, chats and personal Excels. Document deadlines for foreign workers surfaced too late — when someone was already blocked from site access. Preparing analytics took HR days of file archaeology instead of real work with the team.",
+      ru: "Карточки сотрудников, визы и табель учета рабочего времени велись в разрозненных папках, чатах и личных Excel-таблицах. Сроки действия документов иностранных работников всплывали слишком поздно — когда человека уже не пускали на объект. Подготовка аналитики занимала у HR-отдела дни: специалисты занимались «археологией» файлов вместо реальной работы с командой.",
     },
     did: {
-      en: "Built FuelOps: a single document contour for purchases, sales and bank, operational journals, multi-currency print forms, tank-aware posting and role-based access. Replaced the five-table ritual with one desk where ops posts the same day and finance reviews the same journal. Sandbox kept for stakeholder demos without touching production.",
-      ru: "Собрали FuelOps: единый контур документов (поступления / реализации / банк), операционные журналы, мультивалютные печатные формы, проведение с учётом резервуаров и доступ по ролям. Пять таблиц заменили одним столом: операции проводят в день сделки, финансы смотрят тот же журнал. Для заинтересованных сторон — песочница без доступа к боевым данным.",
+      en: "Delivered StaffDesk: one system for employee cards, org chart, interactive timesheets, leave and orders. Added automatic alerts for critical document deadlines and practical exports. The interface is localized in three languages (TJ / RU / EN) — the whole HR desk now lives in one product. A live demo lets stakeholders test the process without opening real personnel files.",
+      ru: "Внедрили StaffDesk: единую систему, объединившую карточки сотрудников, оргструктуру, интерактивный табель, учет отпусков и приказов. Настроили автоматические оповещения о критических сроках документов и удобные выгрузки. Интерфейс локализован на три языка (TJ / RU / EN) — весь кадровый стол теперь в одном продукте. Живое демо позволяет протестировать процесс без открытия реальных персональных дел.",
     },
     result: {
-      en: "Deal → posted document shrunk from days to hours. Finance stopped rebuilding the month from chats. Tank and money stories finally reconcile in one system, so management decisions rest on posted truth, not optimism in Excel. Board and partner reviews reopen the live product instead of a rebuilt slide deck.",
-      ru: "Путь «сделка → проведённый документ» сжался с дней до часов. Финансы перестали собирать месяц из чатов. Резервуары и деньги сходятся в одной системе — решения руководства опираются на проведённую правду, а не на оптимизм в Excel. Совет и партнёры открывают живой продукт, а не заново собранную презентацию.",
+      en: "HR sees critical deadlines long before site incidents. Managers get reports in one click, without chasing requests. Onboarding and leave approvals no longer disappear in chats. People ops became a transparent operating system for the team.",
+      ru: "HR-отдел видит критические сроки задолго до возможных инцидентов на объектах. Руководители получают отчетность мгновенно и в один клик, без лишних запросов. Процессы онбординга и согласования отпусков больше не теряются в чатах. Кадровая служба стала прозрачной операционной системой для людей.",
     },
     metrics: [
       {
-        value: "3d → hours",
+        value: "alerts",
         label: {
-          en: "month-end close cycle",
-          ru: "цикл закрытия месяца",
+          en: "document deadline warnings before access blocks",
+          ru: "предупреждения о сроках документов до возникновения блокировок",
         },
       },
       {
-        value: "1 journal",
+        value: "same reports",
         label: {
-          en: "instead of five reconciling files",
-          ru: "вместо пяти файлов сверки",
+          en: "leadership and HR share one live dashboard",
+          ru: "руководство и HR смотрят в один и тот же актуальный дашборд",
         },
       },
       {
-        value: "same day",
+        value: "TJ/RU/EN",
         label: {
-          en: "ops posting after a deal",
-          ru: "проведение сделки операциями",
+          en: "one shared HR desk in three languages for the whole team",
+          ru: "один общий кадровый стол на трех языках для всей команды",
         },
       },
     ],
-    productIds: ["fuelops"],
+    productIds: ["staffdesk"],
   },
   {
     id: "wechat-operator",
     title: {
-      en: "International sales no longer tied to one phone",
+      en: "International sales no longer live on one phone",
       ru: "Международные продажи больше не живут на одном телефоне",
     },
     industry: {
-      en: "Cross-border messenger sales desk",
+      en: "International messenger sales desk",
       ru: "Международный стол продаж в мессенджерах",
     },
-    context: {
-      en: "Export / import sales: WeChat and WhatsApp as primary channels, operators in shifts, counterparties across borders.",
-      ru: "Экспорт / импорт: WeChat и WhatsApp как основные каналы, операторы по сменам, контрагенты за рубежом.",
-    },
+    context: { en: "", ru: "" },
     problem: {
-      en: "Traffic hit personal phones. Counterparties were renamed ad hoc in chats; nobody shared a clean account card. Bridge installs crashed on client machines and only “the guy who knows” could revive them. When an operator left or went on leave, the next person inherited mute threads and lost context — deals stalled while people scrolled old screenshots.",
-      ru: "Трафик шёл на личные телефоны. Контрагентов переименовывали ad hoc в чатах — общей карточки не было. Мосты падали на машинах клиентов, и поднимал их только «тот, кто знает». Уход или отпуск оператора оставлял немым треды и потерянный контекст — сделки замирали, пока кто-то листал старые скриншоты.",
+      en: "All inbound traffic hit operators’ personal phones. Counterparties were renamed by hand inside chats — there was no shared customer card. Integration bridges regularly failed on servers, and only one irreplaceable specialist could bring them back. An operator’s leave or departure froze sales and removed control over conversations.",
+      ru: "Весь входящий трафик шел на личные телефоны операторов. Контрагентов переименовывали вручную прямо в чатах — единой карточки клиента не существовало. Интеграционные мосты регулярно падали на серверах, а восстановить их работоспособность мог только один незаменимый специалист. Уход или отпуск оператора парализовал продажи, лишая компанию контроля над переписками.",
     },
     did: {
-      en: "Built MessageHub: a shared operator desk, counterparties as first-class records, inbound webhooks, and an installable bridge path with a repeatable setup — so messenger work lives in a product, not on a private device. Training materials and a sandbox for the next hire.",
-      ru: "Собрали MessageHub: общий стол оператора, контрагенты как полноценные карточки, входящие вебхуки и устанавливаемый мост с повторяемой установкой — работа в мессенджерах в продукте, а не на личном устройстве. Обучение и песочница для следующего сотрудника.",
+      en: "Built MessageHub — a shared operator workspace. Counterparties are first-class customer cards with history. Configured inbound webhooks and a reliable integration bridge with a reproducible deploy path. Messenger work now happens inside a corporate product, not on personal smartphones.",
+      ru: "Разработали MessageHub — единое рабочее пространство (общий стол) оператора. Контрагенты ведутся как полноценные карточки клиентов с историей. Настроили входящие вебхуки и внедрили надежный интеграционный мост с воспроизводимым сценарием развертывания. Теперь вся работа в мессенджерах происходит внутри корпоративного продукта, а не на личных смартфонах сотрудников.",
     },
     result: {
-      en: "Shift handovers became possible without copying chats. Leads stay attached to accounts managers and partners can audit. Bridge recovery is a procedure, not tribal knowledge. Sales continuity no longer depends on one SIM card — the desk survives people turnover.",
-      ru: "Передача смены возможна без копирования чатов. Лиды привязаны к карточкам, которые можно передать и проверить. Восстановление моста — процедура, а не сакральное знание. Непрерывность продаж не зависит от одной SIM: стол переживает смену людей.",
+      en: "Operator shift handover is instant and seamless — no manual chat copying. Leads are firmly attached to customer cards and easy to review or reassign. Bridge recovery became a standard procedure, not one person’s sacred knowledge. Continuity of international sales no longer depends on one mobile phone.",
+      ru: "Передача смены между операторами теперь происходит мгновенно и бесшовно, без ручного копирования чатов. Все лиды жестко привязаны к карточкам клиентов — их легко проверить и передать коллеге. Восстановление интеграционного моста превратилось в стандартную регламентированную процедуру, а не в «сакральное знание» одного человека. Непрерывность международных продаж больше не зависит от стабильности одного мобильного телефона.",
     },
     metrics: [
       {
-        value: "shift-ready",
+        value: "no-copy handover",
         label: {
-          en: "handover without private phones",
-          ru: "передача смены без личных телефонов",
+          en: "operator shift handover without copying chat history",
+          ru: "передача смены оператора без ручного копирования истории",
         },
       },
       {
-        value: "playbook",
+        value: "reproducible bridge",
         label: {
-          en: "bridge install instead of tribal fix",
-          ru: "установка моста вместо «позвони эксперту»",
+          en: "messenger-bridge deploy path is automated",
+          ru: "сценарий развертывания мессенджер-моста автоматизирован",
         },
       },
       {
-        value: "account-tied",
+        value: "independent sales",
         label: {
-          en: "leads stay with the counterparty",
-          ru: "лиды остаются на карточке контрагента",
+          en: "sales no longer depend on a physical smartphone being present",
+          ru: "продажи не зависят от физического присутствия смартфона",
         },
       },
     ],
     productIds: ["messagehub"],
   },
   {
-    id: "weighbridge-whatsapp",
-    title: {
-      en: "Weighbridge totals the whole team can trust",
-      ru: "Итоги весовой, которым верит вся смена",
-    },
-    industry: {
-      en: "Logistics / industrial weighbridge",
-      ru: "Логистика / промышленная весовая",
-    },
-    context: {
-      en: "Site with heavy truck flow: drivers, dispatchers, nightly tonnage reporting to management.",
-      ru: "Площадка с плотным потоком грузовиков: водители, диспетчеры, ночной отчёт по тоннажу для руководства.",
-    },
-    problem: {
-      en: "Drivers photographed the scale board into a WhatsApp group. Dispatchers retyped weights by hand — typos and “approximate” nets were normal. Gross vs tare was argued verbally; daily totals were rebuilt at night in Excel from chat history. Drivers and clients disputed the same trip with different numbers. Management never trusted the day’s tonnes.",
-      ru: "Водители слали фото табло в WhatsApp-группу. Диспетчеры перебивали вес вручную — опечатки и «примерное» нетто были нормой. Брутто и тара спорили голосом; дневной итог собирали ночью в Excel из истории чата. Водители и клиенты спорили по одной поездке разными цифрами. Руководство не верило тоннажу дня.",
-    },
-    did: {
-      en: "Built ScaleGate around the habit they already had: photo + caption in the group. OCR reads gross; net = current − previous for the linked truck; the bot posts a confirmed report back to the chat; a web panel keeps history, search and roles for dispatch and admins. No new device on the scale — the process stayed in WhatsApp.",
-      ru: "Собрали ScaleGate вокруг привычки, которая уже была: фото + подпись в группе. OCR читает брутто; нетто = текущий − предыдущий для связанной машины; бот публикует подтверждённый отчёт в чат; веб-панель хранит историю, поиск и роли. Нового железа на весах нет — процесс остался в WhatsApp.",
-    },
-    result: {
-      en: "Every weighing leaves an auditable trail in minutes. The group sees the same numbers the panel stores — disputes drop because there is one source of truth. Nightly “rebuild the day in Excel” disappeared; management opens the panel for the total. Drivers get a clear confirmation instead of a vague “ok” in chat.",
-      ru: "Каждое взвешивание оставляет аудируемый след за минуты. Группа видит те же цифры, что панель — споры падают, потому что источник один. Ночной «сбор дня» в Excel исчез; руководство открывает панель за итогом. Водитель получает ясное подтверждение вместо смутного «ок» в чате.",
-    },
-    metrics: [
-      {
-        value: "minutes",
-        label: {
-          en: "from photo to confirmed report",
-          ru: "от фото до подтверждённого отчёта",
-        },
-      },
-      {
-        value: "1 truth",
-        label: {
-          en: "group chat and web panel match",
-          ru: "чат группы и веб-панель совпадают",
-        },
-      },
-      {
-        value: "no night Excel",
-        label: {
-          en: "daily tonnage rebuild dropped",
-          ru: "ночной сбор тоннажа ушёл",
-        },
-      },
-    ],
-    productIds: ["scalegate"],
-  },
-  {
     id: "furniture-factory",
     title: {
-      en: "Factory stock that matches posted documents",
+      en: "Shop-floor stock that matches the documents",
       ru: "Склад цеха, который совпадает с документами",
     },
     industry: {
-      en: "Furniture production & warehouse",
+      en: "Furniture production and warehouse",
       ru: "Мебельное производство и склад",
     },
-    context: {
-      en: "Workshop + warehouse: multi-line receipts and issues, print forms for drivers, managers who need to reverse mistakes without chaos.",
-      ru: "Цех + склад: мультистрочные приходы и списания, печать для водителей, менеджеры, которым нужна отмена ошибок без хаоса.",
-    },
+    context: { en: "", ru: "" },
     problem: {
-      en: "Stock and multi-line documents lived on paper and in chat photos. A wrong posting was almost impossible to reverse cleanly — people “fixed” balances with invent numbers. Print forms lagged the real floor; roles were “whoever has the shared laptop password”. Stakeholders touring the plant got binder photos instead of a system they could trust.",
-      ru: "Склад и мультистрочные документы жили на бумаге и в фото из чатов. Ошибочное проведение почти нельзя было откатить чисто — остатки «чинили» инвентаризацией. Печать отставала от пола; роли — «у кого пароль от общего ноутбука». Стейкхолдерам на обходе показывали фото папки вместо системы, которой можно верить.",
+      en: "Warehouse accounting and multi-line delivery notes lived on paper and as photos in chats. A wrongly posted operation was almost impossible to reverse without distorting the books, so balances were regularly “adjusted” by inventory. Print forms for drivers lagged actual shipments. Access control was chaos at the shared-laptop-password level. During partner visits, leadership showed folder photos on a phone instead of a transparent system.",
+      ru: "Складской учет и многострочные накладные велись на бумаге и в виде фотографий в чатах. Ошибочно проведенную операцию было практически невозможно отменить без искажения учета, поэтому остатки регулярно «подгоняли» инвентаризацией. Печать документов для водителей постоянно отставала от фактической отгрузки. Права доступа распределялись хаотично на уровне «у кого пароль от общего ноутбука». Во время визитов партнерам показывали фото папок на телефоне вместо прозрачной системы.",
     },
     did: {
-      en: "Delivered CraftLine: FIFO warehouse, multi-line documents, controlled posting and unposting, PDF prints, roles and an audit trail for operators and management. Shop floor workflows mapped to real document types instead of free-form spreadsheets.",
-      ru: "Внедрили CraftLine: FIFO-склад, мультистрочные документы, контролируемое проведение и отмена, PDF, роли и аудит для цеха и руководства. Процессы пола легли на реальные типы документов, а не на свободные таблицы.",
+      en: "Delivered CraftLine: FIFO warehouse, controlled posting and unposting of multi-line documents, PDF generation, role separation and an end-to-end action audit. Real shop-floor processes mapped onto strict document types — not chaotic free-form spreadsheets.",
+      ru: "Внедрили CraftLine: организовали склад по методу FIFO, внедрили контролируемое проведение и отмену многострочных документов, генерацию PDF-отчетов, разграничение ролей и сквозной аудит действий. Реальные процессы цеха легли на строгие типы документов, а не на хаотичные свободные таблицы.",
     },
     result: {
-      en: "Stock movements match posted documents. Reverse posting is a deliberate, attributable action — not a midnight edit. The factory can open a live desk for partners instead of photographing binders. Management sees who changed what, which cuts chronic “someone adjusted the balance” arguments.",
-      ru: "Движения склада совпадают с проведёнными документами. Отмена проведения — осознанное и атрибутированное действие, а не ночная правка. Цех открывает живой стол партнёрам вместо фото папки. Руководство видит, кто что менял — уходят споры «кто-то подкрутил остаток».",
+      en: "Every warehouse movement is tied to posted documents. Unposting is a deliberate action with an author trail — not a hidden midnight edit. Instead of showing folders, leadership opens a live dashboard for partners. Change history is transparent — arguments about “who tweaked the stock” are gone.",
+      ru: "Все движения на складе теперь строго привязаны к проведенным документам. Отмена операции стала осознанным действием с фиксацией автора изменений, а не скрытой ночной правкой. Вместо демонстрации папок руководство открывает перед партнерами живой рабочий дашборд. Вся история изменений прозрачна — споры о том, «кто подкрутил остатки», ушли в прошлое.",
     },
     metrics: [
       {
         value: "FIFO",
         label: {
-          en: "warehouse movements tied to docs",
-          ru: "движения склада привязаны к документам",
+          en: "all stock movements tightly tied to batch documents",
+          ru: "все движения склада жестко привязаны к документам партии",
         },
       },
       {
         value: "audit",
         label: {
-          en: "unpost with trail, not silent edits",
-          ru: "отмена проведения с аудитом",
+          en: "every post or unpost is recorded in the logs",
+          ru: "любое проведение или отмена документа фиксируется в логах",
         },
       },
       {
         value: "live desk",
         label: {
-          en: "shown to stakeholders instead of binders",
-          ru: "стейкхолдерам — система, не папка",
+          en: "partners see the live system instead of folder photos",
+          ru: "вместо фото папок партнеры видят реальное состояние системы",
         },
       },
     ],
@@ -280,44 +313,41 @@ export const STUDIO_CASES: StudioCase[] = [
     },
     industry: {
       en: "Confectionery / dessert production",
-      ru: "Кондитерское / dessert-производство",
+      ru: "Кондитерское / Dessert-производство",
     },
-    context: {
-      en: "Kitchen + small sales desk: recipes, ingredient stock, wholesale and retail orders, owner watching margins.",
-      ru: "Кухня + небольшой стол продаж: техкарты, сырьё, опт и розница, владелец смотрит маржу.",
-    },
+    context: { en: "", ru: "" },
     problem: {
-      en: "Recipes lived in notebooks with unofficial “tweaks”. Ingredient write-offs happened after the fact — often days later — so stock never matched production. Confirming an order did not move costing and warehouse in one motion. The owner discovered margin holes only when purchasing again screamed that sugar “should still be there”.",
-      ru: "Техкарты — в тетрадях с неофициальными «улучшениями». Списание сырья — постфактум, часто через дни, поэтому склад не совпадал с выпуском. Подтверждение заказа не двигало себестоимость и склад одним действием. Владелец узнавал про дыры в марже, когда закупки снова кричали, что сахар «ещё должен быть».",
+      en: "Recipes and tech cards lived in notebooks with unofficial “improvements” from cooks. Ingredient write-offs happened after the fact — often days later — so warehouse stock never matched reality. Confirming an order did not trigger automatic costing. The owner learned about cash gaps and margin drops too late — when purchasing discovered ingredients were gone while the papers still said they “should be there”.",
+      ru: "Рецептуры и технологические карты велись в тетрадях с «неофициальными улучшениями» от поваров. Списание сырья происходило постфактум, часто через несколько дней, из-за чего остатки на складе никогда не сходились с реальностью. Подтверждение заказа никак не влияло на автоматический расчет себестоимости. Владелец бизнеса узнавал о кассовых разрывах и падении маржинальности слишком поздно — когда при закупках выяснялось, что сырье закончилось, хотя по бумагам «еще должно быть».",
     },
     did: {
-      en: "Shaped BakeFlow: ingredient stock, recipe costing, order confirmation with automatic write-off, plus sales and a light finance view for the owner. One motion from “order accepted” to stock and cost movement — kitchen sees cost before committing volume.",
-      ru: "Собрали BakeFlow: склад сырья, себестоимость техкарт, подтверждение заказа с автосписанием, продажи и лёгкий финконтур для владельца. Одно действие «заказ принят» двигает склад и себестоимость — кухня видит cost до принятия объёма.",
+      en: "Built BakeFlow: ingredient stock, recipe costing and order confirmation with automatic write-off. Connected sales with the owner’s finance view. One action — moving an order to “Accepted” — instantly recalculates cost and writes off stock. The kitchen sees real batch cost before production starts.",
+      ru: "Собрали BakeFlow: настроили склад сырья, калькуляцию себестоимости по техкартам и подтверждение заказов с автосписанием. Объединили продажи и финансовый контур владельца. Теперь одно действие — перевод заказа в статус «Принят» — мгновенно пересчитывает себестоимость и списывает остатки. Кухня видит реальную себестоимость партии до начала производства.",
     },
     result: {
-      en: "Kitchen discusses numbers before saying yes to large batches. Stock moves with the order instead of a weekly cleanup. The owner has a product narrative investors and partners understand — and a path to a full sandbox walkthrough on request, not a binder of recipes.",
-      ru: "Кухня обсуждает цифры до «да» на крупный объём. Склад двигается с заказом, а не еженедельной зачисткой. У владельца есть продуктовый рассказ для инвестора и партнёра — и путь к полной песочнице по запросу, а не папка техкарт.",
+      en: "Production sees exact numbers before confirming a large order volume. Ingredient stock moves with orders instead of a weekly cleanup. The owner has a clear margin tool and an investor-ready narrative. A test sandbox path opens on first request — without digging through recipe binders.",
+      ru: "Производство видит точные цифры до того, как подтвердить крупный объем заказа. Движение сырья на складе синхронизировано с заказами, а не корректируется ручной зачисткой в конце недели. У владельца появился прозрачный инструмент для анализа маржинальности и демонстрации показателей инвесторам. Путь к тестовой песочнице открывается по первому запросу, без необходимости изучать папки с техкартами.",
     },
     metrics: [
       {
         value: "pre-accept",
         label: {
-          en: "costing visible before volume commit",
-          ru: "себестоимость до принятия объёма",
+          en: "cost calculated before batch volume is confirmed",
+          ru: "себестоимость рассчитывается до подтверждения объема партии",
         },
       },
       {
         value: "auto write-off",
         label: {
-          en: "stock moves with order confirm",
-          ru: "склад со подтверждением заказа",
+          en: "warehouse write-off tied to the Accepted status",
+          ru: "складское списание привязано к статусу «Принят»",
         },
       },
       {
         value: "owner desk",
         label: {
-          en: "margin without notebook archaeology",
-          ru: "маржа без археологии тетрадей",
+          en: "margin control without digging through kitchen notebooks",
+          ru: "контроль маржи без копания в кулинарных тетрадях",
         },
       },
     ],
@@ -326,49 +356,46 @@ export const STUDIO_CASES: StudioCase[] = [
   {
     id: "fashion-boutique",
     title: {
-      en: "Size and color as one truth at closing",
-      ru: "Размер и цвет — одна правда на закрытии дня",
+      en: "Size and color — unified stock at day close",
+      ru: "Размер и цвет — единый учет на закрытии дня",
     },
     industry: {
-      en: "Fashion boutique retail",
-      ru: "Fashion-бутик / retail",
+      en: "Fashion boutique / retail",
+      ru: "Fashion-бутик / Retail",
     },
-    context: {
-      en: "Floor sales + small backroom stock: apparel SKUs by size/color, evening reconciliation, owners checking sell-through.",
-      ru: "Продажи в зале + небольшой склад: SKU одежды по размеру/цвету, вечерняя сверка, владельцы смотрят sell-through.",
-    },
+    context: { en: "", ru: "" },
     problem: {
-      en: "SKU / size / color truth was fragmented across chat, the cash desk and “the other spreadsheet”. What sales claimed was sold disagreed with what hung on the floor. Closing meant arguing counts; markdowns and transfers vanished into informal notes. Partners asking for inventory reality got conflicting answers depending on who was closing that night.",
-      ru: "Правда SKU / размер / цвет распадалась между чатом, кассой и «другой таблицей». То, что продажи считали проданным, не совпадало с залом. Закрытие дня — спор о остатках; уценки и перемещения тонули в неформальных заметках. Партнёрам про склад отвечали по-разному — в зависимости от того, кто закрывал смену.",
+      en: "There was no unified SKU / size / color accounting — data was scattered across chats, the cash desk and separate sheets. Sales in the system disagreed with what actually hung on the floor. Shift close became endless stock arguments; markdowns and transfers vanished into personal notes. Partners got different answers about availability depending on who closed the day.",
+      ru: "Единый учет по SKU, размерам и цветам отсутствовал — данные были разбросаны между чатами, кассой и разрозненными таблицами. Информация о продажах в системе не совпадала с фактическим наличием вещей в торговом зале. Закрытие смены превращалось в бесконечный спор об остатках, а уценки и перемещения товара терялись в личных заметках. Партнеры получали разную информацию о наличии на складе в зависимости от того, кто именно из менеджеров закрывал день.",
     },
     did: {
-      en: "Built Atelier Retail: catalog discipline for apparel (size/color as first-class), warehouse and floor sales on one stock, owner analytics and finance snapshots in one product story — with a showcase for partners while a private live demo is scheduled.",
-      ru: "Собрали Atelier Retail: дисциплина каталога одежды (размер/цвет как первоклассные поля), склад и продажи в зале на одном остатке, аналитика владельца и финансовые срезы в одной истории — showcase для партнёров, живой разбор по слоту.",
+      en: "Built Atelier Retail: structured the apparel catalog so size and color are first-class system fields. United warehouse stock and floor sales in one inventory contour. Delivered owner analytics and financial reporting, plus a transparent interactive showcase for partners with a fast walkthrough of the numbers.",
+      ru: "Разработали Atelier Retail: структурировали каталог одежды, где размер и цвет стали ключевыми системными параметрами. Объединили складские запасы и розничные продажи в зале в рамках единого контура остатков. Вывели сквозную аналитику и финансовую отчетность для владельцев, создав прозрачную интерактивную витрину (showcase) для партнеров с возможностью быстрого разбора показателей.",
     },
     result: {
-      en: "Size/color stay one truth from intake to sale. Sales and stock stop fighting at closing. Owners see sell-through without rebuilding sheets; partners walk a coherent showcase instead of three conflicting Excels.",
-      ru: "Размер/цвет — одна правда от прихода до продажи. Продажи и склад не спорят на закрытии. Владельцы видят sell-through без сборки таблиц; партнёрам — связный showcase, а не три конфликтующих Excel.",
+      en: "Size and color stay tracked from intake to receipt. Warehouse and floor teams no longer argue at shift close. Owners watch sell-through live without rebuilding sheets, and partners see one reliable data showcase instead of several conflicting Excels.",
+      ru: "Параметры размера и цвета строго отслеживаются на всех этапах от поставки до чека. Складской и торговый отделы больше не спорят при закрытии смен. Владельцы контролируют показатель sell-through (продаваемость) в реальном времени без ручного сведения таблиц, а партнеры видят единую достоверную витрину данных вместо нескольких конфликтующих Excel-файлов.",
     },
     metrics: [
       {
         value: "1 SKU truth",
         label: {
-          en: "size/color across floor and stock",
-          ru: "размер/цвет в зале и на складе",
+          en: "size and color match on the floor and in the warehouse",
+          ru: "размер и цвет совпадают в зале и на складе",
         },
       },
       {
         value: "calm close",
         label: {
-          en: "day close without count wars",
-          ru: "закрытие дня без войны пересчётов",
+          en: "shift close without stress and manual reconciliations",
+          ru: "закрытие смены без стресса и сверок вручную",
         },
       },
       {
         value: "owner view",
         label: {
-          en: "sell-through without nightly sheets",
-          ru: "sell-through без ночных таблиц",
+          en: "sell-through tracking without nightly Excel rebuilds",
+          ru: "отслеживание sell-through без ночного сведения Excel",
         },
       },
     ],
@@ -384,42 +411,39 @@ export const STUDIO_CASES: StudioCase[] = [
       en: "Auto-parts warehouse",
       ru: "Склад автозапчастей",
     },
-    context: {
-      en: "Busy counter: lookup by part number, shift workers, owner who needed attribution without publishing master credentials.",
-      ru: "Плотный прилавок: поиск по номеру, сменные сотрудники, владелец которому нужна атрибуция без публикации мастер-пароля.",
-    },
+    context: { en: "", ru: "" },
     problem: {
-      en: "Parts lookup and PIN profiles depended on who was on shift — tribal knowledge, not a system. Inventory counts drifted because actions were anonymous under a shared login. Demos for partners meant risking production credentials or staging a fake walkthrough. Shrink and mispicks were hard to assign.",
-      ru: "Поиск запчастей и PIN зависели от того, кто на смене — знание людей, не система. Остатки «плыли», потому что действия были анонимны под общим входом. Демо для партнёров — либо риск боевых PIN, либо театральная инсценировка. Недостачи и ошибки сборки сложно было кому-то атрибутировать.",
+      en: "Parts lookup and PIN-based picking depended on whoever was on shift. With no personal accounts, the whole team worked under one master password. The owner could not attribute actions to people — so responsibility for sales mistakes, bad returns and stock gaps was impossible to assign.",
+      ru: "Поиск автозапчастей и подбор деталей по PIN-кодам зависели от опыта конкретного сотрудника на смене. Из-за отсутствия персональных учетных записей вся команда работала под общим «мастер-паролем». Владелец не мог отследить действия конкретных сотрудников, из-за чего было невозможно установить личную ответственность за ошибки в продажах, некорректно оформленные возвраты и расхождения на складе.",
     },
     did: {
-      en: "Deployed PartStock: parts inventory, operational counter workflows and PIN profiles per role, plus an isolated sandbox path so diligence and demos never touch client production credentials.",
-      ru: "Внедрили PartStock: номенклатура, процессы прилавка и PIN-профили по ролям, плюс изолированная песочница — проверка и демо никогда не трогают боевые PIN клиента.",
+      en: "Delivered PartStock: digitized the parts catalog, tuned exact number lookup, and separated permissions. Replaced the shared master password with personal accounts and PIN codes per shift worker. Every warehouse and cash action is now attributed to a concrete person.",
+      ru: "Внедрили PartStock: оцифровали номенклатуру запчастей, настроили точные алгоритмы поиска по номерам и разграничили права доступа. Заменили единый мастер-пароль персональными учетными записями с PIN-кодами для каждого сменного сотрудника. Теперь каждое действие на складе и кассе автоматически привязывается к конкретному исполнителю.",
     },
     result: {
-      en: "Operators work under roles, not a shared password. Warehouse actions are attributable — disputes have an author. Partner and investor walkthroughs use a sandbox login: the real catalog pattern without exposing production. Inventory discipline returned because the system remembers who did what.",
-      ru: "Операторы работают под ролями, не под общим паролем. Действия по складу атрибутированы — у спора есть автор. Партнёры и инвесторы заходят в песочницу: тот же паттерн каталога без боевого доступа. Дисциплина остатков вернулась, потому что система помнит, кто что сделал.",
+      en: "Operators work under personal roles, not a shared password. Every warehouse or cash action is transparent and auditable. The owner sees each employee’s contribution, and pick mistakes are found without interrogating the whole shift.",
+      ru: "Операторы работают под своими персональными ролями, а не под общим паролем. Любое действие по складу или кассе теперь прозрачно и подлежит аудиту. Владелец видит личную эффективность каждого сотрудника, а ошибки при подборе запчастей легко выявляются и устраняются без долгих разбирательств со всей сменой.",
     },
     metrics: [
       {
         value: "PIN / role",
         label: {
-          en: "no shared master password on shift",
-          ru: "без общего мастер-пароля на смене",
+          en: "personal PIN login — no shared master password",
+          ru: "вход в систему по персональному PIN-коду без общего пароля",
         },
       },
       {
         value: "audit trail",
         label: {
-          en: "every stock action has an author",
-          ru: "у каждого действия по складу есть автор",
+          en: "every warehouse action has an author and is logged",
+          ru: "каждое действие на складе имеет автора и фиксируется",
         },
       },
       {
         value: "sandbox",
         label: {
-          en: "demos without production PIN",
-          ru: "демо без боевого PIN",
+          en: "system demos on test data — never real PINs",
+          ru: "демонстрация системы на тестовых данных, без реальных PIN",
         },
       },
     ],
@@ -435,144 +459,87 @@ export const STUDIO_CASES: StudioCase[] = [
       en: "Client trading operations desk",
       ru: "Операционный торговый стол клиента",
     },
-    context: {
-      en: "Growing trading desk: custom exceptions, several roles, frequent partner and board reviews of the operating model.",
-      ru: "Растущий торговый стол: свои исключения, несколько ролей, частые разборы операционной модели с партнёрами и советом.",
-    },
+    context: { en: "", ru: "" },
     problem: {
-      en: "The trading workflow outgrew ad-hoc tools. Exceptions multiplied into private worksheets; roles blurred between who could book, approve and reverse. Every stakeholder review meant rebuilding the process in slides — and by the next meeting the slides were already wrong. Ops risk lived in people’s heads.",
-      ru: "Торговый процесс вырос из кустарных инструментов. Исключения размножились в личных таблицах; роли «кто бронирует / утверждает / откатывает» размылись. Каждый разбор для стейкхолдеров — заново собрать слайды, и к следующей встрече они уже врали. Операционный риск жил в головах людей.",
+      en: "The trading process grew out of simple, handmade tools. Exceptions, rare paths and approvals multiplied unchecked in personal spreadsheets. Roles like who books, who approves and who rejects blurred. Every stakeholder review meant rebuilding presentation slides that were already wrong by the next meeting. Operational risk lived entirely in key people’s memory.",
+      ru: "Торговый процесс вырос из простых, кустарных инструментов. Все исключения, редкие сценарии и согласования начали бесконтрольно размножаться в личных таблицах сотрудников. Роли вроде «кто бронирует», «кто утверждает» и «кто отказывает» размылись. Каждый разбор для стейкхолдеров требовал заново собирать слайды презентаций, которые к следующей встрече уже не соответствовали реальности. Операционный риск целиком зависел от памяти ключевых сотрудников.",
     },
     did: {
-      en: "Shipped TradeDesk: a client-shaped operations ERP on a live host — documents and roles tuned to that trading flow, with a sandbox reopen for board and partner reviews so the next meeting opens the same desk, not a new deck.",
-      ru: "Собрали TradeDesk: операционную ERP под процесс клиента на живом хосте — документы и роли под торговый поток, песочница для повторного показа совету и партнёрам: следующая встреча открывает тот же стол, а не новую колоду слайдов.",
+      en: "Built TradeDesk — an operations ERP shaped to the client’s real trading flow on a live host. Digitized documents and locked roles to the trading stream. Deployed an isolated sandbox for board and partner demos: the next meeting opens the same desk, not a new deck of static slides.",
+      ru: "Собрали TradeDesk — операционную ERP под реальный торговый процесс клиента на живом хосте. Оцифровали все документы и закрепили роли под торговый поток. Развернули изолированную песочницу для демонстрации системы совету директоров и партнерам: следующая встреча открывает тот же рабочий стол, а не новую колоду статичных слайдов.",
     },
     result: {
-      en: "Daily ops run inside a named product with clear roles. Exceptions are modeled, not whispered. The next diligence or board session reopens evidence that still matches reality. Custom work looks and behaves like a system the organization owns — not a rented generic template.",
-      ru: "Ежедневные операции идут в именном продукте с ясными ролями. Исключения смоделированы, а не «на словах». Следующий diligence или совет открывает доказательства, которые ещё совпадают с реальностью. Кастом выглядит и ведёт себя как своя система — не арендованный generic.",
+      en: "Daily ops run inside a named product with clear system roles. Exceptions are modeled in the UI, not discussed “in words”. The next audit or partner board opens a live system that matches reality. The custom build looks and behaves like the company’s own private system — not rented faceless software.",
+      ru: "Ежедневные операции выполняются в именном продукте с четко прописанными, системными ролями. Все операционные исключения смоделированы в интерфейсе, а не обсуждаются «на словах». Следующий аудит или совет партнеров открывает живую систему, которая совпадает с реальностью. Кастомное решение выглядит и ведет себя как собственная закрытая система компании, а не арендованный безликий софт.",
     },
     metrics: [
       {
         value: "named ERP",
         label: {
-          en: "not a slide deck of the process",
-          ru: "не слайды про процесс, а продукт",
+          en: "individual product instead of endless process slides",
+          ru: "индивидуальный продукт вместо бесконечных слайдов о процессах",
         },
       },
       {
         value: "roles",
         label: {
-          en: "book / approve / reverse separated",
-          ru: "бронь / утверждение / откат разделены",
+          en: "book / approve / cancel rights are strictly separated",
+          ru: "права на бронь, утверждение и отмену операции строго разделены",
         },
       },
       {
         value: "reopen",
         label: {
-          en: "same desk for every board review",
-          ru: "тот же стол на каждом разборе",
+          en: "the same up-to-date desk opens at every meeting",
+          ru: "демонстрация одного и того же актуального стола на каждой встрече",
         },
       },
     ],
     productIds: ["tradedesk"],
   },
   {
-    id: "hr-department",
-    title: {
-      en: "Visa and timesheet fires caught before incidents",
-      ru: "Визы и табель: ловим до инцидента",
-    },
-    industry: {
-      en: "HR / people operations",
-      ru: "Отдел кадров / people ops",
-    },
-    context: {
-      en: "Mid-size employer with local and foreign workers: cards, visas, timesheets, leave, orders, management asking for weekly reports.",
-      ru: "Средний работодатель с локальными и иностранными сотрудниками: карточки, визы, табель, отпуска, приказы, еженедельные отчёты руководству.",
-    },
-    problem: {
-      en: "Employee cards, visas and timesheets lived across folders, chats and personal Excels. Foreign-worker expiries were discovered when someone was already blocked at a checkpoint — or when a manager asked “why isn’t he on site?”. Leadership waited days for reports assembled by hand; HR spent more time archaeology than people ops.",
-      ru: "Карточки, визы и табель жили в папках, чатах и личных Excel. Сроки по иностранным работникам всплывали, когда человека уже не пропускали — или когда руководитель спрашивал «почему его нет на объекте?». Руководство ждало отчёты днями; HR больше занималось археологией файлов, чем people ops.",
-    },
-    did: {
-      en: "Delivered StaffDesk: people cards, org chart, timesheets, leave, orders, foreign-worker expiry alerts and payroll/report exports — with TJ / RU / EN interfaces so the whole HR desk works in one product. Live demo walks the process without opening production personnel files.",
-      ru: "Внедрили StaffDesk: карточки, оргструктура, табель, отпуска, приказы, оповещения о сроках по иностранным работникам и выгрузки — интерфейсы TJ / RU / EN, весь кадровый стол в одном продукте. Живое демо разбирает процесс без открытия боевых персональных дел.",
-    },
-    result: {
-      en: "HR sees expiries before they become site incidents. Managers read the same reports without pinging “send the file”. Onboarding and leave stop living in unread chats. The department finally looks like an operating system for people — which matters for compliance and for trust from operational leadership.",
-      ru: "HR видит сроки до инцидента на объекте. Руководители читают те же отчёты без «скинь файл». Онбординг и отпуска не живут в непрочитанных чатах. Отдел выглядит как операционная система для людей — это важно и для compliance, и для доверия операционного руководства.",
-    },
-    metrics: [
-      {
-        value: "alerts",
-        label: {
-          en: "foreign-worker expiries before blocks",
-          ru: "сроки иностранцев до блокировок",
-        },
-      },
-      {
-        value: "same reports",
-        label: {
-          en: "management and HR share one view",
-          ru: "руководство и HR смотрят одно",
-        },
-      },
-      {
-        value: "TJ/RU/EN",
-        label: {
-          en: "one desk for the whole HR team",
-          ru: "один стол для всей кадровой команды",
-        },
-      },
-    ],
-    productIds: ["staffdesk"],
-  },
-  {
     id: "private-ops",
     title: {
-      en: "When SaaS could not hold the client’s exceptions",
+      en: "When off-the-shelf SaaS could not hold the client’s exceptions",
       ru: "Когда готовый SaaS не держал исключения клиента",
     },
     industry: {
-      en: "Private custom operations suite",
+      en: "Private custom operations contour",
       ru: "Закрытый кастомный операционный контур",
     },
-    context: {
-      en: "Confidential operator: off-the-shelf tools failed on edge cases; data and logic had to stay owned under NDA.",
-      ru: "Закрытый оператор: готовые инструменты ломались на краевых случаях; логика и данные должны оставаться своими под NDA.",
-    },
+    context: { en: "", ru: "" },
     problem: {
-      en: "Generic SaaS forced the process into the product’s assumptions. Edge cases became shadow workflows outside the system — the worst of both worlds. Skinning a public template was unacceptable under confidentiality. Leadership needed an internal named product their team would actually run, and stakeholders needed controlled demos — not a marketing site of someone else’s template.",
-      ru: "Чужой SaaS натягивал процесс на чужие допущения. Краевые случаи уходили в теневые контуры вне системы — худшее из двух миров. «Перекраска» публичного шаблона под конфиденциальностью была невозможна. Руководству нужен был именной внутренний продукт, которым команда реально работает, а заинтересованным сторонам — контролируемые демо, не маркетинговый сайт чужого шаблона.",
+      en: "Third-party SaaS tried to impose someone else’s process assumptions on the business. Non-standard edge cases escaped into shadow manual workflows outside the system and created confusion. Attempts to “skin” a public template under strict confidentiality failed. Leadership needed an owned, named internal product that actually ran their logic and protected closed data.",
+      ru: "Сторонний готовый SaaS-софт пытался навязать бизнесу чужие процессы и допущения. Нестандартные и краевые случаи уходили в «теневые» ручные контуры вне системы, создавая путаницу. Попытка «перекрасить» готовый публичный шаблон под строгие требования конфиденциальности провалилась. Руководству был необходим собственный, именной внутренний продукт, который реально работает с их логикой и защищает закрытые данные.",
     },
     did: {
-      en: "Delivered ClientOps as a privately scoped suite: custom document and role model, operator desk built around the real exceptions, controlled stakeholder demos under NDA. Discovery first, then a owned codebase and ops path — not a rented multi-tenant skin.",
-      ru: "Поставили ClientOps как закрытый контур: своя модель документов и ролей, стол под реальные исключения, контролируемые демо под NDA. Сначала знакомство, затем свой код и путь эксплуатации — не арендованная «шкура» мультитенанта.",
+      en: "Delivered ClientOps as a fully private isolated contour: designed a custom document and role model, adapted the operator desk to real exceptions, and stood up a controlled demo under NDA. Engagement moved from introduction to a code test-drive to full operation — owned software, not a rented multi-tenant skin.",
+      ru: "Поставили ClientOps как полностью закрытый и изолированный контур: спроектировали собственную модель документов и ролей, адаптировали рабочий стол под реальные исключения и развернули контролируемое демо под соглашением о неразглашении (NDA). Процесс сотрудничества начали со знакомства, перешли к тест-драйву кода и вышли на полную эксплуатацию — это собственное ПО, а не арендованная «шкурка» мультитенантной платформы.",
     },
     result: {
-      en: "The client runs a named internal product they own operationally. Exceptions live in the system instead of WhatsApp side channels. Investors and partners see the engagement pattern on a showcase; live access follows a short discovery — without publishing confidential process detail on a public page.",
-      ru: "Клиент эксплуатирует именной внутренний продукт, которым владеет операционно. Исключения живут в системе, а не в боковых WhatsApp-каналах. Инвесторам и партнёрам — паттерн на обзоре; живой доступ после короткого знакомства — без публикации конфиденциального процесса на публичной странице.",
+      en: "The client runs a named internal product and fully owns the operating infrastructure. Exceptions and non-standard paths are handled inside the system, not in shadow channels. Investors and partners see the reliability pattern on showcases; demo access follows a short introduction — without publishing closed processes on a public stand.",
+      ru: "Клиент эксплуатирует именной внутренний продукт и полностью владеет операционной инфраструктурой. Все исключения и нестандартные ситуации обрабатываются внутри системы, а не уходят в теневые каналы связи. Инвесторы и партнеры видят паттерн надежности на обзорах, а доступ к демо предоставляется после быстрого знакомства — без публикации закрытых процессов на публичном стенде.",
     },
     metrics: [
       {
-        value: "owned",
+        value: "not SaaS",
         label: {
-          en: "internal product, not rented SaaS skin",
-          ru: "свой продукт, не арендованный SaaS",
+          en: "owned software under client control — not a rented platform",
+          ru: "собственный софт под контролем клиента, а не аренда платформы",
         },
       },
       {
-        value: "NDA demos",
+        value: "NDA secure",
         label: {
-          en: "stakeholders see controlled evidence",
-          ru: "стейкхолдерам — контролируемые доказательства",
+          en: "data and logic protected and isolated inside the contour",
+          ru: "все данные и логика защищены и изолированы внутри контура",
         },
       },
       {
-        value: "in-system",
+        value: "exception ready",
         label: {
-          en: "exceptions no longer in side chats",
-          ru: "исключения больше не в боковых чатах",
+          en: "system designed for non-standard edge scenarios",
+          ru: "система спроектирована под нестандартные краевые сценарии",
         },
       },
     ],
