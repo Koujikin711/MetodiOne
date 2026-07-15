@@ -4733,7 +4733,7 @@ html:has(.studio-root) {
 
   .studio-feature,
   .studio-product,
-  .studio-steps li {
+  .studio-steps > li {
     padding-left: 1rem;
     padding-right: 1rem;
   }
