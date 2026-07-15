@@ -2947,12 +2947,21 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   --studio-accent-2: #0a6f61;
   --studio-font: "Source Serif 4", Georgia, serif;
   --studio-display: Syne, system-ui, sans-serif;
+  --studio-header-offset: 5.25rem;
   position: relative;
   min-height: 100vh;
   color: var(--studio-text);
   background: var(--studio-paper);
   font-family: var(--studio-font);
   overflow-x: clip;
+}
+
+html:has(.studio-root) {
+  scroll-padding-top: var(--studio-header-offset, 5.25rem);
+}
+
+.studio-root [id] {
+  scroll-margin-top: var(--studio-header-offset, 5.25rem);
 }
 
 .studio-atmosphere {
@@ -3080,12 +3089,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   font-weight: 600;
 }
 
-.studio-nav a {
+.studio-nav a,
+.studio-nav span {
   text-decoration: none;
   color: inherit;
 }
 
 .studio-nav a:hover { color: var(--studio-text); }
+.studio-nav span.is-active,
+.studio-nav a.is-active { color: var(--studio-ink); }
 
 @media (min-width: 1100px) {
   .studio-nav { display: flex; }
@@ -3991,9 +4003,57 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .studio-demo-row {
   display: grid;
   gap: 1rem;
-  padding: 1.35rem 0;
+  padding: 1.15rem 0;
   border-bottom: 1px solid var(--studio-line);
   align-items: start;
+}
+
+.studio-demo-row.is-featured {
+  padding: 1.55rem 0 1.65rem;
+  border-bottom-color: var(--studio-line-strong);
+}
+
+.studio-demo-row.is-featured .studio-demo-row-head h2 {
+  font-size: clamp(1.3rem, 2.4vw, 1.55rem);
+}
+
+.studio-demo-list-featured .studio-demo-row.is-featured:first-child {
+  padding-top: 1.1rem;
+}
+
+.studio-demo-list-compact .studio-demo-row {
+  padding: 0.95rem 0;
+  align-items: center;
+}
+
+.studio-demo-list-compact .studio-demo-row-blurb {
+  display: none;
+}
+
+.studio-demo-more-label {
+  margin: 1.5rem 0 0.35rem;
+  font-family: var(--studio-display);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--studio-muted);
+}
+
+.studio-demo-section-soft {
+  opacity: 0.96;
+}
+
+.studio-demo-section-soft .studio-demo-row-head h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.studio-demo-section-soft .studio-btn {
+  background: transparent;
+  border-color: var(--studio-line-strong);
+  color: var(--studio-ink);
+  box-shadow: none;
 }
 
 @media (min-width: 760px) {
@@ -4001,7 +4061,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     grid-template-columns: 1fr auto;
     gap: 1.5rem;
     align-items: center;
-    padding: 1.45rem 0;
+    padding: 1.25rem 0;
+  }
+
+  .studio-demo-row.is-featured {
+    padding: 1.65rem 0;
+    align-items: end;
   }
 }
 

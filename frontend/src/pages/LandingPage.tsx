@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
 
 import { StudioChrome } from "@/components/StudioChrome";
@@ -15,10 +15,12 @@ import {
   type LandingLang,
 } from "@/i18n/landing";
 import { trackStudioEvent } from "@/lib/studioAnalytics";
+import { scrollToStudioId, studioHashId } from "@/lib/studioScroll";
 
 const FEATURED_CASE_IDS = ["fuel-wholesale", "weighbridge-whatsapp", "crm-service", "hr-department"] as const;
 
 export function LandingPage() {
+  const { hash } = useLocation();
   const [lang, setLang] = useState<LandingLang>(() => detectLandingLang());
   const [contactOpen, setContactOpen] = useState(false);
   const [sending, setSending] = useState(false);
@@ -60,6 +62,13 @@ export function LandingPage() {
     const id = requestAnimationFrame(() => setRevealed(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  useEffect(() => {
+    const target = studioHashId(hash);
+    if (!target) return;
+    const timer = window.setTimeout(() => scrollToStudioId(target, "smooth"), 60);
+    return () => window.clearTimeout(timer);
+  }, [hash]);
 
   useEffect(() => {
     const nodes = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
@@ -265,7 +274,7 @@ export function LandingPage() {
                   setCasesExpanded(next);
                   trackStudioEvent("cases_toggle", { expanded: next, lang });
                   if (!next) {
-                    document.getElementById("cases")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    scrollToStudioId("cases");
                   }
                 }}
               >

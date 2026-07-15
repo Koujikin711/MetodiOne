@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState, type MouseEvent } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import type { LandingCopy, LandingLang } from "@/i18n/landing";
+import { scrollToStudioId, studioHashId } from "@/lib/studioScroll";
 
 export type StudioNavItem = {
   href: string;
@@ -25,7 +26,16 @@ function pathOf(href: string): string {
   }
 }
 
-/** Block only exact same-route navigations (e.g. /demos → /demos), not /#section anchors. */
+function hashOf(href: string): string {
+  if (href.startsWith("#")) return href;
+  try {
+    return new URL(href, "https://metodione.local").hash;
+  } catch {
+    const i = href.indexOf("#");
+    return i >= 0 ? href.slice(i) : "";
+  }
+}
+
 function isExactSameRoute(href: string, currentPath: string): boolean {
   if (href.startsWith("#")) return false;
   try {
@@ -49,19 +59,43 @@ function StudioNavLink({
   onNavigate?: () => void;
   currentPath: string;
 }) {
-  if (href.startsWith("#")) {
-    return (
-      <a href={href} className={className} onClick={onNavigate}>
-        {label}
-      </a>
-    );
-  }
+  const navigate = useNavigate();
+  const hash = hashOf(href);
+  const targetPath = href.startsWith("#") ? currentPath : pathOf(href) || "/";
 
   if (isExactSameRoute(href, currentPath)) {
     return (
       <span className={className} aria-current="page">
         {label}
       </span>
+    );
+  }
+
+  const go = (e: MouseEvent) => {
+    onNavigate?.();
+    const id = studioHashId(hash);
+    if (!id) return;
+
+    // Same-page hash: scroll with header offset (native jump lands under sticky bar).
+    if (targetPath === currentPath) {
+      e.preventDefault();
+      scrollToStudioId(id);
+      if (window.location.hash !== `#${id}`) {
+        window.history.replaceState(null, "", `#${id}`);
+      }
+      return;
+    }
+
+    // Cross-page hash (e.g. /demos → /#contact): navigate then landing scrolls.
+    e.preventDefault();
+    navigate({ pathname: targetPath || "/", hash: `#${id}` });
+  };
+
+  if (hash) {
+    return (
+      <a href={href.startsWith("#") ? href : `${targetPath}${hash}`} className={className} onClick={go}>
+        {label}
+      </a>
     );
   }
 
@@ -109,13 +143,32 @@ export function StudioChrome({ lang, setLang, t, active = "home", links }: Props
   return (
     <header className={`studio-header${menuOpen ? " is-menu-open" : ""}`}>
       <div className="studio-header-inner">
-        <Link to="/" className="studio-brand" onClick={close}>
-          <span className="studio-brand-mark">M</span>
-          <span className="studio-brand-text">
-            {t.brand}
-            <em>{t.brandSub}</em>
-          </span>
-        </Link>
+        {pathname === "/" ? (
+          <a
+            href="#top"
+            className="studio-brand"
+            onClick={(e) => {
+              e.preventDefault();
+              close();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+              if (window.location.hash) window.history.replaceState(null, "", window.location.pathname);
+            }}
+          >
+            <span className="studio-brand-mark">M</span>
+            <span className="studio-brand-text">
+              {t.brand}
+              <em>{t.brandSub}</em>
+            </span>
+          </a>
+        ) : (
+          <Link to="/" className="studio-brand" onClick={close}>
+            <span className="studio-brand-mark">M</span>
+            <span className="studio-brand-text">
+              {t.brand}
+              <em>{t.brandSub}</em>
+            </span>
+          </Link>
+        )}
 
         <nav className="studio-nav" aria-label="Primary">
           {items.map((item) => (
@@ -126,8 +179,7 @@ export function StudioChrome({ lang, setLang, t, active = "home", links }: Props
               currentPath={pathname}
               className={
                 (active === "demos" && pathOf(item.href) === "/demos") ||
-                (active === "investors" && pathOf(item.href) === "/investors") ||
-                (active === "home" && pathOf(item.href) === "/" && pathname === "/")
+                (active === "investors" && pathOf(item.href) === "/investors")
                   ? "is-active"
                   : undefined
               }
@@ -144,9 +196,12 @@ export function StudioChrome({ lang, setLang, t, active = "home", links }: Props
               EN
             </button>
           </div>
-          <Link to={headerCta.to} className="studio-btn studio-btn-ghost studio-btn-header-cta">
-            {headerCta.label}
-          </Link>
+          <StudioNavLink
+            href={headerCta.to}
+            label={headerCta.label}
+            currentPath={pathname}
+            className="studio-btn studio-btn-ghost studio-btn-header-cta"
+          />
           <button
             type="button"
             className="studio-menu-toggle"
@@ -183,9 +238,13 @@ export function StudioChrome({ lang, setLang, t, active = "home", links }: Props
               }
             />
           ))}
-          <Link to={headerCta.to} className="studio-btn studio-btn-primary studio-btn-block" onClick={close}>
-            {headerCta.label}
-          </Link>
+          <StudioNavLink
+            href={headerCta.to}
+            label={headerCta.label}
+            currentPath={pathname}
+            onNavigate={close}
+            className="studio-btn studio-btn-primary studio-btn-block"
+          />
           <Link to="/investors" className="studio-btn studio-btn-secondary studio-btn-block" onClick={close}>
             {t.ctaInvestors}
           </Link>
