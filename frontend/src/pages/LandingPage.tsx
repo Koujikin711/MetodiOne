@@ -161,11 +161,15 @@ export function LandingPage() {
               <span>{t.brandSub}</span>
             </p>
             <h1 className="studio-hero-title" aria-label={t.heroHeadline}>
-              <span className="studio-hero-phrase">{t.heroPhrase1}</span>
-              <span className="studio-hero-sep" aria-hidden="true" />
-              <span className="studio-hero-phrase">{t.heroPhrase2}</span>
-              <span className="studio-hero-sep" aria-hidden="true" />
-              <span className="studio-hero-phrase">{t.heroPhrase3}</span>
+              <span className="studio-hero-line" data-step="01">
+                <em>{t.heroPhrase1}</em>
+              </span>
+              <span className="studio-hero-line" data-step="02">
+                <em>{t.heroPhrase2}</em>
+              </span>
+              <span className="studio-hero-line is-accent" data-step="03">
+                <em>{t.heroPhrase3}</em>
+              </span>
             </h1>
             <p className="studio-hero-lead">{t.heroLead}</p>
             <div className="studio-hero-cta">
