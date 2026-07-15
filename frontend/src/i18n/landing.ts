@@ -193,19 +193,19 @@ const dict = {
     investorsWhat:
       "A product engineering studio: we diagnose real workflows, ship named systems, and keep sandbox environments for diligence. Brand MetodiOne stands for the studio, not a single personal freelance offer.",
     investorsLineTitle: "Product line (market names)",
-    investorsModelTitle: "Money model",
+    investorsModelTitle: "Engagement formats",
     investorsModelItems: [
       {
         t: "Project delivery",
-        d: "Scoped custom builds billed by milestones — discovery, MVP, rollout. Ownership of the delivered application sits with the client unless otherwise agreed.",
+        d: "Phased build around your business processes (discovery, MVP, launch). Ownership and operation of the configured application on the client’s infrastructure.",
       },
       {
-        t: "Productized verticals",
-        d: "Reusable craft packaged as market products (FuelOps, ScaleGate, StaffDesk…). Faster starts when the domain matches a proven core.",
+        t: "Ready-made industry solutions",
+        d: "Fast start on our proven products (FuelOps, ScaleGate, StaffDesk). Ideal when your business needs match an existing system core.",
       },
       {
-        t: "Retention & iteration",
-        d: "Hosting, support, training and feature iterations after go-live — recurring revenue tied to systems that stay in daily use.",
+        t: "Support and development",
+        d: "Technical support, team training, and post-launch usage reviews. Deployment runs on the client’s servers; new features and changes are delivered on individual request.",
       },
     ],
     investorsRoadTitle: "Development roadmap",
