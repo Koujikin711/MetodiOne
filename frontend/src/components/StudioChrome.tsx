@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import type { LandingCopy, LandingLang } from "@/i18n/landing";
 
@@ -16,16 +16,38 @@ type Props = {
   links?: StudioNavItem[];
 };
 
+function pathOf(href: string): string {
+  if (href.startsWith("#")) return "";
+  try {
+    return new URL(href, "https://metodione.local").pathname;
+  } catch {
+    return href.split("?")[0]?.split("#")[0] ?? href;
+  }
+}
+
+/** Block only exact same-route navigations (e.g. /demos → /demos), not /#section anchors. */
+function isExactSameRoute(href: string, currentPath: string): boolean {
+  if (href.startsWith("#")) return false;
+  try {
+    const u = new URL(href, "https://metodione.local");
+    return u.pathname === currentPath && !u.hash && !u.search;
+  } catch {
+    return href === currentPath;
+  }
+}
+
 function StudioNavLink({
   href,
   label,
   className,
   onNavigate,
+  currentPath,
 }: {
   href: string;
   label: string;
   className?: string;
   onNavigate?: () => void;
+  currentPath: string;
 }) {
   if (href.startsWith("#")) {
     return (
@@ -34,14 +56,24 @@ function StudioNavLink({
       </a>
     );
   }
+
+  if (isExactSameRoute(href, currentPath)) {
+    return (
+      <span className={className} aria-current="page">
+        {label}
+      </span>
+    );
+  }
+
   return (
-    <Link to={href} className={className} onClick={onNavigate}>
+    <Link to={href} className={className} onClick={() => onNavigate?.()}>
       {label}
     </Link>
   );
 }
 
 export function StudioChrome({ lang, setLang, t, active = "home", links }: Props) {
+  const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const items: StudioNavItem[] =
@@ -69,6 +101,10 @@ export function StudioChrome({ lang, setLang, t, active = "home", links }: Props
   }, [menuOpen]);
 
   const close = () => setMenuOpen(false);
+  const onDemos = active === "demos" || pathname === "/demos";
+  const headerCta = onDemos
+    ? { to: "/#contact", label: t.ctaContact }
+    : { to: "/demos", label: t.ctaDemos };
 
   return (
     <header className={`studio-header${menuOpen ? " is-menu-open" : ""}`}>
@@ -87,9 +123,11 @@ export function StudioChrome({ lang, setLang, t, active = "home", links }: Props
               key={item.href + item.label}
               href={item.href}
               label={item.label}
+              currentPath={pathname}
               className={
-                (active === "demos" && item.href === "/demos") ||
-                (active === "investors" && item.href === "/investors")
+                (active === "demos" && pathOf(item.href) === "/demos") ||
+                (active === "investors" && pathOf(item.href) === "/investors") ||
+                (active === "home" && pathOf(item.href) === "/" && pathname === "/")
                   ? "is-active"
                   : undefined
               }
@@ -106,8 +144,8 @@ export function StudioChrome({ lang, setLang, t, active = "home", links }: Props
               EN
             </button>
           </div>
-          <Link to="/demos" className="studio-btn studio-btn-ghost studio-btn-header-cta">
-            {t.ctaDemos}
+          <Link to={headerCta.to} className="studio-btn studio-btn-ghost studio-btn-header-cta">
+            {headerCta.label}
           </Link>
           <button
             type="button"
@@ -131,10 +169,22 @@ export function StudioChrome({ lang, setLang, t, active = "home", links }: Props
       >
         <nav className="studio-mobile-nav" aria-label="Mobile">
           {items.map((item) => (
-            <StudioNavLink key={`m-${item.href}-${item.label}`} href={item.href} label={item.label} onNavigate={close} />
+            <StudioNavLink
+              key={`m-${item.href}-${item.label}`}
+              href={item.href}
+              label={item.label}
+              currentPath={pathname}
+              onNavigate={close}
+              className={
+                (active === "demos" && pathOf(item.href) === "/demos") ||
+                (active === "investors" && pathOf(item.href) === "/investors")
+                  ? "is-active"
+                  : undefined
+              }
+            />
           ))}
-          <Link to="/demos" className="studio-btn studio-btn-primary studio-btn-block" onClick={close}>
-            {t.ctaDemos}
+          <Link to={headerCta.to} className="studio-btn studio-btn-primary studio-btn-block" onClick={close}>
+            {headerCta.label}
           </Link>
           <Link to="/investors" className="studio-btn studio-btn-secondary studio-btn-block" onClick={close}>
             {t.ctaInvestors}

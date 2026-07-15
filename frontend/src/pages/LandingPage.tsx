@@ -115,7 +115,7 @@ export function LandingPage() {
   };
 
   return (
-    <div className={`studio-root studio-lang-${lang}`} key={lang}>
+    <div className={`studio-root studio-lang-${lang}`}>
       <div className="studio-atmosphere" aria-hidden />
       <div className="studio-grid" aria-hidden />
       <div className="studio-sheen" aria-hidden />

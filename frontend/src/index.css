@@ -3499,7 +3499,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .studio-section-head h2,
-.studio-demos-title,
 .studio-finale h2 {
   font-family: var(--studio-display);
   font-size: clamp(1.85rem, 3.5vw, 2.75rem);
@@ -3916,9 +3915,162 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .studio-demos-main {
-  max-width: 1180px;
+  max-width: 920px;
   margin: 0 auto;
-  padding: 2.75rem 1.35rem 4.5rem;
+  padding: 2.25rem 1.35rem 4.5rem;
+}
+
+.studio-demos-hero {
+  margin-bottom: 2.75rem;
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid var(--studio-line);
+}
+
+.studio-demos-kicker {
+  margin: 0 0 0.55rem;
+  font-family: var(--studio-display);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--studio-accent-2);
+}
+
+.studio-demos-title {
+  font-family: var(--studio-display);
+  font-size: clamp(2rem, 5vw, 3rem);
+  letter-spacing: -0.04em;
+  margin: 0 0 0.85rem;
+  color: var(--studio-ink);
+  max-width: none;
+}
+
+.studio-demos-lead {
+  margin: 0;
+  max-width: 40rem;
+  color: var(--studio-muted);
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.studio-demos-note {
+  margin: 0.85rem 0 0;
+  font-family: var(--studio-display);
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--studio-muted);
+}
+
+.studio-demo-section {
+  margin-top: 2.5rem;
+}
+
+.studio-demo-section-head {
+  margin-bottom: 0.35rem;
+}
+
+.studio-demo-section-head h2 {
+  margin: 0 0 0.35rem;
+  font-family: var(--studio-display);
+  font-size: clamp(1.25rem, 2.4vw, 1.55rem);
+  letter-spacing: -0.025em;
+  color: var(--studio-ink);
+}
+
+.studio-demo-section-head p {
+  margin: 0 0 1rem;
+  color: var(--studio-muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.studio-demo-list {
+  border-top: 1px solid var(--studio-line-strong);
+}
+
+.studio-demo-row {
+  display: grid;
+  gap: 1rem;
+  padding: 1.35rem 0;
+  border-bottom: 1px solid var(--studio-line);
+  align-items: start;
+}
+
+@media (min-width: 760px) {
+  .studio-demo-row {
+    grid-template-columns: 1fr auto;
+    gap: 1.5rem;
+    align-items: center;
+    padding: 1.45rem 0;
+  }
+}
+
+.studio-demo-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.55rem 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.studio-demo-row-head h2 {
+  margin: 0;
+  font-family: var(--studio-display);
+  font-size: 1.2rem;
+  letter-spacing: -0.025em;
+  color: var(--studio-ink);
+}
+
+.studio-demo-row-tag {
+  margin: 0 0 0.35rem;
+  color: var(--studio-accent-2);
+  font-family: var(--studio-display);
+  font-weight: 650;
+  font-size: 0.92rem;
+}
+
+.studio-demo-row-blurb {
+  margin: 0;
+  color: var(--studio-muted);
+  font-size: 0.94rem;
+  line-height: 1.55;
+  max-width: 52ch;
+}
+
+.studio-demo-row-action {
+  display: flex;
+  align-items: center;
+}
+
+.studio-demo-row-action .studio-btn {
+  min-width: 9.5rem;
+  white-space: nowrap;
+}
+
+.studio-demo-row-live .studio-demo-row-head h2 {
+  letter-spacing: -0.03em;
+}
+
+.studio-creds-inline {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: transparent;
+  border-radius: 0;
+  border: 0;
+  border-top: 1px solid var(--studio-line);
+}
+
+.studio-demos-footer {
+  margin-top: 2.75rem;
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--studio-line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem 1.75rem;
 }
 
 .studio-creds {
@@ -4413,7 +4565,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   }
 
   .studio-section-head h2,
-  .studio-demos-title,
   .studio-finale h2 {
     max-width: none;
     font-size: clamp(1.55rem, 7vw, 2rem);
@@ -4441,11 +4592,24 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
   .studio-feature,
   .studio-product,
-  .studio-demo-card,
-  .studio-case,
   .studio-steps li {
     padding-left: 1rem;
     padding-right: 1rem;
+  }
+
+  .studio-demo-row-action {
+    width: 100%;
+  }
+
+  .studio-demo-row-action .studio-btn {
+    width: 100%;
+    min-height: 2.85rem;
+  }
+
+  .studio-demos-main {
+    padding-left: 0.95rem;
+    padding-right: 0.95rem;
+    padding-top: 1.5rem;
   }
 
   .studio-band {
