@@ -3485,6 +3485,52 @@ html:has(.studio-root) {
   transform: none;
 }
 
+.studio-demos-hero[data-reveal],
+.studio-demo-section-head[data-reveal],
+.studio-demos-footer[data-reveal] {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 600ms ease, transform 600ms ease;
+}
+
+.studio-demos-hero[data-reveal].is-visible,
+.studio-demo-section-head[data-reveal].is-visible,
+.studio-demos-footer[data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.studio-cases[data-reveal] .studio-case,
+.studio-product-rail[data-reveal] .studio-product,
+.studio-demo-list[data-reveal] .studio-demo-row {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.studio-cases[data-reveal].is-visible .studio-case,
+.studio-product-rail[data-reveal].is-visible .studio-product,
+.studio-demo-list[data-reveal].is-visible .studio-demo-row {
+  animation: studio-rise 620ms ease both;
+  animation-delay: calc(var(--reveal-i, 0) * 70ms);
+}
+
+.studio-product,
+.studio-demo-card {
+  border: 1px solid var(--studio-line);
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 0.55rem;
+  padding: 1.15rem 1.1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  box-shadow: none;
+}
+
+@keyframes studio-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
 .studio-section-panel {
   max-width: none;
   padding-left: 0;
@@ -3661,24 +3707,6 @@ html:has(.studio-root) {
 @media (min-width: 1100px) {
   .studio-product-rail,
   .studio-demo-grid { grid-template-columns: repeat(3, 1fr); }
-}
-
-.studio-product,
-.studio-demo-card {
-  border: 1px solid var(--studio-line);
-  background: rgba(255, 255, 255, 0.55);
-  border-radius: 0.55rem;
-  padding: 1.15rem 1.1rem 1.2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-  box-shadow: none;
-  animation: studio-rise 700ms ease both;
-}
-
-@keyframes studio-rise {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: none; }
 }
 
 .studio-product-top {
@@ -4367,6 +4395,17 @@ html:has(.studio-root) {
   margin-top: 2.25rem;
 }
 
+.studio-section-block[data-reveal] {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 600ms ease, transform 600ms ease;
+}
+
+.studio-section-block[data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
 .studio-section-block h2 {
   font-family: var(--studio-display);
   font-size: clamp(1.4rem, 2.6vw, 1.85rem);
@@ -4798,8 +4837,18 @@ html:has(.studio-root) {
   .studio-live-dot,
   .studio-mobile-drawer,
   .studio-lang-ru main,
-  .studio-lang-en main {
+  .studio-lang-en main,
+  .studio-cases[data-reveal] .studio-case,
+  .studio-product-rail[data-reveal] .studio-product,
+  .studio-demo-list[data-reveal] .studio-demo-row,
+  .studio-section[data-reveal],
+  .studio-demos-hero[data-reveal],
+  .studio-demo-section-head[data-reveal],
+  .studio-demos-footer[data-reveal],
+  .studio-offer-strip[data-reveal] {
     animation: none !important;
     transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }

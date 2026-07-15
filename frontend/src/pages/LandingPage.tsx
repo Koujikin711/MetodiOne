@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
 
@@ -16,6 +16,7 @@ import {
 } from "@/i18n/landing";
 import { trackStudioEvent } from "@/lib/studioAnalytics";
 import { scrollToStudioId, studioHashId } from "@/lib/studioScroll";
+import { useStudioReveal } from "@/lib/useStudioReveal";
 
 const FEATURED_CASE_IDS = ["fuel-wholesale", "weighbridge-whatsapp", "crm-service", "hr-department"] as const;
 
@@ -70,26 +71,7 @@ export function LandingPage() {
     return () => window.clearTimeout(timer);
   }, [hash]);
 
-  useEffect(() => {
-    const nodes = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
-    if (!nodes.length || typeof IntersectionObserver === "undefined") {
-      nodes.forEach((n) => n.classList.add("is-visible"));
-      return;
-    }
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("is-visible");
-            io.unobserve(entry.target);
-          }
-        }
-      },
-      { rootMargin: "0px 0px -8% 0px", threshold: 0.12 },
-    );
-    nodes.forEach((n) => io.observe(n));
-    return () => io.disconnect();
-  }, [lang]);
+  useStudioReveal([lang, casesExpanded]);
 
   const openContact = (source: string) => {
     trackStudioEvent("contact_open", { source, lang });
@@ -230,9 +212,9 @@ export function LandingPage() {
             <h2>{t.casesTitle}</h2>
             <p>{t.casesLead}</p>
           </div>
-          <div className="studio-cases">
-            {visibleCases.map((c) => (
-              <article key={c.id} className="studio-case">
+          <div className="studio-cases" data-reveal>
+            {visibleCases.map((c, i) => (
+              <article key={c.id} className="studio-case" style={{ "--reveal-i": i } as CSSProperties}>
                 <header className="studio-case-head">
                   <p className="studio-case-industry">{c.industry[lang]}</p>
                   <h3 className="studio-case-title">{c.title[lang]}</h3>
@@ -294,9 +276,9 @@ export function LandingPage() {
               {t.viewAllDemos} →
             </Link>
           </div>
-          <div className="studio-product-rail">
+          <div className="studio-product-rail" data-reveal>
             {STUDIO_PRODUCTS.map((p, i) => (
-              <article key={p.id} className="studio-product" style={{ animationDelay: `${80 + i * 45}ms` }}>
+              <article key={p.id} className="studio-product" style={{ "--reveal-i": i } as CSSProperties}>
                 <div className="studio-product-top">
                   <h3>{p.name}</h3>
                   <span className={`studio-pill studio-pill-${p.status}`}>{statusLabel(lang, p.status)}</span>

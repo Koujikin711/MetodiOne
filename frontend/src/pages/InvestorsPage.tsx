@@ -10,6 +10,7 @@ import {
   type LandingLang,
 } from "@/i18n/landing";
 import { trackStudioEvent } from "@/lib/studioAnalytics";
+import { useStudioReveal } from "@/lib/useStudioReveal";
 
 export function InvestorsPage() {
   const [lang, setLang] = useState<LandingLang>(() => detectLandingLang());
@@ -25,6 +26,8 @@ export function InvestorsPage() {
     }
     trackStudioEvent("investors_view", { lang });
   }, [lang, t.investorsTitle]);
+
+  useStudioReveal([lang]);
 
   return (
     <div className={`studio-root studio-lang-${lang}`}>
