@@ -17,7 +17,7 @@ export const PRODUCT_SHOWCASES: ProductShowcase[] = [
     },
     lead: {
       en: "A dessert kitchen needs recipe costing and stock that moves when an order is confirmed — not a generic inventory app. BakeFlow is that desk; a full public sandbox is provisioned on request while this showcase explains the product shape.",
-      ru: "Кондитерской нужны техкарты и склад, который двигается при подтверждении заказа — не общий «учёт». BakeFlow — это рабочее место; публичный sandbox выдаём по запросу, здесь — форма продукта.",
+      ru: "Кондитерской нужны техкарты и склад, который двигается при подтверждении заказа — не общий «учёт». BakeFlow — это рабочее место; публичную песочницу выдаём по запросу, здесь — форма продукта.",
     },
     modules: [
       { en: "Ingredients & FIFO stock", ru: "Сырьё и FIFO-склад" },
@@ -39,7 +39,7 @@ export const PRODUCT_SHOWCASES: ProductShowcase[] = [
     },
     lead: {
       en: "Apparel retail dies when size/color truth fragments across chat and cash. Atelier Retail keeps catalog, stock and sales coherent — showcase now, scheduled web sandbox next.",
-      ru: "Fashion-retail ломается, когда размер/цвет живут в чатах и на кассе по-разному. Atelier Retail держит каталог, склад и продажи вместе — сейчас showcase, web-sandbox по слоту.",
+      ru: "Fashion-ритейл ломается, когда размер/цвет живут в чатах и на кассе по-разному. Atelier Retail держит каталог, склад и продажи вместе — сейчас обзор, веб-песочница по слоту.",
     },
     modules: [
       { en: "SKU / size / color catalog", ru: "Каталог SKU / размер / цвет" },
@@ -61,12 +61,12 @@ export const PRODUCT_SHOWCASES: ProductShowcase[] = [
     },
     lead: {
       en: "A privately scoped operational suite for a client whose process could not sit on public SaaS. We document the engagement pattern here; live access is arranged after a short discovery under confidentiality.",
-      ru: "Закрытый операционный контур для клиента, чей процесс нельзя посадить на публичный SaaS. Здесь — паттерн внедрения; живой доступ — после короткого discovery под конфиденциальностью.",
+      ru: "Закрытый операционный контур для клиента, чей процесс нельзя посадить на публичный SaaS. Здесь — паттерн внедрения; живой доступ — после короткого знакомства под конфиденциальностью.",
     },
     modules: [
       { en: "Custom document & role model", ru: "Своя модель документов и ролей" },
       { en: "Operator desk tuned to exceptions", ru: "Стол оператора под исключения" },
-      { en: "Controlled stakeholder demos", ru: "Контролируемые демо для стейкхолдеров" },
+      { en: "Controlled stakeholder demos", ru: "Контролируемые демо для заинтересованных сторон" },
       { en: "Retention & iteration path", ru: "Путь сопровождения и итераций" },
     ],
     audience: {

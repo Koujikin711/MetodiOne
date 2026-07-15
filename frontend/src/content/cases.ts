@@ -88,7 +88,7 @@ export const STUDIO_CASES: StudioCase[] = [
     },
     did: {
       en: "Built FuelOps: a single document contour for purchases, sales and bank, operational journals, multi-currency print forms, tank-aware posting and role-based access. Replaced the five-table ritual with one desk where ops posts the same day and finance reviews the same journal. Sandbox kept for stakeholder demos without touching production.",
-      ru: "Собрали FuelOps: единый контур документов (поступления / реализации / банк), операционные журналы, мультивалютные печатные формы, проведение с учётом резервуаров и доступ по ролям. Пять таблиц заменили одним столом: операции проводят в день сделки, финансы смотрят тот же журнал. Для стейкхолдеров — sandbox без доступа к боевым данным.",
+      ru: "Собрали FuelOps: единый контур документов (поступления / реализации / банк), операционные журналы, мультивалютные печатные формы, проведение с учётом резервуаров и доступ по ролям. Пять таблиц заменили одним столом: операции проводят в день сделки, финансы смотрят тот же журнал. Для заинтересованных сторон — песочница без доступа к боевым данным.",
     },
     result: {
       en: "Deal → posted document shrunk from days to hours. Finance stopped rebuilding the month from chats. Tank and money stories finally reconcile in one system, so management decisions rest on posted truth, not optimism in Excel. Board and partner reviews reopen the live product instead of a rebuilt slide deck.",
@@ -139,7 +139,7 @@ export const STUDIO_CASES: StudioCase[] = [
     },
     did: {
       en: "Built MessageHub: a shared operator desk, counterparties as first-class records, inbound webhooks, and an installable bridge path with a repeatable setup — so messenger work lives in a product, not on a private device. Training materials and a sandbox for the next hire.",
-      ru: "Собрали MessageHub: общий стол оператора, контрагенты как полноценные карточки, inbound webhooks и устанавливаемый мост с повторяемой установкой — работа в мессенджерах в продукте, а не на личном устройстве. Обучение и sandbox для следующего сотрудника.",
+      ru: "Собрали MessageHub: общий стол оператора, контрагенты как полноценные карточки, входящие вебхуки и устанавливаемый мост с повторяемой установкой — работа в мессенджерах в продукте, а не на личном устройстве. Обучение и песочница для следующего сотрудника.",
     },
     result: {
       en: "Shift handovers became possible without copying chats. Leads stay attached to accounts managers and partners can audit. Bridge recovery is a procedure, not tribal knowledge. Sales continuity no longer depends on one SIM card — the desk survives people turnover.",
@@ -296,7 +296,7 @@ export const STUDIO_CASES: StudioCase[] = [
     },
     result: {
       en: "Kitchen discusses numbers before saying yes to large batches. Stock moves with the order instead of a weekly cleanup. The owner has a product narrative investors and partners understand — and a path to a full sandbox walkthrough on request, not a binder of recipes.",
-      ru: "Кухня обсуждает цифры до «да» на крупный объём. Склад двигается с заказом, а не еженедельной зачисткой. У владельца есть продуктовый нарратив для инвестора и партнёра — и путь к полному sandbox по запросу, а не папка техкарт.",
+      ru: "Кухня обсуждает цифры до «да» на крупный объём. Склад двигается с заказом, а не еженедельной зачисткой. У владельца есть продуктовый рассказ для инвестора и партнёра — и путь к полной песочнице по запросу, а не папка техкарт.",
     },
     metrics: [
       {
@@ -394,11 +394,11 @@ export const STUDIO_CASES: StudioCase[] = [
     },
     did: {
       en: "Deployed PartStock: parts inventory, operational counter workflows and PIN profiles per role, plus an isolated sandbox path so diligence and demos never touch client production credentials.",
-      ru: "Внедрили PartStock: номенклатура, процессы прилавка и PIN-профили по ролям, плюс изолированный sandbox — diligence и демо никогда не трогают боевые PIN клиента.",
+      ru: "Внедрили PartStock: номенклатура, процессы прилавка и PIN-профили по ролям, плюс изолированная песочница — проверка и демо никогда не трогают боевые PIN клиента.",
     },
     result: {
       en: "Operators work under roles, not a shared password. Warehouse actions are attributable — disputes have an author. Partner and investor walkthroughs use a sandbox login: the real catalog pattern without exposing production. Inventory discipline returned because the system remembers who did what.",
-      ru: "Операторы работают под ролями, не под общим паролем. Действия по складу атрибутированы — у спора есть автор. Партнёры и инвесторы заходят в sandbox: тот же паттерн каталога без боевого доступа. Дисциплина остатков вернулась, потому что система помнит, кто что сделал.",
+      ru: "Операторы работают под ролями, не под общим паролем. Действия по складу атрибутированы — у спора есть автор. Партнёры и инвесторы заходят в песочницу: тот же паттерн каталога без боевого доступа. Дисциплина остатков вернулась, потому что система помнит, кто что сделал.",
     },
     metrics: [
       {
@@ -445,7 +445,7 @@ export const STUDIO_CASES: StudioCase[] = [
     },
     did: {
       en: "Shipped TradeDesk: a client-shaped operations ERP on a live host — documents and roles tuned to that trading flow, with a sandbox reopen for board and partner reviews so the next meeting opens the same desk, not a new deck.",
-      ru: "Собрали TradeDesk: операционную ERP под процесс клиента на живом хосте — документы и роли под торговый поток, sandbox для повторного показа совету и партнёрам: следующая встреча открывает тот же стол, а не новую колоду слайдов.",
+      ru: "Собрали TradeDesk: операционную ERP под процесс клиента на живом хосте — документы и роли под торговый поток, песочница для повторного показа совету и партнёрам: следующая встреча открывает тот же стол, а не новую колоду слайдов.",
     },
     result: {
       en: "Daily ops run inside a named product with clear roles. Exceptions are modeled, not whispered. The next diligence or board session reopens evidence that still matches reality. Custom work looks and behaves like a system the organization owns — not a rented generic template.",
@@ -543,15 +543,15 @@ export const STUDIO_CASES: StudioCase[] = [
     },
     problem: {
       en: "Generic SaaS forced the process into the product’s assumptions. Edge cases became shadow workflows outside the system — the worst of both worlds. Skinning a public template was unacceptable under confidentiality. Leadership needed an internal named product their team would actually run, and stakeholders needed controlled demos — not a marketing site of someone else’s template.",
-      ru: "Generic SaaS натягивал процесс на чужие допущения. Краевые случаи уходили в теневые контуры вне системы — худшее из двух миров. «Перекраска» публичного шаблона под конфиденциальностью была невозможна. Руководству нужен был именной внутренний продукт, которым команда реально работает, а стейкхолдерам — контролируемые демо, не маркетинговый сайт чужого шаблона.",
+      ru: "Чужой SaaS натягивал процесс на чужие допущения. Краевые случаи уходили в теневые контуры вне системы — худшее из двух миров. «Перекраска» публичного шаблона под конфиденциальностью была невозможна. Руководству нужен был именной внутренний продукт, которым команда реально работает, а заинтересованным сторонам — контролируемые демо, не маркетинговый сайт чужого шаблона.",
     },
     did: {
       en: "Delivered ClientOps as a privately scoped suite: custom document and role model, operator desk built around the real exceptions, controlled stakeholder demos under NDA. Discovery first, then a owned codebase and ops path — not a rented multi-tenant skin.",
-      ru: "Поставили ClientOps как закрытый контур: своя модель документов и ролей, стол под реальные исключения, контролируемые демо под NDA. Сначала discovery, затем свой код и путь эксплуатации — не арендованная «шкура» мультитенанта.",
+      ru: "Поставили ClientOps как закрытый контур: своя модель документов и ролей, стол под реальные исключения, контролируемые демо под NDA. Сначала знакомство, затем свой код и путь эксплуатации — не арендованная «шкура» мультитенанта.",
     },
     result: {
       en: "The client runs a named internal product they own operationally. Exceptions live in the system instead of WhatsApp side channels. Investors and partners see the engagement pattern on a showcase; live access follows a short discovery — without publishing confidential process detail on a public page.",
-      ru: "Клиент эксплуатирует именной внутренний продукт, которым владеет операционно. Исключения живут в системе, а не в боковых WhatsApp-каналах. Инвесторам и партнёрам — паттерн на showcase; живой доступ после короткого discovery — без публикации конфиденциального процесса на публичной странице.",
+      ru: "Клиент эксплуатирует именной внутренний продукт, которым владеет операционно. Исключения живут в системе, а не в боковых WhatsApp-каналах. Инвесторам и партнёрам — паттерн на обзоре; живой доступ после короткого знакомства — без публикации конфиденциального процесса на публичной странице.",
     },
     metrics: [
       {

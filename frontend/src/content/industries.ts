@@ -29,7 +29,7 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
       },
       {
         en: "Live sandbox for diligence and operator training",
-        ru: "Живая песочина для due diligence и обучения операторов",
+        ru: "Живая песочница для проверки и обучения операторов",
       },
     ],
     productIds: ["fuelops"],
@@ -119,7 +119,7 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
       },
       {
         en: "Sandbox hosts for stakeholder reviews",
-        ru: "Песочницы для разбора со стейкхолдерами",
+        ru: "Песочницы для разбора с заинтересованными сторонами",
       },
     ],
     productIds: ["craftline", "partstock", "tradedesk"],
@@ -179,7 +179,7 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
       },
       {
         en: "Showcase now, full sandbox on request",
-        ru: "Сейчас showcase, полный sandbox — по запросу",
+        ru: "Сейчас — обзор, полная песочница по запросу",
       },
     ],
     productIds: ["bakeflow"],
@@ -192,11 +192,11 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
     slug: "retail-erp",
     title: {
       en: "Fashion retail ERP",
-      ru: "ERP fashion-retail",
+      ru: "ERP для fashion-ритейла",
     },
     lead: {
       en: "SKU / size / color truth for boutiques — warehouse, sales floor and finance in one product narrative.",
-      ru: "Правда SKU / размер / цвет для бутиков — склад, зал и финансы в одном продуктовом нарративе.",
+      ru: "Правда SKU / размер / цвет для бутиков — склад, зал и финансы в одном продуктовом рассказе.",
     },
     bullets: [
       {
@@ -209,7 +209,7 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
       },
       {
         en: "Showcase page + private demo path",
-        ru: "Showcase-страница и путь к закрытому демо",
+        ru: "Страница обзора и путь к закрытому демо",
       },
     ],
     productIds: ["atelier"],

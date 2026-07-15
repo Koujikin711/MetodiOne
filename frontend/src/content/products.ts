@@ -17,7 +17,7 @@ export type StudioProduct = {
 
 const INSTANT = {
   en: "One click — sandbox DB, not client production.",
-  ru: "Один клик — sandbox-БД, не прод клиента.",
+  ru: "Один клик — тестовая база, не боевая система клиента.",
 } as const;
 
 /** Portfolio catalog — market names (not client codenames). */
@@ -65,7 +65,7 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     },
     blurb: {
       en: "Operator desk for WeChat/WhatsApp traffic: counterparties, inbound webhooks, desktop bridges, install flow.",
-      ru: "Рабочее место оператора WeChat/WhatsApp: контрагенты, inbound webhooks, desktop-мосты, установка у клиента.",
+      ru: "Рабочее место оператора WeChat/WhatsApp: контрагенты, входящие вебхуки, десктоп-мосты, установка у клиента.",
     },
     tags: ["CRM", "WeChat", "WhatsApp"],
     demoUrl: "https://wechat-koujikin.amvera.io/demo",
