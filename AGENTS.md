@@ -31,6 +31,7 @@ Key paths: `frontend/src/pages/LandingPage.tsx`, `DemoHubPage.tsx`, `content/cas
 - Do not restore the old somoni SaaS pricing homepage
 
 ## Recent Studio commits (reference)
+- full-bleed hero + offer strip proof line (continue polish)
 - `07ead25` — hero clarity, offer strip, collapsible cases
 - `9ff9ffc` — richer case stories + business impact
 - `355e4de` — one-click sandbox demos

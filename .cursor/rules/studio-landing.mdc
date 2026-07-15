@@ -25,6 +25,7 @@ alwaysApply: true
 3. Cases rewritten: context → problem → did → business impact + metrics (no fake +400%).
 4. Landing polish commit `07ead25`: brand-led hero, offer strip (discovery → brief → pilot), proof panel, **4 featured cases + expand/collapse** for the rest.
 5. Featured case ids: `fuel-wholesale`, `weighbridge-whatsapp`, `crm-service`, `hr-department`.
+6. Follow-up polish: full-bleed hero (no inset proof card), single offer headline, live-sandbox line under offer strip, removed duplicate engagement section, editorial rows instead of cards for custom/invest.
 
 ## Conventions
 - Market product names (FuelOps, ScaleGate…), not client codenames.

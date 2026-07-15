@@ -31,10 +31,9 @@ const dict = {
     ctaLogin: "CRM login",
     ctaInvestors: "Investor brief",
     ctaOffer: "Book discovery call",
-    heroHeadline: "Custom ops software — built to run, proven in live demos.",
+    heroHeadline: "Your process → a working system → proof you can click",
     heroLead:
       "We design and ship individual systems for companies, teams and private businesses — from a sharp tool to a full ERP. Open a sandbox the same day.",
-    heroPromise: "Your process → a working system → proof you can click",
     heroProofLive: "Live sandboxes",
     heroProofLine: "Fuel · WhatsApp OCR · CRM · HR · warehouses",
     heroProofCaption: "Named products. Real UIs. Separate demo databases.",
@@ -136,21 +135,6 @@ const dict = {
     demosLead:
       "Investors and partners should not rely on mockups. Enter a second door into running environments with sample data. Credentials are published in the hub for self-serve walkthroughs.",
     demosHubCta: "Enter the demo hub",
-    experienceTitle: "How an engagement works",
-    experienceItems: [
-      {
-        t: "Discover",
-        d: "We map roles, documents, exceptions and future growth. Outcome: a clear product brief and architecture options — not a vague “digital transformation” deck.",
-      },
-      {
-        t: "Design & build",
-        d: "Short cycles with a working UI early. You see flows, data model and integrations as they mature. Scope stays tied to business value.",
-      },
-      {
-        t: "Deploy & evidence",
-        d: "Production or sandbox hosts, training and a reopenable demo for the next stakeholder meeting — board, investor or operations lead.",
-      },
-    ],
     investTitle: "Why MetodiOne for capital conversations",
     investLead:
       "We build products that can be named, shown and operated. That is the difference between a services pitch and a studio that has already shipped multiple vertical systems.",
@@ -252,10 +236,9 @@ const dict = {
     ctaLogin: "Вход в CRM",
     ctaInvestors: "Бриф для инвестора",
     ctaOffer: "Записаться на discovery",
-    heroHeadline: "Операционное ПО под ваш процесс — с живыми демо, а не слайдами.",
+    heroHeadline: "Ваш процесс → рабочая система → доказательство в один клик",
     heroLead:
       "Проектируем и выпускаем индивидуальные системы для компаний, команд и личного бизнеса — от точного инструмента до ERP. Sandbox можно открыть в тот же день.",
-    heroPromise: "Ваш процесс → рабочая система → доказательство в один клик",
     heroProofLive: "Живые sandbox",
     heroProofLine: "Топливо · WhatsApp OCR · CRM · кадры · склады",
     heroProofCaption: "Рыночные имена. Реальные UI. Отдельные демо-БД.",
@@ -357,21 +340,6 @@ const dict = {
     demosLead:
       "Инвесторам и партнёрам не нужны макеты. Второй вход — в работающие среды с тестовыми данными. Логины опубликованы в хабе для самостоятельного прохождения.",
     demosHubCta: "Войти в демо-хаб",
-    experienceTitle: "Как устроено сотрудничество",
-    experienceItems: [
-      {
-        t: "Исследование",
-        d: "Фиксируем роли, документы, исключения и рост. На выходе — бриф и варианты архитектуры, а не размытая «цифровая трансформация».",
-      },
-      {
-        t: "Дизайн и сборка",
-        d: "Короткие циклы с рабочим интерфейсом рано. Вы видите потоки, модель данных и интеграции по мере зрелости. Объём привязан к бизнес-эффекту.",
-      },
-      {
-        t: "Деплой и доказательства",
-        d: "Прод или песочница, обучение и демо, которое можно снова открыть на совете, у инвестора или операционного директора.",
-      },
-    ],
     investTitle: "Почему MetodiOne уместен в разговоре с капиталом",
     investLead:
       "Мы делаем продукты, которые можно назвать, показать и эксплуатировать. Это отличие студии с линейкой готовых вертикальных систем от сервиса, который продаёт только обещания.",

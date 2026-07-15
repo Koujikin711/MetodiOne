@@ -138,12 +138,20 @@ export function LandingPage() {
 
       <main id="top">
         <section className={`studio-hero ${revealed ? "is-in" : ""}`}>
+          <div className="studio-hero-bleed" aria-hidden>
+            <div className="studio-hero-orbit" />
+            <p className="studio-hero-roster">
+              <span>ScaleGate</span>
+              <span>FuelOps</span>
+              <span>StaffDesk</span>
+              <span>MessageHub</span>
+            </p>
+          </div>
           <div className="studio-hero-copy">
             <p className="studio-brand-hero">
               {t.brand}
               <span>{t.brandSub}</span>
             </p>
-            <p className="studio-hero-promise">{t.heroPromise}</p>
             <h1 className="studio-hero-title">{t.heroHeadline}</h1>
             <p className="studio-hero-lead">{t.heroLead}</p>
             <div className="studio-hero-cta">
@@ -166,52 +174,29 @@ export function LandingPage() {
               {t.ctaInvestors} →
             </Link>
           </div>
-          <div className="studio-hero-visual" aria-hidden>
-            <div className="studio-hero-plane">
-              <div className="studio-hero-orbit" />
-              <div className="studio-hero-proof">
-                <div className="studio-hero-proof-top">
-                  <span className="studio-live-dot" />
-                  <span>{t.heroProofLive}</span>
-                </div>
-                <p className="studio-hero-proof-line">{t.heroProofLine}</p>
-                <div className="studio-hero-proof-stack">
-                  <div className="studio-proof-row is-accent">
-                    <span>ScaleGate</span>
-                    <em>42 180 → net</em>
-                  </div>
-                  <div className="studio-proof-row">
-                    <span>FuelOps</span>
-                    <em>posted · TJS/USD</em>
-                  </div>
-                  <div className="studio-proof-row">
-                    <span>StaffDesk</span>
-                    <em>visa alert</em>
-                  </div>
-                  <div className="studio-proof-row">
-                    <span>MessageHub</span>
-                    <em>WeChat desk</em>
-                  </div>
-                </div>
-                <p className="studio-hero-proof-caption">{t.heroProofCaption}</p>
-              </div>
-            </div>
-          </div>
         </section>
 
         <section className="studio-offer-strip" aria-label={t.offerStripTitle} data-reveal>
-          <p className="studio-offer-strip-label">{t.offerStripTitle}</p>
-          <ol className="studio-offer-strip-steps">
-            {t.offerItems.map((item, i) => (
-              <li key={item.t}>
-                <span>{String(i + 1).padStart(2, "0")}</span>
-                <strong>{item.t}</strong>
-              </li>
-            ))}
-          </ol>
-          <a href="#offer" className="studio-link studio-offer-strip-link">
-            {t.navOffer} →
-          </a>
+          <div className="studio-offer-strip-main">
+            <p className="studio-offer-strip-label">{t.offerStripTitle}</p>
+            <ol className="studio-offer-strip-steps">
+              {t.offerItems.map((item, i) => (
+                <li key={item.t}>
+                  <span>{String(i + 1).padStart(2, "0")}</span>
+                  <strong>{item.t}</strong>
+                </li>
+              ))}
+            </ol>
+            <a href="#offer" className="studio-link studio-offer-strip-link">
+              {t.navOffer} →
+            </a>
+          </div>
+          <p className="studio-offer-strip-proof">
+            <span className="studio-live-dot" aria-hidden />
+            <span>
+              {t.heroProofLive}: {t.heroProofLine}. {t.heroProofCaption}
+            </span>
+          </p>
         </section>
 
         <section id="audience" className="studio-section" data-reveal>
@@ -237,11 +222,14 @@ export function LandingPage() {
             <h2>{t.customTitle}</h2>
             <p>{t.customLead}</p>
           </div>
-          <div className="studio-feature-stack">
-            {t.customItems.map((item) => (
-              <article key={item.t} className="studio-feature">
-                <h3>{item.t}</h3>
-                <p>{item.d}</p>
+          <div className="studio-editorial-list studio-editorial-list-panel">
+            {t.customItems.map((item, i) => (
+              <article key={item.t} className="studio-editorial-row">
+                <span className="studio-editorial-index">{String(i + 1).padStart(2, "0")}</span>
+                <div>
+                  <h3>{item.t}</h3>
+                  <p>{item.d}</p>
+                </div>
               </article>
             ))}
           </div>
@@ -405,27 +393,8 @@ export function LandingPage() {
             <h2>{t.offerTitle}</h2>
             <p>{t.offerLead}</p>
           </div>
-          <div className="studio-feature-stack">
-            {t.offerItems.map((item) => (
-              <article key={item.t} className="studio-feature">
-                <h3>{item.t}</h3>
-                <p>{item.d}</p>
-              </article>
-            ))}
-          </div>
-          <div className="studio-hero-cta studio-offer-cta-wrap" style={{ marginTop: "1.75rem" }}>
-            <button type="button" className="studio-btn studio-btn-primary" onClick={() => openContact("offer")}>
-              {t.offerCta}
-            </button>
-          </div>
-        </section>
-
-        <section id="engage" className="studio-section" data-reveal>
-          <div className="studio-section-head">
-            <h2>{t.experienceTitle}</h2>
-          </div>
-          <ol className="studio-steps">
-            {t.experienceItems.map((item, idx) => (
+          <ol className="studio-steps studio-steps-panel">
+            {t.offerItems.map((item, idx) => (
               <li key={item.t}>
                 <span className="studio-step-n">{String(idx + 1).padStart(2, "0")}</span>
                 <div>
@@ -435,22 +404,30 @@ export function LandingPage() {
               </li>
             ))}
           </ol>
+          <div className="studio-hero-cta studio-offer-cta-wrap">
+            <button type="button" className="studio-btn studio-btn-primary" onClick={() => openContact("offer")}>
+              {t.offerCta}
+            </button>
+          </div>
         </section>
 
-        <section className="studio-section studio-section-panel" data-reveal>
+        <section className="studio-section" data-reveal>
           <div className="studio-section-head">
             <h2>{t.investTitle}</h2>
             <p>{t.investLead}</p>
           </div>
-          <div className="studio-feature-stack">
-            {t.investItems.map((item) => (
-              <article key={item.t} className="studio-feature">
-                <h3>{item.t}</h3>
-                <p>{item.d}</p>
+          <div className="studio-editorial-list">
+            {t.investItems.map((item, i) => (
+              <article key={item.t} className="studio-editorial-row">
+                <span className="studio-editorial-index">{String(i + 1).padStart(2, "0")}</span>
+                <div>
+                  <h3>{item.t}</h3>
+                  <p>{item.d}</p>
+                </div>
               </article>
             ))}
           </div>
-          <div className="studio-hero-cta" style={{ marginTop: "1.5rem", padding: "0 1.35rem" }}>
+          <div className="studio-hero-cta" style={{ marginTop: "1.75rem" }}>
             <Link to="/investors" className="studio-btn studio-btn-primary">
               {t.ctaInvestors}
             </Link>
