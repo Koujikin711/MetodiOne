@@ -106,10 +106,19 @@ export function LandingPage() {
   };
 
   return (
-    <div className={`studio-root studio-lang-${lang}`}>
+    <div
+      className={`studio-root studio-lang-${lang}`}
+      onMouseMove={(e) => {
+        const root = e.currentTarget;
+        const r = root.getBoundingClientRect();
+        root.style.setProperty("--studio-mx", `${((e.clientX - r.left) / r.width) * 100}%`);
+        root.style.setProperty("--studio-my", `${((e.clientY - r.top) / r.height) * 100}%`);
+      }}
+    >
       <div className="studio-atmosphere" aria-hidden />
       <div className="studio-grid" aria-hidden />
       <div className="studio-sheen" aria-hidden />
+      <div className="studio-pointer-glow" aria-hidden />
 
       <StudioChrome
         lang={lang}
@@ -130,6 +139,13 @@ export function LandingPage() {
         <section className={`studio-hero ${revealed ? "is-in" : ""}`}>
           <div className="studio-hero-bleed" aria-hidden>
             <div className="studio-hero-orbit" />
+            <div className="studio-hero-hatch" />
+            <div className="studio-hero-floaters">
+              <span className="studio-floater studio-floater-a" />
+              <span className="studio-floater studio-floater-b" />
+              <span className="studio-floater studio-floater-c" />
+              <span className="studio-floater studio-floater-d" />
+            </div>
             <p className="studio-hero-roster">
               <span>ScaleGate</span>
               <span>FuelOps</span>
@@ -139,7 +155,9 @@ export function LandingPage() {
           </div>
           <div className="studio-hero-copy">
             <p className="studio-brand-hero">
-              {t.brand}
+              <span className="studio-brand-hero-main">
+                Metodi<span className="studio-brand-hero-one">One</span>
+              </span>
               <span>{t.brandSub}</span>
             </p>
             <h1 className="studio-hero-title" aria-label={t.heroHeadline}>
@@ -153,7 +171,7 @@ export function LandingPage() {
             <div className="studio-hero-cta">
               <Link
                 to="/demos"
-                className="studio-btn studio-btn-primary"
+                className="studio-btn studio-btn-primary studio-btn-glow"
                 onClick={() => trackStudioEvent("cta_demos", { from: "hero" })}
               >
                 {t.ctaDemos}
