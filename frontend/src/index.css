@@ -3814,7 +3814,7 @@ html:has(.studio-root) {
   .studio-steps { grid-template-columns: repeat(3, 1fr); }
 }
 
-.studio-steps li {
+.studio-steps > li {
   display: grid;
   gap: 0.8rem;
   padding: 1.2rem 1.15rem 1.3rem;
@@ -3841,6 +3841,42 @@ html:has(.studio-root) {
   color: var(--studio-muted);
   font-size: 0.94rem;
   line-height: 1.55;
+}
+
+.studio-step-bullets {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.studio-step-bullets li {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 1.15rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--studio-muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.studio-step-bullets li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.48em;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--studio-accent);
+}
+
+.studio-investors-cta {
+  margin-top: 3.25rem;
+  padding-top: 0.5rem;
 }
 
 .studio-finale {

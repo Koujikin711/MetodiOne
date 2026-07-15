@@ -80,7 +80,7 @@ export function InvestorsPage() {
           </div>
         </section>
 
-        <section className="studio-section-block">
+        <section className="studio-section-block studio-investors-road">
           <h2>{t.investorsRoadTitle}</h2>
           <ol className="studio-steps">
             {t.investorsRoadItems.map((item, idx) => (
@@ -88,14 +88,18 @@ export function InvestorsPage() {
                 <span className="studio-step-n">{String(idx + 1).padStart(2, "0")}</span>
                 <div>
                   <h3>{item.t}</h3>
-                  <p>{item.d}</p>
+                  <ul className="studio-step-bullets">
+                    {item.items.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
                 </div>
               </li>
             ))}
           </ol>
         </section>
 
-        <div className="studio-hero-cta" style={{ marginTop: "2rem" }}>
+        <div className="studio-hero-cta studio-investors-cta">
           <Link
             to="/demos"
             className="studio-btn studio-btn-primary"

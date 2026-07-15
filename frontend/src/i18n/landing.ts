@@ -208,19 +208,32 @@ const dict = {
         d: "Hosting, support, training and feature iterations after go-live — recurring revenue tied to systems that stay in daily use.",
       },
     ],
-    investorsRoadTitle: "Roadmap of scale",
+    investorsRoadTitle: "Development roadmap",
     investorsRoadItems: [
       {
         t: "Now",
-        d: "Public studio site, bilingual narrative, demo hub, live Amvera sandboxes, watchdog for uptime, investor brief page.",
+        items: [
+          "Bilingual studio site and demo hub",
+          "Interactive sandboxes (demo stands)",
+          "Availability and uptime monitoring",
+          "Investor section",
+        ],
       },
       {
         t: "Next",
-        d: "Dedicated sandboxes with isolated demo DBs, web demos for BakeFlow / Atelier / ClientOps, stronger case metrics under NDA.",
+        items: [
+          "Dedicated sandboxes with isolated databases",
+          "Web demos: BakeFlow, Atelier, ClientOps",
+          "Real case metrics (under NDA)",
+        ],
       },
       {
         t: "Then",
-        d: "Partner channel for industry verticals, standardized pricing packs, and capital narrative backed by retention of production systems.",
+        items: [
+          "Partner network across industry verticals",
+          "Standardized pricing packages",
+          "Support and maintenance for production systems",
+        ],
       },
     ],
     showcaseRequest: "Request live sandbox",
@@ -421,19 +434,32 @@ const dict = {
         d: "Хостинг, поддержка, обучение и доработки после запуска — регулярная выручка от систем в ежедневной эксплуатации.",
       },
     ],
-    investorsRoadTitle: "План масштабирования",
+    investorsRoadTitle: "Дорожная карта развития",
     investorsRoadItems: [
       {
         t: "Сейчас",
-        d: "Публичный сайт студии, билингвальный рассказ, демо-хаб, живые песочницы на Amvera, контроль аптайма, страница для инвесторов.",
+        items: [
+          "Двуязычный сайт студии и демо-хаб",
+          "Интерактивные песочницы (демо-стенды)",
+          "Мониторинг доступности и аптайма",
+          "Раздел для инвесторов",
+        ],
       },
       {
         t: "Дальше",
-        d: "Отдельные песочницы с изолированными демо-базами, веб-демо BakeFlow / Atelier / ClientOps, метрики кейсов по NDA.",
+        items: [
+          "Выделенные песочницы с изолированными базами",
+          "Веб-демо: BakeFlow, Atelier, ClientOps",
+          "Реальные метрики кейсов (под NDA)",
+        ],
       },
       {
         t: "Затем",
-        d: "Партнёрский канал по вертикалям, стандартизованные пакеты цен и капитальный рассказ на удержании боевых систем.",
+        items: [
+          "Партнёрская сеть по отраслевым вертикалям",
+          "Стандартизированные тарифные пакеты",
+          "Сопровождение и поддержка боевых систем",
+        ],
       },
     ],
     showcaseRequest: "Запросить живую песочницу",
