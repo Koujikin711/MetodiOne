@@ -27,10 +27,10 @@ const dict = {
     navContact: "Contact",
     navInvestors: "Investors",
     ctaDemos: "Open demos",
-    ctaContact: "Book discovery",
+    ctaContact: "Express audit request",
     ctaLogin: "CRM login",
     ctaInvestors: "Investor brief",
-    ctaOffer: "Book discovery call",
+    ctaOffer: "Express audit request",
     heroHeadline: "Your process → a working system → proof you can click",
     heroLead:
       "We design and ship individual systems for companies, teams and private businesses — from a sharp tool to a full ERP. Open a sandbox the same day.",
