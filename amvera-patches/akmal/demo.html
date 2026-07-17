@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Sandbox — StarMIX</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 1.5rem 1.75rem;
+      max-width: 22rem;
+      text-align: center;
+    }
+    .warn { color: #94a3b8; font-size: .9rem; margin-top: .75rem; }
+    pre { text-align: left; font-size: 12px; white-space: pre-wrap; color: #fca5a5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1 style="margin:0 0 .5rem;font-size:1.25rem">Sandbox</h1>
+    <p style="margin:0">Входим без пароля в демо-базу…</p>
+    <p class="warn">Не клиентские данные</p>
+  </div>
+  <script>
+    (async () => {
+      const card = document.querySelector(".card");
+      try {
+        const r = await fetch("/api/auth/demo-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const d = await r.json();
+        if (!d.access_token) throw new Error("No access_token in response");
+        localStorage.setItem("token", d.access_token);
+        document.cookie = "starmix_sandbox=1; path=/; SameSite=Lax; Max-Age=43200";
+        location.replace("/");
+      } catch (e) {
+        card.innerHTML =
+          "<p>Не удалось открыть sandbox</p><pre>" +
+          String(e && e.message ? e.message : e) +
+          "</pre>";
+      }
+    })();
+  </script>
+</body>
+</html>

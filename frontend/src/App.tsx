@@ -32,6 +32,7 @@ import { InvestorsPage } from "@/pages/InvestorsPage";
 import { IndustryPage } from "@/pages/IndustryPage";
 import { ShowcasePage } from "@/pages/ShowcasePage";
 import { DemoEnterPage } from "@/pages/DemoEnterPage";
+import { DemoBridgePage } from "@/pages/DemoBridgePage";
 import { OnboardingPage } from "@/pages/OnboardingPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { TeamMessengerPage } from "@/pages/TeamMessengerPage";
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/landing" element={<LandingPage />} />
         <Route path="/demos" element={<DemoHubPage />} />
         <Route path="/demo" element={<DemoEnterPage />} />
+        <Route path="/enter/:productId" element={<DemoBridgePage />} />
         <Route path="/investors" element={<InvestorsPage />} />
         <Route path="/solutions/:slug" element={<IndustryPage />} />
         <Route path="/showcase/:id" element={<ShowcasePage />} />

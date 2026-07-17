@@ -151,7 +151,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "Номенклатура запчастей, операционные процессы и PIN-профили для складов автозапчастей.",
     },
     tags: ["WMS", "Auto parts"],
-    demoUrl: "https://nizom-koujikin.amvera.io/demo",
+    /** Bridge → Nizom hash `/#/demo` (passwordless SPA entry). */
+    demoUrl: "/enter/partstock",
     status: "live",
     instantDemo: true,
     industrySlugs: ["warehouse-erp"],
@@ -168,7 +169,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "Операционное рабочее место под торговый процесс клиента — демо-хост.",
     },
     tags: ["ERP", "Ops"],
-    demoUrl: "https://akmal-koujikin.amvera.io/demo",
+    /** Bridge → StarMIX `/demo` (passwordless after Amvera patch in amvera-patches/akmal). */
+    demoUrl: "/enter/tradedesk",
     status: "live",
     instantDemo: true,
     industrySlugs: ["warehouse-erp"],
@@ -208,13 +210,22 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
   },
 ];
 
+/** External Amvera sandbox hosts (for watchdog / ops). Bridge paths resolve here. */
+const EXTERNAL_DEMO_HOSTS: Record<string, string> = {
+  partstock: "https://nizom-koujikin.amvera.io/",
+  tradedesk: "https://akmal-koujikin.amvera.io/",
+};
+
 export const LIVE_DEMO_TARGETS = STUDIO_PRODUCTS.filter(
-  (p) => p.status === "live" && p.demoUrl?.startsWith("http"),
-).map((p) => ({
-  id: p.id,
-  name: p.name,
-  url: p.demoUrl!,
-  slug: p.demoUrl!.replace(/^https?:\/\//, "").split(".")[0],
-}));
+  (p) => p.status === "live" && (p.demoUrl?.startsWith("http") || EXTERNAL_DEMO_HOSTS[p.id]),
+).map((p) => {
+  const url = p.demoUrl!.startsWith("http") ? p.demoUrl! : EXTERNAL_DEMO_HOSTS[p.id]!;
+  return {
+    id: p.id,
+    name: p.name,
+    url,
+    slug: url.replace(/^https?:\/\//, "").split(".")[0],
+  };
+});
 
 export const INSTANT_DEMO_NOTE = INSTANT;
