@@ -21,6 +21,12 @@ function actionLabel(lang: LandingLang, p: StudioProduct, t: ReturnType<typeof l
   return t.requestPrivate;
 }
 
+/** Live sandboxes and enter bridges open in a new tab; in-app showcases stay same-tab. */
+function opensInNewTab(demoUrl: string, status: StudioProduct["status"]) {
+  if (status === "showcase") return false;
+  return demoUrl.startsWith("http") || demoUrl.startsWith("/enter/") || demoUrl === "/demo";
+}
+
 function DemoRow({
   p,
   lang,
@@ -79,8 +85,8 @@ function DemoRow({
           <a
             href={p.demoUrl}
             className={`studio-btn ${featured ? "studio-btn-primary" : "studio-btn-secondary"}`}
-            target={p.demoUrl!.startsWith("http") ? "_blank" : undefined}
-            rel={p.demoUrl!.startsWith("http") ? "noreferrer" : undefined}
+            target={opensInNewTab(p.demoUrl!, p.status) ? "_blank" : undefined}
+            rel={opensInNewTab(p.demoUrl!, p.status) ? "noopener noreferrer" : undefined}
             onClick={() => trackStudioEvent("demo_open", { id: p.id, status: p.status })}
           >
             {actionLabel(lang, p, t)}

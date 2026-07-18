@@ -30,6 +30,12 @@ export function DemoBridgePage() {
     }
     trackStudioEvent("demo_bridge", { id: productId });
     const timer = window.setTimeout(() => {
+      // Prefer a new tab so the Studio hub stays open (matches other live sandboxes).
+      const popup = window.open(target, "_blank", "noopener,noreferrer");
+      if (popup) {
+        window.location.replace("/demos");
+        return;
+      }
       window.location.replace(target);
     }, 120);
     return () => window.clearTimeout(timer);
