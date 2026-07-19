@@ -51,7 +51,7 @@ export function InvestorsPage() {
         <section className="studio-section-block" data-reveal>
           <h2>{t.investorsWhatTitle}</h2>
           <p className="studio-prose">{t.investorsWhat}</p>
-          <p className="studio-prose studio-prose-note">{t.investorsWhatNote}</p>
+          {t.investorsWhatNote ? <p className="studio-prose studio-prose-note">{t.investorsWhatNote}</p> : null}
         </section>
 
         <section className="studio-section-block">

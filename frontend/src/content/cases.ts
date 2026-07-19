@@ -33,11 +33,11 @@ export const STUDIO_CASES: StudioCase[] = [
       ru: "Данные о поступлениях, реализации и банковских операциях велись в Excel и собирались по скриншотам «сделок» из мессенджеров. Мультивалютные контракты расходились с фактическими остатками в резервуарах. Закрытие месяца превращалось в трехдневную «войну сверок». Аудиторы и партнеры постоянно требовали отчеты, на подготовку которых уходило множество звонков и файлов.",
     },
     did: {
-      en: "Shipped FuelOps — a single document system (receipts, sales, bank), operational journals and multi-currency print forms with role separation. Five scattered spreadsheets became one shared desk: ops posts on deal day, and finance sees current data immediately. Partners got a test sandbox with no access to production data.",
+      en: "Shipped FuelOps — a single document system (receipts, sales, bank), operational journals and multi-currency print forms with role separation. Five scattered spreadsheets became one shared desk: ops posts on deal day, and finance sees current data immediately. Partners review the process in a separate test environment.",
       ru: "Внедрили FuelOps — единую систему документов (поступление, реализация, банк), операционных журналов и мультивалютных печатных форм с разграничением ролей. Пять разрозненных таблиц заменили одним общим рабочим столом: операции проводятся в день сделки, а финансовый отдел сразу видит актуальные данные. Для партнеров развернули тестовую песочницу без доступа к боевым данным.",
     },
     result: {
-      en: "Deal-to-posted-document compressed from several days to a couple of hours. Finance no longer gathers data from chats. Tank balances and cash flows reconcile in real time. Leadership and partners work from reliable data — not slide decks rebuilt for every meeting.",
+      en: "Deal-to-posted-document compressed from several days to a couple of hours. Finance no longer gathers data from chats. Tank balances and cash flows reconcile in real time. Leadership and partners work from the same current figures.",
       ru: "Процесс от сделки до проведения документа сократился с нескольких дней до пары часов. Финансовому отделу больше не нужно собирать данные по чатам. Остатки в резервуарах и денежные потоки сходятся в реальном времени. Руководство и партнеры работают с достоверными данными, а не заново собранными презентациями.",
     },
     metrics: [
@@ -177,7 +177,7 @@ export const STUDIO_CASES: StudioCase[] = [
       ru: "Карточки сотрудников, визы и табель учета рабочего времени велись в разрозненных папках, чатах и личных Excel-таблицах. Сроки действия документов иностранных работников всплывали слишком поздно — когда человека уже не пускали на объект. Подготовка аналитики занимала у HR-отдела дни: специалисты занимались «археологией» файлов вместо реальной работы с командой.",
     },
     did: {
-      en: "Delivered StaffDesk: one system for employee cards, org chart, interactive timesheets, leave and orders. Added automatic alerts for critical document deadlines and practical exports. The interface is localized in three languages (TJ / RU / EN) — the whole HR desk now lives in one product. A live demo lets stakeholders test the process without opening real personnel files.",
+      en: "Delivered StaffDesk: one system for employee cards, org chart, interactive timesheets, leave and orders. Added automatic alerts for critical document deadlines and practical exports. The interface is available in three languages (TJ / RU / EN), so the whole HR desk runs in one product.",
       ru: "Внедрили StaffDesk: единую систему, объединившую карточки сотрудников, оргструктуру, интерактивный табель, учет отпусков и приказов. Настроили автоматические оповещения о критических сроках документов и удобные выгрузки. Интерфейс локализован на три языка (TJ / RU / EN) — весь кадровый стол теперь в одном продукте. Живое демо позволяет протестировать процесс без открытия реальных персональных дел.",
     },
     result: {
@@ -225,7 +225,7 @@ export const STUDIO_CASES: StudioCase[] = [
       ru: "Весь входящий трафик шел на личные телефоны операторов. Контрагентов переименовывали вручную прямо в чатах — единой карточки клиента не существовало. Интеграционные мосты регулярно падали на серверах, а восстановить их работоспособность мог только один незаменимый специалист. Уход или отпуск оператора парализовал продажи, лишая компанию контроля над переписками.",
     },
     did: {
-      en: "Built MessageHub — a shared operator workspace. Counterparties are first-class customer cards with history. Configured inbound webhooks and a reliable integration bridge with a reproducible deploy path. Messenger work now happens inside a corporate product, not on personal smartphones.",
+      en: "Built MessageHub — a shared operator workspace. Counterparties are first-class customer cards with history. Configured inbound webhooks and a reliable integration bridge with a reproducible deploy path. Messenger work now happens inside a corporate product instead of on personal phones.",
       ru: "Разработали MessageHub — единое рабочее пространство (общий стол) оператора. Контрагенты ведутся как полноценные карточки клиентов с историей. Настроили входящие вебхуки и внедрили надежный интеграционный мост с воспроизводимым сценарием развертывания. Теперь вся работа в мессенджерах происходит внутри корпоративного продукта, а не на личных смартфонах сотрудников.",
     },
     result: {
@@ -273,11 +273,11 @@ export const STUDIO_CASES: StudioCase[] = [
       ru: "Складской учет и многострочные накладные велись на бумаге и в виде фотографий в чатах. Ошибочно проведенную операцию было практически невозможно отменить без искажения учета, поэтому остатки регулярно «подгоняли» инвентаризацией. Печать документов для водителей постоянно отставала от фактической отгрузки. Права доступа распределялись хаотично на уровне «у кого пароль от общего ноутбука». Во время визитов партнерам показывали фото папок на телефоне вместо прозрачной системы.",
     },
     did: {
-      en: "Delivered CraftLine: FIFO warehouse, controlled posting and unposting of multi-line documents, PDF generation, role separation and an end-to-end action audit. Real shop-floor processes mapped onto strict document types — not chaotic free-form spreadsheets.",
+      en: "Delivered CraftLine: FIFO warehouse, controlled posting and unposting of multi-line documents, PDF generation, role separation and an end-to-end action audit. Shop-floor processes map onto clear document types.",
       ru: "Внедрили CraftLine: организовали склад по методу FIFO, внедрили контролируемое проведение и отмену многострочных документов, генерацию PDF-отчетов, разграничение ролей и сквозной аудит действий. Реальные процессы цеха легли на строгие типы документов, а не на хаотичные свободные таблицы.",
     },
     result: {
-      en: "Every warehouse movement is tied to posted documents. Unposting is a deliberate action with an author trail — not a hidden midnight edit. Instead of showing folders, leadership opens a live dashboard for partners. Change history is transparent — arguments about “who tweaked the stock” are gone.",
+      en: "Every warehouse movement is tied to posted documents. Unposting is a deliberate action with an author trail. Leadership opens a live dashboard for partners instead of folder photos. Change history is transparent, so arguments about “who tweaked the stock” are gone.",
       ru: "Все движения на складе теперь строго привязаны к проведенным документам. Отмена операции стала осознанным действием с фиксацией автора изменений, а не скрытой ночной правкой. Вместо демонстрации папок руководство открывает перед партнерами живой рабочий дашборд. Вся история изменений прозрачна — споры о том, «кто подкрутил остатки», ушли в прошлое.",
     },
     metrics: [
@@ -325,7 +325,7 @@ export const STUDIO_CASES: StudioCase[] = [
       ru: "Собрали BakeFlow: настроили склад сырья, калькуляцию себестоимости по техкартам и подтверждение заказов с автосписанием. Объединили продажи и финансовый контур владельца. Теперь одно действие — перевод заказа в статус «Принят» — мгновенно пересчитывает себестоимость и списывает остатки. Кухня видит реальную себестоимость партии до начала производства.",
     },
     result: {
-      en: "Production sees exact numbers before confirming a large order volume. Ingredient stock moves with orders instead of a weekly cleanup. The owner has a clear margin tool and an investor-ready narrative. A test sandbox path opens on first request — without digging through recipe binders.",
+      en: "Production sees exact numbers before confirming a large order volume. Ingredient stock moves with orders instead of a weekly cleanup. The owner has a clear margin view and can walk partners through the numbers without digging through recipe binders.",
       ru: "Производство видит точные цифры до того, как подтвердить крупный объем заказа. Движение сырья на складе синхронизировано с заказами, а не корректируется ручной зачисткой в конце недели. У владельца появился прозрачный инструмент для анализа маржинальности и демонстрации показателей инвесторам. Путь к тестовой песочнице открывается по первому запросу, без необходимости изучать папки с техкартами.",
     },
     metrics: [
@@ -404,8 +404,8 @@ export const STUDIO_CASES: StudioCase[] = [
   {
     id: "auto-parts",
     title: {
-      en: "Parts desk with roles — not a shared password",
-      ru: "Стол запчастей с ролями, а не общим паролем",
+      en: "Parts desk with personal roles and PIN access",
+      ru: "Стол запчастей с персональными ролями и PIN",
     },
     industry: {
       en: "Auto-parts warehouse",
@@ -421,7 +421,7 @@ export const STUDIO_CASES: StudioCase[] = [
       ru: "Внедрили PartStock: оцифровали номенклатуру запчастей, настроили точные алгоритмы поиска по номерам и разграничили права доступа. Заменили единый мастер-пароль персональными учетными записями с PIN-кодами для каждого сменного сотрудника. Теперь каждое действие на складе и кассе автоматически привязывается к конкретному исполнителю.",
     },
     result: {
-      en: "Operators work under personal roles, not a shared password. Every warehouse or cash action is transparent and auditable. The owner sees each employee’s contribution, and pick mistakes are found without interrogating the whole shift.",
+      en: "Operators work under personal roles. Every warehouse or cash action is transparent and auditable. The owner sees each employee’s contribution, and pick mistakes are found without interrogating the whole shift.",
       ru: "Операторы работают под своими персональными ролями, а не под общим паролем. Любое действие по складу или кассе теперь прозрачно и подлежит аудиту. Владелец видит личную эффективность каждого сотрудника, а ошибки при подборе запчастей легко выявляются и устраняются без долгих разбирательств со всей сменой.",
     },
     metrics: [
@@ -442,7 +442,7 @@ export const STUDIO_CASES: StudioCase[] = [
       {
         value: "sandbox",
         label: {
-          en: "system demos on test data — never real PINs",
+          en: "demos run on test data, separate from production PINs",
           ru: "демонстрация системы на тестовых данных, без реальных PIN",
         },
       },
@@ -465,18 +465,18 @@ export const STUDIO_CASES: StudioCase[] = [
       ru: "Торговый процесс вырос из простых, кустарных инструментов. Все исключения, редкие сценарии и согласования начали бесконтрольно размножаться в личных таблицах сотрудников. Роли вроде «кто бронирует», «кто утверждает» и «кто отказывает» размылись. Каждый разбор для стейкхолдеров требовал заново собирать слайды презентаций, которые к следующей встрече уже не соответствовали реальности. Операционный риск целиком зависел от памяти ключевых сотрудников.",
     },
     did: {
-      en: "Built TradeDesk — an operations ERP shaped to the client’s real trading flow on a live host. Digitized documents and locked roles to the trading stream. Deployed an isolated sandbox for board and partner demos: the next meeting opens the same desk, not a new deck of static slides.",
+      en: "Built TradeDesk — an operations ERP shaped to the client’s real trading flow. Digitized documents and locked roles to the trading stream. Board and partner reviews open the same live desk every time.",
       ru: "Собрали TradeDesk — операционную ERP под реальный торговый процесс клиента на живом хосте. Оцифровали все документы и закрепили роли под торговый поток. Развернули изолированную песочницу для демонстрации системы совету директоров и партнерам: следующая встреча открывает тот же рабочий стол, а не новую колоду статичных слайдов.",
     },
     result: {
-      en: "Daily ops run inside a named product with clear system roles. Exceptions are modeled in the UI, not discussed “in words”. The next audit or partner board opens a live system that matches reality. The custom build looks and behaves like the company’s own private system — not rented faceless software.",
+      en: "Daily ops run inside a named product with clear system roles. Exceptions are modeled in the UI. The next audit or partner board opens a live system that matches reality. The build behaves like the company’s own private system.",
       ru: "Ежедневные операции выполняются в именном продукте с четко прописанными, системными ролями. Все операционные исключения смоделированы в интерфейсе, а не обсуждаются «на словах». Следующий аудит или совет партнеров открывает живую систему, которая совпадает с реальностью. Кастомное решение выглядит и ведет себя как собственная закрытая система компании, а не арендованный безликий софт.",
     },
     metrics: [
       {
         value: "named ERP",
         label: {
-          en: "individual product instead of endless process slides",
+          en: "named product instead of rebuilt meeting decks",
           ru: "индивидуальный продукт вместо бесконечных слайдов о процессах",
         },
       },
@@ -513,18 +513,18 @@ export const STUDIO_CASES: StudioCase[] = [
       ru: "Сторонний готовый SaaS-софт пытался навязать бизнесу чужие процессы и допущения. Нестандартные и краевые случаи уходили в «теневые» ручные контуры вне системы, создавая путаницу. Попытка «перекрасить» готовый публичный шаблон под строгие требования конфиденциальности провалилась. Руководству был необходим собственный, именной внутренний продукт, который реально работает с их логикой и защищает закрытые данные.",
     },
     did: {
-      en: "Delivered ClientOps as a fully private isolated contour: designed a custom document and role model, adapted the operator desk to real exceptions, and stood up a controlled demo under NDA. Engagement moved from introduction to a code test-drive to full operation — owned software, not a rented multi-tenant skin.",
+      en: "Delivered ClientOps as a private system: custom document and role model, operator desk adapted to real exceptions, and a controlled demo under NDA. Engagement moved from introduction to a working build and then to full operation — software the client owns.",
       ru: "Поставили ClientOps как полностью закрытый и изолированный контур: спроектировали собственную модель документов и ролей, адаптировали рабочий стол под реальные исключения и развернули контролируемое демо под соглашением о неразглашении (NDA). Процесс сотрудничества начали со знакомства, перешли к тест-драйву кода и вышли на полную эксплуатацию — это собственное ПО, а не арендованная «шкурка» мультитенантной платформы.",
     },
     result: {
-      en: "The client runs a named internal product and fully owns the operating infrastructure. Exceptions and non-standard paths are handled inside the system, not in shadow channels. Investors and partners see the reliability pattern on showcases; demo access follows a short introduction — without publishing closed processes on a public stand.",
+      en: "The client runs a named internal product and owns the operating infrastructure. Exceptions and non-standard paths are handled inside the system. Partners review the approach through a controlled demo after a short introduction.",
       ru: "Клиент эксплуатирует именной внутренний продукт и полностью владеет операционной инфраструктурой. Все исключения и нестандартные ситуации обрабатываются внутри системы, а не уходят в теневые каналы связи. Инвесторы и партнеры видят паттерн надежности на обзорах, а доступ к демо предоставляется после быстрого знакомства — без публикации закрытых процессов на публичном стенде.",
     },
     metrics: [
       {
         value: "not SaaS",
         label: {
-          en: "owned software under client control — not a rented platform",
+          en: "owned software under client control",
           ru: "собственный софт под контролем клиента, а не аренда платформы",
         },
       },

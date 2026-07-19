@@ -16,24 +16,24 @@ export const PRODUCT_SHOWCASES: ProductShowcase[] = [
       ru: "BakeFlow — операции кондитерской",
     },
     lead: {
-      en: "A pastry kitchen needs tech cards and a warehouse that recalculates automatically when an order is confirmed — not abstract generic accounting. BakeFlow is a ready workspace for running your production. We provision a public sandbox on request; below are the key product capabilities.",
-      ru: "Кондитерской нужны технологические карты и склад, который автоматически пересчитывается при подтверждении заказа, а не абстрактный общий учет. BakeFlow — это готовое рабочее место для управления вашим производством. Публичную песочницу мы разворачиваем по запросу, а ниже — ключевые возможности продукта.",
+      en: "BakeFlow connects recipes, ingredient stock and orders: when an order is confirmed, stock is recalculated automatically. A public demo is available on request; the modules below are what the product covers.",
+      ru: "BakeFlow связывает техкарты, склад сырья и заказы: при подтверждении заказа остатки пересчитываются автоматически. Публичное демо — по запросу; ниже — модули продукта.",
     },
     modules: [
       { en: "Ingredients & FIFO warehouse", ru: "Сырьё и FIFO-склад" },
       {
         en: "Tech cards with automatic cost calculation",
-        ru: "Технологические карты с автоматическим расчетом себестоимости",
+        ru: "Технологические карты с расчётом себестоимости",
       },
       { en: "Orders with automatic stock write-off", ru: "Заказы с автосписанием остатков" },
       {
-        en: "Sales and an operational finance contour",
-        ru: "Продажи и операционный финансовый контур",
+        en: "Sales and operational finance views",
+        ru: "Продажи и операционные финансы",
       },
     ],
     audience: {
-      en: "Confectioneries, dessert studios and small food manufacturers.",
-      ru: "Кондитерские, десерт-студии и небольшие пищевые производства.",
+      en: "Confectioneries, dessert studios and small food manufacturers",
+      ru: "Кондитерские, десерт-студии и небольшие пищевые производства",
     },
   },
   {
@@ -44,8 +44,8 @@ export const PRODUCT_SHOWCASES: ProductShowcase[] = [
       ru: "Atelier Retail — ERP fashion-бутика",
     },
     lead: {
-      en: "Apparel retail dies when size/color truth fragments across chat and cash. Atelier Retail keeps catalog, stock and sales coherent — showcase now, scheduled web sandbox next.",
-      ru: "Fashion-ритейл ломается, когда размер/цвет живут в чатах и на кассе по-разному. Atelier Retail держит каталог, склад и продажи вместе — сейчас обзор, веб-песочница по слоту.",
+      en: "Atelier Retail keeps catalog, warehouse and floor sales aligned by size and color. This page is a product preview; a full web demo is available on request.",
+      ru: "Atelier Retail держит каталог, склад и продажи в зале в одной логике размера и цвета. Здесь — обзор продукта; полное веб-демо — по запросу.",
     },
     modules: [
       { en: "SKU / size / color catalog", ru: "Каталог SKU / размер / цвет" },
@@ -66,17 +66,17 @@ export const PRODUCT_SHOWCASES: ProductShowcase[] = [
       ru: "ClientOps — закрытый кейс внедрения",
     },
     lead: {
-      en: "A privately scoped operational suite for a client whose process could not sit on public SaaS. We document the engagement pattern here; live access is arranged after a short discovery under confidentiality.",
-      ru: "Закрытый операционный контур для клиента, чей процесс нельзя посадить на публичный SaaS. Здесь — паттерн внедрения; живой доступ — после короткого знакомства под конфиденциальностью.",
+      en: "A private operations suite for a client whose process could not run on public SaaS. Live access is arranged after a short discovery under NDA.",
+      ru: "Закрытый операционный контур для клиента, чей процесс нельзя вынести в публичный SaaS. Живой доступ — после короткого знакомства под NDA.",
     },
     modules: [
-      { en: "Custom document & role model", ru: "Своя модель документов и ролей" },
+      { en: "Custom document and role model", ru: "Своя модель документов и ролей" },
       { en: "Operator desk tuned to exceptions", ru: "Стол оператора под исключения" },
-      { en: "Controlled stakeholder demos", ru: "Контролируемые демо для заинтересованных сторон" },
-      { en: "Retention & iteration path", ru: "Путь сопровождения и итераций" },
+      { en: "Controlled demos for stakeholders", ru: "Контролируемые демо для заинтересованных сторон" },
+      { en: "Support and iteration path", ru: "Сопровождение и развитие" },
     ],
     audience: {
-      en: "Private firms needing ownership of logic and data",
+      en: "Firms that need ownership of logic and data",
       ru: "Компании, которым важно владение логикой и данными",
     },
   },

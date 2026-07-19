@@ -16,8 +16,8 @@ export type StudioProduct = {
 };
 
 const INSTANT = {
-  en: "One click — sandbox DB, not client production.",
-  ru: "Один клик — тестовая база, не боевая система клиента.",
+  en: "Opens on test data.",
+  ru: "Открывается на тестовых данных.",
 } as const;
 
 /** Portfolio catalog — market names (not client codenames). */
@@ -64,8 +64,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "CRM-платформа с интеграцией WeChat и мессенджер-мостами",
     },
     blurb: {
-      en: "A unified WeChat/WhatsApp operator desk: counterparties, inbound webhooks, desktop bridges and fast install on the client’s infrastructure.",
-      ru: "Единое рабочее место оператора WeChat/WhatsApp: ведение контрагентов, входящие вебхуки, десктоп-мосты и быстрая установка на мощностях клиента.",
+      en: "A single WeChat/WhatsApp operator desk: counterparties, inbound webhooks, desktop bridges and a straightforward install on the client’s servers.",
+      ru: "Единое рабочее место оператора WeChat/WhatsApp: контрагенты, входящие вебхуки, десктоп-мосты и установка на серверах клиента.",
     },
     tags: ["CRM", "WeChat", "WhatsApp"],
     demoUrl: "https://wechat-koujikin.amvera.io/demo",
@@ -111,12 +111,12 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "bakeflow",
     name: "BakeFlow",
     tagline: {
-      en: "Confectionery ERP: tech cards, warehouse, auto write-off and orders",
-      ru: "ERP для кондитерских производств: технологические карты, складской учёт, автоматическое списание и управление заказами",
+      en: "Recipes, stock, automatic write-off and orders",
+      ru: "Техкарты, склад, автосписание и заказы",
     },
     blurb: {
-      en: "Confectionery ERP: tech cards, warehouse accounting, automatic write-off and order management.",
-      ru: "ERP для кондитерских производств: технологические карты, складской учёт, автоматическое списание и управление заказами.",
+      en: "Ingredient stock, recipe costing, order confirmation with automatic write-off, plus sales and finance views.",
+      ru: "Склад сырья, себестоимость техкарт, заказы с автосписанием, продажи и финансы.",
     },
     tags: ["ERP", "Food", "Showcase"],
     demoUrl: "/showcase/bakeflow",
@@ -127,12 +127,12 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "atelier",
     name: "Atelier Retail",
     tagline: {
-      en: "Fashion boutique ERP: size, color and sell-through in one loop",
-      ru: "ERP-система для fashion-бутиков: сквозной учет размеров, цветов и показателей sell-through",
+      en: "Size, color and sell-through in one system",
+      ru: "Размер, цвет и sell-through в одной системе",
     },
     blurb: {
-      en: "Fashion boutique ERP: end-to-end tracking of sizes, colors and sell-through.",
-      ru: "ERP-система для fashion-бутиков: сквозной учет размеров, цветов и показателей sell-through.",
+      en: "SKU catalog with size and color, warehouse and floor sales, owner analytics and finance views for apparel retail.",
+      ru: "Каталог SKU с размером и цветом, склад и продажи в зале, аналитика владельца и финансы для fashion-ритейла.",
     },
     tags: ["ERP", "Retail", "Showcase"],
     demoUrl: "/showcase/atelier",
@@ -165,8 +165,8 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
       ru: "Индивидуальная операционная ERP под бизнес-логику клиента",
     },
     blurb: {
-      en: "Deployed operations desk tailored to a client trading workflow — sandbox demo host.",
-      ru: "Операционное рабочее место под торговый процесс клиента — демо-хост.",
+      en: "An operations desk built around a client trading workflow — catalog, stock, sales and roles.",
+      ru: "Операционное рабочее место под торговый процесс клиента: каталог, склад, продажи и роли.",
     },
     tags: ["ERP", "Ops"],
     demoUrl: "https://akmal-koujikin.amvera.io/demo",
@@ -195,12 +195,12 @@ export const STUDIO_PRODUCTS: StudioProduct[] = [
     id: "clientops",
     name: "ClientOps",
     tagline: {
-      en: "Private custom delivery of a complex ops contour under NDA",
-      ru: "Закрытый индивидуальный кейс внедрения сложного операционного контура под NDA",
+      en: "Private delivery of a custom operations system under NDA",
+      ru: "Закрытая поставка операционной системы под NDA",
     },
     blurb: {
-      en: "A private custom delivery of a complex operational contour under NDA.",
-      ru: "Закрытый индивидуальный кейс внедрения сложного операционного контура под NDA.",
+      en: "A privately scoped operations suite delivered under NDA. Public demo available on request.",
+      ru: "Закрытый операционный контур под NDA. Публичное демо — по запросу.",
     },
     tags: ["Custom", "Showcase"],
     demoUrl: "/showcase/clientops",

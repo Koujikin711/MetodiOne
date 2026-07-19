@@ -28,8 +28,8 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
         ru: "Печатные формы в валюте договора, согласованные с журналом",
       },
       {
-        en: "Live sandbox for diligence and operator training",
-        ru: "Живая песочница для проверки и обучения операторов",
+        en: "Live demo for training and stakeholder review",
+        ru: "Живое демо для обучения и разбора с командой",
       },
     ],
     productIds: ["fuelops"],
@@ -45,8 +45,8 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
       ru: "Автоматизация WhatsApp и мессенджеров",
     },
     lead: {
-      en: "Turn group photos and chat traffic into structured operations — weighbridges, operator desks and bridges that survive real field use.",
-      ru: "Превращаем фото из групп и чат-трафик в структурированные операции — весовые, столы операторов и мосты, которые выдерживают поле.",
+      en: "Turn group photos and chat traffic into structured operations — weighbridges, operator desks and messenger bridges for field use.",
+      ru: "Фото из групп и чат-трафик превращаем в операции — весовые, столы операторов и мосты мессенджеров для полевой работы.",
     },
     bullets: [
       {
@@ -58,8 +58,8 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
         ru: "Мосты WeChat / WhatsApp с устанавливаемыми клиентами",
       },
       {
-        en: "Roles, history and demos investors can click",
-        ru: "Роли, история и демо, в которые можно кликнуть",
+        en: "Roles, history and open demos",
+        ru: "Роли, история и открытые демо",
       },
     ],
     productIds: ["scalegate", "messagehub"],
@@ -75,8 +75,8 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
       ru: "CRM, чат и онлайн-запись",
     },
     lead: {
-      en: "Product-shaped CRM for service businesses: pipelines, omnichannel chat, booking and KPI with multi-tenant readiness.",
-      ru: "Продуктовая CRM для сервисного бизнеса: воронки, омниканал, запись и KPI с готовностью к мультитенанту.",
+      en: "CRM for service businesses: pipelines, omnichannel chat, booking and KPIs, ready for multi-tenant setups.",
+      ru: "CRM для сервисного бизнеса: воронки, омниканал, запись и KPI, готовность к мультитенанту.",
     },
     bullets: [
       {
@@ -84,12 +84,12 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
         ru: "Стадии, роли и рабочее место менеджера",
       },
       {
-        en: "Booking linked to the same customer truth",
-        ru: "Онлайн-запись на той же клиентской правде",
+        en: "Booking on the same customer record",
+        ru: "Онлайн-запись на одной карточке клиента",
       },
       {
-        en: "Suitable for guided investor demos",
-        ru: "Удобно для guided-демо инвестору",
+        en: "Open demos for stakeholders",
+        ru: "Открытые демо для заинтересованных сторон",
       },
     ],
     productIds: ["metodione-crm", "messagehub"],
@@ -118,8 +118,8 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
         ru: "Проведение / отмена с аудитом",
       },
       {
-        en: "Sandbox hosts for stakeholder reviews",
-        ru: "Песочницы для разбора с заинтересованными сторонами",
+        en: "Open demos for stakeholder reviews",
+        ru: "Открытые демо для разбора с командой",
       },
     ],
     productIds: ["craftline", "partstock", "tradedesk"],
@@ -148,8 +148,8 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
         ru: "Зарплата и выгрузки отчётов",
       },
       {
-        en: "Live demo for process walkthroughs",
-        ru: "Живое демо для разбора процесса",
+        en: "Live demo of the full HR flow",
+        ru: "Живое демо кадрового контура",
       },
     ],
     productIds: ["staffdesk"],
@@ -165,8 +165,8 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
       ru: "ERP кондитерской",
     },
     lead: {
-      en: "Recipes, ingredient stock and order confirmation with automatic write-off — product story and private walkthrough.",
-      ru: "Техкарты, склад сырья и подтверждение заказа с автосписанием — продуктовая история и закрытый разбор.",
+      en: "Recipes, ingredient stock and order confirmation with automatic write-off. Preview available; full demo on request.",
+      ru: "Техкарты, склад сырья и подтверждение заказа с автосписанием. Обзор доступен; полное демо — по запросу.",
     },
     bullets: [
       {
@@ -174,12 +174,12 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
         ru: "Себестоимость от техкарт",
       },
       {
-        en: "Order → stock movement in one action",
-        ru: "Заказ → движение склада одним действием",
+        en: "Order to stock movement in one action",
+        ru: "Заказ и движение склада одним действием",
       },
       {
-        en: "Showcase now, full sandbox on request",
-        ru: "Сейчас — обзор, полная песочница по запросу",
+        en: "Preview now, full demo on request",
+        ru: "Сейчас обзор, полное демо по запросу",
       },
     ],
     productIds: ["bakeflow"],
@@ -195,8 +195,8 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
       ru: "ERP для fashion-ритейла",
     },
     lead: {
-      en: "SKU / size / color truth for boutiques — warehouse, sales floor and finance in one product narrative.",
-      ru: "Правда SKU / размер / цвет для бутиков — склад, зал и финансы в одном продуктовом рассказе.",
+      en: "SKU, size and color for boutiques — warehouse, sales floor and finance in one system.",
+      ru: "SKU, размер и цвет для бутиков — склад, зал и финансы в одной системе.",
     },
     bullets: [
       {
@@ -208,8 +208,8 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
         ru: "Продажи и склад в связке",
       },
       {
-        en: "Showcase page + private demo path",
-        ru: "Страница обзора и путь к закрытому демо",
+        en: "Product preview and private demo on request",
+        ru: "Обзор продукта и закрытое демо по запросу",
       },
     ],
     productIds: ["atelier"],
@@ -225,8 +225,8 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
       ru: "Кастомные операционные системы",
     },
     lead: {
-      en: "When off-the-shelf SaaS cannot hold your exceptions — individual applications with evidence you can show capital partners.",
-      ru: "Когда готовый SaaS не держит ваши исключения — индивидуальные приложения с доказательствами для капитала.",
+      en: "When off-the-shelf SaaS cannot cover your exceptions — custom applications you own and can demonstrate.",
+      ru: "Когда готовый SaaS не закрывает ваши исключения — свои приложения, которыми вы владеете и которые можно показать.",
     },
     bullets: [
       {
@@ -235,7 +235,7 @@ export const INDUSTRY_PAGES: IndustryPage[] = [
       },
       {
         en: "Any complexity, controlled rollout",
-        ru: "Любая сложность, управляемый rollout",
+        ru: "Любая сложность, управляемый запуск",
       },
       {
         en: "Private demos under NDA when needed",

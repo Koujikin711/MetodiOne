@@ -61,7 +61,7 @@ export function DemoBridgePage() {
       <div className="studio-feature" style={{ maxWidth: 420, textAlign: "center" }}>
         <h1 style={{ marginTop: 0 }}>{name}</h1>
         <p className="studio-muted">
-          {lang === "ru" ? "Входим в sandbox без пароля…" : "Opening the passwordless sandbox…"}
+          {lang === "ru" ? "Открываем демо…" : "Opening demo…"}
         </p>
       </div>
     </div>

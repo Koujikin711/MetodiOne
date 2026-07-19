@@ -14,7 +14,7 @@ import {
 import { trackStudioEvent } from "@/lib/studioAnalytics";
 import { useStudioReveal } from "@/lib/useStudioReveal";
 
-function actionLabel(lang: LandingLang, p: StudioProduct, t: ReturnType<typeof landingCopy>) {
+function actionLabel(p: StudioProduct, t: ReturnType<typeof landingCopy>) {
   if (p.status === "showcase") return t.openShowcase;
   if (p.instantDemo) return t.openDemoInstant;
   if (p.demoUrl) return t.openDemo;
@@ -89,7 +89,7 @@ function DemoRow({
             rel={opensInNewTab(p.demoUrl!, p.status) ? "noopener noreferrer" : undefined}
             onClick={() => trackStudioEvent("demo_open", { id: p.id, status: p.status })}
           >
-            {actionLabel(lang, p, t)}
+            {actionLabel(p, t)}
           </a>
         ) : (
           <span className="studio-muted">{t.noPublicDemo}</span>
@@ -151,10 +151,12 @@ export function DemoHubPage() {
           {t.demosVersionLabel ? <p className="studio-demos-kicker">{t.demosVersionLabel}</p> : null}
           <h1 className="studio-demos-title">{t.demosPageTitle}</h1>
           <p className="studio-demos-lead">{t.demosPageLead}</p>
-          <p className="studio-demos-note studio-demos-warn" role="note">
-            <span aria-hidden="true">!</span>
-            {t.demoDisclaimer}
-          </p>
+          {t.demoDisclaimer ? (
+            <p className="studio-demos-note studio-demos-warn" role="note">
+              <span aria-hidden="true">!</span>
+              {t.demoDisclaimer}
+            </p>
+          ) : null}
         </header>
 
         <section className="studio-demo-section studio-demo-section-live" aria-labelledby="demos-live">
