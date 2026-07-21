@@ -91,6 +91,17 @@ async def demo_login(
         user.must_change_password = False
     await db.flush()
     await db.refresh(user)
+
+    # Fill the sandbox with a year of believable CRM history on first entry.
+    # A savepoint keeps the company/user even if the (best-effort) seeding fails.
+    try:
+        from app.services.demo_seed import seed_sandbox_demo_data
+
+        async with db.begin_nested():
+            await seed_sandbox_demo_data(db, int(company.id), int(user.id))
+    except Exception:  # noqa: BLE001 — demo entry must succeed even if seeding fails
+        pass
+
     extra = jwt_claims_for_user(user)
     extra["sandbox"] = True
     token = create_access_token(str(user.id), extra=extra)
