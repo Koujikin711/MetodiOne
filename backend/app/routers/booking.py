@@ -610,11 +610,9 @@ async def booking_queue_add(
         assigned = await assign_manager_for_new_lead(db, pipeline_id=pipeline_id, exclude_user_id=exclude_id)
         if assigned is not None:
             manager_id = assigned
-    if manager_id is None:
-        if current_user.role == UserRole.manager:
-            manager_id = current_user.id
-        elif current_user.role == UserRole.owner:
-            manager_id = current_user.id
+    if manager_id is None and current_user.role == UserRole.manager:
+        # Только менеджер может стать ответственным; owner/admin — никогда.
+        manager_id = current_user.id
 
     lead = Lead(
         company_id=company_id,
@@ -1057,6 +1055,11 @@ async def _upsert_lead_for_appointment(
     stage = await db.get(PipelineStage, stage_id)
     pipeline_id = stage.pipeline_id if stage else None
     manager_id = responsible_manager_id
+    if manager_id is not None:
+        resp_user = await db.get(User, int(manager_id))
+        if resp_user is None or resp_user.company_id != company_id or resp_user.role != UserRole.manager:
+            # Владелец/админ воронки не могут быть ответственными за лид.
+            manager_id = None
     if manager_id is None and pipeline_id is not None:
         pipe = await db.get(Pipeline, int(pipeline_id))
         exclude_id = int(pipe.intake_manager_user_id) if pipe and pipe.intake_manager_user_id is not None else None
@@ -1476,18 +1479,27 @@ async def create_appointment(
     for slot_start in start_times:
         await _assert_slot_available(db, specialist, body.specialist_id, slot_start, duration_min)
     if (
-        current_user.role in (UserRole.manager, UserRole.admin)
+        current_user.role == UserRole.manager
         and float(body.paid_amount or 0) > 0
         and body.responsible_manager_id is None
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Менеджер или админ воронки не может указать оплату без ответственного менеджера",
+            detail="Менеджер не может указать оплату без ответственного менеджера",
         )
 
     lead_id = body.lead_id
     appointment_pipeline_id: int | None = None
     resolved_manager_id = body.responsible_manager_id
+    if resolved_manager_id is not None:
+        resp_user = await db.get(User, int(resolved_manager_id))
+        if resp_user is None or resp_user.company_id != company_id or resp_user.role != UserRole.manager:
+            resolved_manager_id = None
+            if current_user.role == UserRole.manager and float(body.paid_amount or 0) > 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Ответственным может быть только менеджер",
+                )
     if lead_id is not None:
         lead = await db.get(Lead, lead_id)
         if lead is None or lead.company_id != company_id:

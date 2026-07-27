@@ -40,6 +40,7 @@ interface RedistributionSource {
   manager_name: string;
   lead_count: number;
   is_active: boolean;
+  role?: string | null;
 }
 
 interface RedistributionPreview {
@@ -130,6 +131,12 @@ export function EmployeesPage() {
     [employeesQuery.data],
   );
 
+  /** Получатели лидов — только менеджеры (не owner/admin). */
+  const activeManagersOnly = useMemo(
+    () => (employeesQuery.data ?? []).filter((e) => e.role === "manager"),
+    [employeesQuery.data],
+  );
+
   const [redistributeFromId, setRedistributeFromId] = useState<number | "">("");
   const [redistributeToIds, setRedistributeToIds] = useState<number[]>([]);
 
@@ -141,6 +148,13 @@ export function EmployeesPage() {
   const redistributionSources = redistributionSourcesQuery.data ?? [];
   const sourcesWithLeads = useMemo(
     () => redistributionSources.filter((s) => s.lead_count > 0),
+    [redistributionSources],
+  );
+  const ownerAdminLeadCount = useMemo(
+    () =>
+      redistributionSources
+        .filter((s) => s.role === "owner" || s.role === "admin")
+        .reduce((acc, s) => acc + s.lead_count, 0),
     [redistributionSources],
   );
 
@@ -173,7 +187,7 @@ export function EmployeesPage() {
     onSuccess: (r) => {
       const parts = Object.entries(r.per_manager)
         .map(([id, cnt]) => {
-          const emp = activeSalesManagers.find((e) => e.id === Number(id));
+          const emp = activeManagersOnly.find((e) => e.id === Number(id));
           const label = emp?.full_name ?? emp?.email ?? `#${id}`;
           return `${label}: ${cnt}`;
         })
@@ -185,6 +199,27 @@ export function EmployeesPage() {
       );
       setRedistributeFromId("");
       setRedistributeToIds([]);
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+      void qc.invalidateQueries({ queryKey: ["leads-table"] });
+      void qc.invalidateQueries({ queryKey: ["leads-redistribution-sources"] });
+      void qc.invalidateQueries({ queryKey: ["chat-threads"] });
+      void qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const redistributeFromOwnersMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<RedistributeResult>("/api/leads/redistribute-from-owners", {
+        method: "POST",
+        body: "{}",
+      }),
+    onSuccess: (r) => {
+      toast.success(
+        r.reassigned > 0
+          ? `Снято с владельца/админов и роздано менеджерам: ${r.reassigned} лид(ов)`
+          : "У владельца и админов не было закреплённых лидов",
+      );
       void qc.invalidateQueries({ queryKey: ["leads"] });
       void qc.invalidateQueries({ queryKey: ["leads-table"] });
       void qc.invalidateQueries({ queryKey: ["leads-redistribution-sources"] });
@@ -426,14 +461,46 @@ export function EmployeesPage() {
         <p className="text-sm text-red-300">{(employeesQuery.error as Error).message}</p>
       )}
 
-      {(sourcesWithLeads.length > 0 || redistributionSourcesQuery.isLoading) &&
-        activeSalesManagers.length >= 1 && (
+      {(sourcesWithLeads.length > 0 || redistributionSourcesQuery.isLoading || activeManagersOnly.length >= 1) &&
+        activeManagersOnly.length >= 1 && (
         <section className="employees-redistribute-panel">
           <h2 className="lux-subheading">Перераспределение лидов</h2>
           <p className="mt-1 text-sm lux-caption">
-            Все лиды выбранного менеджера равномерно передаются другим менеджерам (в том числе с уволенных
-            аккаунтов). Входящие сообщения в чате и карточки клиентов откроются у новых ответственных.
+            Лиды можно забрать у менеджера, владельца или админа воронки и передать только менеджерам.
+            Владелец и админ воронки больше не получают новые лиды автоматически.
           </p>
+
+          <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+            <p className="text-sm text-[var(--mo-text)]">
+              Лидов на владельце/админах:{" "}
+              <span className="font-semibold text-amber-700 dark:text-amber-200">
+                {redistributionSourcesQuery.isLoading ? "…" : ownerAdminLeadCount}
+              </span>
+            </p>
+            <button
+              type="button"
+              className="employees-redistribute-btn mt-3 disabled:opacity-50"
+              disabled={
+                redistributeFromOwnersMutation.isPending ||
+                activeManagersOnly.length < 1 ||
+                (!redistributionSourcesQuery.isLoading && ownerAdminLeadCount <= 0)
+              }
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `Забрать ВСЕ лиды у владельца и админов воронки и равномерно раздать ${activeManagersOnly.length} менеджерам?`,
+                  )
+                ) {
+                  return;
+                }
+                redistributeFromOwnersMutation.mutate();
+              }}
+            >
+              {redistributeFromOwnersMutation.isPending
+                ? "Раздаём…"
+                : "Забрать все лиды у владельца/админов → менеджерам"}
+            </button>
+          </div>
 
           {redistributionSourcesQuery.isLoading && (
             <p className="mt-2 text-sm mo-muted">Загрузка списка…</p>
@@ -451,7 +518,7 @@ export function EmployeesPage() {
                 }}
                 className="mo-input mt-1 w-full"
               >
-                <option value="">— выберите менеджера —</option>
+                <option value="">— выберите —</option>
                 {sourcesWithLeads.map((m) => (
                   <option key={m.manager_id} value={m.manager_id}>
                     {m.manager_name} — {m.lead_count} лид(ов)
@@ -462,7 +529,7 @@ export function EmployeesPage() {
             </label>
 
             <div className="text-sm mo-muted">
-              <span className="mo-muted">Лидов у менеджера:</span>{" "}
+              <span className="mo-muted">Лидов у выбранного:</span>{" "}
               {redistributeFromId === "" ? (
                 <span className="mo-muted">—</span>
               ) : redistributionPreviewQuery.isLoading ? (
@@ -487,7 +554,7 @@ export function EmployeesPage() {
                 Только активные менеджеры. Лиды делятся поровну (round-robin).
               </p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {activeSalesManagers
+                {activeManagersOnly
                   .filter((m) => m.id !== redistributeFromId)
                   .map((m) => (
                     <label key={m.id} className="flex items-center gap-2 text-sm text-[var(--mo-text)]">
@@ -498,7 +565,7 @@ export function EmployeesPage() {
                       />
                       <span className="truncate">
                         {m.full_name ?? m.email}
-                        <span className="mo-muted"> · {m.role}</span>
+                        <span className="mo-muted"> · менеджер</span>
                       </span>
                     </label>
                   ))}

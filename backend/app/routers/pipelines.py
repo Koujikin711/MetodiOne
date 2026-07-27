@@ -368,20 +368,23 @@ async def distribute_leads_from_stage(
             if lead is None:
                 skipped += 1
                 continue
-            # уже назначен — не трогаем, если не принудительный режим
+            # уже назначен менеджеру — не трогаем, если не принудительный режим.
+            # Лиды на owner/admin всегда переназначаем (даже без force).
             if not body.force_reassign and lead.manager_id is not None:
-                skipped += 1
-                continue
+                cur = await db.get(User, int(lead.manager_id))
+                if cur is not None and cur.role == UserRole.manager:
+                    skipped += 1
+                    continue
             mid = await assign_manager_for_new_lead(
                 db,
                 pipeline_id=pipeline_id,
                 exclude_user_id=pipe.intake_manager_user_id,
+                force=True,
             )
             if mid is None:
-                # Если mode=none — assign_manager_for_new_lead вернёт None
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Воронка не настроена для автораспределения (lead_assignment_mode=round_robin/least_loaded).",
+                    detail="В этой воронке нет активных менеджеров для распределения.",
                 )
             lead.manager_id = mid
             assigned += 1

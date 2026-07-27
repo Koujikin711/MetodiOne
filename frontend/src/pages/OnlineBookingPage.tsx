@@ -847,7 +847,7 @@ export function OnlineBookingPage() {
       toast.error("Оплата не может быть больше стоимости услуги");
       return;
     }
-    if (isManagerOrAdmin && resolvedPaidAmount > 0 && !currentUserId) {
+    if (currentRole === "manager" && resolvedPaidAmount > 0 && !currentUserId) {
       toast.error("Не удалось определить ответственного менеджера автоматически");
       return;
     }
@@ -860,7 +860,8 @@ export function OnlineBookingPage() {
       payload.lead_pipeline_id = newLeadPipelineId;
       payload.lead_stage_id = newLeadStageId;
     }
-    if (isManagerOrAdmin && resolvedPaidAmount > 0 && currentUserId) {
+    // Owner / admin воронки никогда не становятся ответственными за лид.
+    if (currentRole === "manager" && resolvedPaidAmount > 0 && currentUserId) {
       payload.responsible_manager_id = currentUserId;
     }
     if (seriesBookingEnabled && courseStreamsForForm) {
