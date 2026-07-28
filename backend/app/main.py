@@ -290,23 +290,37 @@ async def lifespan(_: FastAPI):
                         )
                     now = asyncio.get_running_loop().time()
                     if now >= next_sheets_run:
-                        synced = await run_google_sheets_import_tick(session)
-                        finance_synced = await run_finance_sheets_sync_tick(session)
-                        await session.commit()
-                        if synced:
-                            logger.info("google sheets sync tick: integrations=%s", synced)
+                        try:
+                            synced = await run_google_sheets_import_tick(session)
+                            finance_synced = await run_finance_sheets_sync_tick(session)
+                            await session.commit()
+                            if synced:
+                                logger.info("google sheets sync tick: integrations=%s", synced)
+                                record_background_event(
+                                    source="google_sheets",
+                                    ok=True,
+                                    message=f"Тик Google Sheets обработал интеграций: {synced}",
+                                )
+                            if finance_synced:
+                                logger.info("finance osv sheets sync tick: companies=%s", finance_synced)
+                                record_background_event(
+                                    source="finance_sheets",
+                                    ok=True,
+                                    message=f"Синхронизировано таблиц ОСВ: {finance_synced}",
+                                )
+                        except Exception as sheets_exc:
+                            # OAuth мог пройти, а sheets.googleapis.com — отвалиться по сети.
+                            # Не помечаем весь background tick как ERROR (Amvera шлёт алерт).
+                            logger.warning("google sheets tick skipped due to error: %s", sheets_exc)
                             record_background_event(
                                 source="google_sheets",
-                                ok=True,
-                                message=f"Тик Google Sheets обработал интеграций: {synced}",
+                                ok=False,
+                                message=str(sheets_exc)[:400],
                             )
-                        if finance_synced:
-                            logger.info("finance osv sheets sync tick: companies=%s", finance_synced)
-                            record_background_event(
-                                source="finance_sheets",
-                                ok=True,
-                                message=f"Синхронизировано таблиц ОСВ: {finance_synced}",
-                            )
+                            try:
+                                await session.rollback()
+                            except Exception:
+                                pass
                         period = max(int(settings.google_sheets_poll_seconds), 30)
                         next_sheets_run = now + float(period)
             except Exception as exc:
