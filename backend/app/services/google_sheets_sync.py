@@ -25,7 +25,8 @@ _TRANSIENT_HTTPX = (
     httpx.WriteTimeout,
     httpx.PoolTimeout,
     httpx.RemoteProtocolError,
-    httpx.NetworkError,
+    httpx.TimeoutException,
+    httpx.TransportError,
 )
 
 _GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
