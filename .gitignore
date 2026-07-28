@@ -45,3 +45,7 @@ tools/
 *.session
 
 demo-desktop/runtime/.venv
+
+AGENTS.md
+.cursor/
+.claude/
