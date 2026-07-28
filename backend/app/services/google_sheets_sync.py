@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import re
 import time
 from typing import Any
@@ -13,6 +15,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models import Integration, IntegrationProvider, Lead, LeadSource, Pipeline, PipelineStage
 from app.services.lead_assignment import assign_manager_for_new_lead
+
+logger = logging.getLogger(__name__)
+
+_TRANSIENT_HTTPX = (
+    httpx.ConnectError,
+    httpx.ConnectTimeout,
+    httpx.ReadTimeout,
+    httpx.WriteTimeout,
+    httpx.PoolTimeout,
+    httpx.RemoteProtocolError,
+    httpx.NetworkError,
+)
 
 _GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 _GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly"
@@ -170,17 +184,27 @@ async def _all_sheet_titles(token: str, spreadsheet_id: str) -> list[str]:
 
 async def _sheet_rows(token: str, spreadsheet_id: str, rng: str) -> list[list[Any]]:
     url = f"{_GOOGLE_SHEETS_API}/{quote(spreadsheet_id)}/values/{quote(rng, safe='')}"
-    async with httpx.AsyncClient(timeout=25.0) as client:
-        r = await client.get(url, headers={"Authorization": f"Bearer {token}"})
-    r.raise_for_status()
-    payload = r.json() if isinstance(r.json(), dict) else {}
-    vals = payload.get("values")
-    if not isinstance(vals, list):
-        return []
-    out: list[list[Any]] = []
-    for row in vals:
-        out.append(row if isinstance(row, list) else [])
-    return out
+    last_exc: Exception | None = None
+    for attempt in range(1, 4):
+        try:
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                r = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+            r.raise_for_status()
+            payload = r.json() if isinstance(r.json(), dict) else {}
+            vals = payload.get("values")
+            if not isinstance(vals, list):
+                return []
+            out: list[list[Any]] = []
+            for row in vals:
+                out.append(row if isinstance(row, list) else [])
+            return out
+        except _TRANSIENT_HTTPX as exc:
+            last_exc = exc
+            if attempt >= 3:
+                break
+            await asyncio.sleep(0.8 * attempt)
+    assert last_exc is not None
+    raise last_exc
 
 
 async def _ensure_source_exists(db: AsyncSession, company_id: int, name: str) -> None:
@@ -392,6 +416,20 @@ async def run_google_sheets_import_tick(db: AsyncSession, *, max_rows_per_integr
     )
     synced = 0
     for integ in rows.scalars().all():
-        await sync_google_sheet_integration(db, integ=integ, max_rows=max_rows_per_integration)
-        synced += 1
+        try:
+            await sync_google_sheet_integration(db, integ=integ, max_rows=max_rows_per_integration)
+            synced += 1
+        except _TRANSIENT_HTTPX as exc:
+            # Временный обрыв сети Amvera ↔ Google — не валим весь background tick.
+            logger.warning(
+                "google sheets sync transient network error integration_id=%s: %s",
+                integ.id,
+                exc,
+            )
+        except Exception as exc:
+            logger.warning(
+                "google sheets sync failed integration_id=%s: %s",
+                integ.id,
+                exc,
+            )
     return synced
