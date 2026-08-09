@@ -488,17 +488,20 @@ export function OnlineBookingPage() {
   });
 
   const paymentMutation = useMutation({
-    mutationFn: ({ id, paid_amount }: { id: number; paid_amount: number }) =>
+    mutationFn: ({ id, add_payment }: { id: number; add_payment: number }) =>
       apiFetch(`/api/booking/appointments/${id}/payment`, {
         method: "PATCH",
-        body: JSON.stringify({ paid_amount }),
+        body: JSON.stringify({ add_payment }),
       }),
     onSuccess: () => {
-      toast.success("Оплата обновлена");
+      toast.success("Доплата учтена (суммируется к оплате услуги)");
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics-full"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics-detailed"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1416,6 +1419,7 @@ export function OnlineBookingPage() {
                   <th className="py-2 pr-4">Специалист</th>
                   <th className="py-2 pr-4">Стоимость (TJS)</th>
                   <th className="py-2 pr-4">Оплачено (TJS)</th>
+                  <th className="py-2 pr-4">Доплата</th>
                   <th className="py-2 pr-4">Дебиторка</th>
                   <th className="py-2 pr-4">Статус</th>
                   <th className="py-2 pr-4 max-w-[200px]">Заметка</th>
@@ -1451,31 +1455,43 @@ export function OnlineBookingPage() {
                     </td>
                     <td className="py-2 pr-4 lux-caption">{a.specialist_name}</td>
                     <td className="py-2 pr-4">{formatMoney(a.service_amount ?? 0)}</td>
+                    <td className="py-2 pr-4">{formatMoney(a.paid_amount ?? 0)}</td>
                     <td className="py-2 pr-4">
                       {a.can_manage_journal ? (
                         <input
+                          key={`add-pay-${a.id}-${a.paid_amount}`}
                           type="number"
                           min={0}
                           step={1}
-                          defaultValue={a.paid_amount ?? 0}
+                          defaultValue=""
+                          placeholder="0"
                           onBlur={(e) => {
-                            const next = Number(e.target.value);
-                            if (!Number.isFinite(next)) return;
-                            if (next === Number(a.paid_amount ?? 0)) return;
-                            paymentMutation.mutate({ id: a.id, paid_amount: next });
+                            const raw = e.target.value.trim();
+                            if (!raw) return;
+                            const add = Number(raw);
+                            if (!Number.isFinite(add) || add <= 0) {
+                              e.target.value = "";
+                              return;
+                            }
+                            paymentMutation.mutate({ id: a.id, add_payment: add });
+                            e.target.value = "";
                           }}
                           className="mo-input w-28 py-1"
-                          title="Сумма в TJS"
+                          title="Доплата суммируется к уже оплаченному (TJS)"
                         />
                       ) : (
-                        <span>{formatMoney(a.paid_amount ?? 0)}</span>
+                        <span className="mo-muted">—</span>
                       )}
                     </td>
                     <td className="py-2 pr-4 text-xs">
                       {Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? (
-                        <span className="rounded bg-amber-500/20 px-2 py-0.5 text-amber-300">Долг</span>
-                      ) : (
+                        <span className="rounded bg-amber-500/20 px-2 py-0.5 text-amber-300">
+                          Долг {formatMoney(Number(a.service_amount ?? 0) - Number(a.paid_amount ?? 0))}
+                        </span>
+                      ) : Number(a.service_amount ?? 0) > 0 ? (
                         <span className="text-[#0f4c3a]">Оплачено</span>
+                      ) : (
+                        <span className="mo-muted">серия</span>
                       )}
                     </td>
                     <td className="py-2 pr-4">
