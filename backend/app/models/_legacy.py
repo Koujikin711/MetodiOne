@@ -218,6 +218,104 @@ class SalesKpiServicePlan(Base):
     expert_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
 
+class SalesKpiWeightedSettings(Base):
+    """Настройки взвешенного KPI на месяц: общий план + фонд бонуса на менеджера."""
+
+    __tablename__ = "sales_kpi_weighted_settings"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id",
+            "pipeline_id",
+            "year_month",
+            name="uq_sales_kpi_weighted_settings_scope",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    pipeline_id: Mapped[int] = mapped_column(ForeignKey("pipelines.id", ondelete="CASCADE"), index=True)
+    year_month: Mapped[date] = mapped_column(Date, index=True)
+    bonus_fund: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("10000"))
+
+
+class SalesKpiPlanItem(Base):
+    """Строка общего плана на месяц (одинакова для всех менеджеров)."""
+
+    __tablename__ = "sales_kpi_plan_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id",
+            "pipeline_id",
+            "year_month",
+            "name",
+            name="uq_sales_kpi_plan_item_name",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    pipeline_id: Mapped[int] = mapped_column(ForeignKey("pipelines.id", ondelete="CASCADE"), index=True)
+    year_month: Mapped[date] = mapped_column(Date, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    plan_qty: Mapped[int] = mapped_column(default=0)
+    weight_percent: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"))
+    # direction — факт из онлайн-записи (100% оплата); manual — курс/протокол без записи (≥25%).
+    source_type: Mapped[str] = mapped_column(String(32), default="manual")
+    direction_id: Mapped[int | None] = mapped_column(
+        ForeignKey("booking_directions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    sort_order: Mapped[int] = mapped_column(default=0)
+
+
+class SalesKpiPlanItemSpecialist(Base):
+    """Привязка экспертов онлайн-записи к показателю KPI (услуге)."""
+
+    __tablename__ = "sales_kpi_plan_item_specialists"
+    __table_args__ = (
+        UniqueConstraint(
+            "plan_item_id",
+            "specialist_id",
+            name="uq_sales_kpi_plan_item_specialist",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    plan_item_id: Mapped[int] = mapped_column(
+        ForeignKey("sales_kpi_plan_items.id", ondelete="CASCADE"),
+        index=True,
+    )
+    specialist_id: Mapped[int] = mapped_column(
+        ForeignKey("booking_specialists.id", ondelete="CASCADE"),
+        index=True,
+    )
+
+
+class SalesKpiManualSale(Base):
+    """Продажа курса/протокола без онлайн-записи (вносит admin)."""
+
+    __tablename__ = "sales_kpi_manual_sales"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    pipeline_id: Mapped[int] = mapped_column(ForeignKey("pipelines.id", ondelete="CASCADE"), index=True)
+    plan_item_id: Mapped[int] = mapped_column(ForeignKey("sales_kpi_plan_items.id", ondelete="RESTRICT"), index=True)
+    manager_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    client_name: Mapped[str] = mapped_column(String(255))
+    client_phone: Mapped[str] = mapped_column(String(64))
+    service_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    sold_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    # active | returned
+    status: Mapped[str] = mapped_column(String(24), default="active")
+    returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
 class PipelineStage(Base):
     __tablename__ = "pipeline_stages"
 
