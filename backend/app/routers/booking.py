@@ -1469,12 +1469,9 @@ async def create_appointment(
     start_at = _from_payload_to_utc(body.start_at)
     duration_min = _appointment_duration_minutes(specialist, direction)
     consecutive_days = int(body.consecutive_days or 1)
-    if consecutive_days > 1:
-        if not _course_streams_enabled_for_booking(specialist, direction):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Запись на несколько дней подряд доступна только для направлений с потоками",
-            )
+    session_billing = _course_streams_enabled_for_booking(specialist, direction)
+    # Сеансы (массаж/логопед): каждый день = отдельная оплата.
+    # Без сеансов: пакет — стоимость один раз, доплаты суммируются в первую запись.
     start_times = [_add_booking_calendar_days(start_at, offset) for offset in range(consecutive_days)]
     for slot_start in start_times:
         await _assert_slot_available(db, specialist, body.specialist_id, slot_start, duration_min)
@@ -1563,12 +1560,19 @@ async def create_appointment(
 
     created_appts: list[BookingAppointment] = []
     wa_sent = False
+    initial_paid = float(body.paid_amount or 0)
     for idx, slot_start in enumerate(start_times):
         slot_end = slot_start + timedelta(minutes=duration_min)
-        # Каждый день серии = отдельный сеанс (массаж/логопед и т.п.): своя стоимость.
-        # Оплату при создании пишем только в первый день; дальше — доплаты по факту визита.
-        slot_service_amount = float(body.service_amount)
-        if appointment_pipeline_id is not None:
+        if session_billing:
+            # Режим сеансов: каждый день — своя стоимость (150 + 150 + …).
+            slot_service_amount = float(service_amount_value)
+            slot_paid = initial_paid if idx == 0 else 0.0
+        else:
+            # Пакет без сеансов: стоимость и оплата только на первом дне.
+            slot_service_amount = float(service_amount_value) if idx == 0 else 0.0
+            slot_paid = initial_paid if idx == 0 else 0.0
+        if session_billing and appointment_pipeline_id is not None and idx > 0:
+            # На каждый день серии пересчитываем KPI-цену месяца слота.
             fixed_price = await get_kpi_service_price(
                 db,
                 company_id=company_id,
@@ -1578,7 +1582,6 @@ async def create_appointment(
             )
             if fixed_price is not None:
                 slot_service_amount = float(fixed_price)
-        slot_paid = float(body.paid_amount) if idx == 0 else 0.0
         appt = BookingAppointment(
             company_id=company_id,
             lead_id=lead_id,
@@ -1802,6 +1805,41 @@ async def patch_appointment_status(
     )
 
 
+async def _resolve_package_billing_appointment(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    appt: BookingAppointment,
+) -> BookingAppointment:
+    """Без сеансов: доплаты пишем в запись с стоимостью (обычно первый день пакета)."""
+    if float(appt.service_amount or 0) > 0:
+        return appt
+    if not appt.specialist_id:
+        return appt
+    start = _ensure_utc(appt.start_at) - timedelta(days=60)
+    end = _ensure_utc(appt.start_at) + timedelta(days=60)
+    candidates = (
+        await db.execute(
+            select(BookingAppointment)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.specialist_id == appt.specialist_id,
+                BookingAppointment.status != "cancelled",
+                BookingAppointment.service_amount > 0,
+                BookingAppointment.start_at >= start,
+                BookingAppointment.start_at <= end,
+            )
+            .order_by(BookingAppointment.start_at.asc(), BookingAppointment.id.asc()),
+        )
+    ).scalars().all()
+    group_key = _visit_group_key(appt.patient_phone, int(appt.specialist_id))
+    for cand in candidates:
+        if _visit_group_key(cand.patient_phone, int(cand.specialist_id)) != group_key:
+            continue
+        return cand
+    return appt
+
+
 @router.patch("/appointments/{appointment_id}/payment", response_model=BookingAppointmentRead)
 async def patch_appointment_payment(
     appointment_id: int,
@@ -1810,11 +1848,10 @@ async def patch_appointment_payment(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
-    """Оплата/доплата по конкретному сеансу.
+    """Оплата зависит от переключателя «сеансы» у специалиста/направления.
 
-    Каждый день серии (массаж, логопед…) — отдельная услуга со своей стоимостью.
-    `add_payment` суммируется внутри этой записи; 100% оплаты разных дней суммируются
-    в выручке/KPI как отдельные сеансы.
+    - сеансы ВКЛ: каждый день — отдельный сеанс, доплата только в эту запись;
+    - сеансы ВЫКЛ: пакет — доплаты суммируются в запись со стоимостью.
     """
     await _assert_expert_readonly_for_booking(db, current_user)
     appt = await db.get(BookingAppointment, appointment_id)
@@ -1822,51 +1859,74 @@ async def patch_appointment_payment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
     await _assert_can_manage_appointment_journal(db, appt, current_user)
 
-    tz = ZoneInfo(settings.booking_timezone)
-    appt_day = _ensure_utc(appt.start_at).astimezone(tz).date()
-    now_day = datetime.now(UTC).astimezone(tz).date()
-    if appt_day != now_day:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Менять оплату можно только в день прихода клиента",
-        )
+    direction = await db.get(BookingDirection, appt.direction_id)
+    specialist = await db.get(BookingSpecialist, appt.specialist_id)
+    if direction is None or specialist is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление или специалист не найдены")
+    session_billing = _course_streams_enabled_for_booking(specialist, direction)
 
-    service = float(appt.service_amount or 0)
-    prev_paid = float(appt.paid_amount or 0)
+    tz = ZoneInfo(settings.booking_timezone)
+    now_day = datetime.now(UTC).astimezone(tz).date()
+    appt_day = _ensure_utc(appt.start_at).astimezone(tz).date()
+
+    if session_billing:
+        target = appt
+        if appt_day != now_day:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Менять оплату сеанса можно только в день прихода клиента",
+            )
+    else:
+        target = await _resolve_package_billing_appointment(db, company_id=company_id, appt=appt)
+        await _assert_can_manage_appointment_journal(db, target, current_user)
+        target_day = _ensure_utc(target.start_at).astimezone(tz).date()
+        # Пакет: доплату можно внести в день любого визита серии или в день биллинговой записи.
+        if appt_day != now_day and target_day != now_day:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Менять оплату можно только в день прихода клиента",
+            )
+
+    service = float(target.service_amount or 0)
+    prev_paid = float(target.paid_amount or 0)
     if body.add_payment is not None:
         new_paid = prev_paid + float(body.add_payment)
     else:
         new_paid = float(body.paid_amount or 0)
+    if service <= 0 and new_paid > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="У этой записи нет стоимости — доплату внесите в основной день пакета",
+        )
     if new_paid > service + 1e-9:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Оплата не может быть больше стоимости сеанса ({service:g})",
+            detail=f"Оплата не может быть больше стоимости ({service:g})",
         )
     if new_paid < 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Оплата не может быть отрицательной")
 
-    appt.paid_amount = new_paid
-    appt.updated_at = datetime.now(UTC)
+    target.paid_amount = new_paid
+    target.updated_at = datetime.now(UTC)
     await db.flush()
     await write_audit_event(
         db,
         entity_type="booking_appointment",
-        entity_id=appt.id,
+        entity_id=target.id,
         action="appointment_payment_updated",
         current_user=current_user,
         details=(
+            f"session_billing={session_billing}; from_appointment_id={appt.id}; "
             f"prev_paid={prev_paid}; add_payment={body.add_payment}; "
             f"paid_amount={body.paid_amount}; new_paid={new_paid}"
         ),
     )
 
-    direction = await db.get(BookingDirection, appt.direction_id)
-    specialist = await db.get(BookingSpecialist, appt.specialist_id)
     return await _booking_appointment_read(
         db,
-        appt,
-        direction_name=direction.name if direction else "",
-        specialist_name=specialist.full_name if specialist else "",
+        target,
+        direction_name=direction.name,
+        specialist_name=specialist.full_name,
         viewer=current_user,
     )
 

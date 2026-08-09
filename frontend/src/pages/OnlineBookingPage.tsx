@@ -494,7 +494,7 @@ export function OnlineBookingPage() {
         body: JSON.stringify({ add_payment }),
       }),
     onSuccess: () => {
-      toast.success("Доплата учтена по этому сеансу");
+      toast.success("Доплата учтена");
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics-full"] });
@@ -868,7 +868,7 @@ export function OnlineBookingPage() {
     if (currentRole === "manager" && resolvedPaidAmount > 0 && currentUserId) {
       payload.responsible_manager_id = currentUserId;
     }
-    if (seriesBookingEnabled && courseStreamsForForm) {
+    if (seriesBookingEnabled && consecutiveDays > 1) {
       payload.consecutive_days = consecutiveDays;
     } else {
       payload.consecutive_days = 1;
@@ -1148,47 +1148,50 @@ export function OnlineBookingPage() {
                     className="mt-1 w-full mo-input"
                   />
                 </label>
-                {courseStreamsForForm ? (
-                  <div className="space-y-2 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface-soft)] p-3">
-                    <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--mo-text)]">
-                      <input
-                        type="checkbox"
-                        checked={seriesBookingEnabled}
-                        onChange={(e) => setSeriesBookingEnabled(e.target.checked)}
-                        className="mt-0.5"
-                      />
-                      <span>
-                        Записать на несколько дней подряд
-                        <span className="mt-0.5 block text-xs mo-muted">
-                          Для курсов с потоками — одно время каждый календарный день
-                        </span>
+                <div className="space-y-2 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface-soft)] p-3">
+                  <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--mo-text)]">
+                    <input
+                      type="checkbox"
+                      checked={seriesBookingEnabled}
+                      onChange={(e) => setSeriesBookingEnabled(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Записать на несколько дней подряд
+                      <span className="mt-0.5 block text-xs mo-muted">
+                        {courseStreamsForForm
+                          ? "Сеансы включены: каждый день — отдельная оплата (массаж, логопед…)"
+                          : "Сеансы выключены: одна стоимость на весь период, доплаты суммируются"}
                       </span>
+                    </span>
+                  </label>
+                  {seriesBookingEnabled ? (
+                    <label className="block text-sm mo-muted">
+                      Дней подряд
+                      <select
+                        value={consecutiveDays}
+                        onChange={(e) => setConsecutiveDays(Number(e.target.value))}
+                        className="mt-1 w-full mo-input"
+                      >
+                        {Array.from({ length: 15 }, (_, i) => i + 1).map((n) => (
+                          <option key={n} value={n}>
+                            {n} {n === 1 ? "день" : n < 5 ? "дня" : "дней"}
+                          </option>
+                        ))}
+                      </select>
+                      {seriesEndDateYmd && startAt ? (
+                        <p className="mt-1 text-xs text-[#0f4c3a]">
+                          Будет {consecutiveDays}{" "}
+                          {consecutiveDays === 1 ? "запись" : consecutiveDays < 5 ? "записи" : "записей"} с{" "}
+                          {startAt.slice(0, 10)} по {seriesEndDateYmd} в одно время
+                          {courseStreamsForForm
+                            ? ` · стоимость × ${consecutiveDays}`
+                            : " · стоимость один раз"}
+                        </p>
+                      ) : null}
                     </label>
-                    {seriesBookingEnabled ? (
-                      <label className="block text-sm mo-muted">
-                        Дней подряд
-                        <select
-                          value={consecutiveDays}
-                          onChange={(e) => setConsecutiveDays(Number(e.target.value))}
-                          className="mt-1 w-full mo-input"
-                        >
-                          {Array.from({ length: 15 }, (_, i) => i + 1).map((n) => (
-                            <option key={n} value={n}>
-                              {n} {n === 1 ? "день" : n < 5 ? "дня" : "дней"}
-                            </option>
-                          ))}
-                        </select>
-                        {seriesEndDateYmd && startAt ? (
-                          <p className="mt-1 text-xs text-[#0f4c3a]">
-                            Будет {consecutiveDays}{" "}
-                            {consecutiveDays === 1 ? "запись" : consecutiveDays < 5 ? "записи" : "записей"} с{" "}
-                            {startAt.slice(0, 10)} по {seriesEndDateYmd} в одно время
-                          </p>
-                        ) : null}
-                      </label>
-                    ) : null}
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
                 <label className="block text-sm mo-muted">
                   Стоимость услуги (TJS)
                   <input
@@ -1477,7 +1480,7 @@ export function OnlineBookingPage() {
                             e.target.value = "";
                           }}
                           className="mo-input w-28 py-1"
-                          title="Доплата к этому сеансу (TJS). Каждый день — отдельный сеанс."
+                          title="Доплата (TJS): при сеансах — в этот день; без сеансов — в пакет"
                         />
                       ) : (
                         <span className="mo-muted">—</span>
@@ -1488,8 +1491,10 @@ export function OnlineBookingPage() {
                         <span className="rounded bg-amber-500/20 px-2 py-0.5 text-amber-300">
                           Долг {formatMoney(Number(a.service_amount ?? 0) - Number(a.paid_amount ?? 0))}
                         </span>
-                      ) : (
+                      ) : Number(a.service_amount ?? 0) > 0 ? (
                         <span className="text-[#0f4c3a]">Оплачено</span>
+                      ) : (
+                        <span className="mo-muted">пакет</span>
                       )}
                     </td>
                     <td className="py-2 pr-4">
