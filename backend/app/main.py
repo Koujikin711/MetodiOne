@@ -50,6 +50,7 @@ from app.routers import (
     pipelines,
     reports,
     sales_kpi,
+    sales_kpi_board,
     service_catalog,
     sources,
     stages,
@@ -546,6 +547,7 @@ app.include_router(stages.router, prefix="/api")
 app.include_router(tasks.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(sales_kpi.router, prefix="/api")
+app.include_router(sales_kpi_board.router, prefix="/api")
 app.include_router(booking.router, prefix="/api")
 app.include_router(deals.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
