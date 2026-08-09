@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { TARIFF_FEATURE_CATALOG_FALLBACK } from "@/lib/tariffFeatureCatalogFallback";
 import type { FeatureCatalogItem, TariffPlanRead, TariffPricingTableRead } from "@/lib/types";
 
-const CURS = ["TJS", "USD", "RUB"] as const;
+const CURS = ["TJS"] as const;
 const LIMIT_KINDS = [
   { key: "user_slot", label: "Лимит: цена за 1 пользователя в месяц" },
   { key: "integration_slot", label: "Лимит: цена за 1 интеграцию в месяц" },
@@ -88,7 +88,7 @@ function PlanEditorModal({
       warehouse_enabled: warehouseEnabled,
       is_active: isActive,
       sort_order: Number.isFinite(so) ? so : 0,
-      billing_currency: billingCurrency.trim().toUpperCase().slice(0, 3) || "TJS",
+      billing_currency: "TJS",
       discount_percent: dp,
     });
   }
@@ -157,17 +157,7 @@ function PlanEditorModal({
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm mo-muted">
               Валюта счёта пакета
-              <select
-                value={billingCurrency}
-                onChange={(e) => setBillingCurrency(e.target.value)}
-                className="mo-input mt-1 w-full"
-              >
-                {CURS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+              <input className="mo-input mt-1 w-full" value="TJS" readOnly />
             </label>
             <label className="block text-sm mo-muted">
               Скидка к сумме функций+лимитов, %
@@ -463,7 +453,7 @@ function PricingCatalogSection({ catalog }: { catalog: FeatureCatalogItem[] }) {
     <section className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-accent-soft)]/20 p-4">
       <h2 className="lux-subheading">Каталог цен (конструктор)</h2>
       <p className="mt-1 text-xs lux-caption">
-        Цены функций и лимитов в месяц по валютам. Сумма тарифа = функции + лимиты (пользователи × ставка, интеграции ×
+        Цены функций и лимитов в месяц в TJS. Сумма тарифа = функции + лимиты (пользователи × ставка, интеграции ×
         ставка, склад при включении) минус скидка на тарифе или на компании.
       </p>
       {pricingQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка…</p>}

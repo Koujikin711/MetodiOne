@@ -384,7 +384,7 @@ function LeadCard({
               </select>
             </label>
             <label className="text-[11px] lux-caption">
-              Оплачено (₽)
+              Оплачено (TJS)
               <input
                 type="number"
                 value={managerPaidAmount}
@@ -394,7 +394,7 @@ function LeadCard({
               />
             </label>
             <label className="col-span-2 text-[11px] lux-caption">
-              Сумма (₽)
+              Сумма (TJS)
               <input
                 type="number"
                 value={managerAmount}

@@ -12,6 +12,7 @@ import { BookingSpecialistsFilter } from "@/components/BookingSpecialistsFilter"
 import { SpecialistModal, type SpecialistFormValues } from "@/components/SpecialistModal";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
+import { formatMoney } from "@/lib/money";
 import { BOOKING_TIME_ZONE, addCalendarDaysInBookingTz, datetimeLocalBookingToIsoUtc, formatWeekRangeLabel, weekWorkDayYmds, ymdInBookingTz } from "@/lib/bookingTz";
 import {
   allSpecialistsSelected,
@@ -1186,7 +1187,7 @@ export function OnlineBookingPage() {
                   </div>
                 ) : null}
                 <label className="block text-sm mo-muted">
-                  Стоимость услуги
+                  Стоимость услуги (TJS)
                   <input
                     type="number"
                     min={0}
@@ -1208,7 +1209,7 @@ export function OnlineBookingPage() {
                   )}
                 </label>
                 <label className="block text-sm mo-muted">
-                  Оплатил клиент
+                  Оплатил клиент (TJS)
                   <input
                     type="number"
                     min={0}
@@ -1391,7 +1392,9 @@ export function OnlineBookingPage() {
                                 <td className="py-1 pr-3">{v.specialist_name || "—"}</td>
                                 <td className="py-1 pr-3">{(v.service_title || "").trim() || "—"}</td>
                                 <td className="py-1 pr-3">{statusLabels[v.status] ?? v.status}</td>
-                                <td className="py-1 pr-3">{v.paid_amount} / {v.service_amount}</td>
+                                <td className="py-1 pr-3">
+                                  {formatMoney(v.paid_amount)} / {formatMoney(v.service_amount)}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -1411,8 +1414,8 @@ export function OnlineBookingPage() {
                   <th className="py-2 pr-4">Пациент</th>
                   <th className="py-2 pr-4">Услуга</th>
                   <th className="py-2 pr-4">Специалист</th>
-                  <th className="py-2 pr-4">Стоимость</th>
-                  <th className="py-2 pr-4">Оплачено</th>
+                  <th className="py-2 pr-4">Стоимость (TJS)</th>
+                  <th className="py-2 pr-4">Оплачено (TJS)</th>
                   <th className="py-2 pr-4">Дебиторка</th>
                   <th className="py-2 pr-4">Статус</th>
                   <th className="py-2 pr-4 max-w-[200px]">Заметка</th>
@@ -1447,7 +1450,7 @@ export function OnlineBookingPage() {
                       {(a.service_title || "").trim() || a.direction_name || "—"}
                     </td>
                     <td className="py-2 pr-4 lux-caption">{a.specialist_name}</td>
-                    <td className="py-2 pr-4">{a.service_amount ?? 0}</td>
+                    <td className="py-2 pr-4">{formatMoney(a.service_amount ?? 0)}</td>
                     <td className="py-2 pr-4">
                       {a.can_manage_journal ? (
                         <input
@@ -1462,9 +1465,10 @@ export function OnlineBookingPage() {
                             paymentMutation.mutate({ id: a.id, paid_amount: next });
                           }}
                           className="mo-input w-28 py-1"
+                          title="Сумма в TJS"
                         />
                       ) : (
-                        <span>{a.paid_amount ?? 0}</span>
+                        <span>{formatMoney(a.paid_amount ?? 0)}</span>
                       )}
                     </td>
                     <td className="py-2 pr-4 text-xs">

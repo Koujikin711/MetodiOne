@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Company, PlatformFeaturePrice, PlatformLimitPrice, TariffPlan
 from app.services.tariff_catalog import FEATURE_LABELS
 
-SUPPORTED_CURRENCIES = frozenset({"TJS", "USD", "RUB"})
+SUPPORTED_CURRENCIES = frozenset({"TJS"})
 
 LIMIT_USER_SLOT = "user_slot"
 LIMIT_INTEGRATION_SLOT = "integration_slot"

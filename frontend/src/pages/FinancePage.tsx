@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
+import { formatMoney } from "@/lib/money";
 import type {
   FinanceDdsReport,
   FinanceIntegrateResult,
@@ -24,9 +25,7 @@ const TABS: { id: FinanceTab; label: string; hint: string }[] = [
 ];
 
 function money(n: string | number | null | undefined): string {
-  const v = Number(n ?? 0);
-  if (!Number.isFinite(v)) return "—";
-  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(v);
+  return formatMoney(n, { digits: 0 });
 }
 
 function pct(n: string | number | null | undefined): string {

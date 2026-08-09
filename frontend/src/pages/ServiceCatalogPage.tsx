@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
+import { formatMoney } from "@/lib/money";
 import type { PaymentRuleCreate, ServiceTemplateRead } from "@/lib/types";
 
 export function ServiceCatalogPage() {
@@ -106,7 +107,7 @@ export function ServiceCatalogPage() {
                 <option value="protocol">Протокол</option>
                 <option value="course">Курс</option>
               </select>
-              <input className="mo-input" type="number" min={0} placeholder="Цена" value={priceBase} onChange={(e) => setPriceBase(e.target.value)} />
+              <input className="mo-input" type="number" min={0} placeholder="Цена (TJS)" value={priceBase} onChange={(e) => setPriceBase(e.target.value)} />
               {serviceType === "course" && (
                 <input className="mo-input" type="number" min={1} placeholder="Дней курса" value={durationDays} onChange={(e) => setDurationDays(e.target.value)} />
               )}
@@ -148,7 +149,7 @@ export function ServiceCatalogPage() {
               <div key={t.id} className="mb-2 rounded-xl border border-[var(--mo-border)] p-3">
                 <div className="font-semibold">{t.name}</div>
                 <div className="text-xs lux-caption">
-                  {t.service_type} · {t.price_base} · этапов: {t.payment_rules.length}
+                  {t.service_type} · {formatMoney(t.price_base)} · этапов: {t.payment_rules.length}
                 </div>
               </div>
             ))}

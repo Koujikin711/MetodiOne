@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { formatMoney } from "@/lib/money";
 import {
   BOOKING_TIME_ZONE,
   datetimeLocalBookingToIsoUtc,
@@ -544,12 +545,12 @@ export function LeadDetailPage() {
             {(enrollmentsQ.data ?? []).map((en) => (
               <div key={en.id} className="mt-3 rounded-xl border border-[var(--mo-border)] p-4">
                 <div className="font-semibold">{en.template_name}</div>
-                <div className="text-xs mo-muted">Сумма: {en.total_price}</div>
+                <div className="text-xs mo-muted">Сумма: {formatMoney(en.total_price)}</div>
                 <ul className="mt-2 space-y-1 text-sm">
                   {en.installments.map((inst) => (
                     <li key={inst.id} className="flex flex-wrap items-center justify-between gap-2">
                       <span>
-                        {inst.label} — {inst.amount} · {new Date(inst.due_date).toLocaleDateString("ru-RU")} ·{" "}
+                        {inst.label} — {formatMoney(inst.amount)} · {new Date(inst.due_date).toLocaleDateString("ru-RU")} ·{" "}
                         <span className={inst.status === "paid" ? "text-emerald-700" : inst.status === "overdue" ? "text-red-700" : ""}>
                           {inst.status}
                         </span>
@@ -743,11 +744,11 @@ export function LeadDetailPage() {
             <div className="mt-4 grid gap-3">
               {fixedCloseAmount != null ? (
                 <div className="rounded-xl border border-emerald-600/40 bg-emerald-900/10 px-3 py-2 text-sm text-[#0f4c3a]">
-                  Цена по KPI: {fixedCloseAmount.toLocaleString("ru-RU")}
+                  Цена по KPI: {formatMoney(fixedCloseAmount)}
                 </div>
               ) : (
                 <label className="text-sm mo-muted">
-                  Стоимость услуги
+                  Стоимость услуги (TJS)
                   <input
                     type="number"
                     min={0}
@@ -759,7 +760,7 @@ export function LeadDetailPage() {
                 </label>
               )}
               <label className="text-sm mo-muted">
-                Оплачено фактически
+                Оплачено фактически (TJS)
                 <input
                   type="number"
                   min={0}
