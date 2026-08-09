@@ -269,6 +269,29 @@ class SalesKpiPlanItem(Base):
     sort_order: Mapped[int] = mapped_column(default=0)
 
 
+class SalesKpiPlanItemSpecialist(Base):
+    """Привязка экспертов онлайн-записи к показателю KPI (услуге)."""
+
+    __tablename__ = "sales_kpi_plan_item_specialists"
+    __table_args__ = (
+        UniqueConstraint(
+            "plan_item_id",
+            "specialist_id",
+            name="uq_sales_kpi_plan_item_specialist",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    plan_item_id: Mapped[int] = mapped_column(
+        ForeignKey("sales_kpi_plan_items.id", ondelete="CASCADE"),
+        index=True,
+    )
+    specialist_id: Mapped[int] = mapped_column(
+        ForeignKey("booking_specialists.id", ondelete="CASCADE"),
+        index=True,
+    )
+
+
 class SalesKpiManualSale(Base):
     """Продажа курса/протокола без онлайн-записи (вносит admin)."""
 

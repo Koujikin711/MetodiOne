@@ -97,6 +97,7 @@ class SalesKpiPlanItemWrite(BaseModel):
     weight_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     source_type: str = Field(default="manual", description="direction|manual")
     direction_id: int | None = Field(default=None, ge=1)
+    specialist_ids: list[int] = Field(default_factory=list)
     sort_order: int = Field(default=0, ge=0)
 
 
@@ -108,6 +109,14 @@ class SalesKpiWeightedPlanPut(BaseModel):
     prices: list[SalesKpiPriceWrite] = Field(default_factory=list)
 
 
+class SalesKpiSpecialistMeta(BaseModel):
+    id: int
+    full_name: str
+    direction_id: int
+    direction_name: str | None = None
+    is_active: bool = True
+
+
 class SalesKpiPlanItemOut(BaseModel):
     id: int
     name: str
@@ -115,6 +124,7 @@ class SalesKpiPlanItemOut(BaseModel):
     weight_percent: Decimal
     source_type: str
     direction_id: int | None = None
+    specialist_ids: list[int] = Field(default_factory=list)
     sort_order: int = 0
 
 
@@ -125,6 +135,7 @@ class SalesKpiWeightedPlanOut(BaseModel):
     bonus_fund: Decimal
     items: list[SalesKpiPlanItemOut]
     directions: list[SalesKpiDirectionMeta]
+    specialists: list[SalesKpiSpecialistMeta] = Field(default_factory=list)
     managers: list[dict]
 
 
@@ -133,6 +144,7 @@ class SalesKpiBoardLine(BaseModel):
     name: str
     source_type: str
     direction_id: int | None = None
+    specialist_ids: list[int] = Field(default_factory=list)
     plan_qty: int
     weight_percent: Decimal
     fact_qty: int

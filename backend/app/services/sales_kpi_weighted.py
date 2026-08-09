@@ -14,6 +14,7 @@ from app.models import (
     PipelineStage,
     SalesKpiManualSale,
     SalesKpiPlanItem,
+    SalesKpiPlanItemSpecialist,
     SalesKpiWeightedSettings,
     User,
     UserPipelineAssignment,
@@ -142,7 +143,7 @@ async def load_direction_facts_full_paid(
     pipeline_id: int,
     ym: date,
 ) -> dict[tuple[int, int], int]:
-    """Факт по направлениям записи: только 100% оплата."""
+    """Факт по направлениям записи: только 100% оплата (fallback, если эксперты не привязаны)."""
     start, end = month_bounds(ym)
     rows = (
         await db.execute(
@@ -173,6 +174,67 @@ async def load_direction_facts_full_paid(
         if manager_id is None or direction_id is None:
             continue
         out[(int(manager_id), int(direction_id))] = int(cnt or 0)
+    return out
+
+
+async def load_specialist_facts_full_paid(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> dict[tuple[int, int], int]:
+    """Факт по экспертам онлайн-записи: (manager_id, specialist_id) → шт при 100% оплате."""
+    start, end = month_bounds(ym)
+    rows = (
+        await db.execute(
+            select(
+                manager_expr(),
+                BookingAppointment.specialist_id,
+                func.count(BookingAppointment.id),
+            )
+            .select_from(BookingAppointment)
+            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.start_at >= start,
+                BookingAppointment.start_at < end,
+                BookingAppointment.service_amount > 0,
+                BookingAppointment.paid_amount >= BookingAppointment.service_amount,
+                or_(
+                    BookingAppointment.pipeline_id == pipeline_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                ),
+            )
+            .group_by(manager_expr(), BookingAppointment.specialist_id),
+        )
+    ).all()
+    out: dict[tuple[int, int], int] = {}
+    for manager_id, specialist_id, cnt in rows:
+        if manager_id is None or specialist_id is None:
+            continue
+        out[(int(manager_id), int(specialist_id))] = int(cnt or 0)
+    return out
+
+
+async def load_plan_item_specialists(
+    db: AsyncSession,
+    *,
+    plan_item_ids: list[int],
+) -> dict[int, list[int]]:
+    if not plan_item_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(SalesKpiPlanItemSpecialist.plan_item_id, SalesKpiPlanItemSpecialist.specialist_id).where(
+                SalesKpiPlanItemSpecialist.plan_item_id.in_(plan_item_ids),
+            ),
+        )
+    ).all()
+    out: dict[int, list[int]] = {int(pid): [] for pid in plan_item_ids}
+    for plan_item_id, specialist_id in rows:
+        out.setdefault(int(plan_item_id), []).append(int(specialist_id))
     return out
 
 
@@ -220,14 +282,22 @@ def build_manager_lines(
     manager_name: str,
     items: list[SalesKpiPlanItem],
     direction_facts: dict[tuple[int, int], int],
+    specialist_facts: dict[tuple[int, int], int],
+    item_specialists: dict[int, list[int]],
     manual_facts: dict[tuple[int, int], int],
     bonus_fund: Decimal,
 ) -> dict:
     lines = []
     total_contrib = Decimal("0")
     for item in items:
-        if item.source_type == "direction" and item.direction_id is not None:
-            fact = direction_facts.get((manager_id, int(item.direction_id)), 0)
+        specialist_ids = item_specialists.get(int(item.id), [])
+        if item.source_type == "direction":
+            if specialist_ids:
+                fact = sum(specialist_facts.get((manager_id, sid), 0) for sid in specialist_ids)
+            elif item.direction_id is not None:
+                fact = direction_facts.get((manager_id, int(item.direction_id)), 0)
+            else:
+                fact = 0
         else:
             fact = manual_facts.get((manager_id, int(item.id)), 0)
         plan_qty = int(item.plan_qty or 0)
@@ -241,6 +311,7 @@ def build_manager_lines(
                 "name": item.name,
                 "source_type": item.source_type,
                 "direction_id": int(item.direction_id) if item.direction_id is not None else None,
+                "specialist_ids": list(specialist_ids),
                 "plan_qty": plan_qty,
                 "weight_percent": weight,
                 "fact_qty": fact,

@@ -15,11 +15,13 @@ from app.database import get_db
 from app.models import (
     BookingAppointment,
     BookingDirection,
+    BookingSpecialist,
     Lead,
     Pipeline,
     PipelineStage,
     SalesKpiManualSale,
     SalesKpiPlanItem,
+    SalesKpiPlanItemSpecialist,
     SalesKpiServicePrice,
     SalesKpiWeightedSettings,
     User,
@@ -37,6 +39,7 @@ from app.schemas.sales_kpi import (
     SalesKpiManualSalePaymentPatch,
     SalesKpiPlanItemOut,
     SalesKpiSalesReport,
+    SalesKpiSpecialistMeta,
     SalesKpiWeightedPlanOut,
     SalesKpiWeightedPlanPut,
 )
@@ -47,7 +50,9 @@ from app.services.sales_kpi_weighted import (
     load_direction_facts_full_paid,
     load_managers,
     load_manual_facts,
+    load_plan_item_specialists,
     load_plan_items,
+    load_specialist_facts_full_paid,
     month_bounds,
     parse_year_month,
 )
@@ -129,7 +134,7 @@ async def _load_directions_meta(
     ]
 
 
-def _item_out(item: SalesKpiPlanItem) -> SalesKpiPlanItemOut:
+def _item_out(item: SalesKpiPlanItem, specialist_ids: list[int] | None = None) -> SalesKpiPlanItemOut:
     return SalesKpiPlanItemOut(
         id=int(item.id),
         name=item.name,
@@ -137,8 +142,50 @@ def _item_out(item: SalesKpiPlanItem) -> SalesKpiPlanItemOut:
         weight_percent=Decimal(str(item.weight_percent or 0)),
         source_type=item.source_type,
         direction_id=int(item.direction_id) if item.direction_id is not None else None,
+        specialist_ids=list(specialist_ids or []),
         sort_order=int(item.sort_order or 0),
     )
+
+
+async def _load_specialists_meta(
+    db: AsyncSession,
+    company_id: int,
+    pipeline_id: int,
+) -> list[SalesKpiSpecialistMeta]:
+    rows = (
+        await db.execute(
+            select(BookingSpecialist, BookingDirection.name)
+            .join(BookingDirection, BookingDirection.id == BookingSpecialist.direction_id)
+            .where(
+                BookingSpecialist.company_id == company_id,
+                BookingDirection.pipeline_id == pipeline_id,
+            )
+            .order_by(BookingSpecialist.sort_order.asc(), BookingSpecialist.full_name.asc()),
+        )
+    ).all()
+    return [
+        SalesKpiSpecialistMeta(
+            id=int(s.id),
+            full_name=s.full_name,
+            direction_id=int(s.direction_id),
+            direction_name=str(dname) if dname else None,
+            is_active=bool(s.is_active),
+        )
+        for s, dname in rows
+    ]
+
+
+async def _replace_item_specialists(
+    db: AsyncSession,
+    *,
+    plan_item_id: int,
+    specialist_ids: list[int],
+) -> None:
+    await db.execute(
+        delete(SalesKpiPlanItemSpecialist).where(SalesKpiPlanItemSpecialist.plan_item_id == plan_item_id),
+    )
+    for sid in sorted({int(x) for x in specialist_ids if int(x) > 0}):
+        db.add(SalesKpiPlanItemSpecialist(plan_item_id=plan_item_id, specialist_id=sid))
 
 
 def _manual_counts_in_kpi(service_amount: Decimal, paid_amount: Decimal, status: str) -> bool:
@@ -158,11 +205,15 @@ async def _build_sales_report(
     only_manager_id: int | None = None,
 ) -> SalesKpiSalesReport:
     items = await load_plan_items(db, company_id=company_id, pipeline_id=pipe.id, ym=ym)
+    item_specialists = await load_plan_item_specialists(db, plan_item_ids=[int(i.id) for i in items])
     bonus_fund = await load_bonus_fund(db, company_id=company_id, pipeline_id=pipe.id, ym=ym)
     managers = await load_managers(db, company_id=company_id, pipeline_id=pipe.id)
     if only_manager_id is not None:
         managers = [m for m in managers if m[0] == only_manager_id]
     direction_facts = await load_direction_facts_full_paid(
+        db, company_id=company_id, pipeline_id=pipe.id, ym=ym,
+    )
+    specialist_facts = await load_specialist_facts_full_paid(
         db, company_id=company_id, pipeline_id=pipe.id, ym=ym,
     )
     manual_facts = await load_manual_facts(db, company_id=company_id, pipeline_id=pipe.id, ym=ym)
@@ -174,6 +225,8 @@ async def _build_sales_report(
             manager_name=mname,
             items=items,
             direction_facts=direction_facts,
+            specialist_facts=specialist_facts,
+            item_specialists=item_specialists,
             manual_facts=manual_facts,
             bonus_fund=bonus_fund,
         )
@@ -193,7 +246,7 @@ async def _build_sales_report(
         pipeline_name=pipe.name,
         year_month=ym.isoformat()[:7],
         bonus_fund=bonus_fund,
-        items=[_item_out(i) for i in items],
+        items=[_item_out(i, item_specialists.get(int(i.id), [])) for i in items],
         managers=board,
     )
 
@@ -218,16 +271,19 @@ async def get_weighted_plan(
             raise HTTPException(status_code=403, detail="Вы не назначены на эту воронку")
 
     items = await load_plan_items(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+    item_specialists = await load_plan_item_specialists(db, plan_item_ids=[int(i.id) for i in items])
     bonus_fund = await load_bonus_fund(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
     directions = await _load_directions_meta(db, company_id, pipeline_id, ym)
+    specialists = await _load_specialists_meta(db, company_id, pipeline_id)
     managers = await load_managers(db, company_id=company_id, pipeline_id=pipeline_id)
     return SalesKpiWeightedPlanOut(
         pipeline_id=pipe.id,
         pipeline_name=pipe.name,
         year_month=ym.isoformat()[:7],
         bonus_fund=bonus_fund,
-        items=[_item_out(i) for i in items],
+        items=[_item_out(i, item_specialists.get(int(i.id), [])) for i in items],
         directions=directions,
+        specialists=specialists,
         managers=[{"id": mid, "name": name} for mid, name in managers],
     )
 
@@ -247,16 +303,34 @@ async def put_weighted_plan(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
+    specialists_meta = await _load_specialists_meta(db, company_id, body.pipeline_id)
+    allowed_specialist_ids = {s.id for s in specialists_meta}
+    seen_specialists: dict[int, str] = {}
+
     for raw in body.items:
         st = (raw.source_type or "manual").strip().lower()
         if st not in ("direction", "manual"):
             raise HTTPException(status_code=400, detail=f"Неверный source_type: {raw.source_type}")
         if st == "direction":
-            if not raw.direction_id:
-                raise HTTPException(status_code=400, detail=f"Для «{raw.name}» укажите направление записи")
-            d = await db.get(BookingDirection, raw.direction_id)
-            if d is None or d.company_id != company_id or d.pipeline_id != body.pipeline_id:
-                raise HTTPException(status_code=400, detail=f"Направление не найдено: {raw.direction_id}")
+            sids = [int(x) for x in (raw.specialist_ids or []) if int(x) > 0]
+            if not sids and not raw.direction_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Для «{raw.name}» привяжите хотя бы одного эксперта онлайн-записи (или направление)",
+                )
+            for sid in sids:
+                if sid not in allowed_specialist_ids:
+                    raise HTTPException(status_code=400, detail=f"Эксперт #{sid} не найден в этой воронке")
+                if sid in seen_specialists:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Эксперт уже привязан к «{seen_specialists[sid]}» — один эксперт = одна услуга KPI",
+                    )
+                seen_specialists[sid] = raw.name.strip()
+            if raw.direction_id:
+                d = await db.get(BookingDirection, raw.direction_id)
+                if d is None or d.company_id != company_id or d.pipeline_id != body.pipeline_id:
+                    raise HTTPException(status_code=400, detail=f"Направление не найдено: {raw.direction_id}")
 
     settings = (
         await db.execute(
@@ -279,7 +353,6 @@ async def put_weighted_plan(
     else:
         settings.bonus_fund = body.bonus_fund
 
-    # Нельзя удалить показатель, если по нему есть продажи — сначала обнулим связь через запрет delete.
     existing_items = await load_plan_items(db, company_id=company_id, pipeline_id=body.pipeline_id, ym=ym)
     kept_names = {(x.name or "").strip() for x in body.items}
     for old in existing_items:
@@ -302,27 +375,36 @@ async def put_weighted_plan(
     for idx, raw in enumerate(body.items):
         name = raw.name.strip()
         st = (raw.source_type or "manual").strip().lower()
+        sids = [int(x) for x in (raw.specialist_ids or []) if int(x) > 0] if st == "direction" else []
+        # Если эксперты выбраны, направление подставим с первого эксперта (для цен записи).
+        direction_id = raw.direction_id if st == "direction" else None
+        if st == "direction" and sids and not direction_id:
+            spec = await db.get(BookingSpecialist, sids[0])
+            if spec is not None:
+                direction_id = int(spec.direction_id)
         row = current.get(name)
         if row is None:
-            db.add(
-                SalesKpiPlanItem(
-                    company_id=company_id,
-                    pipeline_id=body.pipeline_id,
-                    year_month=ym,
-                    name=name,
-                    plan_qty=raw.plan_qty,
-                    weight_percent=raw.weight_percent,
-                    source_type=st,
-                    direction_id=raw.direction_id if st == "direction" else None,
-                    sort_order=raw.sort_order if raw.sort_order else idx,
-                ),
+            row = SalesKpiPlanItem(
+                company_id=company_id,
+                pipeline_id=body.pipeline_id,
+                year_month=ym,
+                name=name,
+                plan_qty=raw.plan_qty,
+                weight_percent=raw.weight_percent,
+                source_type=st,
+                direction_id=direction_id,
+                sort_order=raw.sort_order if raw.sort_order else idx,
             )
+            db.add(row)
+            await db.flush()
         else:
             row.plan_qty = raw.plan_qty
             row.weight_percent = raw.weight_percent
             row.source_type = st
-            row.direction_id = raw.direction_id if st == "direction" else None
+            row.direction_id = direction_id
             row.sort_order = raw.sort_order if raw.sort_order else idx
+            await db.flush()
+        await _replace_item_specialists(db, plan_item_id=int(row.id), specialist_ids=sids)
 
     await db.execute(
         delete(SalesKpiServicePrice).where(

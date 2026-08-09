@@ -1163,6 +1163,16 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
                 )""",
             ),
         )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_plan_item_specialists (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_item_id INTEGER NOT NULL,
+                    specialist_id INTEGER NOT NULL,
+                    UNIQUE (plan_item_id, specialist_id)
+                )""",
+            ),
+        )
         return
 
     if "postgresql" in low or "asyncpg" in low:
@@ -1263,6 +1273,16 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
             text(
                 "CREATE INDEX IF NOT EXISTS idx_sales_kpi_manual_sales_company_pipeline_sold "
                 "ON sales_kpi_manual_sales(company_id, pipeline_id, sold_at)",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_plan_item_specialists (
+                    id SERIAL PRIMARY KEY,
+                    plan_item_id INTEGER NOT NULL REFERENCES sales_kpi_plan_items(id) ON DELETE CASCADE,
+                    specialist_id INTEGER NOT NULL REFERENCES booking_specialists(id) ON DELETE CASCADE,
+                    CONSTRAINT uq_sales_kpi_plan_item_specialist UNIQUE (plan_item_id, specialist_id)
+                )""",
             ),
         )
 

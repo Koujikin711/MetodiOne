@@ -815,7 +815,16 @@ export interface SalesKpiPlanItem {
   weight_percent: string | number;
   source_type: "direction" | "manual" | string;
   direction_id: number | null;
+  specialist_ids: number[];
   sort_order: number;
+}
+
+export interface SalesKpiSpecialistMeta {
+  id: number;
+  full_name: string;
+  direction_id: number;
+  direction_name: string | null;
+  is_active: boolean;
 }
 
 export interface SalesKpiWeightedPlan {
@@ -825,6 +834,7 @@ export interface SalesKpiWeightedPlan {
   bonus_fund: string | number;
   items: SalesKpiPlanItem[];
   directions: SalesKpiDirectionMeta[];
+  specialists: SalesKpiSpecialistMeta[];
   managers: { id: number; name: string }[];
 }
 
@@ -833,6 +843,7 @@ export interface SalesKpiBoardLine {
   name: string;
   source_type: string;
   direction_id: number | null;
+  specialist_ids?: number[];
   plan_qty: number;
   weight_percent: string | number;
   fact_qty: number;

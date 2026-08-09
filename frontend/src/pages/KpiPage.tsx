@@ -28,6 +28,7 @@ type PlanDraftItem = {
   weight_percent: string;
   source_type: "direction" | "manual";
   direction_id: string;
+  specialist_ids: number[];
 };
 
 function defaultYearMonth(): string {
@@ -134,6 +135,7 @@ export function KpiPage() {
         weight_percent: String(num(it.weight_percent) || ""),
         source_type: it.source_type === "direction" ? "direction" : "manual",
         direction_id: it.direction_id != null ? String(it.direction_id) : "",
+        specialist_ids: Array.isArray(it.specialist_ids) ? it.specialist_ids.map(Number) : [],
       })),
     );
     const p: Record<number, string> = {};
@@ -154,11 +156,12 @@ export function KpiPage() {
           weight_percent: Number(x.weight_percent || 0),
           source_type: x.source_type,
           direction_id: x.source_type === "direction" ? Number(x.direction_id || 0) || null : null,
+          specialist_ids: x.source_type === "direction" ? x.specialist_ids : [],
           sort_order: idx,
         }));
       for (const it of items) {
-        if (it.source_type === "direction" && !it.direction_id) {
-          throw new Error(`Для «${it.name}» выберите направление записи`);
+        if (it.source_type === "direction" && !(it.specialist_ids?.length || it.direction_id)) {
+          throw new Error(`Для «${it.name}» привяжите экспертов онлайн-записи`);
         }
       }
       await apiFetch<void>("/api/sales-kpi/weighted-plan", {
@@ -322,7 +325,8 @@ export function KpiPage() {
             <div>
               <h2 className="lux-subheading">План на месяц</h2>
               <p className="mt-1 text-sm lux-caption">
-                Один план на всех менеджеров. Блоки менеджеров в «ПРОДАЖИ» создаются автоматически.
+                Один план на всех менеджеров. Для услуг из онлайн-записи привяжите экспертов — запись к
+                ним пойдёт в факт этой услуги (при 100% оплате). Один эксперт = одна услуга KPI.
               </p>
             </div>
             <button
@@ -352,14 +356,20 @@ export function KpiPage() {
                 <tr className="border-b border-[var(--mo-border)] lux-caption">
                   <th className="py-2 pr-3">Показатель</th>
                   <th className="py-2 pr-3">Источник</th>
-                  <th className="py-2 pr-3">Направление записи</th>
+                  <th className="py-2 pr-3">Эксперты онлайн-записи</th>
                   <th className="py-2 pr-3">План (шт)</th>
                   <th className="py-2 pr-3">Вес (%)</th>
                   <th className="py-2 pr-3" />
                 </tr>
               </thead>
               <tbody>
-                {planItems.map((row) => (
+                {planItems.map((row) => {
+                  const takenElsewhere = new Set(
+                    planItems
+                      .filter((x) => x.key !== row.key && x.source_type === "direction")
+                      .flatMap((x) => x.specialist_ids),
+                  );
+                  return (
                   <tr key={row.key} className="border-b border-[var(--mo-border)]/70">
                     <td className="py-2 pr-3">
                       <input
@@ -370,7 +380,7 @@ export function KpiPage() {
                             prev.map((x) => (x.key === row.key ? { ...x, name: e.target.value } : x)),
                           )
                         }
-                        placeholder="Курс 15"
+                        placeholder="Логопед / Курс 15"
                       />
                     </td>
                     <td className="py-2 pr-3">
@@ -384,6 +394,8 @@ export function KpiPage() {
                                 ? {
                                     ...x,
                                     source_type: e.target.value === "direction" ? "direction" : "manual",
+                                    specialist_ids:
+                                      e.target.value === "direction" ? x.specialist_ids : [],
                                   }
                                 : x,
                             ),
@@ -396,24 +408,55 @@ export function KpiPage() {
                     </td>
                     <td className="py-2 pr-3">
                       {row.source_type === "direction" ? (
-                        <select
-                          className="mo-input"
-                          value={row.direction_id}
-                          onChange={(e) =>
-                            setPlanItems((prev) =>
-                              prev.map((x) =>
-                                x.key === row.key ? { ...x, direction_id: e.target.value } : x,
-                              ),
-                            )
-                          }
-                        >
-                          <option value="">—</option>
-                          {(planQuery.data?.directions ?? []).map((d) => (
-                            <option key={d.direction_id} value={d.direction_id}>
-                              {d.direction_name}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="max-h-36 min-w-[220px] space-y-1 overflow-y-auto rounded border border-[var(--mo-border)] p-2">
+                          {(planQuery.data?.specialists ?? []).filter((s) => s.is_active).length === 0 ? (
+                            <span className="text-xs mo-muted">Нет экспертов в этой воронке</span>
+                          ) : (
+                            (planQuery.data?.specialists ?? [])
+                              .filter((s) => s.is_active)
+                              .map((s) => {
+                                const checked = row.specialist_ids.includes(s.id);
+                                const disabled = !checked && takenElsewhere.has(s.id);
+                                return (
+                                  <label
+                                    key={s.id}
+                                    className={`flex items-start gap-2 text-xs ${disabled ? "opacity-40" : ""}`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="mt-0.5"
+                                      checked={checked}
+                                      disabled={disabled}
+                                      onChange={(e) => {
+                                        const on = e.target.checked;
+                                        setPlanItems((prev) =>
+                                          prev.map((x) => {
+                                            if (x.key !== row.key) return x;
+                                            const next = on
+                                              ? [...x.specialist_ids, s.id]
+                                              : x.specialist_ids.filter((id) => id !== s.id);
+                                            return {
+                                              ...x,
+                                              specialist_ids: next,
+                                              direction_id: on
+                                                ? String(s.direction_id)
+                                                : x.direction_id,
+                                            };
+                                          }),
+                                        );
+                                      }}
+                                    />
+                                    <span>
+                                      {s.full_name}
+                                      {s.direction_name ? (
+                                        <span className="mo-muted"> · {s.direction_name}</span>
+                                      ) : null}
+                                    </span>
+                                  </label>
+                                );
+                              })
+                          )}
+                        </div>
                       ) : (
                         <span className="text-xs mo-muted">без записи</span>
                       )}
@@ -457,7 +500,8 @@ export function KpiPage() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -474,6 +518,7 @@ export function KpiPage() {
                   weight_percent: "",
                   source_type: "manual",
                   direction_id: "",
+                  specialist_ids: [],
                 },
               ])
             }
