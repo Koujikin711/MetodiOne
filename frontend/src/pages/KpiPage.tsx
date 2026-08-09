@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { AccessDenied } from "@/components/AccessDenied";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { formatMoney } from "@/lib/money";
 import type {
   SalesKpiDebtorsReport,
   SalesKpiManualSale,
@@ -12,12 +13,6 @@ import type {
   SalesKpiSalesReport,
   SalesKpiWeightedPlan,
 } from "@/lib/types";
-
-const moneyFmt = new Intl.NumberFormat("ru-RU", {
-  style: "currency",
-  currency: "RUB",
-  maximumFractionDigits: 2,
-});
 
 type TabId = "plan" | "sales" | "manual" | "debtors";
 
@@ -340,7 +335,7 @@ export function KpiPage() {
           </div>
 
           <label className="flex max-w-xs flex-col gap-1 text-sm mo-muted">
-            Фонд бонуса на менеджера
+            Фонд бонуса на менеджера (TJS)
             <input
               type="number"
               min={0}
@@ -681,10 +676,10 @@ export function KpiPage() {
                     <td className="py-2 pr-3">{s.manager_name}</td>
                     <td className="py-2 pr-3">{s.client_name}</td>
                     <td className="py-2 pr-3">{s.client_phone}</td>
-                    <td className="py-2 pr-3">{moneyFmt.format(num(s.service_amount))}</td>
+                    <td className="py-2 pr-3">{formatMoney(num(s.service_amount))}</td>
                     <td className="py-2 pr-3">
                       {s.status === "returned" ? (
-                        moneyFmt.format(num(s.paid_amount))
+                        formatMoney(num(s.paid_amount))
                       ) : (
                         <div className="flex items-center gap-1">
                           <input
@@ -709,7 +704,7 @@ export function KpiPage() {
                         </div>
                       )}
                     </td>
-                    <td className="py-2 pr-3">{moneyFmt.format(num(s.debt_amount))}</td>
+                    <td className="py-2 pr-3">{formatMoney(num(s.debt_amount))}</td>
                     <td className="py-2 pr-3">
                       {s.status === "returned" ? (
                         <span className="text-xs text-red-300">возврат</span>
@@ -752,7 +747,7 @@ export function KpiPage() {
             <p className="text-sm mo-muted">
               Итого долг:{" "}
               <span className="font-semibold text-[var(--mo-text)]">
-                {moneyFmt.format(num(debtorsQuery.data?.total_debt))}
+                {formatMoney(num(debtorsQuery.data?.total_debt))}
               </span>
             </p>
           </div>
@@ -782,9 +777,9 @@ export function KpiPage() {
                     <td className="py-2 pr-3">{r.client_phone}</td>
                     <td className="py-2 pr-3">{r.indicator_name}</td>
                     <td className="py-2 pr-3">{r.manager_name ?? "—"}</td>
-                    <td className="py-2 pr-3">{moneyFmt.format(num(r.service_amount))}</td>
-                    <td className="py-2 pr-3">{moneyFmt.format(num(r.paid_amount))}</td>
-                    <td className="py-2 pr-3 kpi-actual-value">{moneyFmt.format(num(r.debt_amount))}</td>
+                    <td className="py-2 pr-3">{formatMoney(num(r.service_amount))}</td>
+                    <td className="py-2 pr-3">{formatMoney(num(r.paid_amount))}</td>
+                    <td className="py-2 pr-3 kpi-actual-value">{formatMoney(num(r.debt_amount))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -845,7 +840,7 @@ function SalesReportSection({
       <section className="mo-section p-4">
         <h2 className="lux-subheading">ПРОДАЖИ · {data.year_month}</h2>
         <p className="mt-1 text-sm lux-caption">
-          Фонд бонуса: {moneyFmt.format(num(data.bonus_fund))} на менеджера. Факт считается автоматически.
+          Фонд бонуса: {formatMoney(num(data.bonus_fund))} на менеджера. Факт считается автоматически.
         </p>
       </section>
 
@@ -886,7 +881,7 @@ function SalesReportSection({
                     Бонус
                   </td>
                   <td className="py-2 pr-3 font-semibold kpi-actual-value">
-                    {moneyFmt.format(num(m.bonus))}
+                    {formatMoney(num(m.bonus))}
                   </td>
                 </tr>
               </tbody>
