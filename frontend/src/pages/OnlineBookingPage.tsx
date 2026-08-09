@@ -1477,7 +1477,7 @@ export function OnlineBookingPage() {
                             e.target.value = "";
                           }}
                           className="mo-input w-28 py-1"
-                          title="Доплата суммируется к уже оплаченному (TJS)"
+                          title="Доплата к этому сеансу (TJS). Каждый день — отдельный сеанс."
                         />
                       ) : (
                         <span className="mo-muted">—</span>
