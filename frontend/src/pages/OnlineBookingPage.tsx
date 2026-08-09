@@ -494,7 +494,7 @@ export function OnlineBookingPage() {
         body: JSON.stringify({ add_payment }),
       }),
     onSuccess: () => {
-      toast.success("Доплата учтена (суммируется к оплате услуги)");
+      toast.success("Доплата учтена по этому сеансу");
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics-full"] });
@@ -1477,7 +1477,7 @@ export function OnlineBookingPage() {
                             e.target.value = "";
                           }}
                           className="mo-input w-28 py-1"
-                          title="Доплата суммируется к уже оплаченному (TJS)"
+                          title="Доплата к этому сеансу (TJS). Каждый день — отдельный сеанс."
                         />
                       ) : (
                         <span className="mo-muted">—</span>
@@ -1488,10 +1488,8 @@ export function OnlineBookingPage() {
                         <span className="rounded bg-amber-500/20 px-2 py-0.5 text-amber-300">
                           Долг {formatMoney(Number(a.service_amount ?? 0) - Number(a.paid_amount ?? 0))}
                         </span>
-                      ) : Number(a.service_amount ?? 0) > 0 ? (
-                        <span className="text-[#0f4c3a]">Оплачено</span>
                       ) : (
-                        <span className="mo-muted">серия</span>
+                        <span className="text-[#0f4c3a]">Оплачено</span>
                       )}
                     </td>
                     <td className="py-2 pr-4">
