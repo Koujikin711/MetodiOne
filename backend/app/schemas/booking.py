@@ -246,7 +246,21 @@ class BookingAppointmentMove(BaseModel):
 
 
 class BookingAppointmentPaymentUpdate(BaseModel):
-    paid_amount: float = Field(..., ge=0)
+    """Оплата по записи.
+
+    - `add_payment` — доплата (суммируется к уже оплаченному);
+    - `paid_amount` — абсолютная сумма (корректировка итога).
+    Нужно передать одно из полей.
+    """
+
+    paid_amount: float | None = Field(default=None, ge=0)
+    add_payment: float | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def _one_of_payment_fields(self) -> "BookingAppointmentPaymentUpdate":
+        if self.paid_amount is None and self.add_payment is None:
+            raise ValueError("Укажите add_payment (доплата) или paid_amount (итоговая сумма)")
+        return self
 
 
 class BookingPatientVisitRead(BaseModel):
