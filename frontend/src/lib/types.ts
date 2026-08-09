@@ -808,6 +808,98 @@ export interface SalesKpiLeadPriceHint {
   direction_name: string | null;
 }
 
+export interface SalesKpiPlanItem {
+  id: number;
+  name: string;
+  plan_qty: number;
+  weight_percent: string | number;
+  source_type: "direction" | "manual" | string;
+  direction_id: number | null;
+  sort_order: number;
+}
+
+export interface SalesKpiWeightedPlan {
+  pipeline_id: number;
+  pipeline_name: string;
+  year_month: string;
+  bonus_fund: string | number;
+  items: SalesKpiPlanItem[];
+  directions: SalesKpiDirectionMeta[];
+  managers: { id: number; name: string }[];
+}
+
+export interface SalesKpiBoardLine {
+  plan_item_id: number;
+  name: string;
+  source_type: string;
+  direction_id: number | null;
+  plan_qty: number;
+  weight_percent: string | number;
+  fact_qty: number;
+  completion: number | null;
+  contribution: string | number;
+}
+
+export interface SalesKpiBoardManager {
+  manager_id: number;
+  manager_name: string;
+  lines: SalesKpiBoardLine[];
+  total_contribution: string | number;
+  bonus: string | number;
+  bonus_fund: string | number;
+}
+
+export interface SalesKpiSalesReport {
+  pipeline_id: number;
+  pipeline_name: string;
+  year_month: string;
+  bonus_fund: string | number;
+  items: SalesKpiPlanItem[];
+  managers: SalesKpiBoardManager[];
+}
+
+export interface SalesKpiManualSale {
+  id: number;
+  pipeline_id: number;
+  plan_item_id: number;
+  plan_item_name: string;
+  manager_user_id: number;
+  manager_name: string;
+  client_name: string;
+  client_phone: string;
+  service_amount: string | number;
+  paid_amount: string | number;
+  debt_amount: string | number;
+  sold_at: string;
+  status: string;
+  returned_at: string | null;
+  note: string | null;
+  counts_in_kpi: boolean;
+}
+
+export interface SalesKpiDebtorRow {
+  source: "booking" | "manual" | string;
+  source_id: number;
+  sold_at: string | null;
+  client_name: string;
+  client_phone: string;
+  indicator_name: string;
+  manager_id: number | null;
+  manager_name: string | null;
+  service_amount: string | number;
+  paid_amount: string | number;
+  debt_amount: string | number;
+  status: string;
+}
+
+export interface SalesKpiDebtorsReport {
+  pipeline_id: number;
+  pipeline_name: string;
+  year_month: string;
+  rows: SalesKpiDebtorRow[];
+  total_debt: string | number;
+}
+
 export interface PaymentRuleCreate {
   sort_order: number;
   label?: string | null;

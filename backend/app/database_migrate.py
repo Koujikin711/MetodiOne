@@ -1067,7 +1067,7 @@ async def ensure_attendance_tracker_tables(conn: AsyncConnection, database_url: 
 
 
 async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> None:
-    """Таблицы KPI: цены услуг и планы по количеству/менеджерам."""
+    """Таблицы KPI: цены услуг, планы, взвешенный план и продажи курсов/протоколов."""
     low = database_url.lower()
     if "sqlite" in low:
         await conn.execute(
@@ -1110,6 +1110,159 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
                     expert_user_id INTEGER,
                     UNIQUE (company_id, pipeline_id, year_month, manager_user_id, direction_id)
                 )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_weighted_settings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    pipeline_id INTEGER NOT NULL,
+                    year_month DATE NOT NULL,
+                    bonus_fund NUMERIC(14, 2) NOT NULL DEFAULT 10000,
+                    UNIQUE (company_id, pipeline_id, year_month)
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_plan_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    pipeline_id INTEGER NOT NULL,
+                    year_month DATE NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    plan_qty INTEGER NOT NULL DEFAULT 0,
+                    weight_percent NUMERIC(8, 2) NOT NULL DEFAULT 0,
+                    source_type VARCHAR(32) NOT NULL DEFAULT 'manual',
+                    direction_id INTEGER,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE (company_id, pipeline_id, year_month, name)
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_manual_sales (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    pipeline_id INTEGER NOT NULL,
+                    plan_item_id INTEGER NOT NULL,
+                    manager_user_id INTEGER NOT NULL,
+                    client_name VARCHAR(255) NOT NULL,
+                    client_phone VARCHAR(64) NOT NULL,
+                    service_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    sold_at DATETIME,
+                    status VARCHAR(24) NOT NULL DEFAULT 'active',
+                    returned_at DATETIME,
+                    note TEXT,
+                    created_by_user_id INTEGER,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )""",
+            ),
+        )
+        return
+
+    if "postgresql" in low or "asyncpg" in low:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_plans (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+                    year_month DATE NOT NULL,
+                    manager_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    expert_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    plan_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    CONSTRAINT uq_sales_kpi_plan_scope UNIQUE (company_id, pipeline_id, year_month, manager_user_id)
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_service_prices (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+                    year_month DATE NOT NULL,
+                    direction_id INTEGER NOT NULL REFERENCES booking_directions(id) ON DELETE CASCADE,
+                    unit_price NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    CONSTRAINT uq_sales_kpi_service_price_scope UNIQUE (company_id, pipeline_id, year_month, direction_id)
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_service_plans (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+                    year_month DATE NOT NULL,
+                    manager_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    direction_id INTEGER NOT NULL REFERENCES booking_directions(id) ON DELETE CASCADE,
+                    plan_qty INTEGER NOT NULL DEFAULT 0,
+                    expert_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    CONSTRAINT uq_sales_kpi_service_plan_scope UNIQUE (company_id, pipeline_id, year_month, manager_user_id, direction_id)
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_weighted_settings (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+                    year_month DATE NOT NULL,
+                    bonus_fund NUMERIC(14, 2) NOT NULL DEFAULT 10000,
+                    CONSTRAINT uq_sales_kpi_weighted_settings_scope UNIQUE (company_id, pipeline_id, year_month)
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_plan_items (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+                    year_month DATE NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    plan_qty INTEGER NOT NULL DEFAULT 0,
+                    weight_percent NUMERIC(8, 2) NOT NULL DEFAULT 0,
+                    source_type VARCHAR(32) NOT NULL DEFAULT 'manual',
+                    direction_id INTEGER REFERENCES booking_directions(id) ON DELETE SET NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    CONSTRAINT uq_sales_kpi_plan_item_name UNIQUE (company_id, pipeline_id, year_month, name)
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_manual_sales (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+                    plan_item_id INTEGER NOT NULL REFERENCES sales_kpi_plan_items(id) ON DELETE RESTRICT,
+                    manager_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    client_name VARCHAR(255) NOT NULL,
+                    client_phone VARCHAR(64) NOT NULL,
+                    service_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    sold_at TIMESTAMPTZ,
+                    status VARCHAR(24) NOT NULL DEFAULT 'active',
+                    returned_at TIMESTAMPTZ,
+                    note TEXT,
+                    created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    created_at TIMESTAMPTZ,
+                    updated_at TIMESTAMPTZ
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_sales_kpi_manual_sales_company_pipeline_sold "
+                "ON sales_kpi_manual_sales(company_id, pipeline_id, sold_at)",
             ),
         )
 
@@ -1175,50 +1328,6 @@ async def ensure_chat_performance_indexes(conn: AsyncConnection, database_url: s
         )
         await conn.execute(
             text("CREATE INDEX IF NOT EXISTS idx_tasks_company_created_status_id ON tasks(company_id, created_by_user_id, status, id DESC)"),
-        )
-        return
-    if "postgresql" in low or "asyncpg" in low:
-        await conn.execute(
-            text(
-                """CREATE TABLE IF NOT EXISTS sales_kpi_plans (
-                    id SERIAL PRIMARY KEY,
-                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-                    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
-                    year_month DATE NOT NULL,
-                    manager_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    expert_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                    plan_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
-                    CONSTRAINT uq_sales_kpi_plan_scope UNIQUE (company_id, pipeline_id, year_month, manager_user_id)
-                )""",
-            ),
-        )
-        await conn.execute(
-            text(
-                """CREATE TABLE IF NOT EXISTS sales_kpi_service_prices (
-                    id SERIAL PRIMARY KEY,
-                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-                    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
-                    year_month DATE NOT NULL,
-                    direction_id INTEGER NOT NULL REFERENCES booking_directions(id) ON DELETE CASCADE,
-                    unit_price NUMERIC(14, 2) NOT NULL DEFAULT 0,
-                    CONSTRAINT uq_sales_kpi_service_price_scope UNIQUE (company_id, pipeline_id, year_month, direction_id)
-                )""",
-            ),
-        )
-        await conn.execute(
-            text(
-                """CREATE TABLE IF NOT EXISTS sales_kpi_service_plans (
-                    id SERIAL PRIMARY KEY,
-                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-                    pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
-                    year_month DATE NOT NULL,
-                    manager_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    direction_id INTEGER NOT NULL REFERENCES booking_directions(id) ON DELETE CASCADE,
-                    plan_qty INTEGER NOT NULL DEFAULT 0,
-                    expert_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                    CONSTRAINT uq_sales_kpi_service_plan_scope UNIQUE (company_id, pipeline_id, year_month, manager_user_id, direction_id)
-                )""",
-            ),
         )
 
 
