@@ -218,6 +218,41 @@ async def load_specialist_facts_full_paid(
     return out
 
 
+async def load_specialist_facts_company_full_paid(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> dict[int, int]:
+    """Факт компании по экспертам (без разбивки по менеджерам), 100% оплата."""
+    start, end = month_bounds(ym)
+    rows = (
+        await db.execute(
+            select(
+                BookingAppointment.specialist_id,
+                func.count(BookingAppointment.id),
+            )
+            .select_from(BookingAppointment)
+            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.start_at >= start,
+                BookingAppointment.start_at < end,
+                BookingAppointment.service_amount > 0,
+                BookingAppointment.paid_amount >= BookingAppointment.service_amount,
+                or_(
+                    BookingAppointment.pipeline_id == pipeline_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                ),
+            )
+            .group_by(BookingAppointment.specialist_id),
+        )
+    ).all()
+    return {int(sid): int(cnt or 0) for sid, cnt in rows if sid is not None}
+
+
 async def load_plan_item_specialists(
     db: AsyncSession,
     *,

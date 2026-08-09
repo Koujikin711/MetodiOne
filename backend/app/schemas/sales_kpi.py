@@ -227,3 +227,49 @@ class SalesKpiDebtorsReport(BaseModel):
     year_month: str
     rows: list[SalesKpiDebtorRow]
     total_debt: Decimal
+
+
+class SalesKpiCompanyPlanLine(BaseModel):
+    plan_item_id: int
+    name: str
+    source_type: str
+    plan_qty: int
+    weight_percent: Decimal
+    fact_qty: int
+    completion: float | None = None
+    contribution: Decimal
+
+
+class SalesKpiCompanyExpertStat(BaseModel):
+    specialist_id: int
+    specialist_name: str
+    direction_id: int | None = None
+    direction_name: str | None = None
+    kpi_service_name: str | None = None
+    appointments_total: int
+    appeared_count: int  # status=completed
+    booked_future_count: int
+    no_show_count: int
+    cancelled_count: int
+    revenue_paid: Decimal
+    debtor_amount: Decimal
+    creditor_amount: Decimal  # оплачено, визит ещё в будущем
+
+
+class SalesKpiCompanyReport(BaseModel):
+    pipeline_id: int
+    pipeline_name: str
+    year_month: str
+    # Общий % выполнения плана компании (взвешенный вклад по сумме фактов всех менеджеров)
+    plan_completion_percent: float
+    total_contribution: Decimal
+    revenue_total: Decimal
+    revenue_booking: Decimal
+    revenue_manual: Decimal
+    debtor_total: Decimal
+    debtor_booking: Decimal
+    debtor_manual: Decimal
+    creditor_total: Decimal  # предоплата за будущие визиты
+    plan_lines: list[SalesKpiCompanyPlanLine]
+    expert_stats: list[SalesKpiCompanyExpertStat]
+    managers_sales_bonus_total: Decimal

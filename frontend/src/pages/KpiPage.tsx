@@ -7,6 +7,7 @@ import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { formatMoney } from "@/lib/money";
 import type {
+  SalesKpiCompanyReport,
   SalesKpiDebtorsReport,
   SalesKpiManualSale,
   SalesKpiPipelineMeta,
@@ -14,7 +15,7 @@ import type {
   SalesKpiWeightedPlan,
 } from "@/lib/types";
 
-type TabId = "plan" | "sales" | "manual" | "debtors";
+type TabId = "plan" | "sales" | "company" | "manual" | "debtors";
 
 type PlanDraftItem = {
   key: string;
@@ -117,6 +118,12 @@ export function KpiPage() {
     queryKey: ["sales-kpi-debtors", qs],
     queryFn: () => apiFetch<SalesKpiDebtorsReport>(`/api/sales-kpi/debtors?${qs}`),
     enabled: Boolean(pipelineId && isAdminOrOwner && tab === "debtors"),
+  });
+
+  const companyQuery = useQuery({
+    queryKey: ["sales-kpi-company-report", qs],
+    queryFn: () => apiFetch<SalesKpiCompanyReport>(`/api/sales-kpi/company-report?${qs}`),
+    enabled: Boolean(pipelineId && isOwner && tab === "company"),
   });
 
   useEffect(() => {
@@ -255,6 +262,7 @@ export function KpiPage() {
   const tabs: { id: TabId; label: string; show: boolean }[] = [
     { id: "plan", label: "План", show: isOwner },
     { id: "sales", label: "ПРОДАЖИ", show: true },
+    { id: "company", label: "Отчёт компании", show: isOwner },
     { id: "manual", label: "Курсы / протоколы", show: isAdminOrOwner },
     { id: "debtors", label: "Дебиторка", show: isAdminOrOwner },
   ];
@@ -547,6 +555,14 @@ export function KpiPage() {
 
       {tab === "sales" ? (
         <SalesReportSection data={salesQuery.data} loading={salesQuery.isLoading} error={salesQuery.error as Error | null} />
+      ) : null}
+
+      {tab === "company" && isOwner ? (
+        <CompanyReportSection
+          data={companyQuery.data}
+          loading={companyQuery.isLoading}
+          error={companyQuery.error as Error | null}
+        />
       ) : null}
 
       {tab === "manual" && isAdminOrOwner ? (
@@ -889,6 +905,157 @@ function SalesReportSection({
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+function CompanyReportSection({
+  data,
+  loading,
+  error,
+}: {
+  data: SalesKpiCompanyReport | undefined;
+  loading: boolean;
+  error: Error | null;
+}) {
+  if (loading) return <p className="text-sm lux-caption">Загрузка отчёта компании…</p>;
+  if (error) return <p className="text-sm text-red-300">{error.message}</p>;
+  if (!data) return null;
+
+  return (
+    <div className="space-y-6">
+      <section className="mo-section p-4">
+        <h2 className="lux-subheading">Отчёт компании · {data.year_month}</h2>
+        <p className="mt-1 text-sm lux-caption">
+          Сводка для владельца: выполнение плана, выручка, дебиторка и кредиторка (оплатили, визит ещё впереди).
+          ПРОДАЖИ — отдельно по менеджерам; здесь общий приход и явки по онлайн-записи.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-[var(--mo-border)] p-3">
+            <div className="text-xs mo-muted">Выполнение плана</div>
+            <div className="mt-1 text-2xl font-semibold text-[var(--mo-text)]">
+              {num(data.plan_completion_percent).toFixed(1)}%
+            </div>
+          </div>
+          <div className="rounded-xl border border-[var(--mo-border)] p-3">
+            <div className="text-xs mo-muted">Выручка (TJS)</div>
+            <div className="mt-1 text-2xl font-semibold kpi-actual-value">
+              {formatMoney(data.revenue_total)}
+            </div>
+            <div className="mt-1 text-xs mo-muted">
+              запись {formatMoney(data.revenue_booking)} · курсы {formatMoney(data.revenue_manual)}
+            </div>
+          </div>
+          <div className="rounded-xl border border-[var(--mo-border)] p-3">
+            <div className="text-xs mo-muted">Дебиторка</div>
+            <div className="mt-1 text-2xl font-semibold text-amber-200">
+              {formatMoney(data.debtor_total)}
+            </div>
+            <div className="mt-1 text-xs mo-muted">
+              запись {formatMoney(data.debtor_booking)} · курсы {formatMoney(data.debtor_manual)}
+            </div>
+          </div>
+          <div className="rounded-xl border border-[var(--mo-border)] p-3">
+            <div className="text-xs mo-muted">Кредиторка</div>
+            <div className="mt-1 text-2xl font-semibold text-[var(--mo-text)]">
+              {formatMoney(data.creditor_total)}
+            </div>
+            <div className="mt-1 text-xs mo-muted">оплачено, срок визита ещё не наступил</div>
+          </div>
+        </div>
+        <p className="mt-3 text-sm mo-muted">
+          Сумма бонусов менеджеров (из ПРОДАЖИ):{" "}
+          <span className="font-medium text-[var(--mo-text)]">
+            {formatMoney(data.managers_sales_bonus_total)}
+          </span>
+        </p>
+      </section>
+
+      <section className="mo-section p-4">
+        <h3 className="mb-3 text-lg font-semibold text-[var(--mo-text)]">План компании по показателям</h3>
+        {data.plan_lines.length === 0 ? (
+          <p className="text-sm lux-caption">План на месяц не задан.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] border-collapse text-left text-sm text-[var(--mo-text)]">
+              <thead>
+                <tr className="border-b border-[var(--mo-border)] lux-caption">
+                  <th className="py-2 pr-3">Показатель</th>
+                  <th className="py-2 pr-3">План</th>
+                  <th className="py-2 pr-3">Вес %</th>
+                  <th className="py-2 pr-3">Факт</th>
+                  <th className="py-2 pr-3">Выполн.</th>
+                  <th className="py-2 pr-3">Вклад %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.plan_lines.map((line) => (
+                  <tr key={line.plan_item_id} className="border-b border-[var(--mo-border)]/70">
+                    <td className="py-2 pr-3">{line.name}</td>
+                    <td className="py-2 pr-3">{line.plan_qty}</td>
+                    <td className="py-2 pr-3">{num(line.weight_percent)}</td>
+                    <td className="py-2 pr-3">{line.fact_qty}</td>
+                    <td className="py-2 pr-3">{pctLabel(line.completion)}</td>
+                    <td className="py-2 pr-3">{contribLabel(line.contribution)}</td>
+                  </tr>
+                ))}
+                <tr className="kpi-matrix-row-highlight">
+                  <td className="py-2 pr-3 font-semibold" colSpan={5}>
+                    ИТОГО вклад / % плана
+                  </td>
+                  <td className="py-2 pr-3 font-semibold">
+                    {contribLabel(data.total_contribution)} · {num(data.plan_completion_percent).toFixed(1)}%
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="mo-section p-4">
+        <h3 className="mb-3 text-lg font-semibold text-[var(--mo-text)]">Онлайн-запись по экспертам</h3>
+        <p className="mb-3 text-sm lux-caption">
+          Все эксперты воронки: записи, явки (completed), выручка и долги — даже если эксперт не в KPI менеджеров.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1100px] border-collapse text-left text-sm text-[var(--mo-text)]">
+            <thead>
+              <tr className="border-b border-[var(--mo-border)] lux-caption">
+                <th className="py-2 pr-3">Эксперт</th>
+                <th className="py-2 pr-3">Услуга KPI</th>
+                <th className="py-2 pr-3">Записей</th>
+                <th className="py-2 pr-3">Явились</th>
+                <th className="py-2 pr-3">Не явились</th>
+                <th className="py-2 pr-3">Будущие оплач.</th>
+                <th className="py-2 pr-3">Выручка</th>
+                <th className="py-2 pr-3">Дебиторка</th>
+                <th className="py-2 pr-3">Кредиторка</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.expert_stats.map((e) => (
+                <tr key={e.specialist_id} className="border-b border-[var(--mo-border)]/70">
+                  <td className="py-2 pr-3">
+                    <div>{e.specialist_name}</div>
+                    {e.direction_name ? (
+                      <div className="text-xs mo-muted">{e.direction_name}</div>
+                    ) : null}
+                  </td>
+                  <td className="py-2 pr-3">{e.kpi_service_name ?? "—"}</td>
+                  <td className="py-2 pr-3">{e.appointments_total}</td>
+                  <td className="py-2 pr-3">{e.appeared_count}</td>
+                  <td className="py-2 pr-3">{e.no_show_count}</td>
+                  <td className="py-2 pr-3">{e.booked_future_count}</td>
+                  <td className="py-2 pr-3">{formatMoney(e.revenue_paid)}</td>
+                  <td className="py-2 pr-3">{formatMoney(e.debtor_amount)}</td>
+                  <td className="py-2 pr-3">{formatMoney(e.creditor_amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }
