@@ -7,6 +7,7 @@ import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl, resolveMediaUrl } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { formatMoney } from "@/lib/money";
 import type { ChatMessage, ChatThread, ChatThreadBucket, ChatThreadBucketCounts } from "@/lib/types";
 
 function threadPhoneForDisplay(t: ChatThread): string {
@@ -354,7 +355,7 @@ function formatSaleMoney(raw: string | null | undefined): string {
   if (!raw) return "—";
   const n = Number(raw);
   if (!Number.isFinite(n)) return raw;
-  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(n);
+  return formatMoney(n, { digits: 0 });
 }
 
 function saleSummaryLine(t: ChatThread): string | null {

@@ -149,7 +149,7 @@ class UserPipelineAssignment(Base):
 
 
 class SalesKpiPlan(Base):
-    """План продаж (руб/мес) по менеджеру в воронке эксперта; факт — оплаты по записям за месяц."""
+    """План продаж (TJS/мес) по менеджеру в воронке эксперта; факт — оплаты по записям за месяц."""
 
     __tablename__ = "sales_kpi_plans"
     __table_args__ = (

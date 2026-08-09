@@ -3,13 +3,10 @@ import { type ReactNode, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { appLexicon } from "@/lib/appLexicon";
+import { formatMoney } from "@/lib/money";
 import type { AnalyticsOverviewRead, DetailedAnalyticsRead, FullAnalyticsRead, Pipeline } from "@/lib/types";
 
-const moneyFmt = new Intl.NumberFormat("ru-RU", {
-  style: "currency",
-  currency: "RUB",
-  maximumFractionDigits: 0,
-});
+const moneyFmt = { format: (n: number) => formatMoney(n, { digits: 0 }) };
 
 function downloadCsv(filename: string, headers: string[], rows: Array<Array<string | number>>) {
   const esc = (v: string | number) => `"${String(v).replaceAll('"', '""')}"`;
