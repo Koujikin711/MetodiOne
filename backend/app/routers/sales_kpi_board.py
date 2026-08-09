@@ -31,6 +31,9 @@ from app.models import (
 from app.schemas.sales_kpi import (
     SalesKpiBoardLine,
     SalesKpiBoardManager,
+    SalesKpiCompanyExpertStat,
+    SalesKpiCompanyPlanLine,
+    SalesKpiCompanyReport,
     SalesKpiDebtorRow,
     SalesKpiDebtorsReport,
     SalesKpiDirectionMeta,
@@ -46,12 +49,15 @@ from app.schemas.sales_kpi import (
 from app.services.sales_kpi_weighted import (
     MANUAL_SALE_MIN_PAID_RATIO,
     build_manager_lines,
+    completion_ratio,
+    contribution,
     load_bonus_fund,
     load_direction_facts_full_paid,
     load_managers,
     load_manual_facts,
     load_plan_item_specialists,
     load_plan_items,
+    load_specialist_facts_company_full_paid,
     load_specialist_facts_full_paid,
     month_bounds,
     parse_year_month,
@@ -821,4 +827,235 @@ async def debtors_report(
         year_month=ym.isoformat()[:7],
         rows=rows_out,
         total_debt=total,
+    )
+
+
+@router.get("/company-report", response_model=SalesKpiCompanyReport)
+async def company_report(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    pipeline_id: int = Query(..., ge=1),
+    year_month: str = Query(..., description="YYYY-MM"),
+) -> SalesKpiCompanyReport:
+    """Сводный отчёт компании — только владелец."""
+    _assert_kpi_access(current_user)
+    _assert_owner(current_user)
+    pipe = await _load_pipeline(db, company_id, pipeline_id)
+    try:
+        ym = parse_year_month(year_month)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    start, end = month_bounds(ym)
+    now = datetime.now(UTC)
+    items = await load_plan_items(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+    item_specialists = await load_plan_item_specialists(db, plan_item_ids=[int(i.id) for i in items])
+    specialist_to_kpi: dict[int, str] = {}
+    for item in items:
+        for sid in item_specialists.get(int(item.id), []):
+            specialist_to_kpi[sid] = item.name
+
+    managers = await load_managers(db, company_id=company_id, pipeline_id=pipeline_id)
+    direction_facts = await load_direction_facts_full_paid(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
+    specialist_facts = await load_specialist_facts_full_paid(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
+    specialist_company_facts = await load_specialist_facts_company_full_paid(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
+    manual_facts = await load_manual_facts(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+    bonus_fund = await load_bonus_fund(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+
+    # Суммарный факт по компании → общий % плана (запись: все оплаты по экспертам, не только менеджеры KPI)
+    plan_lines: list[SalesKpiCompanyPlanLine] = []
+    total_contrib = Decimal("0")
+    for item in items:
+        sids = item_specialists.get(int(item.id), [])
+        fact = 0
+        if item.source_type == "direction":
+            if sids:
+                fact = sum(specialist_company_facts.get(sid, 0) for sid in sids)
+            elif item.direction_id is not None:
+                for mid, _ in managers:
+                    fact += direction_facts.get((mid, int(item.direction_id)), 0)
+        else:
+            for mid, _ in managers:
+                fact += manual_facts.get((mid, int(item.id)), 0)
+            # продажи без менеджера в map не попадают; считаем все active manual по показателю
+        plan_qty = int(item.plan_qty or 0)
+        weight = Decimal(str(item.weight_percent or 0))
+        comp = completion_ratio(fact, plan_qty)
+        contrib = contribution(comp, weight)
+        total_contrib += contrib
+        plan_lines.append(
+            SalesKpiCompanyPlanLine(
+                plan_item_id=int(item.id),
+                name=item.name,
+                source_type=item.source_type,
+                plan_qty=plan_qty,
+                weight_percent=weight,
+                fact_qty=fact,
+                completion=float(comp) if comp is not None else None,
+                contribution=contrib,
+            ),
+        )
+
+    # Бонусы менеджеров (продажи) — сумма для справки
+    managers_bonus = Decimal("0")
+    for mid, mname in managers:
+        raw = build_manager_lines(
+            manager_id=mid,
+            manager_name=mname,
+            items=items,
+            direction_facts=direction_facts,
+            specialist_facts=specialist_facts,
+            item_specialists=item_specialists,
+            manual_facts=manual_facts,
+            bonus_fund=bonus_fund,
+        )
+        managers_bonus += Decimal(str(raw["bonus"]))
+
+    # Онлайн-запись: выручка / дебиторка / кредиторка + статистика по экспертам
+    appt_rows = (
+        await db.execute(
+            select(
+                BookingAppointment,
+                BookingSpecialist.full_name,
+                BookingDirection.id,
+                BookingDirection.name,
+            )
+            .join(BookingSpecialist, BookingSpecialist.id == BookingAppointment.specialist_id)
+            .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.start_at >= start,
+                BookingAppointment.start_at < end,
+                or_(
+                    BookingAppointment.pipeline_id == pipeline_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                    BookingDirection.pipeline_id == pipeline_id,
+                ),
+            ),
+        )
+    ).all()
+
+    revenue_booking = Decimal("0")
+    debtor_booking = Decimal("0")
+    creditor_total = Decimal("0")
+    expert_acc: dict[int, dict] = {}
+
+    for appt, spec_name, dir_id, dir_name in appt_rows:
+        sid = int(appt.specialist_id)
+        sa = Decimal(str(appt.service_amount or 0))
+        pa = Decimal(str(appt.paid_amount or 0))
+        st = (appt.status or "").strip()
+        if sid not in expert_acc:
+            expert_acc[sid] = {
+                "specialist_id": sid,
+                "specialist_name": str(spec_name or f"#{sid}"),
+                "direction_id": int(dir_id) if dir_id is not None else None,
+                "direction_name": str(dir_name) if dir_name else None,
+                "kpi_service_name": specialist_to_kpi.get(sid),
+                "appointments_total": 0,
+                "appeared_count": 0,
+                "booked_future_count": 0,
+                "no_show_count": 0,
+                "cancelled_count": 0,
+                "revenue_paid": Decimal("0"),
+                "debtor_amount": Decimal("0"),
+                "creditor_amount": Decimal("0"),
+            }
+        bucket = expert_acc[sid]
+        if st != "cancelled":
+            bucket["appointments_total"] += 1
+            bucket["revenue_paid"] += pa
+            revenue_booking += pa
+            debt = max(sa - pa, Decimal("0"))
+            if debt > 0:
+                bucket["debtor_amount"] += debt
+                debtor_booking += debt
+        if st == "completed":
+            bucket["appeared_count"] += 1
+        elif st == "no_show":
+            bucket["no_show_count"] += 1
+        elif st == "cancelled":
+            bucket["cancelled_count"] += 1
+        elif st == "booked":
+            start_at = appt.start_at
+            if start_at is not None and start_at.tzinfo is None:
+                start_at = start_at.replace(tzinfo=UTC)
+            if start_at is not None and start_at > now and pa > 0:
+                # Кредиторка: оплатили, срок обслуживания ещё не наступил
+                cred = pa
+                bucket["creditor_amount"] += cred
+                creditor_total += cred
+                bucket["booked_future_count"] += 1
+
+    # Ручные продажи курсов/протоколов
+    manual_rows = (
+        await db.execute(
+            select(SalesKpiManualSale).where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.sold_at >= start,
+                SalesKpiManualSale.sold_at < end,
+                SalesKpiManualSale.status == "active",
+            ),
+        )
+    ).scalars().all()
+    revenue_manual = Decimal("0")
+    debtor_manual = Decimal("0")
+    for sale in manual_rows:
+        sa = Decimal(str(sale.service_amount or 0))
+        pa = Decimal(str(sale.paid_amount or 0))
+        revenue_manual += pa
+        debtor_manual += max(sa - pa, Decimal("0"))
+
+    # Эксперты воронки без записей в месяце — тоже покажем 0
+    specialists_meta = await _load_specialists_meta(db, company_id, pipeline_id)
+    for s in specialists_meta:
+        if s.id not in expert_acc and s.is_active:
+            expert_acc[s.id] = {
+                "specialist_id": s.id,
+                "specialist_name": s.full_name,
+                "direction_id": s.direction_id,
+                "direction_name": s.direction_name,
+                "kpi_service_name": specialist_to_kpi.get(s.id),
+                "appointments_total": 0,
+                "appeared_count": 0,
+                "booked_future_count": 0,
+                "no_show_count": 0,
+                "cancelled_count": 0,
+                "revenue_paid": Decimal("0"),
+                "debtor_amount": Decimal("0"),
+                "creditor_amount": Decimal("0"),
+            }
+
+    expert_stats = [
+        SalesKpiCompanyExpertStat(**row)
+        for row in sorted(expert_acc.values(), key=lambda x: (-int(x["appointments_total"]), str(x["specialist_name"])))
+    ]
+
+    plan_pct = float((total_contrib * Decimal("100")).quantize(Decimal("0.01")))
+    return SalesKpiCompanyReport(
+        pipeline_id=pipe.id,
+        pipeline_name=pipe.name,
+        year_month=ym.isoformat()[:7],
+        plan_completion_percent=plan_pct,
+        total_contribution=total_contrib,
+        revenue_total=revenue_booking + revenue_manual,
+        revenue_booking=revenue_booking,
+        revenue_manual=revenue_manual,
+        debtor_total=debtor_booking + debtor_manual,
+        debtor_booking=debtor_booking,
+        debtor_manual=debtor_manual,
+        creditor_total=creditor_total,
+        plan_lines=plan_lines,
+        expert_stats=expert_stats,
+        managers_sales_bonus_total=managers_bonus.quantize(Decimal("0.01")),
     )

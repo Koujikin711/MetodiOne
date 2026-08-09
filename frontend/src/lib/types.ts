@@ -911,6 +911,51 @@ export interface SalesKpiDebtorsReport {
   total_debt: string | number;
 }
 
+export interface SalesKpiCompanyPlanLine {
+  plan_item_id: number;
+  name: string;
+  source_type: string;
+  plan_qty: number;
+  weight_percent: string | number;
+  fact_qty: number;
+  completion: number | null;
+  contribution: string | number;
+}
+
+export interface SalesKpiCompanyExpertStat {
+  specialist_id: number;
+  specialist_name: string;
+  direction_id: number | null;
+  direction_name: string | null;
+  kpi_service_name: string | null;
+  appointments_total: number;
+  appeared_count: number;
+  booked_future_count: number;
+  no_show_count: number;
+  cancelled_count: number;
+  revenue_paid: string | number;
+  debtor_amount: string | number;
+  creditor_amount: string | number;
+}
+
+export interface SalesKpiCompanyReport {
+  pipeline_id: number;
+  pipeline_name: string;
+  year_month: string;
+  plan_completion_percent: number;
+  total_contribution: string | number;
+  revenue_total: string | number;
+  revenue_booking: string | number;
+  revenue_manual: string | number;
+  debtor_total: string | number;
+  debtor_booking: string | number;
+  debtor_manual: string | number;
+  creditor_total: string | number;
+  plan_lines: SalesKpiCompanyPlanLine[];
+  expert_stats: SalesKpiCompanyExpertStat[];
+  managers_sales_bonus_total: string | number;
+}
+
 export interface PaymentRuleCreate {
   sort_order: number;
   label?: string | null;
