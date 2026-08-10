@@ -27,7 +27,6 @@ type Props = {
   isManagerNav: boolean;
   isExpert: boolean;
   isChiefExpert: boolean;
-  showServices: boolean;
   showFinance: boolean;
   showIntegrationsHub: boolean;
   showKpi: boolean;
@@ -42,7 +41,6 @@ export function ShellSidebarNav({
   isManagerNav,
   isExpert,
   isChiefExpert,
-  showServices,
   showFinance,
   showIntegrationsHub,
   showKpi,
@@ -56,7 +54,6 @@ export function ShellSidebarNav({
         isManagerNav,
         isExpert,
         isChiefExpert,
-        showServices,
         showFinance,
         showIntegrationsHub,
         showKpi,
@@ -68,7 +65,6 @@ export function ShellSidebarNav({
       isManagerNav,
       isExpert,
       isChiefExpert,
-      showServices,
       showFinance,
       showIntegrationsHub,
       showKpi,

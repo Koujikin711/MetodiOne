@@ -12,8 +12,6 @@ from app.models import (
     BookingAppointment,
     BookingDirection,
     BookingSpecialist,
-    PatientServiceEnrollment,
-    PaymentInstallment,
     Pipeline,
     UserRole,
 )
@@ -228,26 +226,6 @@ async def expert_reports(
             )
         ).all()
 
-        inst_pay_rows = (
-            await db.execute(
-                select(
-                    BookingDirection.id,
-                    BookingDirection.name,
-                    func.coalesce(func.sum(PaymentInstallment.amount), 0),
-                )
-                .join(PatientServiceEnrollment, PatientServiceEnrollment.id == PaymentInstallment.enrollment_id)
-                .join(BookingDirection, BookingDirection.id == PatientServiceEnrollment.direction_id)
-                .where(
-                    PatientServiceEnrollment.company_id == company_id,
-                    PatientServiceEnrollment.pipeline_id == pipe.id,
-                    PaymentInstallment.status == "paid",
-                    PaymentInstallment.paid_at >= start,
-                    PaymentInstallment.paid_at < end,
-                )
-                .group_by(BookingDirection.id, BookingDirection.name)
-            )
-        ).all()
-
         pay_map: dict[int, DirectionPaymentSummary] = {}
         for did, dname, paid, billed in appt_pay_rows:
             pay_map[int(did)] = DirectionPaymentSummary(
@@ -257,16 +235,6 @@ async def expert_reports(
                 appointments_billed=float(billed or 0),
                 installments_paid=0.0,
             )
-        for did, dname, inst_paid in inst_pay_rows:
-            key = int(did)
-            if key in pay_map:
-                pay_map[key].installments_paid = float(inst_paid or 0)
-            else:
-                pay_map[key] = DirectionPaymentSummary(
-                    direction_id=key,
-                    direction_name=str(dname),
-                    installments_paid=float(inst_paid or 0),
-                )
 
         items.append(
             PipelineExpertReport(

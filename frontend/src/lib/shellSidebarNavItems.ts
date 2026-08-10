@@ -31,7 +31,6 @@ type BuildParams = {
   isManagerNav: boolean;
   isExpert: boolean;
   isChiefExpert: boolean;
-  showServices: boolean;
   showFinance: boolean;
   showIntegrationsHub: boolean;
   showKpi: boolean;
@@ -58,7 +57,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     isManagerNav,
     isExpert,
     isChiefExpert,
-    showServices,
     showFinance,
     showIntegrationsHub,
     showKpi,
@@ -68,7 +66,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
 
   const managerLikeNav = isManagerNav || (isExpert && isChiefExpert);
   const showFinanceNav = showFinance || isChiefExpert;
-  const showServicesNav = showServices || isChiefExpert;
   const showIntegrationsNav = showIntegrationsHub || isChiefExpert;
 
   if (isSuperOwner) {
@@ -181,17 +178,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         labelFull: navLex.navFinanceTitle,
         variant: "blue",
         iconKey: "wallet",
-      });
-    }
-    if (showServicesNav) {
-      items.push({
-        id: "services",
-        to: "/services",
-        title: "Каталог услуг",
-        labelShort: "Услуги",
-        labelFull: "Каталог услуг",
-        variant: "purple",
-        iconKey: "clipboard-list",
       });
     }
     if (isChiefExpert && showNavForFeature("reports")) {
@@ -363,17 +349,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       labelFull: navLex.navFinanceTitle,
       variant: "blue",
       iconKey: "wallet",
-    });
-  }
-  if (showServices) {
-    items.push({
-      id: "services",
-      to: "/services",
-      title: "Каталог услуг",
-      labelShort: "Услуги",
-      labelFull: "Каталог услуг",
-      variant: "purple",
-      iconKey: "clipboard-list",
     });
   }
   if (showNavForFeature("employees")) {

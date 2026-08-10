@@ -51,7 +51,6 @@ from app.routers import (
     reports,
     sales_kpi,
     sales_kpi_board,
-    service_catalog,
     sources,
     stages,
     system,
@@ -65,7 +64,6 @@ from app.services.google_sheets_finance_sync import run_finance_sheets_sync_tick
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.runtime_metrics import runtime_metrics
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
-from app.services.whatsapp_payment_reminders import run_payment_reminder_tick
 
 logger = logging.getLogger(__name__)
 
@@ -320,12 +318,9 @@ async def lifespan(_: FastAPI):
             try:
                 async with AsyncSessionLocal() as session:
                     sent = await run_whatsapp_reminder_tick(session)
-                    pay_sent = await run_payment_reminder_tick(session)
                     await session.commit()
                     if sent:
                         logger.info("whatsapp reminders sent: %s", sent)
-                    if pay_sent:
-                        logger.info("whatsapp payment reminders sent: %s", pay_sent)
                     if sent:
                         record_background_event(
                             source="whatsapp_reminders",
@@ -616,7 +611,6 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(companies.router, prefix="/api")
 app.include_router(tariff_plans.router, prefix="/api")
 app.include_router(finance.router, prefix="/api")
-app.include_router(service_catalog.router, prefix="/api")
 app.include_router(team_chat.router, prefix="/api")
 
 

@@ -99,7 +99,6 @@ export function ExpertReportsPage() {
                     <th className="py-2 pr-4">Направление</th>
                     <th className="py-2 pr-4">Оплачено (записи)</th>
                     <th className="py-2 pr-4">Начислено (записи)</th>
-                    <th className="py-2 pr-4">Этапы услуг</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -108,7 +107,6 @@ export function ExpertReportsPage() {
                       <td className="py-2 pr-4">{d.direction_name}</td>
                       <td className="py-2 pr-4 tabular-nums">{d.appointments_paid}</td>
                       <td className="py-2 pr-4 tabular-nums">{d.appointments_billed}</td>
-                      <td className="py-2 pr-4 tabular-nums font-medium text-emerald-800">{d.installments_paid}</td>
                     </tr>
                   ))}
                 </tbody>
