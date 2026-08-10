@@ -642,6 +642,20 @@ export function OnlineBookingPage() {
     return list;
   }, [specialistsActive, specialistsQuery.data, specialistId]);
 
+  /** Услуги = активные направления записи (+ текущее направление специалиста, даже если архив). */
+  const serviceDirectionOptions = useMemo(() => {
+    const map = new Map<number, BookingDirection>();
+    for (const d of directionsQuery.data ?? []) {
+      if (d.is_active) map.set(d.id, d);
+    }
+    const currentDirId = selectedSpecialistForForm?.direction_id;
+    if (currentDirId != null && !map.has(currentDirId)) {
+      const cur = (directionsQuery.data ?? []).find((d) => d.id === currentDirId);
+      if (cur) map.set(cur.id, cur);
+    }
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  }, [directionsQuery.data, selectedSpecialistForForm?.direction_id]);
+
   const reorderSpecialistsMutation = useMutation({
     mutationFn: (ordered_ids: number[]) =>
       apiFetch<void>("/api/booking/specialists/reorder", {
@@ -675,6 +689,18 @@ export function OnlineBookingPage() {
     const first = specialistsActive[0];
     setSpecialistId(first?.id ?? 0);
   }, [specialistsActive, specialistId]);
+
+  useEffect(() => {
+    const s =
+      specialistsActive.find((x) => x.id === specialistId) ??
+      specialistsQuery.data?.find((x) => x.id === specialistId);
+    if (!s) return;
+    const name =
+      (s.direction_name || "").trim() ||
+      (directionsQuery.data ?? []).find((d) => d.id === s.direction_id)?.name ||
+      "";
+    if (name && name !== serviceTitle) setServiceTitle(name);
+  }, [specialistId, specialistsActive, specialistsQuery.data, directionsQuery.data, serviceTitle]);
 
   useEffect(() => {
     if (newLeadPipelineId != null) return;
@@ -747,6 +773,11 @@ export function OnlineBookingPage() {
 
   function handleSlotClick(payload: { specialistId: number; directionId: number; dateYmd: string; minuteOfDay: number }) {
     setSpecialistId(payload.specialistId);
+    const dirName =
+      (directionsQuery.data ?? []).find((d) => d.id === payload.directionId)?.name ||
+      specialistsQuery.data?.find((s) => s.id === payload.specialistId)?.direction_name ||
+      "";
+    if (dirName) setServiceTitle(dirName);
     setFilterDate(payload.dateYmd);
     const hh = Math.floor(payload.minuteOfDay / 60);
     const mm = payload.minuteOfDay % 60;
@@ -755,6 +786,14 @@ export function OnlineBookingPage() {
     window.setTimeout(() => {
       formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }, 80);
+  }
+
+  function handleServiceDirectionChange(directionId: number) {
+    const dir = serviceDirectionOptions.find((d) => d.id === directionId);
+    if (!dir) return;
+    setServiceTitle(dir.name);
+    const match = specialistsForFormSelect.find((s) => s.direction_id === directionId);
+    if (match) setSpecialistId(match.id);
   }
 
   function handleMoveAppointment(payload: { appointmentId: number; specialistId: number; minuteOfDay: number }) {
@@ -782,11 +821,11 @@ export function OnlineBookingPage() {
       return;
     }
     if (!specialistId || !startAt || !serviceTitle.trim()) {
-      toast.error("Укажите услугу (текст), специалиста, дату и время.");
+      toast.error("Укажите услугу, специалиста, дату и время.");
       return;
     }
     if (!specialistsActive.length) {
-      toast.error("Нет специалистов в сетке — добавьте специалиста через меню колонки.");
+      toast.error("Нет специалистов в сетке — пригласите эксперта в «Сотрудники».");
       return;
     }
     let startIso: string;
@@ -1093,14 +1132,23 @@ export function OnlineBookingPage() {
                   ) : null}
                 </div>
                 <label className="block text-sm mo-muted">
-                  Услуга (вручную)
-                  <input
+                  Услуга
+                  <select
                     required
-                    value={serviceTitle}
-                    onChange={(e) => setServiceTitle(e.target.value)}
-                    placeholder="Например: консультация, массаж…"
-                    className="mt-1 w-full mo-input placeholder:mo-muted"
-                  />
+                    value={selectedSpecialistForForm?.direction_id ?? ""}
+                    onChange={(e) => handleServiceDirectionChange(Number(e.target.value))}
+                    className="mt-1 w-full mo-input"
+                  >
+                    <option value="" disabled>
+                      — выберите услугу —
+                    </option>
+                    {serviceDirectionOptions.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                        {!d.is_active ? " (архив)" : ""}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label className="block text-sm mo-muted">
                   Специалист
