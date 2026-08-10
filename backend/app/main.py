@@ -401,6 +401,17 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="CRM API", version="0.1.0", lifespan=lifespan)
 
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(_request: Request, exc: IntegrityError) -> JSONResponse:
+    """DB unique/FK races must never surface as raw 500 HTML to the CRM UI."""
+    raw = str(getattr(exc, "orig", None) or exc)
+    detail = "Конфликт данных (запись с такими уникальными полями уже есть)"
+    if "booking_directions_name_key" in raw or "booking_directions" in raw and "name" in raw:
+        detail = "Уже есть направление с таким названием (без учёта регистра)"
+    return JSONResponse(status_code=409, content={"detail": detail})
+
+
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
