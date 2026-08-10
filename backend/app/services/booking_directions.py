@@ -151,12 +151,25 @@ async def absorb_direction(
     *,
     donor: BookingDirection,
     keeper: BookingDirection,
+    keeper_name: str | None = None,
 ) -> BookingDirection:
-    """Move specialists/appointments from donor into keeper, then archive donor."""
+    """Move specialists/appointments from donor into keeper, then archive donor.
+
+    Archives the donor first so the global unique ``name`` slot is freed before
+    renaming the keeper (avoids IntegrityError on flush).
+    """
     if donor.id == keeper.id:
+        if keeper_name is not None:
+            keeper.name = normalize_direction_name(keeper_name) or keeper.name
+            keeper.is_active = True
         return keeper
     await _repoint_direction_fks(db, donor_id=int(donor.id), keeper_id=int(keeper.id))
     await archive_direction_row(db, donor)
+    await db.flush()
+    if keeper_name is not None:
+        keeper.name = normalize_direction_name(keeper_name) or direction_base_name(keeper.name) or keeper.name
+    keeper.is_active = True
+    await db.flush()
     logger.info(
         "absorbed booking direction donor=%s into keeper=%s company_id=%s",
         donor.id,
@@ -202,15 +215,16 @@ async def consolidate_duplicate_directions(db: AsyncSession, company_id: int) ->
                 )
                 if conflict is None:
                     keeper.name = base
+        desired_name = direction_base_name(keeper.name) or keeper.name
         for donor in group:
             if donor.id == keeper.id:
                 continue
-            await absorb_direction(db, donor=donor, keeper=keeper)
+            await absorb_direction(db, donor=donor, keeper=keeper, keeper_name=desired_name)
             merges += 1
         if not keeper.is_active:
             # If everything was archived, restore the keeper so specialists stay bookable.
             keeper.is_active = True
-            keeper.name = direction_base_name(keeper.name) or keeper.name
+            keeper.name = desired_name
     if merges:
         await db.flush()
     return merges

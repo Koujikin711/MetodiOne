@@ -786,11 +786,9 @@ async def patch_direction(
                 if p is None or p.company_id != company_id:
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная воронка")
                 keeper.pipeline_id = body.pipeline_id
-            keeper.name = target_name
-            keeper.is_active = True
             _apply_direction_course_stream_fields(keeper, patch)
             try:
-                await absorb_direction(db, donor=donor, keeper=keeper)
+                await absorb_direction(db, donor=donor, keeper=keeper, keeper_name=target_name)
                 await write_audit_event(
                     db,
                     entity_type="booking_direction",
