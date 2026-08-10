@@ -18,7 +18,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { CrmToolbar } from "@/components/crm/CrmToolbar";
 import { PatientPhone } from "@/components/PatientPhone";
-import { apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
+import { apiDownloadBlob, apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
 import { theme } from "@/lib/theme";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
@@ -811,10 +811,79 @@ export function CrmPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  type ClosePipelinePreview = {
+    pipeline_id: number;
+    pipeline_name: string;
+    leads_count: number;
+    stages_count: number;
+    integrations_count: number;
+    employees_to_terminate: Array<{ id: number; full_name: string | null; email: string; role: string }>;
+    employees_to_unassign: Array<{ id: number; full_name: string | null; email: string; role: string }>;
+  };
+
+  const [closePipelineOpen, setClosePipelineOpen] = useState(false);
+  const [closeConfirmName, setCloseConfirmName] = useState("");
+  const [closePreview, setClosePreview] = useState<ClosePipelinePreview | null>(null);
+  const [closePreviewLoading, setClosePreviewLoading] = useState(false);
+  const [closePending, setClosePending] = useState(false);
+
   const selectedPipelineForSettings = useMemo(
     () => (pipelineId != null ? pipelinesQuery.data?.find((p) => p.id === pipelineId) : undefined),
     [pipelinesQuery.data, pipelineId],
   );
+
+  async function openClosePipelineModal() {
+    if (pipelineId == null || !selectedPipelineForSettings) return;
+    setClosePipelineOpen(true);
+    setCloseConfirmName("");
+    setClosePreview(null);
+    setClosePreviewLoading(true);
+    try {
+      const preview = await apiFetch<ClosePipelinePreview>(`/api/pipelines/${pipelineId}/close-preview`);
+      setClosePreview(preview);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось загрузить сводку");
+      setClosePipelineOpen(false);
+    } finally {
+      setClosePreviewLoading(false);
+    }
+  }
+
+  async function submitClosePipeline() {
+    if (pipelineId == null || !selectedPipelineForSettings) return;
+    const name = selectedPipelineForSettings.name;
+    if (closeConfirmName.trim() !== name.trim()) {
+      toast.error("Введите точное название воронки для подтверждения");
+      return;
+    }
+    setClosePending(true);
+    try {
+      await apiDownloadBlob(`/api/pipelines/${pipelineId}/close`, `voronka_${pipelineId}_leads.csv`, {
+        method: "POST",
+        body: JSON.stringify({ confirm_name: closeConfirmName.trim() }),
+        timeoutMs: 180_000,
+      });
+      toast.success(
+        `Воронка «${name}» закрыта. CSV с контактами скачан` +
+          (closePreview
+            ? ` (${closePreview.leads_count} лидов, уволено ${closePreview.employees_to_terminate.length})`
+            : ""),
+      );
+      setClosePipelineOpen(false);
+      setPipelineId(null);
+      void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
+      void queryClient.invalidateQueries({ queryKey: ["stages"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
+      void queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      void queryClient.invalidateQueries({ queryKey: ["employees"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-specialists"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось закрыть воронку");
+    } finally {
+      setClosePending(false);
+    }
+  }
 
   const [outboundPhonesDraft, setOutboundPhonesDraft] = useState("");
 
@@ -1366,18 +1435,36 @@ export function CrmPage() {
                   ))}
                 </ul>
                 {pipelinesQuery.data && pipelinesQuery.data.length > 1 && selectedPipelineForSettings && (
-                  <div className="mt-4 border-t border-[#e8e2d8] pt-3">
+                  <div className="mt-4 space-y-3 border-t border-[#e8e2d8] pt-3">
+                    <div>
+                      <button
+                        type="button"
+                        disabled={closePending || closePreviewLoading}
+                        onClick={() => void openClosePipelineModal()}
+                        className={`${theme.btnDanger} disabled:opacity-50`}
+                      >
+                        Закрыть воронку
+                      </button>
+                      <p className="mt-2 text-xs mo-muted">
+                        Скачается CSV со всеми контактами (ФИО, телефоны…), затем воронка и связанные данные
+                        удалятся. Сотрудники только этой воронки будут уволены.
+                      </p>
+                    </div>
                     <button
                       type="button"
                       disabled={deletePipelineMutation.isPending}
                       onClick={() => {
-                        if (!window.confirm(`Удалить воронку «${selectedPipelineForSettings.name}» и все её стадии?`))
+                        if (
+                          !window.confirm(
+                            `Удалить пустую воронку «${selectedPipelineForSettings.name}»? Если есть лиды — используйте «Закрыть воронку».`,
+                          )
+                        )
                           return;
                         deletePipelineMutation.mutate(pipelineId);
                       }}
-                      className={`${theme.btnDanger} disabled:opacity-50`}
+                      className="text-xs text-[#8a96a3] underline-offset-2 hover:underline disabled:opacity-50"
                     >
-                      Удалить воронку целиком
+                      Удалить только пустую воронку
                     </button>
                   </div>
                 )}
@@ -1385,6 +1472,100 @@ export function CrmPage() {
             )}
         </div>
       ) : null}
+
+      {closePipelineOpen && selectedPipelineForSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl crm-modal-panel border p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="lux-subheading">Закрыть воронку</h2>
+                <p className="mt-1 text-sm mo-muted">«{selectedPipelineForSettings.name}»</p>
+              </div>
+              <button
+                type="button"
+                disabled={closePending}
+                onClick={() => setClosePipelineOpen(false)}
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white disabled:opacity-50"
+              >
+                Отмена
+              </button>
+            </div>
+
+            {closePreviewLoading ? (
+              <p className="mt-4 text-sm mo-muted">Считаем лиды и сотрудников…</p>
+            ) : closePreview ? (
+              <div className="mt-4 space-y-3 text-sm text-[var(--mo-text)]">
+                <ul className="list-disc space-y-1 pl-5 mo-muted">
+                  <li>
+                    Лидов в CSV: <strong className="text-[var(--mo-text)]">{closePreview.leads_count}</strong>
+                  </li>
+                  <li>Стадий: {closePreview.stages_count}</li>
+                  <li>Интеграций будет удалено: {closePreview.integrations_count}</li>
+                  <li>
+                    Уволить (только эта воронка): {closePreview.employees_to_terminate.length}
+                    {closePreview.employees_to_terminate.length > 0
+                      ? ` — ${closePreview.employees_to_terminate
+                          .map((e) => e.full_name || e.email)
+                          .slice(0, 5)
+                          .join(", ")}${closePreview.employees_to_terminate.length > 5 ? "…" : ""}`
+                      : ""}
+                  </li>
+                  <li>
+                    Снять с воронки (есть другие): {closePreview.employees_to_unassign.length}
+                  </li>
+                </ul>
+                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+                  Действие необратимо. Сначала скачается файл контактов, затем воронка и всё связанное
+                  удалится из CRM.
+                </p>
+                <label className="block text-sm mo-muted">
+                  Введите название воронки для подтверждения
+                  <input
+                    value={closeConfirmName}
+                    onChange={(e) => setCloseConfirmName(e.target.value)}
+                    placeholder={selectedPipelineForSettings.name}
+                    className="mt-1 w-full mo-input"
+                    disabled={closePending}
+                    autoComplete="off"
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={closePending || pipelineId == null}
+                onClick={() => {
+                  if (pipelineId == null) return;
+                  void apiDownloadBlob(
+                    `/api/pipelines/${pipelineId}/export-leads`,
+                    `voronka_${pipelineId}_leads.csv`,
+                  )
+                    .then(() => toast.success("CSV скачан (воронка не удалена)"))
+                    .catch((e: Error) => toast.error(e.message));
+                }}
+                className="btn-secondary disabled:opacity-50"
+              >
+                Только скачать CSV
+              </button>
+              <button
+                type="button"
+                disabled={
+                  closePending ||
+                  closePreviewLoading ||
+                  !closePreview ||
+                  closeConfirmName.trim() !== selectedPipelineForSettings.name.trim()
+                }
+                onClick={() => void submitClosePipeline()}
+                className={`${theme.btnDanger} disabled:opacity-50`}
+              >
+                {closePending ? "Закрываем…" : "Скачать CSV и закрыть"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {createPipelineOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
