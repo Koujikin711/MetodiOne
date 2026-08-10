@@ -54,6 +54,14 @@ from app.services.lead_sales_stages import resolve_new_lead_stage_id
 from app.services.lead_extra_phones import find_lead_by_any_phone, sync_lead_extra_phones
 from app.services.sales_kpi import get_kpi_service_price
 from app.services.whatsapp_automation import send_booking_confirmation_if_needed
+from app.services.booking_directions import (
+    absorb_direction,
+    archived_direction_name,
+    consolidate_duplicate_directions,
+    direction_base_name,
+    find_direction_name_conflict,
+    normalize_direction_name,
+)
 
 router = APIRouter(prefix="/booking", tags=["booking"])
 
@@ -645,6 +653,9 @@ async def list_directions(
     company_id: CurrentCompanyId,
     pipeline_id: int | None = None,
 ) -> list[BookingDirectionRead]:
+    # Heal accidental case-duplicates (e.g. «Консультация» + «консультация») and
+    # move specialists back onto the canonical active direction.
+    await consolidate_duplicate_directions(db, company_id)
     q = (
         select(BookingDirection, Pipeline.name)
         .join(Pipeline, Pipeline.id == BookingDirection.pipeline_id, isouter=True)
@@ -669,8 +680,36 @@ async def create_direction(
     pipe = await db.get(Pipeline, body.pipeline_id)
     if pipe is None or pipe.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная воронка")
+    name = normalize_direction_name(body.name)
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите название направления")
+
+    existing = await find_direction_name_conflict(db, company_id=company_id, name=name)
+    if existing is not None:
+        # Reuse archived/case-variant instead of creating a colliding row.
+        existing.name = name
+        existing.duration_min = body.duration_min
+        existing.pipeline_id = body.pipeline_id
+        existing.is_active = True
+        try:
+            await db.flush()
+            await write_audit_event(
+                db,
+                entity_type="booking_direction",
+                entity_id=existing.id,
+                action="booking_direction_restored_on_create",
+                current_user=current_user,
+                details=f"name={existing.name}, duration_min={existing.duration_min}",
+            )
+        except IntegrityError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Направление с таким именем уже есть",
+            ) from exc
+        return _direction_read(existing, pipe.name)
+
     row = BookingDirection(
-        name=body.name.strip(),
+        name=name,
         duration_min=body.duration_min,
         is_active=True,
         company_id=company_id,
@@ -688,8 +727,11 @@ async def create_direction(
             current_user=current_user,
             details=f"name={row.name}, duration_min={row.duration_min}",
         )
-    except IntegrityError:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Направление с таким именем уже есть")
+    except IntegrityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Направление с таким именем уже есть",
+        ) from exc
     return _direction_read(row, pipe.name)
 
 
@@ -708,20 +750,77 @@ async def patch_direction(
     patch = body.model_dump(exclude_unset=True)
     if not patch:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет полей для обновления")
+
+    target_name: str | None = None
     if "name" in patch and body.name is not None:
-        d.name = body.name.strip()
+        target_name = normalize_direction_name(body.name)
+        if not target_name:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите название направления")
+    elif body.is_active is True:
+        # Restore path often sends only is_active + cleaned name from UI.
+        target_name = direction_base_name(d.name)
+
+    if target_name is not None:
+        conflict = await find_direction_name_conflict(
+            db,
+            company_id=company_id,
+            name=target_name,
+            exclude_id=d.id,
+        )
+        if conflict is not None:
+            # Apply edits onto the canonical row, move specialists, archive the edited duplicate.
+            if "duration_min" in patch and body.duration_min is not None:
+                conflict.duration_min = body.duration_min
+            if "pipeline_id" in patch and body.pipeline_id is not None:
+                p = await db.get(Pipeline, body.pipeline_id)
+                if p is None or p.company_id != company_id:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная воронка")
+                conflict.pipeline_id = body.pipeline_id
+            conflict.name = target_name
+            conflict.is_active = True
+            _apply_direction_course_stream_fields(conflict, patch)
+            try:
+                await absorb_direction(db, donor=d, keeper=conflict)
+                await write_audit_event(
+                    db,
+                    entity_type="booking_direction",
+                    entity_id=conflict.id,
+                    action="booking_direction_merged",
+                    current_user=current_user,
+                    details=f"donor_id={direction_id}, keeper_id={conflict.id}, name={conflict.name}",
+                )
+            except IntegrityError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Направление с таким именем уже есть — не удалось объединить дубликаты",
+                ) from exc
+            p_name: str | None = None
+            if conflict.pipeline_id is not None:
+                p = await db.get(Pipeline, conflict.pipeline_id)
+                p_name = p.name if p is not None else None
+            return _direction_read(conflict, p_name)
+        d.name = target_name
+
     if "duration_min" in patch and body.duration_min is not None:
         d.duration_min = body.duration_min
     if "is_active" in patch and body.is_active is not None:
         d.is_active = body.is_active
+        if d.is_active:
+            d.name = direction_base_name(d.name) or d.name
     if "pipeline_id" in patch and body.pipeline_id is not None:
         p = await db.get(Pipeline, body.pipeline_id)
         if p is None or p.company_id != company_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная воронка")
         d.pipeline_id = body.pipeline_id
     _apply_direction_course_stream_fields(d, patch)
-    await db.flush()
-    p_name: str | None = None
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Направление с таким именем уже есть",
+        ) from exc
+    p_name = None
     if d.pipeline_id is not None:
         p = await db.get(Pipeline, d.pipeline_id)
         p_name = p.name if p is not None else None
@@ -739,19 +838,18 @@ async def delete_direction(
     d = await db.get(BookingDirection, direction_id)
     if d is None or d.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
-    # Мягкое «удаление»: услуга скрывается из новых записей, но строка остаётся —
-    # существующие записи и FK не ломаются (в отличие от физического DELETE с RESTRICT).
+    # Soft archive: hide from new bookings, keep history + FK rows.
     if not d.is_active:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    suffix = f" [архив #{d.id}]"
-    if "[архив #" not in d.name:
-        base = d.name.strip()
-        new_name = f"{base}{suffix}"
-        if len(new_name) > 255:
-            new_name = f"{base[: max(1, 255 - len(suffix))]}{suffix}"
-        d.name = new_name
+    d.name = archived_direction_name(d.name, int(d.id))
     d.is_active = False
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Не удалось архивировать направление из‑за конфликта имени",
+        ) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -762,6 +860,7 @@ async def list_specialists(
     company_id: CurrentCompanyId,
 ) -> list[BookingSpecialistRead]:
     await ensure_active_expert_booking_profiles(db, company_id)
+    await consolidate_duplicate_directions(db, company_id)
     q = (
         select(BookingSpecialist, BookingDirection.name)
         .join(BookingDirection, BookingSpecialist.direction_id == BookingDirection.id)
