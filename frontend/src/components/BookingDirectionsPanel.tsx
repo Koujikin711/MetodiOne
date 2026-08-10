@@ -76,14 +76,15 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
       setDurationMin(30);
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message || "Не удалось добавить направление"),
   });
 
   const patchMut = useMutation({
     mutationFn: () => {
       if (!editing) throw new Error("Не выбрано");
       if (editPipelineId === "") throw new Error("Выберите воронку");
-      return apiFetch<BookingDirection>(`/api/booking/directions/${editing.id}`, {
+      const editingId = editing.id;
+      return apiFetch<BookingDirection>(`/api/booking/directions/${editingId}`, {
         method: "PATCH",
         body: JSON.stringify({
           name: editName.trim(),
@@ -91,14 +92,20 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
           pipeline_id: editPipelineId,
           is_active: true,
         }),
-      });
+      }).then((row) => ({ row, editingId }));
     },
-    onSuccess: () => {
-      toast.success("Направление обновлено");
+    onSuccess: ({ row, editingId }) => {
+      if (row.id !== editingId) {
+        toast.success(
+          `Объединено с «${row.name}»: специалисты перенесены, дубликат убран в архив`,
+        );
+      } else {
+        toast.success("Направление обновлено");
+      }
       setEditing(null);
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message || "Не удалось сохранить направление"),
   });
 
   const archiveMut = useMutation({
@@ -109,7 +116,7 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
       setEditing(null);
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message || "Не удалось архивировать"),
   });
 
   const restoreMut = useMutation({
@@ -120,12 +127,16 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
           is_active: true,
           name: d.name.replace(/\s*\[архив #\d+\]\s*$/i, "").trim() || d.name,
         }),
-      }),
-    onSuccess: () => {
-      toast.success("Направление восстановлено");
+      }).then((row) => ({ row, editingId: d.id })),
+    onSuccess: ({ row, editingId }) => {
+      if (row.id !== editingId) {
+        toast.success(`Уже есть «${row.name}» — специалисты перенесены туда`);
+      } else {
+        toast.success("Направление восстановлено");
+      }
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message || "Не удалось восстановить"),
   });
 
   function startEdit(d: BookingDirection) {
@@ -157,7 +168,9 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
               Направления записи
             </h2>
             <p className="mt-1 text-xs mo-muted">
-              Справочник для сетки и фильтров. Архивация скрывает направление из новых записей, историю не удаляет.
+              Справочник для сетки и фильтров. Имена без учёта регистра уникальны: дубликаты
+              («Консультация» / «консультация») объединяются, специалисты переносятся автоматически.
+              Архивация скрывает направление из новых записей, историю не удаляет.
             </p>
           </div>
           <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={onClose}>
