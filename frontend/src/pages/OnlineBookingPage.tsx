@@ -162,7 +162,6 @@ export function OnlineBookingPage() {
 
   const [specialistModalOpen, setSpecialistModalOpen] = useState(false);
   const [directionsPanelOpen, setDirectionsPanelOpen] = useState(false);
-  const [specialistModalMode, setSpecialistModalMode] = useState<"add" | "edit">("add");
   const [specialistModalTarget, setSpecialistModalTarget] = useState<BookingSpecialist | null>(null);
   const [noteEditAppt, setNoteEditAppt] = useState<BookingAppointment | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
@@ -508,21 +507,6 @@ export function OnlineBookingPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const createSpecialistUserMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      apiFetch<BookingSpecialist>("/api/users", {
-        method: "POST",
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      toast.success("Специалист добавлен");
-      setSpecialistModalOpen(false);
-      setSpecialistModalTarget(null);
-      void queryClient.invalidateQueries({ queryKey: ["booking-specialists"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const patchSpecialistUserMutation = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
       apiFetch<BookingSpecialist>(`/api/users/${id}`, {
@@ -724,58 +708,37 @@ export function OnlineBookingPage() {
     navigate(`/chat?lead_id=${leadId}`);
   }
 
-  function openAddSpecialistModal() {
-    setSpecialistModalMode("add");
-    setSpecialistModalTarget(null);
-    setSpecialistModalOpen(true);
-  }
-
   function openEditSpecialistModal(s: BookingSpecialist) {
-    setSpecialistModalMode("edit");
     setSpecialistModalTarget(s);
     setSpecialistModalOpen(true);
   }
 
+  function handleDeleteSpecialist(s: BookingSpecialist) {
+    if (!window.confirm(`Скрыть «${s.full_name}» из сетки онлайн-записи?`)) return;
+    deleteSpecialistUserMutation.mutate(s.id);
+  }
+
   function handleSpecialistModalSubmit(values: SpecialistFormValues) {
+    if (!specialistModalTarget) return;
     const phone = values.phone.trim() || null;
     const specialization = values.specialization.trim() || null;
-    const streamFields = {
-      course_streams_enabled: values.course_streams_enabled,
-      course_stream_max_days: values.course_stream_max_days,
-      course_stream_min_day_for_next: values.course_stream_min_day_for_next,
-      course_stream_gap_days: values.course_stream_gap_days,
-    };
-    if (specialistModalMode === "add") {
-      createSpecialistUserMutation.mutate({
+    patchSpecialistUserMutation.mutate({
+      id: specialistModalTarget.id,
+      body: {
         full_name: values.full_name,
         phone,
         specialization,
         direction_id: values.direction_id,
         slot_duration_min: values.slot_duration_min,
-        role: "specialist",
         work_start_hour: values.work_start_hour,
         work_end_hour: values.work_end_hour,
         work_weekdays: values.work_weekdays,
-        ...streamFields,
-      });
-      return;
-    }
-    if (specialistModalTarget) {
-      patchSpecialistUserMutation.mutate({
-        id: specialistModalTarget.id,
-        body: {
-          full_name: values.full_name,
-          phone,
-          specialization,
-          direction_id: values.direction_id,
-          slot_duration_min: values.slot_duration_min,
-          work_start_hour: values.work_start_hour,
-          work_end_hour: values.work_end_hour,
-          work_weekdays: values.work_weekdays,
-          ...streamFields,
-        },
-      });
-    }
+        course_streams_enabled: values.course_streams_enabled,
+        course_stream_max_days: values.course_stream_max_days,
+        course_stream_min_day_for_next: values.course_stream_min_day_for_next,
+        course_stream_gap_days: values.course_stream_gap_days,
+      },
+    });
   }
 
   function handleSlotClick(payload: { specialistId: number; directionId: number; dateYmd: string; minuteOfDay: number }) {
@@ -967,8 +930,8 @@ export function OnlineBookingPage() {
                 appointments={gridAppointmentsQuery.data ?? []}
                 onAppointmentClick={onCalendarAppointmentClick}
                 onSlotClick={canEditBooking ? handleSlotClick : undefined}
-                onAddSpecialist={canEditBooking ? openAddSpecialistModal : undefined}
                 onEditSpecialist={canEditBooking ? openEditSpecialistModal : undefined}
+                onDeleteSpecialist={canEditBooking ? handleDeleteSpecialist : undefined}
                 onReorderSpecialists={canEditBooking ? (orderedIds) => reorderSpecialistsMutation.mutate(orderedIds) : undefined}
                 showSessionInsteadOfTime={showSessionInsteadOfTime}
                 canEditNotes={canEditBooking}
@@ -1322,16 +1285,14 @@ export function OnlineBookingPage() {
 
       <SpecialistModal
         open={specialistModalOpen}
-        mode={specialistModalMode}
+        mode="edit"
         initial={specialistModalTarget}
         directions={(directionsQuery.data ?? []).map((d) => ({
           id: d.id,
           name: d.name,
           is_active: d.is_active,
         }))}
-        isSubmitting={
-          createSpecialistUserMutation.isPending || patchSpecialistUserMutation.isPending
-        }
+        isSubmitting={patchSpecialistUserMutation.isPending}
         onClose={() => {
           setSpecialistModalOpen(false);
           setSpecialistModalTarget(null);

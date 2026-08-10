@@ -17,7 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useState } from "react";
 
-import { GripVertical, Pencil, Plus } from "@/components/icons";
+import { GripVertical, Pencil, Trash2 } from "@/components/icons";
 import { BookingAppointmentCardBody } from "@/components/BookingAppointmentCardBody";
 import {
   BOOKING_TIME_ZONE,
@@ -55,8 +55,8 @@ type Props = {
   appointments: BookingAppointment[];
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: WeekSlotClickPayload) => void;
-  onAddSpecialist?: () => void;
   onEditSpecialist?: (s: BookingSpecialist) => void;
+  onDeleteSpecialist?: (s: BookingSpecialist) => void;
   onReorderSpecialists?: (orderedIds: number[]) => void;
   showSessionInsteadOfTime?: boolean;
   canEditNotes?: boolean;
@@ -216,6 +216,7 @@ type SortableRowProps = {
   showSpecEdit: boolean;
   dragEnabled: boolean;
   onEditSpecialist?: (s: BookingSpecialist) => void;
+  onDeleteSpecialist?: (s: BookingSpecialist) => void;
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: WeekSlotClickPayload) => void;
   showSessionInsteadOfTime?: boolean;
@@ -236,6 +237,7 @@ function SortableSpecialistRow({
   showSpecEdit,
   dragEnabled,
   onEditSpecialist,
+  onDeleteSpecialist,
   onAppointmentClick,
   onSlotClick,
   showSessionInsteadOfTime,
@@ -301,18 +303,34 @@ function SortableSpecialistRow({
             <p className="mt-0.5 text-[10px] mo-muted">{expanded ? "▲ свернуть" : "▼ развернуть"}</p>
           </div>
           {showSpecEdit && (
-            <button
-              type="button"
-              className="absolute right-1 top-1 rounded-lg p-1 mo-muted hover:bg-[var(--mo-accent-soft)]"
-              aria-label="Редактировать специалиста"
-              title="Редактировать"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEditSpecialist?.(spec);
-              }}
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
+            <div className="absolute right-1 top-1 flex items-center gap-0.5">
+              <button
+                type="button"
+                className="rounded-lg p-1 mo-muted hover:bg-[var(--mo-accent-soft)]"
+                aria-label="Редактировать специалиста"
+                title="Редактировать"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditSpecialist?.(spec);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+              {onDeleteSpecialist && (
+                <button
+                  type="button"
+                  className="rounded-lg p-1 text-red-400/90 hover:bg-[var(--mo-accent-soft)]"
+                  aria-label="Скрыть специалиста из сетки"
+                  title="Скрыть из сетки"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteSpecialist(spec);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -486,8 +504,8 @@ export function BookingWeekSpecialistGrid({
   appointments,
   onAppointmentClick,
   onSlotClick,
-  onAddSpecialist,
   onEditSpecialist,
+  onDeleteSpecialist,
   onReorderSpecialists,
   showSessionInsteadOfTime,
   canEditNotes,
@@ -547,13 +565,10 @@ export function BookingWeekSpecialistGrid({
   if (sortedSpecs.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-[var(--mo-border-strong)]/50 px-6 py-16 text-center lux-caption">
-        <p>Добавьте специалистов — они появятся строками слева, дни недели сверху.</p>
-        {onAddSpecialist && (
-          <button type="button" onClick={onAddSpecialist} className="btn-secondary mt-4 inline-flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Добавить специалиста
-          </button>
-        )}
+        <p>
+          В сетке пока нет специалистов. Пригласите эксперта в разделе «Сотрудники» — строка
+          появится здесь автоматически.
+        </p>
       </div>
     );
   }
@@ -587,6 +602,7 @@ export function BookingWeekSpecialistGrid({
       showSpecEdit={showSpecEdit}
       dragEnabled={dragEnabled}
       onEditSpecialist={onEditSpecialist}
+      onDeleteSpecialist={onDeleteSpecialist}
       onAppointmentClick={onAppointmentClick}
       onSlotClick={onSlotClick}
       showSessionInsteadOfTime={showSessionInsteadOfTime}
@@ -606,16 +622,6 @@ export function BookingWeekSpecialistGrid({
             <div>
               <p className="text-xs font-semibold text-[var(--mo-text)]">Специалисты</p>
               <p className="text-[10px] mo-muted">до {MAX_BOOKINGS_PER_SPECIALIST_DAY} / день</p>
-              {onAddSpecialist && (
-                <button
-                  type="button"
-                  onClick={onAddSpecialist}
-                  className="mt-1 inline-flex items-center gap-1 rounded-md border border-[var(--mo-border)] px-2 py-0.5 text-[10px] mo-muted hover:bg-[var(--mo-accent-soft)]"
-                >
-                  <Plus className="h-3 w-3" />
-                  Добавить
-                </button>
-              )}
             </div>
           </div>
           <div className="flex min-w-0 flex-1">{headerCells}</div>

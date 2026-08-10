@@ -25,7 +25,7 @@ import {
 } from "react";
 
 import { BookingAppointmentCardBody } from "@/components/BookingAppointmentCardBody";
-import { GripVertical, MessageCircle, MoreHorizontal, Pencil, Phone, Plus, Trash2 } from "@/components/icons";
+import { GripVertical, MessageCircle, MoreHorizontal, Pencil, Phone, Trash2 } from "@/components/icons";
 import {
   BOOKING_TIME_ZONE,
   formatAppointmentTimeOnCard,
@@ -211,7 +211,6 @@ type Props = {
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: SlotClickPayload) => void;
   onMoveAppointment?: (payload: { appointmentId: number; specialistId: number; minuteOfDay: number }) => void;
-  onAddSpecialist?: () => void;
   onEditSpecialist?: (s: BookingSpecialist) => void;
   onDeleteSpecialist?: (s: BookingSpecialist) => void;
   onReorderSpecialists?: (orderedIds: number[]) => void;
@@ -602,7 +601,6 @@ export function BookingCalendarGrid({
   slotClickSpecialistIds,
   onAppointmentClick,
   onSlotClick,
-  onAddSpecialist,
   onEditSpecialist,
   onDeleteSpecialist,
   onReorderSpecialists,
@@ -692,18 +690,10 @@ export function BookingCalendarGrid({
   if (specialists.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-[var(--mo-border-strong)]/50 bg-white/30 px-6 py-16 text-center lux-caption">
-        <p>Добавьте специалистов кнопкой «+» справа от сетки или в разделе «Справочники».</p>
-        {onAddSpecialist && (
-          <button
-            type="button"
-            onClick={onAddSpecialist}
-            className="mt-4 inline-flex items-center gap-2 rounded-full border border-[var(--mo-border)] bg-[var(--mo-accent-soft)] p-2 mo-muted transition-all duration-300 hover:bg-[var(--mo-accent-soft)]"
-            aria-label="Добавить специалиста"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="pr-1 text-sm">Добавить специалиста</span>
-          </button>
-        )}
+        <p>
+          В сетке пока нет специалистов. Пригласите эксперта в разделе «Сотрудники» — колонка
+          появится здесь автоматически.
+        </p>
       </div>
     );
   }
@@ -731,16 +721,6 @@ export function BookingCalendarGrid({
             className="flex shrink-0 items-center justify-end border-b border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-0.5 py-1"
             style={{ minHeight: SPEC_HEADER_PX }}
           >
-            {onAddSpecialist && (
-              <button
-                type="button"
-                onClick={onAddSpecialist}
-                className="rounded-full border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-1.5 mo-muted shadow-md transition-all duration-300 hover:bg-[var(--mo-accent-soft)] hover:text-[var(--mo-text)]"
-                aria-label="Добавить специалиста"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-            )}
           </div>
           <div className="relative flex flex-col pr-2">
             {SLOT_MINUTES.map((minuteOfDay) => (

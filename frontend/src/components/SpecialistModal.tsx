@@ -75,7 +75,8 @@ export function SpecialistModal({
       setFullName(initial.full_name);
       setPhone(initial.phone ?? "");
       setSpecialization(initial.specialization ?? "");
-      setDirectionId(initial.direction_id);
+      const dirStillActive = directions.some((d) => d.id === initial.direction_id && d.is_active);
+      setDirectionId(dirStillActive ? initial.direction_id : "");
       setSlotDurationMin(initial.slot_duration_min ?? 30);
       setWorkStart(initial.work_start_hour ?? 9);
       setWorkEnd(initial.work_end_hour ?? 18);
@@ -127,11 +128,12 @@ export function SpecialistModal({
     if (!fullName.trim()) return;
     if (workStart >= workEnd) return;
     if (!workWeekdays.length) return;
+    if (typeof directionId !== "number") return;
     onSubmit({
       full_name: fullName.trim(),
       phone: phone.trim(),
       specialization: specialization.trim(),
-      direction_id: typeof directionId === "number" ? directionId : null,
+      direction_id: directionId,
       slot_duration_min: slotDurationMin,
       work_start_hour: workStart,
       work_end_hour: workEnd,
@@ -158,10 +160,11 @@ export function SpecialistModal({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <h2 id="specialist-modal-title" className="lux-subheading">
-          {mode === "add" ? "Добавить специалиста" : "Редактировать специалиста"}
+          Редактировать специалиста
         </h2>
         <p className="mt-1 text-xs mo-muted">
-          Карточка в сетке записи. График — в часовом поясе онлайн-записи.
+          График в часовом поясе онлайн-записи. Новых специалистов добавляют только через
+          «Сотрудники» (роль эксперт).
         </p>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-3">
@@ -317,20 +320,26 @@ export function SpecialistModal({
           <label className="block text-sm mo-muted">
             Направление записи
             <select
+              required
               value={directionId === "" ? "" : String(directionId)}
               onChange={(e) => setDirectionId(e.target.value ? Number(e.target.value) : "")}
               className="mo-input mt-1 w-full"
             >
-              <option value="">— по умолчанию —</option>
+              <option value="">— выберите активное направление —</option>
               {directions
-                .filter((d) => d.is_active || d.id === initial?.direction_id)
+                .filter((d) => d.is_active)
                 .map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
-                    {!d.is_active ? " (архив)" : ""}
                   </option>
                 ))}
             </select>
+            {initial?.direction_id != null &&
+              directions.some((d) => d.id === initial.direction_id && !d.is_active) && (
+                <span className="mt-1 block text-xs text-amber-600">
+                  Сейчас назначено архивное направление — выберите активное и сохраните.
+                </span>
+              )}
           </label>
 
           <label className="block text-sm mo-muted">
@@ -366,7 +375,7 @@ export function SpecialistModal({
               disabled={isSubmitting || workStart >= workEnd || !workWeekdays.length}
               className="flex-1 btn-primary"
             >
-              {isSubmitting ? "Сохранение…" : mode === "add" ? "Добавить" : "Сохранить"}
+              {isSubmitting ? "Сохранение…" : "Сохранить"}
             </button>
           </div>
         </form>
