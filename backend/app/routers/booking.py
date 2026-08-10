@@ -985,6 +985,49 @@ async def patch_specialist(
     return _specialist_read(s, d.name if d else None)
 
 
+async def remove_booking_specialist(
+    db: AsyncSession,
+    *,
+    specialist: BookingSpecialist,
+    current_user: CurrentUser,
+) -> None:
+    """Удалить специалиста из онлайн-записи.
+
+    Без записей — полное удаление строки. Если есть записи в журнале (FK RESTRICT) —
+    деактивируем, чтобы убрать из сетки и сохранить историю.
+    """
+    appt_count = await db.scalar(
+        select(func.count())
+        .select_from(BookingAppointment)
+        .where(BookingAppointment.specialist_id == specialist.id),
+    )
+    name = specialist.full_name
+    sid = specialist.id
+    if int(appt_count or 0) > 0:
+        specialist.is_active = False
+        await db.flush()
+        await write_audit_event(
+            db,
+            entity_type="specialist",
+            entity_id=sid,
+            action="specialist_deactivated",
+            current_user=current_user,
+            details=f"full_name={name}, appointments={int(appt_count)}",
+        )
+        return
+
+    await write_audit_event(
+        db,
+        entity_type="specialist",
+        entity_id=sid,
+        action="specialist_deleted",
+        current_user=current_user,
+        details=f"full_name={name}",
+    )
+    await db.delete(specialist)
+    await db.flush()
+
+
 @router.delete("/specialists/{specialist_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_specialist(
     specialist_id: int,
@@ -995,16 +1038,7 @@ async def delete_specialist(
     s = await db.get(BookingSpecialist, specialist_id)
     if s is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
-    s.is_active = False
-    await db.flush()
-    await write_audit_event(
-        db,
-        entity_type="specialist",
-        entity_id=s.id,
-        action="specialist_deactivated",
-        current_user=current_user,
-        details=f"full_name={s.full_name}",
-    )
+    await remove_booking_specialist(db, specialist=s, current_user=current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

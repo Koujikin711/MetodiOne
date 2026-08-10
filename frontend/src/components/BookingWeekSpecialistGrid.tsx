@@ -17,7 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useState } from "react";
 
-import { GripVertical, Pencil, Trash2 } from "@/components/icons";
+import { GripVertical, Pencil } from "@/components/icons";
 import { BookingAppointmentCardBody } from "@/components/BookingAppointmentCardBody";
 import {
   BOOKING_TIME_ZONE,
@@ -56,7 +56,6 @@ type Props = {
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: WeekSlotClickPayload) => void;
   onEditSpecialist?: (s: BookingSpecialist) => void;
-  onDeleteSpecialist?: (s: BookingSpecialist) => void;
   onReorderSpecialists?: (orderedIds: number[]) => void;
   showSessionInsteadOfTime?: boolean;
   canEditNotes?: boolean;
@@ -216,7 +215,6 @@ type SortableRowProps = {
   showSpecEdit: boolean;
   dragEnabled: boolean;
   onEditSpecialist?: (s: BookingSpecialist) => void;
-  onDeleteSpecialist?: (s: BookingSpecialist) => void;
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: WeekSlotClickPayload) => void;
   showSessionInsteadOfTime?: boolean;
@@ -237,7 +235,6 @@ function SortableSpecialistRow({
   showSpecEdit,
   dragEnabled,
   onEditSpecialist,
-  onDeleteSpecialist,
   onAppointmentClick,
   onSlotClick,
   showSessionInsteadOfTime,
@@ -303,34 +300,18 @@ function SortableSpecialistRow({
             <p className="mt-0.5 text-[10px] mo-muted">{expanded ? "▲ свернуть" : "▼ развернуть"}</p>
           </div>
           {showSpecEdit && (
-            <div className="absolute right-1 top-1 flex items-center gap-0.5">
-              <button
-                type="button"
-                className="rounded-lg p-1 mo-muted hover:bg-[var(--mo-accent-soft)]"
-                aria-label="Редактировать специалиста"
-                title="Редактировать"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditSpecialist?.(spec);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-              {onDeleteSpecialist && (
-                <button
-                  type="button"
-                  className="rounded-lg p-1 text-red-400/90 hover:bg-[var(--mo-accent-soft)]"
-                  aria-label="Скрыть специалиста из сетки"
-                  title="Скрыть из сетки"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteSpecialist(spec);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+            <button
+              type="button"
+              className="absolute right-1 top-1 rounded-lg p-1 mo-muted hover:bg-[var(--mo-accent-soft)]"
+              aria-label="Редактировать специалиста"
+              title="Редактировать"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditSpecialist?.(spec);
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
           )}
         </div>
       </div>
@@ -505,7 +486,6 @@ export function BookingWeekSpecialistGrid({
   onAppointmentClick,
   onSlotClick,
   onEditSpecialist,
-  onDeleteSpecialist,
   onReorderSpecialists,
   showSessionInsteadOfTime,
   canEditNotes,
@@ -602,7 +582,6 @@ export function BookingWeekSpecialistGrid({
       showSpecEdit={showSpecEdit}
       dragEnabled={dragEnabled}
       onEditSpecialist={onEditSpecialist}
-      onDeleteSpecialist={onDeleteSpecialist}
       onAppointmentClick={onAppointmentClick}
       onSlotClick={onSlotClick}
       showSessionInsteadOfTime={showSessionInsteadOfTime}
