@@ -20,6 +20,7 @@ from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.security import hash_password
 from app.database import get_db
 from app.models import BookingDirection, BookingSpecialist, Pipeline, User, UserPipelineAssignment, UserRole
+from app.routers.booking import resolve_default_booking_direction_id
 from app.services.audit import write_audit_event
 from app.services.chief_expert_access import assert_owner_admin_or_chief_expert, assert_owner_or_chief_expert
 from app.services.mail import send_email
@@ -334,11 +335,6 @@ async def invite_employee(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Укажите специальность эксперта (под ФИО в календаре записи, например Невролог)",
             )
-        if body.booking_direction_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Выберите направление онлайн-записи (колонка календаря: Консультация и т.п.)",
-            )
 
     email = body.email.strip().lower()
     phone = _norm_phone(body.phone)
@@ -425,14 +421,16 @@ async def invite_employee(
     await db.refresh(u)
 
     if u.role == UserRole.expert:
-        assert body.booking_direction_id is not None
+        direction_id = body.booking_direction_id
+        if direction_id is None:
+            direction_id = await resolve_default_booking_direction_id(db, company_id)
         await _sync_expert_calendar_profile(
             db,
             user=u,
             full_name=u.full_name or body.full_name.strip(),
             phone_norm=phone,
             specialization=(body.specialization or "").strip(),
-            booking_direction_id=body.booking_direction_id,
+            booking_direction_id=direction_id,
             course_streams_enabled=body.course_streams_enabled,
             course_stream_max_days=body.course_stream_max_days,
             course_stream_min_day_for_next=body.course_stream_min_day_for_next,
@@ -494,7 +492,7 @@ async def patch_employee_contact(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> PatchEmployeeContactResult:
-    """Обновить профиль сотрудника: ФИО, контакты, для эксперта — специальность и направление записи."""
+    """Обновить профиль сотрудника: ФИО, контакты, для эксперта — специальность."""
     await assert_owner_or_chief_expert(db, current_user)
 
     if (
@@ -593,28 +591,17 @@ async def patch_employee_contact(
                 if spec is not None:
                     spec.full_name = name
 
-    if target.role == UserRole.expert and (body.specialization is not None or body.booking_direction_id is not None):
+    if target.role == UserRole.expert and body.specialization is not None:
         spec = (
             await db.execute(
                 select(BookingSpecialist).where(BookingSpecialist.crm_user_id == target.id).limit(1),
             )
         ).scalars().first()
         if spec is not None:
-            if body.specialization is not None:
-                new_spec = body.specialization.strip()
-                if new_spec != (spec.specialization or "").strip():
-                    changed = True
-                    spec.specialization = new_spec
-            if body.booking_direction_id is not None:
-                d = await db.get(BookingDirection, body.booking_direction_id)
-                if d is None or not d.is_active:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Неизвестное или неактивное направление онлайн-записи",
-                    )
-                if body.booking_direction_id != spec.direction_id:
-                    changed = True
-                    spec.direction_id = body.booking_direction_id
+            new_spec = body.specialization.strip()
+            if new_spec != (spec.specialization or "").strip():
+                changed = True
+                spec.specialization = new_spec
 
     if not changed:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет изменений")

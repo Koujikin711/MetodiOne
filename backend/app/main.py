@@ -31,7 +31,7 @@ from app.database_migrate import (
     ensure_service_catalog_tables,
     ensure_lead_extra_phones_tables,
 )
-from app.core.security import decode_token, hash_password
+from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
 from app.routers import (
@@ -168,37 +168,80 @@ TEST_SUPER_OWNER_EMAIL = "super@crm.local"
 
 
 async def seed_test_admin() -> None:
+    """Ensure known local owner seed stays usable: admin@crm.local / admin."""
     async with AsyncSessionLocal() as session:
         cid = await _ensure_default_company(session)
         result = await session.execute(select(User).where(User.email == TEST_ADMIN_EMAIL))
-        if result.scalar_one_or_none() is not None:
-            return
-        session.add(
-            User(
-                email=TEST_ADMIN_EMAIL,
-                hashed_password=hash_password("admin"),
-                role=UserRole.owner,
-                company_id=cid,
+        user = result.scalar_one_or_none()
+        if user is None:
+            session.add(
+                User(
+                    email=TEST_ADMIN_EMAIL,
+                    hashed_password=hash_password("admin"),
+                    role=UserRole.owner,
+                    company_id=cid,
+                    must_change_password=False,
+                    is_active=True,
+                )
             )
-        )
-        await session.commit()
+            await session.commit()
+            return
+
+        # Old seed skipped existing rows; restore documented credentials if drift.
+        dirty = False
+        if not verify_password("admin", user.hashed_password):
+            user.hashed_password = hash_password("admin")
+            dirty = True
+        if user.role != UserRole.owner:
+            user.role = UserRole.owner
+            dirty = True
+        if getattr(user, "must_change_password", False):
+            user.must_change_password = False
+            dirty = True
+        if not user.is_active:
+            user.is_active = True
+            dirty = True
+        if user.company_id is None:
+            user.company_id = cid
+            dirty = True
+        if dirty:
+            await session.commit()
 
 
 async def seed_super_owner() -> None:
+    """Ensure known platform seed stays usable: super@crm.local / admin."""
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.email == TEST_SUPER_OWNER_EMAIL))
-        if result.scalar_one_or_none() is not None:
-            return
-        session.add(
-            User(
-                email=TEST_SUPER_OWNER_EMAIL,
-                hashed_password=hash_password("admin"),
-                role=UserRole.super_owner,
-                company_id=None,
-                must_change_password=True,
+        user = result.scalar_one_or_none()
+        if user is None:
+            session.add(
+                User(
+                    email=TEST_SUPER_OWNER_EMAIL,
+                    hashed_password=hash_password("admin"),
+                    role=UserRole.super_owner,
+                    company_id=None,
+                    must_change_password=False,
+                    is_active=True,
+                )
             )
-        )
-        await session.commit()
+            await session.commit()
+            return
+
+        dirty = False
+        if not verify_password("admin", user.hashed_password):
+            user.hashed_password = hash_password("admin")
+            dirty = True
+        if user.role != UserRole.super_owner:
+            user.role = UserRole.super_owner
+            dirty = True
+        if getattr(user, "must_change_password", False):
+            user.must_change_password = False
+            dirty = True
+        if not user.is_active:
+            user.is_active = True
+            dirty = True
+        if dirty:
+            await session.commit()
 
 
 async def seed_booking_defaults() -> None:

@@ -15,6 +15,7 @@ export type SpecialistFormValues = {
   full_name: string;
   phone: string;
   specialization: string;
+  direction_id: number | null;
   slot_duration_min: number;
   work_start_hour: number;
   work_end_hour: number;
@@ -25,10 +26,17 @@ export type SpecialistFormValues = {
   course_stream_gap_days: number;
 };
 
+type DirectionOption = {
+  id: number;
+  name: string;
+  is_active: boolean;
+};
+
 type Props = {
   open: boolean;
   mode: "add" | "edit";
   initial: BookingSpecialist | null;
+  directions?: DirectionOption[];
   isSubmitting: boolean;
   onClose: () => void;
   onSubmit: (values: SpecialistFormValues) => void;
@@ -43,6 +51,7 @@ export function SpecialistModal({
   open,
   mode,
   initial,
+  directions = [],
   isSubmitting,
   onClose,
   onSubmit,
@@ -50,6 +59,7 @@ export function SpecialistModal({
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [specialization, setSpecialization] = useState("");
+  const [directionId, setDirectionId] = useState<number | "">("");
   const [slotDurationMin, setSlotDurationMin] = useState(30);
   const [workStart, setWorkStart] = useState(9);
   const [workEnd, setWorkEnd] = useState(18);
@@ -65,6 +75,7 @@ export function SpecialistModal({
       setFullName(initial.full_name);
       setPhone(initial.phone ?? "");
       setSpecialization(initial.specialization ?? "");
+      setDirectionId(initial.direction_id);
       setSlotDurationMin(initial.slot_duration_min ?? 30);
       setWorkStart(initial.work_start_hour ?? 9);
       setWorkEnd(initial.work_end_hour ?? 18);
@@ -77,6 +88,8 @@ export function SpecialistModal({
       setFullName("");
       setPhone("");
       setSpecialization("");
+      const firstActive = directions.find((d) => d.is_active);
+      setDirectionId(firstActive?.id ?? "");
       setSlotDurationMin(30);
       setWorkStart(9);
       setWorkEnd(18);
@@ -86,7 +99,7 @@ export function SpecialistModal({
       setCourseStreamMinDay(10);
       setCourseStreamGapDays(10);
     }
-  }, [open, mode, initial]);
+  }, [open, mode, initial, directions]);
 
   useEffect(() => {
     if (!open) return;
@@ -118,6 +131,7 @@ export function SpecialistModal({
       full_name: fullName.trim(),
       phone: phone.trim(),
       specialization: specialization.trim(),
+      direction_id: typeof directionId === "number" ? directionId : null,
       slot_duration_min: slotDurationMin,
       work_start_hour: workStart,
       work_end_hour: workEnd,
@@ -299,6 +313,25 @@ export function SpecialistModal({
               </p>
             )}
           </div>
+
+          <label className="block text-sm mo-muted">
+            Направление записи
+            <select
+              value={directionId === "" ? "" : String(directionId)}
+              onChange={(e) => setDirectionId(e.target.value ? Number(e.target.value) : "")}
+              className="mo-input mt-1 w-full"
+            >
+              <option value="">— по умолчанию —</option>
+              {directions
+                .filter((d) => d.is_active || d.id === initial?.direction_id)
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                    {!d.is_active ? " (архив)" : ""}
+                  </option>
+                ))}
+            </select>
+          </label>
 
           <label className="block text-sm mo-muted">
             Специализация

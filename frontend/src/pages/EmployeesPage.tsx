@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { TerminateWithLeadsWizard } from "@/components/TerminateWithLeadsWizard";
 import { Pencil } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeUserIdFromToken } from "@/lib/auth";
-import type { BookingDirection, Pipeline, UserRole } from "@/lib/types";
+import type { Pipeline, UserRole } from "@/lib/types";
 
 export interface Employee {
   id: number;
@@ -16,7 +16,6 @@ export interface Employee {
   role: UserRole;
   pipeline_ids: number[];
   specialization?: string | null;
-  booking_direction_id?: number | null;
 }
 
 interface InviteResult {
@@ -79,10 +78,6 @@ export function EmployeesPage() {
     queryKey: ["pipelines"],
     queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
   });
-  const bookingDirectionsQuery = useQuery({
-    queryKey: ["booking-directions"],
-    queryFn: () => apiFetch<BookingDirection[]>("/api/booking/directions"),
-  });
   const smtpQuery = useQuery({
     queryKey: ["smtp-config"],
     queryFn: () => apiFetch<SmtpConfig>("/api/system/smtp"),
@@ -105,7 +100,6 @@ export function EmployeesPage() {
   const [role, setRole] = useState<UserRole>("manager");
   const [pipelineIds, setPipelineIds] = useState<number[]>([]);
   const [expertSpecialization, setExpertSpecialization] = useState("");
-  const [bookingDirectionId, setBookingDirectionId] = useState<number | "">("");
   const [courseStreamsEnabled, setCourseStreamsEnabled] = useState(false);
   const [courseStreamMaxDays, setCourseStreamMaxDays] = useState(15);
   const [courseStreamMinDay, setCourseStreamMinDay] = useState(10);
@@ -116,11 +110,9 @@ export function EmployeesPage() {
   const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editSpecialization, setEditSpecialization] = useState("");
-  const [editBookingDirectionId, setEditBookingDirectionId] = useState<number | "">("");
   const [editPipelineIds, setEditPipelineIds] = useState<number[]>([]);
 
   const pipelines = pipelinesQuery.data ?? [];
-  const bookingDirections = bookingDirectionsQuery.data ?? [];
   const pipelineById = useMemo(() => new Map(pipelines.map((p) => [p.id, p])), [pipelines]);
 
   const myUserId = useMemo(() => decodeUserIdFromToken(getStoredToken()), []);
@@ -263,11 +255,6 @@ export function EmployeesPage() {
     redistributeMutation.mutate();
   }
 
-  useEffect(() => {
-    if (!open || role !== "expert" || bookingDirections.length === 0 || bookingDirectionId !== "") return;
-    setBookingDirectionId(bookingDirections[0].id);
-  }, [open, role, bookingDirections, bookingDirectionId]);
-
   function confirmTerminate(e: Employee) {
     setTerminateTarget(e);
   }
@@ -283,8 +270,6 @@ export function EmployeesPage() {
       };
       if (role === "expert") {
         payload.specialization = expertSpecialization.trim();
-        payload.booking_direction_id =
-          typeof bookingDirectionId === "number" ? bookingDirectionId : undefined;
         payload.course_streams_enabled = courseStreamsEnabled;
         payload.course_stream_max_days = courseStreamMaxDays;
         payload.course_stream_min_day_for_next = courseStreamMinDay;
@@ -303,7 +288,6 @@ export function EmployeesPage() {
       setRole("manager");
       setPipelineIds([]);
       setExpertSpecialization("");
-      setBookingDirectionId("");
       setCourseStreamsEnabled(false);
       setCourseStreamMaxDays(15);
       setCourseStreamMinDay(10);
@@ -327,7 +311,6 @@ export function EmployeesPage() {
     setEditEmail(e.email);
     setEditPhone(e.phone ?? "");
     setEditSpecialization(e.specialization ?? "");
-    setEditBookingDirectionId(e.booking_direction_id ?? "");
     setEditPipelineIds([...e.pipeline_ids]);
   }
 
@@ -345,17 +328,13 @@ export function EmployeesPage() {
       const specChanged =
         editEmployee.role === "expert" &&
         editSpecialization.trim() !== (editEmployee.specialization || "").trim();
-      const directionChanged =
-        editEmployee.role === "expert" &&
-        editBookingDirectionId !== "" &&
-        Number(editBookingDirectionId) !== (editEmployee.booking_direction_id ?? null);
       const pipelinesChanged =
         canEditPipelines(editEmployee.role) &&
         (editPipelineIds.length !== editEmployee.pipeline_ids.length ||
           editPipelineIds.some((id) => !editEmployee.pipeline_ids.includes(id)));
 
       const profileChanged =
-        emailChanged || phoneChanged || nameChanged || specChanged || directionChanged;
+        emailChanged || phoneChanged || nameChanged || specChanged;
 
       if (!profileChanged && !pipelinesChanged) {
         throw new Error("Нет изменений");
@@ -370,9 +349,6 @@ export function EmployeesPage() {
           ...(editEmployee.role === "expert"
             ? {
                 specialization: editSpecialization.trim(),
-                ...(editBookingDirectionId !== ""
-                  ? { booking_direction_id: Number(editBookingDirectionId) }
-                  : {}),
               }
             : {}),
         });
@@ -775,24 +751,6 @@ export function EmployeesPage() {
                         placeholder="Например: Невролог"
                       />
                     </label>
-                    <label className="employee-edit-field sm:col-span-2">
-                      <span>Направление записи</span>
-                      <select
-                        value={editBookingDirectionId === "" ? "" : String(editBookingDirectionId)}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setEditBookingDirectionId(v === "" ? "" : Number(v));
-                        }}
-                        className="mo-input"
-                      >
-                        <option value="">— не выбрано —</option>
-                        {bookingDirections.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
                   </div>
                 </section>
               ) : null}
@@ -889,9 +847,6 @@ export function EmployeesPage() {
                     setRole(next);
                     if (next !== "expert") {
                       setExpertSpecialization("");
-                      setBookingDirectionId("");
-                    } else if (bookingDirections.length > 0 && bookingDirectionId === "") {
-                      setBookingDirectionId(bookingDirections[0].id);
                     }
                   }}
                   className="mo-input mt-1 w-full"
@@ -914,27 +869,6 @@ export function EmployeesPage() {
                       className="mo-input mt-1 w-full placeholder:mo-muted"
                     />
                   </label>
-                  <label className="text-sm mo-muted">
-                    Направление онлайн-записи
-                    <select
-                      value={bookingDirectionId === "" ? "" : String(bookingDirectionId)}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setBookingDirectionId(v === "" ? "" : Number(v));
-                      }}
-                      className="mo-input mt-1 w-full"
-                    >
-                      <option value="">— выберите —</option>
-                      {bookingDirections.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {bookingDirectionsQuery.isLoading && (
-                    <p className="text-xs mo-muted">Загрузка направлений…</p>
-                  )}
                   <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3">
                     <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--mo-text)]">
                       <input
