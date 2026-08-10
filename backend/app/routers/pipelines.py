@@ -1,6 +1,7 @@
 from typing import Annotated
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,12 @@ from app.database import get_db
 from app.models import Lead, Pipeline, PipelineStage, User, UserPipelineAssignment, UserRole
 from app.schemas.pipeline import PipelineCreate, PipelinePatch, PipelineRead
 from app.services.audit import write_audit_event
+from app.services.close_pipeline import (
+    build_pipeline_leads_csv,
+    close_pipeline,
+    preview_close_pipeline,
+    safe_filename_part,
+)
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.phone_match import parse_allowed_phones_json, serialize_allowed_phones
@@ -55,6 +62,22 @@ async def _is_pipeline_admin_user(db: AsyncSession, user: User) -> bool:
 class DistributeLeadsBody(BaseModel):
     stage_id: int = Field(..., ge=1)
     force_reassign: bool = False
+
+
+class ClosePipelineBody(BaseModel):
+    """Подтверждение: точное имя воронки (как в списке)."""
+
+    confirm_name: str = Field(..., min_length=1, max_length=255)
+
+
+class ClosePipelinePreviewRead(BaseModel):
+    pipeline_id: int
+    pipeline_name: str
+    leads_count: int
+    stages_count: int
+    integrations_count: int
+    employees_to_terminate: list[dict]
+    employees_to_unassign: list[dict]
 
 
 @router.get("", response_model=list[PipelineRead])
@@ -276,7 +299,13 @@ async def delete_pipeline(
         )
     reason = await pipeline_delete_block_reason(db, pipeline_id)
     if reason:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"{reason} "
+                "Чтобы закрыть воронку вместе с лидами и скачать контакты — используйте «Закрыть воронку»."
+            ),
+        )
     pname = pipe.name
     rows = await db.execute(select(PipelineStage).where(PipelineStage.pipeline_id == pipeline_id, PipelineStage.company_id == company_id))
     stages = rows.scalars().all()
@@ -291,6 +320,114 @@ async def delete_pipeline(
         action="pipeline_deleted",
         current_user=current_user,
         details=f"name={pname}, stages_removed={len(stages)}",
+    )
+
+
+@router.get("/{pipeline_id}/export-leads")
+async def export_pipeline_leads(
+    pipeline_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> Response:
+    """Скачать CSV всех лидов воронки без удаления."""
+    if not await _is_pipeline_admin_user(db, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
+    pipe = await db.get(Pipeline, pipeline_id)
+    if pipe is None or pipe.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Воронка не найдена")
+    csv_text, count = await build_pipeline_leads_csv(
+        db, company_id=company_id, pipeline_id=pipeline_id,
+    )
+    filename = f"voronka_{safe_filename_part(pipe.name)}_leads.csv"
+    await write_audit_event(
+        db,
+        entity_type="pipeline",
+        entity_id=pipeline_id,
+        action="pipeline_leads_exported",
+        current_user=current_user,
+        details=f"name={pipe.name}, leads={count}",
+    )
+    return Response(
+        content=csv_text.encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quote(filename)}",
+        },
+    )
+
+
+@router.get("/{pipeline_id}/close-preview", response_model=ClosePipelinePreviewRead)
+async def close_pipeline_preview(
+    pipeline_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> ClosePipelinePreviewRead:
+    if not await _is_pipeline_admin_user(db, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
+    try:
+        preview = await preview_close_pipeline(db, company_id=company_id, pipeline_id=pipeline_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return ClosePipelinePreviewRead(
+        pipeline_id=preview.pipeline_id,
+        pipeline_name=preview.pipeline_name,
+        leads_count=preview.leads_count,
+        stages_count=preview.stages_count,
+        integrations_count=preview.integrations_count,
+        employees_to_terminate=preview.employees_to_terminate,
+        employees_to_unassign=preview.employees_to_unassign,
+    )
+
+
+@router.post("/{pipeline_id}/close")
+async def close_pipeline_endpoint(
+    pipeline_id: int,
+    body: ClosePipelineBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> Response:
+    """Закрыть воронку: отдать CSV контактов, удалить связанные данные, уволить сотрудников только этой воронки."""
+    if not await _is_pipeline_admin_user(db, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
+    pipe = await db.get(Pipeline, pipeline_id)
+    if pipe is None or pipe.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Воронка не найдена")
+    if body.confirm_name.strip() != (pipe.name or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Для подтверждения введите точное название воронки",
+        )
+    try:
+        csv_text, filename, preview = await close_pipeline(
+            db, company_id=company_id, pipeline_id=pipeline_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    await write_audit_event(
+        db,
+        entity_type="pipeline",
+        entity_id=pipeline_id,
+        action="pipeline_closed",
+        current_user=current_user,
+        details=(
+            f"name={preview.pipeline_name}, leads={preview.leads_count}, "
+            f"terminated={len(preview.employees_to_terminate)}, "
+            f"unassigned={len(preview.employees_to_unassign)}"
+        ),
+    )
+    return Response(
+        content=csv_text.encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quote(filename)}",
+            "X-Pipeline-Closed": "1",
+            "X-Leads-Exported": str(preview.leads_count),
+            "X-Employees-Terminated": str(len(preview.employees_to_terminate)),
+        },
     )
 
 

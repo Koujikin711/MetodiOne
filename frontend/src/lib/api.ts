@@ -215,19 +215,30 @@ function filenameFromContentDisposition(cd: string | null, fallback: string): st
 }
 
 /** Скачивание бинарного/текстового ответа (CSV и т.п.) с теми же заголовками авторизации. */
-export async function apiDownloadBlob(path: string, fallbackFilename: string): Promise<void> {
+export async function apiDownloadBlob(
+  path: string,
+  fallbackFilename: string,
+  init: { method?: string; body?: string; timeoutMs?: number } = {},
+): Promise<void> {
   const headers = new Headers();
   headers.set("Accept", "text/csv,*/*");
+  if (init.body != null) headers.set("Content-Type", "application/json");
   const token = getStoredToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const companyId = getActiveCompanyId();
   if (companyId != null) headers.set("X-Company-Id", String(companyId));
 
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutMs = init.timeoutMs ?? Math.max(REQUEST_TIMEOUT_MS, 120_000);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;
   try {
-    res = await fetch(resolveApiUrl(path), { method: "GET", headers, signal: controller.signal });
+    res = await fetch(resolveApiUrl(path), {
+      method: init.method ?? "GET",
+      headers,
+      body: init.body,
+      signal: controller.signal,
+    });
   } catch (e: unknown) {
     const aborted =
       (e instanceof DOMException && e.name === "AbortError") ||
