@@ -61,6 +61,7 @@ from app.services.booking_directions import (
     direction_base_name,
     find_direction_name_conflict,
     normalize_direction_name,
+    prefer_direction_keeper,
 )
 
 router = APIRouter(prefix="/booking", tags=["booking"])
@@ -774,26 +775,29 @@ async def patch_direction(
             exclude_id=d.id,
         )
         if conflict is not None:
-            # Apply edits onto the canonical row, move specialists, archive the edited duplicate.
+            # Keep the better row (active, then oldest id). Never let an archived
+            # duplicate swallow the active direction the user is editing.
+            keeper = prefer_direction_keeper([d, conflict])
+            donor = conflict if keeper.id == d.id else d
             if "duration_min" in patch and body.duration_min is not None:
-                conflict.duration_min = body.duration_min
+                keeper.duration_min = body.duration_min
             if "pipeline_id" in patch and body.pipeline_id is not None:
                 p = await db.get(Pipeline, body.pipeline_id)
                 if p is None or p.company_id != company_id:
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестная воронка")
-                conflict.pipeline_id = body.pipeline_id
-            conflict.name = target_name
-            conflict.is_active = True
-            _apply_direction_course_stream_fields(conflict, patch)
+                keeper.pipeline_id = body.pipeline_id
+            keeper.name = target_name
+            keeper.is_active = True
+            _apply_direction_course_stream_fields(keeper, patch)
             try:
-                await absorb_direction(db, donor=d, keeper=conflict)
+                await absorb_direction(db, donor=donor, keeper=keeper)
                 await write_audit_event(
                     db,
                     entity_type="booking_direction",
-                    entity_id=conflict.id,
+                    entity_id=keeper.id,
                     action="booking_direction_merged",
                     current_user=current_user,
-                    details=f"donor_id={direction_id}, keeper_id={conflict.id}, name={conflict.name}",
+                    details=f"donor_id={donor.id}, keeper_id={keeper.id}, name={keeper.name}",
                 )
             except IntegrityError as exc:
                 raise HTTPException(
@@ -806,10 +810,10 @@ async def patch_direction(
                     detail=f"Не удалось объединить направления: {type(exc).__name__}",
                 ) from exc
             p_name: str | None = None
-            if conflict.pipeline_id is not None:
-                p = await db.get(Pipeline, conflict.pipeline_id)
+            if keeper.pipeline_id is not None:
+                p = await db.get(Pipeline, keeper.pipeline_id)
                 p_name = p.name if p is not None else None
-            return _direction_read(conflict, p_name)
+            return _direction_read(keeper, p_name)
         d.name = target_name
 
     if "duration_min" in patch and body.duration_min is not None:

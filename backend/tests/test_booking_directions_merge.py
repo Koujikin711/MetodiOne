@@ -34,3 +34,8 @@ def test_prefer_active_then_oldest() -> None:
     c = _Dir(9, "Консультация [архив #9]", False)
     assert prefer_direction_keeper([a, b, c]).id == 1
     assert prefer_direction_keeper([c, a]).id == 14
+    # Active edit target must win over archived same-name duplicate.
+    assert prefer_direction_keeper([b, a]).id == 1
+    archived = _Dir(1, "Консультация [архив #1]", False)
+    active = _Dir(14, "Консультация", True)
+    assert prefer_direction_keeper([archived, active]).id == 14

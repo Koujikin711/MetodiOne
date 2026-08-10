@@ -56,7 +56,11 @@ async def find_direction_name_conflict(
     if not key:
         return None
     rows = (
-        await db.execute(select(BookingDirection).where(BookingDirection.company_id == company_id))
+        await db.execute(
+            select(BookingDirection).where(
+                (BookingDirection.company_id == company_id) | (BookingDirection.company_id.is_(None))
+            )
+        )
     ).scalars().all()
     for row in rows:
         if exclude_id is not None and row.id == exclude_id:
