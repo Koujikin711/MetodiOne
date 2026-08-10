@@ -655,7 +655,10 @@ async def list_directions(
 ) -> list[BookingDirectionRead]:
     # Heal accidental case-duplicates (e.g. «Консультация» + «консультация») and
     # move specialists back onto the canonical active direction.
-    await consolidate_duplicate_directions(db, company_id)
+    try:
+        await consolidate_duplicate_directions(db, company_id)
+    except Exception:  # noqa: BLE001 — listing must stay available even if heal fails
+        pass
     q = (
         select(BookingDirection, Pipeline.name)
         .join(Pipeline, Pipeline.id == BookingDirection.pipeline_id, isouter=True)
@@ -675,6 +678,7 @@ async def create_direction(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
+    response: Response,
 ) -> BookingDirectionRead:
     await _assert_expert_readonly_for_booking(db, current_user)
     pipe = await db.get(Pipeline, body.pipeline_id)
@@ -704,8 +708,10 @@ async def create_direction(
         except IntegrityError as exc:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Направление с таким именем уже есть",
+                detail="Уже есть направление с таким названием (без учёта регистра)",
             ) from exc
+        response.status_code = status.HTTP_200_OK
+        response.headers["X-Direction-Reuse"] = "1"
         return _direction_read(existing, pipe.name)
 
     row = BookingDirection(
@@ -730,7 +736,7 @@ async def create_direction(
     except IntegrityError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Направление с таким именем уже есть",
+            detail="Уже есть направление с таким названием (без учёта регистра)",
         ) from exc
     return _direction_read(row, pipe.name)
 
@@ -792,7 +798,12 @@ async def patch_direction(
             except IntegrityError as exc:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="Направление с таким именем уже есть — не удалось объединить дубликаты",
+                    detail="Уже есть направление с таким названием — не удалось объединить дубликаты",
+                ) from exc
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Не удалось объединить направления: {type(exc).__name__}",
                 ) from exc
             p_name: str | None = None
             if conflict.pipeline_id is not None:
@@ -818,7 +829,7 @@ async def patch_direction(
     except IntegrityError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Направление с таким именем уже есть",
+            detail="Уже есть направление с таким названием (без учёта регистра)",
         ) from exc
     p_name = None
     if d.pipeline_id is not None:
@@ -860,7 +871,10 @@ async def list_specialists(
     company_id: CurrentCompanyId,
 ) -> list[BookingSpecialistRead]:
     await ensure_active_expert_booking_profiles(db, company_id)
-    await consolidate_duplicate_directions(db, company_id)
+    try:
+        await consolidate_duplicate_directions(db, company_id)
+    except Exception:  # noqa: BLE001 — specialists list must stay available
+        pass
     q = (
         select(BookingSpecialist, BookingDirection.name)
         .join(BookingDirection, BookingSpecialist.direction_id == BookingDirection.id)
