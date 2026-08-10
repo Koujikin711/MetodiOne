@@ -7,7 +7,6 @@ import {
   RequireFinance,
   RequireNotManager,
   RequireOwner,
-  RequireOwnerOrAdmin,
   RequireSuperOwner,
 } from "@/components/RoleRoutes";
 import { MainLayout } from "@/layouts/MainLayout";
@@ -37,7 +36,6 @@ import { OnboardingPage } from "@/pages/OnboardingPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { TeamMessengerPage } from "@/pages/TeamMessengerPage";
 import { ManagerDeskPage } from "@/pages/ManagerDeskPage";
-import { ServiceCatalogPage } from "@/pages/ServiceCatalogPage";
 
 export default function App() {
   return (
@@ -81,14 +79,6 @@ export default function App() {
               }
             />
             <Route path="/reports" element={<ExpertReportsPage />} />
-            <Route
-              path="/services"
-              element={
-                <RequireOwnerOrAdmin>
-                  <ServiceCatalogPage />
-                </RequireOwnerOrAdmin>
-              }
-            />
             <Route
               path="/employees"
               element={

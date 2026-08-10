@@ -1,7 +1,6 @@
 import {
   BarChart3,
   Calendar,
-  ClipboardList,
   Target,
   CheckSquare,
   Funnel,
@@ -67,7 +66,6 @@ export function MainLayout() {
   const isChiefExpert = Boolean(meQuery.data?.is_chief_expert);
   const isExpertElevated = isExpert && isChiefExpert;
   const isManagerLikeNav = isManagerNav || isExpertElevated;
-  const showServices = role === "owner" || role === "admin" || isChiefExpert;
   const showFinance =
     role === "owner" ||
     role === "admin" ||
@@ -125,7 +123,6 @@ export function MainLayout() {
               isManagerNav={isManagerNav}
               isExpert={isExpert}
               isChiefExpert={isChiefExpert}
-              showServices={showServices}
               showFinance={showFinance}
               showIntegrationsHub={showIntegrationsHub}
               showKpi={showKpi}
@@ -240,14 +237,6 @@ export function MainLayout() {
                   </NavLink>
                 </NavIf>
               ) : null}
-              {showServices ? (
-                <NavLink preventScrollReset to="/services" className={mobileBottomNavLinkClass} title="Каталог услуг">
-                  <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <ClipboardList className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Услуги</span>
-                </NavLink>
-              ) : null}
               <button
                 type="button"
                 onClick={logout}
@@ -350,14 +339,6 @@ export function MainLayout() {
                     <span className="text-[9px]">{navLex.navFinance}</span>
                   </NavLink>
                 </NavIf>
-              ) : null}
-              {showServices ? (
-                <NavLink preventScrollReset to="/services" className={mobileBottomNavLinkClass} title="Каталог услуг">
-                  <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <ClipboardList className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Услуги</span>
-                </NavLink>
               ) : null}
               <NavIf show={showNavForFeature("chat")}>
                 <NavLink preventScrollReset to="/chat" className={mobileBottomNavLinkClass} title="Чаты">

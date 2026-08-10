@@ -1,1 +1,1 @@
-from . import attendance, analytics, audit, auth, booking, chat, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sales_kpi_board, service_catalog, sources, stages, system, tasks, users  # noqa: F401
+from . import attendance, analytics, audit, auth, booking, chat, deals, employees, finance, integrations, leads, pipelines, reports, sales_kpi, sales_kpi_board, sources, stages, system, tasks, users  # noqa: F401

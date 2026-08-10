@@ -27,9 +27,6 @@ _FINANCE_SETTINGS_ROLES = frozenset(
     },
 )
 
-_CATALOG_WRITE_ROLES = frozenset({UserRole.owner, UserRole.admin, UserRole.super_owner})
-
-
 async def is_chief_expert(db: AsyncSession, user: User) -> bool:
     if user.role != UserRole.expert or user.company_id is None:
         return False
@@ -87,18 +84,6 @@ async def assert_finance_settings_access(db: AsyncSession, user: User) -> None:
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Настройки финансов доступны владельцу, бухгалтеру или главному эксперту",
     )
-
-
-async def can_write_service_catalog(db: AsyncSession, user: User) -> bool:
-    if user.role in _CATALOG_WRITE_ROLES:
-        return True
-    return await is_chief_expert(db, user)
-
-
-async def assert_service_catalog_write(db: AsyncSession, user: User) -> None:
-    if await can_write_service_catalog(db, user):
-        return
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ")
 
 
 def is_pipeline_admin_role(role: UserRole) -> bool:

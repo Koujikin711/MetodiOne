@@ -470,7 +470,7 @@ async def close_pipeline(
         ),
     )
 
-    # 6) Каталог услуг / enrollment (enrollment → template RESTRICT)
+    # 6) Legacy service templates / enrollments (если таблицы ещё есть)
     await db.execute(
         delete(PatientServiceEnrollment).where(
             PatientServiceEnrollment.company_id == company_id,
