@@ -664,7 +664,8 @@ async def list_directions(
         select(BookingDirection, Pipeline.name)
         .join(Pipeline, Pipeline.id == BookingDirection.pipeline_id, isouter=True)
         .where(BookingDirection.company_id == company_id)
-        .order_by(BookingDirection.id.desc())
+        # Active first, then stable name order so «Консультация» is easy to find.
+        .order_by(BookingDirection.is_active.desc(), BookingDirection.name.asc(), BookingDirection.id.asc())
     )
     if pipeline_id is not None:
         q = q.where(BookingDirection.pipeline_id == pipeline_id)
@@ -690,8 +691,13 @@ async def create_direction(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите название направления")
 
     existing = await find_direction_name_conflict(db, company_id=company_id, name=name)
+    if existing is not None and existing.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Направление «{direction_base_name(existing.name) or name}» уже есть. Откройте его в списке вместо создания второго.",
+        )
     if existing is not None:
-        # Reuse archived/case-variant instead of creating a colliding row.
+        # Restore archived / case-variant row instead of inserting a colliding name.
         existing.name = name
         existing.duration_min = body.duration_min
         existing.pipeline_id = body.pipeline_id
@@ -735,6 +741,7 @@ async def create_direction(
             details=f"name={row.name}, duration_min={row.duration_min}",
         )
     except IntegrityError as exc:
+        # Race: another request created the same name — surface as 409, never 500.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Уже есть направление с таким названием (без учёта регистра)",
@@ -775,8 +782,17 @@ async def patch_direction(
             exclude_id=d.id,
         )
         if conflict is not None:
-            # Keep the better row (active, then oldest id). Never let an archived
-            # duplicate swallow the active direction the user is editing.
+            # Two active directions with the same title: never auto-merge
+            # (that would silently eat «Невролог» into «Консультация»).
+            if conflict.is_active and d.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Направление «{direction_base_name(conflict.name) or target_name}» уже есть. "
+                        "Укажите другое название или отредактируйте существующее."
+                    ),
+                )
+            # Active + archived duplicate: fold the archive into the active row.
             keeper = prefer_direction_keeper([d, conflict])
             donor = conflict if keeper.id == d.id else d
             if "duration_min" in patch and body.duration_min is not None:
