@@ -38,8 +38,10 @@ type Props = {
   initial: BookingSpecialist | null;
   directions?: DirectionOption[];
   isSubmitting: boolean;
+  isDeleting?: boolean;
   onClose: () => void;
   onSubmit: (values: SpecialistFormValues) => void;
+  onDelete?: () => void;
 };
 
 function normWeekdays(raw: number[] | undefined): number[] {
@@ -53,8 +55,10 @@ export function SpecialistModal({
   initial,
   directions = [],
   isSubmitting,
+  isDeleting = false,
   onClose,
   onSubmit,
+  onDelete,
 }: Props) {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -362,21 +366,34 @@ export function SpecialistModal({
             />
           </label>
 
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-xl border border-[var(--mo-border-strong)] py-2.5 text-sm font-medium mo-muted transition hover:bg-[var(--mo-accent-soft)]"
-            >
-              Отмена
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || workStart >= workEnd || !workWeekdays.length}
-              className="flex-1 btn-primary"
-            >
-              {isSubmitting ? "Сохранение…" : "Сохранить"}
-            </button>
+          <div className="flex flex-col gap-2 pt-2">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting || isDeleting}
+                className="flex-1 rounded-xl border border-[var(--mo-border-strong)] py-2.5 text-sm font-medium mo-muted transition hover:bg-[var(--mo-accent-soft)]"
+              >
+                Отмена
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || isDeleting || workStart >= workEnd || !workWeekdays.length}
+                className="flex-1 btn-primary"
+              >
+                {isSubmitting ? "Сохранение…" : "Сохранить"}
+              </button>
+            </div>
+            {mode === "edit" && onDelete ? (
+              <button
+                type="button"
+                disabled={isSubmitting || isDeleting}
+                onClick={onDelete}
+                className="w-full rounded-xl border border-red-500/40 py-2.5 text-sm font-medium text-red-400 transition hover:bg-red-500/10"
+              >
+                {isDeleting ? "Удаление…" : "Удалить специалиста"}
+              </button>
+            ) : null}
           </div>
         </form>
       </div>

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import BookingDirection, BookingSpecialist
-from app.routers.booking import _apply_course_stream_fields, _specialist_read
+from app.routers.booking import _apply_course_stream_fields, _specialist_read, remove_booking_specialist
 from app.schemas.booking import BookingSpecialistRead
 from app.schemas.specialist_users import SpecialistUserCreate, SpecialistUserUpdate
 from app.services.audit import write_audit_event
@@ -101,14 +101,5 @@ async def delete_specialist_user(
     s = await db.get(BookingSpecialist, user_id)
     if s is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
-    s.is_active = False
-    await db.flush()
-    await write_audit_event(
-        db,
-        entity_type="specialist",
-        entity_id=s.id,
-        action="specialist_deactivated",
-        current_user=current_user,
-        details=f"full_name={s.full_name}",
-    )
+    await remove_booking_specialist(db, specialist=s, current_user=current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -542,7 +542,9 @@ export function OnlineBookingPage() {
       toast.error(e.message);
     },
     onSuccess: () => {
-      toast.success("Специалист скрыт из сетки");
+      toast.success("Специалист удалён");
+      setSpecialistModalOpen(false);
+      setSpecialistModalTarget(null);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["booking-specialists"] });
@@ -713,9 +715,11 @@ export function OnlineBookingPage() {
     setSpecialistModalOpen(true);
   }
 
-  function handleDeleteSpecialist(s: BookingSpecialist) {
-    if (!window.confirm(`Скрыть «${s.full_name}» из сетки онлайн-записи?`)) return;
-    deleteSpecialistUserMutation.mutate(s.id);
+  function handleDeleteSpecialistFromModal() {
+    if (!specialistModalTarget) return;
+    const name = specialistModalTarget.full_name;
+    if (!window.confirm(`Удалить специалиста «${name}»?`)) return;
+    deleteSpecialistUserMutation.mutate(specialistModalTarget.id);
   }
 
   function handleSpecialistModalSubmit(values: SpecialistFormValues) {
@@ -931,7 +935,6 @@ export function OnlineBookingPage() {
                 onAppointmentClick={onCalendarAppointmentClick}
                 onSlotClick={canEditBooking ? handleSlotClick : undefined}
                 onEditSpecialist={canEditBooking ? openEditSpecialistModal : undefined}
-                onDeleteSpecialist={canEditBooking ? handleDeleteSpecialist : undefined}
                 onReorderSpecialists={canEditBooking ? (orderedIds) => reorderSpecialistsMutation.mutate(orderedIds) : undefined}
                 showSessionInsteadOfTime={showSessionInsteadOfTime}
                 canEditNotes={canEditBooking}
@@ -1293,11 +1296,14 @@ export function OnlineBookingPage() {
           is_active: d.is_active,
         }))}
         isSubmitting={patchSpecialistUserMutation.isPending}
+        isDeleting={deleteSpecialistUserMutation.isPending}
         onClose={() => {
+          if (patchSpecialistUserMutation.isPending || deleteSpecialistUserMutation.isPending) return;
           setSpecialistModalOpen(false);
           setSpecialistModalTarget(null);
         }}
         onSubmit={handleSpecialistModalSubmit}
+        onDelete={canEditBooking ? handleDeleteSpecialistFromModal : undefined}
       />
 
       <BookingDirectionsPanel open={directionsPanelOpen} onClose={() => setDirectionsPanelOpen(false)} />
