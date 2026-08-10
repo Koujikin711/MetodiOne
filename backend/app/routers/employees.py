@@ -8,7 +8,10 @@ from urllib.parse import urlparse, urlunparse
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.config import settings
 from app.services.tariff import count_company_active_users
@@ -17,6 +20,7 @@ from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.security import hash_password
 from app.database import get_db
 from app.models import BookingDirection, BookingSpecialist, Pipeline, User, UserPipelineAssignment, UserRole
+from app.services.audit import write_audit_event
 from app.services.chief_expert_access import assert_owner_admin_or_chief_expert, assert_owner_or_chief_expert
 from app.services.mail import send_email
 
@@ -615,18 +619,37 @@ async def patch_employee_contact(
     if not changed:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет изменений")
 
-    await db.flush()
-    await write_audit_event(
-        db,
-        entity_type="employee",
-        entity_id=target.id,
-        action="employee_updated",
-        current_user=current_user,
-        details=f"email_changed={email_changed}, email={new_email}, phone={new_phone}, full_name={target.full_name}",
-    )
-    await db.refresh(target)
+    try:
+        await db.flush()
+        await write_audit_event(
+            db,
+            entity_type="employee",
+            entity_id=target.id,
+            action="employee_updated",
+            current_user=current_user,
+            details=(
+                f"email_changed={email_changed}, email={new_email}, phone={new_phone}, "
+                f"full_name={target.full_name}"
+            ),
+        )
+        await db.refresh(target)
+        employee = await _employee_read(db, target)
+        await db.commit()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        await db.rollback()
+        logger.exception("employee profile update failed id=%s", employee_id)
+        detail = f"{type(exc).__name__}: {exc}"
+        if isinstance(exc, SQLAlchemyError) and getattr(exc, "orig", None) is not None:
+            detail = f"{type(exc).__name__}: {exc.orig}"
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=detail,
+        ) from exc
+
     return PatchEmployeeContactResult(
-        employee=await _employee_read(db, target),
+        employee=employee,
         email_changed=email_changed,
         credentials_email_sent=credentials_sent,
     )
@@ -692,27 +715,45 @@ async def patch_employee_pipelines(
         for pipe in pipes_to_clear:
             pipe.intake_manager_user_id = None
 
-    await db.execute(
-        delete(UserPipelineAssignment).where(
-            UserPipelineAssignment.user_id == target.id,
-            UserPipelineAssignment.company_id == company_id,
-        ),
-    )
-    for pid in pipeline_ids:
-        db.add(UserPipelineAssignment(company_id=company_id, user_id=target.id, pipeline_id=pid))
-    await db.flush()
+    try:
+        await db.execute(
+            delete(UserPipelineAssignment).where(
+                UserPipelineAssignment.user_id == target.id,
+                UserPipelineAssignment.company_id == company_id,
+            ),
+        )
+        # С autoflush=False delete нужно зафиксировать до insert, иначе возможен unique conflict.
+        await db.flush()
+        for pid in pipeline_ids:
+            db.add(UserPipelineAssignment(company_id=company_id, user_id=target.id, pipeline_id=pid))
+        await db.flush()
 
-    await write_audit_event(
-        db,
-        entity_type="employee",
-        entity_id=target.id,
-        action="employee_pipelines_updated",
-        current_user=current_user,
-        details=f"pipeline_ids={pipeline_ids}",
-    )
+        await write_audit_event(
+            db,
+            entity_type="employee",
+            entity_id=target.id,
+            action="employee_pipelines_updated",
+            current_user=current_user,
+            details=f"pipeline_ids={pipeline_ids}",
+        )
 
-    await db.refresh(target)
-    return await _employee_read(db, target)
+        await db.refresh(target)
+        result = await _employee_read(db, target)
+        await db.commit()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        await db.rollback()
+        logger.exception("employee pipelines update failed id=%s", employee_id)
+        detail = f"{type(exc).__name__}: {exc}"
+        if isinstance(exc, SQLAlchemyError) and getattr(exc, "orig", None) is not None:
+            detail = f"{type(exc).__name__}: {exc.orig}"
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=detail,
+        ) from exc
+
+    return result
 
 
 @router.post("/{employee_id}/pipelines/set", response_model=EmployeeRead)
