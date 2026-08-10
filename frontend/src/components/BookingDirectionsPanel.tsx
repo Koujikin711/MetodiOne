@@ -34,7 +34,10 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
   });
 
   const pipelines = pipelinesQ.data ?? [];
-  const directions = directionsQ.data ?? [];
+  const directions = [...(directionsQ.data ?? [])].sort((a, b) => {
+    if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
+    return a.name.localeCompare(b.name, "ru");
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -168,9 +171,9 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
               Направления записи
             </h2>
             <p className="mt-1 text-xs mo-muted">
-              Справочник для сетки и фильтров. Имена без учёта регистра уникальны: дубликаты
-              («Консультация» / «консультация») объединяются, специалисты переносятся автоматически.
-              Архивация скрывает направление из новых записей, историю не удаляет.
+              Справочник для сетки и фильтров. Названия уникальны без учёта регистра — второе
+              «Консультация» создать нельзя (будет конфликт, не ошибка сервера). Архив скрывает
+              направление из новых записей, историю не удаляет.
             </p>
           </div>
           <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={onClose}>
