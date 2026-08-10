@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
 import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
+import { BookingDirectionsPanel } from "@/components/BookingDirectionsPanel";
 import { BookingWeekSpecialistGrid } from "@/components/BookingWeekSpecialistGrid";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
@@ -160,6 +161,7 @@ export function OnlineBookingPage() {
   const canEditDirectionStreams = currentRole === "owner" || currentRole === "admin";
 
   const [specialistModalOpen, setSpecialistModalOpen] = useState(false);
+  const [directionsPanelOpen, setDirectionsPanelOpen] = useState(false);
   const [specialistModalMode, setSpecialistModalMode] = useState<"add" | "edit">("add");
   const [specialistModalTarget, setSpecialistModalTarget] = useState<BookingSpecialist | null>(null);
   const [noteEditAppt, setNoteEditAppt] = useState<BookingAppointment | null>(null);
@@ -748,6 +750,7 @@ export function OnlineBookingPage() {
         full_name: values.full_name,
         phone,
         specialization,
+        direction_id: values.direction_id,
         slot_duration_min: values.slot_duration_min,
         role: "specialist",
         work_start_hour: values.work_start_hour,
@@ -764,6 +767,7 @@ export function OnlineBookingPage() {
           full_name: values.full_name,
           phone,
           specialization,
+          direction_id: values.direction_id,
           slot_duration_min: values.slot_duration_min,
           work_start_hour: values.work_start_hour,
           work_end_hour: values.work_end_hour,
@@ -907,9 +911,18 @@ export function OnlineBookingPage() {
               </p>
             ) : null}
           </div>
-          <div className="crm-view-switch booking-page-tabs" role="tablist" aria-label="Раздел записи">
+          <div className="crm-view-switch booking-page-tabs flex flex-wrap items-center gap-2" role="tablist" aria-label="Раздел записи">
             {tabBtn("online", "Онлайн-записи")}
             {tabBtn("journal", "Журнал")}
+            {canEditBooking ? (
+              <button
+                type="button"
+                className="btn-secondary ml-auto px-3 py-1.5 text-xs sm:text-sm"
+                onClick={() => setDirectionsPanelOpen(true)}
+              >
+                Направление записи
+              </button>
+            ) : null}
           </div>
         </div>
       </header>
@@ -1311,6 +1324,11 @@ export function OnlineBookingPage() {
         open={specialistModalOpen}
         mode={specialistModalMode}
         initial={specialistModalTarget}
+        directions={(directionsQuery.data ?? []).map((d) => ({
+          id: d.id,
+          name: d.name,
+          is_active: d.is_active,
+        }))}
         isSubmitting={
           createSpecialistUserMutation.isPending || patchSpecialistUserMutation.isPending
         }
@@ -1320,6 +1338,8 @@ export function OnlineBookingPage() {
         }}
         onSubmit={handleSpecialistModalSubmit}
       />
+
+      <BookingDirectionsPanel open={directionsPanelOpen} onClose={() => setDirectionsPanelOpen(false)} />
 
       {tab === "journal" && (
         <section className="mo-section p-5">
