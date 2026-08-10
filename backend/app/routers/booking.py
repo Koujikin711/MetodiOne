@@ -918,44 +918,13 @@ async def create_specialist(
     company_id: CurrentCompanyId,
 ) -> BookingSpecialistRead:
     await _assert_expert_readonly_for_booking(db, current_user)
-    dir_id = body.direction_id
-    if dir_id is None:
-        dir_id = await resolve_default_booking_direction_id(db, company_id)
-    d = await db.get(BookingDirection, dir_id)
-    if d is None or d.company_id != company_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное направление")
-    spec = (body.specialization or "").strip() or None
-    mx = await db.execute(select(func.coalesce(func.max(BookingSpecialist.sort_order), -1)))
-    next_sort = int(mx.scalar_one()) + 1
-    s = BookingSpecialist(
-        company_id=company_id,
-        full_name=body.full_name.strip(),
-        direction_id=dir_id,
-        phone=(body.phone or "").strip() or None,
-        specialization=spec,
-        is_active=True,
-        sort_order=next_sort,
-        slot_duration_min=body.slot_duration_min,
-        work_start_hour=body.work_start_hour,
-        work_end_hour=body.work_end_hour,
-        work_weekdays=list(body.work_weekdays),
-        course_streams_enabled=body.course_streams_enabled,
-        course_stream_max_days=body.course_stream_max_days,
-        course_stream_min_day_for_next=body.course_stream_min_day_for_next,
-        course_stream_gap_days=body.course_stream_gap_days,
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=(
+            "Специалистов нельзя добавлять из онлайн-записи. "
+            "Пригласите эксперта в «Сотрудники» — он появится в сетке автоматически."
+        ),
     )
-    db.add(s)
-    await db.flush()
-    await write_audit_event(
-        db,
-        entity_type="specialist",
-        entity_id=s.id,
-        action="specialist_created",
-        current_user=current_user,
-        details=f"full_name={s.full_name}, direction_id={s.direction_id}",
-    )
-    await db.refresh(s)
-    return _specialist_read(s, d.name)
 
 
 @router.patch("/specialists/{specialist_id}", response_model=BookingSpecialistRead)
@@ -980,8 +949,13 @@ async def patch_specialist(
         s.specialization = (body.specialization or "").strip() or None
     if "direction_id" in patch and body.direction_id is not None:
         d = await db.get(BookingDirection, body.direction_id)
-        if d is None:
+        if d is None or d.company_id != s.company_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное направление")
+        if not d.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Нельзя назначить архивное направление. Восстановите его или выберите активное.",
+            )
         s.direction_id = body.direction_id
     if "work_start_hour" in patch and body.work_start_hour is not None:
         s.work_start_hour = body.work_start_hour
