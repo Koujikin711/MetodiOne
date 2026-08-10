@@ -97,39 +97,43 @@ async def _repoint_direction_fks(db: AsyncSession, *, donor_id: int, keeper_id: 
     )
 
     # Unique-scoped KPI rows: drop donor duplicates, then move the rest.
-    keeper_price_keys = {
-        (r.pipeline_id, r.year_month)
-        for r in (
-            await db.execute(select(SalesKpiServicePrice).where(SalesKpiServicePrice.direction_id == keeper_id))
+    # Best-effort: KPI tables may be absent/partial on older DBs.
+    try:
+        keeper_price_keys = {
+            (r.pipeline_id, r.year_month)
+            for r in (
+                await db.execute(select(SalesKpiServicePrice).where(SalesKpiServicePrice.direction_id == keeper_id))
+            ).scalars().all()
+        }
+        donor_prices = (
+            await db.execute(select(SalesKpiServicePrice).where(SalesKpiServicePrice.direction_id == donor_id))
         ).scalars().all()
-    }
-    donor_prices = (
-        await db.execute(select(SalesKpiServicePrice).where(SalesKpiServicePrice.direction_id == donor_id))
-    ).scalars().all()
-    for row in donor_prices:
-        key = (row.pipeline_id, row.year_month)
-        if key in keeper_price_keys:
-            await db.delete(row)
-        else:
-            row.direction_id = keeper_id
-            keeper_price_keys.add(key)
+        for row in donor_prices:
+            key = (row.pipeline_id, row.year_month)
+            if key in keeper_price_keys:
+                await db.delete(row)
+            else:
+                row.direction_id = keeper_id
+                keeper_price_keys.add(key)
 
-    keeper_plan_keys = {
-        (r.pipeline_id, r.year_month, r.manager_user_id)
-        for r in (
-            await db.execute(select(SalesKpiServicePlan).where(SalesKpiServicePlan.direction_id == keeper_id))
+        keeper_plan_keys = {
+            (r.pipeline_id, r.year_month, r.manager_user_id)
+            for r in (
+                await db.execute(select(SalesKpiServicePlan).where(SalesKpiServicePlan.direction_id == keeper_id))
+            ).scalars().all()
+        }
+        donor_plans = (
+            await db.execute(select(SalesKpiServicePlan).where(SalesKpiServicePlan.direction_id == donor_id))
         ).scalars().all()
-    }
-    donor_plans = (
-        await db.execute(select(SalesKpiServicePlan).where(SalesKpiServicePlan.direction_id == donor_id))
-    ).scalars().all()
-    for row in donor_plans:
-        key = (row.pipeline_id, row.year_month, row.manager_user_id)
-        if key in keeper_plan_keys:
-            await db.delete(row)
-        else:
-            row.direction_id = keeper_id
-            keeper_plan_keys.add(key)
+        for row in donor_plans:
+            key = (row.pipeline_id, row.year_month, row.manager_user_id)
+            if key in keeper_plan_keys:
+                await db.delete(row)
+            else:
+                row.direction_id = keeper_id
+                keeper_plan_keys.add(key)
+    except Exception:  # noqa: BLE001
+        logger.exception("KPI direction repoint skipped donor=%s keeper=%s", donor_id, keeper_id)
 
 
 async def archive_direction_row(db: AsyncSession, direction: BookingDirection) -> None:
