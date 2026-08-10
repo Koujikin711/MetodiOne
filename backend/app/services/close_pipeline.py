@@ -7,6 +7,7 @@ import io
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +50,20 @@ def _csv_escape_cell(value: object) -> str:
 def safe_filename_part(name: str) -> str:
     cleaned = re.sub(r"[^\w\-]+", "_", name.strip(), flags=re.UNICODE)
     return (cleaned[:48] or "pipeline").strip("_") or "pipeline"
+
+
+def ascii_filename_fallback(name: str) -> str:
+    """Только ASCII для header filename= (Starlette кодирует заголовки в latin-1)."""
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", (name or "").strip())
+    return (cleaned[:64] or "download").strip("._") or "download"
+
+
+def attachment_content_disposition(download_name: str) -> str:
+    """RFC 6266: ASCII filename= + UTF-8 filename* (без кириллицы в latin-1 header)."""
+    fallback = ascii_filename_fallback(download_name)
+    if download_name.lower().endswith(".csv") and not fallback.lower().endswith(".csv"):
+        fallback = f"{fallback}.csv"
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(download_name)}"
 
 
 @dataclass
@@ -330,7 +345,7 @@ async def close_pipeline(
         db, company_id=company_id, pipeline_id=pipeline_id,
     )
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
-    filename = f"voronka_{safe_filename_part(pipe.name)}_leads_{stamp}.csv"
+    filename = f"voronka_{pipeline_id}_{safe_filename_part(pipe.name)}_leads_{stamp}.csv"
 
     stage_ids = await _stage_ids(db, company_id, pipeline_id)
     lead_ids = await _lead_ids_for_stages(db, company_id, stage_ids)

@@ -1,5 +1,4 @@
 from typing import Annotated
-from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
@@ -12,6 +11,7 @@ from app.models import Lead, Pipeline, PipelineStage, User, UserPipelineAssignme
 from app.schemas.pipeline import PipelineCreate, PipelinePatch, PipelineRead
 from app.services.audit import write_audit_event
 from app.services.close_pipeline import (
+    attachment_content_disposition,
     build_pipeline_leads_csv,
     close_pipeline,
     preview_close_pipeline,
@@ -339,7 +339,7 @@ async def export_pipeline_leads(
     csv_text, count = await build_pipeline_leads_csv(
         db, company_id=company_id, pipeline_id=pipeline_id,
     )
-    filename = f"voronka_{safe_filename_part(pipe.name)}_leads.csv"
+    filename = f"voronka_{pipeline_id}_{safe_filename_part(pipe.name)}_leads.csv"
     await write_audit_event(
         db,
         entity_type="pipeline",
@@ -352,7 +352,7 @@ async def export_pipeline_leads(
         content=csv_text.encode("utf-8"),
         media_type="text/csv; charset=utf-8",
         headers={
-            "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quote(filename)}",
+            "Content-Disposition": attachment_content_disposition(filename),
         },
     )
 
@@ -423,7 +423,7 @@ async def close_pipeline_endpoint(
         content=csv_text.encode("utf-8"),
         media_type="text/csv; charset=utf-8",
         headers={
-            "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quote(filename)}",
+            "Content-Disposition": attachment_content_disposition(filename),
             "X-Pipeline-Closed": "1",
             "X-Leads-Exported": str(preview.leads_count),
             "X-Employees-Terminated": str(len(preview.employees_to_terminate)),
