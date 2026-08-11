@@ -958,5 +958,15 @@ export interface SalesKpiCompanyReport {
   plan_lines: SalesKpiCompanyPlanLine[];
   expert_stats: SalesKpiCompanyExpertStat[];
   managers_sales_bonus_total: string | number;
+  days_elapsed?: number;
+  days_in_month?: number;
+  month_progress_percent?: number;
+  revenue_at_plan_10_percent?: string | number | null;
+  revenue_at_plan_25_percent?: string | number | null;
+  revenue_at_plan_50_percent?: string | number | null;
+  revenue_at_plan_100_percent?: string | number | null;
+  forecast_plan_completion_percent?: number | null;
+  forecast_revenue?: string | number | null;
+  forecast_note?: string;
 }
 

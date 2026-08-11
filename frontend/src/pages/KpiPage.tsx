@@ -960,6 +960,12 @@ function CompanyReportSection({
             <div className="mt-1 text-2xl font-semibold text-[var(--mo-text)]">
               {num(data.plan_completion_percent).toFixed(1)}%
             </div>
+            {data.days_in_month ? (
+              <div className="mt-1 text-xs mo-muted">
+                день {data.days_elapsed ?? 0} из {data.days_in_month} (
+                {num(data.month_progress_percent).toFixed(0)}% месяца)
+              </div>
+            ) : null}
           </div>
           <div className="rounded-xl border border-[var(--mo-border)] p-3">
             <div className="text-xs mo-muted">Выручка (TJS)</div>
@@ -987,6 +993,68 @@ function CompanyReportSection({
             <div className="mt-1 text-xs mo-muted">оплачено, срок визита ещё не наступил</div>
           </div>
         </div>
+
+        <div className="mt-4 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/50 p-4">
+          <h3 className="text-sm font-semibold text-[var(--mo-text)]">Выручка при 100% плана</h3>
+          <p className="mt-1 text-xs mo-muted">
+            Оценка целевой выручки: текущая выручка ÷ текущий % плана × 100%. Рядом — факт и промежуточные
+            ориентиры 25% / 50%.
+          </p>
+          {data.revenue_at_plan_100_percent == null ? (
+            <p className="mt-3 text-sm lux-caption">
+              Недостаточно данных (нужны выручка и выполнение плана &gt; 0).
+            </p>
+          ) : (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 sm:col-span-2 lg:col-span-1">
+                <div className="text-[11px] font-medium text-emerald-200">При 100% плана</div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums text-[var(--mo-text)]">
+                  {formatMoney(data.revenue_at_plan_100_percent)}
+                </div>
+              </div>
+              <div className="rounded-lg border border-[var(--mo-border)] p-3">
+                <div className="text-[11px] mo-muted">Сейчас факт</div>
+                <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--mo-text)]">
+                  {num(data.plan_completion_percent).toFixed(1)}% · {formatMoney(data.revenue_total)}
+                </div>
+              </div>
+              <div className="rounded-lg border border-[var(--mo-border)] p-3">
+                <div className="text-[11px] mo-muted">При 25%</div>
+                <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--mo-text)]">
+                  {formatMoney(data.revenue_at_plan_25_percent)}
+                </div>
+              </div>
+              <div className="rounded-lg border border-[var(--mo-border)] p-3">
+                <div className="text-[11px] mo-muted">При 50%</div>
+                <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--mo-text)]">
+                  {formatMoney(data.revenue_at_plan_50_percent)}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 rounded-xl border border-[var(--mo-border)] p-4">
+          <h3 className="text-sm font-semibold text-[var(--mo-text)]">Прогноз на конец месяца</h3>
+          <p className="mt-1 text-xs mo-muted">{data.forecast_note || "—"}</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <div className="text-xs mo-muted">Прогноз выполнения плана</div>
+              <div className="mt-1 text-2xl font-semibold text-[var(--mo-text)]">
+                {data.forecast_plan_completion_percent == null
+                  ? "—"
+                  : `${num(data.forecast_plan_completion_percent).toFixed(1)}%`}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs mo-muted">Прогноз выручки</div>
+              <div className="mt-1 text-2xl font-semibold kpi-actual-value">
+                {data.forecast_revenue == null ? "—" : formatMoney(data.forecast_revenue)}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <p className="mt-3 text-sm mo-muted">
           Сумма бонусов менеджеров (из ПРОДАЖИ):{" "}
           <span className="font-medium text-[var(--mo-text)]">

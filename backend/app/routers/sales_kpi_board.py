@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
+import calendar
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -1025,13 +1026,55 @@ async def company_report(
     ]
 
     plan_pct = float((total_contrib * Decimal("100")).quantize(Decimal("0.01")))
+    revenue_total = revenue_booking + revenue_manual
+
+    # Дни месяца для прогноза (линейный run-rate)
+    days_in_month = calendar.monthrange(ym.year, ym.month)[1]
+    today = now.date()
+    if today.year == ym.year and today.month == ym.month:
+        days_elapsed = max(1, min(today.day, days_in_month))
+        month_phase = "current"
+    elif today > date(ym.year, ym.month, days_in_month):
+        days_elapsed = days_in_month
+        month_phase = "past"
+    else:
+        days_elapsed = 0
+        month_phase = "future"
+    month_progress = float(
+        (Decimal(days_elapsed) / Decimal(days_in_month) * Decimal("100")).quantize(Decimal("0.1"))
+    ) if days_in_month else 0.0
+
+    def _revenue_at_plan_pct(target_pct: float) -> Decimal | None:
+        """Оценка выручки при target_pct% плана: текущая выручка × (target / текущий %)."""
+        if plan_pct < 0.01 or revenue_total <= 0:
+            return None
+        return (revenue_total * Decimal(str(target_pct)) / Decimal(str(plan_pct))).quantize(Decimal("0.01"))
+
+    if month_phase == "past":
+        forecast_pct: float | None = plan_pct
+        forecast_rev: Decimal | None = revenue_total
+        forecast_note = "Месяц завершён — прогноз равен факту."
+    elif month_phase == "future":
+        forecast_pct = None
+        forecast_rev = None
+        forecast_note = "Месяц ещё не начался — прогноз появится после первых продаж."
+    else:
+        # Линейный прогноз: факт / доля прошедшего месяца
+        scale = Decimal(days_in_month) / Decimal(days_elapsed)
+        forecast_pct = float((Decimal(str(plan_pct)) * scale).quantize(Decimal("0.01")))
+        forecast_rev = (revenue_total * scale).quantize(Decimal("0.01"))
+        forecast_note = (
+            f"Прогноз до конца месяца: линейно от факта за {days_elapsed} из {days_in_month} дн. "
+            f"(темп × {float(scale):.2f})."
+        )
+
     return SalesKpiCompanyReport(
         pipeline_id=pipe.id,
         pipeline_name=pipe.name,
         year_month=ym.isoformat()[:7],
         plan_completion_percent=plan_pct,
         total_contribution=total_contrib,
-        revenue_total=revenue_booking + revenue_manual,
+        revenue_total=revenue_total,
         revenue_booking=revenue_booking,
         revenue_manual=revenue_manual,
         debtor_total=debtor_booking + debtor_manual,
@@ -1041,4 +1084,14 @@ async def company_report(
         plan_lines=plan_lines,
         expert_stats=expert_stats,
         managers_sales_bonus_total=managers_bonus.quantize(Decimal("0.01")),
+        days_elapsed=days_elapsed,
+        days_in_month=days_in_month,
+        month_progress_percent=month_progress,
+        revenue_at_plan_10_percent=_revenue_at_plan_pct(10),
+        revenue_at_plan_25_percent=_revenue_at_plan_pct(25),
+        revenue_at_plan_50_percent=_revenue_at_plan_pct(50),
+        revenue_at_plan_100_percent=_revenue_at_plan_pct(100),
+        forecast_plan_completion_percent=forecast_pct,
+        forecast_revenue=forecast_rev,
+        forecast_note=forecast_note,
     )
