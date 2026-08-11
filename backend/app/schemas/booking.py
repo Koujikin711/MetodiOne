@@ -46,6 +46,7 @@ class BookingSpecialistRead(BaseModel):
     id: int
     full_name: str
     direction_id: int
+    direction_ids: list[int] = Field(default_factory=list)
     direction_name: str | None = None
     phone: str | None
     specialization: str | None = None
@@ -79,6 +80,10 @@ class BookingSpecialistCreate(BaseModel):
         default=None,
         ge=1,
         description="Если не указано — первое активное направление компании (внутренняя привязка)",
+    )
+    direction_ids: list[int] | None = Field(
+        default=None,
+        description="Несколько направлений; первое становится основным (direction_id)",
     )
     phone: str | None = Field(None, max_length=64)
     specialization: str | None = Field(None, max_length=255)
@@ -114,6 +119,10 @@ class BookingSpecialistCreate(BaseModel):
 class BookingSpecialistUpdate(BaseModel):
     full_name: str | None = Field(None, min_length=1, max_length=255)
     direction_id: int | None = Field(None, ge=1)
+    direction_ids: list[int] | None = Field(
+        default=None,
+        description="Полный список направлений; первое — основное",
+    )
     phone: str | None = Field(None, max_length=64)
     specialization: str | None = Field(None, max_length=255)
     slot_duration_min: int | None = Field(None, ge=15, le=240)
@@ -192,7 +201,7 @@ class BookingAppointmentCreate(BaseModel):
     direction_id: int | None = Field(
         default=None,
         ge=1,
-        description="Устарело: всегда берётся направление выбранного специалиста",
+        description="Направление записи; должно входить в направления специалиста",
     )
     specialist_id: int = Field(..., ge=1)
     start_at: datetime

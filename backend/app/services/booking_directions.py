@@ -5,13 +5,14 @@ from __future__ import annotations
 import logging
 import re
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
     BookingAppointment,
     BookingDirection,
     BookingSpecialist,
+    BookingSpecialistDirection,
     PatientServiceEnrollment,
     SalesKpiPlanItem,
     SalesKpiServicePlan,
@@ -70,9 +71,147 @@ async def find_direction_name_conflict(
     return None
 
 
+async def get_specialist_direction_ids(db: AsyncSession, specialist_id: int) -> list[int]:
+    rows = (
+        await db.execute(
+            select(BookingSpecialistDirection.direction_id)
+            .where(BookingSpecialistDirection.specialist_id == specialist_id)
+            .order_by(BookingSpecialistDirection.id.asc())
+        )
+    ).all()
+    return [int(r[0]) for r in rows]
+
+
+async def load_specialist_direction_ids_map(
+    db: AsyncSession,
+    specialist_ids: list[int],
+) -> dict[int, list[int]]:
+    if not specialist_ids:
+        return {}
+    out: dict[int, list[int]] = {int(sid): [] for sid in specialist_ids}
+    rows = (
+        await db.execute(
+            select(BookingSpecialistDirection.specialist_id, BookingSpecialistDirection.direction_id)
+            .where(BookingSpecialistDirection.specialist_id.in_(specialist_ids))
+            .order_by(BookingSpecialistDirection.id.asc())
+        )
+    ).all()
+    for sid, did in rows:
+        out.setdefault(int(sid), []).append(int(did))
+    return out
+
+
+def _dedupe_direction_ids(direction_ids: list[int]) -> list[int]:
+    seen: set[int] = set()
+    ordered: list[int] = []
+    for raw in direction_ids:
+        did = int(raw)
+        if did in seen:
+            continue
+        seen.add(did)
+        ordered.append(did)
+    return ordered
+
+
+async def set_specialist_directions(
+    db: AsyncSession,
+    *,
+    specialist: BookingSpecialist,
+    direction_ids: list[int],
+    require_active: bool = True,
+) -> list[int]:
+    """Replace specialist↔direction links. First id becomes primary ``direction_id``."""
+    ordered = _dedupe_direction_ids(direction_ids)
+    if not ordered:
+        raise ValueError("Укажите хотя бы одно направление")
+
+    dirs = (
+        await db.execute(select(BookingDirection).where(BookingDirection.id.in_(ordered)))
+    ).scalars().all()
+    by_id = {int(d.id): d for d in dirs}
+    for did in ordered:
+        d = by_id.get(did)
+        if d is None or (specialist.company_id is not None and d.company_id != specialist.company_id):
+            raise ValueError(f"Неизвестное направление: {did}")
+        if require_active and not d.is_active:
+            raise ValueError(
+                "Нельзя назначить архивное направление. Восстановите его или выберите активное.",
+            )
+
+    await db.execute(
+        delete(BookingSpecialistDirection).where(
+            BookingSpecialistDirection.specialist_id == specialist.id,
+        )
+    )
+    for did in ordered:
+        db.add(
+            BookingSpecialistDirection(
+                specialist_id=specialist.id,
+                direction_id=did,
+            )
+        )
+    specialist.direction_id = ordered[0]
+    await db.flush()
+    return ordered
+
+
+async def ensure_specialist_direction_link(
+    db: AsyncSession,
+    *,
+    specialist: BookingSpecialist,
+    direction_id: int,
+    make_primary: bool = True,
+) -> list[int]:
+    """Ensure ``direction_id`` is linked; optionally move it to primary without wiping others."""
+    current = await get_specialist_direction_ids(db, specialist.id)
+    if not current:
+        return await set_specialist_directions(
+            db,
+            specialist=specialist,
+            direction_ids=[direction_id],
+        )
+    if make_primary:
+        rest = [x for x in current if x != int(direction_id)]
+        return await set_specialist_directions(
+            db,
+            specialist=specialist,
+            direction_ids=[int(direction_id), *rest],
+        )
+    if int(direction_id) in current:
+        return current
+    return await set_specialist_directions(
+        db,
+        specialist=specialist,
+        direction_ids=[*current, int(direction_id)],
+    )
+
+
 async def _repoint_direction_fks(db: AsyncSession, *, donor_id: int, keeper_id: int) -> None:
     if donor_id == keeper_id:
         return
+
+    # Junction: drop donor rows that would duplicate keeper, then rename the rest.
+    donor_links = (
+        await db.execute(
+            select(BookingSpecialistDirection).where(BookingSpecialistDirection.direction_id == donor_id)
+        )
+    ).scalars().all()
+    keeper_specs = {
+        int(r[0])
+        for r in (
+            await db.execute(
+                select(BookingSpecialistDirection.specialist_id).where(
+                    BookingSpecialistDirection.direction_id == keeper_id
+                )
+            )
+        ).all()
+    }
+    for link in donor_links:
+        if int(link.specialist_id) in keeper_specs:
+            await db.delete(link)
+        else:
+            link.direction_id = keeper_id
+    await db.flush()
 
     await db.execute(
         update(BookingSpecialist)

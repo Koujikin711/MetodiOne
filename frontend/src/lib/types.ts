@@ -459,6 +459,8 @@ export interface BookingSpecialist {
   id: number;
   full_name: string;
   direction_id: number;
+  /** Все направления специалиста; первое совпадает с direction_id */
+  direction_ids?: number[];
   direction_name: string | null;
   phone: string | null;
   /** Может отсутствовать у кэша до обновления API */
@@ -878,6 +880,8 @@ export interface SalesKpiManualSale {
   manager_name: string;
   client_name: string;
   client_phone: string;
+  /** Номер потока (Поток 1, 2, …); может отсутствовать у старых записей */
+  stream_no?: number | null;
   service_amount: string | number;
   paid_amount: string | number;
   debt_amount: string | number;

@@ -60,8 +60,11 @@ from app.services.booking_directions import (
     consolidate_duplicate_directions,
     direction_base_name,
     find_direction_name_conflict,
+    get_specialist_direction_ids,
+    load_specialist_direction_ids_map,
     normalize_direction_name,
     prefer_direction_keeper,
+    set_specialist_directions,
 )
 
 router = APIRouter(prefix="/booking", tags=["booking"])
@@ -411,11 +414,21 @@ def _direction_read(d: BookingDirection, pipeline_name: str | None) -> BookingDi
     )
 
 
-def _specialist_read(s: BookingSpecialist, direction_name: str | None) -> BookingSpecialistRead:
+def _specialist_read(
+    s: BookingSpecialist,
+    direction_name: str | None,
+    direction_ids: list[int] | None = None,
+) -> BookingSpecialistRead:
+    ids = list(direction_ids) if direction_ids is not None else []
+    if not ids:
+        ids = [int(s.direction_id)]
+    elif int(s.direction_id) not in ids:
+        ids = [int(s.direction_id), *ids]
     return BookingSpecialistRead(
         id=s.id,
         full_name=s.full_name,
         direction_id=s.direction_id,
+        direction_ids=ids,
         direction_name=direction_name,
         phone=s.phone,
         specialization=s.specialization,
@@ -907,7 +920,11 @@ async def list_specialists(
     q = q.order_by(BookingSpecialist.sort_order.asc(), BookingSpecialist.id.asc())
     result = await db.execute(q)
     rows = result.all()
-    return [_specialist_read(s, dname) for s, dname in rows]
+    ids_map = await load_specialist_direction_ids_map(db, [int(s.id) for s, _ in rows])
+    return [
+        _specialist_read(s, dname, ids_map.get(int(s.id)) or [int(s.direction_id)])
+        for s, dname in rows
+    ]
 
 
 @router.post("/specialists", response_model=BookingSpecialistRead, status_code=status.HTTP_201_CREATED)
@@ -947,16 +964,24 @@ async def patch_specialist(
         s.phone = (body.phone or "").strip() or None
     if "specialization" in patch:
         s.specialization = (body.specialization or "").strip() or None
-    if "direction_id" in patch and body.direction_id is not None:
-        d = await db.get(BookingDirection, body.direction_id)
-        if d is None or d.company_id != s.company_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное направление")
-        if not d.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Нельзя назначить архивное направление. Восстановите его или выберите активное.",
+    if "direction_ids" in patch and body.direction_ids is not None:
+        try:
+            await set_specialist_directions(
+                db,
+                specialist=s,
+                direction_ids=list(body.direction_ids),
             )
-        s.direction_id = body.direction_id
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    elif "direction_id" in patch and body.direction_id is not None:
+        try:
+            await set_specialist_directions(
+                db,
+                specialist=s,
+                direction_ids=[int(body.direction_id)],
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if "work_start_hour" in patch and body.work_start_hour is not None:
         s.work_start_hour = body.work_start_hour
     if "work_end_hour" in patch and body.work_end_hour is not None:
@@ -982,7 +1007,8 @@ async def patch_specialist(
             detail="Конец приёма должен быть позже начала",
         )
     d = await db.get(BookingDirection, s.direction_id)
-    return _specialist_read(s, d.name if d else None)
+    dir_ids = await get_specialist_direction_ids(db, s.id)
+    return _specialist_read(s, d.name if d else None, dir_ids or [int(s.direction_id)])
 
 
 async def remove_booking_specialist(
@@ -1616,12 +1642,18 @@ async def create_appointment(
     if specialist is None or specialist.company_id != company_id or not specialist.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
     await _assert_expert_specialist_access(db, current_user, specialist)
-    resolved_direction_id = int(specialist.direction_id)
-    if body.direction_id is not None and int(body.direction_id) != resolved_direction_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="direction_id не совпадает с направлением выбранного специалиста",
-        )
+    allowed_direction_ids = await get_specialist_direction_ids(db, specialist.id)
+    if not allowed_direction_ids:
+        allowed_direction_ids = [int(specialist.direction_id)]
+    if body.direction_id is not None:
+        if int(body.direction_id) not in allowed_direction_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="direction_id не входит в направления выбранного специалиста",
+            )
+        resolved_direction_id = int(body.direction_id)
+    else:
+        resolved_direction_id = int(specialist.direction_id)
     direction = await db.get(BookingDirection, resolved_direction_id)
     if direction is None or direction.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
@@ -1828,7 +1860,14 @@ async def move_appointment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Специалист не найден")
     await _assert_expert_specialist_access(db, current_user, specialist)
 
-    direction = await db.get(BookingDirection, specialist.direction_id)
+    allowed_direction_ids = await get_specialist_direction_ids(db, specialist.id)
+    if not allowed_direction_ids:
+        allowed_direction_ids = [int(specialist.direction_id)]
+    if int(appt.direction_id) in allowed_direction_ids:
+        move_direction_id = int(appt.direction_id)
+    else:
+        move_direction_id = int(specialist.direction_id)
+    direction = await db.get(BookingDirection, move_direction_id)
     if direction is None or direction.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
 
@@ -1852,7 +1891,7 @@ async def move_appointment(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже занят")
 
     appt.specialist_id = specialist.id
-    appt.direction_id = specialist.direction_id
+    appt.direction_id = move_direction_id
     appt.start_at = start_at
     appt.end_at = end_at
     appt.updated_at = datetime.now(UTC)

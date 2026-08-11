@@ -202,6 +202,36 @@ def _manual_counts_in_kpi(service_amount: Decimal, paid_amount: Decimal, status:
     return paid_amount >= (service_amount * MANUAL_SALE_MIN_PAID_RATIO)
 
 
+def _manual_sale_out(
+    sale: SalesKpiManualSale,
+    *,
+    plan_item_name: str,
+    manager_name: str,
+) -> SalesKpiManualSaleOut:
+    sa = Decimal(str(sale.service_amount or 0))
+    pa = Decimal(str(sale.paid_amount or 0))
+    stream_raw = getattr(sale, "stream_no", None)
+    return SalesKpiManualSaleOut(
+        id=int(sale.id),
+        pipeline_id=int(sale.pipeline_id),
+        plan_item_id=int(sale.plan_item_id),
+        plan_item_name=plan_item_name,
+        manager_user_id=int(sale.manager_user_id),
+        manager_name=manager_name,
+        client_name=sale.client_name,
+        client_phone=sale.client_phone,
+        stream_no=int(stream_raw) if stream_raw is not None else None,
+        service_amount=sa,
+        paid_amount=pa,
+        debt_amount=max(sa - pa, Decimal("0")),
+        sold_at=sale.sold_at,
+        status=sale.status,
+        returned_at=sale.returned_at,
+        note=sale.note,
+        counts_in_kpi=_manual_counts_in_kpi(sa, pa, sale.status),
+    )
+
+
 async def _build_sales_report(
     db: AsyncSession,
     *,
@@ -518,26 +548,11 @@ async def list_manual_sales(
 
     out: list[SalesKpiManualSaleOut] = []
     for sale, item_name, full_name, email in rows:
-        sa = Decimal(str(sale.service_amount or 0))
-        pa = Decimal(str(sale.paid_amount or 0))
         out.append(
-            SalesKpiManualSaleOut(
-                id=int(sale.id),
-                pipeline_id=int(sale.pipeline_id),
-                plan_item_id=int(sale.plan_item_id),
+            _manual_sale_out(
+                sale,
                 plan_item_name=str(item_name),
-                manager_user_id=int(sale.manager_user_id),
                 manager_name=str(full_name or email or f"#{sale.manager_user_id}"),
-                client_name=sale.client_name,
-                client_phone=sale.client_phone,
-                service_amount=sa,
-                paid_amount=pa,
-                debt_amount=max(sa - pa, Decimal("0")),
-                sold_at=sale.sold_at,
-                status=sale.status,
-                returned_at=sale.returned_at,
-                note=sale.note,
-                counts_in_kpi=_manual_counts_in_kpi(sa, pa, sale.status),
             ),
         )
     return out
@@ -580,6 +595,7 @@ async def create_manual_sale(
         manager_user_id=body.manager_user_id,
         client_name=body.client_name.strip(),
         client_phone=body.client_phone.strip(),
+        stream_no=int(body.stream_no),
         service_amount=body.service_amount,
         paid_amount=body.paid_amount,
         sold_at=sold_at,
@@ -591,25 +607,10 @@ async def create_manual_sale(
     await db.commit()
     await db.refresh(sale)
 
-    sa = Decimal(str(sale.service_amount))
-    pa = Decimal(str(sale.paid_amount))
-    return SalesKpiManualSaleOut(
-        id=int(sale.id),
-        pipeline_id=int(sale.pipeline_id),
-        plan_item_id=int(sale.plan_item_id),
+    return _manual_sale_out(
+        sale,
         plan_item_name=item.name,
-        manager_user_id=int(sale.manager_user_id),
         manager_name=str(manager.full_name or manager.email or f"#{manager.id}"),
-        client_name=sale.client_name,
-        client_phone=sale.client_phone,
-        service_amount=sa,
-        paid_amount=pa,
-        debt_amount=max(sa - pa, Decimal("0")),
-        sold_at=sale.sold_at,
-        status=sale.status,
-        returned_at=sale.returned_at,
-        note=sale.note,
-        counts_in_kpi=_manual_counts_in_kpi(sa, pa, sale.status),
     )
 
 
@@ -640,25 +641,14 @@ async def patch_manual_sale_payment(
 
     item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
     manager = await db.get(User, sale.manager_user_id)
-    sa = Decimal(str(sale.service_amount))
-    pa = Decimal(str(sale.paid_amount))
-    return SalesKpiManualSaleOut(
-        id=int(sale.id),
-        pipeline_id=int(sale.pipeline_id),
-        plan_item_id=int(sale.plan_item_id),
+    return _manual_sale_out(
+        sale,
         plan_item_name=item.name if item else "",
-        manager_user_id=int(sale.manager_user_id),
-        manager_name=str((manager.full_name if manager else None) or (manager.email if manager else None) or f"#{sale.manager_user_id}"),
-        client_name=sale.client_name,
-        client_phone=sale.client_phone,
-        service_amount=sa,
-        paid_amount=pa,
-        debt_amount=max(sa - pa, Decimal("0")),
-        sold_at=sale.sold_at,
-        status=sale.status,
-        returned_at=sale.returned_at,
-        note=sale.note,
-        counts_in_kpi=_manual_counts_in_kpi(sa, pa, sale.status),
+        manager_name=str(
+            (manager.full_name if manager else None)
+            or (manager.email if manager else None)
+            or f"#{sale.manager_user_id}"
+        ),
     )
 
 
@@ -685,26 +675,17 @@ async def return_manual_sale(
 
     item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
     manager = await db.get(User, sale.manager_user_id)
-    sa = Decimal(str(sale.service_amount))
-    pa = Decimal(str(sale.paid_amount))
-    return SalesKpiManualSaleOut(
-        id=int(sale.id),
-        pipeline_id=int(sale.pipeline_id),
-        plan_item_id=int(sale.plan_item_id),
+    out = _manual_sale_out(
+        sale,
         plan_item_name=item.name if item else "",
-        manager_user_id=int(sale.manager_user_id),
-        manager_name=str((manager.full_name if manager else None) or (manager.email if manager else None) or f"#{sale.manager_user_id}"),
-        client_name=sale.client_name,
-        client_phone=sale.client_phone,
-        service_amount=sa,
-        paid_amount=pa,
-        debt_amount=max(sa - pa, Decimal("0")),
-        sold_at=sale.sold_at,
-        status=sale.status,
-        returned_at=sale.returned_at,
-        note=sale.note,
-        counts_in_kpi=False,
+        manager_name=str(
+            (manager.full_name if manager else None)
+            or (manager.email if manager else None)
+            or f"#{sale.manager_user_id}"
+        ),
     )
+    out.counts_in_kpi = False
+    return out
 
 
 @router.get("/debtors", response_model=SalesKpiDebtorsReport)

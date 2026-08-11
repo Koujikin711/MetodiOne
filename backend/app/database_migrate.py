@@ -1173,6 +1173,9 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
                 )""",
             ),
         )
+        cols = {row[1] for row in (await conn.execute(text("PRAGMA table_info(sales_kpi_manual_sales)"))).fetchall()}
+        if "stream_no" not in cols:
+            await conn.execute(text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN stream_no INTEGER"))
         return
 
     if "postgresql" in low or "asyncpg" in low:
@@ -1284,6 +1287,9 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
                     CONSTRAINT uq_sales_kpi_plan_item_specialist UNIQUE (plan_item_id, specialist_id)
                 )""",
             ),
+        )
+        await conn.execute(
+            text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN IF NOT EXISTS stream_no INTEGER"),
         )
 
 
@@ -1918,3 +1924,73 @@ async def ensure_lead_extra_phones_tables(conn: AsyncConnection, database_url: s
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_lead_extra_phones_lead_id ON lead_extra_phones (lead_id)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_lead_extra_phones_phone ON lead_extra_phones (phone)"))
 
+
+async def ensure_booking_specialist_directions(conn: AsyncConnection, database_url: str) -> None:
+    """Many-to-many specialist↔direction; backfill from booking_specialists.direction_id."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    pg = "postgresql" in low or "postgres" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS booking_specialist_directions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    specialist_id INTEGER NOT NULL REFERENCES booking_specialists(id) ON DELETE CASCADE,
+                    direction_id INTEGER NOT NULL REFERENCES booking_directions(id) ON DELETE CASCADE,
+                    UNIQUE (specialist_id, direction_id)
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_booking_specialist_directions_specialist_id "
+                "ON booking_specialist_directions (specialist_id)"
+            ),
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_booking_specialist_directions_direction_id "
+                "ON booking_specialist_directions (direction_id)"
+            ),
+        )
+        await conn.execute(
+            text(
+                """INSERT OR IGNORE INTO booking_specialist_directions (specialist_id, direction_id)
+                   SELECT id, direction_id FROM booking_specialists
+                   WHERE direction_id IS NOT NULL"""
+            ),
+        )
+    elif pg:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS booking_specialist_directions (
+                    id SERIAL PRIMARY KEY,
+                    specialist_id INTEGER NOT NULL REFERENCES booking_specialists(id) ON DELETE CASCADE,
+                    direction_id INTEGER NOT NULL REFERENCES booking_directions(id) ON DELETE CASCADE,
+                    CONSTRAINT uq_booking_specialist_direction UNIQUE (specialist_id, direction_id)
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_booking_specialist_directions_specialist_id "
+                "ON booking_specialist_directions (specialist_id)"
+            ),
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_booking_specialist_directions_direction_id "
+                "ON booking_specialist_directions (direction_id)"
+            ),
+        )
+        await conn.execute(
+            text(
+                """INSERT INTO booking_specialist_directions (specialist_id, direction_id)
+                   SELECT s.id, s.direction_id FROM booking_specialists s
+                   WHERE s.direction_id IS NOT NULL
+                     AND NOT EXISTS (
+                       SELECT 1 FROM booking_specialist_directions x
+                       WHERE x.specialist_id = s.id AND x.direction_id = s.direction_id
+                     )"""
+            ),
+        )
