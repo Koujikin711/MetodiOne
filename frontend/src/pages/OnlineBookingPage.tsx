@@ -204,10 +204,11 @@ export function OnlineBookingPage() {
     enabled: newLeadPipelineId != null,
   });
   const specialistDirectionForKpi = useMemo(() => {
+    if (serviceDirectionId !== "") return serviceDirectionId;
     const list = specialistsQuery.data?.filter((s) => s.is_active) ?? [];
     const s = list.find((x) => x.id === specialistId);
     return s?.direction_id ?? 0;
-  }, [specialistsQuery.data, specialistId]);
+  }, [serviceDirectionId, specialistsQuery.data, specialistId]);
   const selectedSpecialistForForm = useMemo(() => {
     const list = specialistsQuery.data?.filter((s) => s.is_active) ?? [];
     return list.find((x) => x.id === specialistId);
