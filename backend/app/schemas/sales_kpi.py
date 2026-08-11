@@ -275,3 +275,14 @@ class SalesKpiCompanyReport(BaseModel):
     plan_lines: list[SalesKpiCompanyPlanLine]
     expert_stats: list[SalesKpiCompanyExpertStat]
     managers_sales_bonus_total: Decimal
+    # Шкала / прогноз
+    days_elapsed: int = 0
+    days_in_month: int = 0
+    month_progress_percent: float = 0
+    revenue_at_plan_10_percent: Decimal | None = None
+    revenue_at_plan_25_percent: Decimal | None = None
+    revenue_at_plan_50_percent: Decimal | None = None
+    revenue_at_plan_100_percent: Decimal | None = None
+    forecast_plan_completion_percent: float | None = None
+    forecast_revenue: Decimal | None = None
+    forecast_note: str = ""
