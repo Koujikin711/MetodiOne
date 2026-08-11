@@ -318,6 +318,20 @@ export function EmployeesPage() {
     setEditPipelineIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  const resendCredentialsMutation = useMutation({
+    mutationFn: async (employeeId: number) =>
+      apiFetch<{
+        employee_id: number;
+        email_sent: boolean;
+        whatsapp_sent: boolean;
+        detail: string;
+      }>(`/api/employees/${employeeId}/resend-credentials`, { method: "POST" }),
+    onSuccess: (r) => {
+      toast.success(r.detail || "Логин и пароль отправлены");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const saveEmployeeMutation = useMutation({
     mutationFn: async () => {
       if (!editEmployee) throw new Error("Сотрудник не выбран");
