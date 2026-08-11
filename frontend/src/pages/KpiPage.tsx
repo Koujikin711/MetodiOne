@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { AccessDenied } from "@/components/AccessDenied";
+import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { formatMoney } from "@/lib/money";
@@ -294,12 +295,7 @@ export function KpiPage() {
       <section className="grid gap-3 mo-section p-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm mo-muted">
           Месяц
-          <input
-            type="month"
-            value={yearMonth}
-            onChange={(e) => setYearMonth(e.target.value)}
-            className="mo-input"
-          />
+          <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
         </label>
         <label className="flex flex-col gap-1 text-sm mo-muted">
           Воронка
