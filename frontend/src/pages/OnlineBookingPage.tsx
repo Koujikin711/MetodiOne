@@ -749,6 +749,7 @@ export function OnlineBookingPage() {
         phone,
         specialization,
         direction_id: values.direction_id,
+        direction_ids: values.direction_ids,
         slot_duration_min: values.slot_duration_min,
         work_start_hour: values.work_start_hour,
         work_end_hour: values.work_end_hour,
@@ -841,6 +842,17 @@ export function OnlineBookingPage() {
       paid_amount: resolvedPaidAmount,
       comment: comment.trim() || null,
     };
+    const specDirs =
+      selectedSpecialistForForm?.direction_ids?.length
+        ? selectedSpecialistForForm.direction_ids
+        : selectedSpecialistForForm?.direction_id != null
+          ? [selectedSpecialistForForm.direction_id]
+          : [];
+    if (serviceDirectionId !== "" && specDirs.includes(serviceDirectionId)) {
+      payload.direction_id = serviceDirectionId;
+    } else if (selectedSpecialistForForm?.direction_id != null) {
+      payload.direction_id = selectedSpecialistForForm.direction_id;
+    }
     if (resolvedPaidAmount > resolvedServiceAmount) {
       toast.error("Оплата не может быть больше стоимости услуги");
       return;

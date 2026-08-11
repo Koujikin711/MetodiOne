@@ -17,6 +17,7 @@ from app.routers.booking import (
 from app.schemas.booking import BookingSpecialistRead
 from app.schemas.specialist_users import SpecialistUserCreate, SpecialistUserUpdate
 from app.services.audit import write_audit_event
+from app.services.booking_directions import get_specialist_direction_ids, set_specialist_directions
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -60,16 +61,24 @@ async def patch_specialist_user(
         s.phone = (body.phone or "").strip() or None
     if "specialization" in patch:
         s.specialization = (body.specialization or "").strip() or None
-    if "direction_id" in patch and body.direction_id is not None:
-        d = await db.get(BookingDirection, body.direction_id)
-        if d is None or (s.company_id is not None and d.company_id != s.company_id):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестное направление")
-        if not d.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Нельзя назначить архивное направление. Восстановите его или выберите активное.",
+    if "direction_ids" in patch and body.direction_ids is not None:
+        try:
+            await set_specialist_directions(
+                db,
+                specialist=s,
+                direction_ids=list(body.direction_ids),
             )
-        s.direction_id = body.direction_id
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    elif "direction_id" in patch and body.direction_id is not None:
+        try:
+            await set_specialist_directions(
+                db,
+                specialist=s,
+                direction_ids=[int(body.direction_id)],
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if "work_start_hour" in patch and body.work_start_hour is not None:
         s.work_start_hour = body.work_start_hour
     if "slot_duration_min" in patch and body.slot_duration_min is not None:
@@ -96,7 +105,8 @@ async def patch_specialist_user(
             detail="Конец приёма должен быть позже начала",
         )
     d = await db.get(BookingDirection, s.direction_id)
-    return _specialist_read(s, d.name if d else None)
+    dir_ids = await get_specialist_direction_ids(db, s.id)
+    return _specialist_read(s, d.name if d else None, dir_ids or [int(s.direction_id)])
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

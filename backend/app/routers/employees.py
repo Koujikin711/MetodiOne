@@ -21,6 +21,7 @@ from app.core.security import hash_password
 from app.database import get_db
 from app.models import BookingDirection, BookingSpecialist, Pipeline, User, UserPipelineAssignment, UserRole
 from app.routers.booking import resolve_default_booking_direction_id
+from app.services.booking_directions import ensure_specialist_direction_link
 from app.services.audit import write_audit_event
 from app.services.chief_expert_access import assert_owner_admin_or_chief_expert, assert_owner_or_chief_expert
 from app.services.mail import send_email
@@ -152,13 +153,21 @@ async def _sync_expert_calendar_profile(
         spec.full_name = full_name.strip()
         spec.phone = phone_norm or None
         spec.specialization = specialization.strip()
-        spec.direction_id = booking_direction_id
         spec.company_id = user.company_id
         spec.is_active = True
         spec.course_streams_enabled = course_streams_enabled
         spec.course_stream_max_days = course_stream_max_days
         spec.course_stream_min_day_for_next = course_stream_min_day_for_next
         spec.course_stream_gap_days = course_stream_gap_days
+        try:
+            await ensure_specialist_direction_link(
+                db,
+                specialist=spec,
+                direction_id=booking_direction_id,
+                make_primary=True,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
         await db.flush()
         return
 
@@ -183,6 +192,16 @@ async def _sync_expert_calendar_profile(
         course_stream_gap_days=course_stream_gap_days,
     )
     db.add(spec)
+    await db.flush()
+    try:
+        await ensure_specialist_direction_link(
+            db,
+            specialist=spec,
+            direction_id=booking_direction_id,
+            make_primary=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     await db.flush()
 
 

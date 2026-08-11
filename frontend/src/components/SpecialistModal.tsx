@@ -15,7 +15,10 @@ export type SpecialistFormValues = {
   full_name: string;
   phone: string;
   specialization: string;
+  /** Основное направление (первое в списке) */
   direction_id: number | null;
+  /** Все выбранные направления; первое — основное */
+  direction_ids: number[];
   slot_duration_min: number;
   work_start_hour: number;
   work_end_hour: number;
@@ -49,6 +52,23 @@ function normWeekdays(raw: number[] | undefined): number[] {
   return [...new Set(raw.filter((x) => x >= 0 && x <= 6))].sort((a, b) => a - b);
 }
 
+function initialDirectionIds(
+  specialist: BookingSpecialist | null,
+  directions: DirectionOption[],
+): number[] {
+  const activeIds = new Set(directions.filter((d) => d.is_active).map((d) => d.id));
+  const fromApi =
+    specialist?.direction_ids?.length
+      ? specialist.direction_ids
+      : specialist?.direction_id != null
+        ? [specialist.direction_id]
+        : [];
+  const kept = fromApi.filter((id) => activeIds.has(id));
+  if (kept.length) return kept;
+  const firstActive = directions.find((d) => d.is_active);
+  return firstActive ? [firstActive.id] : [];
+}
+
 export function SpecialistModal({
   open,
   mode,
@@ -63,7 +83,7 @@ export function SpecialistModal({
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [specialization, setSpecialization] = useState("");
-  const [directionId, setDirectionId] = useState<number | "">("");
+  const [directionIds, setDirectionIds] = useState<number[]>([]);
   const [slotDurationMin, setSlotDurationMin] = useState(30);
   const [workStart, setWorkStart] = useState(9);
   const [workEnd, setWorkEnd] = useState(18);
@@ -79,8 +99,7 @@ export function SpecialistModal({
       setFullName(initial.full_name);
       setPhone(initial.phone ?? "");
       setSpecialization(initial.specialization ?? "");
-      const dirStillActive = directions.some((d) => d.id === initial.direction_id && d.is_active);
-      setDirectionId(dirStillActive ? initial.direction_id : "");
+      setDirectionIds(initialDirectionIds(initial, directions));
       setSlotDurationMin(initial.slot_duration_min ?? 30);
       setWorkStart(initial.work_start_hour ?? 9);
       setWorkEnd(initial.work_end_hour ?? 18);
@@ -93,8 +112,7 @@ export function SpecialistModal({
       setFullName("");
       setPhone("");
       setSpecialization("");
-      const firstActive = directions.find((d) => d.is_active);
-      setDirectionId(firstActive?.id ?? "");
+      setDirectionIds(initialDirectionIds(null, directions));
       setSlotDurationMin(30);
       setWorkStart(9);
       setWorkEnd(18);
@@ -125,19 +143,40 @@ export function SpecialistModal({
     });
   }
 
+  function toggleDirection(id: number) {
+    setDirectionIds((prev) => {
+      if (prev.includes(id)) {
+        if (prev[0] === id) {
+          const next = prev.filter((x) => x !== id);
+          return next.length ? next : prev;
+        }
+        // Уже выбрано, но не основное — сделать основным
+        return [id, ...prev.filter((x) => x !== id)];
+      }
+      return [...prev, id];
+    });
+  }
+
   if (!open) return null;
+
+  const activeDirections = directions.filter((d) => d.is_active);
+  const hasArchivedPrimary =
+    initial?.direction_id != null &&
+    directions.some((d) => d.id === initial.direction_id && !d.is_active) &&
+    !directionIds.includes(initial.direction_id);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!fullName.trim()) return;
     if (workStart >= workEnd) return;
     if (!workWeekdays.length) return;
-    if (typeof directionId !== "number") return;
+    if (!directionIds.length) return;
     onSubmit({
       full_name: fullName.trim(),
       phone: phone.trim(),
       specialization: specialization.trim(),
-      direction_id: directionId,
+      direction_id: directionIds[0],
+      direction_ids: [...directionIds],
       slot_duration_min: slotDurationMin,
       work_start_hour: workStart,
       work_end_hour: workEnd,
@@ -321,30 +360,43 @@ export function SpecialistModal({
             )}
           </div>
 
-          <label className="block text-sm mo-muted">
-            Направление записи
-            <select
-              required
-              value={directionId === "" ? "" : String(directionId)}
-              onChange={(e) => setDirectionId(e.target.value ? Number(e.target.value) : "")}
-              className="mo-input mt-1 w-full"
-            >
-              <option value="">— выберите активное направление —</option>
-              {directions
-                .filter((d) => d.is_active)
-                .map((d) => (
-                  <option key={d.id} value={d.id}>
+          <div className="block text-sm mo-muted">
+            <p>Направления записи</p>
+            <p className="mt-0.5 text-xs mo-muted">
+              Несколько направлений. Повторный клик по выбранному делает его основным; по основному — снимает.
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {activeDirections.map((d) => {
+                const selected = directionIds.includes(d.id);
+                const isPrimary = selected && directionIds[0] === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => toggleDirection(d.id)}
+                    className={[
+                      "rounded-lg border px-2.5 py-1 text-xs font-medium transition",
+                      selected
+                        ? "border-indigo-500/50 bg-indigo-500/15 text-[var(--mo-text)]"
+                        : "border-[var(--mo-border-strong)]/60 bg-white/80 mo-muted opacity-70",
+                    ].join(" ")}
+                    title={isPrimary ? "Основное направление" : selected ? "Нажмите, чтобы снять" : "Добавить"}
+                  >
                     {d.name}
-                  </option>
-                ))}
-            </select>
-            {initial?.direction_id != null &&
-              directions.some((d) => d.id === initial.direction_id && !d.is_active) && (
-                <span className="mt-1 block text-xs text-amber-600">
-                  Сейчас назначено архивное направление — выберите активное и сохраните.
-                </span>
-              )}
-          </label>
+                    {isPrimary ? " · осн." : ""}
+                  </button>
+                );
+              })}
+            </div>
+            {!activeDirections.length && (
+              <p className="mt-1 text-xs text-amber-600">Нет активных направлений — добавьте в разделе направлений.</p>
+            )}
+            {hasArchivedPrimary && (
+              <span className="mt-1 block text-xs text-amber-600">
+                Ранее было архивное направление — выберите активные и сохраните.
+              </span>
+            )}
+          </div>
 
           <label className="block text-sm mo-muted">
             Специализация
@@ -378,7 +430,13 @@ export function SpecialistModal({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || isDeleting || workStart >= workEnd || !workWeekdays.length}
+                disabled={
+                  isSubmitting ||
+                  isDeleting ||
+                  workStart >= workEnd ||
+                  !workWeekdays.length ||
+                  !directionIds.length
+                }
                 className="flex-1 btn-primary"
               >
                 {isSubmitting ? "Сохранение…" : "Сохранить"}
