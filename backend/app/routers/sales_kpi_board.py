@@ -869,7 +869,8 @@ async def company_report(
     manual_facts = await load_manual_facts(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
     bonus_fund = await load_bonus_fund(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
 
-    # Суммарный факт по компании → общий % плана (запись: все оплаты по экспертам, не только менеджеры KPI)
+    # План компании = сумма планов менеджеров (один план на менеджера × число менеджеров).
+    n_managers = len(managers)
     plan_lines: list[SalesKpiCompanyPlanLine] = []
     total_contrib = Decimal("0")
     for item in items:
@@ -885,7 +886,8 @@ async def company_report(
             for mid, _ in managers:
                 fact += manual_facts.get((mid, int(item.id)), 0)
             # продажи без менеджера в map не попадают; считаем все active manual по показателю
-        plan_qty = int(item.plan_qty or 0)
+        per_manager_plan = int(item.plan_qty or 0)
+        plan_qty = per_manager_plan * n_managers if n_managers > 0 else per_manager_plan
         weight = Decimal(str(item.weight_percent or 0))
         comp = completion_ratio(fact, plan_qty)
         contrib = contribution(comp, weight)
