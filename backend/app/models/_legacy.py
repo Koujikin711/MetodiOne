@@ -557,6 +557,29 @@ class BookingSpecialist(Base):
     appointments: Mapped[list["BookingAppointment"]] = relationship(back_populates="specialist")
 
 
+class BookingSpecialistDirection(Base):
+    """Многие-ко-многим: специалист может вести несколько направлений записи.
+
+    ``booking_specialists.direction_id`` остаётся основным (первым) направлением
+    для совместимости со старым кодом и KPI.
+    """
+
+    __tablename__ = "booking_specialist_directions"
+    __table_args__ = (
+        UniqueConstraint("specialist_id", "direction_id", name="uq_booking_specialist_direction"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    specialist_id: Mapped[int] = mapped_column(
+        ForeignKey("booking_specialists.id", ondelete="CASCADE"),
+        index=True,
+    )
+    direction_id: Mapped[int] = mapped_column(
+        ForeignKey("booking_directions.id", ondelete="CASCADE"),
+        index=True,
+    )
+
+
 class BookingAppointment(Base):
     __tablename__ = "booking_appointments"
 

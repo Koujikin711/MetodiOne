@@ -459,6 +459,8 @@ export interface BookingSpecialist {
   id: number;
   full_name: string;
   direction_id: number;
+  /** Все направления специалиста; первое совпадает с direction_id */
+  direction_ids?: number[];
   direction_name: string | null;
   phone: string | null;
   /** Может отсутствовать у кэша до обновления API */
