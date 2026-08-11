@@ -19,11 +19,21 @@ from app.services.tariff_effective import effective_tariff_max_active_users
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.security import hash_password
 from app.database import get_db
-from app.models import BookingDirection, BookingSpecialist, Pipeline, User, UserPipelineAssignment, UserRole
+from app.models import (
+    BookingDirection,
+    BookingSpecialist,
+    Integration,
+    IntegrationProvider,
+    Pipeline,
+    User,
+    UserPipelineAssignment,
+    UserRole,
+)
 from app.routers.booking import resolve_default_booking_direction_id
 from app.services.booking_directions import ensure_specialist_direction_link
 from app.services.audit import write_audit_event
 from app.services.chief_expert_access import assert_owner_admin_or_chief_expert, assert_owner_or_chief_expert
+from app.services.green_api_send import send_green_text_async
 from app.services.mail import send_email
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -78,6 +88,13 @@ class PatchEmployeeContactResult(BaseModel):
     employee: EmployeeRead
     email_changed: bool = False
     credentials_email_sent: bool = False
+
+
+class ResendCredentialsResult(BaseModel):
+    employee_id: int
+    email_sent: bool
+    whatsapp_sent: bool
+    detail: str
 
 
 def _rand_password() -> str:
@@ -301,6 +318,91 @@ def _send_employee_credentials_email(
         heading=heading,
     )
     return send_email(to_email, subject, plain, html_body=html_body)
+
+
+def _credentials_whatsapp_text(
+    *,
+    email: str,
+    temp_password: str,
+    invite_url: str,
+) -> str:
+    return (
+        "Доступ к CRM MetodiOne\n\n"
+        f"Логин: {email}\n"
+        f"Пароль: {temp_password}\n"
+        f"Вход: {invite_url}\n\n"
+        "Старый пароль больше не действует. После входа смените пароль."
+    )
+
+
+async def _active_green_integration_for_company(
+    db: AsyncSession,
+    company_id: int,
+    *,
+    prefer_pipeline_ids: list[int] | None = None,
+) -> Integration | None:
+    prefer = [int(x) for x in (prefer_pipeline_ids or []) if x]
+    if prefer:
+        row = (
+            await db.execute(
+                select(Integration)
+                .join(Pipeline, Pipeline.id == Integration.pipeline_id)
+                .where(
+                    Pipeline.company_id == company_id,
+                    Integration.pipeline_id.in_(prefer),
+                    Integration.provider == IntegrationProvider.green_api,
+                    Integration.is_active.is_(True),
+                )
+                .order_by(Integration.id.desc())
+                .limit(1),
+            )
+        ).scalars().first()
+        if row is not None:
+            return row
+    return (
+        await db.execute(
+            select(Integration)
+            .join(Pipeline, Pipeline.id == Integration.pipeline_id)
+            .where(
+                Pipeline.company_id == company_id,
+                Integration.provider == IntegrationProvider.green_api,
+                Integration.is_active.is_(True),
+            )
+            .order_by(Integration.id.desc())
+            .limit(1),
+        )
+    ).scalars().first()
+
+
+async def _send_employee_credentials_whatsapp(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    phone: str | None,
+    email: str,
+    temp_password: str,
+    invite_token: str,
+    prefer_pipeline_ids: list[int] | None = None,
+) -> tuple[bool, str | None]:
+    digits = _norm_phone(phone or "")
+    if len(digits) < 7:
+        return False, "У сотрудника нет телефона"
+    integ = await _active_green_integration_for_company(
+        db,
+        company_id,
+        prefer_pipeline_ids=prefer_pipeline_ids,
+    )
+    if integ is None:
+        return False, "Нет активной WhatsApp (Green API) интеграции"
+    text = _credentials_whatsapp_text(
+        email=email,
+        temp_password=temp_password,
+        invite_url=_build_invite_url(invite_token),
+    )
+    ok, err, _ = await send_green_text_async(integ.config, f"{digits}@c.us", text)
+    if not ok:
+        return False, err or "Не удалось отправить WhatsApp"
+    return True, None
 
 
 async def _user_with_phone_except(
@@ -772,6 +874,89 @@ async def post_employee_pipelines(
 ) -> EmployeeRead:
     """POST-алиас для назначения воронок (прокси/CDN иногда блокируют PATCH)."""
     return await patch_employee_pipelines(employee_id, body, db, current_user, company_id)
+
+
+@router.post("/{employee_id}/resend-credentials", response_model=ResendCredentialsResult)
+async def resend_employee_credentials(
+    employee_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> ResendCredentialsResult:
+    """Сгенерировать новый временный пароль и отправить логин+пароль на email и в WhatsApp."""
+    await assert_owner_or_chief_expert(db, current_user)
+
+    target = await db.get(User, employee_id)
+    if target is None or target.company_id != company_id or not target.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")
+    if target.role == UserRole.owner and target.id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нельзя сбросить пароль другого владельца",
+        )
+
+    _invite_app_base()
+    temp_password = _rand_password()
+    invite_token = secrets.token_urlsafe(32)
+    target.hashed_password = hash_password(temp_password)
+    target.invite_token = invite_token
+    target.must_change_password = True
+    await db.flush()
+
+    intro = "Вам повторно выслан доступ к CRM. Используйте новые данные для входа."
+    email_sent = _send_employee_credentials_email(
+        target.email,
+        temp_password,
+        invite_token,
+        intro=intro,
+        subject="Повторный доступ к CRM",
+        heading="Логин и пароль",
+    )
+
+    emp = await _employee_read(db, target)
+    wa_sent, wa_err = await _send_employee_credentials_whatsapp(
+        db,
+        company_id=company_id,
+        phone=target.phone,
+        email=target.email,
+        temp_password=temp_password,
+        invite_token=invite_token,
+        prefer_pipeline_ids=emp.pipeline_ids,
+    )
+
+    await write_audit_event(
+        db,
+        entity_type="user",
+        entity_id=target.id,
+        action="credentials_resent",
+        current_user=current_user,
+        details=f"email_sent={email_sent}, whatsapp_sent={wa_sent}",
+    )
+    await db.commit()
+
+    if not email_sent and not wa_sent:
+        detail = "Не удалось отправить ни на email, ни в WhatsApp"
+        if wa_err:
+            detail = f"{detail}. {wa_err}"
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+    parts: list[str] = []
+    if email_sent:
+        parts.append("email")
+    if wa_sent:
+        parts.append("WhatsApp")
+    detail = "Отправлено: " + " и ".join(parts)
+    if email_sent and not wa_sent and wa_err:
+        detail = f"{detail}. WhatsApp: {wa_err}"
+    elif wa_sent and not email_sent:
+        detail = f"{detail}. Письмо на email не ушло — проверьте SMTP."
+
+    return ResendCredentialsResult(
+        employee_id=int(target.id),
+        email_sent=email_sent,
+        whatsapp_sent=wa_sent,
+        detail=detail,
+    )
 
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -318,6 +318,20 @@ export function EmployeesPage() {
     setEditPipelineIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  const resendCredentialsMutation = useMutation({
+    mutationFn: async (employeeId: number) =>
+      apiFetch<{
+        employee_id: number;
+        email_sent: boolean;
+        whatsapp_sent: boolean;
+        detail: string;
+      }>(`/api/employees/${employeeId}/resend-credentials`, { method: "POST" }),
+    onSuccess: (r) => {
+      toast.success(r.detail || "Логин и пароль отправлены");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const saveEmployeeMutation = useMutation({
     mutationFn: async () => {
       if (!editEmployee) throw new Error("Сотрудник не выбран");
@@ -734,6 +748,25 @@ export function EmployeesPage() {
                 <p className="mt-2 text-[11px] leading-relaxed mo-muted">
                   При смене email на новый адрес уйдёт письмо с новым логином и паролем.
                 </p>
+                <button
+                  type="button"
+                  className="btn-secondary mt-3 w-full text-sm disabled:opacity-60"
+                  disabled={resendCredentialsMutation.isPending || saveEmployeeMutation.isPending}
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        "Сгенерировать новый пароль и отправить логин с паролем ещё раз на email и в WhatsApp сотрудника?",
+                      )
+                    ) {
+                      return;
+                    }
+                    resendCredentialsMutation.mutate(editEmployee.id);
+                  }}
+                >
+                  {resendCredentialsMutation.isPending
+                    ? "Отправка…"
+                    : "Отправить пароль ещё раз"}
+                </button>
               </section>
 
               {editEmployee.role === "expert" ? (
