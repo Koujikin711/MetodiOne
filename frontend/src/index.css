@@ -2543,7 +2543,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   @apply text-sm font-semibold tracking-tight text-[var(--mo-text)];
 }
 .employees-redistribute-panel .employees-redistribute-desc {
-  @apply mt-0.5 text-[11px] leading-snug mo-muted;
+  @apply mt-0.5 text-[11px] leading-snug text-[var(--mo-text-muted)];
 }
 .employees-redistribute-strip {
   @apply mt-2.5 flex flex-wrap items-center gap-2 rounded-lg border px-2.5 py-2;
