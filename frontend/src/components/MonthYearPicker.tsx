@@ -51,13 +51,12 @@ export function MonthYearPicker({ value, onChange, className = "", allowClear = 
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const parsed = parseYearMonth(value);
-  const now = new Date();
-  const [viewYear, setViewYear] = useState(parsed?.year ?? now.getFullYear());
+  const [viewYear, setViewYear] = useState(() => parsed?.year ?? new Date().getFullYear());
 
   useEffect(() => {
     if (!open) return;
-    setViewYear(parsed?.year ?? now.getFullYear());
-  }, [open, parsed?.year, now.getFullYear()]);
+    setViewYear(parsed?.year ?? new Date().getFullYear());
+  }, [open, parsed?.year]);
 
   useEffect(() => {
     if (!open) return;
@@ -74,6 +73,8 @@ export function MonthYearPicker({ value, onChange, className = "", allowClear = 
       window.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  const now = new Date();
 
   function pickMonth(month: number) {
     onChange(formatYearMonth(viewYear, month));
