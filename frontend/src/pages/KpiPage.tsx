@@ -995,20 +995,27 @@ function CompanyReportSection({
         </div>
 
         <div className="mt-4 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/50 p-4">
-          <h3 className="text-sm font-semibold text-[var(--mo-text)]">Шкала плана → выручка</h3>
+          <h3 className="text-sm font-semibold text-[var(--mo-text)]">Выручка при 100% плана</h3>
           <p className="mt-1 text-xs mo-muted">
-            Оценка: если текущая связка «выручка / % плана» сохранится, сколько будет выручки при выполнении плана.
+            Оценка целевой выручки: текущая выручка ÷ текущий % плана × 100%. Рядом — факт и промежуточные
+            ориентиры 25% / 50%.
           </p>
-          {data.revenue_at_plan_10_percent == null ? (
+          {data.revenue_at_plan_100_percent == null ? (
             <p className="mt-3 text-sm lux-caption">
-              Недостаточно данных для шкалы (нужны выручка и выполнение плана &gt; 0).
+              Недостаточно данных (нужны выручка и выполнение плана &gt; 0).
             </p>
           ) : (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-              <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-3">
-                <div className="text-[11px] font-medium text-indigo-200">При 10% плана</div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 sm:col-span-2 lg:col-span-1">
+                <div className="text-[11px] font-medium text-emerald-200">При 100% плана</div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums text-[var(--mo-text)]">
+                  {formatMoney(data.revenue_at_plan_100_percent)}
+                </div>
+              </div>
+              <div className="rounded-lg border border-[var(--mo-border)] p-3">
+                <div className="text-[11px] mo-muted">Сейчас факт</div>
                 <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--mo-text)]">
-                  {formatMoney(data.revenue_at_plan_10_percent)}
+                  {num(data.plan_completion_percent).toFixed(1)}% · {formatMoney(data.revenue_total)}
                 </div>
               </div>
               <div className="rounded-lg border border-[var(--mo-border)] p-3">
@@ -1021,18 +1028,6 @@ function CompanyReportSection({
                 <div className="text-[11px] mo-muted">При 50%</div>
                 <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--mo-text)]">
                   {formatMoney(data.revenue_at_plan_50_percent)}
-                </div>
-              </div>
-              <div className="rounded-lg border border-[var(--mo-border)] p-3">
-                <div className="text-[11px] mo-muted">При 100%</div>
-                <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--mo-text)]">
-                  {formatMoney(data.revenue_at_plan_100_percent)}
-                </div>
-              </div>
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
-                <div className="text-[11px] font-medium text-emerald-200">Сейчас факт</div>
-                <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--mo-text)]">
-                  {num(data.plan_completion_percent).toFixed(1)}% · {formatMoney(data.revenue_total)}
                 </div>
               </div>
             </div>
