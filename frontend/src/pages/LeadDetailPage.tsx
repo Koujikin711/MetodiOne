@@ -17,6 +17,7 @@ import {
 } from "@/lib/bookingTz";
 import { PatientPhone } from "@/components/PatientPhone";
 import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
+import { auditActionLabel, auditDetailsLabel } from "@/lib/auditLabels";
 import type {
   BookingAppointment,
   BookingSpecialist,
@@ -920,18 +921,23 @@ export function LeadDetailPage() {
                 <p className="text-sm mo-muted">Пока нет событий.</p>
               )}
               <ul className="space-y-2">
-                {(auditQuery.data ?? []).map((e) => (
+                {(auditQuery.data ?? []).map((e) => {
+                  const details = auditDetailsLabel(e.details);
+                  return (
                   <li key={e.id} className="rounded-xl mo-section p-3">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="rounded bg-[#ece6f0] px-2 py-0.5 text-[#614b70]">{e.action}</span>
+                      <span className="rounded bg-[#ece6f0] px-2 py-0.5 text-[#614b70]">
+                        {auditActionLabel(e.action)}
+                      </span>
                       <span className="mo-muted">{e.user_name ?? `user#${e.user_id ?? "-"}`}</span>
                       <span className="mo-muted">
                         {new Date(e.created_at).toLocaleString("ru-RU")}
                       </span>
                     </div>
-                    {e.details && <p className="mt-1 text-sm text-[var(--mo-text)]">{e.details}</p>}
+                    {details ? <p className="mt-1 text-sm text-[var(--mo-text)]">{details}</p> : null}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </div>
           </div>
