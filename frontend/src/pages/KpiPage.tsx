@@ -972,7 +972,10 @@ function CompanyReportSection({
       </section>
 
       <section className="mo-section p-4">
-        <h3 className="mb-3 text-lg font-semibold text-[var(--mo-text)]">План компании по показателям</h3>
+        <h3 className="mb-1 text-lg font-semibold text-[var(--mo-text)]">План компании по показателям</h3>
+        <p className="mb-3 text-xs mo-muted">
+          Колонка «План» — сумма планов всех менеджеров по показателю (как во вкладке «ПРОДАЖИ»).
+        </p>
         {data.plan_lines.length === 0 ? (
           <p className="text-sm lux-caption">План на месяц не задан.</p>
         ) : (
