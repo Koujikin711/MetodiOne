@@ -48,6 +48,13 @@ function num(v: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+const KPI_STREAM_OPTIONS = Array.from({ length: 20 }, (_, i) => i + 1);
+
+function streamLabel(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(Number(n)) || Number(n) < 1) return "—";
+  return `Поток ${Number(n)}`;
+}
+
 export function KpiPage() {
   const queryClient = useQueryClient();
   const role = decodeRoleFromToken(getStoredToken());
@@ -66,6 +73,7 @@ export function KpiPage() {
   const [saleForm, setSaleForm] = useState({
     plan_item_id: "",
     manager_user_id: "",
+    stream_no: "",
     client_name: "",
     client_phone: "",
     service_amount: "",
@@ -191,12 +199,14 @@ export function KpiPage() {
   const createSaleMutation = useMutation({
     mutationFn: async () => {
       if (!pipelineId) throw new Error("Выберите воронку");
+      if (!saleForm.stream_no) throw new Error("Укажите поток");
       await apiFetch<SalesKpiManualSale>("/api/sales-kpi/manual-sales", {
         method: "POST",
         body: JSON.stringify({
           pipeline_id: pipelineId,
           plan_item_id: Number(saleForm.plan_item_id),
           manager_user_id: Number(saleForm.manager_user_id),
+          stream_no: Number(saleForm.stream_no),
           client_name: saleForm.client_name.trim(),
           client_phone: saleForm.client_phone.trim(),
           service_amount: Number(saleForm.service_amount),
@@ -210,6 +220,7 @@ export function KpiPage() {
       setSaleForm({
         plan_item_id: "",
         manager_user_id: "",
+        stream_no: "",
         client_name: "",
         client_phone: "",
         service_amount: "",
@@ -611,6 +622,21 @@ export function KpiPage() {
                 </select>
               </label>
               <label className="flex flex-col gap-1 text-sm mo-muted">
+                Поток
+                <select
+                  className="mo-input"
+                  value={saleForm.stream_no}
+                  onChange={(e) => setSaleForm((s) => ({ ...s, stream_no: e.target.value }))}
+                >
+                  <option value="">—</option>
+                  {KPI_STREAM_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      Поток {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm mo-muted">
                 Клиент
                 <input
                   className="mo-input"
@@ -672,6 +698,7 @@ export function KpiPage() {
                 <tr className="border-b border-[var(--mo-border)] lux-caption">
                   <th className="py-2 pr-3">Дата</th>
                   <th className="py-2 pr-3">Показатель</th>
+                  <th className="py-2 pr-3">Поток</th>
                   <th className="py-2 pr-3">Менеджер</th>
                   <th className="py-2 pr-3">Клиент</th>
                   <th className="py-2 pr-3">Телефон</th>
@@ -689,6 +716,7 @@ export function KpiPage() {
                       {s.sold_at ? new Date(s.sold_at).toLocaleString("ru-RU") : "—"}
                     </td>
                     <td className="py-2 pr-3">{s.plan_item_name}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap">{streamLabel(s.stream_no)}</td>
                     <td className="py-2 pr-3">{s.manager_name}</td>
                     <td className="py-2 pr-3">{s.client_name}</td>
                     <td className="py-2 pr-3">{s.client_phone}</td>
