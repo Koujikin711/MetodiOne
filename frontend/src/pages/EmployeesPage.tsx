@@ -734,6 +734,25 @@ export function EmployeesPage() {
                 <p className="mt-2 text-[11px] leading-relaxed mo-muted">
                   При смене email на новый адрес уйдёт письмо с новым логином и паролем.
                 </p>
+                <button
+                  type="button"
+                  className="btn-secondary mt-3 w-full text-sm disabled:opacity-60"
+                  disabled={resendCredentialsMutation.isPending || saveEmployeeMutation.isPending}
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        "Сгенерировать новый пароль и отправить логин с паролем ещё раз на email и в WhatsApp сотрудника?",
+                      )
+                    ) {
+                      return;
+                    }
+                    resendCredentialsMutation.mutate(editEmployee.id);
+                  }}
+                >
+                  {resendCredentialsMutation.isPending
+                    ? "Отправка…"
+                    : "Отправить пароль ещё раз"}
+                </button>
               </section>
 
               {editEmployee.role === "expert" ? (
