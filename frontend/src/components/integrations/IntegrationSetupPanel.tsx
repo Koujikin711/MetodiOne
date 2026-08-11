@@ -283,7 +283,7 @@ function IntegrationCard({
       {it.provider === "instagram" && (
         <div className="mt-2 space-y-2 text-[11px] leading-relaxed text-[#7A7265]">
           <p>
-            Лиды из рекламы Meta и сообщения Instagram Direct. Новые заявки и диалоги попадают в выбранную воронку CRM.
+            Лиды Lead Ads и Instagram Direct → воронка и «Чаты». Ответ текстом из CRM уходит обратно в Instagram.
           </p>
           <div>
             <span className="font-medium text-[#2C2520]">Адрес webhook для Meta (GET и POST):</span>
@@ -291,8 +291,8 @@ function IntegrationCard({
               {hookPath}
             </div>
             <p className="lux-caption mt-1">
-              Код подтверждения в Meta — тот же секрет, что в форме ниже. Подписки: leadgen, instagram, при необходимости
-              messages.
+              Verify Token = секрет интеграции. Подписки: <span className="font-medium">messages</span>; для Lead Ads
+              ещё <span className="font-medium">leadgen</span>.
             </p>
             {!apiBase && (
               <div className="mt-1 text-[10px] text-amber-300/90">Задайте VITE_API_BASE_URL для полного URL.</div>
