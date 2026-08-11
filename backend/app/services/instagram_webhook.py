@@ -273,6 +273,9 @@ async def handle_instagram_webhook(
                 message = msg_evt.get("message") or {}
                 if not isinstance(message, dict):
                     continue
+                # Не дублируем исходящие echo из CRM
+                if message.get("is_echo") is True:
+                    continue
                 mid = str(message.get("mid") or "").strip()
                 if mid and await _audit_message_mid(db, company_id=company_id, mid=mid):
                     continue
@@ -319,6 +322,8 @@ async def handle_instagram_webhook(
                     continue
                 message = msg_evt.get("message") or {}
                 if not isinstance(message, dict):
+                    continue
+                if message.get("is_echo") is True:
                     continue
                 mid = str(message.get("mid") or "").strip()
                 if mid and await _audit_message_mid(db, company_id=company_id, mid=mid):
