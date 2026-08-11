@@ -440,22 +440,22 @@ export function EmployeesPage() {
       {(sourcesWithLeads.length > 0 || redistributionSourcesQuery.isLoading || activeManagersOnly.length >= 1) &&
         activeManagersOnly.length >= 1 && (
         <section className="employees-redistribute-panel">
-          <h2 className="lux-subheading">Перераспределение лидов</h2>
-          <p className="mt-1 text-sm lux-caption">
-            Лиды можно забрать у менеджера, владельца или админа воронки и передать только менеджерам.
-            Владелец и админ воронки больше не получают новые лиды автоматически.
+          <h2 className="employees-redistribute-title">Перераспределение лидов</h2>
+          <p className="employees-redistribute-desc">
+            Забрать лиды у менеджера / владельца / админа и раздать менеджерам. Владелец и админ новые лиды
+            автоматически не получают.
           </p>
 
-          <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
-            <p className="text-sm text-[var(--mo-text)]">
-              Лидов на владельце/админах:{" "}
-              <span className="font-semibold text-amber-700 dark:text-amber-200">
+          <div className="employees-redistribute-strip">
+            <p className="min-w-0 flex-1 text-xs text-[var(--mo-text)]">
+              На владельце/админах:{" "}
+              <span className="font-semibold tabular-nums text-amber-800 dark:text-amber-200">
                 {redistributionSourcesQuery.isLoading ? "…" : ownerAdminLeadCount}
               </span>
             </p>
             <button
               type="button"
-              className="employees-redistribute-btn mt-3 disabled:opacity-50"
+              className="employees-redistribute-btn shrink-0"
               disabled={
                 redistributeFromOwnersMutation.isPending ||
                 activeManagersOnly.length < 1 ||
@@ -472,19 +472,17 @@ export function EmployeesPage() {
                 redistributeFromOwnersMutation.mutate();
               }}
             >
-              {redistributeFromOwnersMutation.isPending
-                ? "Раздаём…"
-                : "Забрать все лиды у владельца/админов → менеджерам"}
+              {redistributeFromOwnersMutation.isPending ? "Раздаём…" : "Забрать → менеджерам"}
             </button>
           </div>
 
           {redistributionSourcesQuery.isLoading && (
-            <p className="mt-2 text-sm mo-muted">Загрузка списка…</p>
+            <p className="mt-2 text-xs mo-muted">Загрузка…</p>
           )}
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm mo-muted">
-              От кого забрать лиды
+          <div className="mt-2.5 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+            <label className="text-xs mo-muted">
+              От кого
               <select
                 value={redistributeFromId === "" ? "" : String(redistributeFromId)}
                 onChange={(e) => {
@@ -492,57 +490,57 @@ export function EmployeesPage() {
                   setRedistributeFromId(v === "" ? "" : Number(v));
                   setRedistributeToIds([]);
                 }}
-                className="mo-input mt-1 w-full"
+                className="mo-input mt-1 w-full py-1.5 text-sm"
               >
                 <option value="">— выберите —</option>
                 {sourcesWithLeads.map((m) => (
                   <option key={m.manager_id} value={m.manager_id}>
-                    {m.manager_name} — {m.lead_count} лид(ов)
+                    {m.manager_name} — {m.lead_count}
                     {!m.is_active ? " · уволен" : ""}
                   </option>
                 ))}
               </select>
             </label>
-
-            <div className="text-sm mo-muted">
-              <span className="mo-muted">Лидов у выбранного:</span>{" "}
+            <div className="pb-1 text-xs mo-muted sm:text-right">
+              У выбранного:{" "}
               {redistributeFromId === "" ? (
-                <span className="mo-muted">—</span>
+                <span>—</span>
               ) : redistributionPreviewQuery.isLoading ? (
-                <span className="mo-muted">загрузка…</span>
-              ) : redistributionPreviewQuery.isError ? (
-                <span className="font-semibold text-amber-200">{selectedSource?.lead_count ?? 0}</span>
+                <span>…</span>
               ) : (
-                <span className="font-semibold text-amber-200">
+                <span className="font-semibold tabular-nums text-amber-800 dark:text-amber-200">
                   {redistributionPreviewQuery.data?.lead_count ?? selectedSource?.lead_count ?? 0}
                 </span>
               )}
               {selectedSource && !selectedSource.is_active ? (
-                <span className="mt-1 block text-xs text-amber-200/90">Аккаунт уволен — лиды всё ещё на нём</span>
+                <span className="mt-0.5 block text-[10px] text-amber-700/90 dark:text-amber-200/80">
+                  Уволен — лиды ещё на нём
+                </span>
               ) : null}
             </div>
           </div>
 
           {redistributeFromId !== "" && (
-            <div className="mt-4 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
-              <div className="lux-subheading text-sm">Кому передать</div>
-              <p className="mt-1 text-[11px] mo-muted">
-                Только активные менеджеры. Лиды делятся поровну (round-robin).
-              </p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <div className="mt-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-xs font-medium text-[var(--mo-text)]">Кому передать</span>
+                <span className="text-[10px] mo-muted">поровну между отмеченными</span>
+              </div>
+              <div className="employees-redistribute-targets mt-1 grid gap-1 sm:grid-cols-2">
                 {activeManagersOnly
                   .filter((m) => m.id !== redistributeFromId)
                   .map((m) => (
-                    <label key={m.id} className="flex items-center gap-2 text-sm text-[var(--mo-text)]">
+                    <label
+                      key={m.id}
+                      className="flex cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
+                    >
                       <input
                         type="checkbox"
+                        className="scale-90"
                         checked={redistributeToIds.includes(m.id)}
                         onChange={() => toggleRedistributeTarget(m.id)}
                       />
-                      <span className="truncate">
-                        {m.full_name ?? m.email}
-                        <span className="mo-muted"> · менеджер</span>
-                      </span>
+                      <span className="truncate">{m.full_name ?? m.email}</span>
                     </label>
                   ))}
               </div>
@@ -558,9 +556,9 @@ export function EmployeesPage() {
               redistributeToIds.length === 0 ||
               (redistributionPreviewQuery.data?.lead_count ?? selectedSource?.lead_count ?? 0) <= 0
             }
-            className="employees-redistribute-btn mt-4 disabled:opacity-50"
+            className="employees-redistribute-btn-primary mt-2.5 w-full sm:w-auto"
           >
-            {redistributeMutation.isPending ? "Перераспределение…" : "Перераспределить лиды"}
+            {redistributeMutation.isPending ? "Перераспределение…" : "Перераспределить"}
           </button>
         </section>
       )}
