@@ -283,7 +283,7 @@ function IntegrationCard({
       {it.provider === "instagram" && (
         <div className="mt-2 space-y-2 text-[11px] leading-relaxed text-[#7A7265]">
           <p>
-            Лиды из рекламы Meta и сообщения Instagram Direct. Новые заявки и диалоги попадают в выбранную воронку CRM.
+            Лиды Lead Ads и Instagram Direct → воронка и «Чаты». Ответ текстом из CRM уходит обратно в Instagram.
           </p>
           <div>
             <span className="font-medium text-[#2C2520]">Адрес webhook для Meta (GET и POST):</span>
@@ -291,8 +291,8 @@ function IntegrationCard({
               {hookPath}
             </div>
             <p className="lux-caption mt-1">
-              Код подтверждения в Meta — тот же секрет, что в форме ниже. Подписки: leadgen, instagram, при необходимости
-              messages.
+              Verify Token = секрет интеграции. Подписки: <span className="font-medium">messages</span>; для Lead Ads
+              ещё <span className="font-medium">leadgen</span>.
             </p>
             {!apiBase && (
               <div className="mt-1 text-[10px] text-amber-300/90">Задайте VITE_API_BASE_URL для полного URL.</div>
@@ -362,6 +362,7 @@ export function IntegrationSetupPanel() {
   const [tplReactivation, setTplReactivation] = useState("");
   const [igPageToken, setIgPageToken] = useState("");
   const [igAppSecret, setIgAppSecret] = useState("");
+  const [igGraphHost, setIgGraphHost] = useState<"page" | "instagram">("instagram");
   const [gmailEmail, setGmailEmail] = useState("");
   const [gmailAppPassword, setGmailAppPassword] = useState("");
   const [gmailImapHost, setGmailImapHost] = useState("imap.gmail.com");
@@ -402,6 +403,7 @@ export function IntegrationSetupPanel() {
     setIntegrationCloseDealEnabled(false);
     setIgPageToken("");
     setIgAppSecret("");
+    setIgGraphHost("instagram");
     setGmailEmail("");
     setGmailAppPassword("");
     setGmailImapHost("imap.gmail.com");
@@ -428,6 +430,7 @@ export function IntegrationSetupPanel() {
     setIntegrationSecret("");
     setIgPageToken("");
     setIgAppSecret("");
+    setIgGraphHost("instagram");
     setGmailEmail("");
     setGmailAppPassword("");
     setGmailImapHost("imap.gmail.com");
@@ -455,6 +458,13 @@ export function IntegrationSetupPanel() {
       setSheetsEmailColumn("email");
       setSheetsHeaderRow("1");
       setSheetsStartRow("2");
+      const c = (it.config || {}) as Record<string, unknown>;
+      const host = String(c.graph_host || "").toLowerCase();
+      if (host === "page" || host === "facebook" || host === "fb" || c.use_instagram_graph === false) {
+        setIgGraphHost("page");
+      } else {
+        setIgGraphHost("instagram");
+      }
     } else if (it.provider === "gmail") {
       const c = it.config as Record<string, unknown> | null;
       setIntegrationConfigText("{}");
@@ -648,6 +658,8 @@ export function IntegrationSetupPanel() {
         body.config = {
           ...(igPageToken.trim() ? { page_access_token: igPageToken.trim() } : {}),
           ...(igAppSecret.trim() ? { app_secret: igAppSecret.trim() } : {}),
+          graph_host: igGraphHost,
+          use_instagram_graph: igGraphHost === "instagram",
           templates,
         };
       } else if (integrationProvider === "gmail") {
@@ -711,10 +723,12 @@ export function IntegrationSetupPanel() {
       if (!integrationSecret.trim() || integrationSecret.trim().length < 8) {
         return toast.error("Verify token не короче 8 символов — нажмите «Сгенерировать» или введите свой");
       }
-      if (!igPageToken.trim()) return toast.error("Укажите Page Access Token");
+      if (!igPageToken.trim()) return toast.error("Укажите Access Token");
       cfg = {
         page_access_token: igPageToken.trim(),
         ...(igAppSecret.trim() ? { app_secret: igAppSecret.trim() } : {}),
+        graph_host: igGraphHost,
+        use_instagram_graph: igGraphHost === "instagram",
         templates,
       };
     } else if (integrationProvider === "gmail") {
@@ -1160,14 +1174,27 @@ export function IntegrationSetupPanel() {
                   </div>
                 ) : integrationProvider === "instagram" ? (
                   <div className="grid gap-3">
-                    <p className="text-[11px] leading-relaxed text-[#7A7265]">
-                      В Meta for Developers создайте приложение, привяжите Instagram и Страницу. Сгенерируйте{" "}
-                      <span className="font-medium text-[#6B1D2F]">Page Access Token</span> с правами на leads и сообщения. После
-                      сохранения скопируйте Callback URL из списка интеграций справа — тот же путь для проверки и для
-                      событий.
-                    </p>
+                    <div className="rounded-xl border border-[#E1D9C6] bg-[#FBF8F1] px-3 py-2.5 text-[11px] leading-relaxed text-[#7A7265]">
+                      <p className="font-medium text-[#6B1D2F]">Как связать с Meta (как Green API для WhatsApp)</p>
+                      <ol className="mt-1.5 list-decimal space-y-1 pl-4">
+                        <li>
+                          В приложении MetodiOne-IG нажмите «Добавить все необходимые разрешения»
+                          (instagram_business_basic, manage_comments, manage_messages).
+                        </li>
+                        <li>«Добавить аккаунт» — привяжите Instagram Business и получите Access Token.</li>
+                        <li>
+                          Webhooks: Callback URL из карточки интеграции справа, Verify Token = секрет из формы ниже.
+                          Подписки: <span className="font-medium">messages</span>, при Lead Ads ещё{" "}
+                          <span className="font-medium">leadgen</span>.
+                        </li>
+                        <li>
+                          Сохраните интеграцию здесь. Входящие Direct → лид + чат; ответ из CRM Чаты уходит обратно в
+                          Instagram.
+                        </li>
+                      </ol>
+                    </div>
                     <label className="text-sm text-[#7A7265]">
-                      Page Access Token
+                      Access Token (Page / Instagram)
                       {editingIntegrationId != null && (
                         <span className="ml-1 text-[11px] font-normal text-[#A89880]">
                           — пусто = оставить сохранённый токен
@@ -1181,10 +1208,21 @@ export function IntegrationSetupPanel() {
                         placeholder={
                           editingIntegrationId != null
                             ? "Оставьте пустым, чтобы не менять"
-                            : "EAA… из Graph API Explorer или системного пользователя"
+                            : "Токен из «Сгенерируйте маркеры доступа» или Graph API Explorer"
                         }
                         className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
+                    </label>
+                    <label className="text-sm text-[#7A7265]">
+                      Тип токена
+                      <select
+                        value={igGraphHost}
+                        onChange={(e) => setIgGraphHost(e.target.value as "page" | "instagram")}
+                        className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
+                      >
+                        <option value="instagram">Instagram Login (graph.instagram.com) — как в мастере API</option>
+                        <option value="page">Page Access Token (graph.facebook.com)</option>
+                      </select>
                     </label>
                     <label className="text-sm text-[#7A7265]">
                       App Secret (рекомендуется)
@@ -1198,7 +1236,7 @@ export function IntegrationSetupPanel() {
                         autoComplete="off"
                         value={igAppSecret}
                         onChange={(e) => setIgAppSecret(e.target.value)}
-                        placeholder="Из настроек приложения Meta"
+                        placeholder="Показать в настройках приложения Meta → App Secret"
                         className="mt-1 w-full rounded-xl border border-[#E1D9C6] bg-white mo-input py-2 text-sm"
                       />
                     </label>

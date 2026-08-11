@@ -37,6 +37,7 @@ from app.services.audio_prepare import prepare_file_for_green_whatsapp
 from app.services.chat_media_store import resolve_chat_media, save_outgoing_chat_media
 from app.services.green_incoming_media import ensure_chat_message_media_local, repair_thread_media
 from app.services.green_api_send import send_green_file_upload, send_green_text_async
+from app.services.instagram_api_send import parse_meta_thread_recipient, send_meta_dm_text
 from app.services.whatsapp_phone_fallback import resolve_outbound_green_chat_id
 from app.services.patient_phone_visibility import (
     can_view_full_patient_phone,
@@ -366,44 +367,116 @@ def _msg_read(m: ChatMessage) -> ChatMessageRead:
     )
 
 
+async def _resolve_outbound_send(
+    db: AsyncSession,
+    thread_id: int,
+    company_id: int,
+    current_user,
+) -> tuple[ChatThread, dict, str, str]:
+    """Возвращает (thread, config, destination_id, provider).
+
+    destination_id — WhatsApp chatId или Meta recipient id (без префикса).
+    """
+    thread = await db.get(ChatThread, thread_id)
+    if thread is None or thread.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+    await _assert_thread_access(db, thread, current_user)
+
+    provider = (thread.provider or "").strip()
+    if provider == IntegrationProvider.green_api.value:
+        chat_id, _used_extra = await resolve_outbound_green_chat_id(db, thread=thread)
+        if not chat_id:
+            lead = await db.get(Lead, thread.lead_id) if thread.lead_id else None
+            if lead and lead.phone:
+                chat_id = f"{lead.phone}@c.us"
+        if not chat_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No chat id / lead phone for WhatsApp",
+            )
+        integ = (
+            await db.execute(
+                select(Integration)
+                .where(
+                    Integration.provider == IntegrationProvider.green_api,
+                    Integration.is_active.is_(True),
+                    Integration.company_id == company_id,
+                    Integration.pipeline_id == (thread.pipeline_id or 0),
+                )
+                .limit(1),
+            )
+        ).scalars().first()
+        if integ is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active GREEN API integration for thread pipeline",
+            )
+        return thread, integ.config or {}, chat_id, provider
+
+    if provider == IntegrationProvider.instagram.value:
+        kind, recipient_id = parse_meta_thread_recipient(thread.external_chat_id)
+        if not kind or not recipient_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "В этом диалоге нельзя ответить в Instagram/Messenger: "
+                    "нет IGSID/PSID (например, заявка Lead Ads без Direct)."
+                ),
+            )
+        integ = (
+            await db.execute(
+                select(Integration)
+                .where(
+                    Integration.provider == IntegrationProvider.instagram,
+                    Integration.is_active.is_(True),
+                    Integration.company_id == company_id,
+                    Integration.pipeline_id == (thread.pipeline_id or 0),
+                )
+                .limit(1),
+            )
+        ).scalars().first()
+        if integ is None:
+            # fallback: любая активная IG-интеграция компании
+            integ = (
+                await db.execute(
+                    select(Integration)
+                    .where(
+                        Integration.provider == IntegrationProvider.instagram,
+                        Integration.is_active.is_(True),
+                        Integration.company_id == company_id,
+                    )
+                    .order_by(Integration.id.desc())
+                    .limit(1),
+                )
+            ).scalars().first()
+        if integ is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Нет активной интеграции Instagram для воронки диалога",
+            )
+        # destination кодируем как "ig:ID" / "fb:ID" чтобы знать kind при отправке
+        return thread, integ.config or {}, f"{kind}:{recipient_id}", provider
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Отправка из чата для этого канала ещё не поддерживается",
+    )
+
+
 async def _resolve_green_send(
     db: AsyncSession,
     thread_id: int,
     company_id: int,
     current_user,
 ) -> tuple[ChatThread, dict, str]:
-    thread = await db.get(ChatThread, thread_id)
-    if thread is None or thread.company_id != company_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
-    await _assert_thread_access(db, thread, current_user)
-    if thread.provider != IntegrationProvider.green_api.value:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provider send is not implemented yet")
-
-    chat_id, _used_extra = await resolve_outbound_green_chat_id(db, thread=thread)
-    if not chat_id:
-        lead = await db.get(Lead, thread.lead_id) if thread.lead_id else None
-        if lead and lead.phone:
-            chat_id = f"{lead.phone}@c.us"
-    if not chat_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No chat id / lead phone for WhatsApp")
-    integ = (
-        await db.execute(
-            select(Integration)
-            .where(
-                Integration.provider == IntegrationProvider.green_api,
-                Integration.is_active.is_(True),
-                Integration.company_id == company_id,
-                Integration.pipeline_id == (thread.pipeline_id or 0),
-            )
-            .limit(1),
-        )
-    ).scalars().first()
-    if integ is None:
+    """Совместимость: только WhatsApp Green API."""
+    thread, cfg, dest, provider = await _resolve_outbound_send(db, thread_id, company_id, current_user)
+    if provider != IntegrationProvider.green_api.value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active GREEN API integration for thread pipeline",
+            detail="Вложения из чата пока только для WhatsApp (Green API)",
         )
-    return thread, integ.config or {}, chat_id
+    return thread, cfg, dest
 
 
 async def _send_green_file_message(
@@ -1071,14 +1144,19 @@ async def send_message(
             detail="Ожидается application/json или multipart/form-data",
         )
 
-    thread, cfg, chat_id = await _resolve_green_send(db, thread_id, company_id, current_user)
+    thread, cfg, dest, provider = await _resolve_outbound_send(db, thread_id, company_id, current_user)
 
     if file_bytes and len(file_bytes) > 0:
+        if provider != IntegrationProvider.green_api.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Вложения из чата пока только для WhatsApp. В Instagram отправьте текст.",
+            )
         return await _send_green_file_message(
             db,
             thread=thread,
             cfg=cfg,
-            chat_id=chat_id,
+            chat_id=dest,
             current_user=current_user,
             file_bytes=file_bytes,
             filename=filename or "file",
@@ -1109,7 +1187,22 @@ async def send_message(
     )
     if not allowed:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=policy_err or "Сообщение запрещено")
-    ok, err, provider_msg_id = await send_green_text_async(cfg, chat_id, plain_text)
+
+    if provider == IntegrationProvider.instagram.value:
+        kind, recipient_id = parse_meta_thread_recipient(dest)
+        if not kind or not recipient_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректный Instagram recipient")
+        ok, err, provider_msg_id = await send_meta_dm_text(
+            cfg,
+            recipient_id=recipient_id,
+            text=plain_text,
+            kind=kind,
+        )
+        fail_prefix = "Instagram/Messenger"
+    else:
+        ok, err, provider_msg_id = await send_green_text_async(cfg, dest, plain_text)
+        fail_prefix = "WhatsApp"
+
     if not ok:
         msg = ChatMessage(
             company_id=thread.company_id,
@@ -1124,8 +1217,8 @@ async def send_message(
         db.add(msg)
         thread.updated_at = datetime.now(UTC)
         await db.flush()
-        d = f"Send failed: {err}"
-        logger.warning("chat green text failed thread=%s detail=%s", thread_id, d[:800])
+        d = f"Send failed ({fail_prefix}): {err}"
+        logger.warning("chat text failed thread=%s provider=%s detail=%s", thread_id, provider, d[:800])
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=d)
     msg = ChatMessage(
         company_id=thread.company_id,
