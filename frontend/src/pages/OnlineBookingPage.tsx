@@ -137,6 +137,7 @@ export function OnlineBookingPage() {
   const [patientPhone, setPatientPhone] = useState("");
   const [extraPhones, setExtraPhones] = useState<string[]>([""]);
   const [specialistId, setSpecialistId] = useState(0);
+  const [serviceDirectionId, setServiceDirectionId] = useState<number | "">("");
   const [serviceTitle, setServiceTitle] = useState("");
   const [startAt, setStartAt] = useState("");
   const [serviceAmount, setServiceAmount] = useState("");
@@ -203,10 +204,11 @@ export function OnlineBookingPage() {
     enabled: newLeadPipelineId != null,
   });
   const specialistDirectionForKpi = useMemo(() => {
+    if (serviceDirectionId !== "") return serviceDirectionId;
     const list = specialistsQuery.data?.filter((s) => s.is_active) ?? [];
     const s = list.find((x) => x.id === specialistId);
     return s?.direction_id ?? 0;
-  }, [specialistsQuery.data, specialistId]);
+  }, [serviceDirectionId, specialistsQuery.data, specialistId]);
   const selectedSpecialistForForm = useMemo(() => {
     const list = specialistsQuery.data?.filter((s) => s.is_active) ?? [];
     return list.find((x) => x.id === specialistId);
@@ -423,6 +425,7 @@ export function OnlineBookingPage() {
       setExtraPhones([""]);
       setComment("");
       setServiceTitle("");
+      setServiceDirectionId("");
       setServiceAmount("");
       setPaidAmount("");
       setLeadId(null);
@@ -642,19 +645,18 @@ export function OnlineBookingPage() {
     return list;
   }, [specialistsActive, specialistsQuery.data, specialistId]);
 
-  /** Услуги = активные направления записи (+ текущее направление специалиста, даже если архив). */
+  /** Услуги = активные направления записи (+ выбранное, даже если архив). */
   const serviceDirectionOptions = useMemo(() => {
     const map = new Map<number, BookingDirection>();
     for (const d of directionsQuery.data ?? []) {
       if (d.is_active) map.set(d.id, d);
     }
-    const currentDirId = selectedSpecialistForForm?.direction_id;
-    if (currentDirId != null && !map.has(currentDirId)) {
-      const cur = (directionsQuery.data ?? []).find((d) => d.id === currentDirId);
+    if (serviceDirectionId !== "" && !map.has(serviceDirectionId)) {
+      const cur = (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId);
       if (cur) map.set(cur.id, cur);
     }
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"));
-  }, [directionsQuery.data, selectedSpecialistForForm?.direction_id]);
+  }, [directionsQuery.data, serviceDirectionId]);
 
   const reorderSpecialistsMutation = useMutation({
     mutationFn: (ordered_ids: number[]) =>
@@ -689,18 +691,6 @@ export function OnlineBookingPage() {
     const first = specialistsActive[0];
     setSpecialistId(first?.id ?? 0);
   }, [specialistsActive, specialistId]);
-
-  useEffect(() => {
-    const s =
-      specialistsActive.find((x) => x.id === specialistId) ??
-      specialistsQuery.data?.find((x) => x.id === specialistId);
-    if (!s) return;
-    const name =
-      (s.direction_name || "").trim() ||
-      (directionsQuery.data ?? []).find((d) => d.id === s.direction_id)?.name ||
-      "";
-    if (name && name !== serviceTitle) setServiceTitle(name);
-  }, [specialistId, specialistsActive, specialistsQuery.data, directionsQuery.data, serviceTitle]);
 
   useEffect(() => {
     if (newLeadPipelineId != null) return;
@@ -773,11 +763,6 @@ export function OnlineBookingPage() {
 
   function handleSlotClick(payload: { specialistId: number; directionId: number; dateYmd: string; minuteOfDay: number }) {
     setSpecialistId(payload.specialistId);
-    const dirName =
-      (directionsQuery.data ?? []).find((d) => d.id === payload.directionId)?.name ||
-      specialistsQuery.data?.find((s) => s.id === payload.specialistId)?.direction_name ||
-      "";
-    if (dirName) setServiceTitle(dirName);
     setFilterDate(payload.dateYmd);
     const hh = Math.floor(payload.minuteOfDay / 60);
     const mm = payload.minuteOfDay % 60;
@@ -791,9 +776,8 @@ export function OnlineBookingPage() {
   function handleServiceDirectionChange(directionId: number) {
     const dir = serviceDirectionOptions.find((d) => d.id === directionId);
     if (!dir) return;
+    setServiceDirectionId(dir.id);
     setServiceTitle(dir.name);
-    const match = specialistsForFormSelect.find((s) => s.direction_id === directionId);
-    if (match) setSpecialistId(match.id);
   }
 
   function handleMoveAppointment(payload: { appointmentId: number; specialistId: number; minuteOfDay: number }) {
@@ -1135,7 +1119,7 @@ export function OnlineBookingPage() {
                   Услуга
                   <select
                     required
-                    value={selectedSpecialistForForm?.direction_id ?? ""}
+                    value={serviceDirectionId === "" ? "" : serviceDirectionId}
                     onChange={(e) => handleServiceDirectionChange(Number(e.target.value))}
                     className="mt-1 w-full mo-input"
                   >
