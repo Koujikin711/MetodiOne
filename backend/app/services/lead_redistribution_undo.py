@@ -90,8 +90,9 @@ async def load_batch_move_events(
     created = audit.created_at
     if created is None:
         return []
-    t0 = created - timedelta(seconds=45)
-    t1 = created + timedelta(minutes=20)
+    # Старые batch писали system audit в конце — lead-события могут быть на минуты раньше.
+    t0 = created - timedelta(minutes=45)
+    t1 = created + timedelta(minutes=10)
     events = (
         await db.execute(
             select(LeadAuditEvent)
