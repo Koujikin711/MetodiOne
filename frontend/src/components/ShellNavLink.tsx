@@ -11,6 +11,7 @@ import {
   Funnel,
   IdCard,
   LayoutDashboard,
+  MapPin,
   MessageCircle,
   Plug,
   Target,
@@ -56,6 +57,8 @@ export function ShellNavIcon({ iconKey }: { iconKey: ShellSidebarIconKey }) {
       return <IdCard className={ICON_CLASS} />;
     case "layout-dashboard":
       return <LayoutDashboard className={ICON_CLASS} />;
+    case "map-pin":
+      return <MapPin className={ICON_CLASS} />;
     case "message-circle":
       return <MessageCircle className={ICON_CLASS} />;
     case "plug":

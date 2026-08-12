@@ -32,6 +32,7 @@ from app.database_migrate import (
     ensure_lead_extra_phones_tables,
     ensure_booking_specialist_directions,
     ensure_sales_crm_space_migration,
+    ensure_sales_field_visits_migration,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -55,6 +56,7 @@ from app.routers import (
     sales_kpi_board,
     manager_desk_sales,
     quote_calculator,
+    sales_field_visits,
     sources,
     stages,
     system,
@@ -126,6 +128,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_lead_extra_phones_tables(conn, db_url)
                 await ensure_booking_specialist_directions(conn, db_url)
                 await ensure_sales_crm_space_migration(conn, db_url)
+                await ensure_sales_field_visits_migration(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
@@ -712,6 +715,7 @@ app.include_router(sales_kpi.router, prefix="/api")
 app.include_router(sales_kpi_board.router, prefix="/api")
 app.include_router(manager_desk_sales.router, prefix="/api")
 app.include_router(quote_calculator.router, prefix="/api")
+app.include_router(sales_field_visits.router, prefix="/api")
 app.include_router(booking.router, prefix="/api")
 app.include_router(deals.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
