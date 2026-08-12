@@ -8,6 +8,7 @@ export type ShellSidebarIconKey =
   | "funnel"
   | "id-card"
   | "layout-dashboard"
+  | "map-pin"
   | "message-circle"
   | "plug"
   | "target"
@@ -132,6 +133,15 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
           labelFull: "Калькуляция",
           variant: "indigo",
           iconKey: "clipboard-list",
+        },
+        {
+          id: "tracker",
+          to: "/tracker",
+          title: "Трекер",
+          labelShort: "Трекер",
+          labelFull: "Трекер визитов",
+          variant: "blue",
+          iconKey: "map-pin",
         },
         {
           id: "desk-sales",
@@ -336,6 +346,15 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         labelFull: "Калькуляция",
         variant: "indigo",
         iconKey: "clipboard-list",
+      },
+      {
+        id: "tracker",
+        to: "/tracker",
+        title: "Трекер",
+        labelShort: "Трекер",
+        labelFull: "Трекер визитов",
+        variant: "blue",
+        iconKey: "map-pin",
       },
       {
         id: "desk-sales",

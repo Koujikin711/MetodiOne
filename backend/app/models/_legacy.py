@@ -322,6 +322,28 @@ class ManagerDeskSale(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
 
 
+class SalesFieldVisit(Base):
+    """Полевой визит менеджера (трекер локации во втором CRM-пространстве)."""
+
+    __tablename__ = "sales_field_visits"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    manager_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    manager_name: Mapped[str] = mapped_column(String(255))
+    lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
+    client_name: Mapped[str] = mapped_column(String(255))
+    client_phone: Mapped[str] = mapped_column(String(64), default="")
+    enterprise_type: Mapped[str] = mapped_column(String(255), default="")
+    lat: Mapped[Decimal] = mapped_column(Numeric(10, 7))
+    lon: Mapped[Decimal] = mapped_column(Numeric(10, 7))
+    accuracy_m: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    visited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
 class SalesKpiManualSale(Base):
     """Продажа курса/протокола без онлайн-записи (вносит admin)."""
 

@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Funnel,
   LogOut,
+  MapPin,
   MessageCircle,
   UserRound,
   Users,
@@ -209,6 +210,14 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={deskSalesEnabled}>
+                <NavLink preventScrollReset to="/tracker" className={mobileBottomNavLinkClass} title="Трекер">
+                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <MapPin className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Трекер</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={deskSalesEnabled}>
                 <NavLink preventScrollReset to="/sales" className={mobileBottomNavLinkClass} title="Продажи">
                   <GradientIconBox variant="online" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Wallet className="h-4 w-4" />
@@ -347,6 +356,14 @@ export function MainLayout() {
                     <ClipboardList className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Калькул.</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={deskSalesEnabled}>
+                <NavLink preventScrollReset to="/tracker" className={mobileBottomNavLinkClass} title="Трекер">
+                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <MapPin className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Трекер</span>
                 </NavLink>
               </NavIf>
               <NavIf show={deskSalesEnabled}>

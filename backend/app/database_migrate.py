@@ -2145,3 +2145,77 @@ async def ensure_sales_crm_space_migration(conn: AsyncConnection, database_url: 
             "ON lead_sources (company_id, name) WHERE company_id IS NOT NULL"
         ),
     )
+
+
+async def ensure_sales_field_visits_migration(conn: AsyncConnection, database_url: str) -> None:
+    """Полевой трекер визитов менеджеров (crm_mode=sales)."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    pg = "postgresql" in low or "asyncpg" in low
+
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_field_visits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    manager_user_id INTEGER NOT NULL,
+                    manager_name VARCHAR(255) NOT NULL,
+                    lead_id INTEGER,
+                    client_name VARCHAR(255) NOT NULL,
+                    client_phone VARCHAR(64) NOT NULL DEFAULT '',
+                    enterprise_type VARCHAR(255) NOT NULL DEFAULT '',
+                    lat NUMERIC(10, 7) NOT NULL,
+                    lon NUMERIC(10, 7) NOT NULL,
+                    accuracy_m NUMERIC(10, 2),
+                    address VARCHAR(512),
+                    note TEXT,
+                    visited_at DATETIME,
+                    created_at DATETIME
+                )"""
+            ),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_sales_field_visits_company_id ON sales_field_visits (company_id)"),
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_sales_field_visits_manager_user_id "
+                "ON sales_field_visits (manager_user_id)"
+            ),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_sales_field_visits_visited_at ON sales_field_visits (visited_at)"),
+        )
+        return
+
+    if not pg:
+        return
+
+    await conn.execute(
+        text(
+            """CREATE TABLE IF NOT EXISTS sales_field_visits (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                manager_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                manager_name VARCHAR(255) NOT NULL,
+                lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+                client_name VARCHAR(255) NOT NULL,
+                client_phone VARCHAR(64) NOT NULL DEFAULT '',
+                enterprise_type VARCHAR(255) NOT NULL DEFAULT '',
+                lat NUMERIC(10, 7) NOT NULL,
+                lon NUMERIC(10, 7) NOT NULL,
+                accuracy_m NUMERIC(10, 2),
+                address VARCHAR(512),
+                note TEXT,
+                visited_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ
+            )"""
+        ),
+    )
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sales_field_visits_company_id ON sales_field_visits (company_id)"))
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_sales_field_visits_manager_user_id ON sales_field_visits (manager_user_id)"),
+    )
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sales_field_visits_lead_id ON sales_field_visits (lead_id)"))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sales_field_visits_visited_at ON sales_field_visits (visited_at)"))
