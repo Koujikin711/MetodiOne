@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -10,6 +10,7 @@ import type { LoginCompanyChoice, TokenResponse, User, UserRole } from "@/lib/ty
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,6 +51,7 @@ export function LoginPage() {
             }),
           });
           setStoredToken(token.access_token);
+          await queryClient.clear();
           setCompanyChoices([]);
           return { mustChangePassword: token.must_change_password === true };
         } catch (e) {
@@ -71,6 +73,7 @@ export function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       setStoredToken(token.access_token);
+      await queryClient.clear();
       return { mustChangePassword: token.must_change_password === true };
     },
     onSuccess: ({ mustChangePassword }) =>

@@ -46,11 +46,20 @@ export function HomeEntry() {
   const token = getStoredToken();
   const role = decodeRoleFromToken(token);
   const meQuery = useCurrentUserMe();
+  const salesSpace =
+    meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
+
   if (role === "super_owner") {
     return <Navigate to="/companies" replace />;
   }
   if (role === "accountant" || role === "finance_analyst") {
     return <Navigate to="/finance" replace />;
+  }
+  // Второе пространство: сразу в продажи / калькуляцию, не в канбан клиники
+  if (salesSpace) {
+    if (role === "manager" || role === "admin" || role === "owner") {
+      return <Navigate to="/sales" replace />;
+    }
   }
   if (role === "expert" && meQuery.data?.is_chief_expert) {
     return <Navigate to="/crm" replace />;
