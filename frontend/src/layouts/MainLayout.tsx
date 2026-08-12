@@ -3,6 +3,7 @@ import {
   Calendar,
   Target,
   CheckSquare,
+  ClipboardList,
   Funnel,
   LogOut,
   MessageCircle,
@@ -200,6 +201,14 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               <NavIf show={deskSalesEnabled}>
+                <NavLink preventScrollReset to="/quote" className={mobileBottomNavLinkClass} title="Калькуляция">
+                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <ClipboardList className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Калькул.</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={deskSalesEnabled}>
                 <NavLink preventScrollReset to="/sales" className={mobileBottomNavLinkClass} title="Продажи">
                   <GradientIconBox variant="online" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Wallet className="h-4 w-4" />
@@ -330,6 +339,14 @@ export function MainLayout() {
                     <Calendar className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Онлайн</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={deskSalesEnabled}>
+                <NavLink preventScrollReset to="/quote" className={mobileBottomNavLinkClass} title="Калькуляция">
+                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <ClipboardList className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Калькул.</span>
                 </NavLink>
               </NavIf>
               <NavIf show={deskSalesEnabled}>

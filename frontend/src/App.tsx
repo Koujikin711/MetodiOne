@@ -37,6 +37,7 @@ import { TasksPage } from "@/pages/TasksPage";
 import { TeamMessengerPage } from "@/pages/TeamMessengerPage";
 import { ManagerDeskPage } from "@/pages/ManagerDeskPage";
 import { ManagerSalesPage } from "@/pages/ManagerSalesPage";
+import { SalesQuoteCalculatorPage } from "@/pages/SalesQuoteCalculatorPage";
 
 export default function App() {
   return (
@@ -60,6 +61,7 @@ export default function App() {
             <Route path="/my-leads" element={<MyLeadsPage />} />
             <Route path="/booking" element={<OnlineBookingPage />} />
             <Route path="/sales" element={<ManagerSalesPage />} />
+            <Route path="/quote" element={<SalesQuoteCalculatorPage />} />
             <Route path="/leads/:id" element={<LeadDetailPage />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/messenger" element={<TeamMessengerPage />} />

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import toast from "react-hot-toast";
+import { Link } from "react-router-dom";
 
 import { apiFetch } from "@/lib/api";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
@@ -92,12 +93,18 @@ export function ManagerSalesPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-[var(--mo-text)]">Продажи</h1>
-        <p className="mt-1 text-sm mo-muted">
-          Вместо онлайн-записи: стоимость, сфера деятельности, ФИО, телефон и сумма оплаты. Данные идут в отчёты
-          компании и дебиторку.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--mo-text)]">Продажи</h1>
+          <p className="mt-1 text-sm mo-muted">
+            Вместо онлайн-записи: стоимость, сфера деятельности, ФИО, телефон и сумма оплаты. Данные идут в отчёты
+            компании и дебиторку. Сумму модулей можно собрать в{" "}
+            <Link to="/quote" className="underline underline-offset-2">
+              Калькуляции
+            </Link>
+            .
+          </p>
+        </div>
       </header>
 
       <section className="mo-section p-4">
