@@ -123,15 +123,26 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       });
     }
     if (showDeskSales) {
-      items.push({
-        id: "desk-sales",
-        to: "/sales",
-        title: "Продажи",
-        labelShort: "Продажи",
-        labelFull: "Продажи",
-        variant: "online",
-        iconKey: "wallet",
-      });
+      items.push(
+        {
+          id: "quote",
+          to: "/quote",
+          title: "Калькуляция",
+          labelShort: "Калькул.",
+          labelFull: "Калькуляция",
+          variant: "indigo",
+          iconKey: "clipboard-list",
+        },
+        {
+          id: "desk-sales",
+          to: "/sales",
+          title: "Продажи",
+          labelShort: "Продажи",
+          labelFull: "Продажи",
+          variant: "online",
+          iconKey: "wallet",
+        },
+      );
     }
     if (showNavForFeature("crm")) {
       items.push(
@@ -316,15 +327,26 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     });
   }
   if (showDeskSales) {
-    items.push({
-      id: "desk-sales",
-      to: "/sales",
-      title: "Продажи",
-      labelShort: "Продажи",
-      labelFull: "Продажи",
-      variant: "online",
-      iconKey: "wallet",
-    });
+    items.push(
+      {
+        id: "quote",
+        to: "/quote",
+        title: "Калькуляция",
+        labelShort: "Калькул.",
+        labelFull: "Калькуляция",
+        variant: "indigo",
+        iconKey: "clipboard-list",
+      },
+      {
+        id: "desk-sales",
+        to: "/sales",
+        title: "Продажи",
+        labelShort: "Продажи",
+        labelFull: "Продажи",
+        variant: "online",
+        iconKey: "wallet",
+      },
+    );
   }
   if (showNavForFeature("tasks")) {
     items.push({
