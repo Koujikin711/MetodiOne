@@ -834,6 +834,28 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   }
 }
 
+/* Компактный трекер визитов на телефоне */
+@media (max-width: 639px) {
+  .sales-tracker-page .sales-tracker-map .leaflet-control-zoom a {
+    width: 26px;
+    height: 26px;
+    line-height: 26px;
+    font-size: 14px;
+  }
+
+  .sales-tracker-page .sales-tracker-map .leaflet-control-attribution {
+    font-size: 9px;
+    max-width: 55%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sales-tracker-page .mo-input {
+    font-size: 16px; /* iOS: без автозума при фокусе */
+  }
+}
+
 .auth-gradient-bg {
   background-color: var(--mo-canvas);
 }

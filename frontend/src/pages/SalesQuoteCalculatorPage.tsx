@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -7,10 +7,12 @@ import { apiFetch } from "@/lib/api";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import type { ManagerDeskSale, Pipeline } from "@/lib/types";
 
-type CatalogItem = { id: string; label: string };
+type CatalogItem = { id: string; label: string; description?: string };
 type CatalogModule = {
   id: string;
   title: string;
+  subtitle?: string;
+  description?: string;
   pricing_hint: string;
   items?: CatalogItem[];
   base_items?: CatalogItem[];
@@ -38,6 +40,114 @@ function formatMoney(n: number) {
 
 function toggleId(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+}
+
+function ModuleCard({
+  active,
+  children,
+  className = "",
+}: {
+  active?: boolean;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={[
+        "rounded-2xl border p-4 transition sm:p-5",
+        active
+          ? "border-[var(--mo-accent)]/45 bg-[var(--mo-accent-soft)]/35 shadow-sm"
+          : "border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]",
+        className,
+      ].join(" ")}
+    >
+      {children}
+    </section>
+  );
+}
+
+function ModuleHeader({
+  title,
+  subtitle,
+  description,
+  priceBadge,
+  control,
+}: {
+  title: string;
+  subtitle?: string;
+  description?: string;
+  priceBadge?: string;
+  control?: ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          {control}
+          <h2 className="text-base font-semibold tracking-tight text-[var(--mo-text)]">{title}</h2>
+          {priceBadge ? (
+            <span className="rounded-full border border-[var(--mo-border-strong)] bg-[var(--mo-surface)] px-2 py-0.5 text-[11px] font-semibold tabular-nums text-[var(--mo-text)]">
+              {priceBadge}
+            </span>
+          ) : null}
+        </div>
+        {subtitle ? <p className="mt-0.5 text-xs font-medium text-[var(--mo-accent-hover)]">{subtitle}</p> : null}
+        {description ? <p className="mt-2 text-[13px] leading-snug mo-muted">{description}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function FeatureChip({
+  item,
+  checked,
+  disabled,
+  onToggle,
+  trailing,
+}: {
+  item: CatalogItem;
+  checked?: boolean;
+  disabled?: boolean;
+  onToggle?: () => void;
+  trailing?: ReactNode;
+}) {
+  const interactive = Boolean(onToggle);
+  const body = (
+    <>
+      <span className="block text-[13px] font-medium leading-tight text-[var(--mo-text)]">{item.label}</span>
+      {item.description ? (
+        <span className="mt-0.5 block text-[11px] leading-snug mo-muted">{item.description}</span>
+      ) : null}
+      {trailing}
+    </>
+  );
+
+  if (!interactive) {
+    return (
+      <div className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/70 px-3 py-2.5">{body}</div>
+    );
+  }
+
+  return (
+    <label
+      className={[
+        "flex cursor-pointer gap-2.5 rounded-xl border px-3 py-2.5 transition",
+        disabled ? "cursor-not-allowed opacity-50" : "hover:border-[var(--mo-accent)]/40",
+        checked
+          ? "border-[var(--mo-accent)]/50 bg-[var(--mo-accent-soft)]/50"
+          : "border-[var(--mo-border)] bg-[var(--mo-surface)]/70",
+      ].join(" ")}
+    >
+      <input
+        type="checkbox"
+        className="mt-1 shrink-0"
+        disabled={disabled}
+        checked={Boolean(checked)}
+        onChange={onToggle}
+      />
+      <span className="min-w-0">{body}</span>
+    </label>
+  );
 }
 
 export function SalesQuoteCalculatorPage() {
@@ -135,22 +245,32 @@ export function SalesQuoteCalculatorPage() {
   const repMod = modules.find((m) => m.id === "reports");
   const svcMod = modules.find((m) => m.id === "services");
 
+  const salesPriceHint =
+    salesIds.length >= 7
+      ? formatMoney(salesMod?.price_all ?? 7000)
+      : salesIds.length >= 3
+        ? formatMoney(salesMod?.price_any3 ?? 5000)
+        : "от 5 000 TJS";
+
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--mo-text)]">Калькуляция</h1>
-          <p className="mt-1 text-sm mo-muted">
-            Выберите модули и услуги — сумма заказа сложится автоматически, затем уйдёт в{" "}
-            <Link to="/sales" className="underline underline-offset-2">
+    <div className="space-y-5 pb-8">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="max-w-2xl">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mo-muted">Продажи · конфиг</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-3xl">
+            Калькуляция заказа
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed mo-muted">
+            Соберите модули под задачу клиента. Сумма считается сразу, состав и оплату можно сохранить в{" "}
+            <Link to="/sales" className="font-medium text-[var(--mo-accent-hover)] underline-offset-2 hover:underline">
               Продажи
             </Link>
             .
           </p>
         </div>
-        <div className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/60 px-4 py-3 text-right">
-          <div className="text-xs mo-muted">Итого к заказу</div>
-          <div className="text-2xl font-semibold tabular-nums text-[var(--mo-text)]">
+        <div className="min-w-[10.5rem] rounded-2xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-4 py-3 text-right shadow-sm">
+          <div className="text-[11px] font-medium uppercase tracking-wide mo-muted">Итого</div>
+          <div className="mt-0.5 text-2xl font-semibold tabular-nums text-[var(--mo-text)]">
             {quote?.ok ? formatMoney(quote.total) : "—"}
           </div>
         </div>
@@ -158,230 +278,270 @@ export function SalesQuoteCalculatorPage() {
 
       {catalogQuery.isLoading ? <p className="text-sm mo-muted">Загрузка каталога…</p> : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {salesMod ? (
-          <section className="mo-section p-4">
-            <h2 className="text-sm font-semibold text-[var(--mo-text)]">{salesMod.title}</h2>
-            <p className="mt-1 text-xs mo-muted">{salesMod.pricing_hint}</p>
-            <div className="mt-3 grid gap-2">
-              {(salesMod.items ?? []).map((it) => (
-                <label key={it.id} className="flex items-center gap-2 text-sm text-[var(--mo-text)]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="grid gap-4 lg:grid-cols-2">
+          {salesMod ? (
+            <ModuleCard active={salesIds.length > 0}>
+              <ModuleHeader
+                title={salesMod.title}
+                subtitle={salesMod.subtitle}
+                description={salesMod.description}
+                priceBadge={salesPriceHint}
+              />
+              <p className="mt-2 text-[11px] mo-muted">{salesMod.pricing_hint}</p>
+              <div className="mt-3 grid gap-2">
+                {(salesMod.items ?? []).map((it) => (
+                  <FeatureChip
+                    key={it.id}
+                    item={it}
+                    checked={salesIds.includes(it.id)}
+                    onToggle={() => setSalesIds((prev) => toggleId(prev, it.id))}
+                  />
+                ))}
+              </div>
+              <p className="mt-3 text-[11px] mo-muted">
+                Выбрано {salesIds.length} из 7
+                {salesIds.length > 0 && salesIds.length < 3 ? " · нужно ещё минимум до 3" : ""}
+              </p>
+            </ModuleCard>
+          ) : null}
+
+          {accMod ? (
+            <ModuleCard active={accountingEnabled}>
+              <ModuleHeader
+                title={accMod.title}
+                subtitle={accMod.subtitle}
+                description={accMod.description}
+                priceBadge={formatMoney(accMod.fixed_price ?? 7000)}
+                control={
                   <input
                     type="checkbox"
-                    checked={salesIds.includes(it.id)}
-                    onChange={() => setSalesIds((prev) => toggleId(prev, it.id))}
+                    className="mt-1"
+                    checked={accountingEnabled}
+                    onChange={(e) => setAccountingEnabled(e.target.checked)}
+                    aria-label="Включить бухгалтерию"
                   />
-                  {it.label}
-                </label>
-              ))}
-            </div>
-            <p className="mt-2 text-xs mo-muted">Выбрано: {salesIds.length} / 7</p>
-          </section>
-        ) : null}
-
-        {accMod ? (
-          <section className="mo-section p-4">
-            <label className="flex items-center gap-2 text-sm font-semibold text-[var(--mo-text)]">
-              <input
-                type="checkbox"
-                checked={accountingEnabled}
-                onChange={(e) => setAccountingEnabled(e.target.checked)}
+                }
               />
-              {accMod.title} — {formatMoney(accMod.fixed_price ?? 7000)}
-            </label>
-            <p className="mt-1 text-xs mo-muted">{accMod.pricing_hint}</p>
-            <div className="mt-3">
-              <div className="text-[11px] uppercase tracking-wide mo-muted">Входит в пакет</div>
-              <ul className="mt-1 list-inside list-disc text-sm text-[var(--mo-text)]">
-                {(accMod.base_items ?? []).map((it) => (
-                  <li key={it.id}>{it.label}</li>
+              <p className="mt-2 text-[11px] mo-muted">{accMod.pricing_hint}</p>
+              <div className="mt-3">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide mo-muted">Входит в пакет</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(accMod.base_items ?? []).map((it) => (
+                    <FeatureChip key={it.id} item={it} />
+                  ))}
+                </div>
+              </div>
+              <div className="mt-3">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide mo-muted">Можно добавить</p>
+                <div className="grid gap-2">
+                  {(accMod.extra_items ?? []).map((it) => (
+                    <FeatureChip
+                      key={it.id}
+                      item={it}
+                      disabled={!accountingEnabled}
+                      checked={accountingExtras.includes(it.id)}
+                      onToggle={() => setAccountingExtras((prev) => toggleId(prev, it.id))}
+                    />
+                  ))}
+                </div>
+              </div>
+            </ModuleCard>
+          ) : null}
+
+          {prodMod ? (
+            <ModuleCard active={productionEnabled}>
+              <ModuleHeader
+                title={prodMod.title}
+                subtitle={prodMod.subtitle}
+                description={prodMod.description}
+                priceBadge={formatMoney(prodMod.fixed_price ?? 10000)}
+                control={
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={productionEnabled}
+                    onChange={(e) => setProductionEnabled(e.target.checked)}
+                    aria-label="Включить производство"
+                  />
+                }
+              />
+              <p className="mt-2 text-[11px] mo-muted">{prodMod.pricing_hint}</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {(prodMod.items ?? []).map((it) => (
+                  <FeatureChip key={it.id} item={it} />
+                ))}
+              </div>
+            </ModuleCard>
+          ) : null}
+
+          {repMod ? (
+            <ModuleCard active={reportsEnabled}>
+              <ModuleHeader
+                title={repMod.title}
+                subtitle={repMod.subtitle}
+                description={repMod.description}
+                priceBadge={formatMoney(repMod.fixed_price ?? 7000)}
+                control={
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={reportsEnabled}
+                    onChange={(e) => setReportsEnabled(e.target.checked)}
+                    aria-label="Включить отчёты"
+                  />
+                }
+              />
+              <p className="mt-2 text-[11px] mo-muted">{repMod.pricing_hint}</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {(repMod.items ?? []).map((it) => (
+                  <FeatureChip key={it.id} item={it} />
+                ))}
+              </div>
+            </ModuleCard>
+          ) : null}
+
+          {svcMod ? (
+            <ModuleCard active={serviceIds.length > 0} className="lg:col-span-2">
+              <ModuleHeader
+                title={svcMod.title}
+                subtitle={svcMod.subtitle}
+                description={svcMod.description}
+                priceBadge={`+${svcMod.price_each ?? 1500} / шт.`}
+              />
+              <p className="mt-2 text-[11px] mo-muted">{svcMod.pricing_hint}</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {(svcMod.items ?? []).map((it) => (
+                  <FeatureChip
+                    key={it.id}
+                    item={it}
+                    checked={serviceIds.includes(it.id)}
+                    onToggle={() => setServiceIds((prev) => toggleId(prev, it.id))}
+                    trailing={
+                      <span className="mt-1 block text-[10px] font-semibold tabular-nums text-[var(--mo-accent-hover)]">
+                        +{formatMoney(svcMod.price_each ?? 1500)}
+                      </span>
+                    }
+                  />
+                ))}
+              </div>
+            </ModuleCard>
+          ) : null}
+        </div>
+
+        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+          <section className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4 shadow-sm">
+            <h2 className="text-sm font-semibold text-[var(--mo-text)]">Состав заказа</h2>
+            {quote?.errors?.length ? (
+              <ul className="mt-2 space-y-1 text-xs text-rose-600 dark:text-rose-300">
+                {quote.errors.map((e) => (
+                  <li key={e}>• {e}</li>
                 ))}
               </ul>
-            </div>
-            <div className="mt-3 grid gap-2">
-              <div className="text-[11px] uppercase tracking-wide mo-muted">Можно добавить</div>
-              {(accMod.extra_items ?? []).map((it) => (
-                <label
-                  key={it.id}
-                  className={`flex items-center gap-2 text-sm ${accountingEnabled ? "text-[var(--mo-text)]" : "mo-muted"}`}
-                >
-                  <input
-                    type="checkbox"
-                    disabled={!accountingEnabled}
-                    checked={accountingExtras.includes(it.id)}
-                    onChange={() => setAccountingExtras((prev) => toggleId(prev, it.id))}
-                  />
-                  {it.label}
-                </label>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {prodMod ? (
-          <section className="mo-section p-4">
-            <label className="flex items-center gap-2 text-sm font-semibold text-[var(--mo-text)]">
-              <input
-                type="checkbox"
-                checked={productionEnabled}
-                onChange={(e) => setProductionEnabled(e.target.checked)}
-              />
-              {prodMod.title} — {formatMoney(prodMod.fixed_price ?? 10000)}
-            </label>
-            <p className="mt-1 text-xs mo-muted">{prodMod.pricing_hint}</p>
-            <ul className="mt-3 list-inside list-disc text-sm text-[var(--mo-text)]">
-              {(prodMod.items ?? []).map((it) => (
-                <li key={it.id}>{it.label}</li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {repMod ? (
-          <section className="mo-section p-4">
-            <label className="flex items-center gap-2 text-sm font-semibold text-[var(--mo-text)]">
-              <input
-                type="checkbox"
-                checked={reportsEnabled}
-                onChange={(e) => setReportsEnabled(e.target.checked)}
-              />
-              {repMod.title} — {formatMoney(repMod.fixed_price ?? 7000)}
-            </label>
-            <p className="mt-1 text-xs mo-muted">{repMod.pricing_hint}</p>
-            <ul className="mt-3 list-inside list-disc text-sm text-[var(--mo-text)]">
-              {(repMod.items ?? []).map((it) => (
-                <li key={it.id}>{it.label}</li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {svcMod ? (
-          <section className="mo-section p-4 lg:col-span-2">
-            <h2 className="text-sm font-semibold text-[var(--mo-text)]">{svcMod.title}</h2>
-            <p className="mt-1 text-xs mo-muted">{svcMod.pricing_hint}</p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {(svcMod.items ?? []).map((it) => (
-                <label key={it.id} className="flex items-center gap-2 text-sm text-[var(--mo-text)]">
-                  <input
-                    type="checkbox"
-                    checked={serviceIds.includes(it.id)}
-                    onChange={() => setServiceIds((prev) => toggleId(prev, it.id))}
-                  />
-                  {it.label}
-                  <span className="mo-muted">(+{svcMod.price_each ?? 1500})</span>
-                </label>
-              ))}
-            </div>
-          </section>
-        ) : null}
-      </div>
-
-      <section className="mo-section p-4">
-        <h2 className="text-sm font-semibold text-[var(--mo-text)]">Состав заказа</h2>
-        {quote?.errors?.length ? (
-          <ul className="mt-2 list-inside list-disc text-sm text-rose-300">
-            {quote.errors.map((e) => (
-              <li key={e}>{e}</li>
-            ))}
-          </ul>
-        ) : null}
-        {(quote?.lines?.length ?? 0) > 0 ? (
-          <ul className="mt-3 space-y-2 text-sm">
-            {quote!.lines.map((line, idx) => (
-              <li key={`${line.module}-${idx}`} className="flex justify-between gap-3 border-b border-[var(--mo-border)] pb-2">
-                <div>
-                  <div className="font-medium text-[var(--mo-text)]">{line.title}</div>
-                  <div className="text-xs mo-muted">{line.items.join(", ")}</div>
-                </div>
-                <div className="shrink-0 tabular-nums text-[var(--mo-text)]">{formatMoney(line.amount)}</div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-sm lux-caption">Пока ничего не выбрано.</p>
-        )}
-      </section>
-
-      <section className="mo-section p-4">
-        <h2 className="text-sm font-semibold text-[var(--mo-text)]">Клиент → в продажи</h2>
-        <form
-          className="mt-3 grid gap-3 sm:grid-cols-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!quote?.ok) {
-              toast.error(quote?.errors?.[0] || "Исправьте выбор модулей");
-              return;
-            }
-            commitMutation.mutate();
-          }}
-        >
-          <label className="text-sm">
-            <span className="mo-muted">ФИО</span>
-            <input
-              required
-              className="mo-input mt-1 w-full"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-            />
-          </label>
-          <label className="text-sm">
-            <span className="mo-muted">Телефон</span>
-            <input
-              required
-              className="mo-input mt-1 w-full"
-              value={clientPhone}
-              onChange={(e) => setClientPhone(e.target.value)}
-            />
-          </label>
-          <label className="text-sm">
-            <span className="mo-muted">Сфера деятельности</span>
-            <input
-              className="mo-input mt-1 w-full"
-              value={activitySphere}
-              onChange={(e) => setActivitySphere(e.target.value)}
-            />
-          </label>
-          <label className="text-sm">
-            <span className="mo-muted">Сколько взял денег (TJS)</span>
-            <input
-              className="mo-input mt-1 w-full"
-              inputMode="decimal"
-              value={paidAmount}
-              onChange={(e) => setPaidAmount(e.target.value)}
-            />
-          </label>
-          {(pipelinesQuery.data?.length ?? 0) > 0 ? (
-            <label className="text-sm sm:col-span-2">
-              <span className="mo-muted">Воронка</span>
-              <select
-                className="mo-input mt-1 w-full"
-                value={pipelineId === "" ? "" : String(pipelineId)}
-                onChange={(e) => setPipelineId(e.target.value ? Number(e.target.value) : "")}
-              >
-                <option value="">Авто</option>
-                {(pipelinesQuery.data ?? []).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
+            ) : null}
+            {(quote?.lines?.length ?? 0) > 0 ? (
+              <ul className="mt-3 space-y-3">
+                {quote!.lines.map((line, idx) => (
+                  <li key={`${line.module}-${idx}`} className="border-b border-[var(--mo-border)] pb-2 last:border-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-[var(--mo-text)]">{line.title}</div>
+                        <div className="mt-0.5 text-[11px] leading-snug mo-muted">{line.items.join(" · ")}</div>
+                      </div>
+                      <div className="shrink-0 text-sm font-semibold tabular-nums text-[var(--mo-text)]">
+                        {formatMoney(line.amount)}
+                      </div>
+                    </div>
+                  </li>
                 ))}
-              </select>
-            </label>
-          ) : null}
-          <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
-            <button
-              type="submit"
-              disabled={commitMutation.isPending || !quote?.ok}
-              className="rounded-xl bg-[var(--mo-accent)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm mo-muted">Пока ничего не выбрано.</p>
+            )}
+            <div className="mt-3 flex items-baseline justify-between border-t border-[var(--mo-border)] pt-3">
+              <span className="text-xs mo-muted">К оплате</span>
+              <span className="text-lg font-semibold tabular-nums text-[var(--mo-text)]">
+                {quote?.ok ? formatMoney(quote.total) : "—"}
+              </span>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4 shadow-sm">
+            <h2 className="text-sm font-semibold text-[var(--mo-text)]">Клиент → в продажи</h2>
+            <form
+              className="mt-3 grid gap-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!quote?.ok) {
+                  toast.error(quote?.errors?.[0] || "Исправьте выбор модулей");
+                  return;
+                }
+                commitMutation.mutate();
+              }}
             >
-              {commitMutation.isPending ? "Сохранение…" : "Сохранить в продажи"}
-            </button>
-            <span className="text-sm mo-muted">
-              Стоимость заказа: <span className="font-medium text-[var(--mo-text)]">{quote?.ok ? formatMoney(quote.total) : "—"}</span>
-            </span>
-          </div>
-        </form>
-      </section>
+              <label className="text-sm">
+                <span className="text-xs mo-muted">ФИО</span>
+                <input
+                  required
+                  className="mo-input mt-1 w-full"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                />
+              </label>
+              <label className="text-sm">
+                <span className="text-xs mo-muted">Телефон</span>
+                <input
+                  required
+                  className="mo-input mt-1 w-full"
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(e.target.value)}
+                />
+              </label>
+              <label className="text-sm">
+                <span className="text-xs mo-muted">Сфера деятельности</span>
+                <input
+                  className="mo-input mt-1 w-full"
+                  value={activitySphere}
+                  onChange={(e) => setActivitySphere(e.target.value)}
+                />
+              </label>
+              <label className="text-sm">
+                <span className="text-xs mo-muted">Взято денег (TJS)</span>
+                <input
+                  className="mo-input mt-1 w-full"
+                  inputMode="decimal"
+                  value={paidAmount}
+                  onChange={(e) => setPaidAmount(e.target.value)}
+                />
+              </label>
+              {(pipelinesQuery.data?.length ?? 0) > 0 ? (
+                <label className="text-sm">
+                  <span className="text-xs mo-muted">Воронка</span>
+                  <select
+                    className="mo-input mt-1 w-full"
+                    value={pipelineId === "" ? "" : String(pipelineId)}
+                    onChange={(e) => setPipelineId(e.target.value ? Number(e.target.value) : "")}
+                  >
+                    <option value="">Авто</option>
+                    {(pipelinesQuery.data ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <button
+                type="submit"
+                disabled={commitMutation.isPending || !quote?.ok}
+                className="mt-1 w-full rounded-xl bg-[var(--mo-accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+              >
+                {commitMutation.isPending ? "Сохранение…" : "Сохранить в продажи"}
+              </button>
+            </form>
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }
