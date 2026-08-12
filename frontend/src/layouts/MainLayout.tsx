@@ -37,9 +37,21 @@ function mobileBottomNavLinkClass({ isActive }: { isActive: boolean }) {
     .join(" ");
 }
 
+/** Компактная нижняя навигация для sales-пространства (всё влезает без горизонтального скролла). */
+function salesMobileBottomNavLinkClass({ isActive }: { isActive: boolean }) {
+  return [
+    "shell-nav-link group flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-0.5 py-1 text-center",
+    isActive ? "is-active" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 const mobileBottomLogoutClass =
   "group flex shrink-0 min-w-[4.25rem] flex-col items-center gap-1 rounded-2xl px-2 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]";
 
+const salesMobileBottomLogoutClass =
+  "group flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-0.5 py-1 text-center lux-caption transition-all duration-200 hover:bg-white/[0.04] hover:text-[var(--mo-text)]";
 function NavIf({ show, children }: { show: boolean; children: ReactNode }) {
   if (!show) return null;
   return <>{children}</>;
@@ -148,7 +160,12 @@ export function MainLayout() {
 
         <main
           ref={mainRef}
-          className="shell-main relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:px-10 sm:py-10 sm:pb-10 lg:flex lg:flex-col lg:px-14 text-[var(--mo-text)]"
+          className={[
+            "shell-main relative min-h-0 flex-1 overflow-y-auto text-[var(--mo-text)] sm:px-10 sm:py-10 sm:pb-10 lg:flex lg:flex-col lg:px-14",
+            deskSalesEnabled
+              ? "px-2.5 py-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))]"
+              : "px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))]",
+          ].join(" ")}
         >
           <div className="pointer-events-none fixed right-3 top-3 z-40 sm:hidden">
             <div className="pointer-events-auto">
@@ -161,7 +178,12 @@ export function MainLayout() {
 
         <nav
           aria-label="Основная навигация"
-          className="print:hidden no-scrollbar fixed bottom-0 left-0 right-0 z-50 flex touch-pan-x items-stretch gap-0.5 overflow-x-auto overscroll-x-contain border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-1 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-xl sm:hidden"
+          className={[
+            "print:hidden no-scrollbar fixed bottom-0 left-0 right-0 z-50 flex items-stretch border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 backdrop-blur-xl sm:hidden",
+            deskSalesEnabled
+              ? "gap-0 px-1 pt-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))]"
+              : "touch-pan-x gap-0.5 overflow-x-auto overscroll-x-contain px-1 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]",
+          ].join(" ")}
         >
           {isSuperOwner ? (
             <>
@@ -171,7 +193,7 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Компании</span>
               </NavLink>
-<button
+              <button
                 type="button"
                 onClick={logout}
                 className={mobileBottomLogoutClass}
@@ -181,6 +203,82 @@ export function MainLayout() {
                   <LogOut className="h-4 w-4" />
                 </GradientIconBox>
                 <span className="text-[9px]">Выход</span>
+              </button>
+            </>
+          ) : deskSalesEnabled && (isManagerLikeNav || !isExpert) ? (
+            <>
+              <NavIf show={showNavForFeature("crm")}>
+                <NavLink
+                  preventScrollReset
+                  to={isManagerLikeNav ? "/crm" : "/app"}
+                  end={!isManagerLikeNav}
+                  className={salesMobileBottomNavLinkClass}
+                  title={isManagerLikeNav ? navLex.navKanbanTitle : navLex.navOwnerHomeTitle}
+                >
+                  <GradientIconBox variant="crm" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
+                    <Funnel className="h-3.5 w-3.5" />
+                  </GradientIconBox>
+                  <span className="max-w-full truncate text-[9px] leading-tight">CRM</span>
+                </NavLink>
+              </NavIf>
+              <NavLink
+                preventScrollReset
+                to="/quote"
+                className={salesMobileBottomNavLinkClass}
+                title="Смета"
+              >
+                <GradientIconBox variant="indigo" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
+                  <ClipboardList className="h-3.5 w-3.5" />
+                </GradientIconBox>
+                <span className="max-w-full truncate text-[9px] leading-tight">Смета</span>
+              </NavLink>
+              <NavLink
+                preventScrollReset
+                to="/tracker"
+                className={salesMobileBottomNavLinkClass}
+                title="Трекер"
+              >
+                <GradientIconBox variant="blue" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
+                  <MapPin className="h-3.5 w-3.5" />
+                </GradientIconBox>
+                <span className="max-w-full truncate text-[9px] leading-tight">Трекер</span>
+              </NavLink>
+              <NavLink
+                preventScrollReset
+                to="/sales"
+                className={salesMobileBottomNavLinkClass}
+                title="Продажи"
+              >
+                <GradientIconBox variant="online" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
+                  <Wallet className="h-3.5 w-3.5" />
+                </GradientIconBox>
+                <span className="max-w-full truncate text-[9px] leading-tight">Продажи</span>
+              </NavLink>
+              {showKpi ? (
+                <NavIf show={showNavForFeature("kpi")}>
+                  <NavLink
+                    preventScrollReset
+                    to="/kpi"
+                    className={salesMobileBottomNavLinkClass}
+                    title={navLex.navKpiTitle}
+                  >
+                    <GradientIconBox variant="indigo" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
+                      <Target className="h-3.5 w-3.5" />
+                    </GradientIconBox>
+                    <span className="max-w-full truncate text-[9px] leading-tight">KPI</span>
+                  </NavLink>
+                </NavIf>
+              ) : null}
+              <button
+                type="button"
+                onClick={logout}
+                className={salesMobileBottomLogoutClass}
+                title="Выход"
+              >
+                <GradientIconBox variant="pink" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
+                  <LogOut className="h-3.5 w-3.5" />
+                </GradientIconBox>
+                <span className="max-w-full truncate text-[9px] leading-tight">Выход</span>
               </button>
             </>
           ) : isManagerLikeNav ? (
@@ -207,30 +305,6 @@ export function MainLayout() {
                     <Calendar className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Онлайн</span>
-                </NavLink>
-              </NavIf>
-              <NavIf show={deskSalesEnabled}>
-                <NavLink preventScrollReset to="/quote" className={mobileBottomNavLinkClass} title="Калькуляция">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <ClipboardList className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Калькул.</span>
-                </NavLink>
-              </NavIf>
-              <NavIf show={deskSalesEnabled}>
-                <NavLink preventScrollReset to="/tracker" className={mobileBottomNavLinkClass} title="Трекер">
-                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <MapPin className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Трекер</span>
-                </NavLink>
-              </NavIf>
-              <NavIf show={deskSalesEnabled}>
-                <NavLink preventScrollReset to="/sales" className={mobileBottomNavLinkClass} title="Продажи">
-                  <GradientIconBox variant="online" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Wallet className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Продажи</span>
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("chat")}>
@@ -358,30 +432,6 @@ export function MainLayout() {
                   <span className="text-[9px]">Онлайн</span>
                 </NavLink>
               </NavIf>
-              <NavIf show={deskSalesEnabled}>
-                <NavLink preventScrollReset to="/quote" className={mobileBottomNavLinkClass} title="Калькуляция">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <ClipboardList className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Калькул.</span>
-                </NavLink>
-              </NavIf>
-              <NavIf show={deskSalesEnabled}>
-                <NavLink preventScrollReset to="/tracker" className={mobileBottomNavLinkClass} title="Трекер">
-                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <MapPin className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Трекер</span>
-                </NavLink>
-              </NavIf>
-              <NavIf show={deskSalesEnabled}>
-                <NavLink preventScrollReset to="/sales" className={mobileBottomNavLinkClass} title="Продажи">
-                  <GradientIconBox variant="online" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Wallet className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Продажи</span>
-                </NavLink>
-              </NavIf>
               {showKpi ? (
                 <NavIf show={showNavForFeature("kpi")}>
                   <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title={navLex.navKpiTitle}>
@@ -410,7 +460,7 @@ export function MainLayout() {
                   <span className="text-[9px]">Чаты</span>
                 </NavLink>
               </NavIf>
-<button
+              <button
                 type="button"
                 onClick={logout}
                 className={mobileBottomLogoutClass}
