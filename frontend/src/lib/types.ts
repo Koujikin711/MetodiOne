@@ -13,6 +13,36 @@ export interface UserMe extends User {
   must_change_password?: boolean;
   impersonated_by_user_id?: number | null;
   is_chief_expert?: boolean;
+  crm_mode?: "clinic" | "sales" | string;
+  company_name?: string | null;
+  booking_enabled?: boolean;
+  desk_sales_enabled?: boolean;
+}
+
+export interface ManagerDeskSale {
+  id: number;
+  company_id: number;
+  pipeline_id: number | null;
+  manager_user_id: number;
+  manager_name?: string | null;
+  client_name: string;
+  client_phone: string;
+  activity_sphere: string;
+  service_amount: string | number;
+  paid_amount: string | number;
+  sold_at: string;
+  status: string;
+  note?: string | null;
+  created_by_user_id?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoginCompanyChoice {
+  company_id: number;
+  company_name: string;
+  crm_mode: string;
+  email: string;
 }
 
 export interface PipelineStage {

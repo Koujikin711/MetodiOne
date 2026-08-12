@@ -72,8 +72,8 @@ export const STUDIO_CASES: StudioCase[] = [
       ru: "Итоги весовой, которым верит вся смена",
     },
     industry: {
-      en: "Logistics / industrial weighbridge",
-      ru: "Логистика / Промышленная весовая",
+      en: "Logistics · industrial weighbridge",
+      ru: "Логистика · промышленная весовая",
     },
     context: { en: "", ru: "" },
     problem: {
@@ -164,12 +164,12 @@ export const STUDIO_CASES: StudioCase[] = [
   {
     id: "hr-department",
     title: {
-      en: "Visas and timesheets: caught before the incident",
-      ru: "Визы и табель: ловим до инцидента",
+      en: "Visas and timesheets — caught before the incident",
+      ru: "Визы и табель — под контролем до инцидента",
     },
     industry: {
-      en: "HR / people operations",
-      ru: "Отдел кадров / People Ops",
+      en: "HR · people operations",
+      ru: "Отдел кадров · People Ops",
     },
     context: { en: "", ru: "" },
     problem: {
@@ -308,12 +308,12 @@ export const STUDIO_CASES: StudioCase[] = [
   {
     id: "confectionery",
     title: {
-      en: "Cost visible before the kitchen accepts the volume",
-      ru: "Себестоимость видна до принятия объёма на кухне",
+      en: "Batch cost is clear before the kitchen starts",
+      ru: "Себестоимость видна ещё до запуска партии",
     },
     industry: {
-      en: "Confectionery / dessert production",
-      ru: "Кондитерское / Dessert-производство",
+      en: "Confectionery · dessert production",
+      ru: "Кондитерское · dessert-производство",
     },
     context: { en: "", ru: "" },
     problem: {
@@ -360,8 +360,8 @@ export const STUDIO_CASES: StudioCase[] = [
       ru: "Размер и цвет — единый учет на закрытии дня",
     },
     industry: {
-      en: "Fashion boutique / retail",
-      ru: "Fashion-бутик / Retail",
+      en: "Fashion boutique · retail",
+      ru: "Fashion-бутик · retail",
     },
     context: { en: "", ru: "" },
     problem: {
@@ -404,8 +404,8 @@ export const STUDIO_CASES: StudioCase[] = [
   {
     id: "auto-parts",
     title: {
-      en: "Parts desk with personal roles and PIN access",
-      ru: "Стол запчастей с персональными ролями и PIN",
+      en: "Parts stock: a personal PIN and an owner for every action",
+      ru: "Склад запчастей: свой PIN и автор у каждого действия",
     },
     industry: {
       en: "Auto-parts warehouse",
@@ -500,8 +500,8 @@ export const STUDIO_CASES: StudioCase[] = [
   {
     id: "private-ops",
     title: {
-      en: "When off-the-shelf SaaS could not hold the client’s exceptions",
-      ru: "Когда готовый SaaS не держал исключения клиента",
+      en: "When off-the-shelf SaaS could not hold the exceptions",
+      ru: "Когда готовый SaaS не выдержал исключений — собрали свой",
     },
     industry: {
       en: "Private custom operations contour",

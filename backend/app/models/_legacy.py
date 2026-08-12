@@ -59,6 +59,8 @@ class Company(Base):
     name: Mapped[str] = mapped_column(String(255), unique=True)
     contact_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     external_db_dsn: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # clinic = онлайн-запись; sales = окно продаж менеджера (без booking)
+    crm_mode: Mapped[str] = mapped_column(String(32), default="clinic", index=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
     tariff_plan_id: Mapped[int | None] = mapped_column(
@@ -90,9 +92,10 @@ class Company(Base):
 
 class Pipeline(Base):
     __tablename__ = "pipelines"
+    __table_args__ = (UniqueConstraint("company_id", "name", name="uq_pipelines_company_name"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(255), unique=True)
+    name: Mapped[str] = mapped_column(String(255))
     type: Mapped[str] = mapped_column(String(64), default="sales")
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
     # Эксперт, закреплённый за этой воронкой (для «Отчёты» и этапа «У эксперта»).
@@ -116,12 +119,16 @@ class Pipeline(Base):
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        UniqueConstraint("company_id", "email", name="uq_users_company_email"),
+        UniqueConstraint("company_id", "phone", name="uq_users_company_phone"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True)
-    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(320), index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
-    phone: Mapped[str | None] = mapped_column(String(32), unique=True, index=True, nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(32), index=True, nullable=True)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     horeca_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
     invite_token: Mapped[str | None] = mapped_column(String(96), unique=True, index=True, nullable=True)
@@ -292,6 +299,29 @@ class SalesKpiPlanItemSpecialist(Base):
     )
 
 
+class ManagerDeskSale(Base):
+    """Продажа менеджера в пространстве crm_mode=sales (вместо онлайн-записи)."""
+
+    __tablename__ = "manager_desk_sales"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    pipeline_id: Mapped[int | None] = mapped_column(ForeignKey("pipelines.id", ondelete="SET NULL"), nullable=True, index=True)
+    manager_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    client_name: Mapped[str] = mapped_column(String(255))
+    client_phone: Mapped[str] = mapped_column(String(64))
+    activity_sphere: Mapped[str] = mapped_column(String(255), default="")
+    service_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    sold_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    # active | cancelled
+    status: Mapped[str] = mapped_column(String(24), default="active")
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
 class SalesKpiManualSale(Base):
     """Продажа курса/протокола без онлайн-записи (вносит admin)."""
 
@@ -426,10 +456,11 @@ class SystemAuditEvent(Base):
 
 class LeadSource(Base):
     __tablename__ = "lead_sources"
+    __table_args__ = (UniqueConstraint("company_id", "name", name="uq_lead_sources_company_name"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True)
-    name: Mapped[str] = mapped_column(String(120), unique=True)
+    name: Mapped[str] = mapped_column(String(120))
     is_active: Mapped[bool] = mapped_column(default=True)
 
 

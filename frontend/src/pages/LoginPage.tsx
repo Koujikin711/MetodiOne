@@ -6,7 +6,7 @@ import { LayoutDashboard } from "@/components/icons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { apiFetch, setStoredToken } from "@/lib/api";
 import { theme } from "@/lib/theme";
-import type { TokenResponse, User, UserRole } from "@/lib/types";
+import type { LoginCompanyChoice, TokenResponse, User, UserRole } from "@/lib/types";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -16,6 +16,8 @@ export function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [role, setRole] = useState<UserRole>("manager");
   const [error, setError] = useState<string | null>(null);
+  const [companyChoices, setCompanyChoices] = useState<LoginCompanyChoice[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
 
   useEffect(() => {
     const session = searchParams.get("session");
@@ -38,12 +40,27 @@ export function LoginPage() {
     mutationFn: async (): Promise<{ mustChangePassword: boolean }> => {
       setError(null);
       if (mode === "login") {
-        const token = await apiFetch<TokenResponse>("/api/auth/login", {
-          method: "POST",
-          body: JSON.stringify({ email, password }),
-        });
-        setStoredToken(token.access_token);
-        return { mustChangePassword: token.must_change_password === true };
+        try {
+          const token = await apiFetch<TokenResponse>("/api/auth/login", {
+            method: "POST",
+            body: JSON.stringify({
+              email,
+              password,
+              company_id: selectedCompanyId,
+            }),
+          });
+          setStoredToken(token.access_token);
+          setCompanyChoices([]);
+          return { mustChangePassword: token.must_change_password === true };
+        } catch (e) {
+          const err = e as Error & { status?: number; detail?: { companies?: LoginCompanyChoice[]; message?: string } };
+          if (err.status === 409 && Array.isArray(err.detail?.companies) && err.detail.companies.length > 0) {
+            setCompanyChoices(err.detail.companies);
+            setSelectedCompanyId(err.detail.companies[0]?.company_id ?? null);
+            throw new Error(err.detail.message || "Выберите пространство CRM");
+          }
+          throw e;
+        }
       }
       await apiFetch<User>("/api/auth/register", {
         method: "POST",
@@ -90,6 +107,12 @@ export function LoginPage() {
           <p className="mt-2 max-w-xs text-sm text-[#5c6b7a]">
             {mode === "login" ? "Войдите в рабочую панель" : "Создайте аккаунт для доступа"}
           </p>
+          {mode === "login" ? (
+            <p className="mt-2 max-w-sm text-[11px] leading-relaxed text-[#8a7f6e]">
+              Клиника: <span className="font-medium">admin</span> / пароль клиники. Продажи:{" "}
+              <span className="font-medium">admin</span> / D711711. Данные пространств не пересекаются.
+            </p>
+          ) : null}
         </div>
 
         <div className="glass-card p-8 shadow-md">
@@ -113,7 +136,11 @@ export function LoginPage() {
                 required
                 placeholder={mode === "login" ? "Логин или email" : "name@company.com"}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setCompanyChoices([]);
+                  setSelectedCompanyId(null);
+                }}
                 className={`${theme.input} mt-2`}
               />
             </div>
@@ -123,17 +150,41 @@ export function LoginPage() {
               </label>
               <input
                 id="password"
+                name="password"
                 type="password"
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 required
-                minLength={mode === "register" ? 8 : undefined}
-                placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setCompanyChoices([]);
+                  setSelectedCompanyId(null);
+                }}
                 className={`${theme.input} mt-2`}
               />
             </div>
-            {mode === "register" && (
+            {companyChoices.length > 0 ? (
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider text-[#5c6b7a]" htmlFor="company">
+                  Пространство CRM
+                </label>
+                <select
+                  id="company"
+                  value={selectedCompanyId ?? ""}
+                  onChange={(e) => setSelectedCompanyId(Number(e.target.value))}
+                  className={`${theme.input} mt-2`}
+                  required
+                >
+                  {companyChoices.map((c) => (
+                    <option key={c.company_id} value={c.company_id}>
+                      {c.company_name}
+                      {c.crm_mode === "sales" ? " (продажи)" : " (клиника)"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+            {mode === "register" ? (
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-[#5c6b7a]" htmlFor="role">
                   Роль
@@ -148,33 +199,28 @@ export function LoginPage() {
                   <option value="expert">Эксперт</option>
                 </select>
               </div>
-            )}
-            {error && (
-              <p className="rounded-xl border border-[#d4a5a5] bg-[#fdf5f5] px-4 py-2 text-sm text-[#7a2e2e]">
-                {error}
-              </p>
-            )}
-            <button type="submit" disabled={mutation.isPending} className={`${theme.btnPrimary} w-full py-3.5`}>
+            ) : null}
+            {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="w-full rounded-xl bg-[#2f5f85] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#254d6c] disabled:opacity-60"
+            >
               {mutation.isPending ? "…" : mode === "login" ? "Войти" : "Зарегистрироваться"}
             </button>
           </form>
-
           <button
             type="button"
-            className="mt-6 w-full text-center text-sm text-[#5c6b7a] transition hover:text-[#2f5f85]"
+            className="mt-4 w-full text-center text-sm text-[#5c6b7a] underline-offset-2 hover:underline"
             onClick={() => {
-              const next = mode === "login" ? "register" : "login";
-              setMode(next);
+              setMode((m) => (m === "login" ? "register" : "login"));
               setError(null);
-              setEmail("");
-              setPassword("");
+              setCompanyChoices([]);
             }}
           >
-            {mode === "login" ? "Нет аккаунта? Регистрация" : "Уже есть аккаунт? Вход"}
+            {mode === "login" ? "Нет аккаунта? Регистрация" : "Уже есть аккаунт? Войти"}
           </button>
         </div>
-
-        <p className="mt-8 text-center text-xs text-[#8a96a3]">Защищённый вход · JWT</p>
       </div>
     </div>
   );

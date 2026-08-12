@@ -31,6 +31,7 @@ from app.database_migrate import (
     ensure_service_catalog_tables,
     ensure_lead_extra_phones_tables,
     ensure_booking_specialist_directions,
+    ensure_sales_crm_space_migration,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -52,6 +53,7 @@ from app.routers import (
     reports,
     sales_kpi,
     sales_kpi_board,
+    manager_desk_sales,
     sources,
     stages,
     system,
@@ -122,6 +124,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_service_catalog_tables(conn, db_url)
                 await ensure_lead_extra_phones_tables(conn, db_url)
                 await ensure_booking_specialist_directions(conn, db_url)
+                await ensure_sales_crm_space_migration(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
@@ -283,11 +286,117 @@ async def seed_lead_sources_defaults() -> None:
         await session.commit()
 
 
+SALES_COMPANY_NAME = "MetodiOne Продажи"
+SALES_OWNER_EMAIL = "admin@sales.local"
+SALES_OWNER_PASSWORD = "D711711"
+
+
+async def seed_sales_crm_space() -> None:
+    """Второе изолированное CRM-пространство без онлайн-записи: admin / D711711."""
+    async with AsyncSessionLocal() as session:
+        company = (
+            await session.execute(select(Company).where(Company.name == SALES_COMPANY_NAME).limit(1))
+        ).scalars().first()
+        if company is None:
+            company = Company(
+                name=SALES_COMPANY_NAME,
+                is_active=True,
+                crm_mode="sales",
+                billing_status="active",
+            )
+            session.add(company)
+            await session.flush()
+        else:
+            if getattr(company, "crm_mode", None) != "sales":
+                company.crm_mode = "sales"
+            if not company.is_active:
+                company.is_active = True
+
+        cid = int(company.id)
+
+        pipe = (
+            await session.execute(
+                select(Pipeline).where(Pipeline.company_id == cid).order_by(Pipeline.id.asc()).limit(1),
+            )
+        ).scalars().first()
+        if pipe is None:
+            pipe = Pipeline(name="Основная", type="sales", company_id=cid)
+            session.add(pipe)
+            await session.flush()
+            for st in default_pipeline_stage_creates():
+                session.add(
+                    PipelineStage(
+                        name=st.name,
+                        order=st.order if st.order is not None else 0,
+                        color=st.color,
+                        pipeline_id=pipe.id,
+                        company_id=cid,
+                    ),
+                )
+
+        defaults = ["GREEN API", "WHATSAPP", "INSTAGRAM", "TELEGRAM", "GOOGLE SHEETS"]
+        existing = (
+            await session.execute(
+                select(LeadSource.name).where(LeadSource.company_id == cid, LeadSource.name.in_(defaults)),
+            )
+        ).all()
+        existing_names = {row[0] for row in existing}
+        for name in defaults:
+            if name in existing_names:
+                continue
+            session.add(LeadSource(name=name, is_active=True, company_id=cid))
+
+        user = (
+            await session.execute(
+                select(User).where(User.email == SALES_OWNER_EMAIL, User.company_id == cid).limit(1),
+            )
+        ).scalars().first()
+        if user is None:
+            # на случай старой глобальной уникальности — ищем по email
+            user = (
+                await session.execute(select(User).where(User.email == SALES_OWNER_EMAIL).limit(1))
+            ).scalars().first()
+        if user is None:
+            session.add(
+                User(
+                    email=SALES_OWNER_EMAIL,
+                    hashed_password=hash_password(SALES_OWNER_PASSWORD),
+                    role=UserRole.owner,
+                    company_id=cid,
+                    full_name="Владелец (продажи)",
+                    must_change_password=False,
+                    is_active=True,
+                ),
+            )
+        else:
+            dirty = False
+            if user.company_id != cid:
+                user.company_id = cid
+                dirty = True
+            if user.role != UserRole.owner:
+                user.role = UserRole.owner
+                dirty = True
+            if not verify_password(SALES_OWNER_PASSWORD, user.hashed_password):
+                user.hashed_password = hash_password(SALES_OWNER_PASSWORD)
+                dirty = True
+            if getattr(user, "must_change_password", False):
+                user.must_change_password = False
+                dirty = True
+            if not user.is_active:
+                user.is_active = True
+                dirty = True
+            if dirty:
+                pass
+        await session.commit()
+
+
 async def _ensure_default_company(session: AsyncSession) -> int:
     c = (await session.execute(select(Company).order_by(Company.id.asc()).limit(1))).scalars().first()
     if c is not None:
+        if not getattr(c, "crm_mode", None):
+            c.crm_mode = "clinic"
         return int(c.id)
-    c = Company(name="Default Company", is_active=True)
+    c = Company(name="Default Company", is_active=True, crm_mode="clinic")
     session.add(c)
     await session.flush()
     return int(c.id)
@@ -308,6 +417,7 @@ async def lifespan(_: FastAPI):
     await seed_super_owner()
     await seed_booking_defaults()
     await seed_lead_sources_defaults()
+    await seed_sales_crm_space()
     stop_event = asyncio.Event()
 
     async def _reminder_loop() -> None:
@@ -599,6 +709,7 @@ app.include_router(tasks.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(sales_kpi.router, prefix="/api")
 app.include_router(sales_kpi_board.router, prefix="/api")
+app.include_router(manager_desk_sales.router, prefix="/api")
 app.include_router(booking.router, prefix="/api")
 app.include_router(deals.router, prefix="/api")
 app.include_router(users.router, prefix="/api")

@@ -1292,39 +1292,48 @@ export function OnlineBookingPage() {
             </aside>
           </div>
           {canEditBooking ? (
-            <section className="mo-section p-4">
-              <h2 className="mb-3 lux-subheading text-sm">Источники заявок</h2>
-              <form
-                className="mb-3 flex flex-wrap gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!sourceName.trim()) return;
-                  addSourceMutation.mutate();
-                }}
-              >
-                <input
-                  placeholder="Напр. Instagram / Рекомендация / Сайт"
-                  value={sourceName}
-                  onChange={(e) => setSourceName(e.target.value)}
-                  className="mo-input min-w-[200px] flex-1 text-sm"
-                />
-                <button
-                  type="submit"
-                  className="btn-primary text-sm"
+            <section className="mo-section p-3 sm:p-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-[var(--mo-text)]">Источники заявок</h2>
+                <form
+                  className="flex min-w-0 flex-1 items-center gap-1.5 sm:max-w-md sm:flex-none"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!sourceName.trim()) return;
+                    addSourceMutation.mutate();
+                  }}
                 >
-                  Добавить
-                </button>
-              </form>
-              <ul className="max-h-40 space-y-1 overflow-y-auto text-sm mo-muted">
+                  <input
+                    placeholder="Instagram / Сайт…"
+                    value={sourceName}
+                    onChange={(e) => setSourceName(e.target.value)}
+                    className="mo-input min-w-0 flex-1 py-1.5 text-xs sm:text-sm"
+                  />
+                  <button type="submit" className="btn-primary shrink-0 px-2.5 py-1.5 text-xs sm:text-sm">
+                    +
+                  </button>
+                </form>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
                 {(sourcesQuery.data ?? []).map((s) => (
-                  <li key={s.id} className="rounded-lg border border-[var(--mo-border)] px-2 py-1.5">
-                    {s.name} {!s.is_active ? <span className="text-xs text-amber-500/90">(выкл.)</span> : null}
-                  </li>
+                  <span
+                    key={s.id}
+                    className={[
+                      "inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide",
+                      s.is_active
+                        ? "border-[var(--mo-border)] bg-[var(--mo-surface)] text-[var(--mo-text)]"
+                        : "border-dashed border-[var(--mo-border)] text-[var(--mo-text-muted)] opacity-70",
+                    ].join(" ")}
+                    title={s.is_active ? s.name : `${s.name} (выкл.)`}
+                  >
+                    <span className="truncate">{s.name}</span>
+                    {!s.is_active ? <span className="ml-1 normal-case opacity-80">· выкл.</span> : null}
+                  </span>
                 ))}
                 {!sourcesQuery.isLoading && (sourcesQuery.data ?? []).length === 0 && (
-                  <li className="text-sm mo-muted">Источников пока нет</li>
+                  <span className="text-xs mo-muted">Источников пока нет</span>
                 )}
-              </ul>
+              </div>
             </section>
           ) : null}
         </div>
