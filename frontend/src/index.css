@@ -2613,6 +2613,23 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 :root[data-theme="dark"] .employees-redistribute-btn:hover:not(:disabled) {
   background: rgba(180, 83, 9, 0.35);
 }
+.employees-redistribute-btn-undo {
+  @apply rounded-lg border px-3 py-1.5 text-xs font-semibold transition disabled:opacity-45;
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+.employees-redistribute-btn-undo:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.22);
+}
+:root[data-theme="dark"] .employees-redistribute-btn-undo {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(6, 95, 70, 0.35);
+  color: #6ee7b7;
+}
+:root[data-theme="dark"] .employees-redistribute-btn-undo:hover:not(:disabled) {
+  background: rgba(6, 95, 70, 0.5);
+}
 .employee-pipelines-tag {
   @apply rounded-lg px-2 py-1 text-xs;
   background: var(--mo-surface);
