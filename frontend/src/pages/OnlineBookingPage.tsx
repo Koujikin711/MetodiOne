@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
+import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { BookingDirectionsPanel } from "@/components/BookingDirectionsPanel";
 import { BookingWeekSpecialistGrid } from "@/components/BookingWeekSpecialistGrid";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
@@ -118,6 +119,9 @@ function patientSuggestItemKey(item: BookingPatientSuggestItem): string {
 export function OnlineBookingPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const meQuery = useCurrentUserMe();
+  const salesSpace =
+    meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
   const [tab, setTab] = useState<Tab>("online");
   const [filterDate, setFilterDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalDate, setJournalDate] = useState(() => ymdInBookingTz(Date.now()));
@@ -887,6 +891,10 @@ export function OnlineBookingPage() {
       {label}
     </button>
   );
+
+  if (salesSpace) {
+    return <Navigate to="/sales" replace />;
+  }
 
   return (
     <div className="booking-page mo-page relative space-y-3">

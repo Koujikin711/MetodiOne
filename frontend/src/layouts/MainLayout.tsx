@@ -77,16 +77,24 @@ export function MainLayout() {
     isChiefExpert;
   const showIntegrationsHub = role === "owner" || isChiefExpert;
   const showKpi = role === "owner" || role === "super_owner" || role === "manager" || role === "admin";
-  const bookingEnabled = meQuery.data?.booking_enabled !== false;
-  const deskSalesEnabled = Boolean(meQuery.data?.desk_sales_enabled);
+  const crmMode = meQuery.data?.crm_mode;
+  const salesSpace = crmMode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
+  // Пока /me не загрузился — не показываем онлайн-запись (иначе мелькает меню клиники).
+  const bookingEnabled =
+    meQuery.isSuccess && !salesSpace && meQuery.data?.booking_enabled !== false;
+  const deskSalesEnabled = salesSpace;
   const { showNavForFeature } = useTariffNavAccess();
   const { expanded: sidebarExpanded, toggle: toggleSidebar } = useShellSidebarExpanded();
   const navLex = appLexicon;
-  const sidebarOrderScope = useMemo(() => `${role ?? "guest"}:${userId ?? "0"}`, [role, userId]);
+  const sidebarOrderScope = useMemo(
+    () => `${role ?? "guest"}:${userId ?? "0"}:${crmMode ?? "pending"}`,
+    [role, userId, crmMode],
+  );
 
   function logout() {
     setStoredToken(null);
     navigate("/login", { replace: true });
+    window.location.assign("/login");
   }
 
   const mainRef = useRef<HTMLElement | null>(null);
