@@ -892,6 +892,10 @@ export function OnlineBookingPage() {
     </button>
   );
 
+  if (salesSpace) {
+    return <Navigate to="/sales" replace />;
+  }
+
   return (
     <div className="booking-page mo-page relative space-y-3">
       <header className="booking-page-header">
