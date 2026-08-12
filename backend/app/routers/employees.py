@@ -542,21 +542,24 @@ async def invite_employee(
     await db.refresh(u)
 
     if u.role == UserRole.expert:
-        direction_id = body.booking_direction_id
-        if direction_id is None:
-            direction_id = await resolve_default_booking_direction_id(db, company_id)
-        await _sync_expert_calendar_profile(
-            db,
-            user=u,
-            full_name=u.full_name or body.full_name.strip(),
-            phone_norm=phone,
-            specialization=(body.specialization or "").strip(),
-            booking_direction_id=direction_id,
-            course_streams_enabled=body.course_streams_enabled,
-            course_stream_max_days=body.course_stream_max_days,
-            course_stream_min_day_for_next=body.course_stream_min_day_for_next,
-            course_stream_gap_days=body.course_stream_gap_days,
-        )
+        from app.services.crm_space import company_is_sales_mode
+
+        if not await company_is_sales_mode(db, company_id):
+            direction_id = body.booking_direction_id
+            if direction_id is None:
+                direction_id = await resolve_default_booking_direction_id(db, company_id)
+            await _sync_expert_calendar_profile(
+                db,
+                user=u,
+                full_name=u.full_name or body.full_name.strip(),
+                phone_norm=phone,
+                specialization=(body.specialization or "").strip(),
+                booking_direction_id=direction_id,
+                course_streams_enabled=body.course_streams_enabled,
+                course_stream_max_days=body.course_stream_max_days,
+                course_stream_min_day_for_next=body.course_stream_min_day_for_next,
+                course_stream_gap_days=body.course_stream_gap_days,
+            )
 
     invite_url = _build_invite_url(invite_token)
     intro = "Вам восстановили доступ к CRM." if rehire else "Вас пригласили в CRM."

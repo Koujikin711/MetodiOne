@@ -15,6 +15,7 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     email: LoginIdentifierStr
     password: str
+    company_id: int | None = Field(default=None, ge=1)
 
 
 class UserRead(BaseModel):
@@ -32,6 +33,10 @@ class UserRead(BaseModel):
 class UserMeRead(UserRead):
     impersonated_by_user_id: int | None = None
     is_chief_expert: bool = False
+    crm_mode: str = "clinic"
+    company_name: str | None = None
+    booking_enabled: bool = True
+    desk_sales_enabled: bool = False
 
 
 class ChangePasswordBody(BaseModel):

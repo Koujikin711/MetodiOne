@@ -15,6 +15,7 @@ from app.models import (
     Pipeline,
     UserRole,
 )
+from app.services.crm_space import company_is_sales_mode
 from app.routers.booking import _visit_group_key, _visit_labels_for_ids
 from app.services.booking_visit_labels import VisitLabelInfo
 from app.schemas.reports import (
@@ -98,6 +99,11 @@ async def expert_reports(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Expert only")
 
     company_id = int(current_user.company_id)
+    if await company_is_sales_mode(db, company_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Отчёты по онлайн-записи недоступны в пространстве продаж",
+        )
     start, end = _period_bounds(period, date_from, date_to)
 
     pipes_q = select(Pipeline).order_by(Pipeline.id.asc())
