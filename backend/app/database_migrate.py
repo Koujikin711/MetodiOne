@@ -1994,3 +1994,154 @@ async def ensure_booking_specialist_directions(conn: AsyncConnection, database_u
                      )"""
             ),
         )
+
+
+async def ensure_sales_crm_space_migration(conn: AsyncConnection, database_url: str) -> None:
+    """Второе CRM-пространство: crm_mode, desk sales, email/phone per company."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    pg = "postgresql" in low or "asyncpg" in low
+
+    if sqlite:
+        r = await conn.execute(text("PRAGMA table_info(companies)"))
+        cols = {row[1] for row in r.fetchall()}
+        if cols and "crm_mode" not in cols:
+            await conn.execute(text("ALTER TABLE companies ADD COLUMN crm_mode VARCHAR(32) DEFAULT 'clinic'"))
+        await conn.execute(text("UPDATE companies SET crm_mode = 'clinic' WHERE crm_mode IS NULL OR crm_mode = ''"))
+
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS manager_desk_sales (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    pipeline_id INTEGER,
+                    manager_user_id INTEGER NOT NULL,
+                    client_name VARCHAR(255) NOT NULL,
+                    client_phone VARCHAR(64) NOT NULL,
+                    activity_sphere VARCHAR(255) NOT NULL DEFAULT '',
+                    service_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    sold_at DATETIME,
+                    status VARCHAR(24) NOT NULL DEFAULT 'active',
+                    note TEXT,
+                    created_by_user_id INTEGER,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )"""
+            ),
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_manager_desk_sales_company_id ON manager_desk_sales (company_id)"),
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_manager_desk_sales_manager_user_id "
+                "ON manager_desk_sales (manager_user_id)"
+            ),
+        )
+        # SQLite: recreate unique indexes for per-company email/phone when possible
+        await conn.execute(text("DROP INDEX IF EXISTS uq_users_company_email"))
+        await conn.execute(text("DROP INDEX IF EXISTS uq_users_company_phone"))
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_company_email "
+                "ON users (company_id, email) WHERE company_id IS NOT NULL"
+            ),
+        )
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_company_phone "
+                "ON users (company_id, phone) WHERE company_id IS NOT NULL AND phone IS NOT NULL"
+            ),
+        )
+        return
+
+    if not pg:
+        return
+
+    await conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS crm_mode VARCHAR(32) DEFAULT 'clinic'"))
+    await conn.execute(text("UPDATE companies SET crm_mode = 'clinic' WHERE crm_mode IS NULL OR btrim(crm_mode) = ''"))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_companies_crm_mode ON companies (crm_mode)"))
+
+    await conn.execute(
+        text(
+            """CREATE TABLE IF NOT EXISTS manager_desk_sales (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                pipeline_id INTEGER REFERENCES pipelines(id) ON DELETE SET NULL,
+                manager_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                client_name VARCHAR(255) NOT NULL,
+                client_phone VARCHAR(64) NOT NULL,
+                activity_sphere VARCHAR(255) NOT NULL DEFAULT '',
+                service_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                sold_at TIMESTAMPTZ,
+                status VARCHAR(24) NOT NULL DEFAULT 'active',
+                note TEXT,
+                created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ,
+                updated_at TIMESTAMPTZ
+            )"""
+        ),
+    )
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_manager_desk_sales_company_id ON manager_desk_sales (company_id)"))
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_manager_desk_sales_manager_user_id ON manager_desk_sales (manager_user_id)"),
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_manager_desk_sales_pipeline_id ON manager_desk_sales (pipeline_id)"),
+    )
+
+    # Drop global unique on users.email / users.phone (names vary by PG/SQLAlchemy)
+    for cons in (
+        "users_email_key",
+        "uq_users_email",
+        "users_phone_key",
+        "uq_users_phone",
+    ):
+        await conn.execute(text(f"ALTER TABLE users DROP CONSTRAINT IF EXISTS {cons}"))
+
+    await conn.execute(text("DROP INDEX IF EXISTS users_email_key"))
+    await conn.execute(text("DROP INDEX IF EXISTS users_phone_key"))
+    await conn.execute(text("DROP INDEX IF EXISTS ix_users_email"))
+    await conn.execute(text("DROP INDEX IF EXISTS ix_users_phone"))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_email ON users (email)"))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_phone ON users (phone)"))
+
+    await conn.execute(text("DROP INDEX IF EXISTS uq_users_company_email"))
+    await conn.execute(
+        text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_company_email "
+            "ON users (company_id, email) WHERE company_id IS NOT NULL"
+        ),
+    )
+    await conn.execute(text("DROP INDEX IF EXISTS uq_users_company_phone"))
+    await conn.execute(
+        text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_company_phone "
+            "ON users (company_id, phone) WHERE company_id IS NOT NULL AND phone IS NOT NULL AND btrim(phone) <> ''"
+        ),
+    )
+
+    # pipelines / lead_sources: allow same name in different companies
+    for cons in ("pipelines_name_key", "uq_pipelines_name", "pipelines_name_key1"):
+        await conn.execute(text(f"ALTER TABLE pipelines DROP CONSTRAINT IF EXISTS {cons}"))
+    await conn.execute(text("DROP INDEX IF EXISTS pipelines_name_key"))
+    await conn.execute(text("DROP INDEX IF EXISTS uq_pipelines_company_name"))
+    await conn.execute(
+        text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_pipelines_company_name "
+            "ON pipelines (company_id, name) WHERE company_id IS NOT NULL"
+        ),
+    )
+
+    for cons in ("lead_sources_name_key", "uq_lead_sources_name"):
+        await conn.execute(text(f"ALTER TABLE lead_sources DROP CONSTRAINT IF EXISTS {cons}"))
+    await conn.execute(text("DROP INDEX IF EXISTS lead_sources_name_key"))
+    await conn.execute(text("DROP INDEX IF EXISTS uq_lead_sources_company_name"))
+    await conn.execute(
+        text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_lead_sources_company_name "
+            "ON lead_sources (company_id, name) WHERE company_id IS NOT NULL"
+        ),
+    )

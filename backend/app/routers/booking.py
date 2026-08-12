@@ -27,6 +27,7 @@ from app.models import (
     UserPipelineAssignment,
     UserRole,
 )
+from app.services.crm_space import company_is_sales_mode
 from app.schemas.booking import (
     BookingAppointmentCreate,
     BookingAppointmentMove,
@@ -67,7 +68,22 @@ from app.services.booking_directions import (
     set_specialist_directions,
 )
 
-router = APIRouter(prefix="/booking", tags=["booking"])
+async def _reject_sales_space_booking(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    company_id: CurrentCompanyId,
+) -> None:
+    if await company_is_sales_mode(db, company_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Онлайн-запись отключена в этом пространстве. Используйте раздел «Продажи».",
+        )
+
+
+router = APIRouter(
+    prefix="/booking",
+    tags=["booking"],
+    dependencies=[Depends(_reject_sales_space_booking)],
+)
 
 MAX_BOOKINGS_PER_SPECIALIST_DAY = 15
 

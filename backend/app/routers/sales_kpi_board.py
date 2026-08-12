@@ -18,6 +18,7 @@ from app.models import (
     BookingDirection,
     BookingSpecialist,
     Lead,
+    ManagerDeskSale,
     Pipeline,
     PipelineStage,
     SalesKpiManualSale,
@@ -29,6 +30,7 @@ from app.models import (
     UserPipelineAssignment,
     UserRole,
 )
+from app.services.crm_space import company_is_sales_mode
 from app.schemas.sales_kpi import (
     SalesKpiBoardLine,
     SalesKpiBoardManager,
@@ -707,32 +709,54 @@ async def debtors_report(
     start, end = month_bounds(ym)
 
     rows_out: list[SalesKpiDebtorRow] = []
+    sales_mode = await company_is_sales_mode(db, company_id)
 
-    booking_q = (
-        await db.execute(
-            select(BookingAppointment, BookingDirection.name, Lead.manager_id)
-            .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
-            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
-            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
-            .where(
-                BookingAppointment.company_id == company_id,
-                BookingAppointment.start_at >= start,
-                BookingAppointment.start_at < end,
-                BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                or_(
-                    BookingAppointment.pipeline_id == pipeline_id,
-                    PipelineStage.pipeline_id == pipeline_id,
-                ),
+    booking_q: list = []
+    desk_q: list = []
+    if sales_mode:
+        desk_q = (
+            await db.execute(
+                select(ManagerDeskSale).where(
+                    ManagerDeskSale.company_id == company_id,
+                    ManagerDeskSale.status == "active",
+                    ManagerDeskSale.sold_at >= start,
+                    ManagerDeskSale.sold_at < end,
+                    ManagerDeskSale.service_amount > ManagerDeskSale.paid_amount,
+                    or_(
+                        ManagerDeskSale.pipeline_id == pipeline_id,
+                        ManagerDeskSale.pipeline_id.is_(None),
+                    ),
+                ).order_by(ManagerDeskSale.sold_at.desc()),
             )
-            .order_by(BookingAppointment.start_at.desc()),
-        )
-    ).all()
+        ).scalars().all()
+    else:
+        booking_q = (
+            await db.execute(
+                select(BookingAppointment, BookingDirection.name, Lead.manager_id)
+                .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+                .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+                .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+                .where(
+                    BookingAppointment.company_id == company_id,
+                    BookingAppointment.start_at >= start,
+                    BookingAppointment.start_at < end,
+                    BookingAppointment.service_amount > BookingAppointment.paid_amount,
+                    or_(
+                        BookingAppointment.pipeline_id == pipeline_id,
+                        PipelineStage.pipeline_id == pipeline_id,
+                    ),
+                )
+                .order_by(BookingAppointment.start_at.desc()),
+            )
+        ).all()
 
     manager_ids = set()
     for appt, _dname, lead_mgr in booking_q:
         mid = appt.responsible_manager_id or lead_mgr
         if mid:
             manager_ids.add(int(mid))
+    for sale in desk_q:
+        manager_ids.add(int(sale.manager_user_id))
 
     manual_q = (
         await db.execute(
@@ -774,6 +798,27 @@ async def debtors_report(
                 indicator_name=str(dname),
                 manager_id=mid,
                 manager_name=name_map.get(mid) if mid else None,
+                service_amount=sa,
+                paid_amount=pa,
+                debt_amount=max(sa - pa, Decimal("0")),
+                status="debt",
+            ),
+        )
+
+    for sale in desk_q:
+        sa = Decimal(str(sale.service_amount or 0))
+        pa = Decimal(str(sale.paid_amount or 0))
+        mid = int(sale.manager_user_id)
+        rows_out.append(
+            SalesKpiDebtorRow(
+                source="booking",
+                source_id=int(sale.id),
+                sold_at=sale.sold_at,
+                client_name=sale.client_name,
+                client_phone=sale.client_phone,
+                indicator_name=sale.activity_sphere or "Продажа",
+                manager_id=mid,
+                manager_name=name_map.get(mid),
                 service_amount=sa,
                 paid_amount=pa,
                 debt_amount=max(sa - pa, Decimal("0")),
@@ -902,83 +947,104 @@ async def company_report(
         )
         managers_bonus += Decimal(str(raw["bonus"]))
 
-    # Онлайн-запись: выручка / дебиторка / кредиторка + статистика по экспертам
-    appt_rows = (
-        await db.execute(
-            select(
-                BookingAppointment,
-                BookingSpecialist.full_name,
-                BookingDirection.id,
-                BookingDirection.name,
-            )
-            .join(BookingSpecialist, BookingSpecialist.id == BookingAppointment.specialist_id)
-            .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
-            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
-            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
-            .where(
-                BookingAppointment.company_id == company_id,
-                BookingAppointment.start_at >= start,
-                BookingAppointment.start_at < end,
-                or_(
-                    BookingAppointment.pipeline_id == pipeline_id,
-                    PipelineStage.pipeline_id == pipeline_id,
-                    BookingDirection.pipeline_id == pipeline_id,
-                ),
-            ),
-        )
-    ).all()
-
+    # Онлайн-запись ИЛИ окно продаж (crm_mode=sales): выручка / дебиторка / кредиторка
     revenue_booking = Decimal("0")
     debtor_booking = Decimal("0")
     creditor_total = Decimal("0")
     expert_acc: dict[int, dict] = {}
+    sales_mode = await company_is_sales_mode(db, company_id)
 
-    for appt, spec_name, dir_id, dir_name in appt_rows:
-        sid = int(appt.specialist_id)
-        sa = Decimal(str(appt.service_amount or 0))
-        pa = Decimal(str(appt.paid_amount or 0))
-        st = (appt.status or "").strip()
-        if sid not in expert_acc:
-            expert_acc[sid] = {
-                "specialist_id": sid,
-                "specialist_name": str(spec_name or f"#{sid}"),
-                "direction_id": int(dir_id) if dir_id is not None else None,
-                "direction_name": str(dir_name) if dir_name else None,
-                "kpi_service_name": specialist_to_kpi.get(sid),
-                "appointments_total": 0,
-                "appeared_count": 0,
-                "booked_future_count": 0,
-                "no_show_count": 0,
-                "cancelled_count": 0,
-                "revenue_paid": Decimal("0"),
-                "debtor_amount": Decimal("0"),
-                "creditor_amount": Decimal("0"),
-            }
-        bucket = expert_acc[sid]
-        if st != "cancelled":
-            bucket["appointments_total"] += 1
-            bucket["revenue_paid"] += pa
+    if sales_mode:
+        desk_rows = (
+            await db.execute(
+                select(ManagerDeskSale).where(
+                    ManagerDeskSale.company_id == company_id,
+                    ManagerDeskSale.status == "active",
+                    ManagerDeskSale.sold_at >= start,
+                    ManagerDeskSale.sold_at < end,
+                    or_(
+                        ManagerDeskSale.pipeline_id == pipeline_id,
+                        ManagerDeskSale.pipeline_id.is_(None),
+                    ),
+                ),
+            )
+        ).scalars().all()
+        for sale in desk_rows:
+            sa = Decimal(str(sale.service_amount or 0))
+            pa = Decimal(str(sale.paid_amount or 0))
             revenue_booking += pa
-            debt = max(sa - pa, Decimal("0"))
-            if debt > 0:
-                bucket["debtor_amount"] += debt
-                debtor_booking += debt
-        if st == "completed":
-            bucket["appeared_count"] += 1
-        elif st == "no_show":
-            bucket["no_show_count"] += 1
-        elif st == "cancelled":
-            bucket["cancelled_count"] += 1
-        elif st == "booked":
-            start_at = appt.start_at
-            if start_at is not None and start_at.tzinfo is None:
-                start_at = start_at.replace(tzinfo=UTC)
-            if start_at is not None and start_at > now and pa > 0:
-                # Кредиторка: оплатили, срок обслуживания ещё не наступил
-                cred = pa
-                bucket["creditor_amount"] += cred
-                creditor_total += cred
-                bucket["booked_future_count"] += 1
+            debtor_booking += max(sa - pa, Decimal("0"))
+    else:
+        appt_rows = (
+            await db.execute(
+                select(
+                    BookingAppointment,
+                    BookingSpecialist.full_name,
+                    BookingDirection.id,
+                    BookingDirection.name,
+                )
+                .join(BookingSpecialist, BookingSpecialist.id == BookingAppointment.specialist_id)
+                .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+                .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+                .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+                .where(
+                    BookingAppointment.company_id == company_id,
+                    BookingAppointment.start_at >= start,
+                    BookingAppointment.start_at < end,
+                    or_(
+                        BookingAppointment.pipeline_id == pipeline_id,
+                        PipelineStage.pipeline_id == pipeline_id,
+                        BookingDirection.pipeline_id == pipeline_id,
+                    ),
+                ),
+            )
+        ).all()
+
+        for appt, spec_name, dir_id, dir_name in appt_rows:
+            sid = int(appt.specialist_id)
+            sa = Decimal(str(appt.service_amount or 0))
+            pa = Decimal(str(appt.paid_amount or 0))
+            st = (appt.status or "").strip()
+            if sid not in expert_acc:
+                expert_acc[sid] = {
+                    "specialist_id": sid,
+                    "specialist_name": str(spec_name or f"#{sid}"),
+                    "direction_id": int(dir_id) if dir_id is not None else None,
+                    "direction_name": str(dir_name) if dir_name else None,
+                    "kpi_service_name": specialist_to_kpi.get(sid),
+                    "appointments_total": 0,
+                    "appeared_count": 0,
+                    "booked_future_count": 0,
+                    "no_show_count": 0,
+                    "cancelled_count": 0,
+                    "revenue_paid": Decimal("0"),
+                    "debtor_amount": Decimal("0"),
+                    "creditor_amount": Decimal("0"),
+                }
+            bucket = expert_acc[sid]
+            if st != "cancelled":
+                bucket["appointments_total"] += 1
+                bucket["revenue_paid"] += pa
+                revenue_booking += pa
+                debt = max(sa - pa, Decimal("0"))
+                if debt > 0:
+                    bucket["debtor_amount"] += debt
+                    debtor_booking += debt
+            if st == "completed":
+                bucket["appeared_count"] += 1
+            elif st == "no_show":
+                bucket["no_show_count"] += 1
+            elif st == "cancelled":
+                bucket["cancelled_count"] += 1
+            elif st == "booked":
+                start_at = appt.start_at
+                if start_at is not None and start_at.tzinfo is None:
+                    start_at = start_at.replace(tzinfo=UTC)
+                if start_at is not None and start_at > now and pa > 0:
+                    cred = pa
+                    bucket["creditor_amount"] += cred
+                    creditor_total += cred
+                    bucket["booked_future_count"] += 1
 
     # Ручные продажи курсов/протоколов
     manual_rows = (
@@ -1000,25 +1066,26 @@ async def company_report(
         revenue_manual += pa
         debtor_manual += max(sa - pa, Decimal("0"))
 
-    # Эксперты воронки без записей в месяце — тоже покажем 0
-    specialists_meta = await _load_specialists_meta(db, company_id, pipeline_id)
-    for s in specialists_meta:
-        if s.id not in expert_acc and s.is_active:
-            expert_acc[s.id] = {
-                "specialist_id": s.id,
-                "specialist_name": s.full_name,
-                "direction_id": s.direction_id,
-                "direction_name": s.direction_name,
-                "kpi_service_name": specialist_to_kpi.get(s.id),
-                "appointments_total": 0,
-                "appeared_count": 0,
-                "booked_future_count": 0,
-                "no_show_count": 0,
-                "cancelled_count": 0,
-                "revenue_paid": Decimal("0"),
-                "debtor_amount": Decimal("0"),
-                "creditor_amount": Decimal("0"),
-            }
+    # Эксперты воронки без записей в месяце — тоже покажем 0 (только clinic)
+    if not sales_mode:
+        specialists_meta = await _load_specialists_meta(db, company_id, pipeline_id)
+        for s in specialists_meta:
+            if s.id not in expert_acc and s.is_active:
+                expert_acc[s.id] = {
+                    "specialist_id": s.id,
+                    "specialist_name": s.full_name,
+                    "direction_id": s.direction_id,
+                    "direction_name": s.direction_name,
+                    "kpi_service_name": specialist_to_kpi.get(s.id),
+                    "appointments_total": 0,
+                    "appeared_count": 0,
+                    "booked_future_count": 0,
+                    "no_show_count": 0,
+                    "cancelled_count": 0,
+                    "revenue_paid": Decimal("0"),
+                    "debtor_amount": Decimal("0"),
+                    "creditor_amount": Decimal("0"),
+                }
 
     expert_stats = [
         SalesKpiCompanyExpertStat(**row)

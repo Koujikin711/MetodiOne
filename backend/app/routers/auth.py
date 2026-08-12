@@ -10,6 +10,12 @@ from app.database import get_db
 from app.models import Company, User, UserRole
 from app.schemas.token import Token
 from app.schemas.user import ChangePasswordBody, UserCreate, UserLogin, UserMeRead, UserRead
+from app.services.crm_space import (
+    CLINIC_OWNER_EMAIL,
+    CRM_MODE_SALES,
+    SALES_OWNER_EMAIL,
+    get_company_crm_mode,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -108,27 +114,71 @@ async def demo_login(
     return Token(access_token=token, must_change_password=False)
 
 
+def _login_company_choices(rows: list[tuple[User, Company | None]]) -> list[dict]:
+    out: list[dict] = []
+    for u, c in rows:
+        if c is None:
+            continue
+        out.append(
+            {
+                "company_id": int(c.id),
+                "company_name": c.name,
+                "crm_mode": (getattr(c, "crm_mode", None) or "clinic"),
+                "email": u.email,
+            },
+        )
+    return out
+
+
 @router.post("/login", response_model=Token)
 async def login(
     body: UserLogin,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Token:
     identifier = body.email
-    if "@" in identifier:
-        result = await db.execute(select(User).where(User.email == identifier))
+    candidates: list[User] = []
+
+    if identifier == "admin":
+        result = await db.execute(
+            select(User).where(
+                User.email.in_((CLINIC_OWNER_EMAIL, SALES_OWNER_EMAIL)),
+                User.is_active.is_(True),
+            ),
+        )
+        candidates = list(result.scalars().all())
+    elif "@" in identifier:
+        result = await db.execute(select(User).where(User.email == identifier, User.is_active.is_(True)))
+        candidates = list(result.scalars().all())
     else:
-        result = await db.execute(select(User).where(User.phone == identifier))
-    user = result.scalar_one_or_none()
-    if user is None or not verify_password(body.password, user.hashed_password):
+        result = await db.execute(select(User).where(User.phone == identifier, User.is_active.is_(True)))
+        candidates = list(result.scalars().all())
+
+    matches = [u for u in candidates if verify_password(body.password, u.hashed_password)]
+    if body.company_id is not None:
+        matches = [u for u in matches if u.company_id == body.company_id]
+
+    if not matches:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect login or password")
-    if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Аккаунт отключён")
-    if user.role == UserRole.super_owner:
-        if "@" not in identifier:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Для супер-владельца вход только по email",
-            )
+
+    if len(matches) > 1:
+        pairs: list[tuple[User, Company | None]] = []
+        for u in matches:
+            c = await db.get(Company, int(u.company_id)) if u.company_id is not None else None
+            pairs.append((u, c))
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "Этот логин есть в нескольких пространствах — выберите компанию",
+                "companies": _login_company_choices(pairs),
+            },
+        )
+
+    user = matches[0]
+    if user.role == UserRole.super_owner and identifier == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Для супер-владельца вход только по email",
+        )
     if user.company_id is not None:
         company = await db.get(Company, int(user.company_id))
         if company is None:
@@ -154,6 +204,13 @@ async def me(
     imp = payload.get("impersonated_by")
     imp_id = int(imp) if imp is not None and str(imp).isdigit() else None
     chief = await is_chief_expert(db, current_user)
+    crm_mode = "clinic"
+    company_name = None
+    if current_user.company_id is not None:
+        crm_mode = await get_company_crm_mode(db, int(current_user.company_id))
+        company = await db.get(Company, int(current_user.company_id))
+        company_name = company.name if company else None
+    sales = crm_mode == CRM_MODE_SALES
     return UserMeRead(
         id=current_user.id,
         email=current_user.email,
@@ -164,6 +221,10 @@ async def me(
         must_change_password=bool(getattr(current_user, "must_change_password", False)),
         impersonated_by_user_id=imp_id,
         is_chief_expert=chief,
+        crm_mode=crm_mode,
+        company_name=company_name,
+        booking_enabled=not sales,
+        desk_sales_enabled=sales,
     )
 
 

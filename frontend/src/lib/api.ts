@@ -158,6 +158,16 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     }
     const message = formatErrorDetail(detail) || res.statusText;
 
+    if (res.status === 409 && detail && typeof detail === "object") {
+      const err = new Error(message || `Запрос не выполнен (${res.status})`) as Error & {
+        status?: number;
+        detail?: unknown;
+      };
+      err.status = 409;
+      err.detail = detail;
+      throw err;
+    }
+
     if (res.status === 401 && token) {
       const authLost = [
         "Invalid token",

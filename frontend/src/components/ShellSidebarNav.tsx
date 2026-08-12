@@ -30,6 +30,8 @@ type Props = {
   showFinance: boolean;
   showIntegrationsHub: boolean;
   showKpi: boolean;
+  bookingEnabled?: boolean;
+  deskSalesEnabled?: boolean;
   showNavForFeature: (feature: string) => boolean;
   onLogout: () => void;
 };
@@ -44,6 +46,8 @@ export function ShellSidebarNav({
   showFinance,
   showIntegrationsHub,
   showKpi,
+  bookingEnabled = true,
+  deskSalesEnabled = false,
   showNavForFeature,
   onLogout,
 }: Props) {
@@ -57,6 +61,8 @@ export function ShellSidebarNav({
         showFinance,
         showIntegrationsHub,
         showKpi,
+        bookingEnabled,
+        deskSalesEnabled,
         showNavForFeature,
         navLex: appLexicon,
       }),
@@ -68,6 +74,8 @@ export function ShellSidebarNav({
       showFinance,
       showIntegrationsHub,
       showKpi,
+      bookingEnabled,
+      deskSalesEnabled,
       showNavForFeature,
     ],
   );

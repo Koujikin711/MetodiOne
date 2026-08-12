@@ -34,6 +34,8 @@ type BuildParams = {
   showFinance: boolean;
   showIntegrationsHub: boolean;
   showKpi: boolean;
+  bookingEnabled?: boolean;
+  deskSalesEnabled?: boolean;
   showNavForFeature: (feature: string) => boolean;
   navLex: {
     navKanban: string;
@@ -60,6 +62,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     showFinance,
     showIntegrationsHub,
     showKpi,
+    bookingEnabled = true,
+    deskSalesEnabled = false,
     showNavForFeature,
     navLex,
   } = params;
@@ -67,6 +71,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
   const managerLikeNav = isManagerNav || (isExpert && isChiefExpert);
   const showFinanceNav = showFinance || isChiefExpert;
   const showIntegrationsNav = showIntegrationsHub || isChiefExpert;
+  const showBooking = bookingEnabled && showNavForFeature("booking");
+  const showDeskSales = deskSalesEnabled && (isManagerNav || !isExpert);
 
   if (isSuperOwner) {
     return [
@@ -105,7 +111,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "message-circle",
       });
     }
-    if (showNavForFeature("booking")) {
+    if (showBooking) {
       items.push({
         id: "booking",
         to: "/booking",
@@ -114,6 +120,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         labelFull: "Онлайн-запись",
         variant: "online",
         iconKey: "calendar",
+      });
+    }
+    if (showDeskSales) {
+      items.push({
+        id: "desk-sales",
+        to: "/sales",
+        title: "Продажи",
+        labelShort: "Продажи",
+        labelFull: "Продажи",
+        variant: "online",
+        iconKey: "wallet",
       });
     }
     if (showNavForFeature("crm")) {
@@ -180,7 +197,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "wallet",
       });
     }
-    if (isChiefExpert && showNavForFeature("reports")) {
+    if (isChiefExpert && bookingEnabled && showNavForFeature("reports")) {
       items.push({
         id: "reports",
         to: "/reports",
@@ -218,7 +235,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
 
   if (isExpert) {
     const items: ShellSidebarNavItem[] = [];
-    if (showNavForFeature("booking")) {
+    if (showBooking) {
       items.push({
         id: "booking",
         to: "/booking",
@@ -229,7 +246,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "calendar",
       });
     }
-    if (showNavForFeature("reports")) {
+    if (bookingEnabled && showNavForFeature("reports")) {
       items.push({
         id: "reports",
         to: "/reports",
@@ -287,7 +304,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       iconKey: "funnel",
     });
   }
-  if (showNavForFeature("booking")) {
+  if (showBooking) {
     items.push({
       id: "booking",
       to: "/booking",
@@ -296,6 +313,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       labelFull: "Онлайн-запись",
       variant: "tasks",
       iconKey: "calendar",
+    });
+  }
+  if (showDeskSales) {
+    items.push({
+      id: "desk-sales",
+      to: "/sales",
+      title: "Продажи",
+      labelShort: "Продажи",
+      labelFull: "Продажи",
+      variant: "online",
+      iconKey: "wallet",
     });
   }
   if (showNavForFeature("tasks")) {

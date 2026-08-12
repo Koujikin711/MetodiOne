@@ -75,6 +75,8 @@ export function MainLayout() {
     isChiefExpert;
   const showIntegrationsHub = role === "owner" || isChiefExpert;
   const showKpi = role === "owner" || role === "super_owner" || role === "manager" || role === "admin";
+  const bookingEnabled = meQuery.data?.booking_enabled !== false;
+  const deskSalesEnabled = Boolean(meQuery.data?.desk_sales_enabled);
   const { showNavForFeature } = useTariffNavAccess();
   const { expanded: sidebarExpanded, toggle: toggleSidebar } = useShellSidebarExpanded();
   const navLex = appLexicon;
@@ -126,6 +128,8 @@ export function MainLayout() {
               showFinance={showFinance}
               showIntegrationsHub={showIntegrationsHub}
               showKpi={showKpi}
+              bookingEnabled={bookingEnabled}
+              deskSalesEnabled={deskSalesEnabled}
               showNavForFeature={showNavForFeature}
               onLogout={logout}
             />
@@ -187,12 +191,20 @@ export function MainLayout() {
                   <span className="text-[9px]">{navLex.navGuestsShort}</span>
                 </NavLink>
               </NavIf>
-<NavIf show={showNavForFeature("booking")}>
+              <NavIf show={bookingEnabled && showNavForFeature("booking")}>
                 <NavLink preventScrollReset to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Calendar className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Онлайн</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={deskSalesEnabled}>
+                <NavLink preventScrollReset to="/sales" className={mobileBottomNavLinkClass} title="Продажи">
+                  <GradientIconBox variant="online" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Wallet className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Продажи</span>
                 </NavLink>
               </NavIf>
               <NavIf show={showNavForFeature("chat")}>
@@ -251,7 +263,7 @@ export function MainLayout() {
             </>
           ) : isExpert && !isChiefExpert ? (
             <>
-              <NavIf show={showNavForFeature("booking")}>
+              <NavIf show={bookingEnabled && showNavForFeature("booking")}>
                 <NavLink preventScrollReset to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Calendar className="h-4 w-4" />
@@ -259,7 +271,7 @@ export function MainLayout() {
                   <span className="text-[9px]">Онлайн</span>
                 </NavLink>
               </NavIf>
-              <NavIf show={showNavForFeature("reports")}>
+              <NavIf show={bookingEnabled && showNavForFeature("reports")}>
                 <NavLink preventScrollReset to="/reports" className={mobileBottomNavLinkClass} title="Отчёты">
                   <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <BarChart3 className="h-4 w-4" />
@@ -312,12 +324,20 @@ export function MainLayout() {
                   <span className="text-[9px]">{navLex.navOwnerHomeShort}</span>
                 </NavLink>
               </NavIf>
-<NavIf show={showNavForFeature("booking")}>
+              <NavIf show={bookingEnabled && showNavForFeature("booking")}>
                 <NavLink preventScrollReset to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <Calendar className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Онлайн</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={deskSalesEnabled}>
+                <NavLink preventScrollReset to="/sales" className={mobileBottomNavLinkClass} title="Продажи">
+                  <GradientIconBox variant="online" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Wallet className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Продажи</span>
                 </NavLink>
               </NavIf>
               {showKpi ? (
