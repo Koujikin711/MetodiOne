@@ -54,6 +54,24 @@ interface RedistributeResult {
   per_manager: Record<string, number>;
 }
 
+interface UndoableRedistribution {
+  audit_id: number;
+  action: string;
+  created_at: string;
+  from_manager_id: number | null;
+  from_manager_name: string;
+  total_original: number;
+  restorable: number;
+  summary: string;
+}
+
+interface UndoRedistributionResult {
+  restored: number;
+  skipped: number;
+  from_manager_id: number | null;
+  from_manager_name: string;
+}
+
 interface PatchEmployeeContactResult {
   employee: Employee;
   email_changed: boolean;
@@ -194,6 +212,7 @@ export function EmployeesPage() {
       void qc.invalidateQueries({ queryKey: ["leads"] });
       void qc.invalidateQueries({ queryKey: ["leads-table"] });
       void qc.invalidateQueries({ queryKey: ["leads-redistribution-sources"] });
+      void qc.invalidateQueries({ queryKey: ["leads-redistribution-undoable"] });
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
       void qc.invalidateQueries({ queryKey: ["tasks"] });
     },
@@ -215,6 +234,37 @@ export function EmployeesPage() {
       void qc.invalidateQueries({ queryKey: ["leads"] });
       void qc.invalidateQueries({ queryKey: ["leads-table"] });
       void qc.invalidateQueries({ queryKey: ["leads-redistribution-sources"] });
+      void qc.invalidateQueries({ queryKey: ["leads-redistribution-undoable"] });
+      void qc.invalidateQueries({ queryKey: ["chat-threads"] });
+      void qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const undoableQuery = useQuery({
+    queryKey: ["leads-redistribution-undoable"],
+    queryFn: () =>
+      apiFetch<UndoableRedistribution[]>("/api/leads/redistribution/undoable?limit=5"),
+  });
+
+  const undoRedistributionMutation = useMutation({
+    mutationFn: (auditId: number) =>
+      apiFetch<UndoRedistributionResult>("/api/leads/redistribution/undo", {
+        method: "POST",
+        body: JSON.stringify({ audit_id: auditId }),
+      }),
+    onSuccess: (r) => {
+      toast.success(
+        r.restored > 0
+          ? `Возвращено ${r.restored} лид(ов) → ${r.from_manager_name}${
+              r.skipped ? ` (пропущено ${r.skipped})` : ""
+            }`
+          : "Нечего возвращать",
+      );
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+      void qc.invalidateQueries({ queryKey: ["leads-table"] });
+      void qc.invalidateQueries({ queryKey: ["leads-redistribution-sources"] });
+      void qc.invalidateQueries({ queryKey: ["leads-redistribution-undoable"] });
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
       void qc.invalidateQueries({ queryKey: ["tasks"] });
     },
@@ -457,8 +507,47 @@ export function EmployeesPage() {
           <h2 className="employees-redistribute-title">Перераспределение лидов</h2>
           <p className="employees-redistribute-desc">
             Забрать лиды у менеджера / владельца / админа и раздать менеджерам. Владелец и админ новые лиды
-            автоматически не получают.
+            автоматически не получают. Случайно раздали — можно вернуть ниже.
           </p>
+
+          {(undoableQuery.data?.length ?? 0) > 0 ? (
+            <div className="employees-redistribute-undo mt-2.5 space-y-1.5">
+              <p className="text-xs font-medium text-[var(--mo-text)]">Вернуть перераспределение</p>
+              {undoableQuery.data!.map((item) => (
+                <div
+                  key={item.audit_id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-2.5 py-2"
+                >
+                  <div className="min-w-0 text-xs text-[var(--mo-text)]">
+                    <div className="font-medium">{item.summary}</div>
+                    <div className="mo-muted">
+                      {new Date(item.created_at).toLocaleString("ru-RU")}
+                      {item.total_original !== item.restorable
+                        ? ` · из ${item.total_original}`
+                        : ""}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="employees-redistribute-btn-undo shrink-0"
+                    disabled={undoRedistributionMutation.isPending}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          `${item.summary}?\n\nВернутся только лиды, которые ещё у получателей этой раздачи. Чат и открытые задачи тоже вернутся.`,
+                        )
+                      ) {
+                        return;
+                      }
+                      undoRedistributionMutation.mutate(item.audit_id);
+                    }}
+                  >
+                    {undoRedistributionMutation.isPending ? "Возвращаем…" : "Вернуть"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
 
           <div className="employees-redistribute-strip">
             <p className="min-w-0 flex-1 text-xs text-[var(--mo-text)]">
