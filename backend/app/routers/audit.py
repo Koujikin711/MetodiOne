@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import SystemAuditEvent, User, UserRole
 from app.schemas.audit import SystemAuditEventRead
@@ -16,14 +16,19 @@ router = APIRouter(prefix="/audit", tags=["audit"])
 async def list_audit_events(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
     entity_type: str | None = Query(default=None),
     entity_id: int | None = Query(default=None),
     limit: int = Query(default=200, ge=1, le=500),
 ) -> list[SystemAuditEventRead]:
-    if current_user.role != UserRole.owner:
+    if current_user.role not in (UserRole.owner, UserRole.admin):
         return []
 
-    q = select(SystemAuditEvent, User).outerjoin(User, User.id == SystemAuditEvent.user_id)
+    q = (
+        select(SystemAuditEvent, User)
+        .outerjoin(User, User.id == SystemAuditEvent.user_id)
+        .where(SystemAuditEvent.company_id == company_id)
+    )
     if entity_type:
         q = q.where(SystemAuditEvent.entity_type == entity_type.strip())
     if entity_id is not None:
