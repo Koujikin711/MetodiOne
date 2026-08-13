@@ -253,14 +253,16 @@ export function SalesQuoteCalculatorPage() {
         : "от 5 000 TJS";
 
   return (
-    <div className="space-y-5 pb-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="max-w-2xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mo-muted">Продажи · конфиг</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-3xl">
+    <div className="sales-space-page space-y-4 pb-[4.5rem] sm:space-y-5 sm:pb-8">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div className="max-w-2xl min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] mo-muted sm:text-[11px]">
+            Продажи · конфиг
+          </p>
+          <h1 className="mt-0.5 text-lg font-semibold tracking-tight text-[var(--mo-text)] sm:mt-1 sm:text-3xl">
             Калькуляция заказа
           </h1>
-          <p className="mt-2 text-sm leading-relaxed mo-muted">
+          <p className="mt-1 hidden text-sm leading-relaxed mo-muted sm:mt-2 sm:block">
             Соберите модули под задачу клиента. Сумма считается сразу, состав и оплату можно сохранить в{" "}
             <Link to="/sales" className="font-medium text-[var(--mo-accent-hover)] underline-offset-2 hover:underline">
               Продажи
@@ -268,9 +270,9 @@ export function SalesQuoteCalculatorPage() {
             .
           </p>
         </div>
-        <div className="min-w-[10.5rem] rounded-2xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-4 py-3 text-right shadow-sm">
-          <div className="text-[11px] font-medium uppercase tracking-wide mo-muted">Итого</div>
-          <div className="mt-0.5 text-2xl font-semibold tabular-nums text-[var(--mo-text)]">
+        <div className="min-w-[7.5rem] rounded-2xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-3 py-2 text-right shadow-sm sm:min-w-[10.5rem] sm:px-4 sm:py-3">
+          <div className="text-[10px] font-medium uppercase tracking-wide mo-muted sm:text-[11px]">Итого</div>
+          <div className="mt-0.5 text-xl font-semibold tabular-nums text-[var(--mo-text)] sm:text-2xl">
             {quote?.ok ? formatMoney(quote.total) : "—"}
           </div>
         </div>

@@ -99,7 +99,7 @@ export function MonthYearPicker({ value, onChange, className = "", allowClear = 
       <button
         id={inputId}
         type="button"
-        className="mo-input mo-month-picker-trigger flex w-full items-center justify-between gap-2 text-left"
+        className="mo-input mo-month-picker-trigger flex min-h-11 w-full items-center justify-between gap-2 text-left text-base sm:min-h-0 sm:text-sm"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
