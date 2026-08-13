@@ -10,8 +10,11 @@ import type { ManagerDeskSale, Pipeline } from "@/lib/types";
 function formatMoney(v: string | number) {
   const n = typeof v === "number" ? v : Number(v);
   if (!Number.isFinite(n)) return "—";
-  return `${n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TJS`;
+  return `${n.toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} TJS`;
 }
+
+const fieldClass =
+  "mo-input mt-1 w-full !min-h-11 !py-2.5 text-base sm:!min-h-0 sm:!py-2 sm:text-sm";
 
 export function ManagerSalesPage() {
   const me = useCurrentUserMe();
@@ -37,6 +40,7 @@ export function ManagerSalesPage() {
   const [paidAmount, setPaidAmount] = useState("");
   const [pipelineId, setPipelineId] = useState<number | "">("");
   const [note, setNote] = useState("");
+  const [showNote, setShowNote] = useState(false);
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -60,6 +64,7 @@ export function ManagerSalesPage() {
       setServiceAmount("");
       setPaidAmount("");
       setNote("");
+      setShowNote(false);
       void qc.invalidateQueries({ queryKey: ["desk-sales"] });
     },
     onError: (e: Error) => toast.error(e.message || "Не удалось сохранить"),
@@ -80,11 +85,9 @@ export function ManagerSalesPage() {
 
   if (!enabled) {
     return (
-      <div className="mo-section p-6">
-        <h1 className="text-xl font-semibold text-[var(--mo-text)]">Продажи</h1>
-        <p className="mt-2 text-sm mo-muted">
-          Раздел доступен только в пространстве без онлайн-записи.
-        </p>
+      <div className="mo-section p-4">
+        <h1 className="text-lg font-semibold text-[var(--mo-text)]">Продажи</h1>
+        <p className="mt-1 text-sm mo-muted">Раздел доступен только в пространстве без онлайн-записи.</p>
       </div>
     );
   }
@@ -92,14 +95,13 @@ export function ManagerSalesPage() {
   const pipelines = pipelinesQuery.data ?? [];
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--mo-text)]">Продажи</h1>
-          <p className="mt-1 text-sm mo-muted">
-            Вместо онлайн-записи: стоимость, сфера деятельности, ФИО, телефон и сумма оплаты. Данные идут в отчёты
-            компании и дебиторку. Сумму модулей можно собрать в{" "}
-            <Link to="/quote" className="underline underline-offset-2">
+    <div className="sales-space-page mx-auto max-w-3xl space-y-3 pb-[5.5rem] sm:space-y-5 sm:pb-0">
+      <header className="flex items-end justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight text-[var(--mo-text)] sm:text-2xl">Продажи</h1>
+          <p className="mt-0.5 text-[11px] leading-snug mo-muted sm:mt-1 sm:text-sm">
+            Смета модулей — в{" "}
+            <Link to="/quote" className="font-medium text-[var(--mo-accent-hover)] underline-offset-2 hover:underline">
               Калькуляции
             </Link>
             .
@@ -107,72 +109,77 @@ export function ManagerSalesPage() {
         </div>
       </header>
 
-      <section className="mo-section p-4">
+      <section className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-3 sm:p-4">
         <h2 className="text-sm font-semibold text-[var(--mo-text)]">Новая продажа</h2>
         <form
-          className="mt-3 grid gap-3 sm:grid-cols-2"
+          className="mt-2 grid grid-cols-2 gap-2 sm:gap-3"
           onSubmit={(e) => {
             e.preventDefault();
             createMutation.mutate();
           }}
         >
-          <label className="text-sm">
+          <label className="col-span-2 text-xs sm:col-span-1 sm:text-sm">
             <span className="mo-muted">ФИО клиента</span>
             <input
               required
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
-              className="mo-input mt-1 w-full"
+              className={fieldClass}
               placeholder="Имя Фамилия"
+              autoComplete="name"
             />
           </label>
-          <label className="text-sm">
+          <label className="col-span-2 text-xs sm:col-span-1 sm:text-sm">
             <span className="mo-muted">Телефон</span>
             <input
               required
               value={clientPhone}
               onChange={(e) => setClientPhone(e.target.value)}
-              className="mo-input mt-1 w-full"
+              className={fieldClass}
               placeholder="+992…"
+              inputMode="tel"
+              autoComplete="tel"
             />
           </label>
-          <label className="text-sm sm:col-span-2">
-            <span className="mo-muted">Сфера деятельности клиента</span>
+          <label className="col-span-2 text-xs sm:text-sm">
+            <span className="mo-muted">Сфера деятельности</span>
             <input
               required
               value={activitySphere}
               onChange={(e) => setActivitySphere(e.target.value)}
-              className="mo-input mt-1 w-full"
-              placeholder="Например: медицина, торговля…"
+              className={fieldClass}
+              placeholder="Медицина, торговля…"
             />
           </label>
-          <label className="text-sm">
-            <span className="mo-muted">Стоимость (TJS)</span>
+          <label className="text-xs sm:text-sm">
+            <span className="mo-muted">Стоимость</span>
             <input
               required
               inputMode="decimal"
               value={serviceAmount}
               onChange={(e) => setServiceAmount(e.target.value)}
-              className="mo-input mt-1 w-full"
+              className={fieldClass}
+              placeholder="TJS"
             />
           </label>
-          <label className="text-sm">
-            <span className="mo-muted">Сколько взял денег (TJS)</span>
+          <label className="text-xs sm:text-sm">
+            <span className="mo-muted">Взято денег</span>
             <input
               required
               inputMode="decimal"
               value={paidAmount}
               onChange={(e) => setPaidAmount(e.target.value)}
-              className="mo-input mt-1 w-full"
+              className={fieldClass}
+              placeholder="TJS"
             />
           </label>
           {pipelines.length > 0 ? (
-            <label className="text-sm sm:col-span-2">
+            <label className="col-span-2 text-xs sm:text-sm">
               <span className="mo-muted">Воронка</span>
               <select
                 value={pipelineId === "" ? "" : String(pipelineId)}
                 onChange={(e) => setPipelineId(e.target.value ? Number(e.target.value) : "")}
-                className="mo-input mt-1 w-full"
+                className={fieldClass}
               >
                 <option value="">Авто</option>
                 {pipelines.map((p) => (
@@ -183,15 +190,24 @@ export function ManagerSalesPage() {
               </select>
             </label>
           ) : null}
-          <label className="text-sm sm:col-span-2">
+
+          <button
+            type="button"
+            className="col-span-2 min-h-10 rounded-xl border border-dashed border-[var(--mo-border)] px-3 py-2 text-left text-xs font-medium text-[var(--mo-accent)] sm:hidden"
+            onClick={() => setShowNote((v) => !v)}
+          >
+            {showNote ? "Скрыть заметку" : "+ Заметка"}
+          </button>
+          <label className={`col-span-2 text-xs sm:text-sm ${showNote ? "" : "hidden sm:block"}`}>
             <span className="mo-muted">Заметка</span>
-            <input value={note} onChange={(e) => setNote(e.target.value)} className="mo-input mt-1 w-full" />
+            <input value={note} onChange={(e) => setNote(e.target.value)} className={fieldClass} />
           </label>
-          <div className="sm:col-span-2">
+
+          <div className="col-span-2 hidden sm:block">
             <button
               type="submit"
               disabled={createMutation.isPending}
-              className="rounded-xl bg-[var(--mo-accent)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              className="rounded-xl bg-[var(--mo-accent)] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60"
             >
               {createMutation.isPending ? "Сохранение…" : "Сохранить продажу"}
             </button>
@@ -199,56 +215,104 @@ export function ManagerSalesPage() {
         </form>
       </section>
 
-      <section className="mo-section p-4">
-        <h2 className="mb-3 text-sm font-semibold text-[var(--mo-text)]">Последние продажи</h2>
+      <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-3 py-2.5 backdrop-blur sm:hidden">
+        <button
+          type="button"
+          disabled={createMutation.isPending}
+          onClick={() => createMutation.mutate()}
+          className="min-h-12 w-full rounded-xl bg-[var(--mo-accent)] px-4 py-3 text-base font-semibold text-white disabled:opacity-50"
+        >
+          {createMutation.isPending ? "Сохранение…" : "Сохранить продажу"}
+        </button>
+      </div>
+
+      <section className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-3 sm:p-4">
+        <h2 className="mb-2 text-sm font-semibold text-[var(--mo-text)]">Последние продажи</h2>
         {salesQuery.isLoading ? (
           <p className="text-sm mo-muted">Загрузка…</p>
         ) : (salesQuery.data?.length ?? 0) === 0 ? (
-          <p className="text-sm lux-caption">Пока нет продаж.</p>
+          <p className="text-sm mo-muted">Пока нет продаж.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="text-xs mo-muted">
-                <tr>
-                  <th className="px-2 py-2">Дата</th>
-                  <th className="px-2 py-2">Клиент</th>
-                  <th className="px-2 py-2">Сфера</th>
-                  <th className="px-2 py-2">Стоимость</th>
-                  <th className="px-2 py-2">Оплачено</th>
-                  <th className="px-2 py-2">Менеджер</th>
-                  <th className="px-2 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {(salesQuery.data ?? []).map((s) => (
-                  <tr key={s.id} className="border-t border-[var(--mo-border)]">
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      {new Date(s.sold_at).toLocaleString("ru-RU")}
-                    </td>
-                    <td className="px-2 py-2">
-                      <div>{s.client_name}</div>
-                      <div className="text-xs mo-muted">{s.client_phone}</div>
-                    </td>
-                    <td className="px-2 py-2">{s.activity_sphere}</td>
-                    <td className="px-2 py-2 tabular-nums">{formatMoney(s.service_amount)}</td>
-                    <td className="px-2 py-2 tabular-nums">{formatMoney(s.paid_amount)}</td>
-                    <td className="px-2 py-2">{s.manager_name || "—"}</td>
-                    <td className="px-2 py-2">
-                      <button
-                        type="button"
-                        className="text-xs text-rose-300 hover:underline"
-                        onClick={() => {
-                          if (confirm("Отменить эту продажу?")) cancelMutation.mutate(s.id);
-                        }}
-                      >
-                        Отменить
-                      </button>
-                    </td>
+          <>
+            <ul className="space-y-2 sm:hidden">
+              {(salesQuery.data ?? []).map((s) => (
+                <li key={s.id} className="rounded-xl border border-[var(--mo-border)] px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{s.client_name}</p>
+                      <p className="truncate text-xs mo-muted">{s.client_phone}</p>
+                    </div>
+                    <time className="shrink-0 text-[11px] tabular-nums mo-muted">
+                      {new Date(s.sold_at).toLocaleString("ru-RU", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </time>
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--mo-text)]">{s.activity_sphere}</p>
+                  <div className="mt-1 flex items-center justify-between gap-2 text-xs">
+                    <span className="tabular-nums">
+                      {formatMoney(s.paid_amount)} / {formatMoney(s.service_amount)}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-rose-500"
+                      onClick={() => {
+                        if (confirm("Отменить эту продажу?")) cancelMutation.mutate(s.id);
+                      }}
+                    >
+                      Отменить
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="min-w-full text-left text-sm">
+                <thead className="text-xs mo-muted">
+                  <tr>
+                    <th className="px-2 py-2">Дата</th>
+                    <th className="px-2 py-2">Клиент</th>
+                    <th className="px-2 py-2">Сфера</th>
+                    <th className="px-2 py-2">Стоимость</th>
+                    <th className="px-2 py-2">Оплачено</th>
+                    <th className="px-2 py-2">Менеджер</th>
+                    <th className="px-2 py-2" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {(salesQuery.data ?? []).map((s) => (
+                    <tr key={s.id} className="border-t border-[var(--mo-border)]">
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        {new Date(s.sold_at).toLocaleString("ru-RU")}
+                      </td>
+                      <td className="px-2 py-2">
+                        <div>{s.client_name}</div>
+                        <div className="text-xs mo-muted">{s.client_phone}</div>
+                      </td>
+                      <td className="px-2 py-2">{s.activity_sphere}</td>
+                      <td className="px-2 py-2 tabular-nums">{formatMoney(s.service_amount)}</td>
+                      <td className="px-2 py-2 tabular-nums">{formatMoney(s.paid_amount)}</td>
+                      <td className="px-2 py-2">{s.manager_name || "—"}</td>
+                      <td className="px-2 py-2">
+                        <button
+                          type="button"
+                          className="text-xs text-rose-300 hover:underline"
+                          onClick={() => {
+                            if (confirm("Отменить эту продажу?")) cancelMutation.mutate(s.id);
+                          }}
+                        >
+                          Отменить
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
     </div>

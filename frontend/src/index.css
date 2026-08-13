@@ -859,6 +859,17 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   .sales-tracker-page .sales-tracker-map {
     touch-action: pan-x pan-y;
   }
+
+  /* Общий комфорт пространства продаж (Продажи / KPI / Смета) */
+  .sales-space-page .mo-input,
+  .sales-space-page select.mo-input,
+  .sales-space-page input.mo-input {
+    font-size: 16px !important;
+  }
+
+  .sales-space-page .mo-section {
+    padding: 0.75rem !important;
+  }
 }
 
 .auth-gradient-bg {

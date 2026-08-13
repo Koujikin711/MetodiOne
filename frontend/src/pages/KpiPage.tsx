@@ -283,26 +283,26 @@ export function KpiPage() {
   const managers = planQuery.data?.managers ?? [];
 
   return (
-    <div className="relative mx-auto max-w-[1500px] space-y-6 pb-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">KPI продаж</h1>
-        <p className="text-sm lux-caption">
+    <div className="sales-space-page relative mx-auto max-w-[1500px] space-y-3 pb-4 sm:space-y-6 sm:pb-10">
+      <header className="space-y-1">
+        <h1 className="text-lg font-semibold tracking-tight text-[var(--mo-text)] sm:text-3xl">KPI продаж</h1>
+        <p className="hidden text-sm lux-caption sm:block">
           Услуги из онлайн-записи — в факт при 100% оплате. Курсы/протоколы вносит админ — в факт с оплаты ≥25%.
           Возвраты снимаются с расчёта. Бонус = фонд × сумма вкладов (перевыполнение не оплачивается).
         </p>
       </header>
 
-      <section className="grid gap-3 mo-section p-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-sm mo-muted">
+      <section className="grid grid-cols-2 gap-2 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2.5 sm:gap-3 sm:p-4">
+        <label className="flex min-w-0 flex-col gap-0.5 text-[11px] mo-muted sm:text-sm">
           Месяц
           <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
         </label>
-        <label className="flex flex-col gap-1 text-sm mo-muted">
+        <label className="flex min-w-0 flex-col gap-0.5 text-[11px] mo-muted sm:text-sm">
           Воронка
           <select
             value={pipelineId ?? ""}
             onChange={(e) => setPipelineId(Number(e.target.value) || null)}
-            className="mo-input"
+            className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
           >
             {(pipelinesQuery.data ?? []).map((p) => (
               <option key={p.id} value={p.id}>
@@ -314,7 +314,7 @@ export function KpiPage() {
         </label>
       </section>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto overscroll-x-contain px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
         {tabs
           .filter((t) => t.show)
           .map((t) => (
@@ -322,7 +322,11 @@ export function KpiPage() {
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
-              className={tab === t.id ? "btn-primary text-sm" : "btn-secondary text-sm"}
+              className={
+                tab === t.id
+                  ? "btn-primary shrink-0 whitespace-nowrap px-3 py-2 text-xs sm:text-sm"
+                  : "btn-secondary shrink-0 whitespace-nowrap px-3 py-2 text-xs sm:text-sm"
+              }
             >
               {t.label}
             </button>
@@ -330,11 +334,11 @@ export function KpiPage() {
       </div>
 
       {tab === "plan" && isOwner ? (
-        <section className="mo-section space-y-4 p-4">
+        <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className="lux-subheading">План на месяц</h2>
-              <p className="mt-1 text-sm lux-caption">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">План на месяц</h2>
+              <p className="mt-1 hidden text-sm lux-caption sm:block">
                 Один план на всех менеджеров. Для услуг из онлайн-записи привяжите экспертов — запись к
                 ним пойдёт в факт этой услуги (при 100% оплате). Один эксперт = одна услуга KPI.
               </p>
@@ -343,24 +347,170 @@ export function KpiPage() {
               type="button"
               onClick={() => savePlanMutation.mutate()}
               disabled={savePlanMutation.isPending}
-              className="btn-primary text-sm disabled:opacity-50"
+              className="hidden btn-primary text-sm disabled:opacity-50 sm:inline-flex"
             >
               Сохранить план
             </button>
           </div>
 
-          <label className="flex max-w-xs flex-col gap-1 text-sm mo-muted">
+          <label className="flex max-w-xs flex-col gap-1 text-xs mo-muted sm:text-sm">
             Фонд бонуса на менеджера (TJS)
             <input
               type="number"
               min={0}
+              inputMode="decimal"
               value={bonusFund}
               onChange={(e) => setBonusFund(e.target.value)}
-              className="mo-input"
+              className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
             />
           </label>
 
-          <div className="overflow-x-auto">
+          <div className="space-y-2 sm:hidden">
+            {planItems.map((row) => {
+              const takenElsewhere = new Set(
+                planItems
+                  .filter((x) => x.key !== row.key && x.source_type === "direction")
+                  .flatMap((x) => x.specialist_ids),
+              );
+              return (
+                <article
+                  key={row.key}
+                  className="space-y-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-3"
+                >
+                  <label className="block text-[11px] mo-muted">
+                    Показатель
+                    <input
+                      className="mo-input mt-1 w-full !min-h-11 text-base"
+                      value={row.name}
+                      onChange={(e) =>
+                        setPlanItems((prev) =>
+                          prev.map((x) => (x.key === row.key ? { ...x, name: e.target.value } : x)),
+                        )
+                      }
+                      placeholder="Логопед / Курс 15"
+                    />
+                  </label>
+                  <label className="block text-[11px] mo-muted">
+                    Источник
+                    <select
+                      className="mo-input mt-1 w-full !min-h-11 text-base"
+                      value={row.source_type}
+                      onChange={(e) =>
+                        setPlanItems((prev) =>
+                          prev.map((x) =>
+                            x.key === row.key
+                              ? {
+                                  ...x,
+                                  source_type: e.target.value === "direction" ? "direction" : "manual",
+                                  specialist_ids:
+                                    e.target.value === "direction" ? x.specialist_ids : [],
+                                }
+                              : x,
+                          ),
+                        )
+                      }
+                    >
+                      <option value="manual">Курс / протокол</option>
+                      <option value="direction">Онлайн-запись</option>
+                    </select>
+                  </label>
+                  {row.source_type === "direction" ? (
+                    <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-[var(--mo-border)] p-2">
+                      {(planQuery.data?.specialists ?? []).filter((s) => s.is_active).length === 0 ? (
+                        <span className="text-xs mo-muted">Нет экспертов</span>
+                      ) : (
+                        (planQuery.data?.specialists ?? [])
+                          .filter((s) => s.is_active)
+                          .map((s) => {
+                            const checked = row.specialist_ids.includes(s.id);
+                            const disabled = !checked && takenElsewhere.has(s.id);
+                            return (
+                              <label
+                                key={s.id}
+                                className={`flex items-start gap-2 text-xs ${disabled ? "opacity-40" : ""}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="mt-0.5"
+                                  checked={checked}
+                                  disabled={disabled}
+                                  onChange={(e) => {
+                                    const on = e.target.checked;
+                                    setPlanItems((prev) =>
+                                      prev.map((x) => {
+                                        if (x.key !== row.key) return x;
+                                        const next = on
+                                          ? [...x.specialist_ids, s.id]
+                                          : x.specialist_ids.filter((id) => id !== s.id);
+                                        return {
+                                          ...x,
+                                          specialist_ids: next,
+                                          direction_id: on ? String(s.direction_id) : x.direction_id,
+                                        };
+                                      }),
+                                    );
+                                  }}
+                                />
+                                <span>
+                                  {s.full_name}
+                                  {s.direction_name ? (
+                                    <span className="mo-muted"> · {s.direction_name}</span>
+                                  ) : null}
+                                </span>
+                              </label>
+                            );
+                          })
+                      )}
+                    </div>
+                  ) : null}
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-[11px] mo-muted">
+                      План (шт)
+                      <input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        className="mo-input mt-1 w-full !min-h-11 text-base"
+                        value={row.plan_qty}
+                        onChange={(e) =>
+                          setPlanItems((prev) =>
+                            prev.map((x) => (x.key === row.key ? { ...x, plan_qty: e.target.value } : x)),
+                          )
+                        }
+                      />
+                    </label>
+                    <label className="block text-[11px] mo-muted">
+                      Вес (%)
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        inputMode="numeric"
+                        className="mo-input mt-1 w-full !min-h-11 text-base"
+                        value={row.weight_percent}
+                        onChange={(e) =>
+                          setPlanItems((prev) =>
+                            prev.map((x) =>
+                              x.key === row.key ? { ...x, weight_percent: e.target.value } : x,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs text-rose-500"
+                    onClick={() => setPlanItems((prev) => prev.filter((x) => x.key !== row.key))}
+                  >
+                    Удалить показатель
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[900px] border-collapse text-left text-sm text-[var(--mo-text)]">
               <thead>
                 <tr className="border-b border-[var(--mo-border)] lux-caption">
@@ -517,7 +667,7 @@ export function KpiPage() {
           </div>
           <button
             type="button"
-            className="btn-secondary text-sm"
+            className="btn-secondary min-h-11 w-full text-sm sm:min-h-0 sm:w-auto"
             onClick={() =>
               setPlanItems((prev) => [
                 ...prev,
@@ -537,16 +687,17 @@ export function KpiPage() {
           </button>
 
           {(planQuery.data?.directions.length ?? 0) > 0 ? (
-            <div className="space-y-2 pt-4">
-              <h3 className="text-sm font-medium text-[var(--mo-text)]">Цены услуг записи (для формы бронирования)</h3>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-2 pt-2 sm:pt-4">
+              <h3 className="text-sm font-medium text-[var(--mo-text)]">Цены услуг записи</h3>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {(planQuery.data?.directions ?? []).map((d) => (
-                  <label key={d.direction_id} className="flex flex-col gap-1 text-sm mo-muted">
-                    {d.direction_name}
+                  <label key={d.direction_id} className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                    <span className="truncate">{d.direction_name}</span>
                     <input
                       type="number"
                       min={0}
-                      className="mo-input"
+                      inputMode="decimal"
+                      className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                       value={priceDraft[d.direction_id] ?? ""}
                       onChange={(e) =>
                         setPriceDraft((prev) => ({ ...prev, [d.direction_id]: e.target.value }))
@@ -557,6 +708,18 @@ export function KpiPage() {
               </div>
             </div>
           ) : null}
+
+          <div className="h-14 sm:hidden" aria-hidden />
+          <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-3 py-2.5 backdrop-blur sm:hidden">
+            <button
+              type="button"
+              onClick={() => savePlanMutation.mutate()}
+              disabled={savePlanMutation.isPending}
+              className="min-h-12 w-full rounded-xl bg-[var(--mo-accent)] px-4 py-3 text-base font-semibold text-white disabled:opacity-50"
+            >
+              {savePlanMutation.isPending ? "Сохранение…" : "Сохранить план"}
+            </button>
+          </div>
         </section>
       ) : null}
 
@@ -573,10 +736,10 @@ export function KpiPage() {
       ) : null}
 
       {tab === "manual" && isAdminOrOwner ? (
-        <section className="mo-section space-y-4 p-4">
+        <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
           <div>
-            <h2 className="lux-subheading">Продажа курса / протокола</h2>
-            <p className="mt-1 text-sm lux-caption">
+            <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажа курса / протокола</h2>
+            <p className="mt-1 hidden text-sm lux-caption sm:block">
               Без онлайн-записи. В KPI попадает с оплаты ≥25%. Возврат снимает продажу с факта.
             </p>
           </div>
@@ -586,11 +749,11 @@ export function KpiPage() {
               Сначала владелец должен добавить показатели с источником «Курс / протокол» во вкладке «План».
             </p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <label className="flex flex-col gap-1 text-sm mo-muted">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
+              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
                 Показатель
                 <select
-                  className="mo-input"
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.plan_item_id}
                   onChange={(e) => setSaleForm((s) => ({ ...s, plan_item_id: e.target.value }))}
                 >
@@ -602,10 +765,10 @@ export function KpiPage() {
                   ))}
                 </select>
               </label>
-              <label className="flex flex-col gap-1 text-sm mo-muted">
-                Менеджер (кому в KPI)
+              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
+                Менеджер
                 <select
-                  className="mo-input"
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.manager_user_id}
                   onChange={(e) => setSaleForm((s) => ({ ...s, manager_user_id: e.target.value }))}
                 >
@@ -617,10 +780,10 @@ export function KpiPage() {
                   ))}
                 </select>
               </label>
-              <label className="flex flex-col gap-1 text-sm mo-muted">
+              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                 Поток
                 <select
-                  className="mo-input"
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.stream_no}
                   onChange={(e) => setSaleForm((s) => ({ ...s, stream_no: e.target.value }))}
                 >
@@ -632,46 +795,49 @@ export function KpiPage() {
                   ))}
                 </select>
               </label>
-              <label className="flex flex-col gap-1 text-sm mo-muted">
+              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                 Клиент
                 <input
-                  className="mo-input"
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.client_name}
                   onChange={(e) => setSaleForm((s) => ({ ...s, client_name: e.target.value }))}
                 />
               </label>
-              <label className="flex flex-col gap-1 text-sm mo-muted">
+              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
                 Телефон
                 <input
-                  className="mo-input"
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                  inputMode="tel"
                   value={saleForm.client_phone}
                   onChange={(e) => setSaleForm((s) => ({ ...s, client_phone: e.target.value }))}
                 />
               </label>
-              <label className="flex flex-col gap-1 text-sm mo-muted">
+              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                 Стоимость
                 <input
                   type="number"
                   min={0}
-                  className="mo-input"
+                  inputMode="decimal"
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.service_amount}
                   onChange={(e) => setSaleForm((s) => ({ ...s, service_amount: e.target.value }))}
                 />
               </label>
-              <label className="flex flex-col gap-1 text-sm mo-muted">
+              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                 Оплачено сейчас
                 <input
                   type="number"
                   min={0}
-                  className="mo-input"
+                  inputMode="decimal"
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.paid_amount}
                   onChange={(e) => setSaleForm((s) => ({ ...s, paid_amount: e.target.value }))}
                 />
               </label>
-              <label className="flex flex-col gap-1 text-sm mo-muted sm:col-span-2">
+              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                 Комментарий
                 <input
-                  className="mo-input"
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.note}
                   onChange={(e) => setSaleForm((s) => ({ ...s, note: e.target.value }))}
                 />
@@ -681,14 +847,86 @@ export function KpiPage() {
 
           <button
             type="button"
-            className="btn-primary text-sm disabled:opacity-50"
+            className="btn-primary min-h-12 w-full text-base disabled:opacity-50 sm:min-h-0 sm:w-auto sm:text-sm"
             disabled={createSaleMutation.isPending || manualPlanItems.length === 0}
             onClick={() => createSaleMutation.mutate()}
           >
             Добавить продажу
           </button>
 
-          <div className="overflow-x-auto pt-2">
+          <ul className="space-y-2 pt-1 sm:hidden">
+            {(manualQuery.data ?? []).map((s) => (
+              <li key={s.id} className="rounded-xl border border-[var(--mo-border)] px-3 py-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{s.client_name}</p>
+                    <p className="truncate text-[11px] mo-muted">
+                      {s.plan_item_name} · {streamLabel(s.stream_no)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[11px] tabular-nums mo-muted">
+                    {s.sold_at
+                      ? new Date(s.sold_at).toLocaleDateString("ru-RU", {
+                          day: "2-digit",
+                          month: "2-digit",
+                        })
+                      : "—"}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] mo-muted">{s.manager_name}</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="tabular-nums">
+                    {formatMoney(num(s.paid_amount))} / {formatMoney(num(s.service_amount))}
+                  </span>
+                  {s.status === "returned" ? (
+                    <span className="text-red-300">возврат</span>
+                  ) : s.counts_in_kpi ? (
+                    <span className="text-emerald-600">в факте</span>
+                  ) : (
+                    <span className="mo-muted">&lt;25%</span>
+                  )}
+                </div>
+                {s.status !== "returned" ? (
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      inputMode="decimal"
+                      className="mo-input !min-h-10 flex-1 text-base"
+                      value={payDraft[s.id] ?? String(num(s.paid_amount))}
+                      onChange={(e) => setPayDraft((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary shrink-0 px-3 py-2 text-xs"
+                      onClick={() =>
+                        payMutation.mutate({
+                          id: s.id,
+                          paid: Number(payDraft[s.id] ?? s.paid_amount),
+                        })
+                      }
+                    >
+                      OK
+                    </button>
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs text-rose-500"
+                      onClick={() => {
+                        if (window.confirm("Отметить возврат и снять с KPI?")) {
+                          returnMutation.mutate(s.id);
+                        }
+                      }}
+                    >
+                      Возврат
+                    </button>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+            {manualQuery.isLoading ? <p className="text-sm lux-caption">Загрузка…</p> : null}
+          </ul>
+
+          <div className="hidden overflow-x-auto pt-2 sm:block">
             <table className="w-full min-w-[1100px] border-collapse text-left text-sm text-[var(--mo-text)]">
               <thead>
                 <tr className="border-b border-[var(--mo-border)] lux-caption">
@@ -781,17 +1019,45 @@ export function KpiPage() {
       ) : null}
 
       {tab === "debtors" && isAdminOrOwner ? (
-        <section className="mo-section space-y-3 p-4">
+        <section className="mo-section space-y-3 p-3 sm:p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="lux-subheading">Дебиторка</h2>
-            <p className="text-sm mo-muted">
-              Итого долг:{" "}
+            <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Дебиторка</h2>
+            <p className="text-xs mo-muted sm:text-sm">
+              Итого:{" "}
               <span className="font-semibold text-[var(--mo-text)]">
                 {formatMoney(num(debtorsQuery.data?.total_debt))}
               </span>
             </p>
           </div>
-          <div className="overflow-x-auto">
+
+          <ul className="space-y-2 sm:hidden">
+            {(debtorsQuery.data?.rows ?? []).map((r) => (
+              <li
+                key={`${r.source}-${r.source_id}`}
+                className="rounded-xl border border-[var(--mo-border)] px-3 py-2.5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
+                    <p className="truncate text-[11px] mo-muted">
+                      {r.source === "booking" ? "Запись" : "Курс"} · {r.indicator_name}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums kpi-actual-value">
+                    {formatMoney(num(r.debt_amount))}
+                  </span>
+                </div>
+                <div className="mt-1 flex justify-between gap-2 text-[11px] mo-muted">
+                  <span className="truncate">{r.manager_name ?? "—"}</span>
+                  <span className="tabular-nums">
+                    {formatMoney(num(r.paid_amount))} / {formatMoney(num(r.service_amount))}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[1000px] border-collapse text-left text-sm text-[var(--mo-text)]">
               <thead>
                 <tr className="border-b border-[var(--mo-border)] lux-caption">
@@ -876,18 +1142,60 @@ function SalesReportSection({
   }
 
   return (
-    <div className="space-y-6">
-      <section className="mo-section p-4">
-        <h2 className="lux-subheading">ПРОДАЖИ · {data.year_month}</h2>
-        <p className="mt-1 text-sm lux-caption">
-          Фонд бонуса: {formatMoney(num(data.bonus_fund))} на менеджера. Факт считается автоматически.
+    <div className="space-y-4 sm:space-y-6">
+      <section className="mo-section p-3 sm:p-4">
+        <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">ПРОДАЖИ · {data.year_month}</h2>
+        <p className="mt-1 text-xs lux-caption sm:text-sm">
+          Фонд: {formatMoney(num(data.bonus_fund))} на менеджера
         </p>
       </section>
 
       {data.managers.map((m) => (
-        <section key={m.manager_id} className="mo-section p-4">
-          <h3 className="mb-3 text-lg font-semibold text-[var(--mo-text)]">{m.manager_name}</h3>
-          <div className="overflow-x-auto">
+        <section key={m.manager_id} className="mo-section p-3 sm:p-4">
+          <h3 className="mb-2 text-base font-semibold text-[var(--mo-text)] sm:mb-3 sm:text-lg">
+            {m.manager_name}
+          </h3>
+
+          <ul className="space-y-2 sm:hidden">
+            {m.lines.map((line) => (
+              <li
+                key={line.plan_item_id}
+                className="rounded-xl border border-[var(--mo-border)] px-3 py-2.5"
+              >
+                <p className="text-sm font-medium text-[var(--mo-text)]">{line.name}</p>
+                <div className="mt-1.5 grid grid-cols-3 gap-1 text-[11px]">
+                  <div>
+                    <div className="mo-muted">План</div>
+                    <div className="tabular-nums text-[var(--mo-text)]">{line.plan_qty}</div>
+                  </div>
+                  <div>
+                    <div className="mo-muted">Факт</div>
+                    <div className="tabular-nums text-[var(--mo-text)]">{line.fact_qty}</div>
+                  </div>
+                  <div>
+                    <div className="mo-muted">Выполн.</div>
+                    <div className="tabular-nums text-[var(--mo-text)]">{pctLabel(line.completion)}</div>
+                  </div>
+                </div>
+                <div className="mt-1 flex justify-between text-[11px]">
+                  <span className="mo-muted">Вес {num(line.weight_percent)}%</span>
+                  <span className="font-medium tabular-nums">{contribLabel(line.contribution)}</span>
+                </div>
+              </li>
+            ))}
+            <li className="rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface)]/50 px-3 py-2.5">
+              <div className="flex justify-between text-sm font-semibold">
+                <span>Итого вклад</span>
+                <span className="tabular-nums">{contribLabel(m.total_contribution)}</span>
+              </div>
+              <div className="mt-1 flex justify-between text-sm font-semibold">
+                <span>Бонус</span>
+                <span className="tabular-nums kpi-actual-value">{formatMoney(num(m.bonus))}</span>
+              </div>
+            </li>
+          </ul>
+
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[900px] border-collapse text-left text-sm text-[var(--mo-text)]">
               <thead>
                 <tr className="border-b border-[var(--mo-border)] lux-caption">
@@ -947,50 +1255,52 @@ function CompanyReportSection({
   if (!data) return null;
 
   return (
-    <div className="space-y-6">
-      <section className="mo-section p-4">
-        <h2 className="lux-subheading">Отчёт компании · {data.year_month}</h2>
-        <p className="mt-1 text-sm lux-caption">
-          Сводка для владельца: выполнение плана, выручка, дебиторка и кредиторка (оплатили, визит ещё впереди).
+    <div className="space-y-4 sm:space-y-6">
+      <section className="mo-section p-3 sm:p-4">
+        <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">
+          Отчёт компании · {data.year_month}
+        </h2>
+        <p className="mt-1 hidden text-sm lux-caption sm:block">
+          Сводка для владельца: ход плана, выручка, дебиторка и кредиторка (оплатили, визит ещё впереди).
           ПРОДАЖИ — отдельно по менеджерам; здесь общий приход и явки по онлайн-записи.
         </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-[var(--mo-border)] p-3">
-            <div className="text-xs mo-muted">Выполнение плана</div>
-            <div className="mt-1 text-2xl font-semibold text-[var(--mo-text)]">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-4">
+          <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
+            <div className="text-[11px] mo-muted sm:text-xs">Выполнение плана</div>
+            <div className="mt-1 text-xl font-semibold text-[var(--mo-text)] sm:text-2xl">
               {num(data.plan_completion_percent).toFixed(1)}%
             </div>
             {data.days_in_month ? (
-              <div className="mt-1 text-xs mo-muted">
+              <div className="mt-1 text-[10px] mo-muted sm:text-xs">
                 день {data.days_elapsed ?? 0} из {data.days_in_month} (
                 {num(data.month_progress_percent).toFixed(0)}% месяца)
               </div>
             ) : null}
           </div>
-          <div className="rounded-xl border border-[var(--mo-border)] p-3">
-            <div className="text-xs mo-muted">Выручка (TJS)</div>
-            <div className="mt-1 text-2xl font-semibold kpi-actual-value">
+          <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
+            <div className="text-[11px] mo-muted sm:text-xs">Выручка (TJS)</div>
+            <div className="mt-1 text-xl font-semibold kpi-actual-value sm:text-2xl">
               {formatMoney(data.revenue_total)}
             </div>
-            <div className="mt-1 text-xs mo-muted">
+            <div className="mt-1 text-[10px] mo-muted sm:text-xs">
               запись {formatMoney(data.revenue_booking)} · курсы {formatMoney(data.revenue_manual)}
             </div>
           </div>
-          <div className="rounded-xl border border-[var(--mo-border)] p-3">
-            <div className="text-xs mo-muted">Дебиторка</div>
-            <div className="mt-1 text-2xl font-semibold text-amber-200">
+          <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
+            <div className="text-[11px] mo-muted sm:text-xs">Дебиторка</div>
+            <div className="mt-1 text-xl font-semibold text-amber-600 sm:text-2xl dark:text-amber-200">
               {formatMoney(data.debtor_total)}
             </div>
-            <div className="mt-1 text-xs mo-muted">
+            <div className="mt-1 text-[10px] mo-muted sm:text-xs">
               запись {formatMoney(data.debtor_booking)} · курсы {formatMoney(data.debtor_manual)}
             </div>
           </div>
-          <div className="rounded-xl border border-[var(--mo-border)] p-3">
-            <div className="text-xs mo-muted">Кредиторка</div>
-            <div className="mt-1 text-2xl font-semibold text-[var(--mo-text)]">
+          <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
+            <div className="text-[11px] mo-muted sm:text-xs">Кредиторка</div>
+            <div className="mt-1 text-xl font-semibold text-[var(--mo-text)] sm:text-2xl">
               {formatMoney(data.creditor_total)}
             </div>
-            <div className="mt-1 text-xs mo-muted">оплачено, срок визита ещё не наступил</div>
+            <div className="mt-1 hidden text-xs mo-muted sm:block">оплачено, срок визита ещё не наступил</div>
           </div>
         </div>
 
