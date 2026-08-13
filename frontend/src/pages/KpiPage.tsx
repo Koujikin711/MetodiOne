@@ -271,11 +271,11 @@ export function KpiPage() {
     return <AccessDenied message="Раздел KPI недоступен для вашей роли." />;
   }
 
-  const tabs: { id: TabId; label: string; shortLabel: string; show: boolean }[] = [
+  const tabs: { id: TabId; label: string; shortLabel: string; show: boolean; mobileHide?: boolean }[] = [
     { id: "plan", label: "План", shortLabel: "План", show: isOwner },
     { id: "sales", label: "ПРОДАЖИ", shortLabel: "Продажи", show: true },
-    { id: "company", label: "Отчёт компании", shortLabel: "Компания", show: isOwner },
-    { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: isAdminOrOwner },
+    { id: "company", label: "Отчёт компании", shortLabel: "Отчёт", show: isOwner },
+    { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: isAdminOrOwner, mobileHide: true },
     { id: "debtors", label: "Дебиторка", shortLabel: "Долги", show: isAdminOrOwner },
   ];
 
@@ -297,6 +297,7 @@ export function KpiPage() {
   const manualPlanItems = (planQuery.data?.items ?? []).filter((x) => x.source_type === "manual");
   const managers = planQuery.data?.managers ?? [];
   const visibleTabs = tabs.filter((t) => t.show);
+  const mobileTabs = visibleTabs.filter((t) => !t.mobileHide);
 
   return (
     <div
@@ -334,14 +335,34 @@ export function KpiPage() {
         </label>
       </section>
 
+      {/* Телефон: без «Курсы». Десктоп: полный ряд. */}
       <div
-        className="grid gap-1.5 sm:flex sm:flex-wrap sm:gap-2"
+        className="grid gap-1.5 sm:hidden"
         style={{
-          gridTemplateColumns: `repeat(${Math.min(Math.max(visibleTabs.length, 1), 5)}, minmax(0, 1fr))`,
+          gridTemplateColumns: `repeat(${Math.min(Math.max(mobileTabs.length, 1), 4)}, minmax(0, 1fr))`,
         }}
         role="tablist"
         aria-label="Разделы KPI"
       >
+        {mobileTabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            title={t.label}
+            onClick={() => setTab(t.id)}
+            className={
+              tab === t.id
+                ? "btn-primary min-h-10 w-full truncate px-1 py-2 text-center text-[11px] leading-tight"
+                : "btn-secondary min-h-10 w-full truncate px-1 py-2 text-center text-[11px] leading-tight"
+            }
+          >
+            {t.shortLabel}
+          </button>
+        ))}
+      </div>
+      <div className="hidden flex-wrap gap-1.5 sm:flex" role="tablist" aria-label="Разделы KPI">
         {visibleTabs.map((t) => (
           <button
             key={t.id}
@@ -352,12 +373,11 @@ export function KpiPage() {
             onClick={() => setTab(t.id)}
             className={
               tab === t.id
-                ? "btn-primary min-h-10 w-full truncate px-1 py-2 text-center text-[11px] leading-tight sm:w-auto sm:px-3 sm:text-sm"
-                : "btn-secondary min-h-10 w-full truncate px-1 py-2 text-center text-[11px] leading-tight sm:w-auto sm:px-3 sm:text-sm"
+                ? "btn-primary shrink-0 whitespace-nowrap px-3 py-2 text-sm"
+                : "btn-secondary shrink-0 whitespace-nowrap px-3 py-2 text-sm"
             }
           >
-            <span className="sm:hidden">{t.shortLabel}</span>
-            <span className="hidden sm:inline">{t.label}</span>
+            {t.label}
           </button>
         ))}
       </div>
