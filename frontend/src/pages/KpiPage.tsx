@@ -271,19 +271,39 @@ export function KpiPage() {
     return <AccessDenied message="Раздел KPI недоступен для вашей роли." />;
   }
 
-  const tabs: { id: TabId; label: string; show: boolean }[] = [
-    { id: "plan", label: "План", show: isOwner },
-    { id: "sales", label: "ПРОДАЖИ", show: true },
-    { id: "company", label: "Отчёт компании", show: isOwner },
-    { id: "manual", label: "Курсы / протоколы", show: isAdminOrOwner },
-    { id: "debtors", label: "Дебиторка", show: isAdminOrOwner },
+  const tabs: { id: TabId; label: string; shortLabel: string; show: boolean }[] = [
+    { id: "plan", label: "План", shortLabel: "План", show: isOwner },
+    { id: "sales", label: "ПРОДАЖИ", shortLabel: "Продажи", show: true },
+    { id: "company", label: "Отчёт компании", shortLabel: "Компания", show: isOwner },
+    { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: isAdminOrOwner },
+    { id: "debtors", label: "Дебиторка", shortLabel: "Долги", show: isAdminOrOwner },
   ];
+
+  function addPlanIndicator() {
+    setPlanItems((prev) => [
+      ...prev,
+      {
+        key: `new-${Date.now()}`,
+        name: "",
+        plan_qty: "",
+        weight_percent: "",
+        source_type: "manual",
+        direction_id: "",
+        specialist_ids: [],
+      },
+    ]);
+  }
 
   const manualPlanItems = (planQuery.data?.items ?? []).filter((x) => x.source_type === "manual");
   const managers = planQuery.data?.managers ?? [];
 
   return (
-    <div className="sales-space-page relative mx-auto max-w-[1500px] space-y-3 pb-4 sm:space-y-6 sm:pb-10">
+    <div
+      className={[
+        "sales-space-page relative mx-auto max-w-[1500px] space-y-2.5 sm:space-y-6 sm:pb-10",
+        tab === "plan" && isOwner ? "pb-[6.5rem]" : "pb-4",
+      ].join(" ")}
+    >
       <header className="space-y-1">
         <h1 className="text-lg font-semibold tracking-tight text-[var(--mo-text)] sm:text-3xl">KPI продаж</h1>
         <p className="hidden text-sm lux-caption sm:block">
@@ -292,43 +312,44 @@ export function KpiPage() {
         </p>
       </header>
 
-      <section className="grid grid-cols-2 gap-2 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2.5 sm:gap-3 sm:p-4">
+      <section className="grid grid-cols-2 gap-1.5 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:gap-3 sm:rounded-2xl sm:p-4">
         <label className="flex min-w-0 flex-col gap-0.5 text-[11px] mo-muted sm:text-sm">
           Месяц
-          <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
+          <MonthYearPicker compact value={yearMonth} onChange={setYearMonth} />
         </label>
         <label className="flex min-w-0 flex-col gap-0.5 text-[11px] mo-muted sm:text-sm">
           Воронка
           <select
             value={pipelineId ?? ""}
             onChange={(e) => setPipelineId(Number(e.target.value) || null)}
-            className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+            className="mo-input !min-h-11 truncate text-base sm:!min-h-0 sm:text-sm"
           >
             {(pipelinesQuery.data ?? []).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
-                {p.expert_name ? ` — эксперт: ${p.expert_name}` : ""}
               </option>
             ))}
           </select>
         </label>
       </section>
 
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto overscroll-x-contain px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+      <div className="-mx-1 flex gap-1 overflow-x-auto overscroll-x-contain px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:gap-1.5 sm:overflow-visible sm:px-0">
         {tabs
           .filter((t) => t.show)
           .map((t) => (
             <button
               key={t.id}
               type="button"
+              title={t.label}
               onClick={() => setTab(t.id)}
               className={
                 tab === t.id
-                  ? "btn-primary shrink-0 whitespace-nowrap px-3 py-2 text-xs sm:text-sm"
-                  : "btn-secondary shrink-0 whitespace-nowrap px-3 py-2 text-xs sm:text-sm"
+                  ? "btn-primary shrink-0 whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:px-3 sm:py-2 sm:text-sm"
+                  : "btn-secondary shrink-0 whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:px-3 sm:py-2 sm:text-sm"
               }
             >
-              {t.label}
+              <span className="sm:hidden">{t.shortLabel}</span>
+              <span className="hidden sm:inline">{t.label}</span>
             </button>
           ))}
       </div>
@@ -353,17 +374,27 @@ export function KpiPage() {
             </button>
           </div>
 
-          <label className="flex max-w-xs flex-col gap-1 text-xs mo-muted sm:text-sm">
-            Фонд бонуса на менеджера (TJS)
-            <input
-              type="number"
-              min={0}
-              inputMode="decimal"
-              value={bonusFund}
-              onChange={(e) => setBonusFund(e.target.value)}
-              className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-            />
-          </label>
+          <div className="flex items-end gap-2">
+            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs mo-muted sm:max-w-xs sm:text-sm">
+              <span className="sm:hidden">Фонд бонуса (TJS)</span>
+              <span className="hidden sm:inline">Фонд бонуса на менеджера (TJS)</span>
+              <input
+                type="number"
+                min={0}
+                inputMode="decimal"
+                value={bonusFund}
+                onChange={(e) => setBonusFund(e.target.value)}
+                className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+              />
+            </label>
+            <button
+              type="button"
+              className="btn-secondary min-h-11 shrink-0 px-3 text-sm sm:hidden"
+              onClick={addPlanIndicator}
+            >
+              + Показатель
+            </button>
+          </div>
 
           <div className="space-y-2 sm:hidden">
             {planItems.map((row) => {
@@ -375,7 +406,7 @@ export function KpiPage() {
               return (
                 <article
                   key={row.key}
-                  className="space-y-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-3"
+                  className="space-y-1.5 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-2.5"
                 >
                   <label className="block text-[11px] mo-muted">
                     Показатель
@@ -667,21 +698,8 @@ export function KpiPage() {
           </div>
           <button
             type="button"
-            className="btn-secondary min-h-11 w-full text-sm sm:min-h-0 sm:w-auto"
-            onClick={() =>
-              setPlanItems((prev) => [
-                ...prev,
-                {
-                  key: `new-${Date.now()}`,
-                  name: "",
-                  plan_qty: "",
-                  weight_percent: "",
-                  source_type: "manual",
-                  direction_id: "",
-                  specialist_ids: [],
-                },
-              ])
-            }
+            className="btn-secondary hidden min-h-0 w-auto text-sm sm:inline-flex"
+            onClick={addPlanIndicator}
           >
             + Показатель
           </button>
@@ -709,13 +727,12 @@ export function KpiPage() {
             </div>
           ) : null}
 
-          <div className="h-14 sm:hidden" aria-hidden />
-          <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-3 py-2.5 backdrop-blur sm:hidden">
+          <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-3 py-2 backdrop-blur sm:hidden">
             <button
               type="button"
               onClick={() => savePlanMutation.mutate()}
               disabled={savePlanMutation.isPending}
-              className="min-h-12 w-full rounded-xl bg-[var(--mo-accent)] px-4 py-3 text-base font-semibold text-white disabled:opacity-50"
+              className="min-h-11 w-full rounded-xl bg-[var(--mo-accent)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
             >
               {savePlanMutation.isPending ? "Сохранение…" : "Сохранить план"}
             </button>
