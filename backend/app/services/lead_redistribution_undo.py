@@ -1,14 +1,14 @@
-"""Подбор batch-перемещений лидов для отката accidental перераспределения."""
+"""Подбор batch-перемещений лидов для точного отката accidental перераспределения."""
 
 from __future__ import annotations
 
 import re
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Lead, LeadAuditEvent, SystemAuditEvent
+from app.models import Lead, LeadAuditEvent, SystemAuditEvent, User
 
 _RE_FROM = re.compile(r"from_manager_id=(\d+)")
 _RE_TO = re.compile(r"to_manager_id=(\d+)")
@@ -51,7 +51,10 @@ async def list_undone_audit_ids(db: AsyncSession, *, company_id: int) -> set[int
     rows = (
         await db.execute(
             select(SystemAuditEvent.details).where(
-                SystemAuditEvent.company_id == company_id,
+                or_(
+                    SystemAuditEvent.company_id == company_id,
+                    SystemAuditEvent.company_id.is_(None),
+                ),
                 SystemAuditEvent.action == "leads_redistribution_undone",
             ),
         )
@@ -66,18 +69,71 @@ async def list_undone_audit_ids(db: AsyncSession, *, company_id: int) -> set[int
     return out
 
 
+async def _company_user_ids(db: AsyncSession, *, company_id: int) -> set[int]:
+    rows = (
+        await db.execute(select(User.id).where(User.company_id == company_id))
+    ).scalars().all()
+    return {int(x) for x in rows}
+
+
+async def list_redistribution_audits(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    limit: int = 40,
+) -> list[SystemAuditEvent]:
+    """Системные audit раздач этой компании (в т.ч. со старым company_id=NULL)."""
+    company_uids = await _company_user_ids(db, company_id=company_id)
+    rows = (
+        await db.execute(
+            select(SystemAuditEvent)
+            .where(
+                or_(
+                    SystemAuditEvent.company_id == company_id,
+                    SystemAuditEvent.company_id.is_(None),
+                ),
+                SystemAuditEvent.action.in_(list(REDISTRIBUTE_ACTIONS)),
+            )
+            .order_by(SystemAuditEvent.created_at.desc(), SystemAuditEvent.id.desc())
+            .limit(max(limit * 3, 40)),
+        )
+    ).scalars().all()
+
+    out: list[SystemAuditEvent] = []
+    for audit in rows:
+        if audit.company_id == company_id:
+            out.append(audit)
+            continue
+        if audit.company_id is not None:
+            continue
+        # Старые записи без company_id — берём, если from/targets/user из этой компании.
+        from_mid = parse_system_from_id(audit.details)
+        if from_mid is not None and from_mid in company_uids:
+            out.append(audit)
+            continue
+        if audit.action == "leads_redistributed_from_owners" and (
+            audit.user_id is None or audit.user_id in company_uids
+        ):
+            out.append(audit)
+            continue
+        if audit.user_id is not None and audit.user_id in company_uids:
+            out.append(audit)
+    return out[:limit]
+
+
 async def load_batch_move_events(
     db: AsyncSession,
     *,
     company_id: int,
     audit: SystemAuditEvent,
 ) -> list[LeadAuditEvent]:
-    """События manager_reassigned, относящиеся к этому batch (batch_id или окно времени)."""
+    """События manager_reassigned этой раздачи (batch_id или окно времени)."""
     by_batch = (
         await db.execute(
             select(LeadAuditEvent)
+            .join(Lead, Lead.id == LeadAuditEvent.lead_id)
             .where(
-                LeadAuditEvent.company_id == company_id,
+                Lead.company_id == company_id,
                 LeadAuditEvent.action == "manager_reassigned",
                 LeadAuditEvent.details.like(f"%batch_id={audit.id}%"),
             )
@@ -90,14 +146,15 @@ async def load_batch_move_events(
     created = audit.created_at
     if created is None:
         return []
-    # Старые batch писали system audit в конце — lead-события могут быть на минуты раньше.
-    t0 = created - timedelta(minutes=45)
-    t1 = created + timedelta(minutes=10)
+    # Старые batch писали system audit в конце — lead-события могут быть раньше.
+    t0 = created - timedelta(hours=2)
+    t1 = created + timedelta(minutes=30)
     events = (
         await db.execute(
             select(LeadAuditEvent)
+            .join(Lead, Lead.id == LeadAuditEvent.lead_id)
             .where(
-                LeadAuditEvent.company_id == company_id,
+                Lead.company_id == company_id,
                 LeadAuditEvent.action == "manager_reassigned",
                 LeadAuditEvent.created_at >= t0,
                 LeadAuditEvent.created_at <= t1,
@@ -113,6 +170,8 @@ async def load_batch_move_events(
         details = str(ev.details or "")
         from_mid, to_mid, batch_id = parse_manager_move(details)
         if from_mid is None or to_mid is None:
+            continue
+        if "undo redistribution" in details:
             continue
         if batch_id is not None and batch_id != audit.id:
             continue
@@ -131,7 +190,7 @@ async def collect_restorable_moves(
     company_id: int,
     audit: SystemAuditEvent,
 ) -> list[tuple[int, int, int]]:
-    """(lead_id, from_manager_id, to_manager_id) — только если лид ещё у получателя."""
+    """(lead_id, from_manager_id, to_manager_id) — только если лид ещё у получателя раздачи."""
     events = await load_batch_move_events(db, company_id=company_id, audit=audit)
     first_by_lead: dict[int, tuple[int, int]] = {}
     for ev in events:
@@ -144,6 +203,59 @@ async def collect_restorable_moves(
 
     restorable: list[tuple[int, int, int]] = []
     for lead_id, (from_mid, to_mid) in first_by_lead.items():
+        lead = await db.get(Lead, lead_id)
+        if lead is None or lead.company_id != company_id:
+            continue
+        # Лид всё ещё у того, кому отдали в этой раздаче.
+        if lead.manager_id != to_mid:
+            continue
+        restorable.append((lead_id, from_mid, to_mid))
+    return restorable
+
+
+async def collect_restorable_by_from_manager(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    from_manager_id: int,
+    since_hours: int = 72,
+) -> list[tuple[int, int, int]]:
+    """
+    Запасной путь без system audit: лиды, которые ушли FROM manager
+    последним «прямым» manager_reassigned (не undo) и всё ещё у получателя.
+    """
+    from datetime import datetime, timezone
+
+    t0 = datetime.now(timezone.utc) - timedelta(hours=since_hours)
+    events = (
+        await db.execute(
+            select(LeadAuditEvent)
+            .join(Lead, Lead.id == LeadAuditEvent.lead_id)
+            .where(
+                Lead.company_id == company_id,
+                LeadAuditEvent.action == "manager_reassigned",
+                LeadAuditEvent.created_at >= t0,
+                LeadAuditEvent.details.like(f"%from_manager_id={from_manager_id}%"),
+            )
+            .order_by(LeadAuditEvent.id.desc()),
+        )
+    ).scalars().all()
+
+    latest_by_lead: dict[int, tuple[int, int]] = {}
+    for ev in events:
+        details = str(ev.details or "")
+        if "undo redistribution" in details:
+            continue
+        from_mid, to_mid, _ = parse_manager_move(details)
+        if from_mid != from_manager_id or to_mid is None:
+            continue
+        lid = int(ev.lead_id)
+        if lid in latest_by_lead:
+            continue
+        latest_by_lead[lid] = (from_mid, to_mid)
+
+    restorable: list[tuple[int, int, int]] = []
+    for lead_id, (from_mid, to_mid) in latest_by_lead.items():
         lead = await db.get(Lead, lead_id)
         if lead is None or lead.company_id != company_id:
             continue

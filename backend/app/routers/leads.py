@@ -48,7 +48,9 @@ from app.services.automation import process_lead_automation
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.lead_redistribution_undo import (
     REDISTRIBUTE_ACTIONS,
+    collect_restorable_by_from_manager,
     collect_restorable_moves,
+    list_redistribution_audits,
     list_undone_audit_ids,
     parse_system_from_id,
     parse_system_total,
@@ -875,7 +877,8 @@ class LeadRedistributionUndoable(BaseModel):
 
 
 class LeadRedistributionUndoBody(BaseModel):
-    audit_id: int
+    audit_id: int | None = None
+    from_manager_id: int | None = Field(default=None, ge=1)
 
 
 class LeadRedistributionUndoResult(BaseModel):
@@ -1269,6 +1272,61 @@ async def redistribute_leads_from_owners_and_admins(
     return LeadRedistributeResult(total=total, reassigned=total, per_manager=per_manager)
 
 
+async def _apply_restorable_moves(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    current_user: User,
+    moves: list[tuple[int, int, int]],
+    undone_audit_id: int | None,
+) -> tuple[int, int, dict[int, int]]:
+    restored = 0
+    skipped = 0
+    notify_counts: dict[int, int] = {}
+    for lead_id, from_mid, to_mid in moves:
+        lead = await db.get(Lead, lead_id)
+        if lead is None or lead.company_id != company_id or lead.manager_id != to_mid:
+            skipped += 1
+            continue
+        lead.manager_id = from_mid
+        undo_tag = f", undone_audit_id={undone_audit_id}" if undone_audit_id is not None else ""
+        await _audit_lead(
+            db,
+            lead_id=lead_id,
+            action="manager_reassigned",
+            current_user=current_user,
+            details=(
+                f"from_manager_id={to_mid}, to_manager_id={from_mid} "
+                f"(undo redistribution){undo_tag}"
+            ),
+        )
+        appts = (
+            await db.execute(
+                select(BookingAppointment).where(
+                    BookingAppointment.company_id == company_id,
+                    BookingAppointment.lead_id == lead_id,
+                    BookingAppointment.responsible_manager_id == to_mid,
+                ),
+            )
+        ).scalars().all()
+        for appt in appts:
+            appt.responsible_manager_id = from_mid
+        await db.execute(
+            update(Task)
+            .where(
+                Task.company_id == company_id,
+                Task.related_lead_id == lead_id,
+                Task.assigned_to == to_mid,
+                Task.status.in_([TaskStatus.pending, TaskStatus.in_progress]),
+            )
+            .values(assigned_to=from_mid),
+        )
+        restored += 1
+        notify_counts[from_mid] = notify_counts.get(from_mid, 0) + 1
+    await db.flush()
+    return restored, skipped, notify_counts
+
+
 @router.get("/redistribution/undoable", response_model=list[LeadRedistributionUndoable])
 async def list_undoable_redistributions(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -1276,22 +1334,12 @@ async def list_undoable_redistributions(
     company_id: CurrentCompanyId,
     limit: Annotated[int, Query(ge=1, le=20)] = 8,
 ) -> list[LeadRedistributionUndoable]:
-    """Недавние перераспределения, которые ещё можно откатить."""
+    """Недавние перераспределения, которые ещё можно откатить (только лиды той раздачи)."""
     if not _is_lead_redistribution_admin(current_user.role):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ воронки")
 
     undone = await list_undone_audit_ids(db, company_id=company_id)
-    rows = (
-        await db.execute(
-            select(SystemAuditEvent)
-            .where(
-                SystemAuditEvent.company_id == company_id,
-                SystemAuditEvent.action.in_(list(REDISTRIBUTE_ACTIONS)),
-            )
-            .order_by(SystemAuditEvent.created_at.desc(), SystemAuditEvent.id.desc())
-            .limit(40),
-        )
-    ).scalars().all()
+    rows = await list_redistribution_audits(db, company_id=company_id, limit=40)
 
     out: list[LeadRedistributionUndoable] = []
     for audit in rows:
@@ -1318,14 +1366,48 @@ async def list_undoable_redistributions(
                 total_original=parse_system_total(audit.details) or len(moves),
                 restorable=len(moves),
                 summary=(
-                    f"Вернуть {len(moves)} лид(ов) → {from_name}"
+                    f"Вернуть {len(moves)} лид(ов) этой раздачи → {from_name}"
                     if audit.action == "leads_redistributed"
-                    else f"Вернуть {len(moves)} лид(ов) владельцу/админам"
+                    else f"Вернуть {len(moves)} лид(ов) этой раздачи владельцу/админам"
                 ),
             ),
         )
         if len(out) >= limit:
             break
+
+    # Если system audit не нашёлся — предложить откат по менеджерам с «ушедшими» лидами.
+    if not out:
+        managers = (
+            await db.execute(
+                select(User).where(
+                    User.company_id == company_id,
+                    User.role == UserRole.manager,
+                ),
+            )
+        ).scalars().all()
+        for mgr in managers:
+            moves = await collect_restorable_by_from_manager(
+                db,
+                company_id=company_id,
+                from_manager_id=int(mgr.id),
+            )
+            if not moves:
+                continue
+            name = _user_display_name(mgr)
+            out.append(
+                LeadRedistributionUndoable(
+                    audit_id=0,
+                    action="leads_redistributed",
+                    created_at=datetime.now(UTC),
+                    from_manager_id=int(mgr.id),
+                    from_manager_name=name,
+                    total_original=len(moves),
+                    restorable=len(moves),
+                    summary=f"Вернуть {len(moves)} лид(ов), ушедших от {name}",
+                ),
+            )
+            if len(out) >= limit:
+                break
     return out
 
 
@@ -1336,75 +1418,96 @@ async def undo_lead_redistribution(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> LeadRedistributionUndoResult:
-    """Вернуть лиды после accidental перераспределения (по записи аудита)."""
+    """Вернуть ТОЛЬКО лиды выбранной раздачи (не чужие лиды других менеджеров)."""
     if not _is_lead_redistribution_admin(current_user.role):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ воронки")
 
-    audit = await db.get(SystemAuditEvent, int(body.audit_id))
-    if audit is None or audit.company_id != company_id or audit.action not in REDISTRIBUTE_ACTIONS:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Перераспределение не найдено")
+    audit: SystemAuditEvent | None = None
+    moves: list[tuple[int, int, int]] = []
+    from_mid_sys: int | None = None
+    from_name = "менеджер"
 
-    undone = await list_undone_audit_ids(db, company_id=company_id)
-    if audit.id in undone:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Это перераспределение уже откатили")
+    if body.audit_id and int(body.audit_id) > 0:
+        audit = await db.get(SystemAuditEvent, int(body.audit_id))
+        company_uids = {
+            int(x)
+            for x in (
+                await db.execute(select(User.id).where(User.company_id == company_id))
+            ).scalars().all()
+        }
+        ok_company = (
+            audit is not None
+            and (
+                audit.company_id == company_id
+                or (
+                    audit.company_id is None
+                    and (
+                        (parse_system_from_id(audit.details) in company_uids)
+                        or (audit.user_id in company_uids if audit.user_id else False)
+                        or audit.action == "leads_redistributed_from_owners"
+                    )
+                )
+            )
+            and audit.action in REDISTRIBUTE_ACTIONS
+        )
+        if not ok_company or audit is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Перераспределение не найдено")
 
-    moves = await collect_restorable_moves(db, company_id=company_id, audit=audit)
+        undone = await list_undone_audit_ids(db, company_id=company_id)
+        if audit.id in undone:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Это перераспределение уже откатили")
+
+        moves = await collect_restorable_moves(db, company_id=company_id, audit=audit)
+        from_mid_sys = parse_system_from_id(audit.details)
+        if audit.action == "leads_redistributed" and from_mid_sys is not None:
+            src = await db.get(User, from_mid_sys)
+            from_name = _user_display_name(src) if src else f"#{from_mid_sys}"
+        elif audit.action == "leads_redistributed_from_owners":
+            from_name = "владелец/админы"
+    elif body.from_manager_id is not None:
+        from_mid_sys = int(body.from_manager_id)
+        src = await db.get(User, from_mid_sys)
+        if src is None or src.company_id != company_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Менеджер не найден")
+        from_name = _user_display_name(src)
+        # Сначала пробуем последнюю system-раздачу этого менеджера.
+        for cand in await list_redistribution_audits(db, company_id=company_id, limit=40):
+            if cand.action != "leads_redistributed":
+                continue
+            if parse_system_from_id(cand.details) != from_mid_sys:
+                continue
+            undone = await list_undone_audit_ids(db, company_id=company_id)
+            if cand.id in undone:
+                continue
+            moves = await collect_restorable_moves(db, company_id=company_id, audit=cand)
+            if moves:
+                audit = cand
+                break
+        if not moves:
+            moves = await collect_restorable_by_from_manager(
+                db,
+                company_id=company_id,
+                from_manager_id=from_mid_sys,
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Укажите audit_id или from_manager_id",
+        )
+
     if not moves:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Нечего возвращать: лиды уже переназначены вручную или batch пуст",
+            detail="Нечего возвращать: лиды этой раздачи уже не у получателей или batch пуст",
         )
 
-    restored = 0
-    skipped = 0
-    notify_counts: dict[int, int] = {}
-    for lead_id, from_mid, to_mid in moves:
-        lead = await db.get(Lead, lead_id)
-        if lead is None or lead.company_id != company_id or lead.manager_id != to_mid:
-            skipped += 1
-            continue
-        lead.manager_id = from_mid
-        await _audit_lead(
-            db,
-            lead_id=lead_id,
-            action="manager_reassigned",
-            current_user=current_user,
-            details=(
-                f"from_manager_id={to_mid}, to_manager_id={from_mid} "
-                f"(undo redistribution), undone_audit_id={audit.id}"
-            ),
-        )
-        appts = (
-            await db.execute(
-                select(BookingAppointment).where(
-                    BookingAppointment.company_id == company_id,
-                    BookingAppointment.lead_id == lead_id,
-                    BookingAppointment.responsible_manager_id == to_mid,
-                ),
-            )
-        ).scalars().all()
-        for appt in appts:
-            appt.responsible_manager_id = from_mid
-        await db.execute(
-            update(Task)
-            .where(
-                Task.company_id == company_id,
-                Task.related_lead_id == lead_id,
-                Task.assigned_to == to_mid,
-                Task.status.in_([TaskStatus.pending, TaskStatus.in_progress]),
-            )
-            .values(assigned_to=from_mid),
-        )
-        restored += 1
-        notify_counts[from_mid] = notify_counts.get(from_mid, 0) + 1
-
-    await db.flush()
-
-    from_mid_sys = parse_system_from_id(audit.details)
-    from_name = "владелец/админы"
-    if audit.action == "leads_redistributed" and from_mid_sys is not None:
-        src = await db.get(User, from_mid_sys)
-        from_name = _user_display_name(src) if src else f"#{from_mid_sys}"
+    restored, skipped, notify_counts = await _apply_restorable_moves(
+        db,
+        company_id=company_id,
+        current_user=current_user,
+        moves=moves,
+        undone_audit_id=(int(audit.id) if audit is not None else None),
+    )
 
     for uid, cnt in notify_counts.items():
         if cnt <= 0:
@@ -1414,7 +1517,7 @@ async def undo_lead_redistribution(
             company_id=company_id,
             user_ids=[uid],
             title="Лиды возвращены вам",
-            description=f"Откат перераспределения: возвращено лидов: {cnt}.",
+            description=f"Откат перераспределения: возвращено только лидов вашей раздачи: {cnt}.",
         )
 
     await write_audit_event(
@@ -1423,7 +1526,10 @@ async def undo_lead_redistribution(
         entity_id=from_mid_sys or 0,
         action="leads_redistribution_undone",
         current_user=current_user,
-        details=f"undone_audit_id={audit.id}, restored={restored}, skipped={skipped}",
+        details=(
+            f"undone_audit_id={audit.id if audit else 0}, from_manager_id={from_mid_sys}, "
+            f"restored={restored}, skipped={skipped}"
+        ),
     )
 
     return LeadRedistributionUndoResult(

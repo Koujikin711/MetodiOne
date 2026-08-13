@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { TerminateWithLeadsWizard } from "@/components/TerminateWithLeadsWizard";
@@ -70,40 +70,6 @@ interface UndoRedistributionResult {
   skipped: number;
   from_manager_id: number | null;
   from_manager_name: string;
-}
-
-interface SystemAuditItem {
-  id: number;
-  action: string;
-  details: string | null;
-  created_at: string;
-}
-
-function parseRedistributeAuditDetails(details: string | null): {
-  fromId: number | null;
-  targetIds: number[];
-  total: number;
-} {
-  if (!details) return { fromId: null, targetIds: [], total: 0 };
-  const fromM = details.match(/\bfrom=(\d+)/);
-  const totalM = details.match(/\btotal=(\d+)/);
-  let targetIds: number[] = [];
-  const targetsM = details.match(/targets=(\[[^\]]*\])/);
-  if (targetsM) {
-    try {
-      const parsed = JSON.parse(targetsM[1].replace(/'/g, '"')) as unknown;
-      if (Array.isArray(parsed)) {
-        targetIds = parsed.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0);
-      }
-    } catch {
-      targetIds = [...targetsM[1].matchAll(/(\d+)/g)].map((m) => Number(m[1]));
-    }
-  }
-  return {
-    fromId: fromM ? Number(fromM[1]) : null,
-    targetIds,
-    total: totalM ? Number(totalM[1]) : 0,
-  };
 }
 
 interface PatchEmployeeContactResult {
@@ -183,9 +149,6 @@ export function EmployeesPage() {
 
   const [redistributeFromId, setRedistributeFromId] = useState<number | "">("");
   const [redistributeToIds, setRedistributeToIds] = useState<number[]>([]);
-  const [restoreToId, setRestoreToId] = useState<number | "">("");
-  const [restoreFromIds, setRestoreFromIds] = useState<number[]>([]);
-  const [restoreHintApplied, setRestoreHintApplied] = useState(false);
 
   const redistributionSourcesQuery = useQuery({
     queryKey: ["leads-redistribution-sources"],
@@ -281,77 +244,25 @@ export function EmployeesPage() {
   const undoableQuery = useQuery({
     queryKey: ["leads-redistribution-undoable"],
     queryFn: () =>
-      apiFetch<UndoableRedistribution[]>("/api/leads/redistribution/undoable?limit=5"),
-    retry: false,
+      apiFetch<UndoableRedistribution[]>("/api/leads/redistribution/undoable?limit=8"),
+    retry: 1,
   });
-
-  const auditHintQuery = useQuery({
-    queryKey: ["audit-redistribute-hint"],
-    queryFn: () => apiFetch<SystemAuditItem[]>("/api/audit?limit=100"),
-    retry: false,
-  });
-
-  const lastRedistributeHint = useMemo(() => {
-    const rows = auditHintQuery.data ?? [];
-    for (const row of rows) {
-      if (row.action !== "leads_redistributed") continue;
-      const parsed = parseRedistributeAuditDetails(row.details);
-      if (parsed.fromId != null && parsed.targetIds.length > 0) {
-        return { ...parsed, created_at: row.created_at, audit_id: row.id };
-      }
-    }
-    return null;
-  }, [auditHintQuery.data]);
-
-  const restoreTargetOptions = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const m of activeManagersOnly) {
-      map.set(m.id, m.full_name ?? m.email);
-    }
-    for (const s of redistributionSources) {
-      if (s.role === "manager" && !map.has(s.manager_id)) {
-        map.set(s.manager_id, s.manager_name);
-      }
-    }
-    if (lastRedistributeHint?.fromId != null && !map.has(lastRedistributeHint.fromId)) {
-      const src = redistributionSources.find((s) => s.manager_id === lastRedistributeHint.fromId);
-      map.set(
-        lastRedistributeHint.fromId,
-        src?.manager_name ?? `Менеджер #${lastRedistributeHint.fromId}`,
-      );
-    }
-    return [...map.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name, "ru"));
-  }, [activeManagersOnly, redistributionSources, lastRedistributeHint]);
-
-  useEffect(() => {
-    if (restoreHintApplied || !lastRedistributeHint || redistributionSourcesQuery.isLoading) return;
-    setRestoreToId(lastRedistributeHint.fromId!);
-    const withLeads = new Set(
-      sourcesWithLeads.filter((s) => s.role === "manager").map((s) => s.manager_id),
-    );
-    const stillHave = lastRedistributeHint.targetIds.filter((id) => withLeads.has(id));
-    setRestoreFromIds(stillHave.length > 0 ? stillHave : lastRedistributeHint.targetIds);
-    setRestoreHintApplied(true);
-  }, [
-    lastRedistributeHint,
-    restoreHintApplied,
-    redistributionSourcesQuery.isLoading,
-    sourcesWithLeads,
-  ]);
 
   const undoRedistributionMutation = useMutation({
-    mutationFn: (auditId: number) =>
+    mutationFn: (item: UndoableRedistribution) =>
       apiFetch<UndoRedistributionResult>("/api/leads/redistribution/undo", {
         method: "POST",
-        body: JSON.stringify({ audit_id: auditId }),
+        body: JSON.stringify(
+          item.audit_id > 0
+            ? { audit_id: item.audit_id }
+            : { from_manager_id: item.from_manager_id },
+        ),
       }),
     onSuccess: (r) => {
       toast.success(
         r.restored > 0
-          ? `Возвращено ${r.restored} лид(ов) → ${r.from_manager_name}${
-              r.skipped ? ` (пропущено ${r.skipped})` : ""
+          ? `Вернули только лиды раздачи: ${r.restored} → ${r.from_manager_name}${
+              r.skipped ? ` (уже были не у получателей: ${r.skipped})` : ""
             }`
           : "Нечего возвращать",
       );
@@ -359,89 +270,11 @@ export function EmployeesPage() {
       void qc.invalidateQueries({ queryKey: ["leads-table"] });
       void qc.invalidateQueries({ queryKey: ["leads-redistribution-sources"] });
       void qc.invalidateQueries({ queryKey: ["leads-redistribution-undoable"] });
-      void qc.invalidateQueries({ queryKey: ["audit-redistribute-hint"] });
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
       void qc.invalidateQueries({ queryKey: ["tasks"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
-  const restoreLeadsMutation = useMutation({
-    mutationFn: async () => {
-      if (restoreToId === "" || restoreFromIds.length === 0) {
-        throw new Error("Выберите, кому вернуть и у кого забрать");
-      }
-      let restored = 0;
-      for (const fromId of restoreFromIds) {
-        if (fromId === restoreToId) continue;
-        const r = await apiFetch<RedistributeResult>("/api/leads/redistribute", {
-          method: "POST",
-          body: JSON.stringify({
-            from_manager_id: fromId,
-            to_manager_ids: [restoreToId],
-          }),
-        });
-        restored += r.reassigned;
-      }
-      return restored;
-    },
-    onSuccess: (restored) => {
-      const toLabel =
-        activeManagersOnly.find((e) => e.id === restoreToId)?.full_name ||
-        activeManagersOnly.find((e) => e.id === restoreToId)?.email ||
-        redistributionSources.find((s) => s.manager_id === restoreToId)?.manager_name ||
-        `#${restoreToId}`;
-      toast.success(
-        restored > 0
-          ? `Восстановлено ${restored} лид(ов) → ${toLabel}`
-          : "У выбранных менеджеров не было лидов для возврата",
-      );
-      setRestoreFromIds([]);
-      void qc.invalidateQueries({ queryKey: ["leads"] });
-      void qc.invalidateQueries({ queryKey: ["leads-table"] });
-      void qc.invalidateQueries({ queryKey: ["leads-redistribution-sources"] });
-      void qc.invalidateQueries({ queryKey: ["leads-redistribution-undoable"] });
-      void qc.invalidateQueries({ queryKey: ["audit-redistribute-hint"] });
-      void qc.invalidateQueries({ queryKey: ["chat-threads"] });
-      void qc.invalidateQueries({ queryKey: ["tasks"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  function toggleRestoreFrom(id: number) {
-    setRestoreFromIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  }
-
-  function confirmRestoreLeads() {
-    if (restoreToId === "" || restoreFromIds.length === 0) {
-      toast.error("Укажите менеджера (кому вернуть) и у кого забрать лиды");
-      return;
-    }
-    const toLabel =
-      activeManagersOnly.find((e) => e.id === restoreToId)?.full_name ||
-      activeManagersOnly.find((e) => e.id === restoreToId)?.email ||
-      `#${restoreToId}`;
-    const fromLabels = restoreFromIds
-      .map((id) => {
-        const s = redistributionSources.find((x) => x.manager_id === id);
-        const e = activeManagersOnly.find((x) => x.id === id);
-        const name = s?.manager_name ?? e?.full_name ?? e?.email ?? `#${id}`;
-        const cnt = s?.lead_count ?? 0;
-        return `${name} (${cnt})`;
-      })
-      .join(", ");
-    if (
-      !window.confirm(
-        `Вернуть менеджеру «${toLabel}» ВСЕ текущие лиды от: ${fromLabels}?\n\n` +
-          "Важно: уйдут все лиды выбранных менеджеров, не только те, что пришли из прошлой раздачи.",
-      )
-    ) {
-      return;
-    }
-    restoreLeadsMutation.mutate();
-  }
 
   function toggleRedistributeTarget(id: number) {
     setRedistributeToIds((prev) =>
@@ -684,21 +517,30 @@ export function EmployeesPage() {
 
           <div className="employees-redistribute-undo mt-2.5 space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-2.5">
             <div>
-              <p className="text-xs font-semibold text-[var(--mo-text)]">Восстановить лиды менеджеру</p>
+              <p className="text-xs font-semibold text-[var(--mo-text)]">
+                Вернуть только лиды своей раздачи
+              </p>
               <p className="mt-0.5 text-[11px] leading-snug mo-muted">
-                Если случайно раздали лиды — верните их обратно. Выберите, кому вернуть и у кого сейчас
-                забрать.
+                Откат по истории: чужие лиды других менеджеров не трогаем — возвращаются лишь те, что
+                ушли в выбранном перераспределении.
               </p>
             </div>
 
-            {(undoableQuery.data?.length ?? 0) > 0 ? (
+            {undoableQuery.isLoading ? (
+              <p className="text-[11px] mo-muted">Ищем раздачи, которые можно откатить…</p>
+            ) : undoableQuery.isError ? (
+              <p className="text-[11px] text-red-600 dark:text-red-300">
+                {(undoableQuery.error as Error).message || "Не удалось загрузить список откатов"}
+              </p>
+            ) : (undoableQuery.data?.length ?? 0) === 0 ? (
+              <p className="text-[11px] mo-muted">
+                Сейчас нечего откатывать: либо раздач не было, либо эти лиды уже переназначены ещё раз.
+              </p>
+            ) : (
               <div className="space-y-1.5">
-                <p className="text-[11px] font-medium text-emerald-800 dark:text-emerald-200">
-                  Точный откат последней раздачи
-                </p>
                 {undoableQuery.data!.map((item) => (
                   <div
-                    key={item.audit_id}
+                    key={`${item.audit_id}-${item.from_manager_id ?? 0}-${item.created_at}`}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-emerald-500/25 bg-[var(--mo-surface-elevated)]/80 px-2 py-1.5"
                   >
                     <div className="min-w-0 text-xs text-[var(--mo-text)]">
@@ -706,8 +548,8 @@ export function EmployeesPage() {
                       <div className="mo-muted">
                         {new Date(item.created_at).toLocaleString("ru-RU")}
                         {item.total_original !== item.restorable
-                          ? ` · из ${item.total_original}`
-                          : ""}
+                          ? ` · доступно ${item.restorable} из ${item.total_original}`
+                          : ` · ${item.restorable} лид(ов)`}
                       </div>
                     </div>
                     <button
@@ -717,94 +559,20 @@ export function EmployeesPage() {
                       onClick={() => {
                         if (
                           !window.confirm(
-                            `${item.summary}?\n\nВернутся только лиды этой раздачи (если они ещё у получателей).`,
+                            `${item.summary}?\n\nВернутся ТОЛЬКО лиды этой раздачи. Лиды, которые были у других менеджеров раньше, не затронем.`,
                           )
                         ) {
                           return;
                         }
-                        undoRedistributionMutation.mutate(item.audit_id);
+                        undoRedistributionMutation.mutate(item);
                       }}
                     >
-                      {undoRedistributionMutation.isPending ? "Возвращаем…" : "Вернуть точно"}
+                      {undoRedistributionMutation.isPending ? "Возвращаем…" : "Вернуть эту раздачу"}
                     </button>
                   </div>
                 ))}
               </div>
-            ) : null}
-
-            {lastRedistributeHint ? (
-              <p className="text-[11px] text-emerald-800 dark:text-emerald-200">
-                Найдена последняя раздача{" "}
-                {new Date(lastRedistributeHint.created_at).toLocaleString("ru-RU")}
-                {lastRedistributeHint.total > 0 ? ` · ${lastRedistributeHint.total} лид(ов)` : ""} —
-                поля заполнены.
-              </p>
-            ) : null}
-
-            <div className="grid gap-2 sm:grid-cols-2 sm:items-end">
-              <label className="text-xs mo-muted">
-                Кому вернуть
-                <select
-                  value={restoreToId === "" ? "" : String(restoreToId)}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setRestoreToId(v === "" ? "" : Number(v));
-                  }}
-                  className="mo-input mt-1 w-full py-1.5 text-sm"
-                >
-                  <option value="">— менеджер —</option>
-                  {restoreTargetOptions.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="pb-1 text-[11px] mo-muted sm:text-right">
-                Уйдёт всё, что сейчас у отмеченных ниже
-              </p>
-            </div>
-
-            <div>
-              <span className="text-xs font-medium text-[var(--mo-text)]">Забрать у</span>
-              <div className="employees-redistribute-targets mt-1 grid gap-1 sm:grid-cols-2">
-                {sourcesWithLeads
-                  .filter((s) => s.role === "manager" && s.manager_id !== restoreToId)
-                  .map((m) => (
-                    <label
-                      key={m.manager_id}
-                      className="flex cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
-                    >
-                      <input
-                        type="checkbox"
-                        className="scale-90"
-                        checked={restoreFromIds.includes(m.manager_id)}
-                        onChange={() => toggleRestoreFrom(m.manager_id)}
-                      />
-                      <span className="truncate">
-                        {m.manager_name} — {m.lead_count}
-                      </span>
-                    </label>
-                  ))}
-              </div>
-              {sourcesWithLeads.filter((s) => s.role === "manager" && s.manager_id !== restoreToId)
-                .length === 0 ? (
-                <p className="mt-1 text-[11px] mo-muted">Нет менеджеров с лидами для возврата.</p>
-              ) : null}
-            </div>
-
-            <button
-              type="button"
-              onClick={confirmRestoreLeads}
-              disabled={
-                restoreLeadsMutation.isPending ||
-                restoreToId === "" ||
-                restoreFromIds.length === 0
-              }
-              className="employees-redistribute-btn-undo w-full sm:w-auto"
-            >
-              {restoreLeadsMutation.isPending ? "Восстанавливаем…" : "Восстановить лиды"}
-            </button>
+            )}
           </div>
 
           <div className="employees-redistribute-strip">
