@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import type { ManagerDeskSale, Pipeline } from "@/lib/types";
+import { ActivitySphereField } from "@/components/ActivitySphereField";
 
 function formatMoney(v: string | number) {
   const n = typeof v === "number" ? v : Number(v);
@@ -143,12 +144,11 @@ export function ManagerSalesPage() {
           </label>
           <label className="col-span-2 text-xs sm:text-sm">
             <span className="mo-muted">Сфера деятельности</span>
-            <input
+            <ActivitySphereField
               required
               value={activitySphere}
-              onChange={(e) => setActivitySphere(e.target.value)}
+              onChange={setActivitySphere}
               className={fieldClass}
-              placeholder="Медицина, торговля…"
             />
           </label>
           <label className="text-xs sm:text-sm">

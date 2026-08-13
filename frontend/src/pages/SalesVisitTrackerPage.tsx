@@ -6,6 +6,7 @@ import L from "leaflet";
 
 import { apiFetch } from "@/lib/api";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
+import { ActivitySphereField } from "@/components/ActivitySphereField";
 
 type GeoPoint = { lat: number; lon: number; accuracy_m: number | null };
 
@@ -495,12 +496,11 @@ export function SalesVisitTrackerPage() {
           </label>
           <label className="col-span-2 text-xs sm:text-sm">
             <span className="mo-muted">Сфера деятельности</span>
-            <input
+            <ActivitySphereField
               required
               className="mo-input mt-1 !min-h-11 !py-2.5 text-base sm:!min-h-0 sm:!py-1.5 sm:text-sm"
-              placeholder="Аптека, клиника…"
               value={enterpriseType}
-              onChange={(e) => setEnterpriseType(e.target.value)}
+              onChange={setEnterpriseType}
             />
           </label>
 

@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import type { ManagerDeskSale, Pipeline } from "@/lib/types";
+import { ActivitySphereField } from "@/components/ActivitySphereField";
 
 type CatalogItem = { id: string; label: string; description?: string };
 type CatalogModule = {
@@ -176,7 +177,7 @@ export function SalesQuoteCalculatorPage() {
 
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
-  const [activitySphere, setActivitySphere] = useState("CRM модули");
+  const [activitySphere, setActivitySphere] = useState("");
   const [paidAmount, setPaidAmount] = useState("0");
   const [pipelineId, setPipelineId] = useState<number | "">("");
 
@@ -502,10 +503,10 @@ export function SalesQuoteCalculatorPage() {
               </label>
               <label className="text-sm">
                 <span className="text-xs mo-muted">Сфера деятельности</span>
-                <input
+                <ActivitySphereField
                   className="mo-input mt-1 w-full"
                   value={activitySphere}
-                  onChange={(e) => setActivitySphere(e.target.value)}
+                  onChange={setActivitySphere}
                 />
               </label>
               <label className="text-sm">
