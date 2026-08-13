@@ -334,7 +334,7 @@ export function KpiPage() {
         </label>
       </section>
 
-      {/* Телефон: сетка — все разделы видны, «Долги» не обрезается. Десктоп: ряд кнопок. */}
+      {/* Телефон: select — все разделы видны. Десктоп: ряд кнопок. */}
       <label className="block sm:hidden">
         <span className="sr-only">Раздел KPI</span>
         <select
@@ -344,7 +344,7 @@ export function KpiPage() {
         >
           {visibleTabs.map((t) => (
             <option key={t.id} value={t.id}>
-              {t.label}
+              {t.shortLabel}
             </option>
           ))}
         </select>

@@ -494,7 +494,7 @@ export function SalesVisitTrackerPage() {
             />
           </label>
           <label className="col-span-2 text-xs sm:text-sm">
-            <span className="mo-muted">Вид предприятия</span>
+            <span className="mo-muted">Сфера деятельности</span>
             <input
               required
               className="mo-input mt-1 !min-h-11 !py-2.5 text-base sm:!min-h-0 sm:!py-1.5 sm:text-sm"
@@ -606,7 +606,7 @@ export function SalesVisitTrackerPage() {
                     <th className="px-2 py-2">Когда</th>
                     <th className="px-2 py-2">Менеджер</th>
                     <th className="px-2 py-2">Клиент</th>
-                    <th className="px-2 py-2">Предприятие</th>
+                    <th className="px-2 py-2">Сфера</th>
                     <th className="px-2 py-2">Координаты</th>
                   </tr>
                 </thead>

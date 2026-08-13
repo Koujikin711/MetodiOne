@@ -254,28 +254,20 @@ export function SalesQuoteCalculatorPage() {
 
   return (
     <div className="sales-space-page space-y-4 pb-[4.5rem] sm:space-y-5 sm:pb-8">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="max-w-2xl min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] mo-muted sm:text-[11px]">
-            Продажи · конфиг
-          </p>
-          <h1 className="mt-0.5 text-lg font-semibold tracking-tight text-[var(--mo-text)] sm:mt-1 sm:text-3xl">
-            Калькуляция заказа
-          </h1>
-          <p className="mt-1 hidden text-sm leading-relaxed mo-muted sm:mt-2 sm:block">
-            Соберите модули под задачу клиента. Сумма считается сразу, состав и оплату можно сохранить в{" "}
-            <Link to="/sales" className="font-medium text-[var(--mo-accent-hover)] underline-offset-2 hover:underline">
-              Продажи
-            </Link>
-            .
-          </p>
-        </div>
-        <div className="min-w-[7.5rem] rounded-2xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-3 py-2 text-right shadow-sm sm:min-w-[10.5rem] sm:px-4 sm:py-3">
-          <div className="text-[10px] font-medium uppercase tracking-wide mo-muted sm:text-[11px]">Итого</div>
-          <div className="mt-0.5 text-xl font-semibold tabular-nums text-[var(--mo-text)] sm:text-2xl">
-            {quote?.ok ? formatMoney(quote.total) : "—"}
-          </div>
-        </div>
+      <header className="space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] mo-muted sm:text-[11px]">
+          Продажи · конфиг
+        </p>
+        <h1 className="text-lg font-semibold tracking-tight text-[var(--mo-text)] sm:text-3xl">
+          Калькуляция заказа
+        </h1>
+        <p className="mt-1 hidden text-sm leading-relaxed mo-muted sm:mt-2 sm:block">
+          Соберите модули под задачу клиента. Сумма считается сразу, состав и оплату можно сохранить в{" "}
+          <Link to="/sales" className="font-medium text-[var(--mo-accent-hover)] underline-offset-2 hover:underline">
+            Продажи
+          </Link>
+          .
+        </p>
       </header>
 
       {catalogQuery.isLoading ? <p className="text-sm mo-muted">Загрузка каталога…</p> : null}
@@ -432,41 +424,50 @@ export function SalesQuoteCalculatorPage() {
         </div>
 
         <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
-          <section className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-[var(--mo-text)]">Состав заказа</h2>
-            {quote?.errors?.length ? (
-              <ul className="mt-2 space-y-1 text-xs text-rose-600 dark:text-rose-300">
-                {quote.errors.map((e) => (
-                  <li key={e}>• {e}</li>
-                ))}
-              </ul>
-            ) : null}
-            {(quote?.lines?.length ?? 0) > 0 ? (
-              <ul className="mt-3 space-y-3">
-                {quote!.lines.map((line, idx) => (
-                  <li key={`${line.module}-${idx}`} className="border-b border-[var(--mo-border)] pb-2 last:border-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-[var(--mo-text)]">{line.title}</div>
-                        <div className="mt-0.5 text-[11px] leading-snug mo-muted">{line.items.join(" · ")}</div>
-                      </div>
-                      <div className="shrink-0 text-sm font-semibold tabular-nums text-[var(--mo-text)]">
-                        {formatMoney(line.amount)}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-sm mo-muted">Пока ничего не выбрано.</p>
-            )}
-            <div className="mt-3 flex items-baseline justify-between border-t border-[var(--mo-border)] pt-3">
-              <span className="text-xs mo-muted">К оплате</span>
-              <span className="text-lg font-semibold tabular-nums text-[var(--mo-text)]">
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-4 py-3 text-right shadow-sm">
+              <div className="text-[10px] font-medium uppercase tracking-wide mo-muted sm:text-[11px]">Итого</div>
+              <div className="mt-0.5 text-2xl font-semibold tabular-nums text-[var(--mo-text)]">
                 {quote?.ok ? formatMoney(quote.total) : "—"}
-              </span>
+              </div>
             </div>
-          </section>
+
+            <section className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4 shadow-sm">
+              <h2 className="text-sm font-semibold text-[var(--mo-text)]">Состав заказа</h2>
+              {quote?.errors?.length ? (
+                <ul className="mt-2 space-y-1 text-xs text-rose-600 dark:text-rose-300">
+                  {quote.errors.map((e) => (
+                    <li key={e}>• {e}</li>
+                  ))}
+                </ul>
+              ) : null}
+              {(quote?.lines?.length ?? 0) > 0 ? (
+                <ul className="mt-3 space-y-3">
+                  {quote!.lines.map((line, idx) => (
+                    <li key={`${line.module}-${idx}`} className="border-b border-[var(--mo-border)] pb-2 last:border-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-[var(--mo-text)]">{line.title}</div>
+                          <div className="mt-0.5 text-[11px] leading-snug mo-muted">{line.items.join(" · ")}</div>
+                        </div>
+                        <div className="shrink-0 text-sm font-semibold tabular-nums text-[var(--mo-text)]">
+                          {formatMoney(line.amount)}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm mo-muted">Пока ничего не выбрано.</p>
+              )}
+              <div className="mt-3 flex items-baseline justify-between border-t border-[var(--mo-border)] pt-3">
+                <span className="text-xs mo-muted">К оплате</span>
+                <span className="text-lg font-semibold tabular-nums text-[var(--mo-text)]">
+                  {quote?.ok ? formatMoney(quote.total) : "—"}
+                </span>
+              </div>
+            </section>
+          </div>
 
           <section className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4 shadow-sm">
             <h2 className="text-sm font-semibold text-[var(--mo-text)]">Клиент → в продажи</h2>
@@ -508,7 +509,7 @@ export function SalesQuoteCalculatorPage() {
                 />
               </label>
               <label className="text-sm">
-                <span className="text-xs mo-muted">Взято денег (TJS)</span>
+                <span className="text-xs mo-muted">Оплатил (TJS)</span>
                 <input
                   className="mo-input mt-1 w-full"
                   inputMode="decimal"

@@ -163,7 +163,7 @@ export function ManagerSalesPage() {
             />
           </label>
           <label className="text-xs sm:text-sm">
-            <span className="mo-muted">Взято денег</span>
+            <span className="mo-muted">Оплатил</span>
             <input
               required
               inputMode="decimal"
