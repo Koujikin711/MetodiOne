@@ -134,6 +134,7 @@ export function SalesVisitTrackerPage() {
   const [point, setPoint] = useState<GeoPoint | null>(null);
   const [managerName, setManagerName] = useState("");
   const [clientQuery, setClientQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [leadId, setLeadId] = useState<number | null>(null);
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
@@ -152,6 +153,11 @@ export function SalesVisitTrackerPage() {
       setManagerName((prev) => prev || (me.data?.full_name || me.data?.email || ""));
     }
   }, [me.data?.full_name, me.data?.email]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedQuery(clientQuery.trim()), 280);
+    return () => window.clearTimeout(t);
+  }, [clientQuery]);
 
   // Авто-гео только если GPS достаточно точный (не кэш вышки на десятки км).
   useEffect(() => {
@@ -180,13 +186,15 @@ export function SalesVisitTrackerPage() {
   });
 
   const suggestQuery = useQuery({
-    queryKey: ["sales-visit-client-suggest", clientQuery],
+    queryKey: ["sales-visit-client-suggest", debouncedQuery],
     queryFn: () =>
       apiFetch<ClientSuggest[]>(
-        `/api/sales-visits/client-suggest?q=${encodeURIComponent(clientQuery.trim())}&limit=8`,
+        `/api/sales-visits/client-suggest?q=${encodeURIComponent(debouncedQuery)}&limit=8`,
       ),
-    enabled: enabled && clientQuery.trim().length >= 2 && leadId == null,
+    enabled: enabled && debouncedQuery.length >= 2 && leadId == null,
   });
+
+  const showSuggestPanel = leadId == null && clientQuery.trim().length >= 2;
 
   const mapCenter = useMemo<[number, number]>(() => {
     if (point) return [point.lat, point.lon];
@@ -456,21 +464,42 @@ export function SalesVisitTrackerPage() {
             </div>
           ) : null}
 
-          {(suggestQuery.data?.length ?? 0) > 0 && leadId == null ? (
-            <ul className="col-span-2 max-h-36 overflow-y-auto divide-y divide-[var(--mo-border)] rounded-xl border border-[var(--mo-border)] sm:max-h-40">
-              {suggestQuery.data!.map((item) => (
-                <li key={`${item.lead_id}-${item.client_phone}`}>
-                  <button
-                    type="button"
-                    className="flex w-full flex-col items-start px-3 py-3 text-left text-sm active:bg-[var(--mo-accent-soft)]"
-                    onClick={() => pickClient(item)}
-                  >
-                    <span className="font-medium text-[var(--mo-text)]">{item.client_name}</span>
-                    <span className="text-xs mo-muted">{item.client_phone || "без телефона"}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+          {showSuggestPanel ? (
+            <div className="col-span-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40">
+              {suggestQuery.isFetching || clientQuery.trim() !== debouncedQuery ? (
+                <p className="px-3 py-2.5 text-sm mo-muted">Ищем…</p>
+              ) : suggestQuery.isError ? (
+                <p className="px-3 py-2.5 text-sm text-rose-600 dark:text-rose-300">
+                  {(suggestQuery.error as Error)?.message || "Не удалось искать"}
+                </p>
+              ) : (suggestQuery.data?.length ?? 0) === 0 ? (
+                <p className="px-3 py-2.5 text-sm mo-muted">
+                  Никого не нашли. Заполните клиента вручную ниже.
+                </p>
+              ) : (
+                <ul className="max-h-40 divide-y divide-[var(--mo-border)] overflow-y-auto">
+                  {suggestQuery.data!.map((item) => (
+                    <li key={`${item.source}-${item.lead_id ?? "x"}-${item.client_phone}-${item.client_name}`}>
+                      <button
+                        type="button"
+                        className="flex w-full flex-col items-start px-3 py-3 text-left text-sm active:bg-[var(--mo-accent-soft)]"
+                        onClick={() => pickClient(item)}
+                      >
+                        <span className="font-medium text-[var(--mo-text)]">{item.client_name}</span>
+                        <span className="text-xs mo-muted">
+                          {item.client_phone || "без телефона"}
+                          {item.source === "sale"
+                            ? " · продажа"
+                            : item.source === "visit"
+                              ? " · визит"
+                              : " · CRM"}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           ) : null}
 
           <label className="text-xs sm:text-sm">
