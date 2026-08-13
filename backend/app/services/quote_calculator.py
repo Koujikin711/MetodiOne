@@ -5,52 +5,53 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+# id, label, short description for UI
 SALES_ITEMS = [
-    ("cash", "Касса"),
-    ("catalog", "Каталог"),
-    ("roles", "Роли"),
-    ("conversion", "Конвертация"),
-    ("sales_reports", "Отчёты по продажам"),
-    ("expense", "Расход"),
-    ("payouts", "Выплаты"),
+    ("cash", "Касса", "Приём оплат, чеки и кассовые смены по точкам"),
+    ("catalog", "Каталог", "Товары и услуги с ценами, остатками и категориями"),
+    ("roles", "Роли", "Права доступа: кассир, менеджер, владелец"),
+    ("conversion", "Конвертация", "Валюты и курсы при продаже и отчётах"),
+    ("sales_reports", "Отчёты по продажам", "Выручка, средний чек, динамика по дням"),
+    ("expense", "Расход", "Фиксация операционных расходов точки"),
+    ("payouts", "Выплаты", "Зарплаты, авансы и выдачи сотрудникам"),
 ]
 
 ACCOUNTING_BASE_ITEMS = [
-    ("dds", "ДДС"),
-    ("opiu", "ОПиУ"),
-    ("balance", "Баланс"),
-    ("warehouse", "Склад"),
+    ("dds", "ДДС", "Движение денежных средств: поступления и выплаты"),
+    ("opiu", "ОПиУ", "Отчёт о прибылях и убытках за период"),
+    ("balance", "Баланс", "Активы, обязательства и капитал на дату"),
+    ("warehouse", "Склад", "Остатки, приход/расход, инвентаризация"),
 ]
 
 ACCOUNTING_EXTRA_ITEMS = [
-    ("roles", "Роли"),
-    ("conversion", "Конвертация"),
-    ("audit", "Аудит"),
+    ("roles", "Роли", "Разграничение доступа к фин.отчётам"),
+    ("conversion", "Конвертация", "Мультивалютный учёт в отчётах"),
+    ("audit", "Аудит", "Журнал изменений и контроль операций"),
 ]
 
 PRODUCTION_ITEMS = [
-    ("roles", "Роли"),
-    ("tech_cards", "Техкарты"),
-    ("warehouse", "Склад"),
-    ("catalog", "Каталог"),
-    ("cash", "Касса"),
+    ("roles", "Роли", "Роли цеха, склада и контроля качества"),
+    ("tech_cards", "Техкарты", "Рецепты, нормы сырья и себестоимость"),
+    ("warehouse", "Склад", "Сырьё и готовая продукция с автосписанием"),
+    ("catalog", "Каталог", "Номенклатура выпуска и полуфабрикатов"),
+    ("cash", "Касса", "Оплата заказов производства и отгрузок"),
 ]
 
 REPORTS_ITEMS = [
-    ("charts", "Диаграммы"),
-    ("leads", "Лиды"),
-    ("sales_qty", "Количество продаж"),
-    ("answer_quality", "Качество ответов менеджеров"),
-    ("conversion", "Конверсия"),
+    ("charts", "Диаграммы", "Наглядные графики по ключевым метрикам"),
+    ("leads", "Лиды", "Воронка лидов: источники, стадии, отвалы"),
+    ("sales_qty", "Количество продаж", "Объём сделок и закрытых продаж"),
+    ("answer_quality", "Качество ответов менеджеров", "Скорость и качество ответов в чатах"),
+    ("conversion", "Конверсия", "Конверсия лид → сделка и по стадиям"),
 ]
 
 SERVICE_ITEMS = [
-    ("gps", "GPS-трекер"),
-    ("departments", "Отделы"),
-    ("hr", "HR"),
-    ("couriers", "Курьеры"),
-    ("analytics", "Аналитика"),
-    ("integration", "Интеграция"),
+    ("gps", "GPS-трекер", "Трекинг выездных сотрудников на карте"),
+    ("departments", "Отделы", "Структура отделов и зоны ответственности"),
+    ("hr", "HR", "Сотрудники, графики и кадровый контур"),
+    ("couriers", "Курьеры", "Маршруты доставки и статусы заказов"),
+    ("analytics", "Аналитика", "Доп.дашборды под ваш процесс"),
+    ("integration", "Интеграция", "Подключение внешних систем и API"),
 ]
 
 PRICE_SALES_ANY3 = Decimal("5000")
@@ -61,6 +62,10 @@ PRICE_REPORTS = Decimal("7000")
 PRICE_SERVICE_EACH = Decimal("1500")
 
 
+def _item_dicts(rows: list[tuple[str, str, str]]) -> list[dict[str, str]]:
+    return [{"id": i, "label": l, "description": d} for i, l, d in rows]
+
+
 def catalog() -> dict[str, Any]:
     return {
         "currency": "TJS",
@@ -68,47 +73,72 @@ def catalog() -> dict[str, Any]:
             {
                 "id": "sales",
                 "title": "Продажи",
-                "pricing_hint": "Любые 3 пункта — 5000; все 7 — 7000. Минимум 3.",
+                "subtitle": "Точка продаж и операционный контур",
+                "description": (
+                    "Модуль для розницы и сервисных точек: от каталога и кассы до ролей, "
+                    "расходов и выплат. Соберите нужный набор функций — от базовой кассы до полного контура."
+                ),
+                "pricing_hint": "Любые 3 пункта — 5000 TJS; все 7 — 7000 TJS. Минимум 3.",
                 "min_selected": 3,
                 "price_any3": float(PRICE_SALES_ANY3),
                 "price_all": float(PRICE_SALES_ALL),
-                "items": [{"id": i, "label": l} for i, l in SALES_ITEMS],
+                "items": _item_dicts(SALES_ITEMS),
             },
             {
                 "id": "accounting",
                 "title": "Бухгалтерия",
-                "pricing_hint": "Пакет 7000. База: ДДС, ОПиУ, Баланс, Склад. Можно добавить Роли, Конвертация, Аудит.",
+                "subtitle": "Финансовый контур компании",
+                "description": (
+                    "Готовый пакет управленческого учёта: денежные потоки, прибыль, баланс и склад. "
+                    "Опционально — роли, мультивалютность и аудит действий."
+                ),
+                "pricing_hint": "Пакет 7000 TJS. База входит целиком; дополнения — по желанию.",
                 "fixed_price": float(PRICE_ACCOUNTING),
-                "base_items": [{"id": i, "label": l} for i, l in ACCOUNTING_BASE_ITEMS],
-                "extra_items": [{"id": i, "label": l} for i, l in ACCOUNTING_EXTRA_ITEMS],
+                "base_items": _item_dicts(ACCOUNTING_BASE_ITEMS),
+                "extra_items": _item_dicts(ACCOUNTING_EXTRA_ITEMS),
             },
             {
                 "id": "production",
                 "title": "Производство",
-                "pricing_hint": "Пакет 10000: Роли, Техкарты, Склад, Каталог, Касса.",
+                "subtitle": "Цех, техкарты и склад сырья",
+                "description": (
+                    "Для производства и кухни: техкарты с нормами, склад сырья с автосписанием, "
+                    "каталог выпуска и касса по заказам. Роли разделяют цех, склад и контроль."
+                ),
+                "pricing_hint": "Фиксированный пакет 10 000 TJS — все блоки включены.",
                 "fixed_price": float(PRICE_PRODUCTION),
-                "items": [{"id": i, "label": l} for i, l in PRODUCTION_ITEMS],
+                "items": _item_dicts(PRODUCTION_ITEMS),
             },
             {
                 "id": "reports",
                 "title": "Отчёты",
-                "pricing_hint": "Пакет 7000: диаграммы, лиды, кол-во продаж, качество ответов, конверсия.",
+                "subtitle": "Аналитика продаж и команды",
+                "description": (
+                    "Сводная аналитика для руководства: воронка лидов, объём продаж, конверсия "
+                    "и качество ответов менеджеров — с диаграммами для быстрых решений."
+                ),
+                "pricing_hint": "Фиксированный пакет 7000 TJS — полный набор отчётов.",
                 "fixed_price": float(PRICE_REPORTS),
-                "items": [{"id": i, "label": l} for i, l in REPORTS_ITEMS],
+                "items": _item_dicts(REPORTS_ITEMS),
             },
             {
                 "id": "services",
                 "title": "Услуги",
-                "pricing_hint": "Каждая галочка +1500.",
+                "subtitle": "Дополнения под вашу операционку",
+                "description": (
+                    "Отдельные сервисы поверх модулей: выездной GPS, курьеры, HR, отделы, "
+                    "расширенная аналитика и интеграции с внешними системами."
+                ),
+                "pricing_hint": "Каждая услуга +1500 TJS к итогу.",
                 "price_each": float(PRICE_SERVICE_EACH),
-                "items": [{"id": i, "label": l} for i, l in SERVICE_ITEMS],
+                "items": _item_dicts(SERVICE_ITEMS),
             },
         ],
     }
 
 
-def _labels(pairs: list[tuple[str, str]], ids: list[str]) -> list[str]:
-    m = dict(pairs)
+def _labels(pairs: list[tuple[str, str, str]], ids: list[str]) -> list[str]:
+    m = {i: l for i, l, _ in pairs}
     return [m[i] for i in ids if i in m]
 
 
@@ -119,7 +149,7 @@ def compute_quote(payload: dict[str, Any]) -> dict[str, Any]:
     errors: list[str] = []
 
     sales_ids = [str(x) for x in (payload.get("sales_item_ids") or [])]
-    sales_valid = {i for i, _ in SALES_ITEMS}
+    sales_valid = {i for i, _, _ in SALES_ITEMS}
     sales_ids = [x for x in sales_ids if x in sales_valid]
     if sales_ids:
         n = len(sales_ids)
@@ -150,10 +180,10 @@ def compute_quote(payload: dict[str, Any]) -> dict[str, Any]:
 
     accounting_enabled = bool(payload.get("accounting_enabled"))
     accounting_extras = [str(x) for x in (payload.get("accounting_extra_ids") or [])]
-    extra_valid = {i for i, _ in ACCOUNTING_EXTRA_ITEMS}
+    extra_valid = {i for i, _, _ in ACCOUNTING_EXTRA_ITEMS}
     accounting_extras = [x for x in accounting_extras if x in extra_valid]
     if accounting_enabled:
-        items = _labels(ACCOUNTING_BASE_ITEMS, [i for i, _ in ACCOUNTING_BASE_ITEMS])
+        items = _labels(ACCOUNTING_BASE_ITEMS, [i for i, _, _ in ACCOUNTING_BASE_ITEMS])
         items += _labels(ACCOUNTING_EXTRA_ITEMS, accounting_extras)
         amount = PRICE_ACCOUNTING
         lines.append(
@@ -174,7 +204,7 @@ def compute_quote(payload: dict[str, Any]) -> dict[str, Any]:
             {
                 "module": "production",
                 "title": "Производство",
-                "items": _labels(PRODUCTION_ITEMS, [i for i, _ in PRODUCTION_ITEMS]),
+                "items": _labels(PRODUCTION_ITEMS, [i for i, _, _ in PRODUCTION_ITEMS]),
                 "amount": float(amount),
             },
         )
@@ -186,17 +216,17 @@ def compute_quote(payload: dict[str, Any]) -> dict[str, Any]:
             {
                 "module": "reports",
                 "title": "Отчёты",
-                "items": _labels(REPORTS_ITEMS, [i for i, _ in REPORTS_ITEMS]),
+                "items": _labels(REPORTS_ITEMS, [i for i, _, _ in REPORTS_ITEMS]),
                 "amount": float(amount),
             },
         )
         total += amount
 
     service_ids = [str(x) for x in (payload.get("service_ids") or [])]
-    service_valid = {i for i, _ in SERVICE_ITEMS}
+    service_valid = {i for i, _, _ in SERVICE_ITEMS}
     service_ids = [x for x in service_ids if x in service_valid]
     for sid in service_ids:
-        label = dict(SERVICE_ITEMS)[sid]
+        label = next(l for i, l, _ in SERVICE_ITEMS if i == sid)
         amount = PRICE_SERVICE_EACH
         lines.append(
             {
