@@ -28,9 +28,12 @@ function formatYearMonth(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
-function displayLabel(value: string): string {
+function displayLabel(value: string, compact = false): string {
   const parsed = parseYearMonth(value);
-  if (!parsed) return "Выберите месяц";
+  if (!parsed) return "Месяц";
+  if (compact) {
+    return `${MONTH_SHORT[parsed.month - 1]} ${parsed.year}`;
+  }
   const d = new Date(parsed.year, parsed.month - 1, 1);
   const label = d.toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
   // «август 2026 г.»
@@ -43,9 +46,18 @@ type Props = {
   className?: string;
   allowClear?: boolean;
   id?: string;
+  /** Короткая подпись на узких экранах (авг. 2026). */
+  compact?: boolean;
 };
 
-export function MonthYearPicker({ value, onChange, className = "", allowClear = false, id }: Props) {
+export function MonthYearPicker({
+  value,
+  onChange,
+  className = "",
+  allowClear = false,
+  id,
+  compact = false,
+}: Props) {
   const autoId = useId();
   const inputId = id ?? autoId;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -99,12 +111,15 @@ export function MonthYearPicker({ value, onChange, className = "", allowClear = 
       <button
         id={inputId}
         type="button"
-        className="mo-input mo-month-picker-trigger flex min-h-11 w-full items-center justify-between gap-2 text-left text-base sm:min-h-0 sm:text-sm"
+        className="mo-input mo-month-picker-trigger flex min-h-11 w-full items-center justify-between gap-1.5 text-left text-base sm:min-h-0 sm:gap-2 sm:text-sm"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className={parsed ? "text-[var(--mo-text)]" : "mo-muted"}>{displayLabel(value)}</span>
+        <span className={`truncate ${parsed ? "text-[var(--mo-text)]" : "mo-muted"}`}>
+          <span className={compact ? "sm:hidden" : "hidden"}>{displayLabel(value, true)}</span>
+          <span className={compact ? "hidden sm:inline" : undefined}>{displayLabel(value, false)}</span>
+        </span>
         <svg
           className="h-4 w-4 shrink-0 text-[var(--mo-text-muted)]"
           viewBox="0 0 20 20"
@@ -125,7 +140,7 @@ export function MonthYearPicker({ value, onChange, className = "", allowClear = 
         <div
           role="dialog"
           aria-label="Выбор месяца"
-          className="mo-month-picker-panel absolute left-0 top-[calc(100%+6px)] z-50 w-[min(100%,280px)] overflow-hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-3 shadow-[var(--mo-shadow-luxury)]"
+          className="mo-month-picker-panel absolute left-0 top-[calc(100%+6px)] z-50 w-[min(100vw-1.25rem,280px)] min-w-[16rem] overflow-hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-3 shadow-[var(--mo-shadow-luxury)]"
         >
           <div className="mb-2 flex items-center justify-between gap-2 rounded-xl bg-[var(--mo-surface)] px-2 py-1.5">
             <button
