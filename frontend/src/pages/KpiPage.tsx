@@ -334,35 +334,30 @@ export function KpiPage() {
         </label>
       </section>
 
-      {/* Телефон: select — все разделы видны. Десктоп: ряд кнопок. */}
-      <label className="block sm:hidden">
-        <span className="sr-only">Раздел KPI</span>
-        <select
-          value={tab}
-          onChange={(e) => setTab(e.target.value as TabId)}
-          className="mo-input w-full !min-h-11 text-base font-medium"
-        >
-          {visibleTabs.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.shortLabel}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="hidden flex-wrap gap-1.5 sm:flex">
+      <div
+        className="grid gap-1.5 sm:flex sm:flex-wrap sm:gap-2"
+        style={{
+          gridTemplateColumns: `repeat(${Math.min(Math.max(visibleTabs.length, 1), 5)}, minmax(0, 1fr))`,
+        }}
+        role="tablist"
+        aria-label="Разделы KPI"
+      >
         {visibleTabs.map((t) => (
           <button
             key={t.id}
             type="button"
+            role="tab"
+            aria-selected={tab === t.id}
             title={t.label}
             onClick={() => setTab(t.id)}
             className={
               tab === t.id
-                ? "btn-primary shrink-0 whitespace-nowrap px-3 py-2 text-sm"
-                : "btn-secondary shrink-0 whitespace-nowrap px-3 py-2 text-sm"
+                ? "btn-primary min-h-10 w-full truncate px-1 py-2 text-center text-[11px] leading-tight sm:w-auto sm:px-3 sm:text-sm"
+                : "btn-secondary min-h-10 w-full truncate px-1 py-2 text-center text-[11px] leading-tight sm:w-auto sm:px-3 sm:text-sm"
             }
           >
-            {t.label}
+            <span className="sm:hidden">{t.shortLabel}</span>
+            <span className="hidden sm:inline">{t.label}</span>
           </button>
         ))}
       </div>
