@@ -256,6 +256,15 @@ export function SalesVisitTrackerPage() {
   const createMutation = useMutation({
     mutationFn: () => {
       if (!point) throw new Error("Отметьте локацию на карте или нажмите «Гео»");
+      if (
+        pointSource.current === "gps" &&
+        point.accuracy_m != null &&
+        point.accuracy_m > GEO_ACCEPT_M
+      ) {
+        throw new Error(
+          `GPS слишком грубый (${formatAccuracyM(point.accuracy_m)}). Ткните точную точку на карте.`,
+        );
+      }
       return apiFetch<SalesFieldVisit>("/api/sales-visits", {
         method: "POST",
         body: JSON.stringify({
