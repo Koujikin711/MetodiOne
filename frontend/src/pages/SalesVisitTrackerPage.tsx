@@ -536,7 +536,7 @@ export function SalesVisitTrackerPage() {
           <div className="col-span-2">
             <button
               type="submit"
-              disabled={createMutation.isPending || !point}
+              disabled={createMutation.isPending || !point || pointQuality === "bad"}
               className="hidden w-full rounded-xl bg-[var(--mo-accent)] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60 sm:block sm:w-auto"
             >
               {createMutation.isPending ? "Сохранение…" : "Отметить визит"}
@@ -549,15 +549,17 @@ export function SalesVisitTrackerPage() {
       <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-3 py-2.5 backdrop-blur sm:hidden">
         <button
           type="button"
-          disabled={createMutation.isPending || !point}
+          disabled={createMutation.isPending || !point || pointQuality === "bad"}
           onClick={() => createMutation.mutate()}
           className="min-h-12 w-full rounded-xl bg-[var(--mo-accent)] px-4 py-3 text-base font-semibold text-white disabled:opacity-50"
         >
           {!point
             ? "Сначала метка на карте"
-            : createMutation.isPending
-              ? "Сохранение…"
-              : "Отметить визит"}
+            : pointQuality === "bad"
+              ? "Ткните точнее на карте"
+              : createMutation.isPending
+                ? "Сохранение…"
+                : "Отметить визит"}
         </button>
       </div>
 
