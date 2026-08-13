@@ -50,6 +50,7 @@ from app.services.lead_redistribution_undo import (
     REDISTRIBUTE_ACTIONS,
     collect_restorable_by_from_manager,
     collect_restorable_moves,
+    list_fallback_restorable_by_managers,
     list_redistribution_audits,
     list_undone_audit_ids,
     parse_system_from_id,
@@ -1339,9 +1340,11 @@ async def list_undoable_redistributions(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ воронки")
 
     undone = await list_undone_audit_ids(db, company_id=company_id)
-    rows = await list_redistribution_audits(db, company_id=company_id, limit=40)
+    # Мало кандидатов — иначе LIKE по lead_audit_events не укладывается в таймаут FE.
+    rows = await list_redistribution_audits(db, company_id=company_id, limit=min(12, max(limit * 2, 6)))
 
     out: list[LeadRedistributionUndoable] = []
+    name_cache: dict[int, str] = {}
     for audit in rows:
         if audit.id in undone:
             continue
@@ -1351,8 +1354,10 @@ async def list_undoable_redistributions(
         from_mid = parse_system_from_id(audit.details)
         from_name = "владелец/админы"
         if audit.action == "leads_redistributed" and from_mid is not None:
-            src = await db.get(User, from_mid)
-            from_name = _user_display_name(src) if src else f"#{from_mid}"
+            if from_mid not in name_cache:
+                src = await db.get(User, from_mid)
+                name_cache[from_mid] = _user_display_name(src) if src else f"#{from_mid}"
+            from_name = name_cache[from_mid]
         elif audit.action == "leads_redistributed_from_owners":
             from_name = "владелец/админы"
         created = audit.created_at or datetime.now(UTC)
@@ -1375,39 +1380,26 @@ async def list_undoable_redistributions(
         if len(out) >= limit:
             break
 
-    # Если system audit не нашёлся — предложить откат по менеджерам с «ушедшими» лидами.
+    # Один проход по аудиту вместо запроса на каждого менеджера.
     if not out:
-        managers = (
-            await db.execute(
-                select(User).where(
-                    User.company_id == company_id,
-                    User.role == UserRole.manager,
-                ),
-            )
-        ).scalars().all()
-        for mgr in managers:
-            moves = await collect_restorable_by_from_manager(
-                db,
-                company_id=company_id,
-                from_manager_id=int(mgr.id),
-            )
-            if not moves:
-                continue
-            name = _user_display_name(mgr)
+        for mid, name, moves in await list_fallback_restorable_by_managers(
+            db,
+            company_id=company_id,
+            since_hours=48,
+            limit_managers=limit,
+        ):
             out.append(
                 LeadRedistributionUndoable(
                     audit_id=0,
                     action="leads_redistributed",
                     created_at=datetime.now(UTC),
-                    from_manager_id=int(mgr.id),
+                    from_manager_id=mid,
                     from_manager_name=name,
                     total_original=len(moves),
                     restorable=len(moves),
                     summary=f"Вернуть {len(moves)} лид(ов), ушедших от {name}",
                 ),
             )
-            if len(out) >= limit:
-                break
     return out
 
 

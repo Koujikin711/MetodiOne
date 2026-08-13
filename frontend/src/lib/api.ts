@@ -6,6 +6,11 @@ const MUTATION_REQUEST_TIMEOUT_MS = 45_000;
 /** Загрузка файлов/голоса (конвертация + Green) может занять дольше обычного JSON. */
 const FORM_DATA_REQUEST_TIMEOUT_MS = 120_000;
 
+export type ApiFetchInit = RequestInit & {
+  /** Переопределить таймаут (мс). */
+  timeoutMs?: number;
+};
+
 /** Публичный base URL API (Amvera) — для WebSocket, webhook-подсказок, SSR. */
 export function resolveExternalApiBase(): string {
   const raw = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
@@ -57,7 +62,8 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
   return resolveApiUrl(u.startsWith("/") ? u : `/${u}`);
 }
 
-function requestTimeoutMs(init: RequestInit, isFormData: boolean): number {
+function requestTimeoutMs(init: ApiFetchInit, isFormData: boolean): number {
+  if (typeof init.timeoutMs === "number" && init.timeoutMs > 0) return init.timeoutMs;
   if (isFormData) return FORM_DATA_REQUEST_TIMEOUT_MS;
   const method = (init.method ?? "GET").toUpperCase();
   if (method !== "GET" && method !== "HEAD") return MUTATION_REQUEST_TIMEOUT_MS;
@@ -79,15 +85,16 @@ function formatFetchFailure(url: string, err: unknown): string {
   return `Нет связи с API (${detail}).`;
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers);
+export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
+  const { timeoutMs: _timeoutOverride, ...fetchInit } = init;
+  const headers = new Headers(fetchInit.headers);
   headers.set("Accept", "application/json");
   const token = getStoredToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const companyId = getActiveCompanyId();
   if (companyId != null) headers.set("X-Company-Id", String(companyId));
-  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
-  if (init.body && !headers.has("Content-Type") && !isFormData) {
+  const isFormData = typeof FormData !== "undefined" && fetchInit.body instanceof FormData;
+  if (fetchInit.body && !headers.has("Content-Type") && !isFormData) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -100,7 +107,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   let text = "";
   let data: unknown = null;
   try {
-    res = await fetch(url, { ...init, headers, signal: controller.signal });
+    res = await fetch(url, { ...fetchInit, headers, signal: controller.signal });
     text = await res.text();
     if (text && !looksLikeHtmlPayload(text, res.headers.get("content-type"))) {
       try {

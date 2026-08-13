@@ -244,7 +244,9 @@ export function EmployeesPage() {
   const undoableQuery = useQuery({
     queryKey: ["leads-redistribution-undoable"],
     queryFn: () =>
-      apiFetch<UndoableRedistribution[]>("/api/leads/redistribution/undoable?limit=8"),
+      apiFetch<UndoableRedistribution[]>("/api/leads/redistribution/undoable?limit=5", {
+        timeoutMs: 60_000,
+      }),
     retry: 1,
   });
 
@@ -252,6 +254,7 @@ export function EmployeesPage() {
     mutationFn: (item: UndoableRedistribution) =>
       apiFetch<UndoRedistributionResult>("/api/leads/redistribution/undo", {
         method: "POST",
+        timeoutMs: 120_000,
         body: JSON.stringify(
           item.audit_id > 0
             ? { audit_id: item.audit_id }
