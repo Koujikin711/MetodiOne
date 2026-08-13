@@ -852,7 +852,12 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   }
 
   .sales-tracker-page .mo-input {
-    font-size: 16px; /* iOS: без автозума при фокусе */
+    font-size: 16px !important; /* iOS: без автозума при фокусе */
+    min-height: 2.75rem;
+  }
+
+  .sales-tracker-page .sales-tracker-map {
+    touch-action: pan-x pan-y;
   }
 }
 

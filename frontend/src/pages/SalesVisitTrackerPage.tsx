@@ -210,14 +210,14 @@ export function SalesVisitTrackerPage() {
           <button
             type="button"
             onClick={() => setMapExpanded((v) => !v)}
-            className="rounded-md border border-[var(--mo-border)] px-2 py-1 text-[11px] text-[var(--mo-text)] sm:hidden"
+            className="min-h-10 rounded-xl border border-[var(--mo-border)] px-3 py-2 text-xs font-medium text-[var(--mo-text)] sm:hidden"
           >
             {mapExpanded ? "− карта" : "+ карта"}
           </button>
           <button
             type="button"
             onClick={locateMe}
-            className="rounded-md bg-[var(--mo-accent)] px-2.5 py-1 text-[11px] font-medium text-white sm:rounded-lg sm:px-3 sm:py-1.5 sm:text-xs"
+            className="min-h-10 rounded-xl bg-[var(--mo-accent)] px-3.5 py-2 text-xs font-semibold text-white sm:rounded-lg sm:px-3 sm:py-1.5 sm:text-xs"
           >
             Гео
           </button>
@@ -230,7 +230,8 @@ export function SalesVisitTrackerPage() {
             // @ts-expect-error react-leaflet typings
             center={mapCenter}
             zoom={14}
-            scrollWheelZoom
+            scrollWheelZoom={false}
+            tap={false}
             className="h-full w-full sales-tracker-map"
             key={`${mapCenter[0].toFixed(4)}:${mapCenter[1].toFixed(4)}:${mapExpanded ? "x" : "c"}`}
           >
@@ -273,10 +274,10 @@ export function SalesVisitTrackerPage() {
         </div>
       </section>
 
-      <section className="mo-section !p-2.5 sm:!p-4">
+      <section className="mo-section !p-3 sm:!p-4">
         <h2 className="text-sm font-semibold text-[var(--mo-text)]">Данные визита</h2>
         <form
-          className="mt-1.5 grid grid-cols-2 gap-1.5 sm:gap-3"
+          className="mt-2 grid grid-cols-2 gap-2 sm:gap-3"
           onSubmit={(e) => {
             e.preventDefault();
             createMutation.mutate();
@@ -286,18 +287,21 @@ export function SalesVisitTrackerPage() {
             <span className="mo-muted">Менеджер</span>
             <input
               required
-              className="mo-input mt-0.5 !py-1.5 text-sm"
+              className="mo-input mt-1 !min-h-11 !py-2.5 text-base sm:!min-h-0 sm:!py-1.5 sm:text-sm"
               value={managerName}
               onChange={(e) => setManagerName(e.target.value)}
+              autoComplete="name"
             />
           </label>
 
           <label className="col-span-2 text-xs sm:text-sm">
             <span className="mo-muted">Найти в базе</span>
             <input
-              className="mo-input mt-0.5 !py-1.5 text-sm"
+              className="mo-input mt-1 !min-h-11 !py-2.5 text-base sm:!min-h-0 sm:!py-1.5 sm:text-sm"
               placeholder="Имя или телефон"
               value={clientQuery}
+              inputMode="search"
+              enterKeyHint="search"
               onChange={(e) => {
                 setClientQuery(e.target.value);
                 if (leadId != null) setLeadId(null);
@@ -306,25 +310,25 @@ export function SalesVisitTrackerPage() {
           </label>
 
           {leadId != null ? (
-            <div className="col-span-2 flex items-center justify-between gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs">
-              <span>CRM #{leadId}</span>
-              <button type="button" className="underline" onClick={clearClientPick}>
+            <div className="col-span-2 flex items-center justify-between gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm">
+              <span className="min-w-0 truncate">CRM #{leadId} · {clientName}</span>
+              <button type="button" className="shrink-0 font-medium underline" onClick={clearClientPick}>
                 вручную
               </button>
             </div>
           ) : null}
 
           {(suggestQuery.data?.length ?? 0) > 0 && leadId == null ? (
-            <ul className="col-span-2 max-h-28 overflow-y-auto divide-y divide-[var(--mo-border)] rounded-lg border border-[var(--mo-border)] sm:max-h-36">
+            <ul className="col-span-2 max-h-36 overflow-y-auto divide-y divide-[var(--mo-border)] rounded-xl border border-[var(--mo-border)] sm:max-h-40">
               {suggestQuery.data!.map((item) => (
                 <li key={`${item.lead_id}-${item.client_phone}`}>
                   <button
                     type="button"
-                    className="flex w-full flex-col items-start px-2.5 py-1.5 text-left text-xs active:bg-[var(--mo-surface)]/60 sm:text-sm"
+                    className="flex w-full flex-col items-start px-3 py-3 text-left text-sm active:bg-[var(--mo-accent-soft)]"
                     onClick={() => pickClient(item)}
                   >
                     <span className="font-medium text-[var(--mo-text)]">{item.client_name}</span>
-                    <span className="mo-muted">{item.client_phone || "без телефона"}</span>
+                    <span className="text-xs mo-muted">{item.client_phone || "без телефона"}</span>
                   </button>
                 </li>
               ))}
@@ -335,9 +339,10 @@ export function SalesVisitTrackerPage() {
             <span className="mo-muted">Клиент</span>
             <input
               required
-              className="mo-input mt-0.5 !py-1.5 text-sm"
+              className="mo-input mt-1 !min-h-11 !py-2.5 text-base sm:!min-h-0 sm:!py-1.5 sm:text-sm"
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
+              autoComplete="off"
             />
           </label>
           <label className="text-xs sm:text-sm">
@@ -345,7 +350,8 @@ export function SalesVisitTrackerPage() {
             <input
               required
               inputMode="tel"
-              className="mo-input mt-0.5 !py-1.5 text-sm"
+              autoComplete="tel"
+              className="mo-input mt-1 !min-h-11 !py-2.5 text-base sm:!min-h-0 sm:!py-1.5 sm:text-sm"
               value={clientPhone}
               onChange={(e) => setClientPhone(e.target.value)}
             />
@@ -354,7 +360,7 @@ export function SalesVisitTrackerPage() {
             <span className="mo-muted">Вид предприятия</span>
             <input
               required
-              className="mo-input mt-0.5 !py-1.5 text-sm"
+              className="mo-input mt-1 !min-h-11 !py-2.5 text-base sm:!min-h-0 sm:!py-1.5 sm:text-sm"
               placeholder="Аптека, клиника…"
               value={enterpriseType}
               onChange={(e) => setEnterpriseType(e.target.value)}
@@ -363,26 +369,30 @@ export function SalesVisitTrackerPage() {
 
           <button
             type="button"
-            className="col-span-2 text-left text-[11px] font-medium text-[var(--mo-accent)] sm:hidden"
+            className="col-span-2 min-h-10 rounded-xl border border-dashed border-[var(--mo-border)] px-3 py-2 text-left text-xs font-medium text-[var(--mo-accent)] sm:hidden"
             onClick={() => setShowExtra((v) => !v)}
           >
             {showExtra ? "Скрыть адрес / заметку" : "+ Адрес и заметка"}
           </button>
 
           <div
-            className={`col-span-2 grid grid-cols-2 gap-1.5 sm:gap-3 ${showExtra ? "" : "hidden sm:grid"}`}
+            className={`col-span-2 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 ${showExtra ? "" : "hidden sm:grid"}`}
           >
             <label className="text-xs sm:text-sm">
               <span className="mo-muted">Адрес</span>
               <input
-                className="mo-input mt-0.5 !py-1.5 text-sm"
+                className="mo-input mt-1 !min-h-11 !py-2.5 text-base sm:!min-h-0 sm:!py-1.5 sm:text-sm"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
               />
             </label>
             <label className="text-xs sm:text-sm">
               <span className="mo-muted">Заметка</span>
-              <input className="mo-input mt-0.5 !py-1.5 text-sm" value={note} onChange={(e) => setNote(e.target.value)} />
+              <input
+                className="mo-input mt-1 !min-h-11 !py-2.5 text-base sm:!min-h-0 sm:!py-1.5 sm:text-sm"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
             </label>
           </div>
 
@@ -399,12 +409,12 @@ export function SalesVisitTrackerPage() {
       </section>
 
       {/* Sticky mobile CTA — выше компактного sales-nav */}
-      <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-3 py-1.5 backdrop-blur sm:hidden">
+      <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-3 py-2.5 backdrop-blur sm:hidden">
         <button
           type="button"
           disabled={createMutation.isPending || !point}
           onClick={() => createMutation.mutate()}
-          className="w-full rounded-lg bg-[var(--mo-accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="min-h-12 w-full rounded-xl bg-[var(--mo-accent)] px-4 py-3 text-base font-semibold text-white disabled:opacity-50"
         >
           {!point
             ? "Сначала метка на карте"
