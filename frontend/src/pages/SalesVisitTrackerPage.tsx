@@ -33,6 +33,12 @@ type SalesFieldVisit = {
 };
 
 const DUSHANBE: [number, number] = [38.5598, 68.7738];
+/** Хороший GPS-фикс для полевого визита. */
+const GEO_GOOD_M = 60;
+/** Максимум, который ещё принимаем как точку визита (без тапа по карте). */
+const GEO_ACCEPT_M = 250;
+/** Сколько ждём лучший фикс через watchPosition. */
+const GEO_WATCH_MS = 14000;
 
 const markerIcon = L.icon({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -51,6 +57,74 @@ function MapClickPicker({ onPick }: { onPick: (lat: number, lon: number) => void
   return null;
 }
 
+function formatAccuracyM(m: number | null | undefined): string {
+  if (m == null || !Number.isFinite(m)) return "";
+  if (m >= 1000) return `~${(m / 1000).toFixed(1)} км`;
+  return `~${Math.round(m)} м`;
+}
+
+/** Берём несколько GPS-замеров и оставляем самый точный (не кэш сети на 20+ км). */
+function locateBestPosition(opts?: {
+  onSample?: (accuracyM: number) => void;
+  maxWaitMs?: number;
+}): Promise<GeoPoint> {
+  const maxWaitMs = opts?.maxWaitMs ?? GEO_WATCH_MS;
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Геолокация недоступна в этом браузере"));
+      return;
+    }
+
+    let best: GeolocationCoordinates | null = null;
+    let settled = false;
+    let sawError: GeolocationPositionError | null = null;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      navigator.geolocation.clearWatch(watchId);
+      if (!best) {
+        reject(
+          sawError
+            ? new Error("Нет доступа к геолокации — разрешите GPS или ткните точку на карте")
+            : new Error("Не удалось получить геолокацию — ткните точку на карте"),
+        );
+        return;
+      }
+      resolve({
+        lat: best.latitude,
+        lon: best.longitude,
+        accuracy_m: Number.isFinite(best.accuracy) ? best.accuracy : null,
+      });
+    };
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const c = pos.coords;
+        const acc = c.accuracy ?? Number.POSITIVE_INFINITY;
+        opts?.onSample?.(acc);
+        if (!best || acc < (best.accuracy ?? Number.POSITIVE_INFINITY)) {
+          best = c;
+        }
+        if (acc <= GEO_GOOD_M) finish();
+      },
+      (err) => {
+        sawError = err;
+        // Если уже есть хоть один фикс — дождёмся таймера; иначе сразу ошибка.
+        if (!best) finish();
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: maxWaitMs,
+      },
+    );
+
+    const timer = window.setTimeout(finish, maxWaitMs);
+  });
+}
+
 export function SalesVisitTrackerPage() {
   const me = useCurrentUserMe();
   const qc = useQueryClient();
@@ -67,7 +141,10 @@ export function SalesVisitTrackerPage() {
   const [address, setAddress] = useState("");
   const [showExtra, setShowExtra] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [locateHint, setLocateHint] = useState<string | null>(null);
   const autoLocateTried = useRef(false);
+  const pointSource = useRef<"gps" | "map" | null>(null);
 
   useEffect(() => {
     if (me.data?.full_name || me.data?.email) {
@@ -75,24 +152,26 @@ export function SalesVisitTrackerPage() {
     }
   }, [me.data?.full_name, me.data?.email]);
 
-  // На телефоне сразу пробуем геолокацию — меньше тапов до метки.
+  // Авто-гео только если GPS достаточно точный (не кэш вышки на десятки км).
   useEffect(() => {
     if (!enabled || autoLocateTried.current || !navigator.geolocation) return;
     autoLocateTried.current = true;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setPoint({
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          accuracy_m: pos.coords.accuracy ?? null,
-        });
-      },
-      () => {
-        /* тихо: пользователь может тапнуть карту или «Гео» */
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
-    );
+    let cancelled = false;
+    void locateBestPosition({ maxWaitMs: 10000 })
+      .then((p) => {
+        if (cancelled) return;
+        if (p.accuracy_m != null && p.accuracy_m > GEO_ACCEPT_M) return;
+        pointSource.current = "gps";
+        setPoint(p);
+      })
+      .catch(() => {
+        /* тихо: пользователь нажмёт «Гео» или ткнёт карту */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [enabled]);
+
   const visitsQuery = useQuery({
     queryKey: ["sales-visits"],
     queryFn: () => apiFetch<SalesFieldVisit[]>("/api/sales-visits?limit=80"),
@@ -115,24 +194,51 @@ export function SalesVisitTrackerPage() {
     return DUSHANBE;
   }, [point, visitsQuery.data]);
 
-  function locateMe() {
+  async function locateMe() {
     if (!navigator.geolocation) {
       toast.error("Геолокация недоступна в этом браузере");
       return;
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setPoint({
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          accuracy_m: pos.coords.accuracy ?? null,
-        });
-        toast.success("Локация получена");
-      },
-      () => toast.error("Не удалось получить геолокацию — отметьте точку на карте"),
-      { enableHighAccuracy: true, timeout: 15000 },
-    );
+    if (locating) return;
+    setLocating(true);
+    setLocateHint("Ищем GPS…");
+    try {
+      const p = await locateBestPosition({
+        maxWaitMs: GEO_WATCH_MS,
+        onSample: (acc) => setLocateHint(`Уточняем… ${formatAccuracyM(acc)}`),
+      });
+      if (p.accuracy_m != null && p.accuracy_m > GEO_ACCEPT_M) {
+        setLocateHint(`Слишком грубо (${formatAccuracyM(p.accuracy_m)})`);
+        toast.error(
+          `GPS неточный (${formatAccuracyM(p.accuracy_m)}). Включите точную геолокацию или ткните точку на карте.`,
+        );
+        return;
+      }
+      pointSource.current = "gps";
+      setPoint(p);
+      setLocateHint(null);
+      toast.success(
+        p.accuracy_m != null
+          ? `Точка GPS · точность ${formatAccuracyM(p.accuracy_m)}`
+          : "Точка GPS получена",
+      );
+    } catch (e) {
+      setLocateHint(null);
+      toast.error(e instanceof Error ? e.message : "Не удалось получить геолокацию");
+    } finally {
+      setLocating(false);
+    }
   }
+
+  const pointQuality: "good" | "ok" | "bad" | "manual" | null = !point
+    ? null
+    : pointSource.current === "map" || point.accuracy_m == null
+      ? "manual"
+      : point.accuracy_m <= GEO_GOOD_M
+        ? "good"
+        : point.accuracy_m <= GEO_ACCEPT_M
+          ? "ok"
+          : "bad";
 
   function pickClient(item: ClientSuggest) {
     setLeadId(item.lead_id);
@@ -216,10 +322,11 @@ export function SalesVisitTrackerPage() {
           </button>
           <button
             type="button"
-            onClick={locateMe}
-            className="min-h-10 rounded-xl bg-[var(--mo-accent)] px-3.5 py-2 text-xs font-semibold text-white sm:rounded-lg sm:px-3 sm:py-1.5 sm:text-xs"
+            onClick={() => void locateMe()}
+            disabled={locating}
+            className="min-h-10 rounded-xl bg-[var(--mo-accent)] px-3.5 py-2 text-xs font-semibold text-white disabled:opacity-60 sm:rounded-lg sm:px-3 sm:py-1.5 sm:text-xs"
           >
-            Гео
+            {locating ? "GPS…" : "Гео"}
           </button>
         </div>
       </header>
@@ -229,11 +336,11 @@ export function SalesVisitTrackerPage() {
           <MapContainer
             // @ts-expect-error react-leaflet typings
             center={mapCenter}
-            zoom={14}
+            zoom={pointQuality === "good" || pointQuality === "manual" ? 17 : 14}
             scrollWheelZoom={false}
             tap={false}
             className="h-full w-full sales-tracker-map"
-            key={`${mapCenter[0].toFixed(4)}:${mapCenter[1].toFixed(4)}:${mapExpanded ? "x" : "c"}`}
+            key={`${mapCenter[0].toFixed(4)}:${mapCenter[1].toFixed(4)}:${mapExpanded ? "x" : "c"}:${pointQuality ?? "n"}`}
           >
             <TileLayer
               // @ts-expect-error react-leaflet typings
@@ -241,17 +348,24 @@ export function SalesVisitTrackerPage() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <MapClickPicker
-              onPick={(lat, lon) => setPoint({ lat, lon, accuracy_m: point?.accuracy_m ?? null })}
+              onPick={(lat, lon) => {
+                pointSource.current = "map";
+                setPoint({ lat, lon, accuracy_m: null });
+                setLocateHint(null);
+              }}
             />
             {point ? (
               <>
                 <Marker position={[point.lat, point.lon]} icon={markerIcon} />
-                {point.accuracy_m ? (
+                {point.accuracy_m != null && point.accuracy_m <= GEO_ACCEPT_M ? (
                   <Circle
                     center={[point.lat, point.lon]}
                     // @ts-expect-error react-leaflet typings
-                    radius={Math.min(Math.max(point.accuracy_m, 20), 400)}
-                    pathOptions={{ color: "#38bdf8", fillOpacity: 0.15 }}
+                    radius={Math.min(Math.max(point.accuracy_m, 15), 250)}
+                    pathOptions={{
+                      color: pointQuality === "good" ? "#10b981" : "#f59e0b",
+                      fillOpacity: 0.12,
+                    }}
                   />
                 ) : null}
               </>
@@ -260,15 +374,29 @@ export function SalesVisitTrackerPage() {
         </div>
         <div className="flex items-center justify-between gap-2 px-2.5 py-1 text-[10px] mo-muted sm:px-3 sm:py-1.5 sm:text-[11px]">
           <span className="truncate">
-            {point
-              ? `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}${
-                  point.accuracy_m != null ? ` · ~${Math.round(point.accuracy_m)} м` : ""
-                }`
-              : "Тап по карте — метка"}
+            {locating && locateHint
+              ? locateHint
+              : point
+                ? `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}${
+                    point.accuracy_m != null ? ` · ${formatAccuracyM(point.accuracy_m)}` : " · тап"
+                  }`
+                : "Тап по карте точнее, чем грубый GPS"}
           </span>
-          {point ? (
+          {pointQuality === "manual" ? (
             <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-200">
-              ок
+              точно
+            </span>
+          ) : pointQuality === "good" ? (
+            <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-200">
+              GPS ок
+            </span>
+          ) : pointQuality === "ok" ? (
+            <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-200">
+              грубо
+            </span>
+          ) : pointQuality === "bad" ? (
+            <span className="shrink-0 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-300">
+              неточно
             </span>
           ) : null}
         </div>
