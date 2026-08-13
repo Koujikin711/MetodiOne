@@ -296,6 +296,7 @@ export function KpiPage() {
 
   const manualPlanItems = (planQuery.data?.items ?? []).filter((x) => x.source_type === "manual");
   const managers = planQuery.data?.managers ?? [];
+  const visibleTabs = tabs.filter((t) => t.show);
 
   return (
     <div
@@ -333,25 +334,37 @@ export function KpiPage() {
         </label>
       </section>
 
-      <div className="-mx-1 flex gap-1 overflow-x-auto overscroll-x-contain px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:gap-1.5 sm:overflow-visible sm:px-0">
-        {tabs
-          .filter((t) => t.show)
-          .map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              title={t.label}
-              onClick={() => setTab(t.id)}
-              className={
-                tab === t.id
-                  ? "btn-primary shrink-0 whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:px-3 sm:py-2 sm:text-sm"
-                  : "btn-secondary shrink-0 whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:px-3 sm:py-2 sm:text-sm"
-              }
-            >
-              <span className="sm:hidden">{t.shortLabel}</span>
-              <span className="hidden sm:inline">{t.label}</span>
-            </button>
+      {/* Телефон: сетка — все разделы видны, «Долги» не обрезается. Десктоп: ряд кнопок. */}
+      <label className="block sm:hidden">
+        <span className="sr-only">Раздел KPI</span>
+        <select
+          value={tab}
+          onChange={(e) => setTab(e.target.value as TabId)}
+          className="mo-input w-full !min-h-11 text-base font-medium"
+        >
+          {visibleTabs.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.label}
+            </option>
           ))}
+        </select>
+      </label>
+      <div className="hidden flex-wrap gap-1.5 sm:flex">
+        {visibleTabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            title={t.label}
+            onClick={() => setTab(t.id)}
+            className={
+              tab === t.id
+                ? "btn-primary shrink-0 whitespace-nowrap px-3 py-2 text-sm"
+                : "btn-secondary shrink-0 whitespace-nowrap px-3 py-2 text-sm"
+            }
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {tab === "plan" && isOwner ? (
