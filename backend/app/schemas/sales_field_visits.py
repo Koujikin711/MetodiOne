@@ -10,6 +10,9 @@ class SalesClientSuggestItem(BaseModel):
     client_phone: str
     enterprise_type: str | None = None
     source: str = "crm"
+    last_lat: Decimal | None = None
+    last_lon: Decimal | None = None
+    last_address: str | None = None
 
 
 class SalesFieldVisitCreate(BaseModel):

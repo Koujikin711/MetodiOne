@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
-from app.models import Lead, ManagerDeskSale, SalesFieldVisit, UserRole
+from app.models import Lead, ManagerDeskSale, PipelineStage, SalesFieldVisit, UserRole
 from app.schemas.sales_field_visits import (
     SalesClientSuggestItem,
     SalesFieldVisitCreate,
@@ -94,6 +94,9 @@ async def client_suggest(
         phone: str,
         enterprise_type: str | None,
         source: str,
+        last_lat: Decimal | None = None,
+        last_lon: Decimal | None = None,
+        last_address: str | None = None,
     ) -> None:
         name_s = (name or "").strip()
         phone_s = (phone or "").strip()
@@ -110,6 +113,9 @@ async def client_suggest(
                 client_phone=phone_s,
                 enterprise_type=(enterprise_type or "").strip() or None,
                 source=source,
+                last_lat=last_lat,
+                last_lon=last_lon,
+                last_address=(last_address or "").strip() or None,
             ),
         )
 
@@ -199,9 +205,34 @@ async def client_suggest(
             phone=visit.client_phone or "",
             enterprise_type=visit.enterprise_type or None,
             source="visit",
+            last_lat=Decimal(str(visit.lat)),
+            last_lon=Decimal(str(visit.lon)),
+            last_address=visit.address,
         )
         if len(out) >= limit:
             return out
+
+    # Дополнить координатами последнего визита, если ещё нет
+    need_geo = [item for item in out if item.last_lat is None or item.last_lon is None]
+    if need_geo:
+        recent_visits = (
+            await db.execute(
+                select(SalesFieldVisit)
+                .where(SalesFieldVisit.company_id == company_id)
+                .order_by(SalesFieldVisit.id.desc())
+                .limit(200),
+            )
+        ).scalars().all()
+        for item in need_geo:
+            digits = _norm_phone(item.client_phone)
+            if len(digits) < 4:
+                continue
+            for v in recent_visits:
+                if _phone_matches(v.client_phone, digits):
+                    item.last_lat = Decimal(str(v.lat))
+                    item.last_lon = Decimal(str(v.lon))
+                    item.last_address = v.address
+                    break
 
     return out
 
@@ -223,6 +254,55 @@ async def list_visits(
     return [_visit_out(r) for r in rows]
 
 
+async def _find_or_create_lead_for_visit(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    current_user: CurrentUser,
+    client_name: str,
+    client_phone: str,
+    enterprise_type: str,
+) -> int | None:
+    """Найти лид по телефону или создать нового — клиент сразу в базе с визитом/гео."""
+    digits = _norm_phone(client_phone)
+    if len(digits) >= 4:
+        candidates = (
+            await db.execute(
+                select(Lead)
+                .where(Lead.company_id == company_id)
+                .order_by(Lead.id.desc())
+                .limit(200),
+            )
+        ).scalars().all()
+        for lead in candidates:
+            if _phone_matches(lead.phone, digits):
+                return int(lead.id)
+
+    stage_id = (
+        await db.execute(
+            select(PipelineStage.id)
+            .where(PipelineStage.company_id == company_id)
+            .order_by(PipelineStage.order.asc(), PipelineStage.id.asc())
+            .limit(1),
+        )
+    ).scalar_one_or_none()
+    if stage_id is None:
+        return None
+
+    lead = Lead(
+        company_id=company_id,
+        name=client_name.strip() or client_phone.strip() or "Клиент",
+        phone=digits or client_phone.strip() or None,
+        email=None,
+        source=f"Трекер · {enterprise_type}"[:120] if enterprise_type else "Трекер",
+        status_id=int(stage_id),
+        manager_id=int(current_user.id) if current_user.role == UserRole.manager else int(current_user.id),
+    )
+    db.add(lead)
+    await db.flush()
+    return int(lead.id)
+
+
 @router.post("", response_model=SalesFieldVisitOut, status_code=status.HTTP_201_CREATED)
 async def create_visit(
     body: SalesFieldVisitCreate,
@@ -233,22 +313,34 @@ async def create_visit(
     _assert_access(current_user)
     await _require_sales(db, company_id)
 
+    now = datetime.now(UTC)
+    phone = _norm_phone(body.client_phone) or body.client_phone.strip()
+    name = body.client_name.strip()
+    enterprise = body.enterprise_type.strip()
+
     lead_id = body.lead_id
     if lead_id is not None:
         lead = await db.get(Lead, lead_id)
         if lead is None or lead.company_id != company_id:
             raise HTTPException(status_code=400, detail="Клиент не найден в базе этого пространства")
+    else:
+        lead_id = await _find_or_create_lead_for_visit(
+            db,
+            company_id=company_id,
+            current_user=current_user,
+            client_name=name,
+            client_phone=phone,
+            enterprise_type=enterprise,
+        )
 
-    now = datetime.now(UTC)
-    phone = _norm_phone(body.client_phone) or body.client_phone.strip()
     row = SalesFieldVisit(
         company_id=company_id,
         manager_user_id=int(current_user.id),
         manager_name=body.manager_name.strip(),
         lead_id=lead_id,
-        client_name=body.client_name.strip(),
+        client_name=name,
         client_phone=phone,
-        enterprise_type=body.enterprise_type.strip(),
+        enterprise_type=enterprise,
         lat=Decimal(str(body.lat)),
         lon=Decimal(str(body.lon)),
         accuracy_m=Decimal(str(body.accuracy_m)) if body.accuracy_m is not None else None,

@@ -16,6 +16,9 @@ type ClientSuggest = {
   client_phone: string;
   enterprise_type?: string | null;
   source: string;
+  last_lat?: number | string | null;
+  last_lon?: number | string | null;
+  last_address?: string | null;
 };
 
 type SalesFieldVisit = {
@@ -255,6 +258,13 @@ export function SalesVisitTrackerPage() {
     setClientPhone(item.client_phone);
     if (item.enterprise_type) setEnterpriseType(item.enterprise_type);
     setClientQuery(item.client_name);
+    const lat = item.last_lat != null ? Number(item.last_lat) : NaN;
+    const lon = item.last_lon != null ? Number(item.last_lon) : NaN;
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      pointSource.current = "map";
+      setPoint({ lat, lon, accuracy_m: null });
+      if (item.last_address) setAddress(item.last_address);
+    }
   }
 
   function clearClientPick() {
@@ -263,17 +273,38 @@ export function SalesVisitTrackerPage() {
   }
 
   const createMutation = useMutation({
-    mutationFn: () => {
-      if (!point) throw new Error("Отметьте локацию на карте или нажмите «Гео»");
-      if (
+    mutationFn: async () => {
+      let savePoint = point;
+      if (!savePoint) {
+        setLocateHint("Берём GPS для сохранения…");
+        try {
+          const p = await locateBestPosition({
+            maxWaitMs: GEO_WATCH_MS,
+            onSample: (acc) => setLocateHint(`GPS… ${formatAccuracyM(acc)}`),
+          });
+          // При сохранении принимаем и более грубый GPS — точка всё равно нужна.
+          pointSource.current = "gps";
+          setPoint(p);
+          savePoint = p;
+          setLocateHint(null);
+        } catch (e) {
+          setLocateHint(null);
+          throw new Error(
+            e instanceof Error
+              ? e.message
+              : "Нет геолокации. Разрешите GPS или ткните точку на карте.",
+          );
+        }
+      } else if (
         pointSource.current === "gps" &&
-        point.accuracy_m != null &&
-        point.accuracy_m > GEO_ACCEPT_M
+        savePoint.accuracy_m != null &&
+        savePoint.accuracy_m > GEO_ACCEPT_M
       ) {
         throw new Error(
-          `GPS слишком грубый (${formatAccuracyM(point.accuracy_m)}). Ткните точную точку на карте.`,
+          `GPS слишком грубый (${formatAccuracyM(savePoint.accuracy_m)}). Ткните точную точку на карте.`,
         );
       }
+
       return apiFetch<SalesFieldVisit>("/api/sales-visits", {
         method: "POST",
         body: JSON.stringify({
@@ -282,16 +313,20 @@ export function SalesVisitTrackerPage() {
           client_name: clientName.trim(),
           client_phone: clientPhone.trim(),
           enterprise_type: enterpriseType.trim(),
-          lat: point.lat,
-          lon: point.lon,
-          accuracy_m: point.accuracy_m,
+          lat: savePoint.lat,
+          lon: savePoint.lon,
+          accuracy_m: savePoint.accuracy_m,
           address: address.trim() || null,
           note: note.trim() || null,
         }),
       });
     },
-    onSuccess: () => {
-      toast.success("Визит отмечен");
+    onSuccess: (saved) => {
+      toast.success(
+        saved.lead_id
+          ? `Визит сохранён · клиент в базе #${saved.lead_id}`
+          : "Визит отмечен с геоточкой",
+      );
       setLeadId(null);
       setClientQuery("");
       setClientName("");
@@ -301,6 +336,7 @@ export function SalesVisitTrackerPage() {
       setAddress("");
       setShowExtra(false);
       void qc.invalidateQueries({ queryKey: ["sales-visits"] });
+      void qc.invalidateQueries({ queryKey: ["sales-visit-client-suggest"] });
     },
     onError: (e: Error) => toast.error(e.message || "Не удалось сохранить"),
   });
