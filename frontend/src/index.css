@@ -1864,29 +1864,33 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .integ-channel-tile {
   @apply flex flex-col items-center gap-3 rounded-2xl border p-6 text-center transition;
   border-color: var(--mo-border);
-  background: var(--mo-surface-elevated);
+  background: var(--mo-surface);
   box-shadow: var(--mo-shadow-luxury);
 }
 .integ-channel-tile:hover {
-  border-color: var(--mo-gold);
+  border-color: var(--mo-border-strong);
   background: var(--mo-accent-soft);
 }
 .integ-channel-tile:focus-visible {
   outline: none;
-  box-shadow: var(--mo-shadow-luxury), 0 0 0 2px rgba(212, 175, 55, 0.35);
+  box-shadow: var(--mo-shadow-luxury), 0 0 0 2px rgba(99, 102, 241, 0.35);
+}
+
+.integ-channel-icon {
+  @apply flex h-14 w-14 items-center justify-center rounded-2xl;
 }
 
 .integ-card {
   @apply rounded-xl border p-4;
-  border-color: #efebe1;
-  background: #ffffff;
+  border-color: var(--mo-border);
+  background: var(--mo-surface);
   box-shadow: var(--mo-shadow-luxury);
 }
 
 .integ-form-panel {
   @apply rounded-2xl border p-4;
   border-color: var(--mo-border);
-  background: #ffffff;
+  background: var(--mo-surface);
   box-shadow: var(--mo-shadow-luxury);
 }
 

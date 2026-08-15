@@ -83,7 +83,7 @@ const CHANNELS: Array<{
     subtitle: "Бот и уведомления",
     Icon: IconTelegram,
     ring: "",
-    bg: "bg-[#E8F0FA] text-[#1E3A8A]",
+    bg: "bg-[var(--mo-accent-soft)] text-[var(--mo-accent-hover)]",
   },
   {
     id: "google_sheets",
@@ -99,7 +99,7 @@ const CHANNELS: Array<{
     subtitle: "Лиды и Direct",
     Icon: IconInstagram,
     ring: "",
-    bg: "bg-[#FDF2F8] text-[var(--mo-danger)]",
+    bg: "bg-[var(--mo-danger)]/15 text-[var(--mo-danger)]",
   },
   {
     id: "gmail",
@@ -107,7 +107,7 @@ const CHANNELS: Array<{
     subtitle: "Входящая почта",
     Icon: IconGmail,
     ring: "",
-    bg: "bg-[#FDF5F5] text-[#7A2E2E]",
+    bg: "bg-[var(--mo-danger)]/10 text-[var(--mo-danger)]",
   },
 ];
 
@@ -147,7 +147,7 @@ function GreenApiWebhookPanel({ integrationId }: { integrationId: number }) {
   const ok = st?.webhook_url_matches && st?.incoming_enabled && st?.instance_authorized !== false;
 
   return (
-    <div className="mt-2 space-y-2 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] p-2 text-[11px] text-[var(--mo-text-muted)]">
+    <div className="mt-2 space-y-2 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 text-[11px] text-[var(--mo-text-muted)]">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium text-[var(--mo-text)]">Входящие WhatsApp → «Чаты»</span>
         {statusQuery.isLoading ? (
@@ -155,13 +155,13 @@ function GreenApiWebhookPanel({ integrationId }: { integrationId: number }) {
         ) : ok ? (
           <span className="font-medium text-[var(--mo-success)]">Подключено</span>
         ) : (
-          <span className="font-medium text-[#9A3412]">Требует настройки</span>
+          <span className="font-medium text-[var(--mo-warning)]">Требует настройки</span>
         )}
       </div>
       {st?.expected_webhook_url ? (
         <div>
           <span className="font-medium text-[var(--mo-text)]">Webhook CRM (Amvera):</span>
-          <div className="mt-1 break-all rounded border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-2 py-1 font-mono text-[10px]">
+          <div className="mt-1 break-all rounded border border-[var(--mo-border)] bg-[var(--mo-surface)] px-2 py-1 font-mono text-[10px] text-[var(--mo-text)]">
             {st.expected_webhook_url}
           </div>
         </div>
@@ -173,10 +173,10 @@ function GreenApiWebhookPanel({ integrationId }: { integrationId: number }) {
         </div>
       ) : null}
       {st?.green_state_instance ? <div>Статус инстанса: {st.green_state_instance}</div> : null}
-      {st?.sync_error ? <p className="text-[#9A3412]">{st.sync_error}</p> : null}
-      {st?.hint ? <p className="leading-relaxed text-[#9A3412]">{st.hint}</p> : null}
+      {st?.sync_error ? <p className="text-[var(--mo-danger)]">{st.sync_error}</p> : null}
+      {st?.hint ? <p className="leading-relaxed text-[var(--mo-warning)]">{st.hint}</p> : null}
       {!st?.public_api_base_url ? (
-        <p className="leading-relaxed text-[#9A3412]">
+        <p className="leading-relaxed text-[var(--mo-warning)]">
           На Amvera задайте переменную <span className="font-mono">PUBLIC_API_BASE_URL</span> ={" "}
           <span className="font-mono">https://metodi-one-koujikin.amvera.io</span>
         </p>
@@ -218,7 +218,7 @@ function IntegrationCard({
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--mo-accent-soft)] [&>svg]:h-4 [&>svg]:w-4">
             {it.provider === "green_api" && <IconWhatsApp className="text-[var(--mo-success)]" />}
-            {it.provider === "telegram" && <IconTelegram className="text-[#1E3A8A]" />}
+            {it.provider === "telegram" && <IconTelegram className="text-[var(--mo-accent-hover)]" />}
             {it.provider === "google_sheets" && <IconSheets className="h-6 w-6" />}
             {it.provider === "instagram" && <IconInstagram className="h-7 w-7" />}
             {it.provider === "gmail" && <IconGmail className="h-7 w-7" />}
@@ -1174,7 +1174,7 @@ export function IntegrationSetupPanel() {
                   </div>
                 ) : integrationProvider === "instagram" ? (
                   <div className="grid gap-3">
-                    <div className="rounded-xl border border-[var(--mo-border)] bg-[#FBF8F1] px-3 py-2.5 text-[11px] leading-relaxed text-[var(--mo-text-muted)]">
+                    <div className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-accent-soft)] px-3 py-2.5 text-[11px] leading-relaxed text-[var(--mo-text-muted)]">
                       <p className="font-medium text-[var(--mo-danger)]">Как связать с Meta (как Green API для WhatsApp)</p>
                       <ol className="mt-1.5 list-decimal space-y-1 pl-4">
                         <li>
