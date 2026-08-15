@@ -99,7 +99,7 @@ class ChatThreadRead(BaseModel):
     sale_paid_amount: str | None = Field(default=None, description="Оплачено по сделке")
 
 
-ChatThreadBucket = Literal["transferred", "own", "awaiting_reply", "sold"]
+ChatThreadBucket = Literal["transferred", "own", "awaiting_reply", "sold", "no_reply"]
 SalesStageKey = Literal["new", "in_progress", "waiting", "won", "lost", "archive"]
 
 
@@ -108,6 +108,7 @@ class ChatThreadBucketCounts(BaseModel):
     own: int = 0
     awaiting_reply: int = 0
     sold: int = 0
+    no_reply: int = 0
     """clinic | sales — какие вкладки показывать на фронте."""
     list_mode: str = "clinic"
     sales_stages: dict[str, int] = Field(default_factory=dict)
@@ -622,10 +623,11 @@ def _apply_manager_thread_bucket(
     last_direction_sq,
     stage_key: str | None = None,
 ):
+    # Стадия и reply-бакет можно комбинировать (воронка + «Ждут ответа»).
     if stage_key:
         stage_name = sales_stage_name_for_key(stage_key)
         if stage_name:
-            return query.where(PipelineStage.name == stage_name)
+            query = query.where(PipelineStage.name == stage_name)
     if bucket is None:
         return query
     transferred = _lead_transferred_to_manager_exists(
@@ -638,7 +640,11 @@ def _apply_manager_thread_bucket(
     if bucket == "own":
         return query.where(~transferred)
     if bucket == "awaiting_reply":
+        # Клиент написал — менеджер ещё не ответил.
         return query.where(last_direction_sq == "in")
+    if bucket == "no_reply":
+        # Менеджер написал — клиент не ответил.
+        return query.where(last_direction_sq == "out")
     if bucket == "sold":
         return query.where(_lead_closed_sale_exists(Lead.id, company_id=company_id))
     return query
@@ -727,7 +733,7 @@ async def thread_bucket_counts(
     if term:
         base = _apply_thread_search(base, term=term)
 
-    # Чат-воронка (6 стадий) — основной UX и в clinic (admin/admin).
+    # Чат-воронка (стадии) + reply-бакеты для менеджера.
     out = ChatThreadBucketCounts(list_mode="sales")
     for key, _name in SALES_STAGE_KEYS:
         qcnt = _apply_manager_thread_bucket(
@@ -739,6 +745,17 @@ async def thread_bucket_counts(
             stage_key=key,
         )
         out.sales_stages[key] = int((await db.execute(qcnt)).scalar_one() or 0)
+
+    for reply_bucket in ("awaiting_reply", "no_reply"):
+        qcnt = _apply_manager_thread_bucket(
+            base,
+            bucket=reply_bucket,  # type: ignore[arg-type]
+            manager_id=current_user.id,
+            company_id=company_id,
+            last_direction_sq=last_direction_sq,
+            stage_key=None,
+        )
+        setattr(out, reply_bucket, int((await db.execute(qcnt)).scalar_one() or 0))
     return out
 
 
@@ -750,7 +767,7 @@ async def list_threads(
     q: str | None = Query(default=None, max_length=120),
     bucket: ChatThreadBucket | None = Query(
         default=None,
-        description="Вкладка для менеджера (клиника): transferred | own | awaiting_reply | sold",
+        description="Reply-бакет: awaiting_reply | no_reply | transferred | own | sold",
     ),
     stage_key: SalesStageKey | None = Query(
         default=None,
@@ -846,10 +863,10 @@ async def list_threads(
             last_direction_sq=last_direction_sq,
             stage_key=stage_key,
         )
-    elif is_owner_view and stage_key:
+    elif is_owner_view and (stage_key or bucket):
         query = _apply_manager_thread_bucket(
             query,
-            bucket=None,
+            bucket=bucket,
             manager_id=current_user.id,
             company_id=company_id,
             last_direction_sq=last_direction_sq,

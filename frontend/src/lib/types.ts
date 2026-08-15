@@ -136,7 +136,7 @@ export interface ChatThread {
   sale_paid_amount?: string | null;
 }
 
-export type ChatThreadBucket = "transferred" | "own" | "awaiting_reply" | "sold";
+export type ChatThreadBucket = "transferred" | "own" | "awaiting_reply" | "sold" | "no_reply";
 export type SalesStageKey = "new" | "in_progress" | "waiting" | "won" | "lost" | "archive";
 
 export interface ChatThreadBucketCounts {
@@ -144,6 +144,7 @@ export interface ChatThreadBucketCounts {
   own: number;
   awaiting_reply: number;
   sold: number;
+  no_reply?: number;
   list_mode?: "clinic" | "sales" | string;
   sales_stages?: Partial<Record<SalesStageKey, number>>;
 }

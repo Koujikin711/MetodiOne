@@ -374,6 +374,13 @@ const CHAT_BUCKET_TABS: { id: ChatThreadBucket; label: string; hint: string }[] 
   { id: "sold", label: "Проданные", hint: "Закрытые сделки" },
 ];
 
+/** Reply-очередь менеджера (поверх стадий воронки). */
+const REPLY_QUEUE_TABS: { id: ChatThreadBucket | "all"; label: string; hint: string }[] = [
+  { id: "all", label: "Все", hint: "Без фильтра по ответу" },
+  { id: "awaiting_reply", label: "Ждут ответа", hint: "Клиент написал — вы нет" },
+  { id: "no_reply", label: "Не ответили", hint: "Вы написали — клиент молчит" },
+];
+
 const SALES_STAGE_TABS: { id: SalesStageKey; label: string; hint: string }[] = [
   { id: "new", label: "Новый лид", hint: "Все входящие" },
   { id: "in_progress", label: "В обработке", hint: "Ответил менеджер" },
@@ -458,6 +465,8 @@ export function ChatPage() {
       : SALES_STAGE_TABS;
   const [chatBucket, setChatBucket] = useState<ChatThreadBucket>("own");
   const [salesStageKey, setSalesStageKey] = useState<SalesStageKey>("new");
+  /** Ждут ответа / Не ответили — поверх стадий для менеджера. */
+  const [replyQueue, setReplyQueue] = useState<ChatThreadBucket | "all">("awaiting_reply");
   const [statusOpen, setStatusOpen] = useState(false);
 
   useEffect(() => {
@@ -488,15 +497,23 @@ export function ChatPage() {
     queryKey: [
       "chat-threads",
       threadSearchDebounced,
-      salesChatMode ? `stage:${salesStageKey}` : showManagerChatBuckets ? chatBucket : "all",
+      salesChatMode
+        ? `stage:${salesStageKey}|reply:${replyQueue}`
+        : showManagerChatBuckets
+          ? chatBucket
+          : "all",
     ],
     initialPageParam: 0,
     queryFn: ({ pageParam }) => {
       const p = new URLSearchParams();
       if (threadSearchDebounced) p.set("q", threadSearchDebounced);
       if (showManagerChatBuckets) {
-        if (salesChatMode) p.set("stage_key", salesStageKey);
-        else p.set("bucket", chatBucket);
+        if (salesChatMode) {
+          p.set("stage_key", salesStageKey);
+          if (replyQueue !== "all") p.set("bucket", replyQueue);
+        } else {
+          p.set("bucket", chatBucket);
+        }
       }
       p.set("limit", String(THREADS_PAGE_SIZE));
       p.set("offset", String(pageParam));
@@ -975,6 +992,40 @@ export function ChatPage() {
             </div>
           ) : null}
 
+          {showManagerChatBuckets && salesChatMode ? (
+            <div className="mb-2 grid shrink-0 grid-cols-3 gap-1 max-lg:mb-1.5 sm:mb-3 sm:gap-1.5">
+              {REPLY_QUEUE_TABS.map((tab) => {
+                const active = replyQueue === tab.id;
+                const count =
+                  tab.id === "all"
+                    ? Object.values(bucketCountsQuery.data?.sales_stages ?? {}).reduce((a, b) => a + (b ?? 0), 0)
+                    : tab.id === "awaiting_reply"
+                      ? bucketCountsQuery.data?.awaiting_reply ?? 0
+                      : bucketCountsQuery.data?.no_reply ?? 0;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    data-reply-queue={tab.id}
+                    onClick={() => setReplyQueue(tab.id)}
+                    className={[
+                      "flex min-h-[44px] flex-col items-center justify-center rounded-lg border px-1 py-1.5 text-center transition sm:min-h-[56px] sm:rounded-xl",
+                      active ? "chat-bucket-tab is-active" : "chat-bucket-tab",
+                    ].join(" ")}
+                  >
+                    <span className="text-[9px] font-semibold uppercase tracking-wide lux-caption sm:text-[10px]">
+                      {tab.label}
+                    </span>
+                    <span className="mt-0.5 text-sm font-bold tabular-nums text-[var(--mo-text)] sm:text-lg">
+                      {count}
+                    </span>
+                    <span className="mt-0.5 hidden text-[9px] leading-tight text-[#8a96a3] sm:block">{tab.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
           <input
             value={threadSearch}
             onChange={(e) => setThreadSearch(e.target.value)}
@@ -982,9 +1033,11 @@ export function ChatPage() {
             className="mb-1.5 w-full shrink-0 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm text-[var(--mo-text)] placeholder:mo-muted max-lg:py-1.5 sm:mb-2"
           />
           <p className="mb-2 hidden text-[10px] leading-relaxed mo-muted sm:block">
-            {showManagerChatBuckets
-              ? "Вкладки фильтруют список. Внутри вкладки: зелёный — ждёт ответа · голубой — первые 3 дня · без заливки — старше."
-              : "Подсветка: зелёный — ждёт вашего ответа · голубой — первые 3 дня с первого сообщения · без заливки — старше."}
+            {showManagerChatBuckets && salesChatMode
+              ? "Стадии воронки сверху · снизу очередь ответов: Ждут ответа / Не ответили. Зелёный в списке — ждёт вашего ответа."
+              : showManagerChatBuckets
+                ? "Вкладки фильтруют список. Внутри вкладки: зелёный — ждёт ответа · голубой — первые 3 дня · без заливки — старше."
+                : "Подсветка: зелёный — ждёт вашего ответа · голубой — первые 3 дня с первого сообщения · без заливки — старше."}
           </p>
           {threadsQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
           {threadsQuery.isError && (
@@ -1054,7 +1107,13 @@ export function ChatPage() {
               <p className="text-sm mo-muted">
                 {showManagerChatBuckets
                   ? salesChatMode
-                    ? `Нет диалогов в «${stageTabs.find((t) => t.id === salesStageKey)?.label ?? salesStageKey}»`
+                    ? `Нет диалогов в «${stageTabs.find((t) => t.id === salesStageKey)?.label ?? salesStageKey}»${
+                        replyQueue === "awaiting_reply"
+                          ? " · Ждут ответа"
+                          : replyQueue === "no_reply"
+                            ? " · Не ответили"
+                            : ""
+                      }`
                     : chatBucket === "transferred"
                       ? "Нет переданных лидов"
                       : chatBucket === "own"
