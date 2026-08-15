@@ -112,7 +112,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "message-circle",
       });
     }
-    if (showBooking) {
+    if (showBooking && !showDeskSales) {
       items.push({
         id: "booking",
         to: "/booking",
@@ -153,8 +153,19 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
           iconKey: "wallet",
         },
       );
+      if (showBooking) {
+        items.push({
+          id: "booking-sales",
+          to: "/booking",
+          title: "Онлайн-запись",
+          labelShort: "Запись",
+          labelFull: "Онлайн-запись",
+          variant: "online",
+          iconKey: "calendar",
+        });
+      }
     }
-    if (showNavForFeature("crm")) {
+    if (showNavForFeature("crm") && !showDeskSales) {
       items.push(
         {
           id: "crm",
@@ -175,6 +186,10 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
           iconKey: "user-round",
         },
       );
+    }
+    if (showDeskSales && showNavForFeature("crm")) {
+      // В sales менеджер работает в чатах; канбан — у владельца.
+      // (чат уже добавлен выше)
     }
     if (showNavForFeature("tasks")) {
       items.push({

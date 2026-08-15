@@ -1,10 +1,18 @@
-"""Стандартные стадии новой воронки (имена совпадают с настройками онлайн-записи)."""
+"""Стандартные стадии новой воронки (клиника vs sales чат-канбан)."""
 
 from app.config import settings
 from app.schemas.pipeline import PipelineStageCreate
+from app.services.lead_sales_stages import SALES_CHAT_STAGE_SPECS
 
 
-def default_pipeline_stage_creates() -> list[PipelineStageCreate]:
+def default_pipeline_stage_creates(*, crm_mode: str | None = None) -> list[PipelineStageCreate]:
+    mode = (crm_mode or "clinic").strip().lower()
+    if mode == "sales":
+        return [
+            PipelineStageCreate(name=name, order=idx, color=color)
+            for idx, (name, color) in enumerate(SALES_CHAT_STAGE_SPECS)
+        ]
+
     specs: list[tuple[str, int, str]] = [
         ("Новый", 0, "#64748b"),
         (settings.booking_queue_stage_name, 1, "#6366f1"),

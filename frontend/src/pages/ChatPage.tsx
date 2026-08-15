@@ -1,14 +1,22 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
+import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl, resolveMediaUrl } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { formatMoney } from "@/lib/money";
-import type { ChatMessage, ChatThread, ChatThreadBucket, ChatThreadBucketCounts } from "@/lib/types";
+import type {
+  ChatMessage,
+  ChatThread,
+  ChatThreadBucket,
+  ChatThreadBucketCounts,
+  PipelineStage,
+  SalesStageKey,
+} from "@/lib/types";
 
 function threadPhoneForDisplay(t: ChatThread): string {
   const fromLead = displayPatientPhone({
@@ -351,6 +359,15 @@ const CHAT_BUCKET_TABS: { id: ChatThreadBucket; label: string; hint: string }[] 
   { id: "sold", label: "Проданные", hint: "Закрытые сделки" },
 ];
 
+const SALES_STAGE_TABS: { id: SalesStageKey; label: string; hint: string }[] = [
+  { id: "new", label: "Новый лид", hint: "Все входящие" },
+  { id: "in_progress", label: "В обработке", hint: "Ответил менеджер" },
+  { id: "waiting", label: "В ожидании", hint: "Ждём клиента" },
+  { id: "won", label: "Удачно", hint: "Продано / записано" },
+  { id: "lost", label: "Отказ", hint: "Отказ клиента" },
+  { id: "archive", label: "Архив", hint: "Закрытые итоги" },
+];
+
 function formatSaleMoney(raw: string | null | undefined): string {
   if (!raw) return "—";
   const n = Number(raw);
@@ -391,6 +408,7 @@ function threadRowClasses(t: ChatThread, selected: boolean) {
 
 export function ChatPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -410,8 +428,13 @@ export function ChatPage() {
   const [threadSearch, setThreadSearch] = useState("");
   const [threadSearchDebounced, setThreadSearchDebounced] = useState("");
   const userRole = decodeRoleFromToken(getStoredToken());
+  const meQuery = useCurrentUserMe();
+  const salesChatMode =
+    meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
   const showManagerChatBuckets = userRole === "manager" || userRole === "admin";
   const [chatBucket, setChatBucket] = useState<ChatThreadBucket>("own");
+  const [salesStageKey, setSalesStageKey] = useState<SalesStageKey>("new");
+  const [statusOpen, setStatusOpen] = useState(false);
 
   useChatRealtime(userRole === "manager" || userRole === "admin" || userRole === "owner");
 
@@ -433,12 +456,19 @@ export function ChatPage() {
   });
 
   const threadsQuery = useInfiniteQuery({
-    queryKey: ["chat-threads", threadSearchDebounced, showManagerChatBuckets ? chatBucket : "all"],
+    queryKey: [
+      "chat-threads",
+      threadSearchDebounced,
+      salesChatMode ? `stage:${salesStageKey}` : showManagerChatBuckets ? chatBucket : "all",
+    ],
     initialPageParam: 0,
     queryFn: ({ pageParam }) => {
       const p = new URLSearchParams();
       if (threadSearchDebounced) p.set("q", threadSearchDebounced);
-      if (showManagerChatBuckets) p.set("bucket", chatBucket);
+      if (showManagerChatBuckets) {
+        if (salesChatMode) p.set("stage_key", salesStageKey);
+        else p.set("bucket", chatBucket);
+      }
       p.set("limit", String(THREADS_PAGE_SIZE));
       p.set("offset", String(pageParam));
       return apiFetch<ChatThread[]>(`/api/chat/threads?${p.toString()}`);
@@ -503,6 +533,7 @@ export function ChatPage() {
   function closeChat() {
     setThreadId(null);
     setPinnedThread(null);
+    setStatusOpen(false);
   }
 
   const [text, setText] = useState("");
@@ -635,6 +666,48 @@ export function ChatPage() {
       void qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
       void qc.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const statusStagesPipelineId = activeThread?.pipeline_id ?? null;
+  const statusStagesQuery = useQuery({
+    queryKey: ["stages", statusStagesPipelineId, "chat-status"],
+    queryFn: () =>
+      apiFetch<PipelineStage[]>(
+        statusStagesPipelineId
+          ? `/api/stages?pipeline_id=${statusStagesPipelineId}`
+          : "/api/stages",
+      ),
+    enabled: Boolean(salesChatMode && statusOpen && statusStagesPipelineId),
+  });
+
+  const setLeadStatusMutation = useMutation({
+    mutationFn: async ({
+      leadId,
+      statusId,
+      stageName,
+    }: {
+      leadId: number;
+      statusId: number;
+      stageName: string;
+    }) => {
+      await apiFetch(`/api/leads/${leadId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status_id: statusId, assign_to_me: true }),
+      });
+      return { leadId, stageName };
+    },
+    onSuccess: ({ leadId, stageName }) => {
+      toast.success("Статус обновлён");
+      setStatusOpen(false);
+      void qc.invalidateQueries({ queryKey: ["chat-threads"] });
+      void qc.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+      if (salesChatMode && stageName.trim() === "Удачно") {
+        toast.success("Открываем онлайн-запись — выберите эксперта, дату и сумму");
+        navigate(`/booking?lead_id=${leadId}`);
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -828,11 +901,19 @@ export function ChatPage() {
           <div className="mb-2 hidden text-sm font-semibold text-[var(--mo-text)] sm:block">Диалоги</div>
 
           {showManagerChatBuckets ? (
-            <div className="mb-2 grid shrink-0 grid-cols-2 gap-1 max-lg:mb-1.5 sm:mb-3 sm:grid-cols-4 sm:gap-1.5">
-              {CHAT_BUCKET_TABS.map((tab) => {
-                const active = chatBucket === tab.id;
-                const count =
-                  tab.id === "transferred"
+            <div
+              className={[
+                "mb-2 grid shrink-0 gap-1 max-lg:mb-1.5 sm:mb-3 sm:gap-1.5",
+                salesChatMode ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-2 sm:grid-cols-4",
+              ].join(" ")}
+            >
+              {(salesChatMode ? SALES_STAGE_TABS : CHAT_BUCKET_TABS).map((tab) => {
+                const active = salesChatMode
+                  ? salesStageKey === tab.id
+                  : chatBucket === (tab.id as ChatThreadBucket);
+                const count = salesChatMode
+                  ? bucketCountsQuery.data?.sales_stages?.[tab.id as SalesStageKey] ?? 0
+                  : tab.id === "transferred"
                     ? bucketCountsQuery.data?.transferred ?? 0
                     : tab.id === "own"
                       ? bucketCountsQuery.data?.own ?? 0
@@ -845,7 +926,10 @@ export function ChatPage() {
                     key={tab.id}
                     type="button"
                     data-bucket={tab.id}
-                    onClick={() => setChatBucket(tab.id)}
+                    onClick={() => {
+                      if (salesChatMode) setSalesStageKey(tab.id as SalesStageKey);
+                      else setChatBucket(tab.id as ChatThreadBucket);
+                    }}
                     className={[
                       "flex min-h-[52px] flex-col items-center justify-center rounded-lg border px-1 py-1.5 text-center transition sm:min-h-[72px] sm:rounded-xl sm:py-2",
                       activeShell,
@@ -940,13 +1024,15 @@ export function ChatPage() {
             {!threadsQuery.isLoading && displayThreads.length === 0 && (
               <p className="text-sm mo-muted">
                 {showManagerChatBuckets
-                  ? chatBucket === "transferred"
-                    ? "Нет переданных лидов"
-                    : chatBucket === "own"
-                      ? "Нет ваших диалогов"
-                      : chatBucket === "sold"
-                        ? "Нет проданных пациентов"
-                        : "Нет диалогов, где ждут вашего ответа"
+                  ? salesChatMode
+                    ? `Нет диалогов в «${SALES_STAGE_TABS.find((t) => t.id === salesStageKey)?.label ?? salesStageKey}»`
+                    : chatBucket === "transferred"
+                      ? "Нет переданных лидов"
+                      : chatBucket === "own"
+                        ? "Нет ваших диалогов"
+                        : chatBucket === "sold"
+                          ? "Нет проданных пациентов"
+                          : "Нет диалогов, где ждут вашего ответа"
                   : "Пока нет диалогов"}
               </p>
             )}
@@ -1002,6 +1088,12 @@ export function ChatPage() {
                           <span className="text-xs font-normal lux-caption">Номер не указан</span>
                         )}
                       </div>
+                      {activeThread.lead_stage_name ? (
+                        <div className="mt-1 text-[11px] mo-muted sm:text-xs">
+                          Стадия:{" "}
+                          <span className="font-medium text-[var(--mo-text)]">{activeThread.lead_stage_name}</span>
+                        </div>
+                      ) : null}
                       {saleSummaryLine(activeThread) ? (
                         <div className="mt-1 text-xs font-medium text-[#5a3d7a] sm:text-sm">
                           {saleSummaryLine(activeThread)}
@@ -1026,6 +1118,16 @@ export function ChatPage() {
                     </>
                   ) : null}
                 </div>
+                {salesChatMode && activeThread?.lead_id ? (
+                  <button
+                    type="button"
+                    className="chat-thread-header-btn shrink-0"
+                    onClick={() => setStatusOpen((v) => !v)}
+                    title="Сменить стадию и взять лид на себя"
+                  >
+                    Статус
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="chat-thread-header-btn shrink-0"
@@ -1041,6 +1143,48 @@ export function ChatPage() {
                   </span>
                 </button>
               </div>
+
+              {statusOpen && salesChatMode && activeThread?.lead_id ? (
+                <div className="shrink-0 border-b border-[var(--mo-border)] py-2">
+                  <p className="mb-1.5 text-[11px] mo-muted">
+                    Стадия канбана + взять лид себе (распределение в чате)
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(statusStagesQuery.data ?? [])
+                      .slice()
+                      .sort((a, b) => a.order - b.order || a.id - b.id)
+                      .map((s) => {
+                        const current = activeThread.lead_status_id === s.id;
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            disabled={setLeadStatusMutation.isPending || current}
+                            onClick={() =>
+                              setLeadStatusMutation.mutate({
+                                leadId: Number(activeThread.lead_id),
+                                statusId: s.id,
+                                stageName: s.name,
+                              })
+                            }
+                            className={[
+                              "rounded-lg border px-2.5 py-1.5 text-xs transition",
+                              current
+                                ? "border-[var(--mo-accent,#2f5f85)] bg-[var(--mo-accent,#2f5f85)]/15 font-semibold text-[var(--mo-text)]"
+                                : "border-[var(--mo-border)] text-[var(--mo-text)] hover:bg-white/60 disabled:opacity-50",
+                            ].join(" ")}
+                            style={{ borderLeftWidth: 3, borderLeftColor: s.color }}
+                          >
+                            {s.name}
+                          </button>
+                        );
+                      })}
+                    {statusStagesQuery.isLoading ? (
+                      <span className="text-xs mo-muted">Загрузка стадий…</span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="flex min-h-0 flex-1 flex-col">
               <div ref={messagesScrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-0.5 py-2 lg:max-h-[56vh]">

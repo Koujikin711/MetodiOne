@@ -2008,9 +2008,19 @@ async def update_lead_status(
         )
 
     # MVP-валидация для переходов через drag-and-drop/ручное изменение статуса.
-    # Остальные действия (неявка/отказ/корзина/протокол) будут вынесены в отдельные endpoint'ы.
+    # В sales-пространстве менеджер меняет стадии из чата (кнопка «Статус»).
+    from app.services.crm_space import company_is_sales_mode
+
+    sales_mode = await company_is_sales_mode(db, company_id)
     allowed = False
-    if (
+    if sales_mode and current_user.role in (
+        UserRole.owner,
+        UserRole.admin,
+        UserRole.manager,
+        UserRole.super_owner,
+    ):
+        allowed = True
+    elif (
         current_user.role == UserRole.owner
         and from_stage.name == "Запись"
         and stage.name == "У эксперта"
@@ -2029,6 +2039,9 @@ async def update_lead_status(
             detail="Недопустимый переход статуса для текущей роли",
         )
 
+    if body.assign_to_me and current_user.role in (UserRole.manager, UserRole.admin):
+        lead.manager_id = current_user.id
+
     lead.status_id = body.status_id
     await db.flush()
     await _audit_lead(
@@ -2036,7 +2049,10 @@ async def update_lead_status(
         lead_id=lead.id,
         action="status_changed",
         current_user=current_user,
-        details=f"Смена стадии: {from_stage.name} -> {stage.name}",
+        details=(
+            f"Смена стадии: {from_stage.name} -> {stage.name}"
+            + ("; assign_to_me" if body.assign_to_me else "")
+        ),
     )
     await db.refresh(lead, ["stage"])
     read = await _lead_to_read_with_manager(db, lead, current_user)

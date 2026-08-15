@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
@@ -36,6 +36,7 @@ import type {
   Pipeline,
   PipelineStage,
   SalesKpiPriceHint,
+  Lead,
 } from "@/lib/types";
 
 type Tab = "online" | "journal";
@@ -119,9 +120,16 @@ function patientSuggestItemKey(item: BookingPatientSuggestItem): string {
 export function OnlineBookingPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const meQuery = useCurrentUserMe();
   const salesSpace =
     meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
+  const leadFromQuery = useMemo(() => {
+    const raw = searchParams.get("lead_id");
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }, [searchParams]);
   const [tab, setTab] = useState<Tab>("online");
   const [filterDate, setFilterDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalDate, setJournalDate] = useState(() => ymdInBookingTz(Date.now()));
@@ -164,6 +172,31 @@ export function OnlineBookingPage() {
   });
   const canEditBooking = !isExpert || Boolean(bookingViewerQuery.data?.is_chief_expert);
   const canEditDirectionStreams = currentRole === "owner" || currentRole === "admin";
+
+  useEffect(() => {
+    if (leadFromQuery == null || !canEditBooking) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const lead = await apiFetch<Lead>(`/api/leads/${leadFromQuery}`);
+        if (cancelled) return;
+        setLeadId(lead.id);
+        setPatientName((lead.name || "").trim());
+        setPatientPhone((lead.phone_display || lead.phone || "").trim());
+        toast.success("Данные лида подставлены — выберите эксперта, дату и сумму");
+        window.setTimeout(() => {
+          formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }, 120);
+      } catch (e) {
+        if (!cancelled) {
+          toast.error(e instanceof Error ? e.message : "Не удалось загрузить лида");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [leadFromQuery, canEditBooking]);
 
   const [specialistModalOpen, setSpecialistModalOpen] = useState(false);
   const [directionsPanelOpen, setDirectionsPanelOpen] = useState(false);
@@ -440,6 +473,11 @@ export function OnlineBookingPage() {
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics"] });
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      void queryClient.invalidateQueries({ queryKey: ["chat-threads"] });
+      void queryClient.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
+      if (salesSpace && typeof variables.lead_id === "number") {
+        navigate(`/chat?lead_id=${variables.lead_id}`, { replace: true });
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -874,9 +912,12 @@ export function OnlineBookingPage() {
       payload.lead_pipeline_id = newLeadPipelineId;
       payload.lead_stage_id = newLeadStageId;
     }
-    // Owner / admin воронки никогда не становятся ответственными за лид.
-    if (currentRole === "manager" && resolvedPaidAmount > 0 && currentUserId) {
+    // Менеджер всегда ставится ответственным — иначе полная оплата не попадёт в KPI.
+    if (currentRole === "manager" && currentUserId) {
       payload.responsible_manager_id = currentUserId;
+    } else if (currentRole === "manager" && resolvedPaidAmount > 0 && !currentUserId) {
+      toast.error("Не удалось определить ответственного менеджера автоматически");
+      return;
     }
     if (seriesBookingEnabled && consecutiveDays > 1) {
       payload.consecutive_days = consecutiveDays;
@@ -892,17 +933,13 @@ export function OnlineBookingPage() {
     </button>
   );
 
-  if (salesSpace) {
-    return <Navigate to="/sales" replace />;
-  }
-
   return (
     <div className="booking-page mo-page relative space-y-3">
       <header className="booking-page-header">
         <div className="booking-page-head">
           <div className="booking-page-brand">
-            <Link to="/app" className="booking-page-back">
-              ← К канбану
+            <Link to={salesSpace ? "/chat" : "/app"} className="booking-page-back">
+              {salesSpace ? "← К чатам" : "← К канбану"}
             </Link>
             <div className="booking-page-title-row">
               <h1 className="booking-page-title">Онлайн-записи</h1>
@@ -915,6 +952,12 @@ export function OnlineBookingPage() {
                 </div>
               ) : null}
             </div>
+            {salesSpace && leadId ? (
+              <p className="booking-page-note">
+                Статус «Удачно»: заполните эксперта, дату и сумму — лид уже выбран (#{leadId}
+                {patientName ? `, ${patientName}` : ""}).
+              </p>
+            ) : null}
             {isExpert ? (
               <p className="booking-page-note">
                 Главный эксперт видит всех специалистов воронки; иначе — только свою колонку.

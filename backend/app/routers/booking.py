@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 import re
-from typing import Annotated
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -72,17 +72,13 @@ async def _reject_sales_space_booking(
     db: Annotated[AsyncSession, Depends(get_db)],
     company_id: CurrentCompanyId,
 ) -> None:
-    if await company_is_sales_mode(db, company_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Онлайн-запись отключена в этом пространстве. Используйте раздел «Продажи».",
-        )
+    """Раньше sales полностью блокировал booking; теперь запись нужна для стадии «Удачно»."""
+    return
 
 
 router = APIRouter(
     prefix="/booking",
     tags=["booking"],
-    dependencies=[Depends(_reject_sales_space_booking)],
 )
 
 MAX_BOOKINGS_PER_SPECIALIST_DAY = 15
@@ -574,6 +570,26 @@ async def _sync_lead_to_stage_name(db: AsyncSession, lead_id: int, stage_name: s
     lead.status_id = sid
     await db.flush()
     await process_lead_automation(db, lead_id, sid)
+
+
+async def _sync_lead_after_booking_event(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    lead_id: int,
+    event: Literal["booked", "completed", "lost"],
+) -> None:
+    """Клиника: Запись / Успешно реализован / Потерян. Sales: Удачно / Архив / Отказ."""
+    sales = await company_is_sales_mode(db, company_id)
+    if sales:
+        name = {"booked": "Удачно", "completed": "Архив", "lost": "Отказ"}[event]
+    else:
+        name = {
+            "booked": settings.booking_stage_after_book,
+            "completed": settings.booking_stage_completed,
+            "lost": settings.booking_stage_lost,
+        }[event]
+    await _sync_lead_to_stage_name(db, lead_id, name)
 
 
 @router.get("/queue", response_model=list[LeadRead])
@@ -1713,6 +1729,13 @@ async def create_appointment(
         appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
         if lead.manager_id is not None:
             resolved_manager_id = lead.manager_id
+        elif (
+            resolved_manager_id is None
+            and current_user.role == UserRole.manager
+        ):
+            resolved_manager_id = current_user.id
+            if lead.manager_id is None:
+                lead.manager_id = current_user.id
     else:
         lead_id = await _upsert_lead_for_appointment(
             db,
@@ -1826,7 +1849,9 @@ async def create_appointment(
         created_appts.append(appt)
 
     if lead_id is not None:
-        await _sync_lead_to_stage_name(db, lead_id, settings.booking_stage_after_book)
+        await _sync_lead_after_booking_event(
+            db, company_id=company_id, lead_id=lead_id, event="booked",
+        )
 
     if created_appts:
         wa_sent = await send_booking_confirmation_if_needed(db, appointment=created_appts[0])
@@ -2005,9 +2030,13 @@ async def patch_appointment_status(
 
     if a.lead_id is not None:
         if body.status == "completed":
-            await _sync_lead_to_stage_name(db, a.lead_id, settings.booking_stage_completed)
+            await _sync_lead_after_booking_event(
+                db, company_id=company_id, lead_id=a.lead_id, event="completed",
+            )
         elif body.status in ("no_show", "cancelled"):
-            await _sync_lead_to_stage_name(db, a.lead_id, settings.booking_stage_lost)
+            await _sync_lead_after_booking_event(
+                db, company_id=company_id, lead_id=a.lead_id, event="lost",
+            )
 
     direction = await db.get(BookingDirection, a.direction_id)
     specialist = await db.get(BookingSpecialist, a.specialist_id)
@@ -2123,6 +2152,22 @@ async def patch_appointment_payment(
 
     target.paid_amount = new_paid
     target.updated_at = datetime.now(UTC)
+    # Чтобы полная оплата попала в KPI менеджера — нужен responsible_manager_id.
+    if target.responsible_manager_id is None:
+        mid: int | None = None
+        lead = None
+        if target.lead_id is not None:
+            lead = await db.get(Lead, int(target.lead_id))
+            if lead is not None and lead.manager_id is not None:
+                mgr = await db.get(User, int(lead.manager_id))
+                if mgr is not None and mgr.role == UserRole.manager and mgr.company_id == company_id:
+                    mid = int(lead.manager_id)
+        if mid is None and current_user.role == UserRole.manager:
+            mid = int(current_user.id)
+            if lead is not None and lead.manager_id is None:
+                lead.manager_id = mid
+        if mid is not None:
+            target.responsible_manager_id = mid
     await db.flush()
     await write_audit_event(
         db,
@@ -2133,7 +2178,8 @@ async def patch_appointment_payment(
         details=(
             f"session_billing={session_billing}; from_appointment_id={appt.id}; "
             f"prev_paid={prev_paid}; add_payment={body.add_payment}; "
-            f"paid_amount={body.paid_amount}; new_paid={new_paid}"
+            f"paid_amount={body.paid_amount}; new_paid={new_paid}; "
+            f"responsible_manager_id={target.responsible_manager_id}"
         ),
     )
 

@@ -16,6 +16,10 @@ class LeadCreate(BaseModel):
 
 class LeadStatusUpdate(BaseModel):
     status_id: int = Field(..., ge=1)
+    assign_to_me: bool = Field(
+        default=False,
+        description="Взять лид на себя (менеджер из чата / распределение).",
+    )
 
 
 class LeadUpdate(BaseModel):

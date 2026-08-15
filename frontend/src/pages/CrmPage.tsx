@@ -42,8 +42,8 @@ function leadDraggableId(leadId: number) {
   return `lead-${leadId}`;
 }
 
-/** Совпадает с бэкендом `default_pipeline_stages` (имена для онлайн-записи задаются в .env API). */
-const DEFAULT_AUTO_PIPELINE_STAGES: Array<{ name: string; color: string }> = [
+/** Совпадает с бэкендом `default_pipeline_stages` (клиника). Sales — 6 чат-стадий. */
+const DEFAULT_CLINIC_PIPELINE_STAGES: Array<{ name: string; color: string }> = [
   { name: "Новый", color: "#64748b" },
   { name: "Квалифицирован", color: "#6366f1" },
   { name: "Запись", color: "#8b5cf6" },
@@ -55,8 +55,20 @@ const DEFAULT_AUTO_PIPELINE_STAGES: Array<{ name: string; color: string }> = [
   { name: "Потерян", color: "#ef4444" },
 ];
 
-function cloneDefaultStages() {
-  return DEFAULT_AUTO_PIPELINE_STAGES.map((s) => ({ name: s.name, color: s.color }));
+const DEFAULT_SALES_PIPELINE_STAGES: Array<{ name: string; color: string }> = [
+  { name: "Новый лид", color: "#64748b" },
+  { name: "В обработке", color: "#0ea5e9" },
+  { name: "В ожидании", color: "#f59e0b" },
+  { name: "Удачно", color: "#22c55e" },
+  { name: "Отказ", color: "#ef4444" },
+  { name: "Архив", color: "#78716c" },
+];
+
+const DEFAULT_AUTO_PIPELINE_STAGES = DEFAULT_CLINIC_PIPELINE_STAGES;
+
+function cloneDefaultStages(sales = false) {
+  const src = sales ? DEFAULT_SALES_PIPELINE_STAGES : DEFAULT_CLINIC_PIPELINE_STAGES;
+  return src.map((s) => ({ name: s.name, color: s.color }));
 }
 
 /** Возраст лида в днях (для подписи на карточке). */
@@ -538,13 +550,23 @@ function KanbanColumn({
 
 export function CrmPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const currentRole = useMemo(() => decodeRoleFromToken(getStoredToken()), []);
   const meQuery = useCurrentUserMe();
+  const salesSpace =
+    meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
   const isCompanyAdmin =
     currentRole === "owner" ||
     currentRole === "admin" ||
     (currentRole === "expert" && Boolean(meQuery.data?.is_chief_expert));
+
+  useEffect(() => {
+    if (!salesSpace) return;
+    if (currentRole === "manager" || currentRole === "admin") {
+      navigate("/chat", { replace: true });
+    }
+  }, [salesSpace, currentRole, navigate]);
 
   const refreshAll = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["leads"] });
@@ -632,11 +654,16 @@ export function CrmPage() {
   const [createStageOpen, setCreateStageOpen] = useState(false);
   const [newStageName, setNewStageName] = useState("");
   const [newStageColor, setNewStageColor] = useState("#6366f1");
+  const [newStageAutoMode, setNewStageAutoMode] = useState<"off" | "task">("off");
+  const [newStageTaskTitle, setNewStageTaskTitle] = useState("");
+  const [stageEditorId, setStageEditorId] = useState<number | null>(null);
   const [pipeName, setPipeName] = useState("");
   const [pipeType, setPipeType] = useState("sales");
   const [pipeExpertUserId, setPipeExpertUserId] = useState<number | "">("");
   const [useCustomPipelineStages, setUseCustomPipelineStages] = useState(false);
-  const [pipeStages, setPipeStages] = useState<Array<{ name: string; color: string }>>(() => cloneDefaultStages());
+  const [pipeStages, setPipeStages] = useState<Array<{ name: string; color: string }>>(() =>
+    cloneDefaultStages(false),
+  );
 
   async function submitCreatePipeline() {
     if (!pipeName.trim()) {
@@ -672,7 +699,7 @@ export function CrmPage() {
       setPipeType("sales");
       setPipeExpertUserId("");
       setUseCustomPipelineStages(false);
-      setPipeStages(cloneDefaultStages());
+      setPipeStages(cloneDefaultStages(salesSpace));
       void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Не удалось создать воронку");
@@ -695,12 +722,16 @@ export function CrmPage() {
           name: newStageName.trim(),
           color: newStageColor,
           pipeline_id: pipelineId,
+          on_enter_create_task: newStageAutoMode === "task",
+          on_enter_task_title: newStageTaskTitle.trim() || null,
         }),
       });
       toast.success("Стадия создана");
       setCreateStageOpen(false);
       setNewStageName("");
       setNewStageColor("#6366f1");
+      setNewStageAutoMode("off");
+      setNewStageTaskTitle("");
       void queryClient.invalidateQueries({ queryKey: ["stages", pipelineId] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Не удалось создать стадию");
@@ -793,6 +824,30 @@ export function CrmPage() {
       void queryClient.invalidateQueries({ queryKey: ["stages"] });
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
       void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const patchStageMutation = useMutation({
+    mutationFn: async ({ id, patch }: { id: number; patch: Record<string, unknown> }) =>
+      apiFetch<PipelineStage>(`/api/stages/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["stages"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const reorderStagesMutation = useMutation({
+    mutationFn: async ({ pipeline_id, stage_ids }: { pipeline_id: number; stage_ids: number[] }) =>
+      apiFetch<PipelineStage[]>("/api/stages/reorder", {
+        method: "POST",
+        body: JSON.stringify({ pipeline_id, stage_ids }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["stages"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1094,6 +1149,25 @@ export function CrmPage() {
     return [...stagesQuery.data].sort((a, b) => a.order - b.order || a.id - b.id);
   }, [stagesQuery.data]);
 
+  function moveStage(stageId: number, direction: -1 | 1) {
+    if (!pipelineId) return;
+    const ids = sortedStages.map((s) => s.id);
+    const idx = ids.indexOf(stageId);
+    const next = idx + direction;
+    if (idx < 0 || next < 0 || next >= ids.length) return;
+    const reordered = [...ids];
+    const tmp = reordered[idx]!;
+    reordered[idx] = reordered[next]!;
+    reordered[next] = tmp;
+    reorderStagesMutation.mutate({ pipeline_id: pipelineId, stage_ids: reordered });
+  }
+
+  function stageAutoMode(s: PipelineStage): "legacy" | "off" | "task" {
+    if (s.on_enter_create_task === true) return "task";
+    if (s.on_enter_create_task === false) return "off";
+    return "legacy";
+  }
+
   const leadsForBoard = useMemo(() => {
     const q = boardSearchDebounced.trim().toLowerCase();
     if (!q) return leads;
@@ -1276,7 +1350,7 @@ export function CrmPage() {
                 type="button"
                 onClick={() => {
                   setUseCustomPipelineStages(false);
-                  setPipeStages(cloneDefaultStages());
+                  setPipeStages(cloneDefaultStages(salesSpace));
                   setCreatePipelineOpen(true);
                 }}
                 className="crm-pill-btn"
@@ -1402,6 +1476,10 @@ export function CrmPage() {
             {pipelineId != null && sortedStages.length > 0 && (
               <div className="mt-3 rounded-xl border border-[#d8d2c6] bg-[#faf8f4] p-4">
                 <div className="text-sm font-semibold text-[#1e3348]">Стадии этой воронки</div>
+                <p className="mt-1 text-xs mo-muted">
+                  Переименуйте, поменяйте порядок и настройте задачу при входе лида в стадию.
+                  Режим «Авто» — прежнее правило по имени («Оплачено», успешная сделка, последний этап).
+                </p>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <button
                     type="button"
@@ -1415,24 +1493,174 @@ export function CrmPage() {
                   </button>
                 </div>
                 <ul className="mt-2 divide-y divide-[#e8e2d8]">
-                  {sortedStages.map((s) => (
-                    <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                      <span className="text-[#5c6b7a]">
-                        <span className="font-mono text-xs text-[#8a96a3]">{s.id}</span> · {s.name}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={deleteStageMutation.isPending}
-                        onClick={() => {
-                          if (!window.confirm(`Удалить стадию «${s.name}»?`)) return;
-                          deleteStageMutation.mutate(s.id);
-                        }}
-                        className={`${theme.btnDanger} px-2 py-1 text-xs disabled:opacity-50`}
-                      >
-                        Удалить
-                      </button>
-                    </li>
-                  ))}
+                  {sortedStages.map((s, idx) => {
+                    const open = stageEditorId === s.id;
+                    const mode = stageAutoMode(s);
+                    return (
+                      <li key={s.id} className="py-2 text-sm">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className="inline-block h-3 w-3 shrink-0 rounded-full border border-[#d8d2c6]"
+                            style={{ background: s.color }}
+                            aria-hidden
+                          />
+                          <input
+                            value={s.name}
+                            onChange={(e) => {
+                              const name = e.target.value;
+                              queryClient.setQueryData<PipelineStage[]>(["stages", pipelineId], (prev) =>
+                                (prev ?? []).map((x) => (x.id === s.id ? { ...x, name } : x)),
+                              );
+                            }}
+                            onBlur={(e) => {
+                              const name = e.target.value.trim();
+                              if (!name) {
+                                void queryClient.invalidateQueries({ queryKey: ["stages", pipelineId] });
+                                return;
+                              }
+                              patchStageMutation.mutate({ id: s.id, patch: { name } });
+                            }}
+                            className="mo-input min-w-[8rem] flex-1 py-1 text-sm"
+                            aria-label="Название стадии"
+                          />
+                          <input
+                            type="color"
+                            value={s.color}
+                            onChange={(e) => {
+                              const color = e.target.value;
+                              queryClient.setQueryData<PipelineStage[]>(["stages", pipelineId], (prev) =>
+                                (prev ?? []).map((x) => (x.id === s.id ? { ...x, color } : x)),
+                              );
+                              patchStageMutation.mutate({ id: s.id, patch: { color } });
+                            }}
+                            className="h-8 w-10 rounded border border-[#d8d2c6] bg-transparent"
+                            aria-label="Цвет стадии"
+                          />
+                          <button
+                            type="button"
+                            disabled={idx === 0 || reorderStagesMutation.isPending}
+                            onClick={() => moveStage(s.id, -1)}
+                            className="rounded border border-[#d8d2c6] px-2 py-1 text-xs disabled:opacity-40"
+                            title="Выше"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === sortedStages.length - 1 || reorderStagesMutation.isPending}
+                            onClick={() => moveStage(s.id, 1)}
+                            className="rounded border border-[#d8d2c6] px-2 py-1 text-xs disabled:opacity-40"
+                            title="Ниже"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStageEditorId(open ? null : s.id)}
+                            className="rounded border border-[#d8d2c6] px-2 py-1 text-xs"
+                          >
+                            {mode === "task" ? "Задача" : mode === "off" ? "Авто выкл" : "Авто"} ·{" "}
+                            {open ? "Скрыть" : "Правило"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deleteStageMutation.isPending}
+                            onClick={() => {
+                              if (!window.confirm(`Удалить стадию «${s.name}»?`)) return;
+                              deleteStageMutation.mutate(s.id);
+                            }}
+                            className={`${theme.btnDanger} px-2 py-1 text-xs disabled:opacity-50`}
+                          >
+                            Удалить
+                          </button>
+                        </div>
+                        {open && (
+                          <div className="mt-2 grid gap-2 rounded-lg border border-[#e8e2d8] bg-white/70 p-3">
+                            <label className="text-xs mo-muted">
+                              При входе лида в стадию
+                              <select
+                                value={mode}
+                                onChange={(e) => {
+                                  const v = e.target.value as "legacy" | "off" | "task";
+                                  const on_enter_create_task =
+                                    v === "task" ? true : v === "off" ? false : null;
+                                  queryClient.setQueryData<PipelineStage[]>(["stages", pipelineId], (prev) =>
+                                    (prev ?? []).map((x) =>
+                                      x.id === s.id ? { ...x, on_enter_create_task } : x,
+                                    ),
+                                  );
+                                  patchStageMutation.mutate({
+                                    id: s.id,
+                                    patch: { on_enter_create_task },
+                                  });
+                                }}
+                                className="mo-input mt-1 w-full py-1.5 text-sm"
+                              >
+                                <option value="legacy">Авто (по имени / последний этап)</option>
+                                <option value="task">Создать задачу менеджеру</option>
+                                <option value="off">Выключить</option>
+                              </select>
+                            </label>
+                            {mode === "task" && (
+                              <>
+                                <label className="text-xs mo-muted">
+                                  Заголовок задачи
+                                  <input
+                                    defaultValue={s.on_enter_task_title ?? ""}
+                                    placeholder="Подключить услуги и проверить оплату"
+                                    onBlur={(e) => {
+                                      const title = e.target.value.trim() || null;
+                                      if (title === (s.on_enter_task_title || null)) return;
+                                      patchStageMutation.mutate({
+                                        id: s.id,
+                                        patch: { on_enter_task_title: title },
+                                      });
+                                    }}
+                                    className="mo-input mt-1 w-full py-1.5 text-sm"
+                                  />
+                                </label>
+                                <label className="text-xs mo-muted">
+                                  Описание
+                                  <textarea
+                                    defaultValue={s.on_enter_task_description ?? ""}
+                                    rows={2}
+                                    onBlur={(e) => {
+                                      const description = e.target.value.trim() || null;
+                                      if (description === (s.on_enter_task_description || null)) return;
+                                      patchStageMutation.mutate({
+                                        id: s.id,
+                                        patch: { on_enter_task_description: description },
+                                      });
+                                    }}
+                                    className="mo-input mt-1 w-full py-1.5 text-sm"
+                                  />
+                                </label>
+                                <label className="text-xs mo-muted">
+                                  Дедлайн, часов
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={720}
+                                    defaultValue={s.on_enter_task_deadline_hours ?? 24}
+                                    onBlur={(e) => {
+                                      const n = Number(e.target.value);
+                                      const hours = Number.isFinite(n) ? Math.min(720, Math.max(1, Math.round(n))) : 24;
+                                      if (hours === (s.on_enter_task_deadline_hours ?? 24)) return;
+                                      patchStageMutation.mutate({
+                                        id: s.id,
+                                        patch: { on_enter_task_deadline_hours: hours },
+                                      });
+                                    }}
+                                    className="mo-input mt-1 w-28 py-1.5 text-sm"
+                                  />
+                                </label>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
                 {pipelinesQuery.data && pipelinesQuery.data.length > 1 && selectedPipelineForSettings && (
                   <div className="mt-4 space-y-3 border-t border-[#e8e2d8] pt-3">
@@ -1628,20 +1856,24 @@ export function CrmPage() {
                     onChange={(e) => {
                       const on = e.target.checked;
                       setUseCustomPipelineStages(on);
-                      if (on) setPipeStages(cloneDefaultStages());
+                      if (on) setPipeStages(cloneDefaultStages(salesSpace));
                     }}
                   />
                   <span>
                     <span className="font-medium">Задать стадии вручную</span>
                     <span className="mt-1 block text-xs font-normal mo-muted">
-                      По умолчанию сервер создаёт стандартный набор из {DEFAULT_AUTO_PIPELINE_STAGES.length}{" "}
-                      стадий (совместим с онлайн-записью).
+                      По умолчанию сервер создаёт стандартный набор из{" "}
+                      {(salesSpace ? DEFAULT_SALES_PIPELINE_STAGES : DEFAULT_CLINIC_PIPELINE_STAGES).length}{" "}
+                      стадий
+                      {salesSpace ? " (чат-воронка продаж)." : " (совместим с онлайн-записью)."}
                     </span>
                   </span>
                 </label>
                 {!useCustomPipelineStages && (
                   <p className="mt-2 text-xs leading-relaxed lux-caption">
-                    {DEFAULT_AUTO_PIPELINE_STAGES.map((s) => s.name).join(" → ")}
+                    {(salesSpace ? DEFAULT_SALES_PIPELINE_STAGES : DEFAULT_CLINIC_PIPELINE_STAGES)
+                      .map((s) => s.name)
+                      .join(" → ")}
                   </p>
                 )}
               </div>
@@ -1754,6 +1986,28 @@ export function CrmPage() {
                   className="mt-1 h-10 w-16 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)]"
                 />
               </label>
+              <label className="text-sm mo-muted">
+                При входе лида
+                <select
+                  value={newStageAutoMode}
+                  onChange={(e) => setNewStageAutoMode(e.target.value as "off" | "task")}
+                  className="mo-input mt-1 w-full"
+                >
+                  <option value="off">Без автоматизации</option>
+                  <option value="task">Создать задачу менеджеру</option>
+                </select>
+              </label>
+              {newStageAutoMode === "task" && (
+                <label className="text-sm mo-muted">
+                  Заголовок задачи
+                  <input
+                    value={newStageTaskTitle}
+                    onChange={(e) => setNewStageTaskTitle(e.target.value)}
+                    placeholder="Подключить услуги и проверить оплату"
+                    className="mo-input mt-1 w-full"
+                  />
+                </label>
+              )}
               <button
                 type="button"
                 onClick={() => void submitCreateStage()}

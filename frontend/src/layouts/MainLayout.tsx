@@ -91,9 +91,8 @@ export function MainLayout() {
   const showKpi = role === "owner" || role === "super_owner" || role === "manager" || role === "admin";
   const crmMode = meQuery.data?.crm_mode;
   const salesSpace = crmMode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
-  // Пока /me не загрузился — не показываем онлайн-запись (иначе мелькает меню клиники).
-  const bookingEnabled =
-    meQuery.isSuccess && !salesSpace && meQuery.data?.booking_enabled !== false;
+  // Онлайн-запись доступна и в sales (стадия «Удачно» → форма записи).
+  const bookingEnabled = meQuery.isSuccess && meQuery.data?.booking_enabled !== false;
   const deskSalesEnabled = salesSpace;
   const { showNavForFeature } = useTariffNavAccess();
   const { expanded: sidebarExpanded, toggle: toggleSidebar } = useShellSidebarExpanded();
@@ -207,20 +206,48 @@ export function MainLayout() {
             </>
           ) : deskSalesEnabled && (isManagerLikeNav || !isExpert) ? (
             <>
-              <NavIf show={showNavForFeature("crm")}>
+              <NavIf show={showNavForFeature("chat")}>
                 <NavLink
                   preventScrollReset
-                  to={isManagerLikeNav ? "/crm" : "/app"}
-                  end={!isManagerLikeNav}
+                  to="/chat"
                   className={salesMobileBottomNavLinkClass}
-                  title={isManagerLikeNav ? navLex.navKanbanTitle : navLex.navOwnerHomeTitle}
+                  title="Чаты"
                 >
-                  <GradientIconBox variant="crm" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
-                    <Funnel className="h-3.5 w-3.5" />
+                  <GradientIconBox variant="tasks" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
+                    <MessageCircle className="h-3.5 w-3.5" />
                   </GradientIconBox>
-                  <span className="max-w-full truncate text-[9px] leading-tight">CRM</span>
+                  <span className="max-w-full truncate text-[9px] leading-tight">Чаты</span>
                 </NavLink>
               </NavIf>
+              <NavIf show={bookingEnabled && showNavForFeature("booking")}>
+                <NavLink
+                  preventScrollReset
+                  to="/booking"
+                  className={salesMobileBottomNavLinkClass}
+                  title="Онлайн-запись"
+                >
+                  <GradientIconBox variant="tasks" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                  </GradientIconBox>
+                  <span className="max-w-full truncate text-[9px] leading-tight">Запись</span>
+                </NavLink>
+              </NavIf>
+              {!isManagerLikeNav ? (
+                <NavIf show={showNavForFeature("crm")}>
+                  <NavLink
+                    preventScrollReset
+                    to="/crm"
+                    end={false}
+                    className={salesMobileBottomNavLinkClass}
+                    title={navLex.navKanbanTitle}
+                  >
+                    <GradientIconBox variant="crm" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
+                      <Funnel className="h-3.5 w-3.5" />
+                    </GradientIconBox>
+                    <span className="max-w-full truncate text-[9px] leading-tight">CRM</span>
+                  </NavLink>
+                </NavIf>
+              ) : null}
               <NavLink
                 preventScrollReset
                 to="/quote"

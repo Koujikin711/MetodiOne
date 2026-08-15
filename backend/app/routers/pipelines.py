@@ -18,6 +18,7 @@ from app.services.close_pipeline import (
     safe_filename_part,
 )
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
+from app.services.crm_space import get_company_crm_mode
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.phone_match import parse_allowed_phones_json, serialize_allowed_phones
 from app.services.stage_delete_checks import pipeline_delete_block_reason
@@ -157,7 +158,9 @@ async def create_pipeline(
     db.add(pipe)
     await db.flush()
 
-    stages_to_add = list(body.stages) if body.stages else default_pipeline_stage_creates()
+    stages_to_add = list(body.stages) if body.stages else default_pipeline_stage_creates(
+        crm_mode=await get_company_crm_mode(db, company_id),
+    )
     for idx, st in enumerate(stages_to_add):
         db.add(
             PipelineStage(

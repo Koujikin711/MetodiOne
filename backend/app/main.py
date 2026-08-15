@@ -33,6 +33,7 @@ from app.database_migrate import (
     ensure_booking_specialist_directions,
     ensure_sales_crm_space_migration,
     ensure_sales_field_visits_migration,
+    ensure_pipeline_stage_automation,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -129,6 +130,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_booking_specialist_directions(conn, db_url)
                 await ensure_sales_crm_space_migration(conn, db_url)
                 await ensure_sales_field_visits_migration(conn, db_url)
+                await ensure_pipeline_stage_automation(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
@@ -296,7 +298,7 @@ SALES_OWNER_PASSWORD = "D711711"
 
 
 async def seed_sales_crm_space() -> None:
-    """Второе изолированное CRM-пространство без онлайн-записи: admin / D711711."""
+    """Второе изолированное CRM-пространство продаж: admin / D711711 (+ онлайн-запись для «Удачно»)."""
     async with AsyncSessionLocal() as session:
         company = (
             await session.execute(select(Company).where(Company.name == SALES_COMPANY_NAME).limit(1))
@@ -327,7 +329,7 @@ async def seed_sales_crm_space() -> None:
             pipe = Pipeline(name="Основная", type="sales", company_id=cid)
             session.add(pipe)
             await session.flush()
-            for st in default_pipeline_stage_creates():
+            for st in default_pipeline_stage_creates(crm_mode="sales"):
                 session.add(
                     PipelineStage(
                         name=st.name,
@@ -335,6 +337,57 @@ async def seed_sales_crm_space() -> None:
                         color=st.color,
                         pipeline_id=pipe.id,
                         company_id=cid,
+                    ),
+                )
+        else:
+            from app.services.lead_sales_stages import ensure_sales_pipeline_chat_stages
+
+            await ensure_sales_pipeline_chat_stages(session, company_id=cid, pipeline_id=int(pipe.id))
+
+        # Онлайн-запись для стадии «Удачно»: направление + специалист-заглушка при пустой базе.
+        has_dir = (
+            await session.execute(
+                select(BookingDirection.id).where(BookingDirection.company_id == cid).limit(1),
+            )
+        ).scalar_one_or_none()
+        if has_dir is None:
+            d = BookingDirection(
+                name="Консультация",
+                duration_min=30,
+                is_active=True,
+                company_id=cid,
+                pipeline_id=int(pipe.id),
+            )
+            session.add(d)
+            await session.flush()
+            session.add(
+                BookingSpecialist(
+                    full_name="Специалист (пример)",
+                    company_id=cid,
+                    direction_id=d.id,
+                    phone=None,
+                    is_active=True,
+                    specialization="Эксперт",
+                ),
+            )
+        else:
+            existing_dir = await session.get(BookingDirection, int(has_dir))
+            if existing_dir is not None and existing_dir.pipeline_id is None:
+                existing_dir.pipeline_id = int(pipe.id)
+            has_spec = (
+                await session.execute(
+                    select(BookingSpecialist.id).where(BookingSpecialist.company_id == cid).limit(1),
+                )
+            ).scalar_one_or_none()
+            if has_spec is None:
+                session.add(
+                    BookingSpecialist(
+                        full_name="Специалист (пример)",
+                        company_id=cid,
+                        direction_id=int(has_dir),
+                        phone=None,
+                        is_active=True,
+                        specialization="Эксперт",
                     ),
                 )
 
