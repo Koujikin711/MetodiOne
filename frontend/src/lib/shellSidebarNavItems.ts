@@ -153,6 +153,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
           iconKey: "wallet",
         },
       );
+      if (showBooking) {
+        items.push({
+          id: "booking-sales",
+          to: "/booking",
+          title: "Онлайн-запись",
+          labelShort: "Запись",
+          labelFull: "Онлайн-запись",
+          variant: "online",
+          iconKey: "calendar",
+        });
+      }
     }
     if (showNavForFeature("crm") && !showDeskSales) {
       items.push(

@@ -298,7 +298,7 @@ SALES_OWNER_PASSWORD = "D711711"
 
 
 async def seed_sales_crm_space() -> None:
-    """Второе изолированное CRM-пространство без онлайн-записи: admin / D711711."""
+    """Второе изолированное CRM-пространство продаж: admin / D711711 (+ онлайн-запись для «Удачно»)."""
     async with AsyncSessionLocal() as session:
         company = (
             await session.execute(select(Company).where(Company.name == SALES_COMPANY_NAME).limit(1))
@@ -343,6 +343,45 @@ async def seed_sales_crm_space() -> None:
             from app.services.lead_sales_stages import ensure_sales_pipeline_chat_stages
 
             await ensure_sales_pipeline_chat_stages(session, company_id=cid, pipeline_id=int(pipe.id))
+
+        # Онлайн-запись для стадии «Удачно»: направление + специалист-заглушка при пустой базе.
+        has_dir = (
+            await session.execute(
+                select(BookingDirection.id).where(BookingDirection.company_id == cid).limit(1),
+            )
+        ).scalar_one_or_none()
+        if has_dir is None:
+            d = BookingDirection(name="Консультация", duration_min=30, is_active=True, company_id=cid)
+            session.add(d)
+            await session.flush()
+            session.add(
+                BookingSpecialist(
+                    full_name="Специалист (пример)",
+                    company_id=cid,
+                    direction_id=d.id,
+                    phone=None,
+                    is_active=True,
+                    specialization="Эксперт",
+                ),
+            )
+        else:
+            has_spec = (
+                await session.execute(
+                    select(BookingSpecialist.id).where(BookingSpecialist.company_id == cid).limit(1),
+                )
+            ).scalar_one_or_none()
+            if has_spec is None:
+                session.add(
+                    BookingSpecialist(
+                        full_name="Специалист (пример)",
+                        company_id=cid,
+                        direction_id=int(has_dir),
+                        phone=None,
+                        is_active=True,
+                        specialization="Эксперт",
+                    ),
+                )
+
         defaults = ["GREEN API", "WHATSAPP", "INSTAGRAM", "TELEGRAM", "GOOGLE SHEETS"]
         existing = (
             await session.execute(

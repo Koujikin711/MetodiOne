@@ -223,7 +223,7 @@ async def me(
         is_chief_expert=chief,
         crm_mode=crm_mode,
         company_name=company_name,
-        booking_enabled=not sales,
+        booking_enabled=True,
         desk_sales_enabled=sales,
     )
 

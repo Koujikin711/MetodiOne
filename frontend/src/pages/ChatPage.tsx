@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
@@ -408,6 +408,7 @@ function threadRowClasses(t: ChatThread, selected: boolean) {
 
 export function ChatPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -682,17 +683,31 @@ export function ChatPage() {
   });
 
   const setLeadStatusMutation = useMutation({
-    mutationFn: async ({ leadId, statusId }: { leadId: number; statusId: number }) =>
-      apiFetch(`/api/leads/${leadId}/status`, {
+    mutationFn: async ({
+      leadId,
+      statusId,
+      stageName,
+    }: {
+      leadId: number;
+      statusId: number;
+      stageName: string;
+    }) => {
+      await apiFetch(`/api/leads/${leadId}/status`, {
         method: "PATCH",
         body: JSON.stringify({ status_id: statusId, assign_to_me: true }),
-      }),
-    onSuccess: () => {
+      });
+      return { leadId, stageName };
+    },
+    onSuccess: ({ leadId, stageName }) => {
       toast.success("Статус обновлён");
       setStatusOpen(false);
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
       void qc.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
       void qc.invalidateQueries({ queryKey: ["leads"] });
+      if (salesChatMode && stageName.trim() === "Удачно") {
+        toast.success("Открываем онлайн-запись — выберите эксперта, дату и сумму");
+        navigate(`/booking?lead_id=${leadId}`);
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1149,6 +1164,7 @@ export function ChatPage() {
                               setLeadStatusMutation.mutate({
                                 leadId: Number(activeThread.lead_id),
                                 statusId: s.id,
+                                stageName: s.name,
                               })
                             }
                             className={[
