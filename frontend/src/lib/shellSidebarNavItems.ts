@@ -37,6 +37,7 @@ type BuildParams = {
   showKpi: boolean;
   bookingEnabled?: boolean;
   deskSalesEnabled?: boolean;
+  chatStagesEnabled?: boolean;
   showNavForFeature: (feature: string) => boolean;
   navLex: {
     navKanban: string;
@@ -65,6 +66,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     showKpi,
     bookingEnabled = true,
     deskSalesEnabled = false,
+    chatStagesEnabled = true,
     showNavForFeature,
     navLex,
   } = params;
@@ -74,6 +76,9 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
   const showIntegrationsNav = showIntegrationsHub || isChiefExpert;
   const showBooking = bookingEnabled && showNavForFeature("booking");
   const showDeskSales = deskSalesEnabled && (isManagerNav || !isExpert);
+  const chatStages = chatStagesEnabled !== false;
+  // Менеджер/админ не видит канбан — только чат со стадиями.
+  const hideKanbanForManager = isManagerNav && chatStages;
 
   if (isSuperOwner) {
     return [
@@ -90,18 +95,28 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
   }
 
   if (managerLikeNav) {
-    const items: ShellSidebarNavItem[] = [
-      {
-        id: "desk",
-        to: "/desk",
-        title: "Рабочий стол",
-        labelShort: "Стол",
-        labelFull: "Рабочий стол",
-        variant: "crm",
-        iconKey: "layout-dashboard",
-      },
-    ];
-    if (showNavForFeature("chat")) {
+    const items: ShellSidebarNavItem[] = [];
+    if (showNavForFeature("chat") && hideKanbanForManager) {
+      items.push({
+        id: "chat",
+        to: "/chat",
+        title: "Чаты",
+        labelShort: "Чаты",
+        labelFull: "Чаты",
+        variant: "chat",
+        iconKey: "message-circle",
+      });
+    }
+    items.push({
+      id: "desk",
+      to: "/desk",
+      title: "Рабочий стол",
+      labelShort: "Стол",
+      labelFull: "Рабочий стол",
+      variant: "crm",
+      iconKey: "layout-dashboard",
+    });
+    if (showNavForFeature("chat") && !hideKanbanForManager) {
       items.push({
         id: "chat",
         to: "/chat",
@@ -176,7 +191,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         });
       }
     }
-    if (showNavForFeature("crm") && !showDeskSales) {
+    if (showNavForFeature("crm") && !showDeskSales && !hideKanbanForManager) {
       items.push(
         {
           id: "crm",
@@ -198,8 +213,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         },
       );
     }
-    if (showDeskSales && showNavForFeature("crm")) {
-      // В sales менеджер работает в чатах; канбан — у владельца.
+    if ((showDeskSales || hideKanbanForManager) && showNavForFeature("crm")) {
+      // Менеджер работает в чатах; канбан — у владельца.
       // (чат уже добавлен выше)
     }
     if (showNavForFeature("tasks")) {

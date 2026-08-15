@@ -48,6 +48,7 @@ export function HomeEntry() {
   const meQuery = useCurrentUserMe();
   const salesSpace =
     meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
+  const chatStages = meQuery.data?.chat_stages_enabled !== false;
 
   if (role === "super_owner") {
     return <Navigate to="/companies" replace />;
@@ -55,11 +56,12 @@ export function HomeEntry() {
   if (role === "accountant" || role === "finance_analyst") {
     return <Navigate to="/finance" replace />;
   }
-  // Второе пространство: сразу в продажи / калькуляцию, не в канбан клиники
+  // Менеджер/админ: стадии только из чата (и clinic admin/admin, и sales).
+  if (chatStages && (role === "manager" || role === "admin")) {
+    return <Navigate to="/chat" replace />;
+  }
+  // Второе пространство: владелец сразу в продажи / калькуляцию, не в канбан клиники
   if (salesSpace) {
-    if (role === "manager" || role === "admin") {
-      return <Navigate to="/chat" replace />;
-    }
     if (role === "owner") {
       return <Navigate to="/sales" replace />;
     }

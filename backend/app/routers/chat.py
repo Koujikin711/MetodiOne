@@ -46,7 +46,6 @@ from app.services.patient_phone_visibility import (
     resolve_phone_fields,
 )
 from app.services.phone_match import parse_allowed_phones_json, phone_digits
-from app.services.crm_space import company_is_sales_mode
 from app.services.lead_sales_stages import (
     SALES_STAGE_KEYS,
     SALES_STAGE_NAME_TO_KEY,
@@ -577,7 +576,7 @@ async def _send_green_file_message(
     thread.updated_at = datetime.now(UTC)
     await db.flush()
     msg.media_url = save_outgoing_chat_media(msg.id, filename, file_bytes)
-    if thread.company_id is not None and await company_is_sales_mode(db, int(thread.company_id)):
+    if thread.company_id is not None:
         await advance_new_lead_after_manager_reply(
             db, company_id=int(thread.company_id), lead_id=thread.lead_id,
         )
@@ -689,10 +688,18 @@ async def thread_bucket_counts(
     company_id: CurrentCompanyId,
     q: str | None = Query(default=None, max_length=120),
 ) -> ChatThreadBucketCounts:
-    """Счётчики для вкладок чата менеджера."""
-    if current_user.role not in (UserRole.manager, UserRole.admin):
+    """Счётчики для вкладок чат-воронки (менеджер / админ / владелец)."""
+    if current_user.role not in (UserRole.manager, UserRole.admin, UserRole.owner):
         return ChatThreadBucketCounts()
-    allowed = await _manager_pipeline_ids(db, current_user.id)
+    if current_user.role == UserRole.owner:
+        allowed = {
+            int(r[0])
+            for r in (
+                await db.execute(select(Pipeline.id).where(Pipeline.company_id == company_id))
+            ).all()
+        }
+    else:
+        allowed = await _manager_pipeline_ids(db, current_user.id)
     if not allowed:
         return ChatThreadBucketCounts()
     term = (q or "").strip()
@@ -713,37 +720,25 @@ async def thread_bucket_counts(
             ChatThread.company_id == company_id,
             ChatThread.provider != "internal",
             ChatThread.pipeline_id.in_(allowed),
-            manager_lead_visibility(current_user.id),
         )
     )
+    if current_user.role != UserRole.owner:
+        base = base.where(manager_lead_visibility(current_user.id))
     if term:
         base = _apply_thread_search(base, term=term)
 
-    sales = await company_is_sales_mode(db, company_id)
-    out = ChatThreadBucketCounts(list_mode="sales" if sales else "clinic")
-    if sales:
-        for key, _name in SALES_STAGE_KEYS:
-            qcnt = _apply_manager_thread_bucket(
-                base,
-                bucket=None,
-                manager_id=current_user.id,
-                company_id=company_id,
-                last_direction_sq=last_direction_sq,
-                stage_key=key,
-            )
-            out.sales_stages[key] = int((await db.execute(qcnt)).scalar_one() or 0)
-        return out
-
-    for bucket in ("transferred", "own", "awaiting_reply", "sold"):
+    # Чат-воронка (6 стадий) — основной UX и в clinic (admin/admin).
+    out = ChatThreadBucketCounts(list_mode="sales")
+    for key, _name in SALES_STAGE_KEYS:
         qcnt = _apply_manager_thread_bucket(
             base,
-            bucket=bucket,  # type: ignore[arg-type]
+            bucket=None,
             manager_id=current_user.id,
             company_id=company_id,
             last_direction_sq=last_direction_sq,
+            stage_key=key,
         )
-        cnt = int((await db.execute(qcnt)).scalar_one() or 0)
-        setattr(out, bucket, cnt)
+        out.sales_stages[key] = int((await db.execute(qcnt)).scalar_one() or 0)
     return out
 
 
@@ -800,6 +795,7 @@ async def list_threads(
         .scalar_subquery()
     )
     is_manager_view = current_user.role in (UserRole.manager, UserRole.admin)
+    is_owner_view = current_user.role == UserRole.owner
     transferred_sq = None
     if is_manager_view:
         transferred_sq = _lead_transferred_to_manager_exists(
@@ -845,6 +841,15 @@ async def list_threads(
         query = _apply_manager_thread_bucket(
             query,
             bucket=bucket,
+            manager_id=current_user.id,
+            company_id=company_id,
+            last_direction_sq=last_direction_sq,
+            stage_key=stage_key,
+        )
+    elif is_owner_view and stage_key:
+        query = _apply_manager_thread_bucket(
+            query,
+            bucket=None,
             manager_id=current_user.id,
             company_id=company_id,
             last_direction_sq=last_direction_sq,
@@ -1305,8 +1310,7 @@ async def send_message(
     db.add(msg)
     thread.updated_at = datetime.now(UTC)
     await db.flush()
-    if await company_is_sales_mode(db, company_id):
-        await advance_new_lead_after_manager_reply(db, company_id=company_id, lead_id=thread.lead_id)
+    await advance_new_lead_after_manager_reply(db, company_id=company_id, lead_id=thread.lead_id)
     await db.refresh(msg)
     await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread.id)
     return _msg_read(msg)

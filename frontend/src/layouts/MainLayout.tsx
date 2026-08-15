@@ -91,9 +91,11 @@ export function MainLayout() {
   const showKpi = role === "owner" || role === "super_owner" || role === "manager" || role === "admin";
   const crmMode = meQuery.data?.crm_mode;
   const salesSpace = crmMode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
+  const chatStagesEnabled = meQuery.data?.chat_stages_enabled !== false;
   // Онлайн-запись доступна и в sales (стадия «Удачно» → форма записи).
   const bookingEnabled = meQuery.isSuccess && meQuery.data?.booking_enabled !== false;
   const deskSalesEnabled = salesSpace;
+  const managerChatFirst = chatStagesEnabled && isManagerLikeNav;
   const { showNavForFeature } = useTariffNavAccess();
   const { expanded: sidebarExpanded, toggle: toggleSidebar } = useShellSidebarExpanded();
   const navLex = appLexicon;
@@ -151,6 +153,7 @@ export function MainLayout() {
               showKpi={showKpi}
               bookingEnabled={bookingEnabled}
               deskSalesEnabled={deskSalesEnabled}
+              chatStagesEnabled={chatStagesEnabled}
               showNavForFeature={showNavForFeature}
               onLogout={logout}
             />
@@ -161,7 +164,7 @@ export function MainLayout() {
           ref={mainRef}
           className={[
             "shell-main relative min-h-0 flex-1 overflow-y-auto text-[var(--mo-text)] sm:px-10 sm:py-10 sm:pb-10 lg:flex lg:flex-col lg:px-14",
-            deskSalesEnabled
+            deskSalesEnabled || managerChatFirst
               ? "px-2.5 py-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))]"
               : "px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))]",
           ].join(" ")}
@@ -184,7 +187,7 @@ export function MainLayout() {
           aria-label="Основная навигация"
           className={[
             "print:hidden no-scrollbar fixed bottom-0 left-0 right-0 z-50 flex items-stretch border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 backdrop-blur-xl sm:hidden",
-            deskSalesEnabled
+            deskSalesEnabled || managerChatFirst
               ? "gap-0 px-1 pt-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))]"
               : "touch-pan-x gap-0.5 overflow-x-auto overscroll-x-contain px-1 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]",
           ].join(" ")}
@@ -315,82 +318,151 @@ export function MainLayout() {
             </>
           ) : isManagerLikeNav ? (
             <>
-              <NavIf show={showNavForFeature("crm")}>
-                <NavLink preventScrollReset to="/crm" className={mobileBottomNavLinkClass} title={navLex.navKanbanTitle}>
-                  <GradientIconBox variant="crm" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Funnel className="h-4 w-4" />
+              <NavIf show={showNavForFeature("chat")}>
+                <NavLink
+                  preventScrollReset
+                  to="/chat"
+                  className={managerChatFirst ? salesMobileBottomNavLinkClass : mobileBottomNavLinkClass}
+                  title="Чаты"
+                >
+                  <GradientIconBox
+                    variant="tasks"
+                    className={managerChatFirst ? "h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" : "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4"}
+                  >
+                    <MessageCircle className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
                   </GradientIconBox>
-                  <span className="text-[9px]">{navLex.navKanban}</span>
-                </NavLink>
-              </NavIf>
-              <NavIf show={showNavForFeature("crm")}>
-                <NavLink preventScrollReset to="/my-leads" className={mobileBottomNavLinkClass} title={navLex.navGuestsTitle}>
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <UserRound className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">{navLex.navGuestsShort}</span>
+                  <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
+                    Чаты
+                  </span>
                 </NavLink>
               </NavIf>
               <NavIf show={bookingEnabled && showNavForFeature("booking")}>
-                <NavLink preventScrollReset to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
-                  <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Calendar className="h-4 w-4" />
+                <NavLink
+                  preventScrollReset
+                  to="/booking"
+                  className={managerChatFirst ? salesMobileBottomNavLinkClass : mobileBottomNavLinkClass}
+                  title="Онлайн-записи"
+                >
+                  <GradientIconBox
+                    variant="tasks"
+                    className={managerChatFirst ? "h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" : "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4"}
+                  >
+                    <Calendar className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
                   </GradientIconBox>
-                  <span className="text-[9px]">Онлайн</span>
+                  <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
+                    Онлайн
+                  </span>
                 </NavLink>
               </NavIf>
-              <NavIf show={showNavForFeature("chat")}>
-                <NavLink preventScrollReset to="/chat" className={mobileBottomNavLinkClass} title="Чаты">
-                  <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <MessageCircle className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Чаты</span>
-                </NavLink>
-              </NavIf>
+              {!managerChatFirst ? (
+                <>
+                  <NavIf show={showNavForFeature("crm")}>
+                    <NavLink preventScrollReset to="/crm" className={mobileBottomNavLinkClass} title={navLex.navKanbanTitle}>
+                      <GradientIconBox variant="crm" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                        <Funnel className="h-4 w-4" />
+                      </GradientIconBox>
+                      <span className="text-[9px]">{navLex.navKanban}</span>
+                    </NavLink>
+                  </NavIf>
+                  <NavIf show={showNavForFeature("crm")}>
+                    <NavLink preventScrollReset to="/my-leads" className={mobileBottomNavLinkClass} title={navLex.navGuestsTitle}>
+                      <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                        <UserRound className="h-4 w-4" />
+                      </GradientIconBox>
+                      <span className="text-[9px]">{navLex.navGuestsShort}</span>
+                    </NavLink>
+                  </NavIf>
+                </>
+              ) : null}
               <NavIf show={showNavForFeature("tasks")}>
-                <NavLink preventScrollReset to="/tasks" className={mobileBottomNavLinkClass} title="Задачи">
-                  <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <CheckSquare className="h-4 w-4" />
+                <NavLink
+                  preventScrollReset
+                  to="/tasks"
+                  className={managerChatFirst ? salesMobileBottomNavLinkClass : mobileBottomNavLinkClass}
+                  title="Задачи"
+                >
+                  <GradientIconBox
+                    variant="purple"
+                    className={managerChatFirst ? "h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" : "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4"}
+                  >
+                    <CheckSquare className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
                   </GradientIconBox>
-                  <span className="text-[9px]">Задачи</span>
+                  <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
+                    Задачи
+                  </span>
                 </NavLink>
               </NavIf>
-              <NavLink preventScrollReset to="/messenger" className={mobileBottomNavLinkClass} title="Мессенджер">
-                <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <Users className="h-4 w-4" />
+              <NavLink
+                preventScrollReset
+                to="/messenger"
+                className={managerChatFirst ? salesMobileBottomNavLinkClass : mobileBottomNavLinkClass}
+                title="Мессенджер"
+              >
+                <GradientIconBox
+                  variant="tasks"
+                  className={managerChatFirst ? "h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" : "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4"}
+                >
+                  <Users className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
                 </GradientIconBox>
-                <span className="text-[9px]">Мессенджер</span>
+                <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
+                  Мессенджер
+                </span>
               </NavLink>
               {showKpi ? (
                 <NavIf show={showNavForFeature("kpi")}>
-                  <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title={navLex.navKpiTitle}>
-                    <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Target className="h-4 w-4" />
+                  <NavLink
+                    preventScrollReset
+                    to="/kpi"
+                    className={managerChatFirst ? salesMobileBottomNavLinkClass : mobileBottomNavLinkClass}
+                    title={navLex.navKpiTitle}
+                  >
+                    <GradientIconBox
+                      variant="indigo"
+                      className={managerChatFirst ? "h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" : "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4"}
+                    >
+                      <Target className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
                     </GradientIconBox>
-                    <span className="text-[9px]">{navLex.navKpi}</span>
+                    <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
+                      {navLex.navKpi}
+                    </span>
                   </NavLink>
                 </NavIf>
               ) : null}
               {showFinance ? (
                 <NavIf show={showNavForFeature("finance")}>
-                  <NavLink preventScrollReset to="/finance" className={mobileBottomNavLinkClass} title={navLex.navFinanceTitle}>
-                    <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Wallet className="h-4 w-4" />
+                  <NavLink
+                    preventScrollReset
+                    to="/finance"
+                    className={managerChatFirst ? salesMobileBottomNavLinkClass : mobileBottomNavLinkClass}
+                    title={navLex.navFinanceTitle}
+                  >
+                    <GradientIconBox
+                      variant="blue"
+                      className={managerChatFirst ? "h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" : "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4"}
+                    >
+                      <Wallet className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
                     </GradientIconBox>
-                    <span className="text-[9px]">{navLex.navFinance}</span>
+                    <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
+                      {navLex.navFinance}
+                    </span>
                   </NavLink>
                 </NavIf>
               ) : null}
               <button
                 type="button"
                 onClick={logout}
-                className={mobileBottomLogoutClass}
+                className={managerChatFirst ? salesMobileBottomLogoutClass : mobileBottomLogoutClass}
                 title="Выход"
               >
-                <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                  <LogOut className="h-4 w-4" />
+                <GradientIconBox
+                  variant="pink"
+                  className={managerChatFirst ? "h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" : "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4"}
+                >
+                  <LogOut className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
                 </GradientIconBox>
-                <span className="text-[9px]">Выход</span>
+                <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
+                  Выход
+                </span>
               </button>
             </>
           ) : isExpert && !isChiefExpert ? (

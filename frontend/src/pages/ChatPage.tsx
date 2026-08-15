@@ -377,7 +377,7 @@ const CHAT_BUCKET_TABS: { id: ChatThreadBucket; label: string; hint: string }[] 
 const SALES_STAGE_TABS: { id: SalesStageKey; label: string; hint: string }[] = [
   { id: "new", label: "Новый лид", hint: "Все входящие" },
   { id: "in_progress", label: "В обработке", hint: "Ответил менеджер" },
-  { id: "waiting", label: "В ожидании", hint: "Ждём клиента" },
+  { id: "waiting", label: "В ожидании", hint: "Ждём оплату / клиента" },
   { id: "won", label: "Удачно", hint: "Продано / записано" },
   { id: "lost", label: "Отказ", hint: "Отказ клиента" },
   { id: "archive", label: "Архив", hint: "Закрытые итоги" },
@@ -444,9 +444,9 @@ export function ChatPage() {
   const [threadSearchDebounced, setThreadSearchDebounced] = useState("");
   const userRole = decodeRoleFromToken(getStoredToken());
   const meQuery = useCurrentUserMe();
-  const salesChatMode =
-    meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
-  const showManagerChatBuckets = userRole === "manager" || userRole === "admin";
+  const salesChatMode = meQuery.data?.chat_stages_enabled !== false;
+  const showManagerChatBuckets =
+    userRole === "manager" || userRole === "admin" || userRole === "owner";
   const [chatBucket, setChatBucket] = useState<ChatThreadBucket>("own");
   const [salesStageKey, setSalesStageKey] = useState<SalesStageKey>("new");
   const [statusOpen, setStatusOpen] = useState(false);

@@ -17,6 +17,8 @@ export interface UserMe extends User {
   company_name?: string | null;
   booking_enabled?: boolean;
   desk_sales_enabled?: boolean;
+  /** Менеджер ведёт стадии в чате; канбан зеркалит. */
+  chat_stages_enabled?: boolean;
 }
 
 export interface ManagerDeskSale {

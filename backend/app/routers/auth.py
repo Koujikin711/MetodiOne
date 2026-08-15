@@ -225,6 +225,7 @@ async def me(
         company_name=company_name,
         booking_enabled=True,
         desk_sales_enabled=sales,
+        chat_stages_enabled=True,
     )
 
 

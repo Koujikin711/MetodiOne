@@ -97,14 +97,14 @@ export function ManagerDeskPage() {
           </Card>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Link to="/crm" className={`${theme.surfaceElevated} block p-4 hover:border-[#2f5f85]/40`}>
-              <div className="text-sm font-semibold">Воронка CRM</div>
-            </Link>
-            <Link to="/my-leads" className={`${theme.surfaceElevated} block p-4 hover:border-[#2f5f85]/40`}>
-              <div className="text-sm font-semibold">Мои лиды</div>
+            <Link to="/chat" className={`${theme.surfaceElevated} block p-4 hover:border-[#2f5f85]/40`}>
+              <div className="text-sm font-semibold">Чаты и стадии</div>
             </Link>
             <Link to="/booking" className={`${theme.surfaceElevated} block p-4 hover:border-[#2f5f85]/40`}>
               <div className="text-sm font-semibold">Онлайн-запись</div>
+            </Link>
+            <Link to="/kpi" className={`${theme.surfaceElevated} block p-4 hover:border-[#2f5f85]/40`}>
+              <div className="text-sm font-semibold">KPI</div>
             </Link>
           </div>
         </div>

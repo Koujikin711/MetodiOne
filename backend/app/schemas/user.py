@@ -37,6 +37,8 @@ class UserMeRead(UserRead):
     company_name: str | None = None
     booking_enabled: bool = True
     desk_sales_enabled: bool = False
+    # Менеджер ведёт стадии из чата; канбан — зеркало для владельца (clinic и sales).
+    chat_stages_enabled: bool = True
 
 
 class ChangePasswordBody(BaseModel):

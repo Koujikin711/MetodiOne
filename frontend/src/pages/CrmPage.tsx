@@ -554,19 +554,18 @@ export function CrmPage() {
 
   const currentRole = useMemo(() => decodeRoleFromToken(getStoredToken()), []);
   const meQuery = useCurrentUserMe();
-  const salesSpace =
-    meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
+  const chatStages = meQuery.data?.chat_stages_enabled !== false;
   const isCompanyAdmin =
     currentRole === "owner" ||
     currentRole === "admin" ||
     (currentRole === "expert" && Boolean(meQuery.data?.is_chief_expert));
 
   useEffect(() => {
-    if (!salesSpace) return;
+    if (!chatStages) return;
     if (currentRole === "manager" || currentRole === "admin") {
       navigate("/chat", { replace: true });
     }
-  }, [salesSpace, currentRole, navigate]);
+  }, [chatStages, currentRole, navigate]);
 
   const refreshAll = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["leads"] });
@@ -699,7 +698,7 @@ export function CrmPage() {
       setPipeType("sales");
       setPipeExpertUserId("");
       setUseCustomPipelineStages(false);
-      setPipeStages(cloneDefaultStages(salesSpace));
+      setPipeStages(cloneDefaultStages(true));
       void queryClient.invalidateQueries({ queryKey: ["pipelines"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Не удалось создать воронку");
@@ -1350,7 +1349,7 @@ export function CrmPage() {
                 type="button"
                 onClick={() => {
                   setUseCustomPipelineStages(false);
-                  setPipeStages(cloneDefaultStages(salesSpace));
+                  setPipeStages(cloneDefaultStages(true));
                   setCreatePipelineOpen(true);
                 }}
                 className="crm-pill-btn"
@@ -1856,22 +1855,22 @@ export function CrmPage() {
                     onChange={(e) => {
                       const on = e.target.checked;
                       setUseCustomPipelineStages(on);
-                      if (on) setPipeStages(cloneDefaultStages(salesSpace));
+                      if (on) setPipeStages(cloneDefaultStages(chatStages));
                     }}
                   />
                   <span>
                     <span className="font-medium">Задать стадии вручную</span>
                     <span className="mt-1 block text-xs font-normal mo-muted">
                       По умолчанию сервер создаёт стандартный набор из{" "}
-                      {(salesSpace ? DEFAULT_SALES_PIPELINE_STAGES : DEFAULT_CLINIC_PIPELINE_STAGES).length}{" "}
+                      {(chatStages ? DEFAULT_SALES_PIPELINE_STAGES : DEFAULT_CLINIC_PIPELINE_STAGES).length}{" "}
                       стадий
-                      {salesSpace ? " (чат-воронка продаж)." : " (совместим с онлайн-записью)."}
+                      {chatStages ? " (чат-воронка)." : " (совместим с онлайн-записью)."}
                     </span>
                   </span>
                 </label>
                 {!useCustomPipelineStages && (
                   <p className="mt-2 text-xs leading-relaxed lux-caption">
-                    {(salesSpace ? DEFAULT_SALES_PIPELINE_STAGES : DEFAULT_CLINIC_PIPELINE_STAGES)
+                    {(chatStages ? DEFAULT_SALES_PIPELINE_STAGES : DEFAULT_CLINIC_PIPELINE_STAGES)
                       .map((s) => s.name)
                       .join(" → ")}
                   </p>

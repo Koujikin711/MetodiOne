@@ -122,8 +122,7 @@ export function OnlineBookingPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const meQuery = useCurrentUserMe();
-  const salesSpace =
-    meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
+  const chatStages = meQuery.data?.chat_stages_enabled !== false;
   const leadFromQuery = useMemo(() => {
     const raw = searchParams.get("lead_id");
     if (!raw) return null;
@@ -475,7 +474,7 @@ export function OnlineBookingPage() {
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
       void queryClient.invalidateQueries({ queryKey: ["chat-threads"] });
       void queryClient.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
-      if (salesSpace && typeof variables.lead_id === "number") {
+      if (chatStages && typeof variables.lead_id === "number") {
         navigate(`/chat?lead_id=${variables.lead_id}`, { replace: true });
       }
     },
@@ -938,8 +937,8 @@ export function OnlineBookingPage() {
       <header className="booking-page-header">
         <div className="booking-page-head">
           <div className="booking-page-brand">
-            <Link to={salesSpace ? "/chat" : "/app"} className="booking-page-back">
-              {salesSpace ? "← К чатам" : "← К канбану"}
+            <Link to={chatStages ? "/chat" : "/app"} className="booking-page-back">
+              {chatStages ? "← К чатам" : "← К канбану"}
             </Link>
             <div className="booking-page-title-row">
               <h1 className="booking-page-title">Онлайн-записи</h1>
@@ -952,7 +951,7 @@ export function OnlineBookingPage() {
                 </div>
               ) : null}
             </div>
-            {salesSpace && leadId ? (
+            {chatStages && leadId ? (
               <p className="booking-page-note">
                 Статус «Удачно»: заполните эксперта, дату и сумму — лид уже выбран (#{leadId}
                 {patientName ? `, ${patientName}` : ""}).
