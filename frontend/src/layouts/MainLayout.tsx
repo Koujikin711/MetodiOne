@@ -124,7 +124,7 @@ export function MainLayout() {
       <div className="relative z-10 flex h-screen min-h-0 flex-col sm:flex-row">
         <aside
           className={[
-            "shell-sidebar print:hidden hidden h-screen min-h-0 shrink-0 py-2 sm:flex sm:flex-col",
+            "shell-sidebar print:hidden hidden min-h-0 shrink-0 py-2 sm:sticky sm:top-0 sm:flex sm:h-dvh sm:max-h-dvh sm:flex-col",
             sidebarExpanded ? "is-expanded" : "is-collapsed",
           ].join(" ")}
         >
