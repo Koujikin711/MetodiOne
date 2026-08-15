@@ -112,7 +112,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "message-circle",
       });
     }
-    if (showBooking) {
+    if (showBooking && !showDeskSales) {
       items.push({
         id: "booking",
         to: "/booking",

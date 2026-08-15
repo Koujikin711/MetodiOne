@@ -1,6 +1,13 @@
 from decimal import Decimal
+from types import SimpleNamespace
 
-from app.services.sales_kpi_weighted import bonus_amount, completion_ratio, contribution
+from app.services.sales_kpi_weighted import (
+    _norm_kpi_label,
+    bonus_amount,
+    build_manager_lines,
+    completion_ratio,
+    contribution,
+)
 
 
 def test_sheet_formula_example():
@@ -17,3 +24,32 @@ def test_sheet_formula_example():
 def test_overachievement_capped():
     assert completion_ratio(100, 10) == Decimal("1")
     assert contribution(Decimal("1"), Decimal("25")) == Decimal("0.2500")
+
+
+def test_norm_kpi_label():
+    assert _norm_kpi_label("  CRM  Модули ") == "crm модули"
+    assert _norm_kpi_label(None) == ""
+
+
+def test_desk_facts_add_to_manager_line():
+    item = SimpleNamespace(
+        id=7,
+        name="CRM модули",
+        source_type="manual",
+        direction_id=None,
+        plan_qty=10,
+        weight_percent=Decimal("100"),
+    )
+    raw = build_manager_lines(
+        manager_id=3,
+        manager_name="Менеджер",
+        items=[item],
+        direction_facts={},
+        specialist_facts={},
+        item_specialists={},
+        manual_facts={},
+        desk_facts={(3, 7): 2},
+        bonus_fund=Decimal("10000"),
+    )
+    assert raw["lines"][0]["fact_qty"] == 2
+    assert raw["total_contribution"] == Decimal("0.2000")

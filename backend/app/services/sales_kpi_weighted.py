@@ -10,7 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
     BookingAppointment,
+    BookingDirection,
     Lead,
+    ManagerDeskSale,
     PipelineStage,
     SalesKpiManualSale,
     SalesKpiPlanItem,
@@ -311,6 +313,97 @@ async def load_manual_facts(
     return out
 
 
+def _norm_kpi_label(value: str | None) -> str:
+    return " ".join((value or "").strip().casefold().split())
+
+
+async def load_desk_sale_facts_full_paid(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+    plan_items: list[SalesKpiPlanItem],
+) -> dict[tuple[int, int], int]:
+    """
+    Полностью оплаченные продажи из окна «Продажи» (crm_mode=sales).
+    Сопоставляются с показателем KPI по имени (activity_sphere ≈ plan item / direction name).
+    """
+    if not plan_items:
+        return {}
+    start, end = month_bounds(ym)
+
+    name_to_item: dict[str, int] = {}
+    direction_ids = [int(i.direction_id) for i in plan_items if i.direction_id is not None]
+    dir_names: dict[int, str] = {}
+    if direction_ids:
+        drows = (
+            await db.execute(
+                select(BookingDirection.id, BookingDirection.name).where(BookingDirection.id.in_(direction_ids)),
+            )
+        ).all()
+        dir_names = {int(i): str(n or "") for i, n in drows}
+
+    for item in plan_items:
+        pid = int(item.id)
+        for label in (item.name, dir_names.get(int(item.direction_id)) if item.direction_id else None):
+            key = _norm_kpi_label(label)
+            if key and key not in name_to_item:
+                name_to_item[key] = pid
+
+    # Если в плане один показатель — все полные оплаты desk идут в него (типичный sales setup).
+    sole_item_id = int(plan_items[0].id) if len(plan_items) == 1 else None
+
+    rows = (
+        await db.execute(
+            select(
+                ManagerDeskSale.manager_user_id,
+                ManagerDeskSale.activity_sphere,
+                ManagerDeskSale.service_amount,
+                ManagerDeskSale.paid_amount,
+            ).where(
+                ManagerDeskSale.company_id == company_id,
+                ManagerDeskSale.status == "active",
+                ManagerDeskSale.sold_at >= start,
+                ManagerDeskSale.sold_at < end,
+                ManagerDeskSale.service_amount > 0,
+                ManagerDeskSale.paid_amount >= ManagerDeskSale.service_amount,
+                or_(
+                    ManagerDeskSale.pipeline_id == pipeline_id,
+                    ManagerDeskSale.pipeline_id.is_(None),
+                ),
+            ),
+        )
+    ).all()
+
+    out: dict[tuple[int, int], int] = {}
+    for manager_id, sphere, service_amount, paid_amount in rows:
+        if manager_id is None:
+            continue
+        sa = Decimal(str(service_amount or 0))
+        pa = Decimal(str(paid_amount or 0))
+        if sa <= 0 or pa < sa:
+            continue
+        plan_item_id = name_to_item.get(_norm_kpi_label(sphere))
+        if plan_item_id is None:
+            plan_item_id = sole_item_id
+        if plan_item_id is None:
+            continue
+        key = (int(manager_id), int(plan_item_id))
+        out[key] = out.get(key, 0) + 1
+    return out
+
+
+def merge_fact_maps(
+    *maps: dict[tuple[int, int], int],
+) -> dict[tuple[int, int], int]:
+    out: dict[tuple[int, int], int] = {}
+    for m in maps:
+        for k, v in m.items():
+            out[k] = out.get(k, 0) + int(v or 0)
+    return out
+
+
 def build_manager_lines(
     *,
     manager_id: int,
@@ -321,9 +414,11 @@ def build_manager_lines(
     item_specialists: dict[int, list[int]],
     manual_facts: dict[tuple[int, int], int],
     bonus_fund: Decimal,
+    desk_facts: dict[tuple[int, int], int] | None = None,
 ) -> dict:
     lines = []
     total_contrib = Decimal("0")
+    desk = desk_facts or {}
     for item in items:
         specialist_ids = item_specialists.get(int(item.id), [])
         if item.source_type == "direction":
@@ -335,6 +430,8 @@ def build_manager_lines(
                 fact = 0
         else:
             fact = manual_facts.get((manager_id, int(item.id)), 0)
+        # Полные оплаты из окна «Продажи» (sales) — в факт показателя по имени.
+        fact += desk.get((manager_id, int(item.id)), 0)
         plan_qty = int(item.plan_qty or 0)
         weight = Decimal(str(item.weight_percent or 0))
         comp = completion_ratio(fact, plan_qty)

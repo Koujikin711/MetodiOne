@@ -55,6 +55,7 @@ from app.services.sales_kpi_weighted import (
     completion_ratio,
     contribution,
     load_bonus_fund,
+    load_desk_sale_facts_full_paid,
     load_direction_facts_full_paid,
     load_managers,
     load_manual_facts,
@@ -256,6 +257,13 @@ async def _build_sales_report(
         db, company_id=company_id, pipeline_id=pipe.id, ym=ym,
     )
     manual_facts = await load_manual_facts(db, company_id=company_id, pipeline_id=pipe.id, ym=ym)
+    desk_facts = await load_desk_sale_facts_full_paid(
+        db,
+        company_id=company_id,
+        pipeline_id=pipe.id,
+        ym=ym,
+        plan_items=items,
+    )
 
     board: list[SalesKpiBoardManager] = []
     for mid, mname in managers:
@@ -267,6 +275,7 @@ async def _build_sales_report(
             specialist_facts=specialist_facts,
             item_specialists=item_specialists,
             manual_facts=manual_facts,
+            desk_facts=desk_facts,
             bonus_fund=bonus_fund,
         )
         board.append(
@@ -894,6 +903,13 @@ async def company_report(
         db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
     )
     manual_facts = await load_manual_facts(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+    desk_facts = await load_desk_sale_facts_full_paid(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        ym=ym,
+        plan_items=items,
+    )
     bonus_fund = await load_bonus_fund(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
 
     # План компании = сумма планов менеджеров (один план на менеджера × число менеджеров).
@@ -913,6 +929,8 @@ async def company_report(
             for mid, _ in managers:
                 fact += manual_facts.get((mid, int(item.id)), 0)
             # продажи без менеджера в map не попадают; считаем все active manual по показателю
+        for mid, _ in managers:
+            fact += desk_facts.get((mid, int(item.id)), 0)
         per_manager_plan = int(item.plan_qty or 0)
         plan_qty = per_manager_plan * n_managers if n_managers > 0 else per_manager_plan
         weight = Decimal(str(item.weight_percent or 0))
@@ -943,6 +961,7 @@ async def company_report(
             specialist_facts=specialist_facts,
             item_specialists=item_specialists,
             manual_facts=manual_facts,
+            desk_facts=desk_facts,
             bonus_fund=bonus_fund,
         )
         managers_bonus += Decimal(str(raw["bonus"]))

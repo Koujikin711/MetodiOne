@@ -351,7 +351,13 @@ async def seed_sales_crm_space() -> None:
             )
         ).scalar_one_or_none()
         if has_dir is None:
-            d = BookingDirection(name="Консультация", duration_min=30, is_active=True, company_id=cid)
+            d = BookingDirection(
+                name="Консультация",
+                duration_min=30,
+                is_active=True,
+                company_id=cid,
+                pipeline_id=int(pipe.id),
+            )
             session.add(d)
             await session.flush()
             session.add(
@@ -365,6 +371,9 @@ async def seed_sales_crm_space() -> None:
                 ),
             )
         else:
+            existing_dir = await session.get(BookingDirection, int(has_dir))
+            if existing_dir is not None and existing_dir.pipeline_id is None:
+                existing_dir.pipeline_id = int(pipe.id)
             has_spec = (
                 await session.execute(
                     select(BookingSpecialist.id).where(BookingSpecialist.company_id == cid).limit(1),

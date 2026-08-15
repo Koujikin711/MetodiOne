@@ -912,9 +912,12 @@ export function OnlineBookingPage() {
       payload.lead_pipeline_id = newLeadPipelineId;
       payload.lead_stage_id = newLeadStageId;
     }
-    // Owner / admin воронки никогда не становятся ответственными за лид.
-    if (currentRole === "manager" && resolvedPaidAmount > 0 && currentUserId) {
+    // Менеджер всегда ставится ответственным — иначе полная оплата не попадёт в KPI.
+    if (currentRole === "manager" && currentUserId) {
       payload.responsible_manager_id = currentUserId;
+    } else if (currentRole === "manager" && resolvedPaidAmount > 0 && !currentUserId) {
+      toast.error("Не удалось определить ответственного менеджера автоматически");
+      return;
     }
     if (seriesBookingEnabled && consecutiveDays > 1) {
       payload.consecutive_days = consecutiveDays;

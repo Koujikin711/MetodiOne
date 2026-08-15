@@ -1729,6 +1729,13 @@ async def create_appointment(
         appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
         if lead.manager_id is not None:
             resolved_manager_id = lead.manager_id
+        elif (
+            resolved_manager_id is None
+            and current_user.role == UserRole.manager
+        ):
+            resolved_manager_id = current_user.id
+            if lead.manager_id is None:
+                lead.manager_id = current_user.id
     else:
         lead_id = await _upsert_lead_for_appointment(
             db,
@@ -2145,6 +2152,22 @@ async def patch_appointment_payment(
 
     target.paid_amount = new_paid
     target.updated_at = datetime.now(UTC)
+    # Чтобы полная оплата попала в KPI менеджера — нужен responsible_manager_id.
+    if target.responsible_manager_id is None:
+        mid: int | None = None
+        lead = None
+        if target.lead_id is not None:
+            lead = await db.get(Lead, int(target.lead_id))
+            if lead is not None and lead.manager_id is not None:
+                mgr = await db.get(User, int(lead.manager_id))
+                if mgr is not None and mgr.role == UserRole.manager and mgr.company_id == company_id:
+                    mid = int(lead.manager_id)
+        if mid is None and current_user.role == UserRole.manager:
+            mid = int(current_user.id)
+            if lead is not None and lead.manager_id is None:
+                lead.manager_id = mid
+        if mid is not None:
+            target.responsible_manager_id = mid
     await db.flush()
     await write_audit_event(
         db,
@@ -2155,7 +2178,8 @@ async def patch_appointment_payment(
         details=(
             f"session_billing={session_billing}; from_appointment_id={appt.id}; "
             f"prev_paid={prev_paid}; add_payment={body.add_payment}; "
-            f"paid_amount={body.paid_amount}; new_paid={new_paid}"
+            f"paid_amount={body.paid_amount}; new_paid={new_paid}; "
+            f"responsible_manager_id={target.responsible_manager_id}"
         ),
     )
 
