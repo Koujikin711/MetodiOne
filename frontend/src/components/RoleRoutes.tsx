@@ -57,7 +57,10 @@ export function HomeEntry() {
   }
   // Второе пространство: сразу в продажи / калькуляцию, не в канбан клиники
   if (salesSpace) {
-    if (role === "manager" || role === "admin" || role === "owner") {
+    if (role === "manager" || role === "admin") {
+      return <Navigate to="/chat" replace />;
+    }
+    if (role === "owner") {
       return <Navigate to="/sales" replace />;
     }
   }

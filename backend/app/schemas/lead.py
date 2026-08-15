@@ -16,6 +16,8 @@ class LeadCreate(BaseModel):
 
 class LeadStatusUpdate(BaseModel):
     status_id: int = Field(..., ge=1)
+    """Взять лид на себя (менеджер из чата / распределение)."""
+    assign_to_me: bool = False
 
 
 class LeadUpdate(BaseModel):

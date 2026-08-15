@@ -27,6 +27,7 @@ from app.models import (
     Lead,
     LeadAuditEvent,
     Pipeline,
+    PipelineStage,
     User,
     UserPipelineAssignment,
     UserRole,
@@ -45,6 +46,13 @@ from app.services.patient_phone_visibility import (
     resolve_phone_fields,
 )
 from app.services.phone_match import parse_allowed_phones_json, phone_digits
+from app.services.crm_space import company_is_sales_mode
+from app.services.lead_sales_stages import (
+    SALES_STAGE_KEYS,
+    SALES_STAGE_NAME_TO_KEY,
+    advance_new_lead_after_manager_reply,
+    sales_stage_name_for_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +66,9 @@ class ChatThreadRead(BaseModel):
     lead_phone: str | None = None
     lead_phone_display: str | None = None
     lead_phone_can_view_full: bool = False
+    lead_status_id: int | None = None
+    lead_stage_name: str | None = None
+    lead_stage_key: str | None = None
     manager_id: int | None = None
     manager_name: str | None = None
     provider: str
@@ -90,6 +101,7 @@ class ChatThreadRead(BaseModel):
 
 
 ChatThreadBucket = Literal["transferred", "own", "awaiting_reply", "sold"]
+SalesStageKey = Literal["new", "in_progress", "waiting", "won", "lost", "archive"]
 
 
 class ChatThreadBucketCounts(BaseModel):
@@ -97,7 +109,9 @@ class ChatThreadBucketCounts(BaseModel):
     own: int = 0
     awaiting_reply: int = 0
     sold: int = 0
-
+    """clinic | sales — какие вкладки показывать на фронте."""
+    list_mode: str = "clinic"
+    sales_stages: dict[str, int] = Field(default_factory=dict)
 
 class ChatMessageRead(BaseModel):
     id: int
@@ -563,6 +577,10 @@ async def _send_green_file_message(
     thread.updated_at = datetime.now(UTC)
     await db.flush()
     msg.media_url = save_outgoing_chat_media(msg.id, filename, file_bytes)
+    if thread.company_id is not None and await company_is_sales_mode(db, int(thread.company_id)):
+        await advance_new_lead_after_manager_reply(
+            db, company_id=int(thread.company_id), lead_id=thread.lead_id,
+        )
     await db.refresh(msg)
     await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread.id)
     return _msg_read(msg)
@@ -603,7 +621,12 @@ def _apply_manager_thread_bucket(
     manager_id: int,
     company_id: int,
     last_direction_sq,
+    stage_key: str | None = None,
 ):
+    if stage_key:
+        stage_name = sales_stage_name_for_key(stage_key)
+        if stage_name:
+            return query.where(PipelineStage.name == stage_name)
     if bucket is None:
         return query
     transferred = _lead_transferred_to_manager_exists(
@@ -621,6 +644,19 @@ def _apply_manager_thread_bucket(
         return query.where(_lead_closed_sale_exists(Lead.id, company_id=company_id))
     return query
 
+
+def _thread_stage_fields(row) -> tuple[int | None, str | None, str | None]:
+    status_id = getattr(row, "status_id", None) or getattr(row, "lead_status_id", None)
+    stage_name = getattr(row, "stage_name", None) or getattr(row, "lead_stage_name", None)
+    if stage_name is None and hasattr(row, "stage") and row.stage is not None:
+        stage_name = row.stage.name
+        status_id = row.stage.id if status_id is None else status_id
+    key = SALES_STAGE_NAME_TO_KEY.get(str(stage_name)) if stage_name else None
+    return (
+        int(status_id) if status_id is not None else None,
+        str(stage_name) if stage_name else None,
+        key,
+    )
 
 @router.websocket("/ws")
 async def chat_websocket(websocket: WebSocket, token: str = Query(..., min_length=10)) -> None:
@@ -672,6 +708,7 @@ async def thread_bucket_counts(
         select(func.count(ChatThread.id))
         .select_from(ChatThread)
         .outerjoin(Lead, Lead.id == ChatThread.lead_id)
+        .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
         .where(
             ChatThread.company_id == company_id,
             ChatThread.provider != "internal",
@@ -681,7 +718,22 @@ async def thread_bucket_counts(
     )
     if term:
         base = _apply_thread_search(base, term=term)
-    out = ChatThreadBucketCounts()
+
+    sales = await company_is_sales_mode(db, company_id)
+    out = ChatThreadBucketCounts(list_mode="sales" if sales else "clinic")
+    if sales:
+        for key, _name in SALES_STAGE_KEYS:
+            qcnt = _apply_manager_thread_bucket(
+                base,
+                bucket=None,
+                manager_id=current_user.id,
+                company_id=company_id,
+                last_direction_sq=last_direction_sq,
+                stage_key=key,
+            )
+            out.sales_stages[key] = int((await db.execute(qcnt)).scalar_one() or 0)
+        return out
+
     for bucket in ("transferred", "own", "awaiting_reply", "sold"):
         qcnt = _apply_manager_thread_bucket(
             base,
@@ -703,7 +755,11 @@ async def list_threads(
     q: str | None = Query(default=None, max_length=120),
     bucket: ChatThreadBucket | None = Query(
         default=None,
-        description="Вкладка для менеджера: transferred | own | awaiting_reply | sold",
+        description="Вкладка для менеджера (клиника): transferred | own | awaiting_reply | sold",
+    ),
+    stage_key: SalesStageKey | None = Query(
+        default=None,
+        description="Вкладка стадии для sales: new | in_progress | waiting | won | lost | archive",
     ),
     limit: int | None = Query(default=None, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -756,6 +812,8 @@ async def list_threads(
         ChatThread.lead_id,
         Lead.name,
         Lead.phone,
+        Lead.status_id.label("status_id"),
+        PipelineStage.name.label("stage_name"),
         Lead.manager_id.label("manager_id"),
         func.coalesce(User.full_name, User.email).label("manager_name"),
         ChatThread.provider,
@@ -772,6 +830,7 @@ async def list_threads(
     query = (
         select(*select_cols)
         .outerjoin(Lead, Lead.id == ChatThread.lead_id)
+        .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
         .outerjoin(User, User.id == Lead.manager_id)
         .where(ChatThread.company_id == company_id, ChatThread.provider != "internal")
     )
@@ -789,6 +848,7 @@ async def list_threads(
             manager_id=current_user.id,
             company_id=company_id,
             last_direction_sq=last_direction_sq,
+            stage_key=stage_key,
         )
     if current_user.role == UserRole.expert:
         allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
@@ -821,6 +881,7 @@ async def list_threads(
         if current_user.role == UserRole.manager and ext_chat and not can_view_phone:
             ext_chat = mask_patient_phone(ext_chat.split("@")[0] if "@" in ext_chat else ext_chat)
         sale = sale_info.get(int(row.lead_id)) if row.lead_id is not None else None
+        status_id, stage_name, stage_key_val = _thread_stage_fields(row)
         out.append(
             ChatThreadRead(
                 id=int(row.id),
@@ -829,6 +890,9 @@ async def list_threads(
                 lead_phone=phone_val if phone_val is not None else (phone_display if phone_display != "—" else None),
                 lead_phone_display=phone_display,
                 lead_phone_can_view_full=can_view_phone,
+                lead_status_id=status_id,
+                lead_stage_name=stage_name,
+                lead_stage_key=stage_key_val,
                 manager_id=getattr(row, "manager_id", None),
                 manager_name=getattr(row, "manager_name", None),
                 provider=row.provider,
@@ -928,6 +992,8 @@ async def get_thread_by_lead(
         ChatThread.lead_id,
         Lead.name,
         Lead.phone,
+        Lead.status_id.label("status_id"),
+        PipelineStage.name.label("stage_name"),
         Lead.manager_id.label("manager_id"),
         func.coalesce(User.full_name, User.email).label("manager_name"),
         ChatThread.provider,
@@ -947,6 +1013,7 @@ async def get_thread_by_lead(
             select(*select_cols)
             .select_from(ChatThread)
             .outerjoin(Lead, Lead.id == ChatThread.lead_id)
+            .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
             .outerjoin(User, User.id == Lead.manager_id)
             .where(ChatThread.id == thread.id, ChatThread.company_id == company_id),
         )
@@ -964,6 +1031,7 @@ async def get_thread_by_lead(
     if current_user.role == UserRole.manager and ext_chat and not can_view_phone:
         ext_chat = mask_patient_phone(ext_chat.split("@")[0] if "@" in ext_chat else ext_chat)
     sale = sale_info.get(lead_id)
+    status_id, stage_name, stage_key_val = _thread_stage_fields(row)
     return ChatThreadRead(
         id=int(row.id),
         lead_id=row.lead_id,
@@ -971,6 +1039,9 @@ async def get_thread_by_lead(
         lead_phone=phone_val if phone_val is not None else (phone_display if phone_display != "—" else None),
         lead_phone_display=phone_display,
         lead_phone_can_view_full=can_view_phone,
+        lead_status_id=status_id,
+        lead_stage_name=stage_name,
+        lead_stage_key=stage_key_val,
         manager_id=getattr(row, "manager_id", None),
         manager_name=getattr(row, "manager_name", None),
         provider=row.provider,
@@ -1234,6 +1305,8 @@ async def send_message(
     db.add(msg)
     thread.updated_at = datetime.now(UTC)
     await db.flush()
+    if await company_is_sales_mode(db, company_id):
+        await advance_new_lead_after_manager_reply(db, company_id=company_id, lead_id=thread.lead_id)
     await db.refresh(msg)
     await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread.id)
     return _msg_read(msg)

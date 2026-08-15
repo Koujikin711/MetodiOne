@@ -111,6 +111,9 @@ export interface ChatThread {
   lead_phone?: string | null;
   lead_phone_display?: string | null;
   lead_phone_can_view_full?: boolean;
+  lead_status_id?: number | null;
+  lead_stage_name?: string | null;
+  lead_stage_key?: SalesStageKey | null;
   manager_id?: number | null;
   manager_name?: string | null;
   provider: string;
@@ -132,12 +135,15 @@ export interface ChatThread {
 }
 
 export type ChatThreadBucket = "transferred" | "own" | "awaiting_reply" | "sold";
+export type SalesStageKey = "new" | "in_progress" | "waiting" | "won" | "lost" | "archive";
 
 export interface ChatThreadBucketCounts {
   transferred: number;
   own: number;
   awaiting_reply: number;
   sold: number;
+  list_mode?: "clinic" | "sales" | string;
+  sales_stages?: Partial<Record<SalesStageKey, number>>;
 }
 
 export interface ChatMessage {

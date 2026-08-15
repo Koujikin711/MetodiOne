@@ -207,20 +207,35 @@ export function MainLayout() {
             </>
           ) : deskSalesEnabled && (isManagerLikeNav || !isExpert) ? (
             <>
-              <NavIf show={showNavForFeature("crm")}>
+              <NavIf show={showNavForFeature("chat")}>
                 <NavLink
                   preventScrollReset
-                  to={isManagerLikeNav ? "/crm" : "/app"}
-                  end={!isManagerLikeNav}
+                  to="/chat"
                   className={salesMobileBottomNavLinkClass}
-                  title={isManagerLikeNav ? navLex.navKanbanTitle : navLex.navOwnerHomeTitle}
+                  title="Чаты"
                 >
-                  <GradientIconBox variant="crm" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
-                    <Funnel className="h-3.5 w-3.5" />
+                  <GradientIconBox variant="tasks" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
+                    <MessageCircle className="h-3.5 w-3.5" />
                   </GradientIconBox>
-                  <span className="max-w-full truncate text-[9px] leading-tight">CRM</span>
+                  <span className="max-w-full truncate text-[9px] leading-tight">Чаты</span>
                 </NavLink>
               </NavIf>
+              {!isManagerLikeNav ? (
+                <NavIf show={showNavForFeature("crm")}>
+                  <NavLink
+                    preventScrollReset
+                    to="/crm"
+                    end={false}
+                    className={salesMobileBottomNavLinkClass}
+                    title={navLex.navKanbanTitle}
+                  >
+                    <GradientIconBox variant="crm" className="h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5">
+                      <Funnel className="h-3.5 w-3.5" />
+                    </GradientIconBox>
+                    <span className="max-w-full truncate text-[9px] leading-tight">CRM</span>
+                  </NavLink>
+                </NavIf>
+              ) : null}
               <NavLink
                 preventScrollReset
                 to="/quote"

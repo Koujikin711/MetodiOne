@@ -329,7 +329,7 @@ async def seed_sales_crm_space() -> None:
             pipe = Pipeline(name="Основная", type="sales", company_id=cid)
             session.add(pipe)
             await session.flush()
-            for st in default_pipeline_stage_creates():
+            for st in default_pipeline_stage_creates(crm_mode="sales"):
                 session.add(
                     PipelineStage(
                         name=st.name,
@@ -339,7 +339,10 @@ async def seed_sales_crm_space() -> None:
                         company_id=cid,
                     ),
                 )
+        else:
+            from app.services.lead_sales_stages import ensure_sales_pipeline_chat_stages
 
+            await ensure_sales_pipeline_chat_stages(session, company_id=cid, pipeline_id=int(pipe.id))
         defaults = ["GREEN API", "WHATSAPP", "INSTAGRAM", "TELEGRAM", "GOOGLE SHEETS"]
         existing = (
             await session.execute(

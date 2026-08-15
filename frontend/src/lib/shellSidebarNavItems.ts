@@ -154,7 +154,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         },
       );
     }
-    if (showNavForFeature("crm")) {
+    if (showNavForFeature("crm") && !showDeskSales) {
       items.push(
         {
           id: "crm",
@@ -175,6 +175,10 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
           iconKey: "user-round",
         },
       );
+    }
+    if (showDeskSales && showNavForFeature("crm")) {
+      // В sales менеджер работает в чатах; канбан — у владельца.
+      // (чат уже добавлен выше)
     }
     if (showNavForFeature("tasks")) {
       items.push({
