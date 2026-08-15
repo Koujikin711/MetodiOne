@@ -89,6 +89,18 @@ export function CrmToolbar({
             </div>
           </div>
 
+          <div className="crm-toolbar__view">
+            <span className="crm-toolbar__label">Вид</span>
+            <div className="crm-view-switch" role="group" aria-label="Вид CRM">
+              <button type="button" data-active={crmView === "board"} onClick={() => onSetView("board")}>
+                Доска
+              </button>
+              <button type="button" data-active={crmView === "list"} onClick={() => onSetView("list")}>
+                Список
+              </button>
+            </div>
+          </div>
+
           {showBoardSearch ? (
             <div className="crm-toolbar__search">
               <label className="sr-only" htmlFor="crm-board-search">
@@ -104,18 +116,6 @@ export function CrmToolbar({
               />
             </div>
           ) : null}
-
-          <div className="crm-toolbar__view">
-            <span className="crm-toolbar__label">Вид</span>
-            <div className="crm-view-switch" role="group" aria-label="Вид CRM">
-              <button type="button" data-active={crmView === "board"} onClick={() => onSetView("board")}>
-                Доска
-              </button>
-              <button type="button" data-active={crmView === "list"} onClick={() => onSetView("list")}>
-                Список
-              </button>
-            </div>
-          </div>
         </div>
       ) : null}
 

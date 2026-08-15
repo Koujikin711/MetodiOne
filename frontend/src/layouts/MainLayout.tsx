@@ -163,7 +163,7 @@ export function MainLayout() {
         <main
           ref={mainRef}
           className={[
-            "shell-main relative min-h-0 flex-1 overflow-y-auto text-[var(--mo-text)] sm:px-10 sm:py-10 sm:pb-10 lg:flex lg:flex-col lg:px-14",
+            "shell-main relative min-h-0 min-w-0 flex-1 overflow-y-auto text-[var(--mo-text)] sm:px-10 sm:py-10 sm:pb-10 lg:flex lg:flex-col lg:px-14",
             deskSalesEnabled || managerChatFirst
               ? "px-2.5 py-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))]"
               : "px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))]",

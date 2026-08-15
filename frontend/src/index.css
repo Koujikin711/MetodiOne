@@ -238,6 +238,7 @@ body {
 }
 
 .shell-main {
+  min-width: 0;
   transition: padding var(--mo-sidebar-duration, 0.44s) var(--mo-sidebar-ease, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
@@ -1570,31 +1571,30 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 /* CRM — executive kanban */
 .crm-page {
-  @apply relative mx-auto max-w-[1600px] space-y-3 pb-8;
+  @apply relative mx-auto w-full min-w-0 max-w-[1600px] space-y-3 pb-8;
 }
 
 .crm-toolbar {
-  @apply space-y-2;
+  @apply w-full min-w-0 space-y-2;
   position: sticky;
   top: 0;
   z-index: 30;
-  margin-inline: -0.35rem;
-  padding: 0.15rem 0.35rem 0.65rem;
-  background: color-mix(in srgb, var(--mo-canvas) 86%, transparent);
-  backdrop-filter: blur(14px) saturate(1.08);
-  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+  padding: 0.35rem 0 0.75rem;
+  background: var(--mo-canvas);
+  box-shadow: 0 10px 24px -18px rgba(15, 23, 42, 0.35);
 }
 
 :root[data-theme="dark"] .crm-toolbar {
-  background: color-mix(in srgb, var(--mo-canvas) 88%, transparent);
+  background: var(--mo-canvas);
+  box-shadow: 0 10px 24px -18px rgba(0, 0, 0, 0.55);
 }
 
 .crm-toolbar__head {
-  @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-2;
+  @apply flex w-full min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2;
 }
 
 .crm-toolbar__brand {
-  @apply min-w-0;
+  @apply min-w-0 flex-1;
 }
 
 .crm-toolbar__subtitle {
@@ -1603,11 +1603,11 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-toolbar__actions {
-  @apply flex flex-wrap items-center gap-1.5;
+  @apply flex shrink-0 flex-wrap items-center justify-end gap-1.5;
 }
 
 .crm-toolbar__bar {
-  @apply flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2;
+  @apply flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2;
   border-color: var(--mo-border);
   background: var(--mo-surface-elevated);
 }
@@ -1621,11 +1621,11 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-toolbar__search {
-  @apply min-w-[10rem] flex-1;
+  @apply min-w-0 flex-1 basis-[12rem];
 }
 
 .crm-toolbar__view {
-  @apply ml-auto flex shrink-0 items-center gap-1.5;
+  @apply flex shrink-0 items-center gap-1.5;
 }
 
 .crm-toolbar__label {
