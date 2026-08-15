@@ -173,14 +173,22 @@ async def seed_pipelines_and_stages() -> None:
 
 
 async def ensure_canonical_pipeline_stages() -> None:
-    """Все воронки → 6 стадий (Новый лид … Архив), Bitrix-хвосты сворачиваются."""
+    """Все воронки → 6 стадий; существующие лиды раскладываются по записи/чату."""
     try:
         async with AsyncSessionLocal() as session:
-            from app.services.lead_sales_stages import ensure_all_pipelines_chat_stages
+            from app.services.lead_sales_stages import (
+                ensure_all_pipelines_chat_stages,
+                redistribute_all_pipelines_leads,
+            )
 
             n = await ensure_all_pipelines_chat_stages(session)
+            moved = await redistribute_all_pipelines_leads(session)
             await session.commit()
-            logger.info("Canonical pipeline stages ensured for %s pipeline(s)", n)
+            logger.info(
+                "Canonical pipeline stages ensured for %s pipeline(s); redistributed %s lead(s)",
+                n,
+                moved,
+            )
     except Exception:
         logger.exception("ensure_canonical_pipeline_stages failed; continuing startup")
 

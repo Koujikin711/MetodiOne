@@ -27,7 +27,6 @@ from app.models import (
     UserPipelineAssignment,
     UserRole,
 )
-from app.services.crm_space import company_is_sales_mode
 from app.schemas.booking import (
     BookingAppointmentCreate,
     BookingAppointmentMove,
@@ -585,16 +584,8 @@ async def _sync_lead_after_booking_event(
     lead_id: int,
     event: Literal["booked", "completed", "lost"],
 ) -> None:
-    """Клиника: Запись / Успешно реализован / Потерян. Sales: Удачно / Архив / Отказ."""
-    sales = await company_is_sales_mode(db, company_id)
-    if sales:
-        name = {"booked": "Удачно", "completed": "Архив", "lost": "Отказ"}[event]
-    else:
-        name = {
-            "booked": settings.booking_stage_after_book,
-            "completed": settings.booking_stage_completed,
-            "lost": settings.booking_stage_lost,
-        }[event]
+    """Запись → Удачно; завершение → Архив (авто); отмена → Отказ."""
+    name = {"booked": "Удачно", "completed": "Архив", "lost": "Отказ"}[event]
     await _sync_lead_to_stage_name(db, lead_id, name)
 
 

@@ -2017,27 +2017,38 @@ async def update_lead_status(
             detail="Переход между воронками недоступен",
         )
 
-    # MVP-валидация для переходов через drag-and-drop/ручное изменение статуса.
-    # В sales-пространстве менеджер меняет стадии из чата (кнопка «Статус»).
-    from app.services.crm_space import company_is_sales_mode
+    # Чат-воронка: менеджер ставит стадии из чата, кроме «Архив» (только автоматически).
+    from app.services.lead_sales_stages import ARCHIVE_STAGE_NAME, MANAGER_SETTABLE_STAGE_NAMES
 
-    sales_mode = await company_is_sales_mode(db, company_id)
+    target_name = (stage.name or "").strip()
+    if target_name == ARCHIVE_STAGE_NAME:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Стадия «Архив» выставляется автоматически (после завершения записи)",
+        )
+
     allowed = False
-    if sales_mode and current_user.role in (
+    if current_user.role in (
         UserRole.owner,
         UserRole.admin,
         UserRole.manager,
         UserRole.super_owner,
     ):
-        allowed = True
-    elif (
-        current_user.role == UserRole.owner
+        if target_name in MANAGER_SETTABLE_STAGE_NAMES:
+            allowed = True
+        elif current_user.role in (UserRole.owner, UserRole.super_owner):
+            # Владелец может двигать по канбану любые рабочие стадии (не Архив).
+            allowed = True
+    if (
+        not allowed
+        and current_user.role == UserRole.owner
         and from_stage.name == "Запись"
         and stage.name == "У эксперта"
     ):
         allowed = True
     elif (
-        current_user.role == UserRole.expert
+        not allowed
+        and current_user.role == UserRole.expert
         and from_stage.name == "У эксперта"
         and stage.name == "Доп. услуги"
     ):

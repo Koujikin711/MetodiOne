@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select, update
+from collections import defaultdict
+
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Deal, Integration, Lead, Pipeline, PipelineStage
+from app.models import (
+    BookingAppointment,
+    ChatMessage,
+    ChatThread,
+    Deal,
+    Integration,
+    Lead,
+    Pipeline,
+    PipelineStage,
+)
 from app.services.stage_delete_checks import stage_delete_block_reason
 
 # Порядок колонок: входящие → работа → ожидание → исход → архив.
@@ -20,7 +31,7 @@ SALES_CHAT_STAGE_SPECS: tuple[tuple[str, str], ...] = (
 
 SALES_STAGE_NAMES: tuple[str, ...] = tuple(name for name, _ in SALES_CHAT_STAGE_SPECS)
 
-# Ключи вкладок чата менеджера.
+# Ключи вкладок (Архив — только автоматический, менеджеру не в Status).
 SALES_STAGE_KEYS: tuple[tuple[str, str], ...] = (
     ("new", "Новый лид"),
     ("in_progress", "В обработке"),
@@ -29,6 +40,12 @@ SALES_STAGE_KEYS: tuple[tuple[str, str], ...] = (
     ("lost", "Отказ"),
     ("archive", "Архив"),
 )
+
+MANAGER_CHAT_STAGE_KEYS: tuple[tuple[str, str], ...] = tuple(
+    (k, n) for k, n in SALES_STAGE_KEYS if k != "archive"
+)
+MANAGER_SETTABLE_STAGE_NAMES: frozenset[str] = frozenset(n for _, n in MANAGER_CHAT_STAGE_KEYS)
+ARCHIVE_STAGE_NAME = "Архив"
 
 SALES_STAGE_KEY_TO_NAME: dict[str, str] = {k: n for k, n in SALES_STAGE_KEYS}
 SALES_STAGE_NAME_TO_KEY: dict[str, str] = {n: k for k, n in SALES_STAGE_KEYS}
@@ -45,7 +62,7 @@ _LEGACY_NAME_TO_SALES: dict[str, str] = {
     "Доп. услуги": "В ожидании",
     "В ожидании": "В ожидании",
     "Оплачено": "Удачно",
-    "Успешно реализован": "Удачно",
+    "Успешно реализован": "Архив",
     "Удачно": "Удачно",
     "Потерян": "Отказ",
     "Неуспешно": "Отказ",
@@ -80,6 +97,47 @@ def resolve_stage_name_aliases(name: str) -> list[str]:
     if mapped and mapped not in out:
         out.append(mapped)
     return out
+
+
+def classify_lead_stage_name(
+    *,
+    current_name: str | None,
+    appointment_statuses: set[str],
+    has_outbound: bool,
+    last_direction: str | None,
+) -> str:
+    """
+    Жёсткие сигналы (запись) перекрывают ручные стадии.
+    Мягкие — только для «Новый лид» / неизвестных, чтобы не ломать работу менеджера.
+    """
+    cur = (current_name or "").strip()
+    statuses = {str(s).strip().lower() for s in appointment_statuses}
+
+    if "completed" in statuses:
+        return ARCHIVE_STAGE_NAME
+    if "booked" in statuses:
+        return "Удачно"
+    if statuses.intersection({"cancelled", "no_show", "lost"}) and cur in (
+        "",
+        "Новый лид",
+        "Новый",
+        "В обработке",
+        "В ожидании",
+        "Удачно",
+    ):
+        return "Отказ"
+
+    if cur == ARCHIVE_STAGE_NAME:
+        return ARCHIVE_STAGE_NAME
+    # Уже рабочая стадия менеджера — не трогаем без записи.
+    if cur in MANAGER_SETTABLE_STAGE_NAMES and cur != "Новый лид":
+        return cur
+
+    if has_outbound:
+        if (last_direction or "").strip().lower() == "in":
+            return "В ожидании"
+        return "В обработке"
+    return "Новый лид"
 
 
 async def stage_id_by_name_in_pipeline(
@@ -215,7 +273,6 @@ async def ensure_sales_pipeline_chat_stages(
 
     await db.flush()
 
-    # Ещё раз: любые неканонические стадии (включая новые Bitrix-имена) → Новый лид.
     leftover = (
         await db.execute(
             select(PipelineStage).where(
@@ -251,6 +308,107 @@ async def ensure_sales_pipeline_chat_stages(
     return {str(s.name): int(s.id) for s in fresh if str(s.name) in SALES_STAGE_NAMES}
 
 
+async def redistribute_pipeline_leads_by_activity(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    stage_ids: dict[str, int] | None = None,
+) -> int:
+    """Раскладывает лиды воронки по стадиям по записи/чату. Возвращает число обновлений."""
+    ids = stage_ids or await ensure_sales_pipeline_chat_stages(
+        db, company_id=company_id, pipeline_id=pipeline_id,
+    )
+    if not ids:
+        return 0
+
+    stage_id_set = set(ids.values())
+    leads = (
+        await db.execute(
+            select(Lead.id, Lead.status_id)
+            .where(Lead.company_id == company_id, Lead.status_id.in_(stage_id_set))
+            .order_by(Lead.id.asc()),
+        )
+    ).all()
+    if not leads:
+        return 0
+
+    lead_ids = [int(r[0]) for r in leads]
+    id_to_status = {int(r[0]): int(r[1]) for r in leads}
+    id_to_name = {sid: name for name, sid in ids.items()}
+
+    appt_rows = (
+        await db.execute(
+            select(BookingAppointment.lead_id, BookingAppointment.status).where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.lead_id.in_(lead_ids),
+            ),
+        )
+    ).all()
+    appts_by_lead: dict[int, set[str]] = defaultdict(set)
+    for lid, st in appt_rows:
+        if lid is None:
+            continue
+        appts_by_lead[int(lid)].add(str(st or ""))
+
+    out_rows = (
+        await db.execute(
+            select(ChatThread.lead_id)
+            .join(ChatMessage, ChatMessage.thread_id == ChatThread.id)
+            .where(
+                ChatThread.company_id == company_id,
+                ChatThread.lead_id.in_(lead_ids),
+                ChatMessage.direction == "out",
+            )
+            .distinct(),
+        )
+    ).all()
+    has_out = {int(r[0]) for r in out_rows if r[0] is not None}
+
+    last_msg_sq = (
+        select(
+            ChatThread.lead_id.label("lead_id"),
+            func.max(ChatMessage.id).label("max_msg_id"),
+        )
+        .join(ChatMessage, ChatMessage.thread_id == ChatThread.id)
+        .where(ChatThread.company_id == company_id, ChatThread.lead_id.in_(lead_ids))
+        .group_by(ChatThread.lead_id)
+        .subquery()
+    )
+    last_dir_rows = (
+        await db.execute(
+            select(last_msg_sq.c.lead_id, ChatMessage.direction).join(
+                ChatMessage,
+                ChatMessage.id == last_msg_sq.c.max_msg_id,
+            ),
+        )
+    ).all()
+    last_dir = {int(lid): str(direction) for lid, direction in last_dir_rows if lid is not None}
+
+    updated = 0
+    for lid in lead_ids:
+        cur_sid = id_to_status[lid]
+        cur_name = id_to_name.get(cur_sid)
+        target_name = classify_lead_stage_name(
+            current_name=cur_name,
+            appointment_statuses=appts_by_lead.get(lid, set()),
+            has_outbound=lid in has_out,
+            last_direction=last_dir.get(lid),
+        )
+        target_sid = ids.get(target_name)
+        if target_sid is None or target_sid == cur_sid:
+            continue
+        await db.execute(
+            update(Lead)
+            .where(Lead.id == lid, Lead.company_id == company_id)
+            .values(status_id=int(target_sid)),
+        )
+        updated += 1
+    if updated:
+        await db.flush()
+    return updated
+
+
 async def ensure_all_pipelines_chat_stages(db: AsyncSession) -> int:
     """Прогоняет 6 канонических стадий по всем воронкам всех компаний. Возвращает число воронок."""
     pipes = (await db.execute(select(Pipeline).order_by(Pipeline.id.asc()))).scalars().all()
@@ -263,6 +421,21 @@ async def ensure_all_pipelines_chat_stages(db: AsyncSession) -> int:
             pipeline_id=int(p.id),
         )
     return len(pipes)
+
+
+async def redistribute_all_pipelines_leads(db: AsyncSession) -> int:
+    """Раскладка лидов по всем воронкам. Возвращает суммарное число обновлений."""
+    pipes = (await db.execute(select(Pipeline).order_by(Pipeline.id.asc()))).scalars().all()
+    total = 0
+    for p in pipes:
+        if p.company_id is None:
+            continue
+        total += await redistribute_pipeline_leads_by_activity(
+            db,
+            company_id=int(p.company_id),
+            pipeline_id=int(p.id),
+        )
+    return total
 
 
 async def advance_new_lead_after_manager_reply(

@@ -380,8 +380,13 @@ const SALES_STAGE_TABS: { id: SalesStageKey; label: string; hint: string }[] = [
   { id: "waiting", label: "В ожидании", hint: "Ждём оплату / клиента" },
   { id: "won", label: "Удачно", hint: "Продано / записано" },
   { id: "lost", label: "Отказ", hint: "Отказ клиента" },
-  { id: "archive", label: "Архив", hint: "Закрытые итоги" },
 ];
+
+const OWNER_ARCHIVE_TAB: { id: SalesStageKey; label: string; hint: string } = {
+  id: "archive",
+  label: "Архив",
+  hint: "Авто после завершения",
+};
 
 function formatSaleMoney(raw: string | null | undefined): string {
   if (!raw) return "—";
@@ -447,9 +452,18 @@ export function ChatPage() {
   const salesChatMode = meQuery.data?.chat_stages_enabled !== false;
   const showManagerChatBuckets =
     userRole === "manager" || userRole === "admin" || userRole === "owner";
+  const stageTabs =
+    userRole === "owner"
+      ? [...SALES_STAGE_TABS, OWNER_ARCHIVE_TAB]
+      : SALES_STAGE_TABS;
   const [chatBucket, setChatBucket] = useState<ChatThreadBucket>("own");
   const [salesStageKey, setSalesStageKey] = useState<SalesStageKey>("new");
   const [statusOpen, setStatusOpen] = useState(false);
+
+  useEffect(() => {
+    if (userRole === "owner") return;
+    if (salesStageKey === "archive") setSalesStageKey("new");
+  }, [userRole, salesStageKey]);
 
   useChatRealtime(userRole === "manager" || userRole === "admin" || userRole === "owner");
 
@@ -919,10 +933,10 @@ export function ChatPage() {
             <div
               className={[
                 "mb-2 grid shrink-0 gap-1 max-lg:mb-1.5 sm:mb-3 sm:gap-1.5",
-                salesChatMode ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-2 sm:grid-cols-4",
+                salesChatMode ? (stageTabs.length > 5 ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-3 sm:grid-cols-5") : "grid-cols-2 sm:grid-cols-4",
               ].join(" ")}
             >
-              {(salesChatMode ? SALES_STAGE_TABS : CHAT_BUCKET_TABS).map((tab) => {
+              {(salesChatMode ? stageTabs : CHAT_BUCKET_TABS).map((tab) => {
                 const active = salesChatMode
                   ? salesStageKey === tab.id
                   : chatBucket === (tab.id as ChatThreadBucket);
@@ -1040,7 +1054,7 @@ export function ChatPage() {
               <p className="text-sm mo-muted">
                 {showManagerChatBuckets
                   ? salesChatMode
-                    ? `Нет диалогов в «${SALES_STAGE_TABS.find((t) => t.id === salesStageKey)?.label ?? salesStageKey}»`
+                    ? `Нет диалогов в «${stageTabs.find((t) => t.id === salesStageKey)?.label ?? salesStageKey}»`
                     : chatBucket === "transferred"
                       ? "Нет переданных лидов"
                       : chatBucket === "own"
@@ -1172,6 +1186,7 @@ export function ChatPage() {
                   <div className="flex flex-wrap gap-1.5">
                     {(statusStagesQuery.data ?? [])
                       .slice()
+                      .filter((s) => s.name.trim() !== "Архив")
                       .sort((a, b) => a.order - b.order || a.id - b.id)
                       .map((s) => {
                         const current = activeThread.lead_status_id === s.id;
