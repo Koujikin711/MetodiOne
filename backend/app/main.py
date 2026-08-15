@@ -172,6 +172,19 @@ async def seed_pipelines_and_stages() -> None:
         await session.commit()
 
 
+async def ensure_canonical_pipeline_stages() -> None:
+    """Все воронки → 6 стадий (Новый лид … Архив), Bitrix-хвосты сворачиваются."""
+    try:
+        async with AsyncSessionLocal() as session:
+            from app.services.lead_sales_stages import ensure_all_pipelines_chat_stages
+
+            n = await ensure_all_pipelines_chat_stages(session)
+            await session.commit()
+            logger.info("Canonical pipeline stages ensured for %s pipeline(s)", n)
+    except Exception:
+        logger.exception("ensure_canonical_pipeline_stages failed; continuing startup")
+
+
 TEST_ADMIN_EMAIL = "admin@crm.local"
 TEST_SUPER_OWNER_EMAIL = "super@crm.local"
 
@@ -508,6 +521,7 @@ async def lifespan(_: FastAPI):
     await seed_booking_defaults()
     await seed_lead_sources_defaults()
     await seed_sales_crm_space()
+    await ensure_canonical_pipeline_stages()
     stop_event = asyncio.Event()
 
     async def _reminder_loop() -> None:

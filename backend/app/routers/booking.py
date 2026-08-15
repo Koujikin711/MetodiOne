@@ -550,11 +550,17 @@ def _assert_slot_in_specialist_schedule(s: BookingSpecialist, start_at: datetime
 
 
 async def _stage_id_by_name(db: AsyncSession, name: str, pipeline_id: int | None = None) -> int | None:
-    q = select(PipelineStage.id).where(PipelineStage.name == name)
-    if pipeline_id is not None:
-        q = q.where(PipelineStage.pipeline_id == pipeline_id)
-    r = await db.execute(q)
-    return r.scalar_one_or_none()
+    from app.services.lead_sales_stages import resolve_stage_name_aliases
+
+    for alias in resolve_stage_name_aliases(name):
+        q = select(PipelineStage.id).where(PipelineStage.name == alias)
+        if pipeline_id is not None:
+            q = q.where(PipelineStage.pipeline_id == pipeline_id)
+        r = await db.execute(q.limit(1))
+        sid = r.scalar_one_or_none()
+        if sid is not None:
+            return int(sid)
+    return None
 
 
 async def _sync_lead_to_stage_name(db: AsyncSession, lead_id: int, stage_name: str) -> None:

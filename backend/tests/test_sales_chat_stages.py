@@ -1,7 +1,11 @@
 """Sales chat pipeline stage helpers."""
 
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
-from app.services.lead_sales_stages import SALES_STAGE_NAMES, sales_stage_name_for_key
+from app.services.lead_sales_stages import (
+    SALES_STAGE_NAMES,
+    resolve_stage_name_aliases,
+    sales_stage_name_for_key,
+)
 
 
 def test_sales_stage_keys():
@@ -16,4 +20,11 @@ def test_default_sales_stages():
     sales = default_pipeline_stage_creates(crm_mode="sales")
     assert [s.name for s in sales] == list(SALES_STAGE_NAMES)
     clinic = default_pipeline_stage_creates(crm_mode="clinic")
-    assert clinic[0].name == "Новый"
+    assert [s.name for s in clinic] == list(SALES_STAGE_NAMES)
+
+
+def test_bitrix_and_booking_aliases():
+    assert resolve_stage_name_aliases("Неуспешно") == ["Неуспешно", "Отказ"]
+    assert resolve_stage_name_aliases("Лиды из битрикс") == ["Лиды из битрикс", "Новый лид"]
+    assert resolve_stage_name_aliases("Квалифицирован") == ["Квалифицирован", "В обработке"]
+    assert resolve_stage_name_aliases("Запись") == ["Запись", "Удачно"]
