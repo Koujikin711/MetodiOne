@@ -166,7 +166,12 @@ export function MainLayout() {
               : "px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))]",
           ].join(" ")}
         >
-          <div className="pointer-events-none fixed right-3 top-3 z-40 sm:hidden">
+          <div
+            className={[
+              "pointer-events-none fixed right-3 top-3 z-40 sm:hidden",
+              location.pathname.startsWith("/chat") ? "hidden" : "",
+            ].join(" ")}
+          >
             <div className="pointer-events-auto">
               <ThemeToggle compact />
             </div>

@@ -80,11 +80,11 @@ export function IntegrationsHubPage() {
         </p>
         {eventsQuery.isLoading && <p className="lux-body mt-3">Загрузка…</p>}
         {eventsQuery.isError && (
-          <p className="mt-3 text-sm text-[#6B1D2F]">{(eventsQuery.error as Error).message}</p>
+          <p className="mt-3 text-sm text-[var(--mo-danger)]">{(eventsQuery.error as Error).message}</p>
         )}
-        <div className="mt-4 max-h-80 overflow-auto rounded-xl border border-[#E1D9C6] bg-white">
+        <div className="mt-4 max-h-80 overflow-auto rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]">
           <table className="mo-table min-w-full text-xs">
-            <thead className="sticky top-0 bg-[#FAF8F4]">
+            <thead className="sticky top-0 bg-[var(--mo-surface)]">
               <tr>
                 <th className="px-3 py-2 font-semibold">Время</th>
                 <th className="px-3 py-2 font-semibold">Источник</th>
@@ -95,16 +95,16 @@ export function IntegrationsHubPage() {
             <tbody>
               {(eventsQuery.data ?? []).map((ev, idx) => (
                 <tr key={`${ev.ts}-${idx}`}>
-                  <td className="px-3 py-2 whitespace-nowrap text-[#A89880]">{fmtTs(ev.ts)}</td>
-                  <td className="px-3 py-2 font-medium text-[#7A7265]">{ev.source}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-[var(--mo-text-muted)]">{fmtTs(ev.ts)}</td>
+                  <td className="px-3 py-2 font-medium text-[var(--mo-text-muted)]">{ev.source}</td>
                   <td className="px-3 py-2">
                     {ev.ok ? (
                       <span className="font-semibold text-[#0F4C3A]">Успешно</span>
                     ) : (
-                      <span className="font-semibold text-[#6B1D2F]">Ошибка</span>
+                      <span className="font-semibold text-[var(--mo-danger)]">Ошибка</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-[#2C2520]">{ev.message}</td>
+                  <td className="px-3 py-2 text-[var(--mo-text)]">{ev.message}</td>
                 </tr>
               ))}
             </tbody>

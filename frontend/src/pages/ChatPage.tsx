@@ -4,6 +4,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl, resolveMediaUrl } from "@/lib/api";
@@ -110,8 +111,8 @@ function deliveryMeta(statusRaw: string | null | undefined): { label: string; to
   if (!s) return { label: "", tone: "neutral" };
   if (s === "read" || s === "seen" || s === "viewed") return { label: "Просмотрено", tone: "seen" };
   if (s === "delivered") return { label: "Доставлено", tone: "good" };
-  if (s === "sent") return { label: "Отправлено", tone: "neutral" };
-  if (s === "sending") return { label: "Отправка…", tone: "neutral" };
+  // «Отправлено» / «Отправка…» не показываем — достаточно времени
+  if (s === "sent" || s === "sending") return { label: "", tone: "neutral" };
   if (s === "failed" || s === "error") return { label: "Не отправлено", tone: "bad" };
   return { label: statusRaw || "", tone: "neutral" };
 }
@@ -328,7 +329,7 @@ function MessageBody({ m }: { m: ChatMessage }) {
           rel="noreferrer"
           className="text-indigo-300 underline underline-offset-2 hover:text-indigo-200"
         >
-          {m.file_name || "Скачать файл"}
+          {m.file_name || "📎"}
         </a>
         {m.text && <div>{m.text}</div>}
       </div>
@@ -344,6 +345,20 @@ function MicIcon({ className }: { className?: string }) {
       <path
         fill="currentColor"
         d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V20H9v2h6v-2h-2v-2.08A7 7 0 0 0 19 11h-2z"
+      />
+    </svg>
+  );
+}
+
+function PaperclipIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M21.44 11.05l-8.49 8.49a5.25 5.25 0 01-7.42-7.42l8.84-8.84a3.5 3.5 0 014.95 4.95l-8.84 8.84a1.75 1.75 0 01-2.47-2.47l7.78-7.78"
       />
     </svg>
   );
@@ -1118,30 +1133,35 @@ export function ChatPage() {
                     </>
                   ) : null}
                 </div>
-                {salesChatMode && activeThread?.lead_id ? (
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {salesChatMode && activeThread?.lead_id ? (
+                    <button
+                      type="button"
+                      className="chat-thread-header-btn shrink-0"
+                      onClick={() => setStatusOpen((v) => !v)}
+                      title="Сменить стадию и взять лид на себя"
+                    >
+                      Статус
+                    </button>
+                  ) : null}
+                  <div className="lg:hidden">
+                    <ThemeToggle compact />
+                  </div>
                   <button
                     type="button"
                     className="chat-thread-header-btn shrink-0"
-                    onClick={() => setStatusOpen((v) => !v)}
-                    title="Сменить стадию и взять лид на себя"
+                    disabled={repairMediaMutation.isPending}
+                    onClick={() => repairMediaMutation.mutate()}
+                    title="Догрузить голосовые и фото, если не отображаются"
                   >
-                    Статус
+                    <span className="lg:hidden">
+                      {repairMediaMutation.isPending ? "…" : "Медиа"}
+                    </span>
+                    <span className="hidden lg:inline">
+                      {repairMediaMutation.isPending ? "Догрузка…" : "Догрузить медиа"}
+                    </span>
                   </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="chat-thread-header-btn shrink-0"
-                  disabled={repairMediaMutation.isPending}
-                  onClick={() => repairMediaMutation.mutate()}
-                  title="Догрузить голосовые и фото, если не отображаются"
-                >
-                  <span className="lg:hidden">
-                    {repairMediaMutation.isPending ? "…" : "Медиа"}
-                  </span>
-                  <span className="hidden lg:inline">
-                    {repairMediaMutation.isPending ? "Догрузка…" : "Догрузить медиа"}
-                  </span>
-                </button>
+                </div>
               </div>
 
               {statusOpen && salesChatMode && activeThread?.lead_id ? (
@@ -1245,7 +1265,7 @@ export function ChatPage() {
               </div>
 
               <form
-                className="shrink-0 flex flex-col gap-2 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] pt-3 sm:flex-row sm:items-end lg:mt-3 lg:bg-transparent"
+                className="shrink-0 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] pt-3 lg:mt-3 lg:bg-transparent"
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (isRecording || voiceFinishing) return;
@@ -1267,54 +1287,58 @@ export function ChatPage() {
                     setPendingFile(f ?? null);
                   }}
                 />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isRecording || voiceFinishing || sendMutation.isPending}
-                  className="shrink-0 rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-3 py-2 text-sm font-medium text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)] disabled:opacity-50"
-                >
-                  Файл
-                </button>
-                <input
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder={
-                    voiceFinishing
-                      ? "Отправка голосового…"
-                      : isRecording
-                        ? "Идёт запись… нажмите зелёную кнопку ещё раз, чтобы отправить"
-                        : voiceDraftFile
-                          ? "Голосовое готово — прослушайте и отправьте"
-                        : pendingFile
-                          ? "Подпись (необязательно)…"
-                          : "Сообщение клиенту…"
-                  }
-                  readOnly={isRecording || voiceFinishing}
-                  className="mo-input min-w-0 flex-1 read-only:opacity-80"
-                />
-                <button
-                  type="button"
-                  onClick={toggleVoiceRecording}
-                  disabled={sendMutation.isPending || (voiceFinishing && !isRecording) || !!voiceDraftFile}
-                  title={
-                    isRecording
-                      ? "Нажмите ещё раз, чтобы остановить"
-                      : "Записать голосовое сообщение"
-                  }
-                  className={[
-                    "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-md transition disabled:opacity-50",
-                    isRecording
-                      ? "animate-pulse bg-red-600 hover:bg-red-500"
-                      : "bg-emerald-600 hover:bg-emerald-500",
-                  ].join(" ")}
-                  aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
-                >
-                  {isRecording ? (
-                    <span className="block h-3.5 w-3.5 rounded-sm bg-white" aria-hidden />
-                  ) : (
-                    <MicIcon className="h-6 w-6" />
-                  )}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isRecording || voiceFinishing || sendMutation.isPending}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] text-[var(--mo-text)] shadow-sm transition hover:bg-[var(--mo-accent-soft)] disabled:opacity-50"
+                    title="Прикрепить файл"
+                    aria-label="Прикрепить файл"
+                  >
+                    <PaperclipIcon className="h-5 w-5" />
+                  </button>
+                  <input
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder={
+                      voiceFinishing
+                        ? "Отправка голосового…"
+                        : isRecording
+                          ? "Идёт запись… нажмите зелёную кнопку ещё раз, чтобы отправить"
+                          : voiceDraftFile
+                            ? "Голосовое готово — прослушайте и отправьте"
+                          : pendingFile
+                            ? "Подпись (необязательно)…"
+                            : "Сообщение клиенту…"
+                    }
+                    readOnly={isRecording || voiceFinishing}
+                    className="mo-input min-w-0 flex-1 rounded-full read-only:opacity-80"
+                  />
+                  <button
+                    type="button"
+                    onClick={toggleVoiceRecording}
+                    disabled={sendMutation.isPending || (voiceFinishing && !isRecording) || !!voiceDraftFile}
+                    title={
+                      isRecording
+                        ? "Нажмите ещё раз, чтобы остановить"
+                        : "Записать голосовое сообщение"
+                    }
+                    className={[
+                      "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-md transition disabled:opacity-50",
+                      isRecording
+                        ? "animate-pulse bg-red-600 hover:bg-red-500"
+                        : "bg-emerald-600 hover:bg-emerald-500",
+                    ].join(" ")}
+                    aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
+                  >
+                    {isRecording ? (
+                      <span className="block h-3.5 w-3.5 rounded-sm bg-white" aria-hidden />
+                    ) : (
+                      <MicIcon className="h-6 w-6" />
+                    )}
+                  </button>
+                </div>
                 <button
                   type="submit"
                   disabled={
@@ -1323,7 +1347,7 @@ export function ChatPage() {
                     voiceFinishing ||
                     (!voiceDraftFile && !text.trim() && !pendingFile)
                   }
-                  className="btn-primary shrink-0 px-4 py-2 disabled:opacity-60"
+                  className="btn-primary mt-2 w-full px-4 py-2.5 disabled:opacity-60 sm:ml-auto sm:mt-2 sm:w-auto"
                 >
                   {voiceDraftFile ? "Отправить голосовое" : "Отправить"}
                 </button>

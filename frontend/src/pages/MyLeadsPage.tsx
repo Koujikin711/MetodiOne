@@ -19,10 +19,9 @@ export function MyLeadsPage() {
   });
 
   return (
-    <div className="relative mx-auto max-w-[1200px] space-y-6 pb-10">
+    <div className="relative mx-auto max-w-lg space-y-4 pb-10 sm:max-w-[720px] sm:space-y-5">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Мои лиды</h1>
-        <p className="mt-1 text-sm lux-caption">Лиды, закреплённые за вами</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-3xl">Мои лиды</h1>
       </header>
 
       {leadsQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
@@ -30,25 +29,27 @@ export function MyLeadsPage() {
         <p className="text-sm text-red-300">{(leadsQuery.error as Error).message}</p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-2.5 sm:grid-cols-2">
         {(leadsQuery.data ?? []).map((lead) => (
           <Link
             key={lead.id}
             to={`/leads/${lead.id}`}
-            className="mo-section p-4 shadow-inner backdrop-blur-sm transition hover:border-purple-500/30 hover:bg-[var(--mo-accent-soft)]"
+            className="mo-section p-3 shadow-inner backdrop-blur-sm transition hover:border-[var(--mo-border-strong)] hover:bg-[var(--mo-accent-soft)] sm:p-3.5"
           >
             <div className="flex items-start justify-between gap-2">
-              <p className="font-medium leading-snug text-[var(--mo-text)]">{lead.name}</p>
-              <span className="shrink-0 rounded-full bg-slate-700/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide lux-caption">
+              <p className="min-w-0 truncate text-sm font-semibold leading-snug text-[var(--mo-text)]">
+                {lead.name}
+              </p>
+              <span className="shrink-0 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide tabular-nums mo-muted">
                 {leadDateBadge(lead.created_at)}
               </span>
             </div>
-            <p className="mt-2 text-sm lux-caption">
+            <p className="mt-1.5 text-sm font-medium tabular-nums tracking-wide text-[var(--mo-text)]">
               <PatientPhone value={lead} />
             </p>
-            {lead.stage_name && (
-              <p className="mt-2 text-xs text-[var(--mo-accent-hover)]/90">{lead.stage_name}</p>
-            )}
+            {lead.stage_name ? (
+              <p className="mt-1.5 text-xs text-[var(--mo-accent-hover)]">{lead.stage_name}</p>
+            ) : null}
           </Link>
         ))}
       </div>

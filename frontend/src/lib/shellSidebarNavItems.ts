@@ -164,6 +164,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
           iconKey: "calendar",
         });
       }
+      if (showKpi && showNavForFeature("kpi")) {
+        items.push({
+          id: "kpi",
+          to: "/kpi",
+          title: navLex.navKpiTitle,
+          labelShort: navLex.navKpi,
+          labelFull: navLex.navKpiTitle,
+          variant: "indigo",
+          iconKey: "target",
+        });
+      }
     }
     if (showNavForFeature("crm") && !showDeskSales) {
       items.push(
@@ -211,7 +222,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       variant: "tasks",
       iconKey: "users",
     });
-    if (showKpi && showNavForFeature("kpi")) {
+    if (showKpi && showNavForFeature("kpi") && !showDeskSales) {
       items.push({
         id: "kpi",
         to: "/kpi",
@@ -381,6 +392,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "wallet",
       },
     );
+    if (showKpi && showNavForFeature("kpi")) {
+      items.push({
+        id: "kpi",
+        to: "/kpi",
+        title: navLex.navKpiTitle,
+        labelShort: navLex.navKpi,
+        labelFull: navLex.navKpiTitle,
+        variant: "indigo",
+        iconKey: "target",
+      });
+    }
   }
   if (showNavForFeature("tasks")) {
     items.push({
@@ -402,6 +424,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     variant: "tasks",
     iconKey: "users",
   });
+  if (showKpi && showNavForFeature("kpi") && !showDeskSales) {
+    items.push({
+      id: "kpi",
+      to: "/kpi",
+      title: navLex.navKpiTitle,
+      labelShort: navLex.navKpi,
+      labelFull: navLex.navKpiTitle,
+      variant: "indigo",
+      iconKey: "target",
+    });
+  }
   if (showNavForFeature("analytics")) {
     items.push({
       id: "analytics",
@@ -411,17 +444,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       labelFull: navLex.navAnalyticsTitle,
       variant: "blue",
       iconKey: "bar-chart",
-    });
-  }
-  if (showKpi && showNavForFeature("kpi")) {
-    items.push({
-      id: "kpi",
-      to: "/kpi",
-      title: navLex.navKpiTitle,
-      labelShort: navLex.navKpi,
-      labelFull: navLex.navKpiTitle,
-      variant: "indigo",
-      iconKey: "target",
     });
   }
   if (showFinance && showNavForFeature("finance")) {
@@ -482,12 +504,12 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
   return items;
 }
 
-/** Пункты, которые уходят в меню «Настройки». */
+/** Пункты, которые уходят в меню «Настройки» / «Скрыть». */
 export const SHELL_SETTINGS_ITEM_IDS = new Set([
   "messenger",
   "tasks",
   "finance",
-  "kpi",
+  "analytics",
   "services",
   "employees",
   "audit",
