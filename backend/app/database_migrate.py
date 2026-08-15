@@ -2147,6 +2147,38 @@ async def ensure_sales_crm_space_migration(conn: AsyncConnection, database_url: 
     )
 
 
+async def ensure_pipeline_stage_automation(conn: AsyncConnection, database_url: str) -> None:
+    """Правила автоматизации при входе лида в стадию канбана."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    pg = "postgresql" in low or "asyncpg" in low or "postgres" in low
+
+    cols = (
+        ("on_enter_create_task", "INTEGER" if sqlite else "BOOLEAN"),
+        ("on_enter_task_title", "VARCHAR(255)"),
+        ("on_enter_task_description", "TEXT"),
+        ("on_enter_task_deadline_hours", "INTEGER"),
+    )
+
+    if sqlite:
+        r = await conn.execute(text("PRAGMA table_info(pipeline_stages)"))
+        existing = {row[1] for row in r.fetchall()}
+        for name, col_type in cols:
+            if name not in existing:
+                await conn.execute(text(f"ALTER TABLE pipeline_stages ADD COLUMN {name} {col_type}"))
+        return
+
+    if not pg:
+        return
+
+    for name, col_type in cols:
+        await conn.execute(
+            text(
+                f"ALTER TABLE pipeline_stages ADD COLUMN IF NOT EXISTS {name} {col_type}",
+            ),
+        )
+
+
 async def ensure_sales_field_visits_migration(conn: AsyncConnection, database_url: str) -> None:
     """Полевой трекер визитов менеджеров (crm_mode=sales)."""
     low = database_url.lower()

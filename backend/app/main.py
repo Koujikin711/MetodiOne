@@ -33,6 +33,7 @@ from app.database_migrate import (
     ensure_booking_specialist_directions,
     ensure_sales_crm_space_migration,
     ensure_sales_field_visits_migration,
+    ensure_pipeline_stage_automation,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -129,6 +130,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_booking_specialist_directions(conn, db_url)
                 await ensure_sales_crm_space_migration(conn, db_url)
                 await ensure_sales_field_visits_migration(conn, db_url)
+                await ensure_pipeline_stage_automation(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts

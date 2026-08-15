@@ -382,6 +382,11 @@ class PipelineStage(Base):
         ForeignKey("pipelines.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # None = legacy name heuristics; True = always create task; False = off
+    on_enter_create_task: Mapped[bool | None] = mapped_column(nullable=True, default=None)
+    on_enter_task_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    on_enter_task_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    on_enter_task_deadline_hours: Mapped[int | None] = mapped_column(nullable=True)
 
     leads: Mapped[list["Lead"]] = relationship(back_populates="stage")
     deals: Mapped[list["Deal"]] = relationship(back_populates="stage")

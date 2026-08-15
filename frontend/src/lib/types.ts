@@ -51,6 +51,11 @@ export interface PipelineStage {
   order: number;
   color: string;
   pipeline_id?: number | null;
+  /** null = legacy по имени; true = создать задачу; false = выкл */
+  on_enter_create_task?: boolean | null;
+  on_enter_task_title?: string | null;
+  on_enter_task_description?: string | null;
+  on_enter_task_deadline_hours?: number | null;
 }
 
 export interface Pipeline {
