@@ -1181,12 +1181,15 @@ export function ChatPage() {
               {statusOpen && salesChatMode && activeThread?.lead_id ? (
                 <div className="shrink-0 border-b border-[var(--mo-border)] py-2">
                   <p className="mb-1.5 text-[11px] mo-muted">
-                    Стадия канбана + взять лид себе (распределение в чате)
+                    Вручную: В ожидании / Удачно / Отказ. «Новый лид» и «В обработке» — автоматически
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {(statusStagesQuery.data ?? [])
                       .slice()
-                      .filter((s) => s.name.trim() !== "Архив")
+                      .filter((s) => {
+                        const n = s.name.trim();
+                        return n === "В ожидании" || n === "Удачно" || n === "Отказ";
+                      })
                       .sort((a, b) => a.order - b.order || a.id - b.id)
                       .map((s) => {
                         const current = activeThread.lead_status_id === s.id;

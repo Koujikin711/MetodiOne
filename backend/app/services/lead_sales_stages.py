@@ -44,7 +44,13 @@ SALES_STAGE_KEYS: tuple[tuple[str, str], ...] = (
 MANAGER_CHAT_STAGE_KEYS: tuple[tuple[str, str], ...] = tuple(
     (k, n) for k, n in SALES_STAGE_KEYS if k != "archive"
 )
-MANAGER_SETTABLE_STAGE_NAMES: frozenset[str] = frozenset(n for _, n in MANAGER_CHAT_STAGE_KEYS)
+# Менеджер вручную: только исход/ожидание. Входные стадии — авто.
+MANAGER_SETTABLE_STAGE_NAMES: frozenset[str] = frozenset(
+    {"В ожидании", "Удачно", "Отказ"},
+)
+AUTO_ONLY_STAGE_NAMES: frozenset[str] = frozenset(
+    {"Новый лид", "В обработке", "Архив"},
+)
 ARCHIVE_STAGE_NAME = "Архив"
 
 SALES_STAGE_KEY_TO_NAME: dict[str, str] = {k: n for k, n in SALES_STAGE_KEYS}
@@ -129,8 +135,8 @@ def classify_lead_stage_name(
 
     if cur == ARCHIVE_STAGE_NAME:
         return ARCHIVE_STAGE_NAME
-    # Уже рабочая стадия менеджера — не трогаем без записи.
-    if cur in MANAGER_SETTABLE_STAGE_NAMES and cur != "Новый лид":
+    # Ручные стадии менеджера и «В обработке» не откатываем без записи.
+    if cur in MANAGER_SETTABLE_STAGE_NAMES or cur == "В обработке":
         return cur
 
     if has_outbound:

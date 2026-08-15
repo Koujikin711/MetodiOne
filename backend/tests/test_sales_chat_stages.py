@@ -18,6 +18,9 @@ def test_sales_stage_keys():
     assert sales_stage_name_for_key("archive") == "Архив"
     assert len(SALES_STAGE_NAMES) == 6
     assert ARCHIVE_STAGE_NAME not in MANAGER_SETTABLE_STAGE_NAMES
+    assert "Новый лид" not in MANAGER_SETTABLE_STAGE_NAMES
+    assert "В обработке" not in MANAGER_SETTABLE_STAGE_NAMES
+    assert MANAGER_SETTABLE_STAGE_NAMES == frozenset({"В ожидании", "Удачно", "Отказ"})
     assert "Удачно" in MANAGER_SETTABLE_STAGE_NAMES
 
 
@@ -72,7 +75,7 @@ def test_classify_lead_stage_name():
         )
         == "В обработке"
     )
-    # Не ломаем ручную стадию менеджера без жёсткого сигнала записи.
+    # Не ломаем ручную стадию менеджера и «В обработке» без жёсткого сигнала записи.
     assert (
         classify_lead_stage_name(
             current_name="В ожидании",
@@ -81,4 +84,13 @@ def test_classify_lead_stage_name():
             last_direction=None,
         )
         == "В ожидании"
+    )
+    assert (
+        classify_lead_stage_name(
+            current_name="В обработке",
+            appointment_statuses=set(),
+            has_outbound=False,
+            last_direction=None,
+        )
+        == "В обработке"
     )

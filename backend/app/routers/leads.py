@@ -2017,14 +2017,26 @@ async def update_lead_status(
             detail="Переход между воронками недоступен",
         )
 
-    # Чат-воронка: менеджер ставит стадии из чата, кроме «Архив» (только автоматически).
-    from app.services.lead_sales_stages import ARCHIVE_STAGE_NAME, MANAGER_SETTABLE_STAGE_NAMES
+    # Чат-воронка: менеджер ставит только В ожидании / Удачно / Отказ.
+    from app.services.lead_sales_stages import (
+        ARCHIVE_STAGE_NAME,
+        AUTO_ONLY_STAGE_NAMES,
+        MANAGER_SETTABLE_STAGE_NAMES,
+    )
 
     target_name = (stage.name or "").strip()
-    if target_name == ARCHIVE_STAGE_NAME:
+    if target_name in AUTO_ONLY_STAGE_NAMES and current_user.role in (
+        UserRole.manager,
+        UserRole.admin,
+    ):
+        hints = {
+            "Новый лид": "Стадия «Новый лид» ставится автоматически при поступлении лида",
+            "В обработке": "Стадия «В обработке» ставится автоматически после первого ответа менеджера",
+            ARCHIVE_STAGE_NAME: "Стадия «Архив» выставляется автоматически (после завершения записи)",
+        }
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Стадия «Архив» выставляется автоматически (после завершения записи)",
+            detail=hints.get(target_name, f"Стадия «{target_name}» выставляется автоматически"),
         )
 
     allowed = False
@@ -2036,8 +2048,8 @@ async def update_lead_status(
     ):
         if target_name in MANAGER_SETTABLE_STAGE_NAMES:
             allowed = True
-        elif current_user.role in (UserRole.owner, UserRole.super_owner):
-            # Владелец может двигать по канбану любые рабочие стадии (не Архив).
+        elif current_user.role in (UserRole.owner, UserRole.super_owner) and target_name != ARCHIVE_STAGE_NAME:
+            # Владелец может двигать по канбану рабочие стадии (не Архив).
             allowed = True
     if (
         not allowed
