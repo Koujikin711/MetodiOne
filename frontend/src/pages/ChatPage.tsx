@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -385,26 +385,48 @@ const CHAT_BUCKET_TABS: { id: ChatThreadBucket; label: string; hint: string }[] 
   { id: "sold", label: "Проданные", hint: "Закрытые сделки" },
 ];
 
-/** Reply-очередь менеджера (поверх стадий воронки). */
-const REPLY_QUEUE_TABS: { id: ChatThreadBucket | "all"; label: string; hint: string }[] = [
-  { id: "all", label: "Все", hint: "Без фильтра по ответу" },
+/** Reply-очередь менеджера (новые лиды — в общем списке, без отдельной вкладки стадии). */
+const REPLY_QUEUE_TABS: { id: ChatThreadBucket; label: string; hint: string }[] = [
   { id: "awaiting_reply", label: "Ждут ответа", hint: "Клиент написал — вы нет" },
   { id: "no_reply", label: "Не ответили", hint: "Вы написали — клиент молчит" },
 ];
 
-const SALES_STAGE_TABS: { id: SalesStageKey; label: string; hint: string }[] = [
-  { id: "new", label: "Новый", hint: "Все входящие" },
-  { id: "in_progress", label: "В работе", hint: "Ответил менеджер" },
-  { id: "waiting", label: "Ожидание", hint: "Ждём оплату / клиента" },
-  { id: "won", label: "Удачно", hint: "Продано / записано" },
-  { id: "lost", label: "Отказ", hint: "Отказ клиента" },
+/** Без «Новый лид» и «Архив» — они только в списке диалогов / авто. */
+const SALES_STAGE_TABS: { id: SalesStageKey; label: string; hint: string; color: string }[] = [
+  { id: "in_progress", label: "В работе", hint: "Ответил менеджер", color: "#0ea5e9" },
+  { id: "waiting", label: "Ожидание", hint: "Ждём оплату / клиента", color: "#f59e0b" },
+  { id: "won", label: "Удачно", hint: "Продано / записано", color: "#22c55e" },
+  { id: "lost", label: "Отказ", hint: "Отказ клиента", color: "#ef4444" },
 ];
 
-const OWNER_ARCHIVE_TAB: { id: SalesStageKey; label: string; hint: string } = {
-  id: "archive",
-  label: "Архив",
-  hint: "Авто после завершения",
+const SALES_STAGE_COLORS: Record<SalesStageKey, string> = {
+  new: "#64748b",
+  in_progress: "#0ea5e9",
+  waiting: "#f59e0b",
+  won: "#22c55e",
+  lost: "#ef4444",
+  archive: "#78716c",
 };
+
+function stageColorForThread(t: Pick<ChatThread, "lead_stage_key" | "lead_stage_name">): string {
+  if (t.lead_stage_key && SALES_STAGE_COLORS[t.lead_stage_key]) {
+    return SALES_STAGE_COLORS[t.lead_stage_key];
+  }
+  const n = (t.lead_stage_name || "").trim().toLowerCase();
+  if (n.includes("нов")) return SALES_STAGE_COLORS.new;
+  if (n.includes("обработ") || n.includes("работ")) return SALES_STAGE_COLORS.in_progress;
+  if (n.includes("ожид")) return SALES_STAGE_COLORS.waiting;
+  if (n.includes("удач") || n.includes("успеш")) return SALES_STAGE_COLORS.won;
+  if (n.includes("отказ") || n.includes("потеря")) return SALES_STAGE_COLORS.lost;
+  if (n.includes("архив")) return SALES_STAGE_COLORS.archive;
+  return "var(--mo-text)";
+}
+
+function stageLabelForDisplay(name: string | null | undefined): string {
+  const raw = (name || "").trim();
+  if (raw === "В обработке") return "В работе";
+  return raw;
+}
 
 function formatSaleMoney(raw: string | null | undefined): string {
   if (!raw) return "—";
@@ -470,20 +492,13 @@ export function ChatPage() {
   const salesChatMode = meQuery.data?.chat_stages_enabled !== false;
   const showManagerChatBuckets =
     userRole === "manager" || userRole === "admin" || userRole === "owner";
-  const stageTabs =
-    userRole === "owner"
-      ? [...SALES_STAGE_TABS, OWNER_ARCHIVE_TAB]
-      : SALES_STAGE_TABS;
+  const stageTabs = SALES_STAGE_TABS;
   const [chatBucket, setChatBucket] = useState<ChatThreadBucket>("own");
-  const [salesStageKey, setSalesStageKey] = useState<SalesStageKey>("new");
+  /** null = все стадии, включая «Новый лид» в списке */
+  const [salesStageKey, setSalesStageKey] = useState<SalesStageKey | null>(null);
   /** Ждут ответа / Не ответили — поверх стадий для менеджера. */
-  const [replyQueue, setReplyQueue] = useState<ChatThreadBucket | "all">("awaiting_reply");
+  const [replyQueue, setReplyQueue] = useState<ChatThreadBucket>("awaiting_reply");
   const [statusOpen, setStatusOpen] = useState(false);
-
-  useEffect(() => {
-    if (userRole === "owner") return;
-    if (salesStageKey === "archive") setSalesStageKey("new");
-  }, [userRole, salesStageKey]);
 
   useChatRealtime(userRole === "manager" || userRole === "admin" || userRole === "owner");
 
@@ -509,7 +524,7 @@ export function ChatPage() {
       "chat-threads",
       threadSearchDebounced,
       salesChatMode
-        ? `stage:${salesStageKey}|reply:${replyQueue}`
+        ? `stage:${salesStageKey ?? "all"}|reply:${replyQueue}`
         : showManagerChatBuckets
           ? chatBucket
           : "all",
@@ -520,8 +535,8 @@ export function ChatPage() {
       if (threadSearchDebounced) p.set("q", threadSearchDebounced);
       if (showManagerChatBuckets) {
         if (salesChatMode) {
-          p.set("stage_key", salesStageKey);
-          if (replyQueue !== "all") p.set("bucket", replyQueue);
+          if (salesStageKey) p.set("stage_key", salesStageKey);
+          p.set("bucket", replyQueue);
         } else {
           p.set("bucket", chatBucket);
         }
@@ -974,11 +989,7 @@ export function ChatPage() {
                 className={[
                   "no-scrollbar -mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 pb-0.5",
                   "sm:mx-0 sm:grid sm:gap-1.5 sm:overflow-visible sm:px-0 sm:pb-0",
-                  salesChatMode
-                    ? stageTabs.length > 5
-                      ? "sm:grid-cols-6"
-                      : "sm:grid-cols-5"
-                    : "sm:grid-cols-4",
+                  salesChatMode ? "sm:grid-cols-4" : "sm:grid-cols-4",
                 ].join(" ")}
               >
                 {(salesChatMode ? stageTabs : CHAT_BUCKET_TABS).map((tab) => {
@@ -994,26 +1005,46 @@ export function ChatPage() {
                         : tab.id === "sold"
                           ? bucketCountsQuery.data?.sold ?? 0
                           : bucketCountsQuery.data?.awaiting_reply ?? 0;
+                  const stageColor =
+                    salesChatMode && "color" in tab ? (tab as { color: string }).color : undefined;
                   return (
                     <button
                       key={tab.id}
                       type="button"
                       data-bucket={tab.id}
-                      title={tab.hint}
+                      title={
+                        salesChatMode
+                          ? active
+                            ? `${tab.hint} · нажмите ещё раз, чтобы снять фильтр`
+                            : tab.hint
+                          : tab.hint
+                      }
                       onClick={() => {
-                        if (salesChatMode) setSalesStageKey(tab.id as SalesStageKey);
-                        else setChatBucket(tab.id as ChatThreadBucket);
+                        if (salesChatMode) {
+                          setSalesStageKey((prev) =>
+                            prev === (tab.id as SalesStageKey) ? null : (tab.id as SalesStageKey),
+                          );
+                        } else {
+                          setChatBucket(tab.id as ChatThreadBucket);
+                        }
                       }}
                       className={[
-                        "chat-bucket-tab flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border px-2 py-2 text-center transition sm:min-w-0 sm:min-h-[4.25rem]",
+                        "chat-bucket-tab flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-2xl border px-2 py-2.5 text-center transition sm:min-w-0 sm:min-h-[4.5rem]",
                         active ? "is-active" : "",
                       ].join(" ")}
+                      style={
+                        stageColor
+                          ? ({
+                              ["--chat-stage-color" as string]: stageColor,
+                            } as CSSProperties)
+                          : undefined
+                      }
                     >
-                      <span className="max-w-full truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
+                      <span className="max-w-full truncate text-[10px] font-semibold tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
                         {tab.label}
                       </span>
                       <span
-                        className="mt-0.5 text-lg font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-xl"
+                        className="mt-1 text-lg font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-xl"
                         title={String(count)}
                       >
                         {formatCompactCount(count)}
@@ -1026,15 +1057,13 @@ export function ChatPage() {
           ) : null}
 
           {showManagerChatBuckets && salesChatMode ? (
-            <div className="mb-2 grid shrink-0 grid-cols-3 gap-1.5 max-lg:mb-1.5 sm:mb-3">
+            <div className="chat-reply-queue mb-2 grid shrink-0 grid-cols-2 gap-1.5 max-lg:mb-1.5 sm:mb-3">
               {REPLY_QUEUE_TABS.map((tab) => {
                 const active = replyQueue === tab.id;
                 const count =
-                  tab.id === "all"
-                    ? Object.values(bucketCountsQuery.data?.sales_stages ?? {}).reduce((a, b) => a + (b ?? 0), 0)
-                    : tab.id === "awaiting_reply"
-                      ? bucketCountsQuery.data?.awaiting_reply ?? 0
-                      : bucketCountsQuery.data?.no_reply ?? 0;
+                  tab.id === "awaiting_reply"
+                    ? bucketCountsQuery.data?.awaiting_reply ?? 0
+                    : bucketCountsQuery.data?.no_reply ?? 0;
                 return (
                   <button
                     key={tab.id}
@@ -1044,15 +1073,15 @@ export function ChatPage() {
                     title={tab.hint}
                     onClick={() => setReplyQueue(tab.id)}
                     className={[
-                      "chat-bucket-tab flex min-h-[3.25rem] flex-col items-center justify-center rounded-xl border px-1.5 py-1.5 text-center transition sm:min-h-[3.75rem]",
+                      "chat-bucket-tab chat-reply-tab flex min-h-[3.35rem] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-center transition sm:min-h-[3.85rem]",
                       active ? "is-active" : "",
                     ].join(" ")}
                   >
-                    <span className="max-w-full truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
+                    <span className="max-w-full truncate text-[10px] font-semibold tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
                       {tab.label}
                     </span>
                     <span
-                      className="mt-0.5 text-base font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-lg"
+                      className="mt-1 text-base font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-lg"
                       title={String(count)}
                     >
                       {formatCompactCount(count)}
@@ -1067,11 +1096,11 @@ export function ChatPage() {
             value={threadSearch}
             onChange={(e) => setThreadSearch(e.target.value)}
             placeholder="Поиск: имя, телефон, чат, ключевое слово…"
-            className="mb-1.5 w-full shrink-0 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm text-[var(--mo-text)] placeholder:mo-muted max-lg:py-1.5 sm:mb-2"
+            className="mb-1.5 w-full shrink-0 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3.5 py-2.5 text-sm text-[var(--mo-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] placeholder:mo-muted max-lg:py-2 sm:mb-2"
           />
           <p className="mb-2 hidden text-[10px] leading-relaxed mo-muted sm:block">
             {showManagerChatBuckets && salesChatMode
-              ? "Стадии воронки сверху · снизу очередь ответов: Ждут ответа / Не ответили. Зелёный в списке — ждёт вашего ответа."
+              ? "Сверху — стадии (без «Новый лид»). Снизу — очередь ответов. Новые лиды видны в списке. Зелёный — ждёт ответа."
               : showManagerChatBuckets
                 ? "Вкладки фильтруют список. Внутри вкладки: зелёный — ждёт ответа · голубой — первые 3 дня · без заливки — старше."
                 : "Подсветка: зелёный — ждёт вашего ответа · голубой — первые 3 дня с первого сообщения · без заливки — старше."}
@@ -1120,8 +1149,16 @@ export function ChatPage() {
                         {saleSummaryLine(t)}
                       </div>
                     ) : null}
+                    {t.lead_stage_name ? (
+                      <div className="mt-1 truncate text-[11px] mo-muted">
+                        Стадия:{" "}
+                        <span className="font-semibold" style={{ color: stageColorForThread(t) }}>
+                          {stageLabelForDisplay(t.lead_stage_name)}
+                        </span>
+                      </div>
+                    ) : null}
                     {manager ? (
-                      <div className="mt-1 hidden truncate text-[11px] mo-muted/80 sm:block">
+                      <div className="mt-0.5 truncate text-[11px] mo-muted/80">
                         Ответственный: {manager}
                       </div>
                     ) : null}
@@ -1144,7 +1181,11 @@ export function ChatPage() {
               <p className="text-sm mo-muted">
                 {showManagerChatBuckets
                   ? salesChatMode
-                    ? `Нет диалогов в «${stageTabs.find((t) => t.id === salesStageKey)?.label ?? salesStageKey}»${
+                    ? `Нет диалогов${
+                        salesStageKey
+                          ? ` в «${stageTabs.find((t) => t.id === salesStageKey)?.label ?? salesStageKey}»`
+                          : ""
+                      }${
                         replyQueue === "awaiting_reply"
                           ? " · Ждут ответа"
                           : replyQueue === "no_reply"
@@ -1216,7 +1257,12 @@ export function ChatPage() {
                       {activeThread.lead_stage_name ? (
                         <div className="mt-1 text-[11px] mo-muted sm:text-xs">
                           Стадия:{" "}
-                          <span className="font-medium text-[var(--mo-text)]">{activeThread.lead_stage_name}</span>
+                          <span
+                            className="font-semibold"
+                            style={{ color: stageColorForThread(activeThread) }}
+                          >
+                            {stageLabelForDisplay(activeThread.lead_stage_name)}
+                          </span>
                         </div>
                       ) : null}
                       {saleSummaryLine(activeThread) ? (

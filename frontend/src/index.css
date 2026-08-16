@@ -2384,15 +2384,18 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border-color: var(--mo-border);
   background: var(--mo-surface);
   color: var(--mo-text);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--mo-text) 4%, transparent);
 }
 .chat-bucket-tab:hover {
-  border-color: var(--mo-border-strong);
-  background: var(--mo-accent-soft);
+  border-color: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 45%, var(--mo-border));
+  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 10%, var(--mo-surface));
 }
 .chat-bucket-tab.is-active {
-  border-color: var(--mo-accent);
-  background: var(--mo-accent-soft);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 35%, transparent);
+  border-color: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 70%, transparent);
+  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 16%, var(--mo-surface));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 28%, transparent),
+    0 6px 16px -10px color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 45%, transparent);
 }
 .chat-bucket-tab.is-active[data-bucket="transferred"],
 .chat-bucket-tab.is-active[data-bucket="own"],
@@ -2406,9 +2409,24 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .chat-bucket-tab.is-active[data-bucket="won"],
 .chat-bucket-tab.is-active[data-bucket="lost"],
 .chat-bucket-tab.is-active[data-bucket="archive"] {
-  border-color: var(--mo-accent);
-  background: var(--mo-accent-soft);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 35%, transparent);
+  border-color: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 70%, transparent);
+  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 16%, var(--mo-surface));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 28%, transparent),
+    0 6px 16px -10px color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 45%, transparent);
+}
+
+.chat-reply-tab.is-active[data-bucket="awaiting_reply"] {
+  --chat-stage-color: #10b981;
+}
+.chat-reply-tab.is-active[data-bucket="no_reply"] {
+  --chat-stage-color: #64748b;
+}
+.chat-reply-tab:not(.is-active)[data-bucket="awaiting_reply"] {
+  --chat-stage-color: #10b981;
+}
+.chat-reply-tab:not(.is-active)[data-bucket="no_reply"] {
+  --chat-stage-color: #64748b;
 }
 
 :root[data-theme="dark"] .chat-bucket-tab {
@@ -2416,12 +2434,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   background: var(--mo-surface-elevated);
 }
 :root[data-theme="dark"] .chat-bucket-tab:hover {
-  background: var(--mo-accent-soft);
+  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 14%, var(--mo-surface-elevated));
 }
 :root[data-theme="dark"] .chat-bucket-tab.is-active,
 :root[data-theme="dark"] .chat-bucket-tab.is-active[data-bucket] {
-  border-color: var(--mo-accent);
-  background: var(--mo-accent-soft);
+  border-color: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 65%, transparent);
+  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 18%, var(--mo-surface-elevated));
 }
 
 .chat-msg-out {
