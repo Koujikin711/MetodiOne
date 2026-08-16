@@ -2495,7 +2495,7 @@ export function CrmPage() {
               ))}
             </div>
             <p className="mt-1 text-center text-[10px] mo-muted sm:text-left">
-              Листайте колонки вправо — там «Отказ» и «Архив». В колонке: скролл вниз и «Показать ещё».
+              Листайте колонки вправо — там «Отказ» и «Архив». В колонке скролльте вниз — карточки подгрузятся сами.
             </p>
             <DragOverlay dropAnimation={null}>
               {activeLead ? (
