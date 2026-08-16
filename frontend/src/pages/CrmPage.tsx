@@ -505,20 +505,38 @@ function KanbanColumn({
   onRefresh: () => void;
   registerScrollContainer: (stageId: number, el: HTMLDivElement | null) => void;
 }) {
-  const PAGE = 4;
-  const [visibleCount, setVisibleCount] = useState(PAGE);
+  const INITIAL = 4;
+  const LOAD_MORE = 8;
+  const [visibleCount, setVisibleCount] = useState(INITIAL);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const { setNodeRef, isOver } = useDroppable({
     id: stageDroppableId(stage.id),
     data: { stageId: stage.id },
   });
 
   useEffect(() => {
-    setVisibleCount(PAGE);
+    setVisibleCount(INITIAL);
   }, [stage.id, leads.length]);
 
   const visibleLeads = leads.slice(0, visibleCount);
   const hasMore = visibleCount < leads.length;
   const stageLabel = stage.name.trim() === "В обработке" ? "В работе" : stage.name;
+
+  useEffect(() => {
+    const root = bodyRef.current;
+    const sentinel = sentinelRef.current;
+    if (!root || !sentinel || !hasMore) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        setVisibleCount((n) => Math.min(n + LOAD_MORE, leads.length));
+      },
+      { root, rootMargin: "120px 0px", threshold: 0 },
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [hasMore, leads.length, visibleCount, stage.id]);
 
   return (
     <div
@@ -540,7 +558,10 @@ function KanbanColumn({
         </span>
       </div>
       <div
-        ref={(el) => registerScrollContainer(stage.id, el)}
+        ref={(el) => {
+          bodyRef.current = el;
+          registerScrollContainer(stage.id, el);
+        }}
         data-kanban-scroll="true"
         className="crm-kanban-col-body"
       >
@@ -560,13 +581,13 @@ function KanbanColumn({
               />
             ))}
             {hasMore ? (
-              <button
-                type="button"
-                className="mt-1 w-full shrink-0 rounded-xl border border-dashed border-[var(--mo-border)] px-3 py-2.5 text-xs font-medium text-[var(--mo-accent-hover)] transition hover:bg-[var(--mo-accent-soft)]"
-                onClick={() => setVisibleCount((n) => Math.min(n + PAGE, leads.length))}
+              <div
+                ref={sentinelRef}
+                className="flex shrink-0 items-center justify-center py-2 text-[10px] mo-muted"
+                aria-hidden
               >
-                Ещё {formatCompactCount(leads.length - visibleCount)} · показать +{PAGE}
-              </button>
+                …
+              </div>
             ) : null}
           </>
         )}
