@@ -169,13 +169,16 @@ export function MainLayout() {
               : "px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))]",
             location.pathname.startsWith("/chat") ||
             location.pathname.startsWith("/messenger") ||
+            location.pathname.startsWith("/tasks") ||
             location.pathname.startsWith("/analytics") ||
             location.pathname.startsWith("/employees") ||
             location.pathname.startsWith("/audit") ||
             location.pathname.startsWith("/integrations")
               ? [
                   "max-lg:overflow-hidden lg:overflow-hidden lg:py-4 lg:pb-4",
-                  location.pathname.startsWith("/chat") ? "lg:px-6" : "",
+                  location.pathname.startsWith("/chat") || location.pathname.startsWith("/messenger")
+                    ? "lg:px-6"
+                    : "",
                 ]
                   .filter(Boolean)
                   .join(" ")
@@ -197,6 +200,7 @@ export function MainLayout() {
             className={
               location.pathname.startsWith("/chat") ||
               location.pathname.startsWith("/messenger") ||
+              location.pathname.startsWith("/tasks") ||
               location.pathname.startsWith("/analytics") ||
               location.pathname.startsWith("/employees") ||
               location.pathname.startsWith("/audit") ||

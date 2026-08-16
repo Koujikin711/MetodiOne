@@ -2079,18 +2079,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--mo-text-muted);
 }
 
-/* Мессенджер — медицинский современный UI */
+/* Мессенджер — indigo-luxury, читаемые пузыри */
 .team-messenger {
-  @apply relative mx-auto flex w-full max-w-none flex-col gap-4 pb-28 sm:pb-4;
+  @apply relative mx-auto flex h-full w-full max-w-none flex-col gap-3 pb-28 sm:pb-4 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:pb-0;
 }
 
 @media (min-width: 1024px) {
   .team-messenger {
-    flex: 1;
-    min-height: 0;
-    height: calc(100dvh - 5.5rem);
-    max-height: calc(100dvh - 5.5rem);
-    padding-bottom: 0;
+    height: 100%;
+    max-height: none;
   }
 
   .team-messenger-shell {
@@ -2102,31 +2099,31 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .team-messenger-header {
-  @apply shrink-0 px-0.5;
+  @apply shrink-0 border-b pb-3;
+  border-color: var(--mo-border);
 }
 
 .team-messenger-header h1 {
-  @apply text-xl font-semibold tracking-tight sm:text-2xl;
-  color: var(--mo-text);
+  font-family: var(--font-display);
+  @apply text-2xl font-semibold tracking-tight sm:text-[1.75rem];
+  color: var(--mo-accent-hover);
 }
 
 .team-messenger-header p {
-  @apply mt-1 text-sm;
+  @apply mt-1 text-sm leading-relaxed;
   color: var(--mo-text-muted);
 }
 
 .team-messenger-shell {
-  @apply grid min-h-0 overflow-hidden rounded-3xl border;
+  @apply grid min-h-0 flex-1 overflow-hidden rounded-2xl border;
   border-color: var(--mo-border);
-  background: var(--mo-medical-surface);
+  background: var(--mo-surface-elevated);
   box-shadow: var(--mo-shadow-luxury);
-  min-height: min(calc(100dvh - 13rem), 720px);
 }
 
 @media (min-width: 1024px) {
   .team-messenger-shell {
-    /* Чат слева на всю ширину · список справа фиксирован */
-    grid-template-columns: minmax(0, 1fr) 19rem;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
     min-height: 0;
   }
 }
@@ -2134,15 +2131,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .team-messenger-rail {
   @apply order-1 flex min-h-0 flex-col border-b lg:order-2 lg:border-b-0 lg:border-l lg:border-r-0;
   border-color: var(--mo-border);
-  background: var(--mo-medical-rail);
+  background: var(--mo-surface);
   width: 100%;
 }
 
 @media (min-width: 1024px) {
   .team-messenger-rail {
-    width: 19rem;
-    max-width: 19rem;
-    min-width: 19rem;
+    width: auto;
+    max-width: none;
+    min-width: 0;
   }
 }
 
@@ -2161,9 +2158,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .team-messenger-search input {
   @apply w-full rounded-2xl border px-4 py-2.5 text-base outline-none transition sm:text-sm;
   border-color: var(--mo-border);
-  background: var(--mo-medical-surface);
+  background: var(--mo-surface-elevated);
   color: var(--mo-text);
-  box-shadow: inset 0 1px 2px rgba(42, 124, 143, 0.04);
 }
 
 .team-messenger-search input::placeholder {
@@ -2171,8 +2167,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .team-messenger-search input:focus {
-  border-color: var(--mo-medical-primary-muted);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mo-medical-primary) 14%, transparent);
+  border-color: var(--mo-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mo-accent) 18%, transparent);
 }
 
 .team-messenger-list {
@@ -2181,22 +2177,22 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .team-messenger-section-label {
   @apply sticky top-0 z-[1] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em];
-  color: var(--mo-medical-primary);
-  background: color-mix(in srgb, var(--mo-medical-rail) 92%, transparent);
+  color: var(--mo-accent-hover);
+  background: color-mix(in srgb, var(--mo-surface) 92%, transparent);
   backdrop-filter: blur(6px);
 }
 
 .team-messenger-row {
-  @apply relative flex w-full items-center gap-3 px-3 py-2.5 text-left transition;
+  @apply relative flex w-full items-center gap-3 px-3 py-3 text-left transition;
   border-bottom: 1px solid color-mix(in srgb, var(--mo-border) 55%, transparent);
 }
 
 .team-messenger-row:hover {
-  background: color-mix(in srgb, var(--mo-medical-primary-soft) 65%, var(--mo-medical-surface));
+  background: var(--mo-accent-soft);
 }
 
 .team-messenger-row.is-active {
-  background: var(--mo-medical-primary-soft);
+  background: var(--mo-accent-soft);
 }
 
 .team-messenger-row.is-active::before {
@@ -2207,13 +2203,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   bottom: 0.45rem;
   width: 3px;
   border-radius: 999px;
-  background: var(--mo-medical-primary);
+  background: var(--mo-accent);
 }
 
 .team-messenger-avatar {
   @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold;
-  background: var(--mo-medical-primary-soft);
-  color: var(--mo-medical-primary);
+  background: var(--mo-accent-soft);
+  color: var(--mo-accent-hover);
 }
 
 .team-messenger-row-meta {
@@ -2245,16 +2241,16 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .team-messenger-row-role {
   @apply text-xs;
-  color: var(--mo-medical-primary-muted);
+  color: var(--mo-text-muted);
 }
 
 .team-messenger-unread {
   @apply shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold text-white;
-  background: var(--mo-medical-primary);
+  background: var(--mo-accent);
 }
 
 .team-messenger-chat {
-  @apply order-2 flex min-h-0 min-w-0 flex-col bg-[var(--mo-medical-surface)] lg:order-1;
+  @apply order-2 flex min-h-0 min-w-0 flex-col bg-[var(--mo-surface-elevated)] lg:order-1;
 }
 
 .team-messenger-chat.is-hidden-mobile {
@@ -2267,13 +2263,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .team-messenger-empty {
   @apply flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center;
-  background: var(--mo-medical-chat-bg);
+  background: var(--mo-surface);
 }
 
 .team-messenger-empty-icon {
   @apply flex h-14 w-14 items-center justify-center rounded-2xl;
-  background: var(--mo-medical-primary-soft);
-  color: var(--mo-medical-primary);
+  background: var(--mo-accent-soft);
+  color: var(--mo-accent-hover);
 }
 
 .team-messenger-empty p {
@@ -2282,50 +2278,57 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .team-messenger-chat-header {
-  @apply flex shrink-0 items-center gap-3 border-b px-4 py-3;
+  @apply flex shrink-0 items-center gap-3 border-b px-4 py-3.5;
   border-color: var(--mo-border);
-  background: var(--mo-medical-surface);
+  background: var(--mo-surface-elevated);
 }
 
 .team-messenger-chat-header-name {
-  @apply truncate font-semibold;
+  @apply truncate text-base font-semibold;
   color: var(--mo-text);
 }
 
 .team-messenger-chat-header-role {
   @apply truncate text-xs;
-  color: var(--mo-medical-primary-muted);
+  color: var(--mo-text-muted);
 }
 
 .team-messenger-messages {
-  @apply min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4;
-  background: var(--mo-medical-chat-bg);
+  @apply min-h-0 flex-1 space-y-3.5 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6;
+  background: var(--mo-surface);
 }
 
 .team-messenger-bubble {
-  @apply max-w-[min(85%,20rem)] rounded-2xl px-3.5 py-2.5 text-sm break-words;
+  @apply max-w-[min(92%,28rem)] rounded-2xl px-4 py-3 text-[0.95rem] leading-relaxed break-words;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .team-messenger-bubble.is-mine {
-  background: var(--mo-medical-primary);
-  color: #fff;
-  border-bottom-right-radius: 0.35rem;
+  /* Тёмный indigo — белый текст всегда читается */
+  background: #4338ca;
+  color: #f8fafc;
+  border-bottom-right-radius: 0.4rem;
+}
+
+:root[data-theme="light"] .team-messenger-bubble.is-mine {
+  background: #4f46e5;
+  color: #ffffff;
 }
 
 .team-messenger-bubble.is-theirs {
   border: 1px solid var(--mo-border);
-  background: var(--mo-medical-surface);
+  background: var(--mo-surface-elevated);
   color: var(--mo-text);
-  border-bottom-left-radius: 0.35rem;
+  border-bottom-left-radius: 0.4rem;
 }
 
 .team-messenger-bubble-time {
-  @apply mt-1.5 text-[10px] tabular-nums;
+  @apply mt-2 text-[11px] tabular-nums;
 }
 
 .team-messenger-bubble.is-mine .team-messenger-bubble-time {
   @apply text-right;
-  color: color-mix(in srgb, #fff 72%, transparent);
+  color: rgba(248, 250, 252, 0.78);
 }
 
 .team-messenger-bubble.is-theirs .team-messenger-bubble-time {
@@ -2335,41 +2338,42 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .team-messenger-compose {
   @apply flex shrink-0 gap-2 border-t p-3 sm:p-4;
   border-color: var(--mo-border);
-  background: var(--mo-medical-surface);
+  background: var(--mo-surface-elevated);
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
 .team-messenger-compose input {
-  @apply min-w-0 flex-1 rounded-2xl border px-4 py-2.5 text-base outline-none transition sm:text-sm;
+  @apply min-w-0 flex-1 rounded-2xl border px-4 py-3 text-base outline-none transition sm:text-sm;
   border-color: var(--mo-border);
-  background: var(--mo-medical-chat-bg);
+  background: var(--mo-surface);
   color: var(--mo-text);
 }
 
 .team-messenger-compose input:focus {
-  border-color: var(--mo-medical-primary-muted);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mo-medical-primary) 12%, transparent);
+  border-color: var(--mo-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mo-accent) 16%, transparent);
 }
 
 .team-messenger-send {
-  @apply shrink-0 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[7rem];
-  background: var(--mo-medical-primary);
+  @apply shrink-0 rounded-2xl px-5 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[7rem];
+  background: #4f46e5;
 }
 
 .team-messenger-send:hover:not(:disabled) {
-  background: var(--mo-medical-primary-hover);
+  background: #4338ca;
 }
 
 .team-messenger-back {
   @apply shrink-0 rounded-xl border px-3 py-2 text-sm font-medium transition lg:hidden;
   border-color: var(--mo-border);
-  background: var(--mo-medical-surface);
+  background: var(--mo-surface);
   color: var(--mo-text);
 }
 
 .team-messenger-back:hover {
-  border-color: var(--mo-medical-primary-muted);
-  color: var(--mo-medical-primary);
+  border-color: var(--mo-accent);
+  color: var(--mo-accent-hover);
+  background: var(--mo-accent-soft);
 }
 
 .team-messenger-muted {
@@ -2591,12 +2595,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   background: var(--mo-nav-hover);
 }
 .task-card {
-  @apply flex flex-wrap items-start gap-3 rounded-2xl border px-4 py-3;
+  @apply flex flex-wrap items-start gap-3 rounded-2xl border px-4 py-3.5;
   border-color: var(--mo-border);
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--mo-surface);
+  box-shadow: var(--mo-shadow-luxury);
 }
 :root[data-theme="dark"] .task-card {
-  background: rgba(30, 41, 59, 0.45);
+  background: var(--mo-surface-elevated);
 }
 .task-status {
   @apply rounded-lg border px-2 py-1 text-xs font-medium;
