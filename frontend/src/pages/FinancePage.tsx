@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
@@ -118,39 +119,43 @@ export function FinancePage() {
   const formName = sheetName || settingsTab;
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-4 pb-10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="lux-heading text-2xl sm:text-3xl">Финансы</h1>
-          <p className="mt-1 max-w-2xl text-sm mo-muted">
-            Укажите ссылку на Google-таблицу с листом ОСВ — система сама читает её и обновляет отчёты. ДДС и ОПиУ
-            строятся автоматически.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="mo-input text-sm"
-          >
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-          {canIntegrate ? (
-            <button
-              type="button"
-              onClick={() => integrateMutation.mutate()}
-              disabled={integrateMutation.isPending}
-              className="btn-primary px-4 py-2 text-sm disabled:opacity-60"
-            >
-              {integrateMutation.isPending ? "Интеграция…" : "Интегрировать"}
-            </button>
-          ) : null}
-        </div>
+    <div className="mo-fill-page">
+      <div className="mo-admin-page-head">
+        <PageHeader
+          className="mb-0"
+          title="Финансы"
+          description="Укажите ссылку на Google-таблицу с листом ОСВ — система сама читает её и обновляет отчёты. ДДС и ОПиУ строятся автоматически."
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="mo-input text-sm"
+              >
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          }
+        />
       </div>
+
+      <div className="mo-fill-page-scroll space-y-4 pt-4">
+      {canIntegrate ? (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => integrateMutation.mutate()}
+                disabled={integrateMutation.isPending}
+                className="btn-primary px-4 py-2 text-sm disabled:opacity-60"
+              >
+                {integrateMutation.isPending ? "Интеграция…" : "Интегрировать"}
+              </button>
+            </div>
+          ) : null}
 
       {canIntegrate ? (
         <div className="finance-panel">
@@ -274,6 +279,7 @@ export function FinancePage() {
       {tab === "opiu" && (
         <OpiuTable loading={opiuQuery.isLoading} data={opiuQuery.data} />
       )}
+      </div>
     </div>
   );
 }

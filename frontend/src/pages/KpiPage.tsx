@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 
 import { AccessDenied } from "@/components/AccessDenied";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { formatMoney } from "@/lib/money";
@@ -302,17 +303,16 @@ export function KpiPage() {
   return (
     <div
       className={[
-        "sales-space-page relative mx-auto max-w-[1500px] space-y-2.5 sm:space-y-6 sm:pb-10",
+        "sales-space-page relative mx-auto w-full max-w-none space-y-2.5 sm:space-y-6 sm:pb-10",
         tab === "plan" && isOwner ? "pb-[6.5rem]" : "pb-4",
       ].join(" ")}
     >
-      <header className="space-y-1">
-        <h1 className="text-lg font-semibold tracking-tight text-[var(--mo-text)] sm:text-3xl">KPI продаж</h1>
-        <p className="hidden text-sm lux-caption sm:block">
-          Онлайн-запись — в факт при 100% оплате (менеджер должен быть ответственным). Окно «Продажи» —
-          полная оплата тоже в факт (сфера деятельности = имя показателя плана, или один показатель в плане).
-          Курсы/протоколы вносит админ — в факт с оплаты ≥25%. Возвраты снимаются с расчёта.
-        </p>
+      <header className="mo-admin-page-head !border-b-0 pb-0 sm:border-b sm:pb-3">
+        <PageHeader
+          className="mb-0"
+          title="KPI продаж"
+          description="Онлайн-запись — в факт при 100% оплате. Окно «Продажи» — полная оплата тоже в факт. Курсы/протоколы вносит админ — в факт с оплаты ≥25%."
+        />
       </header>
 
       <section className="grid grid-cols-2 gap-1.5 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:gap-3 sm:rounded-2xl sm:p-4">

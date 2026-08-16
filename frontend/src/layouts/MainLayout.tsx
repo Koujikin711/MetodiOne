@@ -173,7 +173,8 @@ export function MainLayout() {
             location.pathname.startsWith("/analytics") ||
             location.pathname.startsWith("/employees") ||
             location.pathname.startsWith("/audit") ||
-            location.pathname.startsWith("/integrations")
+            location.pathname.startsWith("/integrations") ||
+            location.pathname.startsWith("/finance")
               ? [
                   "max-lg:overflow-hidden lg:overflow-hidden lg:py-4 lg:pb-4",
                   location.pathname.startsWith("/chat") || location.pathname.startsWith("/messenger")
@@ -204,7 +205,8 @@ export function MainLayout() {
               location.pathname.startsWith("/analytics") ||
               location.pathname.startsWith("/employees") ||
               location.pathname.startsWith("/audit") ||
-              location.pathname.startsWith("/integrations")
+              location.pathname.startsWith("/integrations") ||
+              location.pathname.startsWith("/finance")
                 ? "flex min-h-0 flex-1 flex-col"
                 : undefined
             }

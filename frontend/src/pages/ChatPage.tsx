@@ -981,7 +981,7 @@ export function ChatPage() {
             showListOnMobile ? "flex" : "hidden lg:flex",
           ].join(" ")}
         >
-          <div className="mb-2 text-base font-semibold tracking-tight text-[var(--mo-text)] max-lg:mb-1.5 max-lg:text-sm">
+          <div className="mb-2 font-display text-base font-semibold tracking-tight text-[var(--mo-accent-hover)] max-lg:mb-1.5 max-lg:text-sm">
             Диалоги
           </div>
 
@@ -1103,7 +1103,7 @@ export function ChatPage() {
           </p>
           {threadsQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
           {threadsQuery.isError && (
-            <p className="text-sm text-red-300">{(threadsQuery.error as Error).message}</p>
+            <p className="text-sm text-[var(--mo-danger)]">{(threadsQuery.error as Error).message}</p>
           )}
           <div
             ref={threadsListRef}
@@ -1141,7 +1141,7 @@ export function ChatPage() {
                       </div>
                     ) : null}
                     {saleSummaryLine(t) ? (
-                      <div className="mt-1 truncate text-[10px] font-medium text-[#5a3d7a] sm:text-[11px]">
+                      <div className="mt-1 truncate text-[10px] font-medium text-[var(--mo-accent-hover)] sm:text-[11px]">
                         {saleSummaryLine(t)}
                       </div>
                     ) : null}
@@ -1159,7 +1159,7 @@ export function ChatPage() {
                       </div>
                     ) : null}
                     {t.is_transferred && chatBucket !== "transferred" ? (
-                      <div className="mt-0.5 text-[10px] text-amber-200/90">Передан вам</div>
+                      <div className="mt-0.5 text-[10px] font-medium text-[var(--mo-warning)]">Передан вам</div>
                     ) : null}
                   </div>
                   {unread > 0 ? (
@@ -1262,7 +1262,7 @@ export function ChatPage() {
                         </div>
                       ) : null}
                       {saleSummaryLine(activeThread) ? (
-                        <div className="mt-1 text-xs font-medium text-[#5a3d7a] sm:text-sm">
+                        <div className="mt-1 text-xs font-medium text-[var(--mo-accent-hover)] sm:text-sm">
                           {saleSummaryLine(activeThread)}
                         </div>
                       ) : null}
