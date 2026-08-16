@@ -505,10 +505,20 @@ function KanbanColumn({
   onRefresh: () => void;
   registerScrollContainer: (stageId: number, el: HTMLDivElement | null) => void;
 }) {
+  const PAGE = 40;
+  const [visibleCount, setVisibleCount] = useState(PAGE);
   const { setNodeRef, isOver } = useDroppable({
     id: stageDroppableId(stage.id),
     data: { stageId: stage.id },
   });
+
+  useEffect(() => {
+    setVisibleCount(PAGE);
+  }, [stage.id, leads.length]);
+
+  const visibleLeads = leads.slice(0, visibleCount);
+  const hasMore = visibleCount < leads.length;
+  const stageLabel = stage.name.trim() === "В обработке" ? "В работе" : stage.name;
 
   return (
     <div
@@ -519,7 +529,9 @@ function KanbanColumn({
     >
       <div className="crm-kanban-col-header">
         <span className="crm-stage-gem shrink-0" style={{ backgroundColor: stage.color }} />
-        <h3 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-wide text-[var(--mo-text)]">{stage.name}</h3>
+        <h3 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-wide text-[var(--mo-text)]">
+          {stageLabel}
+        </h3>
         <span
           className="rounded-md border border-[var(--mo-border)] bg-[var(--mo-accent-soft)] px-2.5 py-0.5 text-xs font-bold tabular-nums text-[var(--mo-accent-hover)]"
           title={String(leads.length)}
@@ -537,15 +549,26 @@ function KanbanColumn({
             Нет лидов
           </p>
         ) : (
-          leads.map((lead) => (
-            <LeadCard
-              key={lead.id}
-              lead={lead}
-              stageColor={stage.color}
-              currentRole={currentRole}
-              onRefresh={onRefresh}
-            />
-          ))
+          <>
+            {visibleLeads.map((lead) => (
+              <LeadCard
+                key={lead.id}
+                lead={lead}
+                stageColor={stage.color}
+                currentRole={currentRole}
+                onRefresh={onRefresh}
+              />
+            ))}
+            {hasMore ? (
+              <button
+                type="button"
+                className="mt-1 w-full rounded-xl border border-dashed border-[var(--mo-border)] px-3 py-2 text-xs font-medium text-[var(--mo-accent-hover)] transition hover:bg-[var(--mo-accent-soft)]"
+                onClick={() => setVisibleCount((n) => Math.min(n + PAGE, leads.length))}
+              >
+                Показать ещё ({formatCompactCount(leads.length - visibleCount)})
+              </button>
+            ) : null}
+          </>
         )}
       </div>
     </div>
@@ -2450,6 +2473,9 @@ export function CrmPage() {
                 />
               ))}
             </div>
+            <p className="mt-1 text-center text-[10px] mo-muted sm:text-left">
+              Листайте колонки вправо — там «Отказ» и «Архив». В колонке: скролл вниз и «Показать ещё».
+            </p>
             <DragOverlay dropAnimation={null}>
               {activeLead ? (
                 <LeadCardDragOverlay lead={activeLead} stageColor={activeLeadStageColor} />

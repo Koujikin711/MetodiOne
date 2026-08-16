@@ -2047,8 +2047,10 @@ async def update_lead_status(
     ):
         if target_name in MANAGER_SETTABLE_STAGE_NAMES:
             allowed = True
-        elif current_user.role in (UserRole.owner, UserRole.super_owner) and target_name != ARCHIVE_STAGE_NAME:
-            # Владелец может двигать по канбану рабочие стадии (не Архив).
+        elif current_user.role in (UserRole.owner, UserRole.super_owner):
+            # Владелец двигает по канбану любые стадии, включая Архив.
+            allowed = True
+        elif current_user.role == UserRole.admin and target_name not in AUTO_ONLY_STAGE_NAMES:
             allowed = True
     if (
         not allowed

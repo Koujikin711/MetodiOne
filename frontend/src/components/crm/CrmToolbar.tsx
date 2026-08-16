@@ -37,6 +37,7 @@ export function CrmToolbar({
   showBoardSearch,
   showOnboardingBanner = false,
 }: Props) {
+  const searchActive = boardSearchInput.trim().length > 0;
   return (
     <header className="crm-toolbar">
       {showOnboardingBanner ? (
@@ -119,8 +120,10 @@ export function CrmToolbar({
         </div>
       ) : null}
 
-      {showBoardSearch ? (
-        <p className="crm-toolbar__hint">Фильтр только на экране — перетаскивание и данные на сервере не меняются</p>
+      {showBoardSearch && searchActive ? (
+        <p className="crm-toolbar__hint">
+          Поиск только на экране — очистите поле, чтобы видеть все карточки. Перетаскивание работает.
+        </p>
       ) : null}
     </header>
   );
