@@ -956,27 +956,27 @@ export function ChatPage() {
   return (
     <div
       className={[
-        "relative mx-auto flex w-full max-w-none flex-col gap-3 sm:gap-4 lg:h-[calc(100dvh-5.5rem)] lg:max-h-[calc(100dvh-5.5rem)] lg:pb-0",
+        "relative mx-auto flex h-full w-full max-w-none flex-col gap-2 sm:gap-3 lg:min-h-0 lg:flex-1 lg:gap-3 lg:overflow-hidden",
         "max-lg:-mx-3 max-lg:-mt-4 max-lg:mb-0 max-lg:min-h-0 max-lg:overflow-hidden max-lg:pb-0 max-lg:gap-0",
         mobileChatHeight,
       ].join(" ")}
     >
       <header className="hidden shrink-0 lg:block">
-        <h1 className="lux-heading-page text-xl sm:text-3xl">Чат</h1>
-        <p className="mt-1 hidden text-sm lux-caption sm:block">
+        <h1 className="lux-heading-page text-xl sm:text-2xl">Чат</h1>
+        <p className="mt-0.5 hidden text-sm lux-caption xl:block">
           Переписка с клиентами: текст, фото, видео, голос, файлы.
         </p>
       </header>
 
       <div
         className={[
-          "grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-4",
+          "grid min-h-0 flex-1 gap-3 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-4 lg:overflow-hidden",
           "max-lg:h-full max-lg:gap-0",
         ].join(" ")}
       >
         <section
           className={[
-            "mo-card order-1 flex min-h-0 flex-col overflow-hidden p-3 max-lg:rounded-none max-lg:border-x-0 max-lg:p-2 lg:order-2 lg:w-[320px] lg:max-w-[320px] lg:shrink-0",
+            "mo-card order-1 flex min-h-0 flex-col overflow-hidden p-3 max-lg:rounded-none max-lg:border-x-0 max-lg:p-2 lg:order-2 lg:h-full lg:w-[320px] lg:max-w-[320px] lg:shrink-0",
             mobileChatHeight,
             showListOnMobile ? "flex" : "hidden lg:flex",
           ].join(" ")}
@@ -1211,10 +1211,10 @@ export function ChatPage() {
 
         <section
           className={[
-            "mo-section order-2 flex min-h-0 min-w-0 flex-col overflow-hidden p-3 shadow-inner backdrop-blur-sm sm:p-4 lg:order-1",
+            "mo-section order-2 flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-3 shadow-inner backdrop-blur-sm sm:p-4 lg:order-1 lg:h-full",
             "max-lg:rounded-none max-lg:border-x-0 max-lg:p-2",
             threadId == null ? "hidden lg:flex" : "flex",
-            threadId != null ? mobileChatHeight : "lg:h-full",
+            mobileChatHeight,
           ].join(" ")}
         >
           {threadId == null && (
@@ -1432,7 +1432,7 @@ export function ChatPage() {
               </div>
 
               <form
-                className="chat-composer shrink-0 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] pt-2.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] lg:mt-3 lg:rounded-2xl lg:border lg:bg-[var(--mo-surface-elevated)] lg:p-3 lg:pb-3"
+                className="chat-composer shrink-0 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] pt-2.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] lg:rounded-2xl lg:border lg:bg-[var(--mo-surface-elevated)] lg:p-3 lg:pb-3"
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (isRecording || voiceFinishing) return;
