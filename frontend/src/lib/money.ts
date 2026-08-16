@@ -25,3 +25,24 @@ export function formatMoney(
   if (opts?.digits === 0) return moneyFmtInt.format(n);
   return moneyFmt.format(n);
 }
+
+/**
+ * Компактные счётчики как в Instagram: 999 → «999», 1100 → «1,1К», 15400 → «15,4К», 1_200_000 → «1,2М».
+ */
+export function formatCompactCount(value: string | number | null | undefined): string {
+  const n = Math.max(0, Math.floor(Number(value) || 0));
+  if (n < 1000) return String(n);
+
+  const trim = (x: number) => {
+    const s = x.toFixed(1).replace(/\.0$/, "").replace(".", ",");
+    return s;
+  };
+
+  if (n < 1_000_000) {
+    return `${trim(n / 1000)}К`;
+  }
+  if (n < 1_000_000_000) {
+    return `${trim(n / 1_000_000)}М`;
+  }
+  return `${trim(n / 1_000_000_000)}Млрд`;
+}

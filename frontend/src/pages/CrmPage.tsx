@@ -19,6 +19,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { CrmToolbar } from "@/components/crm/CrmToolbar";
 import { PatientPhone } from "@/components/PatientPhone";
 import { apiDownloadBlob, apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
+import { formatCompactCount } from "@/lib/money";
 import { theme } from "@/lib/theme";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
@@ -519,8 +520,11 @@ function KanbanColumn({
       <div className="crm-kanban-col-header">
         <span className="crm-stage-gem shrink-0" style={{ backgroundColor: stage.color }} />
         <h3 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-wide text-[var(--mo-text)]">{stage.name}</h3>
-        <span className="rounded-md border border-[var(--mo-border)] bg-[var(--mo-accent-soft)] px-2.5 py-0.5 text-xs font-bold tabular-nums text-[var(--mo-accent-hover)]">
-          {leads.length}
+        <span
+          className="rounded-md border border-[var(--mo-border)] bg-[var(--mo-accent-soft)] px-2.5 py-0.5 text-xs font-bold tabular-nums text-[var(--mo-accent-hover)]"
+          title={String(leads.length)}
+        >
+          {formatCompactCount(leads.length)}
         </span>
       </div>
       <div

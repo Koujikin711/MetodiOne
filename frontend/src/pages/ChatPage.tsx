@@ -9,7 +9,7 @@ import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl, resolveMediaUrl } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatCompactCount } from "@/lib/money";
 import type {
   ChatMessage,
   ChatThread,
@@ -1012,11 +1012,11 @@ export function ChatPage() {
                       <span className="max-w-full truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
                         {tab.label}
                       </span>
-                      <span className="mt-0.5 text-lg font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-xl">
-                        {count}
-                      </span>
-                      <span className="mt-1 hidden text-[9px] leading-tight text-[var(--mo-text-muted)] sm:line-clamp-2">
-                        {tab.hint}
+                      <span
+                        className="mt-0.5 text-lg font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-xl"
+                        title={String(count)}
+                      >
+                        {formatCompactCount(count)}
                       </span>
                     </button>
                   );
@@ -1051,8 +1051,11 @@ export function ChatPage() {
                     <span className="max-w-full truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
                       {tab.label}
                     </span>
-                    <span className="mt-0.5 text-base font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-lg">
-                      {count}
+                    <span
+                      className="mt-0.5 text-base font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-lg"
+                      title={String(count)}
+                    >
+                      {formatCompactCount(count)}
                     </span>
                   </button>
                 );
