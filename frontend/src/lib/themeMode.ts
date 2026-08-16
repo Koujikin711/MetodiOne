@@ -17,9 +17,35 @@ export function applyTheme(mode: ThemeMode) {
   localStorage.setItem(STORAGE_KEY, mode);
 }
 
+function withThemeTransition(apply: () => void) {
+  if (typeof document === "undefined") {
+    apply();
+    return;
+  }
+  const root = document.documentElement;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const doc = document as Document & {
+    startViewTransition?: (cb: () => void) => { finished: Promise<void> };
+  };
+
+  if (!reduced && typeof doc.startViewTransition === "function") {
+    doc.startViewTransition(apply);
+    return;
+  }
+
+  if (reduced) {
+    apply();
+    return;
+  }
+
+  root.classList.add("theme-transitioning");
+  apply();
+  window.setTimeout(() => root.classList.remove("theme-transitioning"), 420);
+}
+
 export function toggleTheme(): ThemeMode {
   const next: ThemeMode = getStoredTheme() === "dark" ? "light" : "dark";
-  applyTheme(next);
+  withThemeTransition(() => applyTheme(next));
   return next;
 }
 

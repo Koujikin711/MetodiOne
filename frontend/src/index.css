@@ -167,6 +167,40 @@ body {
   background-color: var(--mo-canvas);
 }
 
+/* Плавный переход светлая ↔ тёмная */
+@media (prefers-reduced-motion: no-preference) {
+  html.theme-transitioning,
+  html.theme-transitioning body,
+  html.theme-transitioning .app-shell-bg,
+  html.theme-transitioning .shell-sidebar,
+  html.theme-transitioning .shell-main,
+  html.theme-transitioning .mo-section,
+  html.theme-transitioning .mo-card,
+  html.theme-transitioning .mo-input,
+  html.theme-transitioning .mo-kpi,
+  html.theme-transitioning .mo-fill-page,
+  html.theme-transitioning .employee-card,
+  html.theme-transitioning .audit-event-row,
+  html.theme-transitioning .integ-channel-tile,
+  html.theme-transitioning .integ-card,
+  html.theme-transitioning .chat-bucket-tab,
+  html.theme-transitioning .analytics-kpi,
+  html.theme-transitioning .shell-nav-link {
+    transition:
+      background-color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      background 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.45s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
 .font-display {
   font-family: var(--font-display);
 }
@@ -1954,6 +1988,16 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   padding-bottom: 1.5rem;
 }
 
+.mo-admin-page-head {
+  @apply shrink-0 border-b pb-3;
+  border-color: var(--mo-border);
+}
+
+.mo-admin-toolbar-label {
+  @apply mb-1 block text-[11px] font-semibold tracking-wide;
+  color: var(--mo-text-muted);
+}
+
 .mo-page-header {
   @apply flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
 }
@@ -2502,30 +2546,33 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 /* ── Аудит ── */
 .audit-event-row {
   border: 1px solid var(--mo-border);
-  border-radius: 0.75rem;
-  background: rgba(255, 255, 255, 0.35);
-  padding: 0.75rem;
+  border-radius: 1rem;
+  background: var(--mo-surface);
+  padding: 0.85rem 1rem;
+  box-shadow: var(--mo-shadow-luxury);
 }
 :root[data-theme="dark"] .audit-event-row {
-  background: rgba(30, 41, 59, 0.45);
+  background: var(--mo-surface-elevated);
 }
 .audit-entity-tag {
-  border-radius: 0.25rem;
-  background: #ece6f0;
-  color: #614b70;
-  padding: 0.125rem 0.5rem;
+  border-radius: 0.5rem;
+  background: var(--mo-accent-soft);
+  color: var(--mo-accent-hover);
+  padding: 0.125rem 0.55rem;
   font-size: 0.75rem;
+  font-weight: 600;
 }
 :root[data-theme="dark"] .audit-entity-tag {
   background: rgba(99, 102, 241, 0.18);
   color: #c4b5fd;
 }
 .audit-action-tag {
-  border-radius: 0.25rem;
-  background: rgba(51, 65, 85, 0.6);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--mo-text) 8%, transparent);
   color: var(--mo-text);
-  padding: 0.125rem 0.5rem;
+  padding: 0.125rem 0.55rem;
   font-size: 0.75rem;
+  font-weight: 500;
 }
 :root[data-theme="dark"] .audit-action-tag {
   background: rgba(15, 23, 42, 0.75);
@@ -2635,16 +2682,19 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--mo-accent-hover);
 }
 .employees-redistribute-panel {
-  @apply rounded-xl border px-3.5 py-3;
-  border-color: rgba(245, 158, 11, 0.22);
-  background: rgba(245, 158, 11, 0.05);
+  @apply rounded-2xl border px-4 py-3.5;
+  border-color: color-mix(in srgb, var(--mo-accent) 28%, var(--mo-border));
+  background: color-mix(in srgb, var(--mo-accent-soft) 70%, var(--mo-surface-elevated));
+  box-shadow: var(--mo-shadow-luxury);
 }
 :root[data-theme="dark"] .employees-redistribute-panel {
-  border-color: rgba(251, 191, 36, 0.22);
-  background: rgba(120, 53, 15, 0.16);
+  border-color: rgba(129, 140, 248, 0.28);
+  background: rgba(99, 102, 241, 0.1);
 }
 .employees-redistribute-panel .employees-redistribute-title {
-  @apply text-sm font-semibold tracking-tight text-[var(--mo-text)];
+  @apply text-sm font-semibold tracking-tight;
+  font-family: var(--font-display);
+  color: var(--mo-accent-hover);
 }
 .employees-redistribute-panel .employees-redistribute-desc {
   @apply mt-0.5 text-[11px] leading-snug text-[var(--mo-text-muted)];

@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 
 import { TerminateWithLeadsWizard } from "@/components/TerminateWithLeadsWizard";
 import { Pencil } from "@/components/icons";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeUserIdFromToken } from "@/lib/auth";
 import type { Pipeline, UserRole } from "@/lib/types";
@@ -488,26 +489,23 @@ export function EmployeesPage() {
 
   return (
     <div className="mo-fill-page relative">
-      <header className="flex shrink-0 flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Сотрудники</h1>
-          <p className="mt-1 text-sm lux-caption">
-            Приглашение создаёт логин (email/телефон) и временный пароль.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="btn-primary"
-        >
-          Пригласить сотрудника
-        </button>
-      </header>
+      <div className="mo-admin-page-head">
+        <PageHeader
+          className="mb-0"
+          title="Сотрудники"
+          description="Приглашение создаёт логин (email/телефон) и временный пароль."
+          actions={
+            <button type="button" onClick={() => setOpen(true)} className="btn-primary">
+              Пригласить сотрудника
+            </button>
+          }
+        />
+      </div>
 
-      <div className="mo-fill-page-scroll space-y-6">
+      <div className="mo-fill-page-scroll space-y-5 pt-4">
       {employeesQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
       {employeesQuery.isError && (
-        <p className="text-sm text-red-300">{(employeesQuery.error as Error).message}</p>
+        <p className="text-sm text-[var(--mo-danger)]">{(employeesQuery.error as Error).message}</p>
       )}
 
       {(sourcesWithLeads.length > 0 || redistributionSourcesQuery.isLoading || activeManagersOnly.length >= 1) &&
@@ -696,6 +694,8 @@ export function EmployeesPage() {
         </section>
       )}
 
+      <section className="mo-section space-y-3 p-3 sm:p-4">
+        <h2 className="lux-heading px-1">Команда</h2>
       <div className="grid gap-3">
         {(employeesQuery.data ?? []).map((e) => {
           const pipelineNames = e.pipeline_ids.length
@@ -734,7 +734,7 @@ export function EmployeesPage() {
                   type="button"
                   onClick={() => confirmTerminate(e)}
                   disabled={terminateTarget?.id === e.id}
-                  className="shrink-0 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-500/20 disabled:opacity-50 dark:text-red-300"
+                  className="shrink-0 rounded-xl border border-[var(--mo-danger)]/40 bg-[var(--mo-danger)]/10 px-3 py-1.5 text-xs font-medium text-[var(--mo-danger)] transition hover:bg-[var(--mo-danger)]/20 disabled:opacity-50"
                 >
                   Уволить
                 </button>
@@ -747,9 +747,10 @@ export function EmployeesPage() {
           <p className="text-sm mo-muted">Сотрудников пока нет.</p>
         )}
       </div>
+      </section>
 
-      <section className="mo-section p-5 shadow-inner backdrop-blur-sm">
-        <h2 className="lux-subheading">SMTP / Почта</h2>
+      <section className="mo-section p-5">
+        <h2 className="lux-heading">SMTP / Почта</h2>
         {smtpQuery.isLoading && <p className="mt-2 text-sm lux-caption">Загрузка SMTP…</p>}
         {smtpQuery.isError && (
           <p className="mt-2 text-sm text-red-300">{(smtpQuery.error as Error).message}</p>

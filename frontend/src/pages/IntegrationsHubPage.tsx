@@ -45,14 +45,15 @@ export function IntegrationsHubPage() {
 
   return (
     <div className="mo-fill-page">
-      <div className="shrink-0">
+      <div className="mo-admin-page-head">
         <PageHeader
+          className="mb-0"
           title="Интеграции"
           description="Подключите мессенджеры, почту и таблицы — входящие обращения и лиды будут попадать в CRM. Ниже — лимиты тарифа и журнал фоновых задач."
         />
       </div>
 
-      <div className="mo-fill-page-scroll space-y-6">
+      <div className="mo-fill-page-scroll space-y-5 pt-4">
       {t ? (
         <section className="mo-section">
           <h2 className="lux-heading">Тариф и лимиты</h2>
@@ -85,14 +86,14 @@ export function IntegrationsHubPage() {
         {eventsQuery.isError && (
           <p className="mt-3 text-sm text-[var(--mo-danger)]">{(eventsQuery.error as Error).message}</p>
         )}
-        <div className="mt-4 max-h-80 overflow-auto rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]">
+        <div className="mt-4 max-h-80 overflow-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]">
           <table className="mo-table min-w-full text-xs">
-            <thead className="sticky top-0 bg-[var(--mo-surface)]">
+            <thead className="sticky top-0 bg-[var(--mo-surface-elevated)]">
               <tr>
-                <th className="px-3 py-2 font-semibold">Время</th>
-                <th className="px-3 py-2 font-semibold">Источник</th>
-                <th className="px-3 py-2 font-semibold">Статус</th>
-                <th className="px-3 py-2 font-semibold">Сообщение</th>
+                <th className="px-3 py-2.5 font-semibold">Время</th>
+                <th className="px-3 py-2.5 font-semibold">Источник</th>
+                <th className="px-3 py-2.5 font-semibold">Статус</th>
+                <th className="px-3 py-2.5 font-semibold">Сообщение</th>
               </tr>
             </thead>
             <tbody>
@@ -102,7 +103,7 @@ export function IntegrationsHubPage() {
                   <td className="px-3 py-2 font-medium text-[var(--mo-text-muted)]">{ev.source}</td>
                   <td className="px-3 py-2">
                     {ev.ok ? (
-                      <span className="font-semibold text-[#0F4C3A]">Успешно</span>
+                      <span className="font-semibold text-[var(--mo-success)]">Успешно</span>
                     ) : (
                       <span className="font-semibold text-[var(--mo-danger)]">Ошибка</span>
                     )}
