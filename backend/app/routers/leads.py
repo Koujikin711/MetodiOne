@@ -37,6 +37,8 @@ from app.schemas.lead import (
     LeadImportErrorItem,
     LeadImportResponse,
     LeadRead,
+    LeadStageCountItem,
+    LeadStageCountsResponse,
     LeadStatusPatchResponse,
     LeadStatusUpdate,
     LeadTablePage,
@@ -702,6 +704,71 @@ async def list_leads_table(
     leads = result.scalars().unique().all()
     items = await _leads_to_read_with_deals(db, list(leads), current_user)
     return LeadTablePage(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/stage-counts", response_model=LeadStageCountsResponse)
+async def lead_stage_counts(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    pipeline_id: int = Query(..., ge=1),
+) -> LeadStageCountsResponse:
+    """Реальные COUNT(*) по стадиям воронки (без лимита карточек канбана).
+
+    Канбан отдаёт только N последних лидов на колонку, чтобы не повесить браузер.
+    Счётчики здесь — полный склад в БД (в т.ч. Bitrix → Архив).
+    """
+    pipe = await db.get(Pipeline, pipeline_id)
+    if pipe is None or pipe.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Воронка не найдена")
+
+    if is_manager_like(current_user.role):
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if not allowed or pipeline_id not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Воронка недоступна",
+            )
+    if current_user.role == UserRole.expert:
+        allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
+        if not allowed or pipeline_id not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Воронка недоступна эксперту")
+
+    stages_result = await db.execute(
+        select(PipelineStage)
+        .where(PipelineStage.pipeline_id == pipeline_id, PipelineStage.company_id == company_id)
+        .order_by(PipelineStage.order.asc(), PipelineStage.id.asc())
+    )
+    stages = list(stages_result.scalars().all())
+    if not stages:
+        return LeadStageCountsResponse(pipeline_id=pipeline_id, total=0, stages=[])
+
+    count_q = (
+        select(Lead.status_id, func.count(Lead.id))
+        .select_from(Lead)
+        .join(PipelineStage, PipelineStage.id == Lead.status_id)
+        .where(
+            PipelineStage.pipeline_id == pipeline_id,
+            PipelineStage.company_id == company_id,
+            Lead.company_id == company_id,
+        )
+        .group_by(Lead.status_id)
+    )
+    if is_manager_like(current_user.role):
+        count_q = count_q.where(manager_lead_visibility(current_user.id))
+
+    rows = await db.execute(count_q)
+    by_status = {int(sid): int(cnt) for sid, cnt in rows.all()}
+
+    items = [
+        LeadStageCountItem(stage_id=st.id, name=st.name, count=by_status.get(st.id, 0))
+        for st in stages
+    ]
+    return LeadStageCountsResponse(
+        pipeline_id=pipeline_id,
+        total=sum(item.count for item in items),
+        stages=items,
+    )
 
 
 @router.get("/import/template")

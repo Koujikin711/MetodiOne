@@ -76,3 +76,15 @@ class LeadTablePage(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class LeadStageCountItem(BaseModel):
+    stage_id: int
+    name: str
+    count: int
+
+
+class LeadStageCountsResponse(BaseModel):
+    pipeline_id: int
+    total: int
+    stages: list[LeadStageCountItem]

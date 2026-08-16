@@ -28,6 +28,7 @@ import type {
   Lead,
   LeadImportResponse,
   LeadSource,
+  LeadStageCountsResponse,
   LeadStatusPatchResponse,
   LeadTablePage,
   Pipeline,
@@ -495,12 +496,16 @@ function LeadCardDragOverlay({ lead, stageColor }: { lead: Lead; stageColor?: st
 function KanbanColumn({
   stage,
   leads,
+  totalCount,
+  loadedCap,
   currentRole,
   onRefresh,
   registerScrollContainer,
 }: {
   stage: PipelineStage;
   leads: Lead[];
+  totalCount: number;
+  loadedCap: number;
   currentRole: UserRole | null;
   onRefresh: () => void;
   registerScrollContainer: (stageId: number, el: HTMLDivElement | null) => void;
@@ -522,6 +527,11 @@ function KanbanColumn({
   const visibleLeads = leads.slice(0, visibleCount);
   const hasMore = visibleCount < leads.length;
   const stageLabel = stage.name.trim() === "В обработке" ? "В работе" : stage.name;
+  const badgeCount = Math.max(totalCount, leads.length);
+  const truncated = totalCount > leads.length || totalCount > loadedCap;
+  const badgeTitle = truncated
+    ? `В базе: ${totalCount.toLocaleString("ru-RU")}. На доске показано последних ${leads.length.toLocaleString("ru-RU")} (лимит ${loadedCap.toLocaleString("ru-RU")}). Полный список — во вкладке «Список».`
+    : `В базе: ${badgeCount.toLocaleString("ru-RU")}`;
 
   useEffect(() => {
     const root = bodyRef.current;
@@ -552,9 +562,10 @@ function KanbanColumn({
         </h3>
         <span
           className="rounded-md border border-[var(--mo-border)] bg-[var(--mo-accent-soft)] px-2.5 py-0.5 text-xs font-bold tabular-nums text-[var(--mo-accent-hover)]"
-          title={String(leads.length)}
+          title={badgeTitle}
         >
-          {formatCompactCount(leads.length)}
+          {formatCompactCount(badgeCount)}
+          {truncated ? "+" : ""}
         </span>
       </div>
       <div
@@ -565,9 +576,13 @@ function KanbanColumn({
         data-kanban-scroll="true"
         className="crm-kanban-col-body"
       >
-        {leads.length === 0 ? (
+        {leads.length === 0 && badgeCount === 0 ? (
           <p className="flex flex-1 items-center justify-center px-2 py-8 text-center text-sm mo-muted">
             Нет лидов
+          </p>
+        ) : leads.length === 0 ? (
+          <p className="flex flex-1 items-center justify-center px-2 py-8 text-center text-sm mo-muted">
+            {badgeCount.toLocaleString("ru-RU")} в базе — откройте «Список»
           </p>
         ) : (
           <>
@@ -618,6 +633,7 @@ export function CrmPage() {
   const refreshAll = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["leads"] });
     void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
+    void queryClient.invalidateQueries({ queryKey: ["leads-stage-counts"] });
     void queryClient.invalidateQueries({ queryKey: ["tasks"] });
     void queryClient.invalidateQueries({ queryKey: ["analytics"] });
   }, [queryClient]);
@@ -1139,6 +1155,7 @@ export function CrmPage() {
       }
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
       void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads-stage-counts"] });
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
         toast.error("Импорт прерван по таймауту. Разбейте файл на части.");
@@ -1161,6 +1178,13 @@ export function CrmPage() {
       apiFetch<Lead[]>(
         `/api/leads?pipeline_id=${pipelineId}&per_stage_limit=${kanbanPerStage}`,
       ),
+    enabled: pipelineId != null && crmView === "board",
+  });
+
+  const stageCountsQuery = useQuery({
+    queryKey: ["leads-stage-counts", pipelineId],
+    queryFn: () =>
+      apiFetch<LeadStageCountsResponse>(`/api/leads/stage-counts?pipeline_id=${pipelineId}`),
     enabled: pipelineId != null && crmView === "board",
   });
 
@@ -1235,6 +1259,22 @@ export function CrmPage() {
     return map;
   }, [leadsForBoard, sortedStages]);
 
+  const stageCountById = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const row of stageCountsQuery.data?.stages ?? []) {
+      map.set(row.stage_id, row.count);
+    }
+    return map;
+  }, [stageCountsQuery.data]);
+
+  const pipelineLeadTotal = stageCountsQuery.data?.total ?? null;
+  const archiveStageCount = useMemo(() => {
+    for (const s of sortedStages) {
+      if (s.name.trim() === "Архив") return stageCountById.get(s.id) ?? 0;
+    }
+    return null;
+  }, [sortedStages, stageCountById]);
+
   const listTotalPages = useMemo(() => {
     const d = leadsTableQuery.data;
     if (!d) return 1;
@@ -1288,6 +1328,7 @@ export function CrmPage() {
         });
         void queryClient.invalidateQueries({ queryKey: ["leads"] });
         void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
+        void queryClient.invalidateQueries({ queryKey: ["leads-stage-counts"] });
         toast.success("Статус обновлен!");
         if (data.automation_task_created) {
           toast.success("🤖 Робот: Создана новая задача для менеджера", {
@@ -2488,6 +2529,8 @@ export function CrmPage() {
                   key={stage.id}
                   stage={stage}
                   leads={leadsByStage.get(stage.id) ?? []}
+                  totalCount={stageCountById.get(stage.id) ?? leadsByStage.get(stage.id)?.length ?? 0}
+                  loadedCap={kanbanPerStage}
                   currentRole={currentRole}
                   onRefresh={refreshAll}
                   registerScrollContainer={registerScrollContainer}
@@ -2495,7 +2538,15 @@ export function CrmPage() {
               ))}
             </div>
             <p className="mt-1 text-center text-[10px] mo-muted sm:text-left">
-              Листайте колонки вправо — там «Отказ» и «Архив». В колонке скролльте вниз — карточки подгрузятся сами.
+              {pipelineLeadTotal != null
+                ? `Всего в воронке: ${pipelineLeadTotal.toLocaleString("ru-RU")}${
+                    archiveStageCount != null
+                      ? ` · «Архив» (склад Bitrix и закрытые): ${archiveStageCount.toLocaleString("ru-RU")}`
+                      : ""
+                  }. `
+                : null}
+              На доске — до {kanbanPerStage.toLocaleString("ru-RU")} последних карточек на колонку; полный поиск — вкладка
+              «Список». Листайте вправо до «Архив».
             </p>
             <DragOverlay dropAnimation={null}>
               {activeLead ? (
