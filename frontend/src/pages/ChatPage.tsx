@@ -458,7 +458,7 @@ function threadAttention(t: ChatThread): ThreadAttention {
 
 function threadRowClasses(t: ChatThread, selected: boolean) {
   const base =
-    "chat-thread-row flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition max-lg:px-2.5 max-lg:py-1.5";
+    "chat-thread-row flex w-full items-start gap-2.5 rounded-2xl border px-3.5 py-2.5 text-left transition max-lg:px-3 max-lg:py-2";
   if (selected) return [base, "chat-thread-row--selected"].join(" ");
   const attn = threadAttention(t);
   if (attn === "waiting_reply") return [base, "chat-thread-row--waiting"].join(" ");
@@ -970,26 +970,28 @@ export function ChatPage() {
 
       <div
         className={[
-          "grid min-h-0 flex-1 gap-3 lg:h-full lg:min-h-0 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-2 lg:overflow-hidden",
+          "grid min-h-0 flex-1 gap-3 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(320px,360px)_minmax(0,1fr)] lg:gap-3 lg:overflow-hidden",
           "max-lg:h-full max-lg:gap-0",
         ].join(" ")}
       >
         <section
           className={[
-            "mo-card flex min-h-0 flex-col overflow-hidden p-2.5 max-lg:rounded-none max-lg:border-x-0 max-lg:p-2 lg:h-full lg:w-[220px] lg:max-w-[220px] lg:shrink-0",
+            "mo-card chat-dialogs-rail flex min-h-0 flex-col overflow-hidden p-3 max-lg:rounded-none max-lg:border-x-0 max-lg:p-2.5 lg:h-full lg:min-w-[320px] lg:max-w-[360px] lg:shrink-0",
             mobileChatHeight,
             showListOnMobile ? "flex" : "hidden lg:flex",
           ].join(" ")}
         >
-          <div className="mb-2 hidden text-sm font-semibold text-[var(--mo-text)] sm:block">Диалоги</div>
+          <div className="mb-2.5 hidden text-base font-semibold tracking-tight text-[var(--mo-text)] sm:block">
+            Диалоги
+          </div>
 
           {showManagerChatBuckets ? (
-            <div className="mb-2 shrink-0 max-lg:mb-1.5 sm:mb-3">
+            <div className="mb-2.5 shrink-0 max-lg:mb-2 sm:mb-3">
               <div
                 className={[
                   "no-scrollbar -mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 pb-0.5",
-                  "sm:mx-0 sm:grid sm:gap-1.5 sm:overflow-visible sm:px-0 sm:pb-0",
-                  salesChatMode ? "sm:grid-cols-4" : "sm:grid-cols-4",
+                  "sm:mx-0 sm:grid sm:gap-2 sm:overflow-visible sm:px-0 sm:pb-0",
+                  salesChatMode ? "sm:grid-cols-2" : "sm:grid-cols-2",
                 ].join(" ")}
               >
                 {(salesChatMode ? stageTabs : CHAT_BUCKET_TABS).map((tab) => {
@@ -1029,7 +1031,7 @@ export function ChatPage() {
                         }
                       }}
                       className={[
-                        "chat-bucket-tab flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-2xl border px-2 py-2.5 text-center transition sm:min-w-0 sm:min-h-[4.5rem]",
+                        "chat-bucket-tab flex min-w-[5.5rem] shrink-0 flex-col items-center justify-center rounded-2xl border px-2.5 py-2.5 text-center transition sm:min-h-[4.75rem] sm:min-w-0",
                         active ? "is-active" : "",
                       ].join(" ")}
                       style={
@@ -1040,11 +1042,11 @@ export function ChatPage() {
                           : undefined
                       }
                     >
-                      <span className="max-w-full truncate text-[10px] font-semibold tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
+                      <span className="max-w-full text-[11px] font-semibold leading-tight tracking-wide text-[var(--mo-text-muted)] sm:text-xs">
                         {tab.label}
                       </span>
                       <span
-                        className="mt-1 text-lg font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-xl"
+                        className="mt-1.5 text-xl font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-2xl"
                         title={String(count)}
                       >
                         {formatCompactCount(count)}
@@ -1057,7 +1059,7 @@ export function ChatPage() {
           ) : null}
 
           {showManagerChatBuckets && salesChatMode ? (
-            <div className="chat-reply-queue mb-2 grid shrink-0 grid-cols-2 gap-1.5 max-lg:mb-1.5 sm:mb-3">
+            <div className="chat-reply-queue mb-2.5 grid shrink-0 grid-cols-2 gap-2 max-lg:mb-2 sm:mb-3">
               {REPLY_QUEUE_TABS.map((tab) => {
                 const active = replyQueue === tab.id;
                 const count =
@@ -1073,15 +1075,15 @@ export function ChatPage() {
                     title={tab.hint}
                     onClick={() => setReplyQueue(tab.id)}
                     className={[
-                      "chat-bucket-tab chat-reply-tab flex min-h-[3.35rem] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-center transition sm:min-h-[3.85rem]",
+                      "chat-bucket-tab chat-reply-tab flex min-h-[3.75rem] flex-col items-center justify-center rounded-2xl border px-2.5 py-2.5 text-center transition sm:min-h-[4.25rem]",
                       active ? "is-active" : "",
                     ].join(" ")}
                   >
-                    <span className="max-w-full truncate text-[10px] font-semibold tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
+                    <span className="max-w-full text-[11px] font-semibold leading-tight tracking-wide text-[var(--mo-text-muted)] sm:text-xs">
                       {tab.label}
                     </span>
                     <span
-                      className="mt-1 text-base font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-lg"
+                      className="mt-1.5 text-lg font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-xl"
                       title={String(count)}
                     >
                       {formatCompactCount(count)}
@@ -1095,15 +1097,15 @@ export function ChatPage() {
           <input
             value={threadSearch}
             onChange={(e) => setThreadSearch(e.target.value)}
-            placeholder="Поиск: имя, телефон, чат, ключевое слово…"
-            className="mb-1.5 w-full shrink-0 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3.5 py-2.5 text-sm text-[var(--mo-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] placeholder:mo-muted max-lg:py-2 sm:mb-2"
+            placeholder="Поиск: имя, телефон, чат…"
+            className="mb-2 w-full shrink-0 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3.5 py-2.5 text-sm text-[var(--mo-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] placeholder:mo-muted max-lg:py-2"
           />
-          <p className="mb-2 hidden text-[10px] leading-relaxed mo-muted sm:block">
+          <p className="mb-2 hidden text-[11px] leading-snug mo-muted lg:block">
             {showManagerChatBuckets && salesChatMode
-              ? "Сверху — стадии (без «Новый лид»). Снизу — очередь ответов. Новые лиды видны в списке. Зелёный — ждёт ответа."
+              ? "Зелёный в списке — ждёт ответа. Повторный клик по стадии снимает фильтр."
               : showManagerChatBuckets
-                ? "Вкладки фильтруют список. Внутри вкладки: зелёный — ждёт ответа · голубой — первые 3 дня · без заливки — старше."
-                : "Подсветка: зелёный — ждёт вашего ответа · голубой — первые 3 дня с первого сообщения · без заливки — старше."}
+                ? "Зелёный — ждёт ответа · голубой — первые 3 дня."
+                : "Зелёный — ждёт ответа · голубой — первые 3 дня."}
           </p>
           {threadsQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
           {threadsQuery.isError && (
@@ -1111,7 +1113,7 @@ export function ChatPage() {
           )}
           <div
             ref={threadsListRef}
-            className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1 sm:space-y-2"
+            className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 sm:space-y-2.5"
           >
             {displayThreads.map((t) => {
               const unread = t.unread_count ?? 0;
