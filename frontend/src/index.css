@@ -146,6 +146,21 @@
   --mo-medical-chat-bg: #0b1120;
 }
 
+/* Чат: при наборе сообщения прячем нижнюю мобильную навигацию */
+html[data-chat-composing="1"] nav[aria-label="Основная навигация"] {
+  display: none !important;
+}
+
+html[data-chat-composing="1"] .shell-main {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom)) !important;
+}
+
+@media (min-width: 640px) {
+  html[data-chat-composing="1"] .shell-main {
+    padding-bottom: 2.5rem !important;
+  }
+}
+
 body {
   @apply min-h-screen antialiased font-sans;
   color: var(--mo-text);

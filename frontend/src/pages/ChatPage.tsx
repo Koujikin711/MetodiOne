@@ -350,6 +350,17 @@ function MicIcon({ className }: { className?: string }) {
   );
 }
 
+function SendPlaneIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a.993.993 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z"
+      />
+    </svg>
+  );
+}
+
 function PaperclipIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -584,6 +595,7 @@ export function ChatPage() {
 
   const [text, setText] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [composerFocused, setComposerFocused] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceFinishing, setVoiceFinishing] = useState(false);
   const [voiceDraftFile, setVoiceDraftFile] = useState<File | null>(null);
@@ -595,6 +607,16 @@ export function ChatPage() {
   useEffect(() => {
     threadIdRef.current = threadId;
   }, [threadId]);
+
+  const canSendMessage = Boolean(text.trim() || pendingFile || voiceDraftFile);
+  const hideMobileBottomNav = composerFocused || canSendMessage || isRecording || voiceFinishing;
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (hideMobileBottomNav) root.setAttribute("data-chat-composing", "1");
+    else root.removeAttribute("data-chat-composing");
+    return () => root.removeAttribute("data-chat-composing");
+  }, [hideMobileBottomNav]);
 
   const selectedThread = useMemo(() => allThreads.find((t) => t.id === threadId) ?? null, [allThreads, threadId]);
 
@@ -1342,7 +1364,7 @@ export function ChatPage() {
               </div>
 
               <form
-                className="shrink-0 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] pt-3 lg:mt-3 lg:bg-transparent"
+                className="chat-composer shrink-0 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] pt-2.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] lg:mt-3 lg:rounded-2xl lg:border lg:bg-[var(--mo-surface-elevated)] lg:p-3 lg:pb-3"
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (isRecording || voiceFinishing) return;
@@ -1364,12 +1386,12 @@ export function ChatPage() {
                     setPendingFile(f ?? null);
                   }}
                 />
-                <div className="flex items-center gap-2">
+                <div className="flex items-end gap-2">
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isRecording || voiceFinishing || sendMutation.isPending}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] text-[var(--mo-text)] shadow-sm transition hover:bg-[var(--mo-accent-soft)] disabled:opacity-50"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--mo-border)] bg-[var(--mo-surface)] text-[var(--mo-text)] shadow-sm transition hover:bg-[var(--mo-accent-soft)] disabled:opacity-50"
                     title="Прикрепить файл"
                     aria-label="Прикрепить файл"
                   >
@@ -1378,11 +1400,13 @@ export function ChatPage() {
                   <input
                     value={text}
                     onChange={(e) => setText(e.target.value)}
+                    onFocus={() => setComposerFocused(true)}
+                    onBlur={() => setComposerFocused(false)}
                     placeholder={
                       voiceFinishing
                         ? "Отправка голосового…"
                         : isRecording
-                          ? "Идёт запись… нажмите зелёную кнопку ещё раз, чтобы отправить"
+                          ? "Идёт запись… нажмите ещё раз, чтобы отправить"
                           : voiceDraftFile
                             ? "Голосовое готово — прослушайте и отправьте"
                           : pendingFile
@@ -1390,44 +1414,53 @@ export function ChatPage() {
                             : "Сообщение клиенту…"
                     }
                     readOnly={isRecording || voiceFinishing}
-                    className="mo-input min-w-0 flex-1 rounded-full read-only:opacity-80"
+                    className="mo-input min-w-0 flex-1 rounded-full py-2.5 read-only:opacity-80"
                   />
-                  <button
-                    type="button"
-                    onClick={toggleVoiceRecording}
-                    disabled={sendMutation.isPending || (voiceFinishing && !isRecording) || !!voiceDraftFile}
-                    title={
-                      isRecording
-                        ? "Нажмите ещё раз, чтобы остановить"
-                        : "Записать голосовое сообщение"
-                    }
-                    className={[
-                      "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-md transition disabled:opacity-50",
-                      isRecording
-                        ? "animate-pulse bg-red-600 hover:bg-red-500"
-                        : "bg-emerald-600 hover:bg-emerald-500",
-                    ].join(" ")}
-                    aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
-                  >
-                    {isRecording ? (
-                      <span className="block h-3.5 w-3.5 rounded-sm bg-white" aria-hidden />
-                    ) : (
-                      <MicIcon className="h-6 w-6" />
-                    )}
-                  </button>
+                  {canSendMessage && !isRecording ? (
+                    <button
+                      type="submit"
+                      disabled={sendMutation.isPending || voiceFinishing}
+                      title={voiceDraftFile ? "Отправить голосовое" : "Отправить"}
+                      aria-label="Отправить"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--mo-accent)] text-white shadow-md transition hover:bg-[var(--mo-accent-hover)] disabled:opacity-50"
+                    >
+                      <SendPlaneIcon className="h-5 w-5 translate-x-px -translate-y-px" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={toggleVoiceRecording}
+                      disabled={sendMutation.isPending || (voiceFinishing && !isRecording) || !!voiceDraftFile}
+                      title={
+                        isRecording
+                          ? "Нажмите ещё раз, чтобы остановить"
+                          : "Записать голосовое сообщение"
+                      }
+                      className={[
+                        "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-md transition disabled:opacity-50",
+                        isRecording
+                          ? "animate-pulse bg-red-600 hover:bg-red-500"
+                          : "bg-emerald-600 hover:bg-emerald-500",
+                      ].join(" ")}
+                      aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
+                    >
+                      {isRecording ? (
+                        <span className="block h-3.5 w-3.5 rounded-sm bg-white" aria-hidden />
+                      ) : (
+                        <MicIcon className="h-6 w-6" />
+                      )}
+                    </button>
+                  )}
                 </div>
-                <button
-                  type="submit"
-                  disabled={
-                    sendMutation.isPending ||
-                    isRecording ||
-                    voiceFinishing ||
-                    (!voiceDraftFile && !text.trim() && !pendingFile)
-                  }
-                  className="btn-primary mt-2 w-full px-4 py-2.5 disabled:opacity-60 sm:ml-auto sm:mt-2 sm:w-auto"
-                >
-                  {voiceDraftFile ? "Отправить голосовое" : "Отправить"}
-                </button>
+                {canSendMessage && !isRecording ? (
+                  <button
+                    type="submit"
+                    disabled={sendMutation.isPending || voiceFinishing}
+                    className="btn-primary mt-2 w-full px-4 py-2.5 disabled:opacity-60 lg:hidden"
+                  >
+                    {voiceDraftFile ? "Отправить голосовое" : "Отправить"}
+                  </button>
+                ) : null}
               </form>
               {isRecording && (
                 <p className="mt-1 text-xs font-medium text-red-300/90">● Запись… нажмите круглую кнопку ещё раз, чтобы остановить</p>
