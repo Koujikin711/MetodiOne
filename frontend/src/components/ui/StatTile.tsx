@@ -27,7 +27,7 @@ export function StatTile({ label, value, hint, tone = "default", onClick }: Prop
       ].join(" ")}
     >
       <div className="text-xs font-medium uppercase tracking-wide text-[var(--mo-text-muted)]">{label}</div>
-      <div className="mt-1 font-display text-2xl font-bold tabular-nums text-[var(--mo-text)]">{value}</div>
+      <div className="mt-1 text-2xl font-bold tabular-nums text-[var(--mo-text)]">{value}</div>
       {hint ? <div className="mt-1 text-[11px] text-[var(--mo-text-muted)]">{hint}</div> : null}
     </Tag>
   );

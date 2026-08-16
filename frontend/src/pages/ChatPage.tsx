@@ -981,7 +981,7 @@ export function ChatPage() {
             showListOnMobile ? "flex" : "hidden lg:flex",
           ].join(" ")}
         >
-          <div className="mb-2 font-display text-base font-semibold tracking-tight text-[var(--mo-accent-hover)] max-lg:mb-1.5 max-lg:text-sm">
+          <div className="mb-2 text-base font-semibold tracking-tight text-[var(--mo-accent-hover)] max-lg:mb-1.5 max-lg:text-sm">
             Диалоги
           </div>
 

@@ -1172,7 +1172,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-page-title {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   @apply text-xl font-semibold leading-tight tracking-tight sm:text-2xl;
   color: var(--mo-accent-hover);
 }
@@ -1665,7 +1665,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .mo-kpi-value {
   @apply mt-1 text-2xl font-semibold tabular-nums;
   color: var(--mo-text);
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
 }
 
 .mo-table {
@@ -1768,7 +1768,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-brand-title {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   @apply text-xl font-semibold leading-tight tracking-tight sm:text-2xl;
   color: var(--mo-accent);
 }
@@ -1978,7 +1978,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .lux-heading {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   @apply text-lg font-semibold tracking-tight sm:text-xl;
   color: var(--mo-accent-hover);
 }
@@ -1989,7 +1989,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .lux-heading-page {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   @apply text-2xl font-semibold tracking-tight sm:text-[2rem];
   color: var(--mo-accent-hover);
 }
@@ -2127,7 +2127,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .mo-stat-card .value {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   @apply mt-1 text-2xl font-semibold tabular-nums;
   color: var(--mo-text);
 }
@@ -2183,7 +2183,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .team-messenger-header h1 {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   @apply text-2xl font-semibold tracking-tight sm:text-[1.75rem];
   color: var(--mo-accent-hover);
 }
@@ -2778,7 +2778,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 .employees-redistribute-panel .employees-redistribute-title {
   @apply text-sm font-semibold tracking-tight;
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   color: var(--mo-accent-hover);
 }
 .employees-redistribute-panel .employees-redistribute-desc {
@@ -3164,7 +3164,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .analytics-panel-title {
   @apply mb-3 text-sm font-semibold;
   color: var(--mo-text);
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
 }
 
 .analytics-table-wrap {
