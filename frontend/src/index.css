@@ -520,13 +520,26 @@ body {
   transform: translateY(-1px);
 }
 
-.shell-sidebar [data-nav-variant] {
-  box-shadow: 0 2px 10px -2px rgba(79, 70, 229, 0.35);
+.shell-sidebar [data-nav-variant="crm"],
+.shell-sidebar [data-nav-variant="indigo"] {
+  box-shadow: 0 2px 10px -2px rgba(74, 21, 33, 0.35);
+}
+
+.shell-sidebar [data-nav-variant="tasks"],
+.shell-sidebar [data-nav-variant="teal"],
+.shell-sidebar [data-nav-variant="chat"] {
+  box-shadow: 0 2px 10px -2px rgba(42, 111, 133, 0.35);
+}
+
+.shell-sidebar [data-nav-variant="analytics"],
+.shell-sidebar [data-nav-variant="online"],
+.shell-sidebar [data-nav-variant="blue"] {
+  box-shadow: 0 2px 10px -2px rgba(30, 58, 138, 0.3);
 }
 
 .shell-sidebar .shell-nav-link.is-active [data-nav-variant] {
-  filter: brightness(1.06);
-  box-shadow: 0 4px 14px -2px rgba(99, 102, 241, 0.4);
+  filter: brightness(1.05);
+  box-shadow: 0 4px 14px -2px rgba(99, 102, 241, 0.35);
 }
 
 .shell-sidebar .shell-sidebar-footer .shell-nav-icon-box:not([data-nav-variant]) {
@@ -537,28 +550,84 @@ body {
   border-radius: 0.75rem;
 }
 
-:root[data-theme="dark"] .shell-sidebar [data-nav-variant] {
-  border-color: rgba(129, 140, 248, 0.45);
-  color: #e0e7ff;
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="crm"],
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="indigo"] {
+  border-color: rgba(255, 45, 149, 0.65);
+  color: #ffb8dc;
   box-shadow:
-    0 0 12px rgba(99, 102, 241, 0.28),
-    inset 0 0 8px rgba(99, 102, 241, 0.08);
+    0 0 14px rgba(255, 45, 149, 0.42),
+    inset 0 0 10px rgba(255, 45, 149, 0.12);
+}
+
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="tasks"],
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="teal"],
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="chat"] {
+  border-color: rgba(0, 229, 255, 0.65);
+  color: #b8f7ff;
+  box-shadow:
+    0 0 14px rgba(0, 229, 255, 0.4),
+    inset 0 0 10px rgba(0, 229, 255, 0.1);
+}
+
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="analytics"],
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="online"],
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="blue"] {
+  border-color: rgba(77, 124, 255, 0.7);
+  color: #c7d7ff;
+  box-shadow:
+    0 0 14px rgba(77, 124, 255, 0.42),
+    inset 0 0 10px rgba(77, 124, 255, 0.12);
+}
+
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="finance"],
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="tariff"],
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="purple"] {
+  border-color: rgba(57, 255, 120, 0.55);
+  color: #b8ffd0;
+  box-shadow:
+    0 0 14px rgba(57, 255, 120, 0.32),
+    inset 0 0 10px rgba(57, 255, 120, 0.1);
+}
+
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="trainer"] {
+  border-color: rgba(255, 214, 10, 0.65);
+  color: #ffeaa0;
+  box-shadow:
+    0 0 14px rgba(255, 214, 10, 0.35),
+    inset 0 0 10px rgba(255, 214, 10, 0.1);
+}
+
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="integrations"] {
+  border-color: rgba(168, 85, 247, 0.7);
+  color: #e9c7ff;
+  box-shadow:
+    0 0 14px rgba(168, 85, 247, 0.42),
+    inset 0 0 10px rgba(168, 85, 247, 0.12);
+}
+
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="platform"] {
+  border-color: rgba(255, 179, 71, 0.6);
+  color: #ffd9a8;
+  box-shadow:
+    0 0 14px rgba(255, 179, 71, 0.32),
+    inset 0 0 10px rgba(255, 179, 71, 0.1);
 }
 
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="logout"],
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="pink"] {
-  border-color: rgba(148, 163, 184, 0.45);
-  color: #e2e8f0;
+  border-color: rgba(255, 71, 87, 0.65);
+  color: #ffb8bf;
   box-shadow:
-    0 0 10px rgba(100, 116, 139, 0.25),
-    inset 0 0 8px rgba(148, 163, 184, 0.06);
+    0 0 14px rgba(255, 71, 87, 0.38),
+    inset 0 0 10px rgba(255, 71, 87, 0.1);
 }
 
 :root[data-theme="dark"] .shell-sidebar .shell-nav-link.is-active [data-nav-variant] {
   filter: brightness(1.08);
   box-shadow:
-    0 0 18px rgba(99, 102, 241, 0.35),
-    inset 0 0 12px rgba(255, 255, 255, 0.06);
+    0 0 20px rgba(0, 229, 255, 0.28),
+    0 0 32px rgba(168, 85, 247, 0.16),
+    inset 0 0 14px rgba(255, 255, 255, 0.08);
 }
 
 :root[data-theme="dark"] .shell-sidebar .shell-sidebar-footer .shell-nav-icon-box:not([data-nav-variant]) {
