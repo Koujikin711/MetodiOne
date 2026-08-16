@@ -454,7 +454,7 @@ export function LeadDetailPage() {
             </div>
           </header>
 
-          <div className="mt-5 space-y-2 border-t border-[var(--mo-border)] pt-5">
+          <div className="mt-5 space-y-3 border-t border-[var(--mo-border)] pt-5">
             <p className="text-lg font-semibold tabular-nums tracking-wide text-[var(--mo-text)]" title="Телефон">
               <PatientPhone value={query.data} />
             </p>
@@ -463,56 +463,19 @@ export function LeadDetailPage() {
                 {query.data.email}
               </p>
             ) : null}
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              {(query.data.source || "").trim() ? (
-                <span
-                  className="inline-flex max-w-full truncate rounded-lg bg-[var(--mo-accent-soft)] px-2 py-1 text-[11px] font-semibold text-[var(--mo-accent-hover)]"
-                  title="Источник"
-                >
-                  {query.data.source}
-                </span>
-              ) : null}
-              {(query.data.manager_name || "").trim() ? (
-                <span className="text-sm text-[var(--mo-text-muted)]" title="Ответственный менеджер">
-                  {query.data.manager_name}
-                </span>
-              ) : (
-                <span className="text-sm italic mo-muted">Без ответственного</span>
-              )}
+            <div>
+              <p className="text-xs font-medium mo-muted">Источник</p>
+              <p className="mt-0.5 text-sm font-medium text-[var(--mo-text)]">
+                {(query.data.source || "").trim() || "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium mo-muted">Ответственный менеджер</p>
+              <p className="mt-0.5 text-sm font-medium text-[var(--mo-text)]">
+                {(query.data.manager_name || "").trim() || "—"}
+              </p>
             </div>
           </div>
-
-          {(query.data.show_close_deal_button || canRejectLead) && (
-            <div className="mt-5 flex flex-wrap gap-2">
-              {query.data.show_close_deal_button ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCloseAmount("");
-                    setClosePaid("");
-                    setCloseDealOpen(true);
-                  }}
-                  className="rounded-xl bg-[var(--mo-success)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
-                >
-                  Закрыть сделку
-                </button>
-              ) : null}
-              {canRejectLead ? (
-                <button
-                  type="button"
-                  disabled={rejectMutation.isPending}
-                  onClick={() => {
-                    const reason = window.prompt("Причина отказа (необязательно)", "");
-                    if (reason == null) return;
-                    rejectMutation.mutate(reason.trim() || undefined);
-                  }}
-                  className="rounded-xl bg-[var(--mo-danger)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
-                >
-                  Отказ
-                </button>
-              ) : null}
-            </div>
-          )}
 
           {(leadAppointmentsQuery.data ?? []).length > 0 && (
             <section className="mt-6 border-t border-[var(--mo-border)] pt-5">
