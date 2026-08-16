@@ -233,7 +233,7 @@ export function TeamMessengerPage() {
               <span className="team-messenger-empty-icon" aria-hidden>
                 <MessageCircle className="h-7 w-7" />
               </span>
-              <p>Выберите диалог или коллегу в списке слева, чтобы начать переписку</p>
+              <p>Выберите диалог или коллегу в списке справа, чтобы начать переписку</p>
             </div>
           ) : (
             <>

@@ -2012,20 +2012,22 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 /* Мессенджер — медицинский современный UI */
 .team-messenger {
-  @apply relative mx-auto flex w-full max-w-6xl flex-col gap-4 pb-28 sm:pb-4;
+  @apply relative mx-auto flex w-full max-w-none flex-col gap-4 pb-28 sm:pb-4;
 }
 
 @media (min-width: 1024px) {
   .team-messenger {
     flex: 1;
     min-height: 0;
-    max-height: 100%;
+    height: calc(100dvh - 5.5rem);
+    max-height: calc(100dvh - 5.5rem);
     padding-bottom: 0;
   }
 
   .team-messenger-shell {
     flex: 1;
     min-height: 0;
+    height: 100%;
     max-height: 100%;
   }
 }
@@ -2054,14 +2056,25 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 @media (min-width: 1024px) {
   .team-messenger-shell {
-    grid-template-columns: minmax(0, 19rem) minmax(0, 1fr);
+    /* Чат слева на всю ширину · список справа фиксирован */
+    grid-template-columns: minmax(0, 1fr) 19rem;
+    min-height: 0;
   }
 }
 
 .team-messenger-rail {
-  @apply flex min-h-0 flex-col border-b lg:border-b-0 lg:border-r;
+  @apply order-1 flex min-h-0 flex-col border-b lg:order-2 lg:border-b-0 lg:border-l lg:border-r-0;
   border-color: var(--mo-border);
   background: var(--mo-medical-rail);
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .team-messenger-rail {
+    width: 19rem;
+    max-width: 19rem;
+    min-width: 19rem;
+  }
 }
 
 .team-messenger-rail.is-hidden-mobile {
@@ -2172,7 +2185,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .team-messenger-chat {
-  @apply flex min-h-0 flex-col bg-[var(--mo-medical-surface)];
+  @apply order-2 flex min-h-0 min-w-0 flex-col bg-[var(--mo-medical-surface)] lg:order-1;
 }
 
 .team-messenger-chat.is-hidden-mobile {

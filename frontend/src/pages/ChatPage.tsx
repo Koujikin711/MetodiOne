@@ -956,7 +956,7 @@ export function ChatPage() {
   return (
     <div
       className={[
-        "relative mx-auto flex max-w-[1400px] flex-col gap-3 sm:gap-4 sm:pb-10",
+        "relative mx-auto flex w-full max-w-none flex-col gap-3 sm:gap-4 lg:h-[calc(100dvh-5.5rem)] lg:max-h-[calc(100dvh-5.5rem)] lg:pb-0",
         "max-lg:-mx-3 max-lg:-mt-4 max-lg:mb-0 max-lg:min-h-0 max-lg:overflow-hidden max-lg:pb-0 max-lg:gap-0",
         mobileChatHeight,
       ].join(" ")}
@@ -970,13 +970,13 @@ export function ChatPage() {
 
       <div
         className={[
-          "grid min-h-0 flex-1 gap-3 lg:min-h-[calc(100dvh-12rem)] lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-4",
+          "grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-4",
           "max-lg:h-full max-lg:gap-0",
         ].join(" ")}
       >
         <section
           className={[
-            "mo-card flex flex-col overflow-hidden p-3 max-lg:rounded-none max-lg:border-x-0 max-lg:p-2",
+            "mo-card order-1 flex min-h-0 flex-col overflow-hidden p-3 max-lg:rounded-none max-lg:border-x-0 max-lg:p-2 lg:order-2 lg:w-[320px] lg:max-w-[320px] lg:shrink-0",
             mobileChatHeight,
             showListOnMobile ? "flex" : "hidden lg:flex",
           ].join(" ")}
@@ -1111,7 +1111,7 @@ export function ChatPage() {
           )}
           <div
             ref={threadsListRef}
-            className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1 sm:space-y-2 lg:max-h-[56vh]"
+            className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1 sm:space-y-2"
           >
             {displayThreads.map((t) => {
               const unread = t.unread_count ?? 0;
@@ -1211,15 +1211,15 @@ export function ChatPage() {
 
         <section
           className={[
-            "mo-section flex flex-col overflow-hidden p-3 shadow-inner backdrop-blur-sm sm:p-4",
+            "mo-section order-2 flex min-h-0 min-w-0 flex-col overflow-hidden p-3 shadow-inner backdrop-blur-sm sm:p-4 lg:order-1",
             "max-lg:rounded-none max-lg:border-x-0 max-lg:p-2",
             threadId == null ? "hidden lg:flex" : "flex",
-            threadId != null ? mobileChatHeight : "",
+            threadId != null ? mobileChatHeight : "lg:h-full",
           ].join(" ")}
         >
           {threadId == null && (
             <p className="flex flex-1 items-center justify-center text-sm mo-muted lg:flex">
-              Выберите диалог слева.
+              Выберите диалог справа.
             </p>
           )}
           {threadId != null && (
@@ -1374,7 +1374,7 @@ export function ChatPage() {
               ) : null}
 
               <div className="flex min-h-0 flex-1 flex-col">
-              <div ref={messagesScrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-0.5 py-2 lg:max-h-[56vh]">
+              <div ref={messagesScrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-0.5 py-2">
                 {messagesQuery.isLoading && <p className="text-sm lux-caption">Загрузка сообщений…</p>}
                 {(messagesQuery.data ?? []).map((m, idx, arr) => {
                   const isOut = m.direction === "out";
