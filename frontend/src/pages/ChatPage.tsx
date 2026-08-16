@@ -970,13 +970,13 @@ export function ChatPage() {
 
       <div
         className={[
-          "grid min-h-0 flex-1 gap-3 lg:h-full lg:min-h-0 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-3 lg:overflow-hidden",
+          "grid min-h-0 flex-1 gap-3 lg:h-full lg:min-h-0 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-2 lg:overflow-hidden",
           "max-lg:h-full max-lg:gap-0",
         ].join(" ")}
       >
         <section
           className={[
-            "mo-card flex min-h-0 flex-col overflow-hidden p-3 max-lg:rounded-none max-lg:border-x-0 max-lg:p-2 lg:h-full lg:w-[260px] lg:max-w-[260px] lg:shrink-0",
+            "mo-card flex min-h-0 flex-col overflow-hidden p-2.5 max-lg:rounded-none max-lg:border-x-0 max-lg:p-2 lg:h-full lg:w-[220px] lg:max-w-[220px] lg:shrink-0",
             mobileChatHeight,
             showListOnMobile ? "flex" : "hidden lg:flex",
           ].join(" ")}
