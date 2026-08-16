@@ -1211,7 +1211,7 @@ export function ChatPage() {
 
         <section
           className={[
-            "mo-section order-2 flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-3 shadow-inner backdrop-blur-sm sm:p-4 lg:order-1 lg:h-full",
+            "mo-section flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-3 shadow-inner backdrop-blur-sm sm:p-4 lg:h-full",
             "max-lg:rounded-none max-lg:border-x-0 max-lg:p-2",
             threadId == null ? "hidden lg:flex" : "flex",
             mobileChatHeight,
@@ -1219,7 +1219,7 @@ export function ChatPage() {
         >
           {threadId == null && (
             <p className="flex flex-1 items-center justify-center text-sm mo-muted lg:flex">
-              Выберите диалог справа.
+              Выберите диалог слева.
             </p>
           )}
           {threadId != null && (
