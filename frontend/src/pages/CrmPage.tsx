@@ -329,7 +329,7 @@ function LeadCard({
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => navigate(`/leads/${lead.id}`)}
-        className="relative z-[1] mb-2 text-[11px] font-semibold text-[#A38A53] underline-offset-2 hover:text-[#9E844D] hover:underline"
+        className="relative z-[1] mb-2 text-[11px] font-semibold text-[var(--mo-accent-hover)] underline-offset-2 hover:text-[var(--mo-accent)] hover:underline"
       >
         Открыть карточку
       </button>
@@ -379,8 +379,8 @@ function LeadCard({
         )}
 
       {(currentRole === "manager" || currentRole === "admin") && stage === "Доп. услуги" && (
-        <div className="mt-3 rounded-xl border border-[#d8d2c6] bg-[#faf8f4] p-3">
-          <div className="text-xs font-semibold uppercase tracking-wider text-[#5c6b7a]">
+        <div className="mt-3 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
+          <div className="text-xs font-semibold uppercase tracking-wider mo-muted">
             Продуктовая корзина
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -449,7 +449,7 @@ function LeadCard({
       )}
 
       {showProtocolUpload && (
-        <div className="mt-3 rounded-xl border border-[var(--mo-border)] bg-white/20 p-3 shadow-inner backdrop-blur-sm">
+        <div className="mt-3 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3 shadow-inner">
           <div className="text-xs font-semibold uppercase tracking-wider mo-muted">
             Загрузите протокол
           </div>
@@ -518,8 +518,8 @@ function KanbanColumn({
     >
       <div className="crm-kanban-col-header">
         <span className="crm-stage-gem shrink-0" style={{ backgroundColor: stage.color }} />
-        <h3 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-wide text-[#2C2520]">{stage.name}</h3>
-        <span className="rounded-md border border-[#DCD1B4] bg-white px-2.5 py-0.5 text-xs font-bold tabular-nums text-[#9E844D]">
+        <h3 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-wide text-[var(--mo-text)]">{stage.name}</h3>
+        <span className="rounded-md border border-[var(--mo-border)] bg-[var(--mo-accent-soft)] px-2.5 py-0.5 text-xs font-bold tabular-nums text-[var(--mo-accent-hover)]">
           {leads.length}
         </span>
       </div>
@@ -529,7 +529,7 @@ function KanbanColumn({
         className="crm-kanban-col-body"
       >
         {leads.length === 0 ? (
-          <p className="flex flex-1 items-center justify-center px-2 py-8 text-center text-sm text-[#8a96a3]">
+          <p className="flex flex-1 items-center justify-center px-2 py-8 text-center text-sm mo-muted">
             Нет лидов
           </p>
         ) : (
@@ -1362,7 +1362,7 @@ export function CrmPage() {
             </div>
             {pipelineId != null && selectedPipelineForSettings && (
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-sm text-[#5c6b7a]">Распределение новых лидов:</span>
+                <span className="text-sm mo-muted">Распределение новых лидов:</span>
                 <select
                   id="crm-pipeline-lead-assignment"
                   name="lead_assignment_mode"
@@ -1381,7 +1381,7 @@ export function CrmPage() {
             )}
             {pipelineId != null && selectedPipelineForSettings && (
               <div className="mt-2 flex flex-wrap flex-col gap-2 sm:flex-row sm:items-center">
-                <span className="text-sm text-[#5c6b7a]">Менеджер приёма:</span>
+                <span className="text-sm mo-muted">Менеджер приёма:</span>
                 <select
                   id="crm-pipeline-intake-manager"
                   name="intake_manager_user_id"
@@ -1409,7 +1409,7 @@ export function CrmPage() {
             )}
             {pipelineId != null && selectedPipelineForSettings && (
               <div className="mt-3 w-full max-w-xl space-y-2">
-                <label className="block text-sm text-[#5c6b7a]" htmlFor="crm-pipeline-outbound-phones">
+                <label className="block text-sm mo-muted" htmlFor="crm-pipeline-outbound-phones">
                   Номера для отправки менеджерами в чате
                 </label>
                 <p className="text-xs mo-muted">
@@ -1448,7 +1448,7 @@ export function CrmPage() {
             )}
             {pipelineId != null && selectedPipelineForSettings && (
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-sm text-[#5c6b7a]">Эксперт этой воронки:</span>
+                <span className="text-sm mo-muted">Эксперт этой воронки:</span>
                 <select
                   id="crm-pipeline-expert"
                   name="expert_user_id"
@@ -1473,8 +1473,8 @@ export function CrmPage() {
               </div>
             )}
             {pipelineId != null && sortedStages.length > 0 && (
-              <div className="mt-3 rounded-xl border border-[#d8d2c6] bg-[#faf8f4] p-4">
-                <div className="text-sm font-semibold text-[#1e3348]">Стадии этой воронки</div>
+              <div className="mt-3 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-4">
+                <div className="text-sm font-semibold text-[var(--mo-text)]">Стадии этой воронки</div>
                 <p className="mt-1 text-xs mo-muted">
                   Переименуйте, поменяйте порядок и настройте задачу при входе лида в стадию.
                   Режим «Авто» — прежнее правило по имени («Оплачено», успешная сделка, последний этап).
@@ -1491,7 +1491,7 @@ export function CrmPage() {
                     Распределить лиды
                   </button>
                 </div>
-                <ul className="mt-2 divide-y divide-[#e8e2d8]">
+                <ul className="mt-2 divide-y divide-[var(--mo-border)]">
                   {sortedStages.map((s, idx) => {
                     const open = stageEditorId === s.id;
                     const mode = stageAutoMode(s);
@@ -1499,7 +1499,7 @@ export function CrmPage() {
                       <li key={s.id} className="py-2 text-sm">
                         <div className="flex flex-wrap items-center gap-2">
                           <span
-                            className="inline-block h-3 w-3 shrink-0 rounded-full border border-[#d8d2c6]"
+                            className="inline-block h-3 w-3 shrink-0 rounded-full border border-[var(--mo-border)]"
                             style={{ background: s.color }}
                             aria-hidden
                           />
@@ -1532,14 +1532,14 @@ export function CrmPage() {
                               );
                               patchStageMutation.mutate({ id: s.id, patch: { color } });
                             }}
-                            className="h-8 w-10 rounded border border-[#d8d2c6] bg-transparent"
+                            className="h-8 w-10 rounded border border-[var(--mo-border)] bg-transparent"
                             aria-label="Цвет стадии"
                           />
                           <button
                             type="button"
                             disabled={idx === 0 || reorderStagesMutation.isPending}
                             onClick={() => moveStage(s.id, -1)}
-                            className="rounded border border-[#d8d2c6] px-2 py-1 text-xs disabled:opacity-40"
+                            className="rounded border border-[var(--mo-border)] px-2 py-1 text-xs disabled:opacity-40"
                             title="Выше"
                           >
                             ↑
@@ -1548,7 +1548,7 @@ export function CrmPage() {
                             type="button"
                             disabled={idx === sortedStages.length - 1 || reorderStagesMutation.isPending}
                             onClick={() => moveStage(s.id, 1)}
-                            className="rounded border border-[#d8d2c6] px-2 py-1 text-xs disabled:opacity-40"
+                            className="rounded border border-[var(--mo-border)] px-2 py-1 text-xs disabled:opacity-40"
                             title="Ниже"
                           >
                             ↓
@@ -1556,7 +1556,7 @@ export function CrmPage() {
                           <button
                             type="button"
                             onClick={() => setStageEditorId(open ? null : s.id)}
-                            className="rounded border border-[#d8d2c6] px-2 py-1 text-xs"
+                            className="rounded border border-[var(--mo-border)] px-2 py-1 text-xs"
                           >
                             {mode === "task" ? "Задача" : mode === "off" ? "Авто выкл" : "Авто"} ·{" "}
                             {open ? "Скрыть" : "Правило"}
@@ -1574,7 +1574,7 @@ export function CrmPage() {
                           </button>
                         </div>
                         {open && (
-                          <div className="mt-2 grid gap-2 rounded-lg border border-[#e8e2d8] bg-white/70 p-3">
+                          <div className="mt-2 grid gap-2 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
                             <label className="text-xs mo-muted">
                               При входе лида в стадию
                               <select
@@ -1662,7 +1662,7 @@ export function CrmPage() {
                   })}
                 </ul>
                 {pipelinesQuery.data && pipelinesQuery.data.length > 1 && selectedPipelineForSettings && (
-                  <div className="mt-4 space-y-3 border-t border-[#e8e2d8] pt-3">
+                  <div className="mt-4 space-y-3 border-t border-[var(--mo-border)] pt-3">
                     <div>
                       <button
                         type="button"
@@ -1689,7 +1689,7 @@ export function CrmPage() {
                           return;
                         deletePipelineMutation.mutate(pipelineId);
                       }}
-                      className="text-xs text-[#8a96a3] underline-offset-2 hover:underline disabled:opacity-50"
+                      className="text-xs mo-muted underline-offset-2 hover:underline disabled:opacity-50"
                     >
                       Удалить только пустую воронку
                     </button>
@@ -1712,7 +1712,7 @@ export function CrmPage() {
                 type="button"
                 disabled={closePending}
                 onClick={() => setClosePipelineOpen(false)}
-                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white disabled:opacity-50"
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-[var(--mo-accent-soft)] disabled:opacity-50"
               >
                 Отмена
               </button>
@@ -1802,7 +1802,7 @@ export function CrmPage() {
               <button
                 type="button"
                 onClick={() => setCreatePipelineOpen(false)}
-                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-[var(--mo-accent-soft)]"
               >
                 Закрыть
               </button>
@@ -1886,7 +1886,7 @@ export function CrmPage() {
                       onClick={() =>
                         setPipeStages((prev) => [...prev, { name: "", color: "#6366f1" }])
                       }
-                      className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm text-[var(--mo-text)] hover:bg-white"
+                      className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
                     >
                       + Стадия
                     </button>
@@ -1918,7 +1918,7 @@ export function CrmPage() {
                           type="button"
                           disabled={pipeStages.length <= 1}
                           onClick={() => setPipeStages((prev) => prev.filter((_, i) => i !== idx))}
-                          className="rounded-xl border border-[var(--mo-border)] px-3 py-2 text-sm mo-muted hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                          className="rounded-xl border border-[var(--mo-border)] px-3 py-2 text-sm mo-muted hover:bg-[var(--mo-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           ✕
                         </button>
@@ -1948,7 +1948,7 @@ export function CrmPage() {
               <button
                 type="button"
                 onClick={() => setCreateStageOpen(false)}
-                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-[var(--mo-accent-soft)]"
               >
                 Закрыть
               </button>
@@ -2027,7 +2027,7 @@ export function CrmPage() {
               <button
                 type="button"
                 onClick={() => setDistributeOpen(false)}
-                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-[var(--mo-accent-soft)]"
               >
                 Закрыть
               </button>
@@ -2095,7 +2095,7 @@ export function CrmPage() {
               <button
                 type="button"
                 onClick={() => setCreateLeadOpen(false)}
-                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-[var(--mo-accent-soft)]"
               >
                 Закрыть
               </button>
@@ -2203,7 +2203,7 @@ export function CrmPage() {
                   setImportLastResult(null);
                   if (importFileRef.current) importFileRef.current.value = "";
                 }}
-                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-white"
+                className="rounded-full border border-[var(--mo-border)] px-3 py-1 text-sm mo-muted hover:bg-[var(--mo-accent-soft)]"
               >
                 Закрыть
               </button>
@@ -2388,7 +2388,7 @@ export function CrmPage() {
                   >
                     Назад
                   </button>
-                  <span className="text-sm text-[#5c6b7a]">
+                  <span className="text-sm mo-muted">
                     {listPage} / {listTotalPages}
                   </span>
                   <button
@@ -2407,16 +2407,16 @@ export function CrmPage() {
       )}
 
       {crmView === "board" && (stagesQuery.isLoading || leadsQuery.isLoading) && (
-        <p className="text-sm text-[#5c6b7a]">Загрузка…</p>
+        <p className="text-sm mo-muted">Загрузка…</p>
       )}
       {crmView === "board" && (stagesQuery.isError || leadsQuery.isError) && (
-        <p className="text-sm text-[#9b3d3d]">
+        <p className="text-sm text-[var(--mo-danger)]">
           {(stagesQuery.error as Error)?.message ?? (leadsQuery.error as Error)?.message}
         </p>
       )}
 
       {kanbanError && crmView === "board" && (
-        <p className="rounded-xl border border-[#c9b07a]/50 bg-[#faf5eb] px-4 py-2 text-sm text-[#8a6d2e]">
+        <p className="rounded-xl border border-[var(--mo-warning)]/40 bg-[var(--mo-warning)]/10 px-4 py-2 text-sm text-[var(--mo-warning)]">
           {kanbanError}
         </p>
       )}

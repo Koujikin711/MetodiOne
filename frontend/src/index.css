@@ -96,7 +96,7 @@
   --mo-border: rgba(148, 163, 184, 0.18);
   --mo-border-strong: rgba(165, 180, 252, 0.28);
   --mo-text: #e8eef9;
-  --mo-text-muted: #9aa8c0;
+  --mo-text-muted: #b4c0d4;
   --mo-accent: #818cf8;
   --mo-accent-hover: #a5b4fc;
   --mo-accent-soft: rgba(99, 102, 241, 0.16);
@@ -1748,19 +1748,20 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .crm-kanban-col {
   @apply flex w-[min(100%,300px)] min-w-[268px] shrink-0 flex-col overflow-hidden rounded-2xl border;
   border-color: var(--mo-border);
-  background-color: var(--mo-surface-elevated);
+  background-color: var(--mo-surface);
   box-shadow: var(--mo-shadow-luxury);
 }
 
 .crm-kanban-col.is-drop-target {
-  border-color: var(--mo-gold);
-  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.28), var(--mo-shadow-luxury);
+  border-color: var(--mo-accent);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.28), var(--mo-shadow-luxury);
 }
 
 .crm-kanban-col-header {
-  @apply flex items-center gap-2 border-b px-3 py-2;
+  @apply flex items-center gap-2 border-b px-3 py-2.5;
   border-color: var(--mo-border);
   background-color: var(--mo-surface-elevated);
+  color: var(--mo-text);
 }
 
 .crm-stage-gem {
@@ -1769,13 +1770,18 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   height: 9px;
   transform: rotate(45deg);
   border-radius: 1px;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 1px 3px rgba(44, 37, 32, 0.2);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35), 0 1px 3px rgba(15, 23, 42, 0.25);
+}
+
+:root[data-theme="dark"] .crm-stage-gem {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2), 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 
 .crm-kanban-col-body {
   @apply flex min-h-[min(72vh,580px)] flex-1 flex-col gap-2 overflow-y-auto p-2;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  background-color: var(--mo-surface);
 }
 .crm-kanban-col-body::-webkit-scrollbar {
   width: 0;
@@ -1787,6 +1793,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   @apply relative cursor-grab touch-pan-y overflow-hidden rounded-xl border p-3 transition active:cursor-grabbing;
   border-color: var(--mo-border);
   background-color: var(--mo-surface-elevated);
+  color: var(--mo-text);
   box-shadow: var(--mo-shadow-luxury);
 }
 .crm-lead-card:hover {
@@ -1821,9 +1828,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .crm-lead-card-overlay {
   @apply relative cursor-grabbing overflow-hidden rounded-2xl border-2 p-4;
-  border-color: var(--mo-gold);
-  background: #fff;
-  box-shadow: 0 12px 28px rgba(184, 164, 126, 0.28);
+  border-color: var(--mo-accent);
+  background: var(--mo-surface-elevated);
+  color: var(--mo-text);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.28);
 }
 
 .crm-modal-panel {
