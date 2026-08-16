@@ -36,7 +36,8 @@ def test_default_sales_stages():
 
 def test_bitrix_and_booking_aliases():
     assert resolve_stage_name_aliases("Неуспешно") == ["Неуспешно", "Отказ"]
-    assert resolve_stage_name_aliases("Лиды из битрикс") == ["Лиды из битрикс", "Новый лид"]
+    assert resolve_stage_name_aliases("Лиды из битрикс") == ["Лиды из битрикс", "Архив"]
+    assert resolve_stage_name_aliases("Инстаграм") == ["Инстаграм", "Архив"]
     assert resolve_stage_name_aliases("Квалифицирован") == ["Квалифицирован", "В обработке"]
     assert resolve_stage_name_aliases("Успешно реализован") == ["Успешно реализован", "Архив"]
 
@@ -78,7 +79,40 @@ def test_classify_lead_stage_name():
         )
         == "В обработке"
     )
-    # Не ломаем ручную стадию менеджера и «В обработке» без жёсткого сигнала записи.
+    # Живой входящий без ответа менеджера → Новый лид.
+    assert (
+        classify_lead_stage_name(
+            current_name="Новый лид",
+            appointment_statuses=set(),
+            has_outbound=False,
+            last_direction="in",
+            has_any_chat=True,
+        )
+        == "Новый лид"
+    )
+    # Bitrix-склад без чата у нас → Архив (не удалять).
+    assert (
+        classify_lead_stage_name(
+            current_name="Новый лид",
+            appointment_statuses=set(),
+            has_outbound=False,
+            last_direction=None,
+            has_any_chat=False,
+        )
+        == "Архив"
+    )
+    assert (
+        classify_lead_stage_name(
+            current_name="Новый лид",
+            appointment_statuses=set(),
+            has_outbound=False,
+            last_direction=None,
+            has_any_chat=False,
+            source="Bitrix import",
+        )
+        == "Архив"
+    )
+    # Не ломаем ручную стадию менеджера без жёсткого сигнала записи.
     assert (
         classify_lead_stage_name(
             current_name="В ожидании",

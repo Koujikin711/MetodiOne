@@ -75,16 +75,16 @@ _LEGACY_NAME_TO_SALES: dict[str, str] = {
     "Неуспешно": "Отказ",
     "Отказ": "Отказ",
     "Архив": "Архив",
-    # Bitrix / импорт / каналы как «стадии»
-    "Лиды из битрикс": "Новый лид",
-    "Лиды из Битрикс": "Новый лид",
-    "Битрикс": "Новый лид",
-    "Bitrix": "Новый лид",
-    "Инстаграм": "Новый лид",
-    "Instagram": "Новый лид",
-    "WhatsApp": "Новый лид",
-    "Whatsapp": "Новый лид",
-    "Telegram": "Новый лид",
+    # Bitrix / импорт / каналы-как-стадии → Архив (склад, не удалять).
+    "Лиды из битрикс": "Архив",
+    "Лиды из Битрикс": "Архив",
+    "Битрикс": "Архив",
+    "Bitrix": "Архив",
+    "Инстаграм": "Архив",
+    "Instagram": "Архив",
+    "WhatsApp": "Архив",
+    "Whatsapp": "Архив",
+    "Telegram": "Архив",
 }
 
 
@@ -112,13 +112,17 @@ def classify_lead_stage_name(
     appointment_statuses: set[str],
     has_outbound: bool,
     last_direction: str | None,
+    has_any_chat: bool = True,
+    source: str | None = None,
 ) -> str:
     """
     Жёсткие сигналы (запись) перекрывают ручные стадии.
-    Мягкие — только для «Новый лид» / неизвестных, чтобы не ломать работу менеджера.
+    Bitrix-склад без чата в нашей системе → Архив (не удалять).
+    «Новый лид» только если есть живой входящий сигнал.
     """
     cur = (current_name or "").strip()
     statuses = {str(s).strip().lower() for s in appointment_statuses}
+    src = (source or "").strip().lower()
 
     if "completed" in statuses:
         return ARCHIVE_STAGE_NAME
@@ -129,6 +133,7 @@ def classify_lead_stage_name(
         "Новый лид",
         "Новый",
         "В обработке",
+        "В работе",
         "В ожидании",
         "Удачно",
     ):
@@ -136,15 +141,27 @@ def classify_lead_stage_name(
 
     if cur == ARCHIVE_STAGE_NAME:
         return ARCHIVE_STAGE_NAME
-    # Ручные стадии менеджера и «В обработке» не откатываем без записи.
-    if cur in MANAGER_SETTABLE_STAGE_NAMES or cur == "В обработке":
+
+    # Явный Bitrix / импортный склад → Архив (только из «Новый*», не трогаем рабочий канбан).
+    if cur in ("", "Новый лид", "Новый") and any(
+        token in src for token in ("bitrix", "битрикс", "b24", "bx24")
+    ):
+        return ARCHIVE_STAGE_NAME
+
+    # Ручные стадии менеджера не откатываем без записи.
+    if cur in MANAGER_SETTABLE_STAGE_NAMES:
         return cur
 
     if has_outbound:
         if (last_direction or "").strip().lower() == "in":
             return "В ожидании"
         return "В обработке"
-    return "Новый лид"
+
+    # Нет исходящих: только живой входящий остаётся «Новый лид».
+    # Молчаливый склад (Bitrix без чата у нас) → Архив, не удалять.
+    if has_any_chat and (last_direction or "").strip().lower() == "in":
+        return "Новый лид"
+    return ARCHIVE_STAGE_NAME
 
 
 async def stage_id_by_name_in_pipeline(
@@ -332,7 +349,7 @@ async def redistribute_pipeline_leads_by_activity(
     stage_id_set = set(ids.values())
     leads = (
         await db.execute(
-            select(Lead.id, Lead.status_id)
+            select(Lead.id, Lead.status_id, Lead.source)
             .where(Lead.company_id == company_id, Lead.status_id.in_(stage_id_set))
             .order_by(Lead.id.asc()),
         )
@@ -342,6 +359,7 @@ async def redistribute_pipeline_leads_by_activity(
 
     lead_ids = [int(r[0]) for r in leads]
     id_to_status = {int(r[0]): int(r[1]) for r in leads}
+    id_to_source = {int(r[0]): (r[2] if r[2] is None else str(r[2])) for r in leads}
     id_to_name = {sid: name for name, sid in ids.items()}
 
     appt_rows = (
@@ -372,6 +390,19 @@ async def redistribute_pipeline_leads_by_activity(
     ).all()
     has_out = {int(r[0]) for r in out_rows if r[0] is not None}
 
+    any_chat_rows = (
+        await db.execute(
+            select(ChatThread.lead_id)
+            .join(ChatMessage, ChatMessage.thread_id == ChatThread.id)
+            .where(
+                ChatThread.company_id == company_id,
+                ChatThread.lead_id.in_(lead_ids),
+            )
+            .distinct(),
+        )
+    ).all()
+    has_any_chat = {int(r[0]) for r in any_chat_rows if r[0] is not None}
+
     last_msg_sq = (
         select(
             ChatThread.lead_id.label("lead_id"),
@@ -401,6 +432,8 @@ async def redistribute_pipeline_leads_by_activity(
             appointment_statuses=appts_by_lead.get(lid, set()),
             has_outbound=lid in has_out,
             last_direction=last_dir.get(lid),
+            has_any_chat=lid in has_any_chat,
+            source=id_to_source.get(lid),
         )
         target_sid = ids.get(target_name)
         if target_sid is None or target_sid == cur_sid:
