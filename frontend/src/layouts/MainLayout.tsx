@@ -173,7 +173,12 @@ export function MainLayout() {
             location.pathname.startsWith("/employees") ||
             location.pathname.startsWith("/audit") ||
             location.pathname.startsWith("/integrations")
-              ? "max-lg:overflow-hidden lg:overflow-hidden lg:py-4 lg:pb-4"
+              ? [
+                  "max-lg:overflow-hidden lg:overflow-hidden lg:py-4 lg:pb-4",
+                  location.pathname.startsWith("/chat") ? "lg:px-6" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")
               : "",
           ].join(" ")}
         >
