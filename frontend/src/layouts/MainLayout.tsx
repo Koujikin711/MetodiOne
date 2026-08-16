@@ -167,7 +167,12 @@ export function MainLayout() {
             deskSalesEnabled || managerChatFirst
               ? "px-2.5 py-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))]"
               : "px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))]",
-            location.pathname.startsWith("/chat") || location.pathname.startsWith("/messenger")
+            location.pathname.startsWith("/chat") ||
+            location.pathname.startsWith("/messenger") ||
+            location.pathname.startsWith("/analytics") ||
+            location.pathname.startsWith("/employees") ||
+            location.pathname.startsWith("/audit") ||
+            location.pathname.startsWith("/integrations")
               ? "max-lg:overflow-hidden lg:overflow-hidden lg:py-4 lg:pb-4"
               : "",
           ].join(" ")}
@@ -183,7 +188,20 @@ export function MainLayout() {
             </div>
           </div>
           <AppBanners />
-          <TariffFeatureOutletGate />
+          <div
+            className={
+              location.pathname.startsWith("/chat") ||
+              location.pathname.startsWith("/messenger") ||
+              location.pathname.startsWith("/analytics") ||
+              location.pathname.startsWith("/employees") ||
+              location.pathname.startsWith("/audit") ||
+              location.pathname.startsWith("/integrations")
+                ? "flex min-h-0 flex-1 flex-col"
+                : undefined
+            }
+          >
+            <TariffFeatureOutletGate />
+          </div>
         </main>
 
         <nav

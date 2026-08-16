@@ -98,12 +98,13 @@ export function AnalyticsPage() {
   });
 
   return (
-    <div className="analytics-page mo-page relative mx-auto max-w-6xl space-y-5 pb-8">
-      <header className="analytics-page-header">
+    <div className="analytics-page mo-fill-page">
+      <header className="analytics-page-header shrink-0">
         <h1 className="lux-heading-page">{lex.analyticsTitle}</h1>
         <p className="lux-body mt-1 max-w-2xl">{lex.analyticsIntro}</p>
       </header>
 
+      <div className="mo-fill-page-scroll space-y-5">
       <section className="mo-section analytics-toolbar-section p-4 sm:p-5">
         <div className="analytics-toolbar">
           <label className="analytics-toolbar-field">
@@ -488,6 +489,7 @@ export function AnalyticsPage() {
           )}
         </section>
       )}
+      </div>
     </div>
   );
 }

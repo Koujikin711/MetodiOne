@@ -44,12 +44,15 @@ export function IntegrationsHubPage() {
   const t = tariffQuery.data;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 pb-12">
-      <PageHeader
-        title="Интеграции"
-        description="Подключите мессенджеры, почту и таблицы — входящие обращения и лиды будут попадать в CRM. Ниже — лимиты тарифа и журнал фоновых задач."
-      />
+    <div className="mo-fill-page">
+      <div className="shrink-0">
+        <PageHeader
+          title="Интеграции"
+          description="Подключите мессенджеры, почту и таблицы — входящие обращения и лиды будут попадать в CRM. Ниже — лимиты тарифа и журнал фоновых задач."
+        />
+      </div>
 
+      <div className="mo-fill-page-scroll space-y-6">
       {t ? (
         <section className="mo-section">
           <h2 className="lux-heading">Тариф и лимиты</h2>
@@ -114,6 +117,7 @@ export function IntegrationsHubPage() {
           <p className="lux-body mt-3">Записей пока нет — они появятся после первой синхронизации или опроса каналов.</p>
         )}
       </section>
+      </div>
     </div>
   );
 }

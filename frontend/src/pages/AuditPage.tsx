@@ -36,14 +36,15 @@ export function AuditPage() {
   });
 
   return (
-    <div className="relative mx-auto max-w-[1400px] space-y-4 pb-10">
-      <header>
+    <div className="mo-fill-page relative">
+      <header className="shrink-0">
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Системный аудит</h1>
         <p className="mt-1 text-sm lux-caption">
           Кто куда заходил и что нажал: клиенты, онлайн-запись, сотрудники, воронки.
         </p>
       </header>
 
+      <div className="mo-fill-page-scroll space-y-4">
       <section className="mo-section p-4 backdrop-blur-sm">
         <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
           <label className="block text-xs mo-muted">
@@ -104,6 +105,7 @@ export function AuditPage() {
           })}
         </ul>
       </section>
+      </div>
     </div>
   );
 }

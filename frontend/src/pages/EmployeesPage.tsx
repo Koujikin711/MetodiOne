@@ -487,8 +487,8 @@ export function EmployeesPage() {
   }
 
   return (
-    <div className="relative mx-auto max-w-[1200px] space-y-6 pb-10">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+    <div className="mo-fill-page relative">
+      <header className="flex shrink-0 flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Сотрудники</h1>
           <p className="mt-1 text-sm lux-caption">
@@ -504,6 +504,7 @@ export function EmployeesPage() {
         </button>
       </header>
 
+      <div className="mo-fill-page-scroll space-y-6">
       {employeesQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
       {employeesQuery.isError && (
         <p className="text-sm text-red-300">{(employeesQuery.error as Error).message}</p>
@@ -798,6 +799,7 @@ export function EmployeesPage() {
           </div>
         )}
       </section>
+      </div>
 
       {terminateTarget && (
         <TerminateWithLeadsWizard

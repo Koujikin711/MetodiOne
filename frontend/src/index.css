@@ -1929,6 +1929,31 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   @apply mx-auto max-w-[1600px] space-y-5 pb-10;
 }
 
+/* Страницы на всю оставшуюся ширину/высоту shell (чат, аналитика, …) */
+.mo-fill-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  gap: 0;
+  padding-bottom: 0;
+}
+
+.mo-fill-page-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 1.5rem;
+}
+
 .mo-page-header {
   @apply flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
 }
