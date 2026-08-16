@@ -772,6 +772,69 @@ async def lead_stage_counts(
     )
 
 
+class LeadActivityRedistributeResult(BaseModel):
+    pipeline_id: int | None = None
+    moved: int
+    detail: str
+
+
+@router.post("/redistribute-by-activity", response_model=LeadActivityRedistributeResult)
+async def redistribute_leads_by_activity(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    pipeline_id: int | None = Query(None, ge=1),
+) -> LeadActivityRedistributeResult:
+    """Владелец/админ: разложить склад по Архиву / живым стадиям (батчами).
+
+    Свежие входящие (<14 дней) остаются в «Новый лид»; старый WhatsApp/Bitrix/GREEN API → Архив.
+    """
+    if not _is_lead_redistribution_admin(current_user.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Только владелец или админ воронки",
+        )
+    from app.services.lead_sales_stages import redistribute_pipeline_leads_by_activity
+
+    if pipeline_id is not None:
+        pipe = await db.get(Pipeline, pipeline_id)
+        if pipe is None or pipe.company_id != company_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Воронка не найдена")
+        moved = await redistribute_pipeline_leads_by_activity(
+            db,
+            company_id=company_id,
+            pipeline_id=pipeline_id,
+        )
+    else:
+        pipes = (
+            await db.execute(
+                select(Pipeline).where(Pipeline.company_id == company_id).order_by(Pipeline.id.asc()),
+            )
+        ).scalars().all()
+        moved = 0
+        for p in pipes:
+            moved += await redistribute_pipeline_leads_by_activity(
+                db,
+                company_id=company_id,
+                pipeline_id=int(p.id),
+            )
+
+    await write_audit_event(
+        db,
+        entity_type="lead",
+        entity_id=pipeline_id,
+        action="leads_redistributed_by_activity",
+        current_user=current_user,
+        details=f"pipeline_id={pipeline_id}, moved={moved}",
+    )
+    await db.commit()
+    return LeadActivityRedistributeResult(
+        pipeline_id=pipeline_id,
+        moved=moved,
+        detail=f"Переложено лидов: {moved}. Счётчики обновятся на доске после обновления.",
+    )
+
+
 @router.get("/column", response_model=LeadColumnPage)
 async def lead_column_page(
     db: Annotated[AsyncSession, Depends(get_db)],
