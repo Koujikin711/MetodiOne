@@ -987,13 +987,7 @@ export function ChatPage() {
 
           {showManagerChatBuckets ? (
             <div className="mb-2.5 shrink-0 max-lg:mb-2 sm:mb-3">
-              <div
-                className={[
-                  "no-scrollbar -mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 pb-0.5",
-                  "sm:mx-0 sm:grid sm:gap-2 sm:overflow-visible sm:px-0 sm:pb-0",
-                  salesChatMode ? "sm:grid-cols-2" : "sm:grid-cols-2",
-                ].join(" ")}
-              >
+              <div className="chat-stage-tabs grid grid-cols-4 gap-1.5">
                 {(salesChatMode ? stageTabs : CHAT_BUCKET_TABS).map((tab) => {
                   const active = salesChatMode
                     ? salesStageKey === tab.id
@@ -1031,7 +1025,7 @@ export function ChatPage() {
                         }
                       }}
                       className={[
-                        "chat-bucket-tab flex min-w-[5.5rem] shrink-0 flex-col items-center justify-center rounded-2xl border px-2.5 py-2.5 text-center transition sm:min-h-[4.75rem] sm:min-w-0",
+                        "chat-bucket-tab flex min-h-[3.35rem] flex-col items-center justify-center rounded-xl border px-1 py-1.5 text-center transition touch-manipulation sm:min-h-[3.75rem] sm:rounded-2xl sm:px-1.5 sm:py-2",
                         active ? "is-active" : "",
                       ].join(" ")}
                       style={
@@ -1042,11 +1036,11 @@ export function ChatPage() {
                           : undefined
                       }
                     >
-                      <span className="max-w-full text-[11px] font-semibold leading-tight tracking-wide text-[var(--mo-text-muted)] sm:text-xs">
+                      <span className="max-w-full truncate text-[9px] font-semibold leading-tight tracking-wide text-[var(--mo-text-muted)] sm:text-[10px]">
                         {tab.label}
                       </span>
                       <span
-                        className="mt-1.5 text-xl font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-2xl"
+                        className="mt-1 text-base font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-lg"
                         title={String(count)}
                       >
                         {formatCompactCount(count)}
@@ -1059,7 +1053,7 @@ export function ChatPage() {
           ) : null}
 
           {showManagerChatBuckets && salesChatMode ? (
-            <div className="chat-reply-queue mb-2.5 grid shrink-0 grid-cols-2 gap-2 max-lg:mb-2 sm:mb-3">
+            <div className="chat-reply-queue mb-2.5 grid shrink-0 grid-cols-2 gap-1.5 max-lg:mb-2 sm:mb-3 sm:gap-2">
               {REPLY_QUEUE_TABS.map((tab) => {
                 const active = replyQueue === tab.id;
                 const count =
@@ -1075,7 +1069,7 @@ export function ChatPage() {
                     title={tab.hint}
                     onClick={() => setReplyQueue(tab.id)}
                     className={[
-                      "chat-bucket-tab chat-reply-tab flex min-h-[3.75rem] flex-col items-center justify-center rounded-2xl border px-2.5 py-2.5 text-center transition sm:min-h-[4.25rem]",
+                      "chat-bucket-tab chat-reply-tab flex min-h-[3.5rem] flex-col items-center justify-center rounded-2xl border px-2 py-2.5 text-center transition touch-manipulation sm:min-h-[3.85rem]",
                       active ? "is-active" : "",
                     ].join(" ")}
                   >
@@ -1083,7 +1077,7 @@ export function ChatPage() {
                       {tab.label}
                     </span>
                     <span
-                      className="mt-1.5 text-lg font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-xl"
+                      className="mt-1 text-lg font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-xl"
                       title={String(count)}
                     >
                       {formatCompactCount(count)}
