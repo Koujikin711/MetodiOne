@@ -26,6 +26,7 @@ import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { isOnboardingDone } from "@/lib/onboarding";
 import type {
   Lead,
+  LeadColumnPage,
   LeadImportResponse,
   LeadSource,
   LeadStageCountsResponse,
@@ -497,21 +498,23 @@ function KanbanColumn({
   stage,
   leads,
   totalCount,
-  loadedCap,
+  loadingMore,
   currentRole,
   onRefresh,
+  onLoadMore,
   registerScrollContainer,
 }: {
   stage: PipelineStage;
   leads: Lead[];
   totalCount: number;
-  loadedCap: number;
+  loadingMore: boolean;
   currentRole: UserRole | null;
   onRefresh: () => void;
+  onLoadMore: (stageId: number) => void;
   registerScrollContainer: (stageId: number, el: HTMLDivElement | null) => void;
 }) {
-  const INITIAL = 4;
-  const LOAD_MORE = 8;
+  const INITIAL = 8;
+  const LOAD_MORE = 12;
   const [visibleCount, setVisibleCount] = useState(INITIAL);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -522,31 +525,57 @@ function KanbanColumn({
 
   useEffect(() => {
     setVisibleCount(INITIAL);
-  }, [stage.id, leads.length]);
+  }, [stage.id]);
+
+  useEffect(() => {
+    if (leads.length === 0 && totalCount > 0 && !loadingMore) {
+      onLoadMore(stage.id);
+    }
+  }, [leads.length, totalCount, loadingMore, onLoadMore, stage.id]);
 
   const visibleLeads = leads.slice(0, visibleCount);
-  const hasMore = visibleCount < leads.length;
+  const hasMoreVisible = visibleCount < leads.length;
+  const hasMoreInDb = leads.length < totalCount;
+  const showSentinel = hasMoreVisible || hasMoreInDb;
   const stageLabel = stage.name.trim() === "В обработке" ? "В работе" : stage.name;
-  const badgeCount = Math.max(totalCount, leads.length);
-  const truncated = totalCount > leads.length || totalCount > loadedCap;
-  const badgeTitle = truncated
-    ? `В базе: ${totalCount.toLocaleString("ru-RU")}. На доске показано последних ${leads.length.toLocaleString("ru-RU")} (лимит ${loadedCap.toLocaleString("ru-RU")}). Полный список — во вкладке «Список».`
-    : `В базе: ${badgeCount.toLocaleString("ru-RU")}`;
+  const badgeTitle = `В базе: ${totalCount.toLocaleString("ru-RU")}${
+    leads.length < totalCount
+      ? ` · на доске загружено ${leads.length.toLocaleString("ru-RU")} (скролл — ещё)`
+      : ""
+  }`;
+
+  useEffect(() => {
+    setVisibleCount((n) => Math.min(n, Math.max(leads.length, 0) || INITIAL));
+  }, [leads]);
 
   useEffect(() => {
     const root = bodyRef.current;
     const sentinel = sentinelRef.current;
-    if (!root || !sentinel || !hasMore) return;
+    if (!root || !sentinel || !showSentinel) return;
     const io = new IntersectionObserver(
       (entries) => {
         if (!entries.some((e) => e.isIntersecting)) return;
-        setVisibleCount((n) => Math.min(n + LOAD_MORE, leads.length));
+        if (visibleCount < leads.length) {
+          setVisibleCount((n) => Math.min(n + LOAD_MORE, leads.length));
+          return;
+        }
+        if (leads.length < totalCount && !loadingMore) {
+          onLoadMore(stage.id);
+        }
       },
-      { root, rootMargin: "120px 0px", threshold: 0 },
+      { root, rootMargin: "160px 0px", threshold: 0 },
     );
     io.observe(sentinel);
     return () => io.disconnect();
-  }, [hasMore, leads.length, visibleCount, stage.id]);
+  }, [
+    showSentinel,
+    leads.length,
+    visibleCount,
+    totalCount,
+    loadingMore,
+    onLoadMore,
+    stage.id,
+  ]);
 
   return (
     <div
@@ -564,8 +593,7 @@ function KanbanColumn({
           className="rounded-md border border-[var(--mo-border)] bg-[var(--mo-accent-soft)] px-2.5 py-0.5 text-xs font-bold tabular-nums text-[var(--mo-accent-hover)]"
           title={badgeTitle}
         >
-          {formatCompactCount(badgeCount)}
-          {truncated ? "+" : ""}
+          {formatCompactCount(totalCount)}
         </span>
       </div>
       <div
@@ -576,13 +604,15 @@ function KanbanColumn({
         data-kanban-scroll="true"
         className="crm-kanban-col-body"
       >
-        {leads.length === 0 && badgeCount === 0 ? (
+        {leads.length === 0 && totalCount === 0 ? (
           <p className="flex flex-1 items-center justify-center px-2 py-8 text-center text-sm mo-muted">
             Нет лидов
           </p>
-        ) : leads.length === 0 ? (
+        ) : leads.length === 0 && totalCount > 0 ? (
           <p className="flex flex-1 items-center justify-center px-2 py-8 text-center text-sm mo-muted">
-            {badgeCount.toLocaleString("ru-RU")} в базе — откройте «Список»
+            {loadingMore
+              ? "Загрузка…"
+              : `${totalCount.toLocaleString("ru-RU")} в базе — прокрутите или откройте «Список»`}
           </p>
         ) : (
           <>
@@ -595,13 +625,13 @@ function KanbanColumn({
                 onRefresh={onRefresh}
               />
             ))}
-            {hasMore ? (
+            {showSentinel ? (
               <div
                 ref={sentinelRef}
                 className="flex shrink-0 items-center justify-center py-2 text-[10px] mo-muted"
                 aria-hidden
               >
-                …
+                {loadingMore ? "Загрузка…" : "…"}
               </div>
             ) : null}
           </>
@@ -1167,16 +1197,19 @@ export function CrmPage() {
     }
   }
 
-  const kanbanPerStage = 5000;
+  const kanbanInitialPerStage = 40;
+  const kanbanPageSize = 40;
   const listPageSize = 50;
   const boardContainerRef = useRef<HTMLDivElement | null>(null);
   const stageScrollRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const columnLoadingRef = useRef<Set<number>>(new Set());
+  const [columnLoadingIds, setColumnLoadingIds] = useState<number[]>([]);
 
   const leadsQuery = useQuery({
-    queryKey: ["leads", pipelineId, "kanban", kanbanPerStage],
+    queryKey: ["leads", pipelineId, "kanban", kanbanInitialPerStage],
     queryFn: () =>
       apiFetch<Lead[]>(
-        `/api/leads?pipeline_id=${pipelineId}&per_stage_limit=${kanbanPerStage}`,
+        `/api/leads?pipeline_id=${pipelineId}&per_stage_limit=${kanbanInitialPerStage}`,
       ),
     enabled: pipelineId != null && crmView === "board",
   });
@@ -1206,9 +1239,13 @@ export function CrmPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [kanbanError, setKanbanError] = useState<string | null>(null);
+  const leadsRef = useRef<Lead[]>([]);
+  leadsRef.current = leads;
 
   useEffect(() => {
     setLeads([]);
+    columnLoadingRef.current.clear();
+    setColumnLoadingIds([]);
   }, [pipelineId]);
 
   useEffect(() => {
@@ -1266,6 +1303,51 @@ export function CrmPage() {
     }
     return map;
   }, [stageCountsQuery.data]);
+
+  const stageCountByIdRef = useRef(stageCountById);
+  stageCountByIdRef.current = stageCountById;
+
+  const loadMoreForStage = useCallback(
+    async (stageId: number) => {
+      if (pipelineId == null) return;
+      if (columnLoadingRef.current.has(stageId)) return;
+
+      const stageLeads = leadsRef.current.filter((l) => l.status_id === stageId);
+      const total = stageCountByIdRef.current.get(stageId) ?? 0;
+      if (stageLeads.length >= total) return;
+
+      const beforeId =
+        stageLeads.length > 0 ? Math.min(...stageLeads.map((l) => l.id)) : undefined;
+
+      columnLoadingRef.current.add(stageId);
+      setColumnLoadingIds([...columnLoadingRef.current]);
+      try {
+        const params = new URLSearchParams({
+          pipeline_id: String(pipelineId),
+          status_id: String(stageId),
+          limit: String(kanbanPageSize),
+        });
+        if (beforeId != null) params.set("before_id", String(beforeId));
+        const page = await apiFetch<LeadColumnPage>(`/api/leads/column?${params.toString()}`);
+        setLeads((prev) => {
+          const seen = new Set(prev.map((l) => l.id));
+          const next = [...prev];
+          for (const item of page.items) {
+            if (seen.has(item.id)) continue;
+            seen.add(item.id);
+            next.push(item);
+          }
+          return next;
+        });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Не удалось догрузить лиды");
+      } finally {
+        columnLoadingRef.current.delete(stageId);
+        setColumnLoadingIds([...columnLoadingRef.current]);
+      }
+    },
+    [pipelineId, kanbanPageSize],
+  );
 
   const pipelineLeadTotal = stageCountsQuery.data?.total ?? null;
   const archiveStageCount = useMemo(() => {
@@ -2529,24 +2611,24 @@ export function CrmPage() {
                   key={stage.id}
                   stage={stage}
                   leads={leadsByStage.get(stage.id) ?? []}
-                  totalCount={stageCountById.get(stage.id) ?? leadsByStage.get(stage.id)?.length ?? 0}
-                  loadedCap={kanbanPerStage}
+                  totalCount={stageCountById.get(stage.id) ?? 0}
+                  loadingMore={columnLoadingIds.includes(stage.id)}
                   currentRole={currentRole}
                   onRefresh={refreshAll}
+                  onLoadMore={loadMoreForStage}
                   registerScrollContainer={registerScrollContainer}
                 />
               ))}
             </div>
             <p className="mt-1 text-center text-[10px] mo-muted sm:text-left">
               {pipelineLeadTotal != null
-                ? `Всего в воронке: ${pipelineLeadTotal.toLocaleString("ru-RU")}${
+                ? `Счётчики — из базы (всего ${pipelineLeadTotal.toLocaleString("ru-RU")}${
                     archiveStageCount != null
-                      ? ` · «Архив» (склад Bitrix и закрытые): ${archiveStageCount.toLocaleString("ru-RU")}`
+                      ? `, «Архив» ${archiveStageCount.toLocaleString("ru-RU")}`
                       : ""
-                  }. `
+                  }). `
                 : null}
-              На доске — до {kanbanPerStage.toLocaleString("ru-RU")} последних карточек на колонку; полный поиск — вкладка
-              «Список». Листайте вправо до «Архив».
+              Карточки догружаются при скролле колонки; поиск по всему складу — вкладка «Список».
             </p>
             <DragOverlay dropAnimation={null}>
               {activeLead ? (

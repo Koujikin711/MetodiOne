@@ -215,6 +215,12 @@ export interface LeadStageCountsResponse {
   stages: LeadStageCountItem[];
 }
 
+export interface LeadColumnPage {
+  items: Lead[];
+  has_more: boolean;
+  status_id: number;
+}
+
 export interface LeadAuditEvent {
   id: number;
   lead_id: number;

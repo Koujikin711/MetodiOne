@@ -33,6 +33,7 @@ from app.models import (
     UserRole,
 )
 from app.schemas.lead import (
+    LeadColumnPage,
     LeadCreate,
     LeadImportErrorItem,
     LeadImportResponse,
@@ -769,6 +770,61 @@ async def lead_stage_counts(
         total=sum(item.count for item in items),
         stages=items,
     )
+
+
+@router.get("/column", response_model=LeadColumnPage)
+async def lead_column_page(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    pipeline_id: int = Query(..., ge=1),
+    status_id: int = Query(..., ge=1),
+    limit: int = Query(40, ge=1, le=100),
+    before_id: int | None = Query(None, ge=1),
+) -> LeadColumnPage:
+    """Догрузка карточек одной стадии при скролле. Счётчики — отдельно в /stage-counts."""
+    pipe = await db.get(Pipeline, pipeline_id)
+    if pipe is None or pipe.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Воронка не найдена")
+
+    stage = await db.get(PipelineStage, status_id)
+    if stage is None or stage.pipeline_id != pipeline_id or stage.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Стадия не принадлежит воронке")
+
+    if is_manager_like(current_user.role):
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if not allowed or pipeline_id not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Воронка недоступна")
+    if current_user.role == UserRole.expert:
+        allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
+        if not allowed or pipeline_id not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Воронка недоступна эксперту")
+
+    filters = [
+        Lead.company_id == company_id,
+        Lead.status_id == status_id,
+        PipelineStage.pipeline_id == pipeline_id,
+        PipelineStage.company_id == company_id,
+    ]
+    if before_id is not None:
+        filters.append(Lead.id < before_id)
+    if is_manager_like(current_user.role):
+        filters.append(manager_lead_visibility(current_user.id))
+
+    q = (
+        select(Lead)
+        .options(selectinload(Lead.stage))
+        .join(PipelineStage, PipelineStage.id == Lead.status_id)
+        .where(and_(*filters))
+        .order_by(Lead.id.desc())
+        .limit(limit + 1)
+    )
+    result = await db.execute(q)
+    rows = list(result.scalars().unique().all())
+    has_more = len(rows) > limit
+    leads = rows[:limit]
+    items = await _leads_to_read_with_deals(db, leads, current_user)
+    return LeadColumnPage(items=items, has_more=has_more, status_id=status_id)
 
 
 @router.get("/import/template")
