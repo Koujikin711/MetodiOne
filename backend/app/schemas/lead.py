@@ -76,3 +76,23 @@ class LeadTablePage(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class LeadStageCountItem(BaseModel):
+    stage_id: int
+    name: str
+    count: int
+
+
+class LeadStageCountsResponse(BaseModel):
+    pipeline_id: int
+    total: int
+    stages: list[LeadStageCountItem]
+
+
+class LeadColumnPage(BaseModel):
+    """Порция карточек одной стадии канбана (курсор before_id, без полного склада в UI)."""
+
+    items: list[LeadRead]
+    has_more: bool
+    status_id: int

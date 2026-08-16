@@ -203,6 +203,24 @@ export interface LeadTablePage {
   page_size: number;
 }
 
+export interface LeadStageCountItem {
+  stage_id: number;
+  name: string;
+  count: number;
+}
+
+export interface LeadStageCountsResponse {
+  pipeline_id: number;
+  total: number;
+  stages: LeadStageCountItem[];
+}
+
+export interface LeadColumnPage {
+  items: Lead[];
+  has_more: boolean;
+  status_id: number;
+}
+
 export interface LeadAuditEvent {
   id: number;
   lead_id: number;
