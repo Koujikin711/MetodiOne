@@ -569,15 +569,15 @@ async def list_leads(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
     pipeline_id: int | None = Query(None, ge=1),
-    per_stage_limit: int | None = Query(None, ge=1, le=500),
+    per_stage_limit: int | None = Query(None, ge=1, le=10000),
 ) -> list[LeadRead]:
     """
-    Канбан: передайте pipeline_id + per_stage_limit (по умолчанию 200), чтобы не отдавать
+    Канбан: передайте pipeline_id + per_stage_limit (по умолчанию 500), чтобы не отдавать
     десятки тысяч лидов и не вешать браузер — в каждой колонке будут последние N лидов.
     """
     if pipeline_id is not None:
         if per_stage_limit is None:
-            per_stage_limit = 200
+            per_stage_limit = 500
         if is_manager_like(current_user.role):
             allowed = await _manager_pipeline_ids(db, current_user.id)
             if not allowed or pipeline_id not in allowed:
@@ -2017,7 +2017,7 @@ async def update_lead_status(
             detail="Переход между воронками недоступен",
         )
 
-    # Чат-воронка: менеджер ставит только В ожидании / Удачно / Отказ.
+    # Чат-воронка: менеджер ставит В работе / В ожидании / Удачно / Отказ.
     from app.services.lead_sales_stages import (
         ARCHIVE_STAGE_NAME,
         AUTO_ONLY_STAGE_NAMES,
@@ -2031,7 +2031,6 @@ async def update_lead_status(
     ):
         hints = {
             "Новый лид": "Стадия «Новый лид» ставится автоматически при поступлении лида",
-            "В обработке": "Стадия «В обработке» ставится автоматически после первого ответа менеджера",
             ARCHIVE_STAGE_NAME: "Стадия «Архив» выставляется автоматически (после завершения записи)",
         }
         raise HTTPException(

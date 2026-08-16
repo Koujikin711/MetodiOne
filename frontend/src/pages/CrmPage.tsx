@@ -1102,7 +1102,7 @@ export function CrmPage() {
     }
   }
 
-  const kanbanPerStage = 50;
+  const kanbanPerStage = 5000;
   const listPageSize = 50;
   const boardContainerRef = useRef<HTMLDivElement | null>(null);
   const stageScrollRefs = useRef<Map<number, HTMLDivElement>>(new Map());

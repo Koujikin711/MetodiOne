@@ -393,9 +393,9 @@ const REPLY_QUEUE_TABS: { id: ChatThreadBucket | "all"; label: string; hint: str
 ];
 
 const SALES_STAGE_TABS: { id: SalesStageKey; label: string; hint: string }[] = [
-  { id: "new", label: "Новый лид", hint: "Все входящие" },
-  { id: "in_progress", label: "В обработке", hint: "Ответил менеджер" },
-  { id: "waiting", label: "В ожидании", hint: "Ждём оплату / клиента" },
+  { id: "new", label: "Новый", hint: "Все входящие" },
+  { id: "in_progress", label: "В работе", hint: "Ответил менеджер" },
+  { id: "waiting", label: "Ожидание", hint: "Ждём оплату / клиента" },
   { id: "won", label: "Удачно", hint: "Продано / записано" },
   { id: "lost", label: "Отказ", hint: "Отказ клиента" },
 ];
@@ -969,53 +969,64 @@ export function ChatPage() {
           <div className="mb-2 hidden text-sm font-semibold text-[var(--mo-text)] sm:block">Диалоги</div>
 
           {showManagerChatBuckets ? (
-            <div
-              className={[
-                "mb-2 grid shrink-0 gap-1 max-lg:mb-1.5 sm:mb-3 sm:gap-1.5",
-                salesChatMode ? (stageTabs.length > 5 ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-3 sm:grid-cols-5") : "grid-cols-2 sm:grid-cols-4",
-              ].join(" ")}
-            >
-              {(salesChatMode ? stageTabs : CHAT_BUCKET_TABS).map((tab) => {
-                const active = salesChatMode
-                  ? salesStageKey === tab.id
-                  : chatBucket === (tab.id as ChatThreadBucket);
-                const count = salesChatMode
-                  ? bucketCountsQuery.data?.sales_stages?.[tab.id as SalesStageKey] ?? 0
-                  : tab.id === "transferred"
-                    ? bucketCountsQuery.data?.transferred ?? 0
-                    : tab.id === "own"
-                      ? bucketCountsQuery.data?.own ?? 0
-                      : tab.id === "sold"
-                        ? bucketCountsQuery.data?.sold ?? 0
-                        : bucketCountsQuery.data?.awaiting_reply ?? 0;
-                const activeShell = active ? "chat-bucket-tab is-active" : "chat-bucket-tab";
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    data-bucket={tab.id}
-                    onClick={() => {
-                      if (salesChatMode) setSalesStageKey(tab.id as SalesStageKey);
-                      else setChatBucket(tab.id as ChatThreadBucket);
-                    }}
-                    className={[
-                      "flex min-h-[52px] flex-col items-center justify-center rounded-lg border px-1 py-1.5 text-center transition sm:min-h-[72px] sm:rounded-xl sm:py-2",
-                      activeShell,
-                    ].join(" ")}
-                  >
-                    <span className="text-[9px] font-semibold uppercase tracking-wide lux-caption sm:text-[10px]">
-                      {tab.label}
-                    </span>
-                    <span className="mt-0.5 text-base font-bold tabular-nums text-[var(--mo-text)] sm:text-xl">{count}</span>
-                    <span className="mt-0.5 hidden text-[9px] leading-tight text-[#8a96a3] sm:block">{tab.hint}</span>
-                  </button>
-                );
-              })}
+            <div className="mb-2 shrink-0 max-lg:mb-1.5 sm:mb-3">
+              <div
+                className={[
+                  "no-scrollbar -mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 pb-0.5",
+                  "sm:mx-0 sm:grid sm:gap-1.5 sm:overflow-visible sm:px-0 sm:pb-0",
+                  salesChatMode
+                    ? stageTabs.length > 5
+                      ? "sm:grid-cols-6"
+                      : "sm:grid-cols-5"
+                    : "sm:grid-cols-4",
+                ].join(" ")}
+              >
+                {(salesChatMode ? stageTabs : CHAT_BUCKET_TABS).map((tab) => {
+                  const active = salesChatMode
+                    ? salesStageKey === tab.id
+                    : chatBucket === (tab.id as ChatThreadBucket);
+                  const count = salesChatMode
+                    ? bucketCountsQuery.data?.sales_stages?.[tab.id as SalesStageKey] ?? 0
+                    : tab.id === "transferred"
+                      ? bucketCountsQuery.data?.transferred ?? 0
+                      : tab.id === "own"
+                        ? bucketCountsQuery.data?.own ?? 0
+                        : tab.id === "sold"
+                          ? bucketCountsQuery.data?.sold ?? 0
+                          : bucketCountsQuery.data?.awaiting_reply ?? 0;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      data-bucket={tab.id}
+                      title={tab.hint}
+                      onClick={() => {
+                        if (salesChatMode) setSalesStageKey(tab.id as SalesStageKey);
+                        else setChatBucket(tab.id as ChatThreadBucket);
+                      }}
+                      className={[
+                        "chat-bucket-tab flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border px-2 py-2 text-center transition sm:min-w-0 sm:min-h-[4.25rem]",
+                        active ? "is-active" : "",
+                      ].join(" ")}
+                    >
+                      <span className="max-w-full truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
+                        {tab.label}
+                      </span>
+                      <span className="mt-0.5 text-lg font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-xl">
+                        {count}
+                      </span>
+                      <span className="mt-1 hidden text-[9px] leading-tight text-[var(--mo-text-muted)] sm:line-clamp-2">
+                        {tab.hint}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
 
           {showManagerChatBuckets && salesChatMode ? (
-            <div className="mb-2 grid shrink-0 grid-cols-3 gap-1 max-lg:mb-1.5 sm:mb-3 sm:gap-1.5">
+            <div className="mb-2 grid shrink-0 grid-cols-3 gap-1.5 max-lg:mb-1.5 sm:mb-3">
               {REPLY_QUEUE_TABS.map((tab) => {
                 const active = replyQueue === tab.id;
                 const count =
@@ -1029,19 +1040,20 @@ export function ChatPage() {
                     key={tab.id}
                     type="button"
                     data-reply-queue={tab.id}
+                    data-bucket={tab.id}
+                    title={tab.hint}
                     onClick={() => setReplyQueue(tab.id)}
                     className={[
-                      "flex min-h-[44px] flex-col items-center justify-center rounded-lg border px-1 py-1.5 text-center transition sm:min-h-[56px] sm:rounded-xl",
-                      active ? "chat-bucket-tab is-active" : "chat-bucket-tab",
+                      "chat-bucket-tab flex min-h-[3.25rem] flex-col items-center justify-center rounded-xl border px-1.5 py-1.5 text-center transition sm:min-h-[3.75rem]",
+                      active ? "is-active" : "",
                     ].join(" ")}
                   >
-                    <span className="text-[9px] font-semibold uppercase tracking-wide lux-caption sm:text-[10px]">
+                    <span className="max-w-full truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
                       {tab.label}
                     </span>
-                    <span className="mt-0.5 text-sm font-bold tabular-nums text-[var(--mo-text)] sm:text-lg">
+                    <span className="mt-0.5 text-base font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-lg">
                       {count}
                     </span>
-                    <span className="mt-0.5 hidden text-[9px] leading-tight text-[#8a96a3] sm:block">{tab.hint}</span>
                   </button>
                 );
               })}
@@ -1262,18 +1274,25 @@ export function ChatPage() {
               {statusOpen && salesChatMode && activeThread?.lead_id ? (
                 <div className="shrink-0 border-b border-[var(--mo-border)] py-2">
                   <p className="mb-1.5 text-[11px] mo-muted">
-                    Вручную: В ожидании / Удачно / Отказ. «Новый лид» и «В обработке» — автоматически
+                    Вручную: В работе / В ожидании / Удачно / Отказ. «Новый лид» — автоматически
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {(statusStagesQuery.data ?? [])
                       .slice()
                       .filter((s) => {
                         const n = s.name.trim();
-                        return n === "В ожидании" || n === "Удачно" || n === "Отказ";
+                        return (
+                          n === "В обработке" ||
+                          n === "В работе" ||
+                          n === "В ожидании" ||
+                          n === "Удачно" ||
+                          n === "Отказ"
+                        );
                       })
                       .sort((a, b) => a.order - b.order || a.id - b.id)
                       .map((s) => {
                         const current = activeThread.lead_status_id === s.id;
+                        const label = s.name.trim() === "В обработке" ? "В работе" : s.name;
                         return (
                           <button
                             key={s.id}
@@ -1289,12 +1308,12 @@ export function ChatPage() {
                             className={[
                               "rounded-lg border px-2.5 py-1.5 text-xs transition",
                               current
-                                ? "border-[var(--mo-accent,#2f5f85)] bg-[var(--mo-accent,#2f5f85)]/15 font-semibold text-[var(--mo-text)]"
-                                : "border-[var(--mo-border)] text-[var(--mo-text)] hover:bg-white/60 disabled:opacity-50",
+                                ? "border-[var(--mo-accent)] bg-[var(--mo-accent-soft)] font-semibold text-[var(--mo-text)]"
+                                : "border-[var(--mo-border)] text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)] disabled:opacity-50",
                             ].join(" ")}
                             style={{ borderLeftWidth: 3, borderLeftColor: s.color }}
                           >
-                            {s.name}
+                            {label}
                           </button>
                         );
                       })}

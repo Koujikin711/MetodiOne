@@ -1793,15 +1793,21 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-kanban-col-body {
-  @apply flex min-h-[min(72vh,580px)] flex-1 flex-col gap-2 overflow-y-auto p-2;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  @apply flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain p-2;
+  max-height: min(70vh, 640px);
   background-color: var(--mo-surface);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--mo-accent) 45%, transparent) transparent;
 }
 .crm-kanban-col-body::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
+  width: 6px;
+}
+.crm-kanban-col-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--mo-accent) 45%, transparent);
+  border-radius: 999px;
+}
+.crm-kanban-col-body::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .crm-lead-card {
@@ -2375,61 +2381,46 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .chat-bucket-tab {
   border-color: var(--mo-border);
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--mo-surface);
   color: var(--mo-text);
 }
 .chat-bucket-tab:hover {
-  border-color: rgba(47, 95, 133, 0.3);
-  background: #ffffff;
+  border-color: var(--mo-border-strong);
+  background: var(--mo-accent-soft);
 }
-.chat-bucket-tab.is-active[data-bucket="transferred"] {
-  border-color: #c9b07a;
-  background: #faf5eb;
-  box-shadow: 0 0 0 1px rgba(201, 176, 122, 0.4);
+.chat-bucket-tab.is-active {
+  border-color: var(--mo-accent);
+  background: var(--mo-accent-soft);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 35%, transparent);
 }
-.chat-bucket-tab.is-active[data-bucket="own"] {
-  border-color: #2f5f85;
-  background: #e8f0f7;
-  box-shadow: 0 0 0 1px rgba(47, 95, 133, 0.3);
-}
-.chat-bucket-tab.is-active[data-bucket="sold"] {
-  border-color: #7a5c9e;
-  background: #f3edf8;
-  box-shadow: 0 0 0 1px rgba(122, 92, 158, 0.35);
-}
-.chat-bucket-tab.is-active[data-bucket="awaiting_reply"] {
-  border-color: #2d6a5a;
-  background: #edf7f1;
-  box-shadow: 0 0 0 1px rgba(45, 106, 90, 0.3);
+.chat-bucket-tab.is-active[data-bucket="transferred"],
+.chat-bucket-tab.is-active[data-bucket="own"],
+.chat-bucket-tab.is-active[data-bucket="sold"],
+.chat-bucket-tab.is-active[data-bucket="awaiting_reply"],
+.chat-bucket-tab.is-active[data-bucket="no_reply"],
+.chat-bucket-tab.is-active[data-bucket="all"],
+.chat-bucket-tab.is-active[data-bucket="new"],
+.chat-bucket-tab.is-active[data-bucket="in_progress"],
+.chat-bucket-tab.is-active[data-bucket="waiting"],
+.chat-bucket-tab.is-active[data-bucket="won"],
+.chat-bucket-tab.is-active[data-bucket="lost"],
+.chat-bucket-tab.is-active[data-bucket="archive"] {
+  border-color: var(--mo-accent);
+  background: var(--mo-accent-soft);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 35%, transparent);
 }
 
 :root[data-theme="dark"] .chat-bucket-tab {
   border-color: var(--mo-border);
-  background: rgba(30, 41, 59, 0.55);
+  background: var(--mo-surface-elevated);
 }
 :root[data-theme="dark"] .chat-bucket-tab:hover {
-  border-color: rgba(129, 140, 248, 0.3);
-  background: rgba(30, 41, 59, 0.72);
+  background: var(--mo-accent-soft);
 }
-:root[data-theme="dark"] .chat-bucket-tab.is-active[data-bucket="transferred"] {
-  border-color: rgba(251, 191, 36, 0.45);
-  background: rgba(120, 53, 15, 0.35);
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.18);
-}
-:root[data-theme="dark"] .chat-bucket-tab.is-active[data-bucket="own"] {
-  border-color: rgba(96, 165, 250, 0.45);
-  background: rgba(30, 58, 95, 0.5);
-  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.2);
-}
-:root[data-theme="dark"] .chat-bucket-tab.is-active[data-bucket="sold"] {
-  border-color: rgba(167, 139, 250, 0.45);
-  background: rgba(76, 29, 149, 0.32);
-  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.18);
-}
-:root[data-theme="dark"] .chat-bucket-tab.is-active[data-bucket="awaiting_reply"] {
-  border-color: rgba(52, 211, 153, 0.4);
-  background: rgba(6, 78, 59, 0.32);
-  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.15);
+:root[data-theme="dark"] .chat-bucket-tab.is-active,
+:root[data-theme="dark"] .chat-bucket-tab.is-active[data-bucket] {
+  border-color: var(--mo-accent);
+  background: var(--mo-accent-soft);
 }
 
 .chat-msg-out {
