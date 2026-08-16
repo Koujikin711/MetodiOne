@@ -1793,8 +1793,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-kanban-col-body {
-  @apply flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain p-2;
-  max-height: min(70vh, 640px);
+  @apply flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain p-2.5;
+  max-height: min(72vh, 560px);
   background-color: var(--mo-surface);
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--mo-accent) 45%, transparent) transparent;

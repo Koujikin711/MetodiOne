@@ -505,7 +505,7 @@ function KanbanColumn({
   onRefresh: () => void;
   registerScrollContainer: (stageId: number, el: HTMLDivElement | null) => void;
 }) {
-  const PAGE = 40;
+  const PAGE = 4;
   const [visibleCount, setVisibleCount] = useState(PAGE);
   const { setNodeRef, isOver } = useDroppable({
     id: stageDroppableId(stage.id),
