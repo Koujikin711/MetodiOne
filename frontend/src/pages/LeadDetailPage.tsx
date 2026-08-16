@@ -392,11 +392,11 @@ export function LeadDetailPage() {
       <div className="flex flex-wrap items-center gap-4 text-sm">
         <Link
           to="/booking"
-          className="font-medium text-[var(--mo-accent-hover)] underline-offset-4 hover:text-[#614b70] hover:underline"
+          className="font-medium text-[var(--mo-accent-hover)] underline-offset-4 hover:underline"
         >
           ← Онлайн запись
         </Link>
-        <Link to={homeLink} className="lux-caption hover:text-[var(--mo-text)]">
+        <Link to={homeLink} className="mo-muted hover:text-[var(--mo-text)]">
           {homeLabel}
         </Link>
       </div>
@@ -407,112 +407,122 @@ export function LeadDetailPage() {
       )}
 
       {query.data && (
-        <article className="mo-section relative p-8 shadow-2xl backdrop-blur-xl">
-          <div className="absolute right-3 top-3 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => setAuditOpen(true)}
-              className="rounded-xl border border border-[var(--mo-border-strong)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--mo-text)] transition hover:border-purple-400/60 hover:bg-purple-500/15"
-            >
-              Аудит
-            </button>
-            {canEditLeadProfile && (
-              <button
-                type="button"
-                onClick={openEditLeadModal}
-                className="rounded-xl border border border-[var(--mo-border-strong)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--mo-text)] transition hover:border-sky-400/60 hover:bg-sky-500/15"
-              >
-                Редактировать
-              </button>
-            )}
-            <Link
-              to={`/chat?lead_id=${query.data.id}`}
-              className="inline-flex h-10 items-center justify-center rounded-xl border border border-[var(--mo-border-strong)] bg-white px-3 text-sm font-semibold text-[var(--mo-text)] transition hover:border-indigo-400/60 hover:bg-indigo-500/20"
-              title="Открыть чат с клиентом"
-            >
-              Чат
-            </Link>
-            {query.data.show_close_deal_button && (
-              <button
-                type="button"
-                onClick={() => {
-                  setCloseAmount("");
-                  setClosePaid("");
-                  setCloseDealOpen(true);
-                }}
-                className="rounded-xl border border-emerald-600/50 bg-emerald-950/40 px-3 py-1.5 text-xs font-semibold text-emerald-100 transition hover:border-emerald-400/60 hover:bg-emerald-900/30"
-              >
-                Закрыть сделку
-              </button>
-            )}
-            {canRejectLead && (
-              <button
-                type="button"
-                disabled={rejectMutation.isPending}
-                onClick={() => {
-                  const reason = window.prompt("Причина отказа (необязательно)", "");
-                  if (reason == null) return;
-                  rejectMutation.mutate(reason.trim() || undefined);
-                }}
-                className="rounded-xl border border-rose-600/50 bg-rose-950/40 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:border-rose-400/60 hover:bg-rose-900/30 disabled:opacity-50"
-              >
-                Отказ
-              </button>
-            )}
-          </div>
-          <header className="mb-6 border-b border-[var(--mo-border)] pb-4">
-            <p className="text-xs font-medium uppercase tracking-wider mo-muted">Клиент / лид</p>
-            <h1 className="mt-1 lux-heading-page">{query.data.name}</h1>
-            {query.data.stage_name && (
-              <p className="mt-2 inline-flex rounded-full bg-purple-500/15 px-3 py-1 text-sm text-[#614b70] ring-1 ring-purple-500/30">
-                {query.data.stage_name}
-              </p>
-            )}
-          </header>
-          <dl className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <dt className="text-xs uppercase tracking-wide mo-muted">Телефон</dt>
-              <dd className="mt-1 text-lg text-[var(--mo-text)]">
-                <PatientPhone value={query.data} />
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide mo-muted">Email</dt>
-              <dd className="mt-1 text-lg text-[var(--mo-text)]">{query.data.email ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide mo-muted">Источник</dt>
-              <dd className="mt-1 text-[var(--mo-text)]">{query.data.source ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide mo-muted">Ответственный менеджер</dt>
-              <dd className="mt-1 text-[var(--mo-text)]">{query.data.manager_name || "—"}</dd>
-            </div>
-            <div className="sm:col-span-2">
-              <dt className="text-xs uppercase tracking-wide mo-muted">ID в MetodiOne</dt>
-              <dd className="mt-1 font-mono mo-muted">
-                #{query.data.id}
-                {leadSessionNumber != null ? (
-                  <span
-                    className="ml-2 font-sans text-base font-bold tabular-nums text-indigo-800"
-                    title="Сеанс / поток"
-                  >
-                    · {leadSessionNumber.includes(":") ? leadSessionNumber : `сеанс ${leadSessionNumber}`}
+        <article className="mo-section relative overflow-hidden p-5 sm:p-7">
+          <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="truncate text-2xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-3xl">
+                {query.data.name}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {query.data.stage_name ? (
+                  <span className="inline-flex rounded-full bg-[var(--mo-accent-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--mo-accent-hover)]">
+                    {query.data.stage_name === "В обработке" ? "В работе" : query.data.stage_name}
                   </span>
                 ) : null}
-              </dd>
+                <span className="text-xs tabular-nums mo-muted" title="ID в MetodiOne">
+                  #{query.data.id}
+                  {leadSessionNumber != null
+                    ? ` · ${leadSessionNumber.includes(":") ? leadSessionNumber : `сеанс ${leadSessionNumber}`}`
+                    : ""}
+                </span>
+              </div>
             </div>
-          </dl>
+            <div className="flex flex-wrap gap-2 sm:max-w-[14rem] sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setAuditOpen(true)}
+                className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-xs font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+              >
+                Аудит
+              </button>
+              {canEditLeadProfile ? (
+                <button
+                  type="button"
+                  onClick={openEditLeadModal}
+                  className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-xs font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                >
+                  Изменить
+                </button>
+              ) : null}
+              <Link
+                to={`/chat?lead_id=${query.data.id}`}
+                className="inline-flex items-center justify-center rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-xs font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                title="Открыть чат с клиентом"
+              >
+                Чат
+              </Link>
+            </div>
+          </header>
+
+          <div className="mt-5 space-y-2 border-t border-[var(--mo-border)] pt-5">
+            <p className="text-lg font-semibold tabular-nums tracking-wide text-[var(--mo-text)]" title="Телефон">
+              <PatientPhone value={query.data} />
+            </p>
+            {(query.data.email || "").trim() ? (
+              <p className="truncate text-sm text-[var(--mo-text)]" title="Email">
+                {query.data.email}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {(query.data.source || "").trim() ? (
+                <span
+                  className="inline-flex max-w-full truncate rounded-lg bg-[var(--mo-accent-soft)] px-2 py-1 text-[11px] font-semibold text-[var(--mo-accent-hover)]"
+                  title="Источник"
+                >
+                  {query.data.source}
+                </span>
+              ) : null}
+              {(query.data.manager_name || "").trim() ? (
+                <span className="text-sm text-[var(--mo-text-muted)]" title="Ответственный менеджер">
+                  {query.data.manager_name}
+                </span>
+              ) : (
+                <span className="text-sm italic mo-muted">Без ответственного</span>
+              )}
+            </div>
+          </div>
+
+          {(query.data.show_close_deal_button || canRejectLead) && (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {query.data.show_close_deal_button ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCloseAmount("");
+                    setClosePaid("");
+                    setCloseDealOpen(true);
+                  }}
+                  className="rounded-xl bg-[var(--mo-success)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+                >
+                  Закрыть сделку
+                </button>
+              ) : null}
+              {canRejectLead ? (
+                <button
+                  type="button"
+                  disabled={rejectMutation.isPending}
+                  onClick={() => {
+                    const reason = window.prompt("Причина отказа (необязательно)", "");
+                    if (reason == null) return;
+                    rejectMutation.mutate(reason.trim() || undefined);
+                  }}
+                  className="rounded-xl bg-[var(--mo-danger)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
+                >
+                  Отказ
+                </button>
+              ) : null}
+            </div>
+          )}
 
           {(leadAppointmentsQuery.data ?? []).length > 0 && (
-            <section className="mt-8 border-t border-[var(--mo-border)] pt-6">
-              <h2 className="lux-subheading text-sm">Онлайн-запись</h2>
+            <section className="mt-6 border-t border-[var(--mo-border)] pt-5">
+              <h2 className="text-sm font-semibold text-[var(--mo-text)]">Онлайн-запись</h2>
               <p className="mt-1 text-xs mo-muted">
-                Активные записи по этому лиду. «Перенос» открывает выбор даты и времени в календаре записи.
+                Активные записи по этому лиду. «Перенос» — выбор даты и времени.
               </p>
               {leadAppointmentsQuery.isLoading && <p className="mt-2 text-xs mo-muted">Загрузка…</p>}
               {leadAppointmentsQuery.isError && (
-                <p className="mt-2 text-xs text-[#6b1d2f]">
+                <p className="mt-2 text-xs text-[var(--mo-danger)]">
                   {(leadAppointmentsQuery.error as Error).message ?? "Не удалось загрузить записи"}
                 </p>
               )}
@@ -523,12 +533,12 @@ export function LeadDetailPage() {
                     Number.isFinite(appointmentFromUrl) && appointmentFromUrl === a.id && isBooked;
                   const statusShell =
                     a.status === "completed"
-                      ? "border-emerald-500/45 bg-emerald-500/10"
+                      ? "border-[var(--mo-success)]/40 bg-[var(--mo-success)]/10"
                       : a.status === "no_show"
-                        ? "border-rose-500/45 bg-rose-500/10"
+                        ? "border-[var(--mo-danger)]/40 bg-[var(--mo-danger)]/10"
                         : highlight
-                          ? "border-sky-500/50 bg-sky-500/10 ring-1 ring-sky-400/30"
-                          : "border-[var(--mo-border)] bg-[var(--mo-accent-soft)]/30";
+                          ? "border-[var(--mo-accent)]/50 bg-[var(--mo-accent-soft)]"
+                          : "border-[var(--mo-border)] bg-[var(--mo-surface)]";
                   return (
                     <li
                       key={a.id}
@@ -554,13 +564,12 @@ export function LeadDetailPage() {
                                 : ""}
                           </p>
                           <p className="mt-1 text-xs">
-                            Статус:{" "}
                             <span
                               className={
                                 a.status === "completed"
-                                  ? "font-semibold text-emerald-800"
+                                  ? "font-semibold text-[var(--mo-success)]"
                                   : a.status === "no_show"
-                                    ? "font-semibold text-rose-800"
+                                    ? "font-semibold text-[var(--mo-danger)]"
                                     : "mo-muted"
                               }
                             >
@@ -577,10 +586,9 @@ export function LeadDetailPage() {
                           </p>
                           {(a.comment || "").trim() ? (
                             <p
-                              className="mt-2 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] px-2 py-1.5 text-xs text-[var(--mo-text)]"
+                              className="mt-2 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-2 py-1.5 text-xs text-[var(--mo-text)]"
                               title={(a.comment || "").trim()}
                             >
-                              <span className="font-semibold mo-muted">Заметка: </span>
                               {(a.comment || "").trim()}
                             </p>
                           ) : null}
@@ -602,15 +610,15 @@ export function LeadDetailPage() {
                               type="button"
                               disabled={moveAppointmentMutation.isPending || deleteAppointmentMutation.isPending}
                               onClick={() => openMoveAppointmentModal(a)}
-                              className="rounded-xl border border border-[var(--mo-border-strong)] bg-white px-3 py-2 text-xs font-semibold text-[var(--mo-text)] transition hover:border-purple-400/60 hover:bg-purple-500/15 disabled:opacity-50"
+                              className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-3 py-2 text-xs font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)] disabled:opacity-50"
                             >
-                              Перенос записи
+                              Перенос
                             </button>
                             <button
                               type="button"
                               disabled={moveAppointmentMutation.isPending || deleteAppointmentMutation.isPending}
                               onClick={() => handleDeleteAppointment(a)}
-                              className="rounded-xl border border-rose-600/50 bg-rose-950/40 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:border-rose-400/60 hover:bg-rose-900/30 disabled:opacity-50"
+                              className="rounded-xl border border-[var(--mo-danger)]/40 bg-[var(--mo-danger)]/10 px-3 py-2 text-xs font-semibold text-[var(--mo-danger)] transition hover:bg-[var(--mo-danger)]/15 disabled:opacity-50"
                             >
                               Удалить запись
                             </button>
@@ -625,7 +633,7 @@ export function LeadDetailPage() {
           )}
 
           {canDeleteLead ? (
-            <section className="mt-8 border-t border-[var(--mo-border)] pt-6">
+            <section className="mt-6 border-t border-[var(--mo-border)] pt-5">
               <button
                 type="button"
                 disabled={deleteLeadMutation.isPending}
@@ -633,7 +641,7 @@ export function LeadDetailPage() {
                   if (!window.confirm("Удалить клиента полностью? Действие необратимо.")) return;
                   deleteLeadMutation.mutate();
                 }}
-                className="rounded-xl border border-rose-600/50 bg-rose-950/40 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:border-rose-400/60 hover:bg-rose-900/30 disabled:opacity-50"
+                className="rounded-xl border border-[var(--mo-danger)]/35 px-4 py-2 text-sm font-medium text-[var(--mo-danger)] transition hover:bg-[var(--mo-danger)]/10 disabled:opacity-50"
               >
                 {deleteLeadMutation.isPending ? "Удаление..." : "Удалить клиента"}
               </button>

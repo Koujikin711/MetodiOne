@@ -562,10 +562,10 @@ function KanbanColumn({
             {hasMore ? (
               <button
                 type="button"
-                className="mt-1 w-full rounded-xl border border-dashed border-[var(--mo-border)] px-3 py-2 text-xs font-medium text-[var(--mo-accent-hover)] transition hover:bg-[var(--mo-accent-soft)]"
+                className="mt-1 w-full shrink-0 rounded-xl border border-dashed border-[var(--mo-border)] px-3 py-2.5 text-xs font-medium text-[var(--mo-accent-hover)] transition hover:bg-[var(--mo-accent-soft)]"
                 onClick={() => setVisibleCount((n) => Math.min(n + PAGE, leads.length))}
               >
-                Показать ещё ({formatCompactCount(leads.length - visibleCount)})
+                Ещё {formatCompactCount(leads.length - visibleCount)} · показать +{PAGE}
               </button>
             ) : null}
           </>
