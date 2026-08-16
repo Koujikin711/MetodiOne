@@ -273,7 +273,7 @@ function IntegrationCard({
           Webhook URL:
           <div className="mt-1 break-all rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-2 py-1 font-mono text-[11px] text-[var(--mo-text)]">
             {hookPath}?token=
-            <span className="text-[#8C6D31]">секрет из формы</span>
+            <span className="text-[var(--mo-warning)]">секрет из формы</span>
           </div>
           {!apiBase && (
             <div className="lux-caption mt-1">Укажите публичный адрес API в настройках сервера для полного URL.</div>
@@ -929,7 +929,7 @@ export function IntegrationSetupPanel() {
               ← Другой канал
             </button>
             {editingIntegrationId != null && (
-              <span className="text-sm font-medium text-[#8C6D31]">Редактирование подключения №{editingIntegrationId}</span>
+              <span className="text-sm font-medium text-[var(--mo-warning)]">Редактирование подключения №{editingIntegrationId}</span>
             )}
           </div>
 

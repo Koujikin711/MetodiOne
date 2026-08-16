@@ -260,7 +260,7 @@ function SortableSpecialistRow({
       style={style}
       className={[
         "flex border-b border-[var(--mo-border)] last:border-b-0",
-        isDragging ? "opacity-90 ring-2 ring-purple-500/35" : "",
+        isDragging ? "opacity-90 ring-2 ring-indigo-500/35" : "",
       ].join(" ")}
     >
       <div
@@ -336,7 +336,7 @@ function SortableSpecialistRow({
                   DAY_COL_COLLAPSED_CLASS,
                   isToday ? "bg-[var(--mo-accent-soft)]/40" : "bg-[var(--mo-surface)]",
                   canAdd
-                    ? "cursor-pointer transition hover:bg-purple-500/10 hover:ring-1 hover:ring-inset hover:ring-purple-500/25"
+                    ? "cursor-pointer transition hover:bg-indigo-500/10 hover:ring-1 hover:ring-inset hover:ring-indigo-500/25"
                     : "cursor-default",
                 ].join(" ")}
                 style={{ minHeight: COLLAPSED_ROW_PX }}
@@ -382,7 +382,7 @@ function SortableSpecialistRow({
                 isToday ? "bg-[var(--mo-accent-soft)]/30" : "bg-[var(--mo-surface)]",
                 !workingDay ? "booking-week-grid__day-col--off" : "",
                 canAdd && workingDay
-                  ? "cursor-pointer transition hover:bg-purple-500/[0.06] hover:ring-1 hover:ring-inset hover:ring-purple-500/20"
+                  ? "cursor-pointer transition hover:bg-indigo-500/[0.06] hover:ring-1 hover:ring-inset hover:ring-indigo-500/20"
                   : "",
               ].join(" ")}
               style={{ minHeight: EXPANDED_ROW_MIN_PX }}
@@ -457,7 +457,7 @@ function SortableSpecialistRow({
                         className={[
                           "booking-week-grid__empty-slot w-full rounded-md border border-dashed px-1 py-1 text-left sm:px-1.5",
                           slotCanAdd
-                            ? "cursor-pointer border-[var(--mo-border-strong)]/55 transition hover:border-purple-500/40 hover:bg-purple-500/[0.06]"
+                            ? "cursor-pointer border-[var(--mo-border-strong)]/55 transition hover:border-indigo-500/40 hover:bg-indigo-500/[0.06]"
                             : "cursor-default border-[var(--mo-border)]/40 opacity-60",
                         ].join(" ")}
                         title={slotCanAdd ? `Записать на ${formatMinuteLabel(row.minute)}` : undefined}

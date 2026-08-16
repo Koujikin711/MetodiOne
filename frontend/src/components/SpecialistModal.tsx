@@ -290,7 +290,7 @@ export function SpecialistModal({
                   className={[
                     "rounded-lg border px-2.5 py-1 text-xs font-medium transition",
                     workWeekdays.includes(d)
-                      ? "border-purple-500/50 bg-[#ece6f0] text-purple-100"
+                      ? "border-indigo-500/50 bg-[var(--mo-accent-soft)] text-[var(--mo-accent-hover)]"
                       : "border-[var(--mo-border-strong)]/60 bg-white/80 mo-muted line-through opacity-70",
                   ].join(" ")}
                 >

@@ -299,7 +299,7 @@ export function AttendanceTrackerPage() {
               <div key={g.id} className="rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <strong>{g.name}</strong>
-                  <span className={g.is_active ? "text-[#0f4c3a]" : "lux-caption"}>
+                  <span className={g.is_active ? "text-[var(--mo-success)]" : "lux-caption"}>
                     {g.is_active ? "Активна" : "Выключена"}
                   </span>
                 </div>

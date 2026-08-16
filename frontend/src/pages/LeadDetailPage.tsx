@@ -631,7 +631,7 @@ export function LeadDetailPage() {
             </p>
             <div className="mt-4 grid gap-3">
               {fixedCloseAmount != null ? (
-                <div className="rounded-xl border border-emerald-600/40 bg-emerald-900/10 px-3 py-2 text-sm text-[#0f4c3a]">
+                <div className="rounded-xl border border-emerald-600/40 bg-emerald-900/10 px-3 py-2 text-sm text-[var(--mo-success)]">
                   Цена по KPI: {formatMoney(fixedCloseAmount)}
                 </div>
               ) : (
@@ -897,7 +897,7 @@ export function LeadDetailPage() {
                   return (
                   <li key={e.id} className="rounded-xl mo-section p-3">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="rounded bg-[#ece6f0] px-2 py-0.5 text-[#614b70]">
+                      <span className="rounded bg-[var(--mo-accent-soft)] px-2 py-0.5 text-[var(--mo-accent-hover)]">
                         {auditActionLabel(e.action)}
                       </span>
                       <span className="mo-muted">{e.user_name ?? `user#${e.user_id ?? "-"}`}</span>

@@ -86,7 +86,7 @@ export function ManagerDeskPage() {
                   <li key={task.id}>
                     <Link
                       to="/tasks"
-                      className="block rounded-xl border border-[#d8d2c6] bg-white px-3 py-2 hover:border-[#2f5f85]/40"
+                      className="block rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-3 py-2 hover:border-[var(--mo-accent)]/40"
                     >
                       <div className="text-sm font-medium text-[#1e3348]">{task.title}</div>
                     </Link>
@@ -97,13 +97,13 @@ export function ManagerDeskPage() {
           </Card>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Link to="/chat" className={`${theme.surfaceElevated} block p-4 hover:border-[#2f5f85]/40`}>
+            <Link to="/chat" className={`${theme.surfaceElevated} block p-4 hover:border-[var(--mo-accent)]/40`}>
               <div className="text-sm font-semibold">Чаты и стадии</div>
             </Link>
-            <Link to="/booking" className={`${theme.surfaceElevated} block p-4 hover:border-[#2f5f85]/40`}>
+            <Link to="/booking" className={`${theme.surfaceElevated} block p-4 hover:border-[var(--mo-accent)]/40`}>
               <div className="text-sm font-semibold">Онлайн-запись</div>
             </Link>
-            <Link to="/kpi" className={`${theme.surfaceElevated} block p-4 hover:border-[#2f5f85]/40`}>
+            <Link to="/kpi" className={`${theme.surfaceElevated} block p-4 hover:border-[var(--mo-accent)]/40`}>
               <div className="text-sm font-semibold">KPI</div>
             </Link>
           </div>
@@ -116,7 +116,7 @@ export function ManagerDeskPage() {
               <Link
                 key={t.id}
                 to={`/chat?lead_id=${t.lead_id ?? ""}`}
-                className="flex items-center justify-between gap-2 rounded-xl border border-[#d8d2c6] bg-[#faf8f4] px-3 py-2 hover:border-[#2f5f85]/40"
+                className="flex items-center justify-between gap-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 hover:border-[var(--mo-accent)]/40"
               >
                 <span className="truncate text-sm font-medium text-[#1e3348]">
                   {t.lead_name || t.title || `#${t.id}`}

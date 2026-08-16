@@ -2337,63 +2337,63 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border-color: var(--mo-border-strong);
 }
 .chat-thread-row--selected {
-  border-color: #2f5f85;
-  background: #e8f0f7;
-  box-shadow: 0 0 0 1px rgba(47, 95, 133, 0.25);
+  border-color: color-mix(in srgb, var(--mo-accent) 55%, transparent);
+  background: var(--mo-accent-soft);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 28%, transparent);
 }
 .chat-thread-row--waiting {
-  border-color: #6db89a;
-  background: #edf7f1;
-  box-shadow: 0 0 0 1px rgba(45, 106, 90, 0.15);
+  border-color: color-mix(in srgb, var(--mo-success) 45%, transparent);
+  background: color-mix(in srgb, var(--mo-success) 12%, var(--mo-surface-elevated));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-success) 18%, transparent);
 }
 .chat-thread-row--waiting:hover {
-  background: #e3f3ea;
+  background: color-mix(in srgb, var(--mo-success) 18%, var(--mo-surface-elevated));
 }
 .chat-thread-row--recent {
-  border-color: #8eb4d4;
-  background: #eef4fa;
-  box-shadow: 0 0 0 1px rgba(47, 95, 133, 0.1);
+  border-color: color-mix(in srgb, var(--mo-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--mo-accent) 8%, var(--mo-surface-elevated));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 14%, transparent);
 }
 .chat-thread-row--recent:hover {
-  background: #e5eff8;
+  background: color-mix(in srgb, var(--mo-accent) 14%, var(--mo-surface-elevated));
 }
 .chat-thread-row--default {
-  border-color: #d8d2c6;
-  background: #ffffff;
+  border-color: var(--mo-border);
+  background: var(--mo-surface-elevated);
 }
 .chat-thread-row--default:hover {
-  border-color: rgba(47, 95, 133, 0.3);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  border-color: color-mix(in srgb, var(--mo-accent) 30%, var(--mo-border));
+  box-shadow: var(--mo-shadow-luxury);
 }
 
 :root[data-theme="dark"] .chat-thread-row--selected {
-  border-color: rgba(96, 165, 250, 0.45);
-  background: rgba(30, 58, 95, 0.55);
-  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.22);
+  border-color: color-mix(in srgb, var(--mo-accent) 50%, transparent);
+  background: color-mix(in srgb, var(--mo-accent) 20%, var(--mo-surface-elevated));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 25%, transparent);
 }
 :root[data-theme="dark"] .chat-thread-row--waiting {
-  border-color: rgba(52, 211, 153, 0.38);
-  background: rgba(6, 78, 59, 0.32);
-  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.12);
+  border-color: color-mix(in srgb, var(--mo-success) 40%, transparent);
+  background: color-mix(in srgb, var(--mo-success) 14%, var(--mo-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-success) 14%, transparent);
 }
 :root[data-theme="dark"] .chat-thread-row--waiting:hover {
-  background: rgba(6, 95, 70, 0.38);
+  background: color-mix(in srgb, var(--mo-success) 20%, var(--mo-surface));
 }
 :root[data-theme="dark"] .chat-thread-row--recent {
-  border-color: rgba(96, 165, 250, 0.32);
-  background: rgba(30, 58, 95, 0.28);
-  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.1);
+  border-color: color-mix(in srgb, var(--mo-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--mo-accent) 12%, var(--mo-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 12%, transparent);
 }
 :root[data-theme="dark"] .chat-thread-row--recent:hover {
-  background: rgba(30, 64, 110, 0.36);
+  background: color-mix(in srgb, var(--mo-accent) 18%, var(--mo-surface));
 }
 :root[data-theme="dark"] .chat-thread-row--default {
   border-color: var(--mo-border);
-  background: rgba(30, 41, 59, 0.55);
+  background: var(--mo-surface);
 }
 :root[data-theme="dark"] .chat-thread-row--default:hover {
-  border-color: rgba(129, 140, 248, 0.35);
-  background: rgba(30, 41, 59, 0.72);
+  border-color: color-mix(in srgb, var(--mo-accent) 35%, transparent);
+  background: var(--mo-surface-elevated);
   box-shadow: none;
 }
 

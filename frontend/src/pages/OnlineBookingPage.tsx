@@ -1122,7 +1122,7 @@ export function OnlineBookingPage() {
                     {extraPhones.length < 5 ? (
                       <button
                         type="button"
-                        className="text-xs font-medium text-[#8C6D31] hover:underline"
+                        className="text-xs font-medium text-[var(--mo-warning)] hover:underline"
                         onClick={() => setExtraPhones([...extraPhones, ""])}
                       >
                         + Добавить номер
@@ -1253,7 +1253,7 @@ export function OnlineBookingPage() {
                         ))}
                       </select>
                       {seriesEndDateYmd && startAt ? (
-                        <p className="mt-1 text-xs text-[#0f4c3a]">
+                        <p className="mt-1 text-xs text-[var(--mo-success)]">
                           Будет {consecutiveDays}{" "}
                           {consecutiveDays === 1 ? "запись" : consecutiveDays < 5 ? "записи" : "записей"} с{" "}
                           {startAt.slice(0, 10)} по {seriesEndDateYmd} в одно время
@@ -1278,7 +1278,7 @@ export function OnlineBookingPage() {
                     className="mt-1 w-full mo-input disabled:opacity-70"
                   />
                   {fixedServiceAmount != null ? (
-                    <p className="mt-1 text-xs text-[#0f4c3a]">
+                    <p className="mt-1 text-xs text-[var(--mo-success)]">
                       Цена зафиксирована в KPI ({kpiPriceHintQuery.data?.year_month}). Введите только сумму оплаты.
                     </p>
                   ) : (
@@ -1582,7 +1582,7 @@ export function OnlineBookingPage() {
                           Долг {formatMoney(Number(a.service_amount ?? 0) - Number(a.paid_amount ?? 0))}
                         </span>
                       ) : Number(a.service_amount ?? 0) > 0 ? (
-                        <span className="text-[#0f4c3a]">Оплачено</span>
+                        <span className="text-[var(--mo-success)]">Оплачено</span>
                       ) : (
                         <span className="mo-muted">пакет</span>
                       )}

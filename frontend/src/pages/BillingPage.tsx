@@ -106,7 +106,7 @@ export function BillingTariffPage() {
       ) : null}
 
       {s.billing_status === "payment_pending" ? (
-        <div className="mo-section border-[#2f5f85]/30 bg-[#e8f0f7]/50 text-sm">
+        <div className="mo-section border-[var(--mo-accent)]/30 bg-[var(--mo-accent-soft)] text-sm">
           <p className="font-semibold text-[#1e3348]">Ожидается подтверждение оплаты</p>
           <p className="mt-2 text-[#5c6b7a]">
             Выбран тариф: <span className="font-medium text-[#1e3348]">{s.pending_tariff_plan_name ?? "—"}</span>. Доступ к

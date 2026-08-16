@@ -360,7 +360,7 @@ function SortableSpecialistColumn({
       </div>
 
       <div
-        className={`relative ${isDragging ? "opacity-90 ring-2 ring-purple-500/40" : ""}`}
+        className={`relative ${isDragging ? "opacity-90 ring-2 ring-indigo-500/40" : ""}`}
         style={{ height: gridHeightPx }}
       >
         {"fullDay" in hatch && hatch.fullDay ? (
@@ -441,7 +441,7 @@ function SortableSpecialistColumn({
                     })
                   }
                   {...dragHandlers}
-                  className="absolute inset-x-1 z-[5] cursor-pointer rounded-md border border-transparent transition-colors hover:border-purple-500/35 hover:bg-purple-500/10"
+                  className="absolute inset-x-1 z-[5] cursor-pointer rounded-md border border-transparent transition-colors hover:border-indigo-500/35 hover:bg-indigo-500/10"
                   style={slotStyle}
                   aria-label={`Свободный слот ${Math.floor(minuteOfDay / 60)}:${String(minuteOfDay % 60).padStart(2, "0")}, ${spec.full_name}`}
                 />

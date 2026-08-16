@@ -62,15 +62,15 @@ export function AppBanners() {
   return (
     <div className="mb-4 space-y-2 print:hidden">
       {impersonatorId != null ? (
-        <div className="mo-section border-[#D4AF37]/40 bg-[#FAF5EB] px-4 py-2 text-center text-xs text-[#2C2520]">
+        <div className="mo-section border-[var(--mo-warning)]/35 bg-[var(--mo-surface-elevated)] px-4 py-2 text-center text-xs text-[var(--mo-text)]">
           Режим поддержки: вы вошли от имени владельца компании. Сессия помечена супер-владельцем (ID{" "}
           {impersonatorId}). Не вносите необоснованные изменения.
         </div>
       ) : null}
       {demo ? (
-        <div className="mo-section border-[#2A6F85]/25 bg-[#F0F6F8] px-4 py-2 text-center text-xs text-[#2C2520]">
+        <div className="mo-section border-[var(--mo-accent)]/30 bg-[var(--mo-accent-soft)] px-4 py-2 text-center text-xs text-[var(--mo-text)]">
           Режим демо: данные могут быть примерными. Добавьте{" "}
-          <code className="rounded border border-[#DCD1B4] bg-white px-1 text-[#A38A53]">?demo=1</code> к URL.
+          <code className="rounded border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-1 text-[var(--mo-accent-hover)]">?demo=1</code> к URL.
         </div>
       ) : null}
       {b?.billing_status === "demo_trial" && daysLeft != null && daysLeft <= 3 ? (
