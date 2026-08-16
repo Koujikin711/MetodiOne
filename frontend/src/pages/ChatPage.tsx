@@ -1170,7 +1170,7 @@ export function ChatPage() {
                   </div>
                   {unread > 0 ? (
                     <span
-                      className="mt-0.5 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1 text-[11px] font-bold leading-none text-white shadow-sm tabular-nums"
+                      className="mt-0.5 flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold leading-none text-white shadow-sm tabular-nums"
                       title={`Непрочитано: ${unread}`}
                     >
                       {unread > 99 ? "99+" : unread}
