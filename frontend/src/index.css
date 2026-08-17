@@ -2959,9 +2959,11 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: #f87171;
 }
 .chat-msg.chat-msg--media .chat-msg-audio {
-  color-scheme: dark;
+  color-scheme: light;
   width: 100%;
   max-width: 18rem;
+  background: #f4f7fc;
+  border-radius: 999px;
 }
 .chat-msg.chat-msg--media img,
 .chat-msg.chat-msg--media video {
@@ -3178,16 +3180,20 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   @apply w-full max-w-sm;
   height: 2.25rem;
   border-radius: 999px;
-  filter: contrast(1.05);
+  color-scheme: light;
+  background: #f4f7fc;
+  filter: contrast(1.02);
 }
-.chat-msg-out .chat-msg-audio {
-  color-scheme: dark;
-}
+.chat-msg-out .chat-msg-audio,
 .chat-msg-in .chat-msg-audio {
   color-scheme: light;
 }
+:root[data-theme="dark"] .chat-msg-audio,
+:root[data-theme="dark"] .chat-msg.chat-msg--media .chat-msg-audio,
+:root[data-theme="dark"] .chat-msg-out .chat-msg-audio,
 :root[data-theme="dark"] .chat-msg-in .chat-msg-audio {
   color-scheme: dark;
+  background: transparent;
 }
 
 /* ── Аудит ── */

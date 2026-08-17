@@ -1619,7 +1619,7 @@ export function ChatPage() {
               {voiceDraftUrl && voiceDraftFile && !isRecording && !voiceFinishing && (
                 <div className="mt-2 shrink-0 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
                   <div className="text-xs font-semibold text-[var(--mo-text)]">Предпрослушивание голосового</div>
-                  <audio src={voiceDraftUrl} controls className="mt-2 w-full max-w-md" />
+                  <audio src={voiceDraftUrl} controls className="chat-msg-audio mt-2 w-full max-w-md" />
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
