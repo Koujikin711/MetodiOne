@@ -2251,3 +2251,61 @@ async def ensure_sales_field_visits_migration(conn: AsyncConnection, database_ur
     )
     await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sales_field_visits_lead_id ON sales_field_visits (lead_id)"))
     await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sales_field_visits_visited_at ON sales_field_visits (visited_at)"))
+
+
+async def ensure_lead_waiting_callbacks(conn: AsyncConnection, database_url: str) -> None:
+    """Callback «В ожидании»: дата связи, Боль, напоминания."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS lead_waiting_callbacks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    lead_id INTEGER NOT NULL,
+                    manager_id INTEGER,
+                    created_by_user_id INTEGER,
+                    client_name VARCHAR(255) NOT NULL,
+                    client_phone VARCHAR(64) NOT NULL DEFAULT '',
+                    pain_text TEXT NOT NULL DEFAULT '',
+                    scheduled_at DATETIME NOT NULL,
+                    status VARCHAR(32) NOT NULL DEFAULT 'scheduled',
+                    client_reminder_sent_at DATETIME,
+                    manager_notified_at DATETIME,
+                    created_at DATETIME
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS lead_waiting_callbacks (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+                    manager_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    client_name VARCHAR(255) NOT NULL,
+                    client_phone VARCHAR(64) NOT NULL DEFAULT '',
+                    pain_text TEXT NOT NULL DEFAULT '',
+                    scheduled_at TIMESTAMPTZ NOT NULL,
+                    status VARCHAR(32) NOT NULL DEFAULT 'scheduled',
+                    client_reminder_sent_at TIMESTAMPTZ,
+                    manager_notified_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )"""
+            ),
+        )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_lead_waiting_callbacks_company_id ON lead_waiting_callbacks (company_id)"),
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_lead_waiting_callbacks_lead_id ON lead_waiting_callbacks (lead_id)"),
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_lead_waiting_callbacks_scheduled_at ON lead_waiting_callbacks (scheduled_at)"),
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_lead_waiting_callbacks_status ON lead_waiting_callbacks (status)"),
+    )

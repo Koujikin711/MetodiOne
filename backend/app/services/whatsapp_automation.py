@@ -27,6 +27,9 @@ _DEFAULT_TEMPLATES = {
     "reminder_24h": "Напоминание: ваша запись {date} в {time}.",
     "reminder_2h": "Через 2 часа запись: {date} в {time}.",
     "reactivation": "Мы давно не общались. Готовы снова помочь вам.",
+    "waiting_callback": (
+        "Здравствуйте, {name}! Напоминаем: сегодня в {time} ({date}) с вами свяжется менеджер {manager}."
+    ),
 }
 
 

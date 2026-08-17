@@ -18,6 +18,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { CrmToolbar } from "@/components/crm/CrmToolbar";
 import { PatientPhone } from "@/components/PatientPhone";
+import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { apiDownloadBlob, apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
 import { formatCompactCount } from "@/lib/money";
 import { theme } from "@/lib/theme";
@@ -1238,6 +1239,7 @@ export function CrmPage() {
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
+  const [waitingModalLeadId, setWaitingModalLeadId] = useState<number | null>(null);
   const [kanbanError, setKanbanError] = useState<string | null>(null);
   const leadsRef = useRef<Lead[]>([]);
   leadsRef.current = leads;
@@ -1397,6 +1399,12 @@ export function CrmPage() {
 
       const stageName =
         sortedStages.find((s) => s.id === newStageId)?.name ?? lead.stage_name;
+
+      if (String(stageName).trim() === "В ожидании") {
+        setWaitingModalLeadId(leadId);
+        return;
+      }
+
       const previous = leads;
       const optimistic = leads.map((l) =>
         l.id === leadId ? { ...l, status_id: newStageId, stage_name: stageName } : l,
@@ -2644,6 +2652,20 @@ export function CrmPage() {
       {crmView === "board" && sortedStages.length === 0 && !stagesQuery.isLoading && !stagesQuery.isError && (
         <p className="text-sm mo-muted">Этапы воронки не загружены.</p>
       )}
+      {waitingModalLeadId != null ? (
+        <WaitingCallbackModal
+          leadId={waitingModalLeadId}
+          open
+          onClose={() => setWaitingModalLeadId(null)}
+          onSaved={() => {
+            void queryClient.invalidateQueries({ queryKey: ["leads"] });
+            void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
+            void queryClient.invalidateQueries({ queryKey: ["leads-stage-counts"] });
+            void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+            void queryClient.invalidateQueries({ queryKey: ["chat-threads"] });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

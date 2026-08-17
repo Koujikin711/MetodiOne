@@ -360,6 +360,7 @@ export function IntegrationSetupPanel() {
   const [tplReminder24h, setTplReminder24h] = useState("");
   const [tplReminder2h, setTplReminder2h] = useState("");
   const [tplReactivation, setTplReactivation] = useState("");
+  const [tplWaitingCallback, setTplWaitingCallback] = useState("");
   const [igPageToken, setIgPageToken] = useState("");
   const [igAppSecret, setIgAppSecret] = useState("");
   const [igGraphHost, setIgGraphHost] = useState<"page" | "instagram">("instagram");
@@ -400,6 +401,7 @@ export function IntegrationSetupPanel() {
     setTplReminder24h("");
     setTplReminder2h("");
     setTplReactivation("");
+    setTplWaitingCallback("");
     setIntegrationCloseDealEnabled(false);
     setIgPageToken("");
     setIgAppSecret("");
@@ -524,6 +526,7 @@ export function IntegrationSetupPanel() {
     setTplReminder24h(pick("reminder_24h"));
     setTplReminder2h(pick("reminder_2h"));
     setTplReactivation(pick("reactivation"));
+    setTplWaitingCallback(pick("waiting_callback"));
   }
 
   const integrationStagesQuery = useQuery({
@@ -613,6 +616,7 @@ export function IntegrationSetupPanel() {
       reminder_24h: tplReminder24h.trim(),
       reminder_2h: tplReminder2h.trim(),
       reactivation: tplReactivation.trim(),
+      waiting_callback: tplWaitingCallback.trim(),
     };
 
     if (editingIntegrationId != null) {
@@ -1295,7 +1299,7 @@ export function IntegrationSetupPanel() {
                 <div className="rounded-xl border border-[var(--mo-border)]/60 bg-[var(--mo-surface)] p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--mo-text-muted)]">Шаблоны сообщений</p>
                   <p className="mt-1 text-[11px] text-[var(--mo-text-muted)]">
-                    Переменные: {"{name}"}, {"{date}"}, {"{time}"}, {"{manager}"}
+                    Переменные: {"{name}"}, {"{date}"}, {"{time}"}, {"{manager}"}, {"{pain}"}
                   </p>
                   <div className="mt-2 grid gap-2">
                     <label className="text-sm text-[var(--mo-text-muted)]">
@@ -1342,6 +1346,16 @@ export function IntegrationSetupPanel() {
                         value={tplReactivation}
                         onChange={(e) => setTplReactivation(e.target.value)}
                         rows={2}
+                        className="mt-1 w-full rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] mo-input py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-sm text-[var(--mo-text-muted)]">
+                      Напоминание «В ожидании» (клиенту в момент связи)
+                      <textarea
+                        value={tplWaitingCallback}
+                        onChange={(e) => setTplWaitingCallback(e.target.value)}
+                        rows={2}
+                        placeholder="Здравствуйте, {name}! Сегодня в {time} с вами свяжется {manager}."
                         className="mt-1 w-full rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] mo-input py-2 text-sm"
                       />
                     </label>

@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
 import { ChatMediaVideo } from "@/components/ChatMediaVideo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl, resolveMediaUrl } from "@/lib/api";
@@ -552,6 +553,7 @@ export function ChatPage() {
   /** Ждут ответа / Не ответили — поверх стадий для менеджера. */
   const [replyQueue, setReplyQueue] = useState<ChatThreadBucket>("awaiting_reply");
   const [statusOpen, setStatusOpen] = useState(false);
+  const [waitingModalLeadId, setWaitingModalLeadId] = useState<number | null>(null);
 
   useChatRealtime(userRole === "manager" || userRole === "admin" || userRole === "owner");
 
@@ -1424,13 +1426,19 @@ export function ChatPage() {
                             key={s.id}
                             type="button"
                             disabled={setLeadStatusMutation.isPending || current}
-                            onClick={() =>
+                            onClick={() => {
+                              const leadId = Number(activeThread.lead_id);
+                              if (s.name.trim() === "В ожидании") {
+                                setStatusOpen(false);
+                                setWaitingModalLeadId(leadId);
+                                return;
+                              }
                               setLeadStatusMutation.mutate({
-                                leadId: Number(activeThread.lead_id),
+                                leadId,
                                 statusId: s.id,
                                 stageName: s.name,
-                              })
-                            }
+                              });
+                            }}
                             className={[
                               "rounded-lg border px-2.5 py-1.5 text-xs transition",
                               current
@@ -1645,6 +1653,19 @@ export function ChatPage() {
           )}
         </section>
       </div>
+      {waitingModalLeadId != null ? (
+        <WaitingCallbackModal
+          leadId={waitingModalLeadId}
+          open
+          onClose={() => setWaitingModalLeadId(null)}
+          onSaved={() => {
+            void qc.invalidateQueries({ queryKey: ["chat-threads"] });
+            void qc.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
+            void qc.invalidateQueries({ queryKey: ["leads"] });
+            void qc.invalidateQueries({ queryKey: ["tasks"] });
+          }}
+        />
+      ) : null}
     </div>
   );
 }
