@@ -313,8 +313,8 @@ function MessageBody({ m }: { m: ChatMessage }) {
 
   if (showAsAudio && url) {
     return (
-      <div className="space-y-2">
-        <audio src={url} controls className="w-full max-w-sm" preload="metadata" />
+      <div className="chat-msg-media space-y-2">
+        <audio src={url} controls className="chat-msg-audio" preload="metadata" />
         {m.text && !m.text.startsWith("🎵") && !m.text.startsWith("🎤") && <div>{m.text}</div>}
       </div>
     );
@@ -1370,7 +1370,7 @@ export function ChatPage() {
               ) : null}
 
               <div className="flex min-h-0 flex-1 flex-col">
-              <div ref={messagesScrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-0.5 py-2">
+              <div ref={messagesScrollRef} className="chat-thread min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-1 py-3 sm:px-2">
                 {messagesQuery.isLoading && <p className="text-sm lux-caption">Загрузка сообщений…</p>}
                 {(messagesQuery.data ?? []).map((m, idx, arr) => {
                   const isOut = m.direction === "out";
@@ -1383,37 +1383,37 @@ export function ChatPage() {
 
                   const metaToneClass =
                     meta?.tone === "seen"
-                      ? "text-sky-200/95"
+                      ? "chat-msg-meta--seen"
                       : meta?.tone === "good"
-                        ? "text-emerald-200/90"
+                        ? "chat-msg-meta--good"
                         : meta?.tone === "bad"
-                          ? "text-rose-200/95"
-                          : "lux-caption";
+                          ? "chat-msg-meta--bad"
+                          : "chat-msg-meta";
 
                   return (
                     <Fragment key={m.id}>
                       {showDateSep ? (
-                        <div className="flex justify-center py-2">
-                          <span className="rounded-lg bg-[var(--mo-surface-elevated)] px-3 py-1 text-[11px] font-medium shadow-sm ring-1 ring-[var(--mo-border)] lux-caption">
+                        <div className="chat-date-sep">
+                          <span className="chat-date-sep__pill">
                             {formatChatDateSeparator(m.created_at)}
                           </span>
                         </div>
                       ) : null}
                       <div
                         className={[
-                          "max-w-[85%] rounded-xl px-3 py-2 text-sm",
+                          "chat-msg",
                           isOut ? "chat-msg-out" : "chat-msg-in",
                         ].join(" ")}
                       >
                         <MessageBody m={m} />
-                        <div className="mt-1 flex items-center justify-end gap-2 text-[10px] tabular-nums lux-caption">
+                        <div className="chat-msg-footer">
                           {time ? (
                             <span title={formatChatDateSeparator(m.created_at)}>{time}</span>
                           ) : null}
                           {isOut && meta?.label ? <span className={metaToneClass}>{meta.label}</span> : null}
                         </div>
                         {isLastOut && isOut && meta?.label === "Просмотрено" && time ? (
-                          <div className="mt-0.5 text-right text-[10px] tabular-nums text-sky-200/95">
+                          <div className="chat-msg-seen-line">
                             {meta.label} · {time}
                           </div>
                         ) : null}
@@ -1475,7 +1475,7 @@ export function ChatPage() {
                             ? "Голосовое готово — прослушайте и отправьте"
                           : pendingFile
                             ? "Подпись (необязательно)…"
-                            : "Сообщение клиенту…"
+                            : "Сообщение…"
                     }
                     readOnly={isRecording || voiceFinishing}
                     className="mo-input min-w-0 flex-1 rounded-full py-2.5 read-only:opacity-80"
