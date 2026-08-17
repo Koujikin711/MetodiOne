@@ -1052,7 +1052,7 @@ export function ChatPage() {
           className={[
             "mo-card chat-dialogs-rail flex min-h-0 flex-col overflow-hidden p-3 max-lg:rounded-none max-lg:border-0 max-lg:shadow-none max-lg:p-2.5 lg:h-full lg:min-w-[320px] lg:max-w-[360px] lg:shrink-0",
             "max-lg:h-full max-lg:min-h-0",
-            showListOnMobile ? "flex" : "hidden lg:flex",
+            showListOnMobile ? "mo-panel-enter flex" : "hidden lg:flex",
           ].join(" ")}
         >
           <div className="mb-2 text-base font-semibold tracking-tight text-[var(--mo-accent-hover)] max-lg:mb-1.5 max-lg:text-sm">
@@ -1281,9 +1281,9 @@ export function ChatPage() {
 
         <section
           className={[
-            "mo-section flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-3 shadow-inner backdrop-blur-sm sm:p-4 lg:h-full",
+            "mo-section chat-thread-panel flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-3 shadow-inner backdrop-blur-sm sm:p-4 lg:h-full",
             "max-lg:rounded-none max-lg:border-0 max-lg:shadow-none max-lg:p-2",
-            threadId == null ? "hidden lg:flex" : "flex",
+            threadId == null ? "hidden lg:flex" : "mo-panel-enter flex",
             "max-lg:h-full max-lg:min-h-0",
           ].join(" ")}
         >

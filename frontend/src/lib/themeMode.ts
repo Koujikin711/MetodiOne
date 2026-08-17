@@ -33,7 +33,7 @@ function withThemeTransition(apply: () => void) {
     return;
   }
 
-  /** Длительность должна совпадать с CSS (::view-transition / .theme-transitioning). */
+  /** Длительность должна совпадать с CSS --mo-duration-theme. */
   const DURATION_MS = 820;
 
   if (typeof doc.startViewTransition === "function") {

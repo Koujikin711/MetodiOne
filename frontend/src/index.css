@@ -83,6 +83,16 @@
   --mo-medical-surface: var(--mo-surface-elevated);
   --mo-medical-rail: var(--mo-surface);
   --mo-medical-chat-bg: var(--mo-surface);
+
+  /* Единый motion: все переходы/анимации UI */
+  --mo-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --mo-ease-soft: cubic-bezier(0.33, 0.05, 0.2, 1);
+  --mo-duration-fast: 180ms;
+  --mo-duration: 280ms;
+  --mo-duration-panel: 440ms;
+  --mo-duration-theme: 820ms;
+  --mo-sidebar-duration: var(--mo-duration-panel);
+  --mo-sidebar-ease: var(--mo-ease);
 }
 
 :root[data-theme="dark"] {
@@ -146,11 +156,23 @@
   --mo-medical-chat-bg: var(--mo-surface);
 }
 
-/* Чат: в диалоге на мобиле — без нижней навигации (сразу, без «разъезда») */
+/* Чат: в диалоге нижняя навигация уезжает вниз (тот же ease, что везде) */
+nav[aria-label="Основная навигация"] {
+  transition:
+    opacity var(--mo-duration) var(--mo-ease),
+    transform var(--mo-duration) var(--mo-ease),
+    visibility 0s linear 0s;
+}
+
 html[data-chat-composing="1"] nav[aria-label="Основная навигация"] {
-  display: none !important;
+  opacity: 0;
+  transform: translateY(110%);
   visibility: hidden;
   pointer-events: none;
+  transition:
+    opacity var(--mo-duration) var(--mo-ease),
+    transform var(--mo-duration) var(--mo-ease),
+    visibility 0s linear var(--mo-duration);
 }
 
 html[data-chat-composing="1"] .shell-main {
@@ -222,7 +244,7 @@ body {
   background-color: var(--mo-canvas);
 }
 
-/* Плавный переход светлая ↔ тёмная */
+/* Плавный переход светлая ↔ тёмная — те же токены motion */
 @media (prefers-reduced-motion: no-preference) {
   html.theme-transitioning,
   html.theme-transitioning body,
@@ -253,21 +275,21 @@ body {
   html.theme-transitioning .shell-nav-text,
   html.theme-transitioning .shell-nav-label {
     transition:
-      background-color 0.8s cubic-bezier(0.33, 0.05, 0.2, 1),
-      background 0.8s cubic-bezier(0.33, 0.05, 0.2, 1),
-      color 0.75s cubic-bezier(0.33, 0.05, 0.2, 1),
-      border-color 0.8s cubic-bezier(0.33, 0.05, 0.2, 1),
-      box-shadow 0.8s cubic-bezier(0.33, 0.05, 0.2, 1),
-      fill 0.75s cubic-bezier(0.33, 0.05, 0.2, 1),
-      stroke 0.75s cubic-bezier(0.33, 0.05, 0.2, 1),
-      filter 0.8s cubic-bezier(0.33, 0.05, 0.2, 1),
-      opacity 0.8s cubic-bezier(0.33, 0.05, 0.2, 1);
+      background-color var(--mo-duration-theme) var(--mo-ease-soft),
+      background var(--mo-duration-theme) var(--mo-ease-soft),
+      color var(--mo-duration-theme) var(--mo-ease-soft),
+      border-color var(--mo-duration-theme) var(--mo-ease-soft),
+      box-shadow var(--mo-duration-theme) var(--mo-ease-soft),
+      fill var(--mo-duration-theme) var(--mo-ease-soft),
+      stroke var(--mo-duration-theme) var(--mo-ease-soft),
+      filter var(--mo-duration-theme) var(--mo-ease-soft),
+      opacity var(--mo-duration-theme) var(--mo-ease-soft);
   }
 
   ::view-transition-old(root),
   ::view-transition-new(root) {
-    animation-duration: 0.82s;
-    animation-timing-function: cubic-bezier(0.33, 0.05, 0.2, 1);
+    animation-duration: var(--mo-duration-theme);
+    animation-timing-function: var(--mo-ease-soft);
   }
 
   ::view-transition-old(root) {
@@ -276,6 +298,55 @@ body {
 
   ::view-transition-new(root) {
     animation-name: mo-theme-fade-in;
+  }
+
+  /* Смена экрана (Outlet) — мягкий fade без сдвига (сдвиг только у панелей чата) */
+  .mo-page-enter,
+  .crm-page,
+  .sales-desk-page {
+    animation: mo-fade-in var(--mo-duration) var(--mo-ease) both;
+  }
+
+  /* Чат: список ↔ диалог */
+  .chat-dialogs-rail.mo-panel-enter,
+  .chat-thread-panel.mo-panel-enter {
+    animation: mo-fade-rise var(--mo-duration) var(--mo-ease) both;
+  }
+
+  @keyframes mo-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes mo-fade-rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Интерактив: один стиль hover/active */
+  .btn-primary,
+  .btn-secondary,
+  .mo-link,
+  .mo-input,
+  .chat-bucket-tab,
+  .chat-thread-row,
+  .chat-thread-header-btn,
+  .crm-lead-card,
+  .crm-kanban-col,
+  nav[aria-label="Основная навигация"] .shell-nav-link {
+    transition-property: background-color, background, color, border-color, box-shadow, opacity, transform, filter;
+    transition-duration: var(--mo-duration-fast);
+    transition-timing-function: var(--mo-ease);
   }
 
   @keyframes mo-theme-fade-out {
@@ -331,8 +402,6 @@ body {
 }
 
 .shell-sidebar {
-  --mo-sidebar-duration: 0.44s;
-  --mo-sidebar-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --mo-sidebar-fg: #1e293b;
   --mo-sidebar-fg-muted: #64748b;
   --mo-sidebar-item-hover: rgba(99, 102, 241, 0.1);
@@ -388,7 +457,7 @@ body {
 
 .shell-main {
   min-width: 0;
-  transition: padding var(--mo-sidebar-duration, 0.44s) var(--mo-sidebar-ease, cubic-bezier(0.22, 1, 0.36, 1));
+  transition: padding var(--mo-sidebar-duration) var(--mo-sidebar-ease);
 }
 
 /* Мобилка: без анимации padding — иначе при CRM↔Чат окно «разъезжается» */
@@ -422,8 +491,8 @@ body {
   cursor: grab;
   touch-action: none;
   transition:
-    opacity 0.28s ease,
-    transform 0.28s var(--mo-sidebar-ease, cubic-bezier(0.22, 1, 0.36, 1));
+    opacity var(--mo-duration-fast) var(--mo-ease),
+    transform var(--mo-duration-fast) var(--mo-sidebar-ease);
 }
 
 .shell-sidebar.is-expanded .shell-nav-drag-handle {
@@ -1017,10 +1086,16 @@ body {
   color: #f8fafc;
 }
 
-/* Нижняя мобильная навигация — светлая палитра */
+/* Нижняя мобильная навигация — светлая палитра + единый motion */
 nav[aria-label="Основная навигация"] .shell-nav-link {
-  @apply rounded-2xl transition duration-200;
+  @apply rounded-2xl;
   color: var(--mo-text-muted);
+  transition:
+    background-color var(--mo-duration-fast) var(--mo-ease),
+    color var(--mo-duration-fast) var(--mo-ease),
+    border-color var(--mo-duration-fast) var(--mo-ease),
+    box-shadow var(--mo-duration-fast) var(--mo-ease),
+    transform var(--mo-duration-fast) var(--mo-ease);
 }
 
 nav[aria-label="Основная навигация"] .shell-nav-link:hover {
@@ -1043,9 +1118,16 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   .shell-nav-icon-box,
   .shell-nav-icon-glyph,
   .shell-nav-text,
-  .shell-nav-label {
+  .shell-nav-label,
+  .mo-page-enter,
+  .mo-panel-enter,
+  .crm-page,
+  .sales-desk-page,
+  nav[aria-label="Основная навигация"],
+  nav[aria-label="Основная навигация"] .shell-nav-link {
     transition-duration: 0.01ms !important;
     transition-delay: 0ms !important;
+    animation: none !important;
   }
 }
 

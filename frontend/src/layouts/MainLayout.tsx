@@ -48,10 +48,10 @@ function salesMobileBottomNavLinkClass({ isActive }: { isActive: boolean }) {
 }
 
 const mobileBottomLogoutClass =
-  "group flex shrink-0 min-w-[4.25rem] flex-col items-center gap-1 rounded-2xl px-2 py-1.5 text-center lux-caption transition-all duration-500 hover:bg-white/[0.04] hover:text-[var(--mo-text)]";
+  "group flex shrink-0 min-w-[4.25rem] flex-col items-center gap-1 rounded-2xl px-2 py-1.5 text-center lux-caption transition-[background-color,color,transform] duration-[var(--mo-duration-fast)] ease-[var(--mo-ease)] hover:bg-white/[0.04] hover:text-[var(--mo-text)]";
 
 const salesMobileBottomLogoutClass =
-  "group flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-0.5 py-1 text-center lux-caption transition-all duration-200 hover:bg-white/[0.04] hover:text-[var(--mo-text)]";
+  "group flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-0.5 py-1 text-center lux-caption transition-[background-color,color,transform] duration-[var(--mo-duration-fast)] ease-[var(--mo-ease)] hover:bg-white/[0.04] hover:text-[var(--mo-text)]";
 function NavIf({ show, children }: { show: boolean; children: ReactNode }) {
   if (!show) return null;
   return <>{children}</>;
