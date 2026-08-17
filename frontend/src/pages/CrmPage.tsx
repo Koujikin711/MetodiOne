@@ -2601,35 +2601,37 @@ export function CrmPage() {
             onDragEnd={onDragEnd}
             onDragCancel={onDragCancel}
           >
-            <div
-              ref={boardContainerRef}
-              onWheelCapture={onBoardWheelCapture}
-              className="no-scrollbar flex gap-4 overflow-x-auto pb-4"
-            >
-              {sortedStages.map((stage) => (
-                <KanbanColumn
-                  key={stage.id}
-                  stage={stage}
-                  leads={leadsByStage.get(stage.id) ?? []}
-                  totalCount={stageCountById.get(stage.id) ?? 0}
-                  loadingMore={columnLoadingIds.includes(stage.id)}
-                  currentRole={currentRole}
-                  onRefresh={refreshAll}
-                  onLoadMore={loadMoreForStage}
-                  registerScrollContainer={registerScrollContainer}
-                />
-              ))}
+            <div className="crm-board-wrap">
+              <div
+                ref={boardContainerRef}
+                onWheelCapture={onBoardWheelCapture}
+                className="crm-board-scroller"
+              >
+                {sortedStages.map((stage) => (
+                  <KanbanColumn
+                    key={stage.id}
+                    stage={stage}
+                    leads={leadsByStage.get(stage.id) ?? []}
+                    totalCount={stageCountById.get(stage.id) ?? 0}
+                    loadingMore={columnLoadingIds.includes(stage.id)}
+                    currentRole={currentRole}
+                    onRefresh={refreshAll}
+                    onLoadMore={loadMoreForStage}
+                    registerScrollContainer={registerScrollContainer}
+                  />
+                ))}
+              </div>
+              <p className="crm-board-footnote shrink-0 text-center text-[10px] mo-muted sm:text-left">
+                {pipelineLeadTotal != null
+                  ? `Счётчики — из базы (всего ${pipelineLeadTotal.toLocaleString("ru-RU")}${
+                      archiveStageCount != null
+                        ? `, «Архив» ${archiveStageCount.toLocaleString("ru-RU")}`
+                        : ""
+                    }). `
+                  : null}
+                Карточки догружаются при скролле колонки; поиск по всему складу — вкладка «Список».
+              </p>
             </div>
-            <p className="mt-1 text-center text-[10px] mo-muted sm:text-left">
-              {pipelineLeadTotal != null
-                ? `Счётчики — из базы (всего ${pipelineLeadTotal.toLocaleString("ru-RU")}${
-                    archiveStageCount != null
-                      ? `, «Архив» ${archiveStageCount.toLocaleString("ru-RU")}`
-                      : ""
-                  }). `
-                : null}
-              Карточки догружаются при скролле колонки; поиск по всему складу — вкладка «Список».
-            </p>
             <DragOverlay dropAnimation={null}>
               {activeLead ? (
                 <LeadCardDragOverlay lead={activeLead} stageColor={activeLeadStageColor} />

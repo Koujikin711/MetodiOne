@@ -1750,11 +1750,26 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 /* CRM — executive kanban */
 .crm-page {
-  @apply relative mx-auto w-full min-w-0 max-w-none space-y-3 pb-8;
+  @apply relative mx-auto flex w-full min-w-0 max-w-none flex-col;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  gap: 0.75rem;
+  padding-bottom: 0;
+}
+
+.crm-board-wrap {
+  @apply flex min-h-0 flex-1 flex-col gap-1;
+  overflow: hidden;
+}
+
+.crm-board-scroller {
+  @apply no-scrollbar flex min-h-0 flex-1 gap-4 overflow-x-auto overflow-y-hidden pb-1;
 }
 
 .crm-toolbar {
-  @apply w-full min-w-0 space-y-2;
+  @apply w-full min-w-0 shrink-0 space-y-2;
   position: sticky;
   top: 0;
   z-index: 30;
@@ -1925,7 +1940,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-kanban-col {
-  @apply flex w-[min(100%,300px)] min-w-[268px] shrink-0 flex-col overflow-hidden rounded-2xl border;
+  @apply flex h-full w-[min(100%,300px)] min-w-[268px] shrink-0 flex-col overflow-hidden rounded-2xl border;
   border-color: var(--mo-border);
   background-color: var(--mo-surface);
   box-shadow: var(--mo-shadow-luxury);
@@ -1958,7 +1973,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .crm-kanban-col-body {
   @apply flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain p-2.5;
-  max-height: min(72vh, 560px);
   background-color: var(--mo-surface);
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--mo-accent) 45%, transparent) transparent;

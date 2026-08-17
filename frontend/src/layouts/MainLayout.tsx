@@ -177,6 +177,7 @@ export function MainLayout() {
                 ].join(" ")
               : "",
             location.pathname.startsWith("/chat") ||
+            location.pathname.startsWith("/crm") ||
             location.pathname.startsWith("/messenger") ||
             location.pathname.startsWith("/tasks") ||
             location.pathname.startsWith("/analytics") ||
@@ -188,7 +189,9 @@ export function MainLayout() {
                   "max-lg:overflow-hidden lg:overflow-hidden lg:py-4 lg:pb-4",
                   location.pathname.startsWith("/chat") || location.pathname.startsWith("/messenger")
                     ? "lg:px-6"
-                    : "",
+                    : location.pathname.startsWith("/crm")
+                      ? "lg:px-8 lg:pb-4"
+                      : "",
                 ]
                   .filter(Boolean)
                   .join(" ")
@@ -209,6 +212,7 @@ export function MainLayout() {
           <div
             className={
               location.pathname.startsWith("/chat") ||
+              location.pathname.startsWith("/crm") ||
               location.pathname.startsWith("/messenger") ||
               location.pathname.startsWith("/tasks") ||
               location.pathname.startsWith("/analytics") ||
