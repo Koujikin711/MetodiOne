@@ -1076,6 +1076,31 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   }
 }
 
+.sales-desk-page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+@media (min-width: 640px) {
+  .sales-desk-page {
+    height: calc(100dvh - 1.5rem);
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  .sales-desk-scroll {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .sales-desk-table {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+}
+
 .auth-gradient-bg {
   background-color: var(--mo-canvas);
 }

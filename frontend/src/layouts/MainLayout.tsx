@@ -178,6 +178,7 @@ export function MainLayout() {
               : "",
             location.pathname.startsWith("/chat") ||
             location.pathname.startsWith("/crm") ||
+            location.pathname.startsWith("/sales") ||
             location.pathname.startsWith("/messenger") ||
             location.pathname.startsWith("/tasks") ||
             location.pathname.startsWith("/analytics") ||
@@ -191,7 +192,9 @@ export function MainLayout() {
                     ? "lg:px-6"
                     : location.pathname.startsWith("/crm")
                       ? "sm:!px-5 lg:!px-5 sm:!py-2 sm:!pb-2 lg:!py-2 lg:!pb-2"
-                      : "",
+                      : location.pathname.startsWith("/sales")
+                        ? "sm:!px-5 lg:!px-6 sm:!py-3 sm:!pb-3 lg:!py-3 lg:!pb-3"
+                        : "",
                 ]
                   .filter(Boolean)
                   .join(" ")
@@ -213,6 +216,7 @@ export function MainLayout() {
             className={
               location.pathname.startsWith("/chat") ||
               location.pathname.startsWith("/crm") ||
+              location.pathname.startsWith("/sales") ||
               location.pathname.startsWith("/messenger") ||
               location.pathname.startsWith("/tasks") ||
               location.pathname.startsWith("/analytics") ||
@@ -224,6 +228,7 @@ export function MainLayout() {
                     "flex h-full min-h-0 flex-1 flex-col",
                     location.pathname.startsWith("/chat") ? "max-lg:h-full max-lg:min-h-0" : "",
                     location.pathname.startsWith("/crm") ? "min-h-0 flex-1 [&>*]:min-h-0 [&>*]:flex-1" : "",
+                    location.pathname.startsWith("/sales") ? "min-h-0 flex-1 [&>*]:min-h-0 [&>*]:flex-1" : "",
                   ]
                     .filter(Boolean)
                     .join(" ")

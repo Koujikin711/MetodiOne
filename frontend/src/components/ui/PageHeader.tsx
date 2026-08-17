@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 type Props = {
   title: string;
-  description?: string;
+  description?: ReactNode;
   actions?: ReactNode;
   className?: string;
 };
@@ -17,7 +17,7 @@ export function PageHeader({ title, description, actions, className = "" }: Prop
     >
       <div className="min-w-0">
         <h1 className="lux-heading-page">{title}</h1>
-        {description ? <p className="lux-body mt-1.5 max-w-2xl">{description}</p> : null}
+        {description ? <div className="lux-body mt-1.5 max-w-2xl">{description}</div> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
