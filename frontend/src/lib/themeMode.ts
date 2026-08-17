@@ -28,19 +28,31 @@ function withThemeTransition(apply: () => void) {
     startViewTransition?: (cb: () => void) => { finished: Promise<void> };
   };
 
-  if (!reduced && typeof doc.startViewTransition === "function") {
-    doc.startViewTransition(apply);
-    return;
-  }
-
   if (reduced) {
     apply();
     return;
   }
 
+  /** Длительность должна совпадать с CSS (::view-transition / .theme-transitioning). */
+  const DURATION_MS = 820;
+
+  if (typeof doc.startViewTransition === "function") {
+    root.classList.add("theme-transitioning");
+    const vt = doc.startViewTransition(apply);
+    void vt.finished.finally(() => {
+      root.classList.remove("theme-transitioning");
+    });
+    return;
+  }
+
   root.classList.add("theme-transitioning");
-  apply();
-  window.setTimeout(() => root.classList.remove("theme-transitioning"), 420);
+  // Двойной rAF — браузер успевает зафиксировать «до», потом меняем тему.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      apply();
+      window.setTimeout(() => root.classList.remove("theme-transitioning"), DURATION_MS);
+    });
+  });
 }
 
 export function toggleTheme(): ThemeMode {

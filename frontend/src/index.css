@@ -225,6 +225,8 @@ body {
   html.theme-transitioning .app-shell-bg,
   html.theme-transitioning .shell-sidebar,
   html.theme-transitioning .shell-main,
+  html.theme-transitioning .shell-sidebar-brand,
+  html.theme-transitioning .shell-sidebar-brand-text,
   html.theme-transitioning .mo-section,
   html.theme-transitioning .mo-card,
   html.theme-transitioning .mo-input,
@@ -236,19 +238,62 @@ body {
   html.theme-transitioning .integ-card,
   html.theme-transitioning .chat-bucket-tab,
   html.theme-transitioning .analytics-kpi,
-  html.theme-transitioning .shell-nav-link {
+  html.theme-transitioning .crm-page,
+  html.theme-transitioning .crm-toolbar,
+  html.theme-transitioning .crm-kanban-col,
+  html.theme-transitioning .crm-lead-card,
+  html.theme-transitioning .chat-msg,
+  html.theme-transitioning .chat-composer,
+  html.theme-transitioning .shell-nav-link,
+  html.theme-transitioning .shell-nav-icon,
+  html.theme-transitioning .shell-nav-text,
+  html.theme-transitioning .shell-nav-label {
     transition:
-      background-color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-      background 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-      color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-      box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+      background-color 0.8s cubic-bezier(0.33, 0.05, 0.2, 1),
+      background 0.8s cubic-bezier(0.33, 0.05, 0.2, 1),
+      color 0.75s cubic-bezier(0.33, 0.05, 0.2, 1),
+      border-color 0.8s cubic-bezier(0.33, 0.05, 0.2, 1),
+      box-shadow 0.8s cubic-bezier(0.33, 0.05, 0.2, 1),
+      fill 0.75s cubic-bezier(0.33, 0.05, 0.2, 1),
+      stroke 0.75s cubic-bezier(0.33, 0.05, 0.2, 1),
+      filter 0.8s cubic-bezier(0.33, 0.05, 0.2, 1),
+      opacity 0.8s cubic-bezier(0.33, 0.05, 0.2, 1);
   }
 
   ::view-transition-old(root),
   ::view-transition-new(root) {
-    animation-duration: 0.45s;
-    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-duration: 0.82s;
+    animation-timing-function: cubic-bezier(0.33, 0.05, 0.2, 1);
+  }
+
+  ::view-transition-old(root) {
+    animation-name: mo-theme-fade-out;
+  }
+
+  ::view-transition-new(root) {
+    animation-name: mo-theme-fade-in;
+  }
+
+  @keyframes mo-theme-fade-out {
+    from {
+      opacity: 1;
+      filter: brightness(1) saturate(1);
+    }
+    to {
+      opacity: 0;
+      filter: brightness(1.04) saturate(0.92);
+    }
+  }
+
+  @keyframes mo-theme-fade-in {
+    from {
+      opacity: 0;
+      filter: brightness(0.96) saturate(0.95);
+    }
+    to {
+      opacity: 1;
+      filter: brightness(1) saturate(1);
+    }
   }
 }
 
