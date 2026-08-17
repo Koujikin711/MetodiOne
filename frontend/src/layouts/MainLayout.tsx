@@ -186,11 +186,11 @@ export function MainLayout() {
             location.pathname.startsWith("/integrations") ||
             location.pathname.startsWith("/finance")
               ? [
-                  "max-lg:overflow-hidden lg:overflow-hidden lg:py-4 lg:pb-4",
+                  "max-lg:overflow-hidden sm:flex sm:flex-col sm:overflow-hidden sm:!py-4 sm:!pb-4 lg:overflow-hidden lg:py-4 lg:pb-4",
                   location.pathname.startsWith("/chat") || location.pathname.startsWith("/messenger")
                     ? "lg:px-6"
                     : location.pathname.startsWith("/crm")
-                      ? "lg:px-8 lg:pb-4"
+                      ? "sm:!px-6 lg:px-6 sm:!pb-3 lg:!pb-3"
                       : "",
                 ]
                   .filter(Boolean)
@@ -221,8 +221,9 @@ export function MainLayout() {
               location.pathname.startsWith("/integrations") ||
               location.pathname.startsWith("/finance")
                 ? [
-                    "flex min-h-0 flex-1 flex-col",
+                    "flex h-full min-h-0 flex-1 flex-col",
                     location.pathname.startsWith("/chat") ? "max-lg:h-full max-lg:min-h-0" : "",
+                    location.pathname.startsWith("/crm") ? "min-h-0 flex-1 [&>*]:min-h-0 [&>*]:flex-1" : "",
                   ]
                     .filter(Boolean)
                     .join(" ")
