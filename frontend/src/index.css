@@ -152,13 +152,57 @@ html[data-chat-composing="1"] nav[aria-label="Основная навигаци�
 }
 
 html[data-chat-composing="1"] .shell-main {
-  padding-bottom: max(0.75rem, env(safe-area-inset-bottom)) !important;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom)) !important;
 }
 
 @media (min-width: 640px) {
   html[data-chat-composing="1"] .shell-main {
     padding-bottom: 2.5rem !important;
   }
+}
+
+.chat-attach-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface);
+  padding: 0.4rem 0.45rem 0.4rem 0.7rem;
+}
+.chat-attach-chip__name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mo-text);
+}
+.chat-attach-chip__remove {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+  color: var(--mo-text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.chat-attach-chip__remove:hover {
+  color: var(--mo-danger);
+  border-color: color-mix(in srgb, var(--mo-danger) 40%, var(--mo-border));
+}
+
+.chat-composer {
+  position: relative;
+  z-index: 2;
 }
 
 body {

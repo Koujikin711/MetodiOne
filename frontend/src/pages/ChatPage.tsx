@@ -683,6 +683,30 @@ export function ChatPage() {
     return () => root.removeAttribute("data-chat-composing");
   }, [hideMobileBottomNav]);
 
+  /** Android/iOS: высота под клавиатуру — композер остаётся над ней, лента скроллится отдельно */
+  useEffect(() => {
+    if (threadId == null) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty("--chat-keyboard-inset", `${Math.round(inset)}px`);
+    };
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    sync();
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      document.documentElement.style.removeProperty("--chat-keyboard-inset");
+    };
+  }, [threadId]);
+
+  const clearPendingFile = () => {
+    setPendingFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const selectedThread = useMemo(() => allThreads.find((t) => t.id === threadId) ?? null, [allThreads, threadId]);
 
   useEffect(() => {
@@ -1000,8 +1024,9 @@ export function ChatPage() {
     });
   };
 
-  const mobileChatHeight =
-    "max-lg:h-[calc(100dvh-5.75rem-env(safe-area-inset-bottom))] max-lg:max-h-[calc(100dvh-5.75rem-env(safe-area-inset-bottom))]";
+  const mobileChatHeight = hideMobileBottomNav
+    ? "max-lg:h-[calc(100dvh-env(safe-area-inset-bottom)-var(--chat-keyboard-inset,0px))] max-lg:max-h-[calc(100dvh-env(safe-area-inset-bottom)-var(--chat-keyboard-inset,0px))]"
+    : "max-lg:h-[calc(100dvh-5.75rem-env(safe-area-inset-bottom))] max-lg:max-h-[calc(100dvh-5.75rem-env(safe-area-inset-bottom))]";
 
   return (
     <div
@@ -1475,7 +1500,7 @@ export function ChatPage() {
               </div>
 
               <form
-                className="chat-composer shrink-0 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] pt-2.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] lg:rounded-2xl lg:border lg:bg-[var(--mo-surface-elevated)] lg:p-3 lg:pb-3"
+                className="chat-composer shrink-0 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] pt-2 pb-[max(0.35rem,env(safe-area-inset-bottom))] lg:rounded-2xl lg:border lg:bg-[var(--mo-surface-elevated)] lg:p-3 lg:pb-3"
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (isRecording || voiceFinishing) return;
@@ -1497,6 +1522,23 @@ export function ChatPage() {
                     setPendingFile(f ?? null);
                   }}
                 />
+                {pendingFile && !isRecording ? (
+                  <div className="chat-attach-chip mb-2">
+                    <span className="chat-attach-chip__name" title={pendingFile.name}>
+                      {pendingFile.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="chat-attach-chip__remove"
+                      onClick={clearPendingFile}
+                      disabled={sendMutation.isPending}
+                      title="Удалить вложение"
+                      aria-label="Удалить вложение"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : null}
                 <div className="flex items-end gap-2">
                   <button
                     type="button"
@@ -1563,24 +1605,15 @@ export function ChatPage() {
                     </button>
                   )}
                 </div>
-                {canSendMessage && !isRecording ? (
-                  <button
-                    type="submit"
-                    disabled={sendMutation.isPending || voiceFinishing}
-                    className="btn-primary mt-2 w-full px-4 py-2.5 disabled:opacity-60 lg:hidden"
-                  >
-                    {voiceDraftFile ? "Отправить голосовое" : "Отправить"}
-                  </button>
-                ) : null}
               </form>
               {isRecording && (
-                <p className="mt-1 text-xs font-medium text-red-300/90">● Запись… нажмите круглую кнопку ещё раз, чтобы остановить</p>
+                <p className="mt-1 shrink-0 text-xs font-medium text-red-300/90">● Запись… нажмите круглую кнопку ещё раз, чтобы остановить</p>
               )}
               {voiceFinishing && !isRecording && (
-                <p className="mt-1 text-xs lux-caption">Отправка голосового…</p>
+                <p className="mt-1 shrink-0 text-xs lux-caption">Отправка голосового…</p>
               )}
               {voiceDraftUrl && voiceDraftFile && !isRecording && !voiceFinishing && (
-                <div className="mt-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
+                <div className="mt-2 shrink-0 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
                   <div className="text-xs font-semibold text-[var(--mo-text)]">Предпрослушивание голосового</div>
                   <audio src={voiceDraftUrl} controls className="mt-2 w-full max-w-md" />
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -1602,9 +1635,6 @@ export function ChatPage() {
                     </button>
                   </div>
                 </div>
-              )}
-              {pendingFile && !isRecording && (
-                <p className="mt-1 text-xs lux-caption">Вложение: {pendingFile.name}</p>
               )}
               </div>
             </>
