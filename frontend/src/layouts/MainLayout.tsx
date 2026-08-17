@@ -190,7 +190,7 @@ export function MainLayout() {
                   location.pathname.startsWith("/chat") || location.pathname.startsWith("/messenger")
                     ? "lg:px-6"
                     : location.pathname.startsWith("/crm")
-                      ? "sm:!px-6 lg:px-6 sm:!pb-3 lg:!pb-3"
+                      ? "sm:!px-5 lg:!px-5 sm:!py-2 sm:!pb-2 lg:!py-2 lg:!pb-2"
                       : "",
                 ]
                   .filter(Boolean)
