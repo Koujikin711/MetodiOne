@@ -163,6 +163,46 @@ function imageCaptionToShow(m: ChatMessage): string | null {
   return m.text;
 }
 
+/** Служебные подписи медиа — не дублируем рядом с плеером/превью. */
+function isMediaPlaceholderText(text: string): boolean {
+  const t = text.trim();
+  if (!t) return true;
+  if (/^[🎵🎤📷🎬📎]\s*/u.test(t)) return true;
+  const low = t.toLowerCase();
+  return (
+    low === "файл" ||
+    low === "вложение" ||
+    low === "аудио" ||
+    low === "голосовое" ||
+    low === "голосовое сообщение" ||
+    low === "фото" ||
+    low === "видео"
+  );
+}
+
+function audioCaptionToShow(m: ChatMessage): string | null {
+  const t = (m.text || "").trim();
+  if (!t || isMediaPlaceholderText(t)) return null;
+  const fn = (m.file_name || "").trim();
+  if (fn && (t === fn || t === `📎 ${fn}`)) return null;
+  return t;
+}
+
+function documentLabelToShow(m: ChatMessage): string {
+  const fn = (m.file_name || "").trim();
+  if (fn) return fn;
+  const t = (m.text || "").trim();
+  if (t && !isMediaPlaceholderText(t)) return t;
+  return "Документ";
+}
+
+function documentExtraCaption(m: ChatMessage, label: string): string | null {
+  const t = (m.text || "").trim();
+  if (!t || isMediaPlaceholderText(t)) return null;
+  if (t === label || t === `📎 ${label}`) return null;
+  return t;
+}
+
 function isProtectedApiMediaUrl(url: string | null | undefined): boolean {
   const u = (url || "").trim();
   if (!u) return true;
@@ -312,26 +352,28 @@ function MessageBody({ m }: { m: ChatMessage }) {
   }
 
   if (showAsAudio && url) {
+    const cap = audioCaptionToShow(m);
     return (
       <div className="chat-msg-media space-y-2">
         <audio src={url} controls className="chat-msg-audio" preload="metadata" />
-        {m.text && !m.text.startsWith("🎵") && !m.text.startsWith("🎤") && <div>{m.text}</div>}
+        {cap ? <div>{cap}</div> : null}
       </div>
     );
   }
 
   if (url) {
+    const label = documentLabelToShow(m);
     return (
       <div className="space-y-2">
         <a
           href={url}
           target="_blank"
           rel="noreferrer"
-          className="text-indigo-300 underline underline-offset-2 hover:text-indigo-200"
+          className="inline-flex items-center gap-1.5 font-medium underline underline-offset-2 text-[var(--mo-accent-hover)] hover:opacity-90"
         >
-          {m.file_name || "📎"}
+          {label}
         </a>
-        {m.text && <div>{m.text}</div>}
+        {documentExtraCaption(m, label) ? <div>{documentExtraCaption(m, label)}</div> : null}
       </div>
     );
   }

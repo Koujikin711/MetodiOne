@@ -560,12 +560,17 @@ async def _send_green_file_message(
         mtype = "video"
     elif any(low.endswith(x) for x in (".ogg", ".mp3", ".m4a", ".opus", ".wav", ".aac", ".amr")):
         mtype = "audio"
+    default_text = {
+        "audio": "🎤 Голосовое сообщение",
+        "image": "📷 Фото",
+        "video": "🎬 Видео",
+    }.get(mtype, "📎 Файл")
     msg = ChatMessage(
         company_id=thread.company_id,
         thread_id=thread.id,
         author_user_id=current_user.id,
         direction="out",
-        text=caption or "📎 Файл",
+        text=caption or default_text,
         message_type=mtype,
         delivery_status=status_name,
         provider_message_id=provider_msg_id,
