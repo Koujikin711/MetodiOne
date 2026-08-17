@@ -2624,9 +2624,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .chat-msg {
-  @apply max-w-[min(88%,26rem)] px-3.5 py-2.5 text-[0.9375rem] leading-relaxed break-words;
+  @apply max-w-[min(88%,26rem)] px-3.5 py-2 text-[0.9375rem] leading-relaxed break-words;
   border-radius: 1.05rem;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.chat-msg--text::after {
+  content: "";
+  display: table;
+  clear: both;
 }
 
 .chat-msg-out {
@@ -2676,10 +2682,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border-color: transparent;
   box-shadow: none;
 }
-.chat-msg.chat-msg--media .chat-msg-footer,
-.chat-msg.chat-msg--media .chat-msg-seen-line {
+.chat-msg.chat-msg--media .chat-msg-footer {
   color: var(--mo-text-muted);
-  padding-right: 0.25rem;
+  float: none;
+  display: flex;
+  justify-content: flex-end;
+  margin: 0.35rem 0.15rem 0 0;
+  padding: 0;
+  position: static;
+  top: auto;
 }
 .chat-msg.chat-msg--media .chat-msg-meta--seen {
   color: #60a5fa;
@@ -2701,9 +2712,23 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.18);
 }
 
+/* Время как в WhatsApp: внизу справа, на одной линии с текстом при наличии места */
 .chat-msg-footer {
-  @apply mt-1.5 flex items-center justify-end gap-1.5 text-[10px] tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+}
+.chat-msg--text .chat-msg-footer {
+  float: right;
+  margin: 0.15em 0 -0.05em 0.7em;
+  position: relative;
+  top: 0.4em;
 }
 .chat-msg-out .chat-msg-footer {
   color: rgba(248, 250, 252, 0.72);
@@ -2729,12 +2754,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 .chat-msg-in .chat-msg-meta--bad {
   color: #dc2626;
-}
-
-.chat-msg-seen-line {
-  @apply mt-0.5 text-right text-[10px] tabular-nums;
-  color: #bfdbfe;
-  font-family: var(--font-sans);
 }
 
 .chat-msg-audio {

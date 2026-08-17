@@ -386,7 +386,7 @@ function MessageBody({ m }: { m: ChatMessage }) {
     );
   }
 
-  return <div>{m.text}</div>;
+  return <>{m.text}</>;
 }
 
 function MicIcon({ className }: { className?: string }) {
@@ -1426,7 +1426,6 @@ export function ChatPage() {
                   const isOut = m.direction === "out";
                   const time = formatChatTime(m.created_at);
                   const meta = isOut ? deliveryMeta(m.delivery_status) : null;
-                  const isLastOut = isOut && arr.slice(idx + 1).every((x) => x.direction !== "out");
                   const dayKey = localDateKey(m.created_at);
                   const prevDayKey = idx > 0 ? localDateKey(arr[idx - 1]?.created_at) : "";
                   const showDateSep = !!dayKey && dayKey !== prevDayKey;
@@ -1439,6 +1438,8 @@ export function ChatPage() {
                         : meta?.tone === "bad"
                           ? "chat-msg-meta--bad"
                           : "chat-msg-meta";
+
+                  const isMedia = isVisualMediaMessage(m);
 
                   return (
                     <Fragment key={m.id}>
@@ -1453,21 +1454,24 @@ export function ChatPage() {
                         className={[
                           "chat-msg",
                           isOut ? "chat-msg-out" : "chat-msg-in",
-                          isVisualMediaMessage(m) ? "chat-msg--media" : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
+                          isMedia ? "chat-msg--media" : "chat-msg--text",
+                        ].join(" ")}
                       >
+                        {!isMedia ? (
+                          <span className="chat-msg-footer">
+                            {time ? (
+                              <span title={formatChatDateSeparator(m.created_at)}>{time}</span>
+                            ) : null}
+                            {isOut && meta?.label ? <span className={metaToneClass}>{meta.label}</span> : null}
+                          </span>
+                        ) : null}
                         <MessageBody m={m} />
-                        <div className="chat-msg-footer">
-                          {time ? (
-                            <span title={formatChatDateSeparator(m.created_at)}>{time}</span>
-                          ) : null}
-                          {isOut && meta?.label ? <span className={metaToneClass}>{meta.label}</span> : null}
-                        </div>
-                        {isLastOut && isOut && meta?.label === "Просмотрено" && time ? (
-                          <div className="chat-msg-seen-line">
-                            {meta.label} · {time}
+                        {isMedia ? (
+                          <div className="chat-msg-footer">
+                            {time ? (
+                              <span title={formatChatDateSeparator(m.created_at)}>{time}</span>
+                            ) : null}
+                            {isOut && meta?.label ? <span className={metaToneClass}>{meta.label}</span> : null}
                           </div>
                         ) : null}
                       </div>
