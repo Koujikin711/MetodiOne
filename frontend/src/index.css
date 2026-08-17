@@ -2661,6 +2661,46 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border-color: color-mix(in srgb, var(--mo-border) 90%, transparent);
 }
 
+/* Медиа: без цветной заливки — только контент + время */
+.chat-msg.chat-msg--media {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 0.15rem 0.15rem 0.35rem;
+  color: var(--mo-text);
+  max-width: min(92%, 22rem);
+}
+.chat-msg.chat-msg--media.chat-msg-out,
+.chat-msg.chat-msg--media.chat-msg-in {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.chat-msg.chat-msg--media .chat-msg-footer,
+.chat-msg.chat-msg--media .chat-msg-seen-line {
+  color: var(--mo-text-muted);
+  padding-right: 0.25rem;
+}
+.chat-msg.chat-msg--media .chat-msg-meta--seen {
+  color: #60a5fa;
+}
+.chat-msg.chat-msg--media .chat-msg-meta--good {
+  color: #34d399;
+}
+.chat-msg.chat-msg--media .chat-msg-meta--bad {
+  color: #f87171;
+}
+.chat-msg.chat-msg--media .chat-msg-audio {
+  color-scheme: dark;
+  width: 100%;
+  max-width: 18rem;
+}
+.chat-msg.chat-msg--media img,
+.chat-msg.chat-msg--media video {
+  border-radius: 0.9rem;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.18);
+}
+
 .chat-msg-footer {
   @apply mt-1.5 flex items-center justify-end gap-1.5 text-[10px] tabular-nums;
   font-family: var(--font-sans);

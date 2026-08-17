@@ -203,6 +203,14 @@ function documentExtraCaption(m: ChatMessage, label: string): string | null {
   return t;
 }
 
+/** Фото / видео / аудио — без цветной «текстовой» заливки пузыря. */
+function isVisualMediaMessage(m: ChatMessage): boolean {
+  const mt = m.message_type ?? "text";
+  if (mt === "audio" || mt === "image" || mt === "video") return true;
+  if (looksLikeAudioAttachment(m) || looksLikeImageAttachment(m)) return true;
+  return false;
+}
+
 function isProtectedApiMediaUrl(url: string | null | undefined): boolean {
   const u = (url || "").trim();
   if (!u) return true;
@@ -1445,7 +1453,10 @@ export function ChatPage() {
                         className={[
                           "chat-msg",
                           isOut ? "chat-msg-out" : "chat-msg-in",
-                        ].join(" ")}
+                          isVisualMediaMessage(m) ? "chat-msg--media" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
                       >
                         <MessageBody m={m} />
                         <div className="chat-msg-footer">
