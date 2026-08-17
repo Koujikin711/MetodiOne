@@ -113,7 +113,7 @@ export function LoginPage() {
           {mode === "login" ? (
             <p className="mt-2 max-w-sm text-[11px] leading-relaxed text-[#8a7f6e]">
               Клиника: <span className="font-medium">admin</span> / пароль клиники. Продажи:{" "}
-              <span className="font-medium">admin</span> / D711711. Данные пространств не пересекаются.
+              <span className="font-medium">admin</span> / D711711 — только продажи и KPI, без онлайн-записи.
             </p>
           ) : null}
         </div>

@@ -374,76 +374,26 @@ async def _seed_sales_crm_space_inner() -> None:
 
             await ensure_sales_pipeline_chat_stages(session, company_id=cid, pipeline_id=int(pipe.id))
 
-        # Онлайн-запись для стадии «Удачно»: направление + специалист-заглушка при пустой базе.
-        # booking_directions.name is globally unique — clinic seed already owns «Консультация».
-        sales_direction_name = "Консультация (продажи)"
-        has_dir = (
+        # Продажи — без онлайн-записи: KPI/факт из окна «Продажи».
+        # Не создаём сиды записи; старые заглушки деактивируем, чтобы не всплывали в KPI.
+        for stub_dir in (
             await session.execute(
-                select(BookingDirection.id).where(BookingDirection.company_id == cid).limit(1),
+                select(BookingDirection).where(
+                    BookingDirection.company_id == cid,
+                    BookingDirection.name == "Консультация (продажи)",
+                ),
             )
-        ).scalar_one_or_none()
-        if has_dir is None:
-            existing_named = (
-                await session.execute(
-                    select(BookingDirection)
-                    .where(BookingDirection.name == sales_direction_name)
-                    .limit(1),
-                )
-            ).scalar_one_or_none()
-            if existing_named is not None:
-                # Re-bind orphaned seed row to this sales company.
-                existing_named.company_id = cid
-                if existing_named.pipeline_id is None:
-                    existing_named.pipeline_id = int(pipe.id)
-                existing_named.is_active = True
-                has_dir = int(existing_named.id)
-            else:
-                d = BookingDirection(
-                    name=sales_direction_name,
-                    duration_min=30,
-                    is_active=True,
-                    company_id=cid,
-                    pipeline_id=int(pipe.id),
-                )
-                session.add(d)
-                await session.flush()
-                has_dir = int(d.id)
-            has_spec = (
-                await session.execute(
-                    select(BookingSpecialist.id).where(BookingSpecialist.company_id == cid).limit(1),
-                )
-            ).scalar_one_or_none()
-            if has_spec is None:
-                session.add(
-                    BookingSpecialist(
-                        full_name="Специалист (пример)",
-                        company_id=cid,
-                        direction_id=int(has_dir),
-                        phone=None,
-                        is_active=True,
-                        specialization="Эксперт",
-                    ),
-                )
-        else:
-            existing_dir = await session.get(BookingDirection, int(has_dir))
-            if existing_dir is not None and existing_dir.pipeline_id is None:
-                existing_dir.pipeline_id = int(pipe.id)
-            has_spec = (
-                await session.execute(
-                    select(BookingSpecialist.id).where(BookingSpecialist.company_id == cid).limit(1),
-                )
-            ).scalar_one_or_none()
-            if has_spec is None:
-                session.add(
-                    BookingSpecialist(
-                        full_name="Специалист (пример)",
-                        company_id=cid,
-                        direction_id=int(has_dir),
-                        phone=None,
-                        is_active=True,
-                        specialization="Эксперт",
-                    ),
-                )
+        ).scalars().all():
+            stub_dir.is_active = False
+        for stub_spec in (
+            await session.execute(
+                select(BookingSpecialist).where(
+                    BookingSpecialist.company_id == cid,
+                    BookingSpecialist.full_name == "Специалист (пример)",
+                ),
+            )
+        ).scalars().all():
+            stub_spec.is_active = False
 
         defaults = ["GREEN API", "WHATSAPP", "INSTAGRAM", "TELEGRAM", "GOOGLE SHEETS"]
         existing = (

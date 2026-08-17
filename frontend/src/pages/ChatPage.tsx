@@ -541,6 +541,8 @@ export function ChatPage() {
   const userRole = decodeRoleFromToken(getStoredToken());
   const meQuery = useCurrentUserMe();
   const salesChatMode = meQuery.data?.chat_stages_enabled !== false;
+  const salesSpace =
+    meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
   const showManagerChatBuckets =
     userRole === "manager" || userRole === "admin" || userRole === "owner";
   const stageTabs = SALES_STAGE_TABS;
@@ -865,8 +867,13 @@ export function ChatPage() {
       void qc.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
       void qc.invalidateQueries({ queryKey: ["leads"] });
       if (salesChatMode && stageName.trim() === "Удачно") {
-        toast.success("Открываем онлайн-запись — выберите эксперта, дату и сумму");
-        navigate(`/booking?lead_id=${leadId}`);
+        if (salesSpace || meQuery.data?.booking_enabled === false) {
+          toast.success("Открываем окно продаж");
+          navigate(`/sales?lead_id=${leadId}`);
+        } else {
+          toast.success("Открываем онлайн-запись — выберите эксперта, дату и сумму");
+          navigate(`/booking?lead_id=${leadId}`);
+        }
       }
     },
     onError: (e: Error) => toast.error(e.message),

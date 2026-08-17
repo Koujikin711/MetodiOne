@@ -1,8 +1,9 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import {
+  BookingOrSalesEntry,
   HomeEntry,
   RequireFinance,
   RequireNotManager,
@@ -19,7 +20,6 @@ import { LeadDetailPage } from "@/pages/LeadDetailPage";
 import { ForcePasswordPage } from "@/pages/ForcePasswordPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { MyLeadsPage } from "@/pages/MyLeadsPage";
-import { OnlineBookingPage } from "@/pages/OnlineBookingPage";
 import { CompaniesPage } from "@/pages/CompaniesPage";
 import { CrmPage } from "@/pages/CrmPage";
 import { FinancePage } from "@/pages/FinancePage";
@@ -60,7 +60,7 @@ export default function App() {
             <Route path="/desk" element={<ManagerDeskPage />} />
             <Route path="/crm" element={<CrmPage />} />
             <Route path="/my-leads" element={<MyLeadsPage />} />
-            <Route path="/booking" element={<OnlineBookingPage />} />
+            <Route path="/booking" element={<BookingOrSalesEntry />} />
             <Route path="/sales" element={<ManagerSalesPage />} />
             <Route path="/quote" element={<SalesQuoteCalculatorPage />} />
             <Route path="/tracker" element={<SalesVisitTrackerPage />} />

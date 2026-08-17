@@ -92,7 +92,7 @@ export function MainLayout() {
   const crmMode = meQuery.data?.crm_mode;
   const salesSpace = crmMode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
   const chatStagesEnabled = meQuery.data?.chat_stages_enabled !== false;
-  // Онлайн-запись доступна и в sales (стадия «Удачно» → форма записи).
+  // Онлайн-запись только в clinic; в sales скрыта (booking_enabled=false).
   const bookingEnabled = meQuery.isSuccess && meQuery.data?.booking_enabled !== false;
   const deskSalesEnabled = salesSpace;
   const managerChatFirst = chatStagesEnabled && isManagerLikeNav;

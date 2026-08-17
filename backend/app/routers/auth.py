@@ -223,7 +223,8 @@ async def me(
         is_chief_expert=chief,
         crm_mode=crm_mode,
         company_name=company_name,
-        booking_enabled=True,
+        # Продажи: только окно продаж / KPI manual; онлайн-запись скрыта.
+        booking_enabled=not sales,
         desk_sales_enabled=sales,
         chat_stages_enabled=True,
     )

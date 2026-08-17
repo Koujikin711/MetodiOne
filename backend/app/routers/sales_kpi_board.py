@@ -351,12 +351,19 @@ async def put_weighted_plan(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
+    sales_space = await company_is_sales_mode(db, company_id)
     specialists_meta = await _load_specialists_meta(db, company_id, body.pipeline_id)
     allowed_specialist_ids = {s.id for s in specialists_meta}
     seen_specialists: dict[int, str] = {}
 
     for raw in body.items:
         st = (raw.source_type or "manual").strip().lower()
+        if sales_space:
+            # В продажах факт KPI — из окна «Продажи» / manual; онлайн-запись не обязательна.
+            st = "manual"
+            raw.source_type = "manual"
+            raw.direction_id = None
+            raw.specialist_ids = []
         if st not in ("direction", "manual"):
             raise HTTPException(status_code=400, detail=f"Неверный source_type: {raw.source_type}")
         if st == "direction":

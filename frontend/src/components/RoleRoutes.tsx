@@ -8,6 +8,7 @@ import { decodeRoleFromToken } from "@/lib/auth";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import type { Pipeline } from "@/lib/types";
 import { CrmPage } from "@/pages/CrmPage";
+import { OnlineBookingPage } from "@/pages/OnlineBookingPage";
 
 function isManagerNavRole(role: ReturnType<typeof decodeRoleFromToken>) {
   return role === "manager" || role === "admin";
@@ -76,6 +77,20 @@ export function HomeEntry() {
     return <ManagerNavHomeEntry role={role} />;
   }
   return <CrmPage />;
+}
+
+/** В sales-пространстве онлайн-запись отключена — редирект в окно продаж. */
+export function BookingOrSalesEntry() {
+  const meQuery = useCurrentUserMe();
+  const salesSpace =
+    meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
+  if (meQuery.isLoading) {
+    return <p className="px-4 py-10 text-sm lux-caption">Загрузка…</p>;
+  }
+  if (salesSpace || meQuery.data?.booking_enabled === false) {
+    return <Navigate to="/sales" replace />;
+  }
+  return <OnlineBookingPage />;
 }
 
 export function RequireNotManager({ children }: { children: ReactNode }) {

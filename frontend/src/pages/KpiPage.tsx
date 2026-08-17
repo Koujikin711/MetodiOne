@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { AccessDenied } from "@/components/AccessDenied";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { formatMoney } from "@/lib/money";
@@ -63,6 +64,9 @@ export function KpiPage() {
   const isOwner = role === "owner" || role === "super_owner";
   const isAdminOrOwner = isOwner || role === "admin";
   const isManager = role === "manager";
+  const meQuery = useCurrentUserMe();
+  const salesSpace =
+    meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
 
   const [yearMonth, setYearMonth] = useState(defaultYearMonth);
   const [pipelineId, setPipelineId] = useState<number | null>(null);
@@ -145,9 +149,13 @@ export function KpiPage() {
         name: it.name,
         plan_qty: String(it.plan_qty || ""),
         weight_percent: String(num(it.weight_percent) || ""),
-        source_type: it.source_type === "direction" ? "direction" : "manual",
-        direction_id: it.direction_id != null ? String(it.direction_id) : "",
-        specialist_ids: Array.isArray(it.specialist_ids) ? it.specialist_ids.map(Number) : [],
+        source_type: salesSpace ? "manual" : it.source_type === "direction" ? "direction" : "manual",
+        direction_id: salesSpace ? "" : it.direction_id != null ? String(it.direction_id) : "",
+        specialist_ids: salesSpace
+          ? []
+          : Array.isArray(it.specialist_ids)
+            ? it.specialist_ids.map(Number)
+            : [],
       })),
     );
     const p: Record<number, string> = {};
@@ -155,7 +163,7 @@ export function KpiPage() {
       p[d.direction_id] = String(num(d.unit_price) || "");
     });
     setPriceDraft(p);
-  }, [planQuery.data]);
+  }, [planQuery.data, salesSpace]);
 
   const savePlanMutation = useMutation({
     mutationFn: async () => {
@@ -166,14 +174,17 @@ export function KpiPage() {
           name: x.name.trim(),
           plan_qty: Number(x.plan_qty || 0),
           weight_percent: Number(x.weight_percent || 0),
-          source_type: x.source_type,
-          direction_id: x.source_type === "direction" ? Number(x.direction_id || 0) || null : null,
-          specialist_ids: x.source_type === "direction" ? x.specialist_ids : [],
+          source_type: salesSpace ? ("manual" as const) : x.source_type,
+          direction_id:
+            salesSpace || x.source_type !== "direction" ? null : Number(x.direction_id || 0) || null,
+          specialist_ids: salesSpace || x.source_type !== "direction" ? [] : x.specialist_ids,
           sort_order: idx,
         }));
-      for (const it of items) {
-        if (it.source_type === "direction" && !(it.specialist_ids?.length || it.direction_id)) {
-          throw new Error(`Для «${it.name}» привяжите экспертов онлайн-записи`);
+      if (!salesSpace) {
+        for (const it of items) {
+          if (it.source_type === "direction" && !(it.specialist_ids?.length || it.direction_id)) {
+            throw new Error(`Для «${it.name}» привяжите экспертов онлайн-записи`);
+          }
         }
       }
       await apiFetch<void>("/api/sales-kpi/weighted-plan", {
@@ -183,10 +194,12 @@ export function KpiPage() {
           year_month: yearMonth,
           bonus_fund: Number(bonusFund || 10000),
           items,
-          prices: (planQuery.data?.directions ?? []).map((d) => ({
-            direction_id: d.direction_id,
-            unit_price: Number(priceDraft[d.direction_id] || 0),
-          })),
+          prices: salesSpace
+            ? []
+            : (planQuery.data?.directions ?? []).map((d) => ({
+                direction_id: d.direction_id,
+                unit_price: Number(priceDraft[d.direction_id] || 0),
+              })),
         }),
       });
     },
@@ -311,7 +324,11 @@ export function KpiPage() {
         <PageHeader
           className="mb-0"
           title="KPI продаж"
-          description="Онлайн-запись — в факт при 100% оплате. Окно «Продажи» — полная оплата тоже в факт. Курсы/протоколы вносит админ — в факт с оплаты ≥25%."
+          description={
+            salesSpace
+              ? "Условия KPI без онлайн-записи: факт из окна «Продажи» (полная оплата) и курсов/протоколов (≥25%). Имя показателя = сфера/услуга в продажах."
+              : "Онлайн-запись — в факт при 100% оплате. Окно «Продажи» — полная оплата тоже в факт. Курсы/протоколы вносит админ — в факт с оплаты ≥25%."
+          }
         />
       </header>
 
@@ -452,29 +469,35 @@ export function KpiPage() {
                   </label>
                   <label className="block text-[11px] mo-muted">
                     Источник
-                    <select
-                      className="mo-input mt-1 w-full !min-h-11 text-base"
-                      value={row.source_type}
-                      onChange={(e) =>
-                        setPlanItems((prev) =>
-                          prev.map((x) =>
-                            x.key === row.key
-                              ? {
-                                  ...x,
-                                  source_type: e.target.value === "direction" ? "direction" : "manual",
-                                  specialist_ids:
-                                    e.target.value === "direction" ? x.specialist_ids : [],
-                                }
-                              : x,
-                          ),
-                        )
-                      }
-                    >
-                      <option value="manual">Курс / протокол</option>
-                      <option value="direction">Онлайн-запись</option>
-                    </select>
+                    {salesSpace ? (
+                      <div className="mo-input mt-1 flex !min-h-11 items-center text-base mo-muted">
+                        Окно продаж / курс
+                      </div>
+                    ) : (
+                      <select
+                        className="mo-input mt-1 w-full !min-h-11 text-base"
+                        value={row.source_type}
+                        onChange={(e) =>
+                          setPlanItems((prev) =>
+                            prev.map((x) =>
+                              x.key === row.key
+                                ? {
+                                    ...x,
+                                    source_type: e.target.value === "direction" ? "direction" : "manual",
+                                    specialist_ids:
+                                      e.target.value === "direction" ? x.specialist_ids : [],
+                                  }
+                                : x,
+                            ),
+                          )
+                        }
+                      >
+                        <option value="manual">Курс / протокол</option>
+                        <option value="direction">Онлайн-запись</option>
+                      </select>
+                    )}
                   </label>
-                  {row.source_type === "direction" ? (
+                  {!salesSpace && row.source_type === "direction" ? (
                     <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-[var(--mo-border)] p-2">
                       {(planQuery.data?.specialists ?? []).filter((s) => s.is_active).length === 0 ? (
                         <span className="text-xs mo-muted">Нет экспертов</span>
@@ -576,7 +599,7 @@ export function KpiPage() {
                 <tr className="border-b border-[var(--mo-border)] lux-caption">
                   <th className="py-2 pr-3">Показатель</th>
                   <th className="py-2 pr-3">Источник</th>
-                  <th className="py-2 pr-3">Эксперты онлайн-записи</th>
+                  {!salesSpace ? <th className="py-2 pr-3">Эксперты онлайн-записи</th> : null}
                   <th className="py-2 pr-3">План (шт)</th>
                   <th className="py-2 pr-3">Вес (%)</th>
                   <th className="py-2 pr-3" />
@@ -604,28 +627,33 @@ export function KpiPage() {
                       />
                     </td>
                     <td className="py-2 pr-3">
-                      <select
-                        className="mo-input"
-                        value={row.source_type}
-                        onChange={(e) =>
-                          setPlanItems((prev) =>
-                            prev.map((x) =>
-                              x.key === row.key
-                                ? {
-                                    ...x,
-                                    source_type: e.target.value === "direction" ? "direction" : "manual",
-                                    specialist_ids:
-                                      e.target.value === "direction" ? x.specialist_ids : [],
-                                  }
-                                : x,
-                            ),
-                          )
-                        }
-                      >
-                        <option value="manual">Курс / протокол (админ)</option>
-                        <option value="direction">Онлайн-запись</option>
-                      </select>
+                      {salesSpace ? (
+                        <span className="text-sm mo-muted">Окно продаж / курс</span>
+                      ) : (
+                        <select
+                          className="mo-input"
+                          value={row.source_type}
+                          onChange={(e) =>
+                            setPlanItems((prev) =>
+                              prev.map((x) =>
+                                x.key === row.key
+                                  ? {
+                                      ...x,
+                                      source_type: e.target.value === "direction" ? "direction" : "manual",
+                                      specialist_ids:
+                                        e.target.value === "direction" ? x.specialist_ids : [],
+                                    }
+                                  : x,
+                              ),
+                            )
+                          }
+                        >
+                          <option value="manual">Курс / протокол (админ)</option>
+                          <option value="direction">Онлайн-запись</option>
+                        </select>
+                      )}
                     </td>
+                    {!salesSpace ? (
                     <td className="py-2 pr-3">
                       {row.source_type === "direction" ? (
                         <div className="max-h-36 min-w-[220px] space-y-1 overflow-y-auto rounded border border-[var(--mo-border)] p-2">
@@ -658,9 +686,7 @@ export function KpiPage() {
                                             return {
                                               ...x,
                                               specialist_ids: next,
-                                              direction_id: on
-                                                ? String(s.direction_id)
-                                                : x.direction_id,
+                                              direction_id: on ? String(s.direction_id) : x.direction_id,
                                             };
                                           }),
                                         );
@@ -678,9 +704,10 @@ export function KpiPage() {
                           )}
                         </div>
                       ) : (
-                        <span className="text-xs mo-muted">без записи</span>
+                        <span className="text-xs mo-muted">—</span>
                       )}
                     </td>
+                    ) : null}
                     <td className="py-2 pr-3">
                       <input
                         type="number"
@@ -733,7 +760,7 @@ export function KpiPage() {
             + Показатель
           </button>
 
-          {(planQuery.data?.directions.length ?? 0) > 0 ? (
+          {!salesSpace && (planQuery.data?.directions.length ?? 0) > 0 ? (
             <div className="space-y-2 pt-2 sm:pt-4">
               <h3 className="text-sm font-medium text-[var(--mo-text)]">Цены услуг записи</h3>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -778,6 +805,7 @@ export function KpiPage() {
           data={companyQuery.data}
           loading={companyQuery.isLoading}
           error={companyQuery.error as Error | null}
+          hideBookingExperts={salesSpace}
         />
       ) : null}
 
@@ -786,13 +814,17 @@ export function KpiPage() {
           <div>
             <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажа курса / протокола</h2>
             <p className="mt-1 hidden text-sm lux-caption sm:block">
-              Без онлайн-записи. В KPI попадает с оплаты ≥25%. Возврат снимает продажу с факта.
+              {salesSpace
+                ? "Факт KPI без онлайн-записи. В KPI с оплаты ≥25%. Возврат снимает продажу с факта."
+                : "Без онлайн-записи. В KPI попадает с оплаты ≥25%. Возврат снимает продажу с факта."}
             </p>
           </div>
 
           {manualPlanItems.length === 0 ? (
             <p className="text-sm text-amber-200/90">
-              Сначала владелец должен добавить показатели с источником «Курс / протокол» во вкладке «План».
+              {salesSpace
+                ? "Сначала владелец должен добавить показатели во вкладке «План»."
+                : "Сначала владелец должен добавить показатели с источником «Курс / протокол» во вкладке «План»."}
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
@@ -1291,10 +1323,12 @@ function CompanyReportSection({
   data,
   loading,
   error,
+  hideBookingExperts = false,
 }: {
   data: SalesKpiCompanyReport | undefined;
   loading: boolean;
   error: Error | null;
+  hideBookingExperts?: boolean;
 }) {
   if (loading) return <p className="text-sm lux-caption">Загрузка отчёта компании…</p>;
   if (error) return <p className="text-sm text-red-300">{error.message}</p>;
@@ -1307,8 +1341,9 @@ function CompanyReportSection({
           Отчёт компании · {data.year_month}
         </h2>
         <p className="mt-1 hidden text-sm lux-caption sm:block">
-          Сводка для владельца: ход плана, выручка, дебиторка и кредиторка (оплатили, визит ещё впереди).
-          ПРОДАЖИ — отдельно по менеджерам; здесь общий приход и явки по онлайн-записи.
+          {hideBookingExperts
+            ? "Сводка для владельца: ход плана, выручка и долги. ПРОДАЖИ — отдельно по менеджерам."
+            : "Сводка для владельца: ход плана, выручка, дебиторка и кредиторка (оплатили, визит ещё впереди). ПРОДАЖИ — отдельно по менеджерам; здесь общий приход и явки по онлайн-записи."}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-4">
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
@@ -1464,6 +1499,7 @@ function CompanyReportSection({
         )}
       </section>
 
+      {!hideBookingExperts ? (
       <section className="mo-section p-4">
         <h3 className="mb-3 text-lg font-semibold text-[var(--mo-text)]">Онлайн-запись по экспертам</h3>
         <p className="mb-3 text-sm lux-caption">
@@ -1507,6 +1543,7 @@ function CompanyReportSection({
           </table>
         </div>
       </section>
+      ) : null}
     </div>
   );
 }
