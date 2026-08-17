@@ -1077,15 +1077,25 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .sales-desk-page {
-  width: 100%;
-  max-width: none;
-  margin: 0;
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.sales-desk-page .mo-admin-page-head,
+.sales-desk-page .mo-fill-page-scroll,
+.sales-desk-page .mo-section,
+.sales-desk-page .sales-desk-table {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box;
 }
 
 @media (min-width: 640px) {
   .sales-desk-page {
-    height: calc(100dvh - 1.5rem);
-    max-height: calc(100dvh - 1.5rem);
+    height: calc(100dvh - 1rem);
+    max-height: calc(100dvh - 1rem);
   }
 
   .sales-desk-scroll {
@@ -1093,6 +1103,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
+    align-items: stretch;
   }
 
   .sales-desk-table {
