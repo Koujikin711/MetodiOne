@@ -117,7 +117,7 @@ export function ManagerSalesPage() {
         <section className="mo-section p-4 sm:p-5">
           <h2 className="lux-heading">Новая продажа</h2>
           <form
-            className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 sm:gap-4"
+            className="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-6 sm:gap-4"
             onSubmit={(e) => {
               e.preventDefault();
               createMutation.mutate();
