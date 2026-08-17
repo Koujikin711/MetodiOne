@@ -167,6 +167,15 @@ export function MainLayout() {
             deskSalesEnabled || managerChatFirst
               ? "px-2.5 py-2.5 pb-[calc(4.25rem+env(safe-area-inset-bottom))]"
               : "px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))]",
+            location.pathname.startsWith("/chat")
+              ? [
+                  "max-lg:!px-0 max-lg:!pt-0 max-lg:overflow-hidden",
+                  deskSalesEnabled || managerChatFirst
+                    ? "max-lg:!pb-[calc(4.25rem+env(safe-area-inset-bottom))]"
+                    : "max-lg:!pb-[calc(5.75rem+env(safe-area-inset-bottom))]",
+                  "max-lg:flex max-lg:h-[100dvh] max-lg:max-h-[100dvh] max-lg:flex-col",
+                ].join(" ")
+              : "",
             location.pathname.startsWith("/chat") ||
             location.pathname.startsWith("/messenger") ||
             location.pathname.startsWith("/tasks") ||
@@ -207,7 +216,12 @@ export function MainLayout() {
               location.pathname.startsWith("/audit") ||
               location.pathname.startsWith("/integrations") ||
               location.pathname.startsWith("/finance")
-                ? "flex min-h-0 flex-1 flex-col"
+                ? [
+                    "flex min-h-0 flex-1 flex-col",
+                    location.pathname.startsWith("/chat") ? "max-lg:h-full max-lg:min-h-0" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")
                 : undefined
             }
           >

@@ -152,7 +152,14 @@ html[data-chat-composing="1"] nav[aria-label="Основная навигаци�
 }
 
 html[data-chat-composing="1"] .shell-main {
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom)) !important;
+  padding-bottom: max(0.35rem, env(safe-area-inset-bottom)) !important;
+}
+
+@media (max-width: 1023px) {
+  html[data-chat-composing="1"] .shell-main {
+    height: calc(100dvh - var(--chat-keyboard-inset, 0px)) !important;
+    max-height: calc(100dvh - var(--chat-keyboard-inset, 0px)) !important;
+  }
 }
 
 @media (min-width: 640px) {

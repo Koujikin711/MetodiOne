@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -1024,16 +1024,12 @@ export function ChatPage() {
     });
   };
 
-  const mobileChatHeight = hideMobileBottomNav
-    ? "max-lg:h-[calc(100dvh-env(safe-area-inset-bottom)-var(--chat-keyboard-inset,0px))] max-lg:max-h-[calc(100dvh-env(safe-area-inset-bottom)-var(--chat-keyboard-inset,0px))]"
-    : "max-lg:h-[calc(100dvh-5.75rem-env(safe-area-inset-bottom))] max-lg:max-h-[calc(100dvh-5.75rem-env(safe-area-inset-bottom))]";
-
   return (
     <div
       className={[
         "relative mx-auto flex h-full w-full max-w-none flex-col gap-2 sm:gap-3 lg:min-h-0 lg:flex-1 lg:gap-3 lg:overflow-hidden",
-        "max-lg:-mx-3 max-lg:-mt-4 max-lg:mb-0 max-lg:min-h-0 max-lg:overflow-hidden max-lg:pb-0 max-lg:gap-0",
-        mobileChatHeight,
+        "max-lg:m-0 max-lg:min-h-0 max-lg:flex-1 max-lg:gap-0 max-lg:overflow-hidden",
+        "max-lg:h-full max-lg:max-h-full",
       ].join(" ")}
     >
       <header className="hidden shrink-0 lg:block">
@@ -1051,8 +1047,8 @@ export function ChatPage() {
       >
         <section
           className={[
-            "mo-card chat-dialogs-rail flex min-h-0 flex-col overflow-hidden p-3 max-lg:rounded-none max-lg:border-x-0 max-lg:p-2.5 lg:h-full lg:min-w-[320px] lg:max-w-[360px] lg:shrink-0",
-            mobileChatHeight,
+            "mo-card chat-dialogs-rail flex min-h-0 flex-col overflow-hidden p-3 max-lg:rounded-none max-lg:border-0 max-lg:shadow-none max-lg:p-2.5 lg:h-full lg:min-w-[320px] lg:max-w-[360px] lg:shrink-0",
+            "max-lg:h-full max-lg:min-h-0",
             showListOnMobile ? "flex" : "hidden lg:flex",
           ].join(" ")}
         >
@@ -1283,9 +1279,9 @@ export function ChatPage() {
         <section
           className={[
             "mo-section flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-3 shadow-inner backdrop-blur-sm sm:p-4 lg:h-full",
-            "max-lg:rounded-none max-lg:border-x-0 max-lg:p-2",
+            "max-lg:rounded-none max-lg:border-0 max-lg:shadow-none max-lg:p-2",
             threadId == null ? "hidden lg:flex" : "flex",
-            mobileChatHeight,
+            "max-lg:h-full max-lg:min-h-0",
           ].join(" ")}
         >
           {threadId == null && (
