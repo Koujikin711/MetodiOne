@@ -4,6 +4,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
+import { ChatMediaVideo } from "@/components/ChatMediaVideo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
@@ -353,8 +354,8 @@ function MessageBody({ m }: { m: ChatMessage }) {
   if (mt === "video" && url) {
     return (
       <div className="space-y-2">
-        <video src={url} controls className="max-h-64 w-full rounded-lg" />
-        {m.text && m.text !== "🎬 Видео" && <div>{m.text}</div>}
+        <ChatMediaVideo src={url} fileName={m.file_name} />
+        {m.text && m.text !== "🎬 Видео" && !isMediaPlaceholderText(m.text) ? <div>{m.text}</div> : null}
       </div>
     );
   }

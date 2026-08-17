@@ -2795,6 +2795,156 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.18);
 }
 
+/* Кастомный видеоплеер чата (вместо меню Chrome) */
+.chat-video {
+  position: relative;
+  overflow: hidden;
+  max-width: 18rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--mo-border);
+  background: #0b1220;
+  box-shadow: var(--mo-shadow-luxury);
+}
+.chat-video__media {
+  display: block;
+  width: 100%;
+  max-height: 16rem;
+  object-fit: contain;
+  background: #0b1220;
+  cursor: pointer;
+}
+.chat-video__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.5rem;
+  background: color-mix(in srgb, #0f172a 88%, #2a6f85);
+  border-top: 1px solid color-mix(in srgb, #5eb8d4 25%, transparent);
+}
+.chat-video__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #5eb8d4 35%, transparent);
+  background: color-mix(in srgb, #2a6f85 55%, #0f172a);
+  color: #f8fafc;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.chat-video__btn:hover {
+  background: #2a6f85;
+  border-color: color-mix(in srgb, #5eb8d4 55%, transparent);
+}
+.chat-video__time {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.82);
+  font-family: var(--font-sans);
+}
+.chat-video__seek {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 0.35rem;
+  accent-color: #2a6f85;
+  cursor: pointer;
+}
+.chat-video__icon-play {
+  width: 0;
+  height: 0;
+  margin-left: 2px;
+  border-style: solid;
+  border-width: 5px 0 5px 8px;
+  border-color: transparent transparent transparent #fff;
+}
+.chat-video__icon-pause {
+  display: block;
+  width: 8px;
+  height: 10px;
+  border-left: 2.5px solid #fff;
+  border-right: 2.5px solid #fff;
+}
+.chat-video__icon-more {
+  display: block;
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 -5px 0 #fff, 0 5px 0 #fff;
+}
+.chat-video__menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.chat-video__menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.4rem);
+  z-index: 20;
+  min-width: 13.5rem;
+  overflow: hidden;
+  border-radius: 0.85rem;
+  border: 1px solid color-mix(in srgb, #5eb8d4 28%, var(--mo-border));
+  background: color-mix(in srgb, var(--mo-surface-elevated) 92%, #0f172a);
+  box-shadow:
+    0 10px 28px -8px rgba(15, 23, 42, 0.45),
+    0 0 0 1px color-mix(in srgb, #2a6f85 18%, transparent);
+  backdrop-filter: blur(10px);
+}
+:root[data-theme="dark"] .chat-video__menu {
+  background: color-mix(in srgb, #111827 94%, #2a6f85);
+  border-color: color-mix(in srgb, #5eb8d4 30%, transparent);
+}
+.chat-video__menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  color: var(--mo-text);
+  background: transparent;
+  border: 0;
+  transition: background 0.12s ease;
+}
+.chat-video__menu-item:hover {
+  background: color-mix(in srgb, #2a6f85 16%, transparent);
+}
+.chat-video__menu-item.is-active {
+  color: #5eb8d4;
+  background: color-mix(in srgb, #2a6f85 22%, transparent);
+}
+.chat-video__menu-item--back {
+  color: var(--mo-text-muted);
+  font-weight: 600;
+}
+.chat-video__menu-meta {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--mo-text-muted);
+}
+.chat-video__menu-sep {
+  height: 1px;
+  margin: 0 0.5rem;
+  background: var(--mo-border);
+}
+.chat-video__menu-svg {
+  flex-shrink: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  color: #2a6f85;
+}
+.chat-video__menu-item.is-active .chat-video__menu-svg {
+  color: #5eb8d4;
+}
+
 /* Время как в WhatsApp: после текста, float вправо → низ справа / та же строка */
 .chat-msg-footer {
   display: inline-flex;
