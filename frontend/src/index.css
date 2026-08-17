@@ -146,9 +146,11 @@
   --mo-medical-chat-bg: var(--mo-surface);
 }
 
-/* Чат: при наборе сообщения прячем нижнюю мобильную навигацию */
+/* Чат: в диалоге на мобиле — без нижней навигации (сразу, без «разъезда») */
 html[data-chat-composing="1"] nav[aria-label="Основная навигация"] {
   display: none !important;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 html[data-chat-composing="1"] .shell-main {
@@ -157,8 +159,10 @@ html[data-chat-composing="1"] .shell-main {
 
 @media (max-width: 1023px) {
   html[data-chat-composing="1"] .shell-main {
+    /* Высота только под клавиатуру; без inset — ровно 100dvh, без скачка */
     height: calc(100dvh - var(--chat-keyboard-inset, 0px)) !important;
     max-height: calc(100dvh - var(--chat-keyboard-inset, 0px)) !important;
+    overflow: hidden !important;
   }
 }
 
@@ -385,6 +389,13 @@ body {
 .shell-main {
   min-width: 0;
   transition: padding var(--mo-sidebar-duration, 0.44s) var(--mo-sidebar-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+/* Мобилка: без анимации padding — иначе при CRM↔Чат окно «разъезжается» */
+@media (max-width: 1023px) {
+  .shell-main {
+    transition: none;
+  }
 }
 
 .shell-sidebar-nav {

@@ -661,7 +661,6 @@ export function ChatPage() {
 
   const [text, setText] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [composerFocused, setComposerFocused] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceFinishing, setVoiceFinishing] = useState(false);
   const [voiceDraftFile, setVoiceDraftFile] = useState<File | null>(null);
@@ -675,7 +674,8 @@ export function ChatPage() {
   }, [threadId]);
 
   const canSendMessage = Boolean(text.trim() || pendingFile || voiceDraftFile);
-  const hideMobileBottomNav = composerFocused || canSendMessage || isRecording || voiceFinishing;
+  /** На мобиле в открытом диалоге сразу без нижней панели — без скачка при фокусе/наборе */
+  const hideMobileBottomNav = threadId != null;
 
   useEffect(() => {
     const root = document.documentElement;
@@ -691,7 +691,9 @@ export function ChatPage() {
     if (!vv) return;
     const sync = () => {
       const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      document.documentElement.style.setProperty("--chat-keyboard-inset", `${Math.round(inset)}px`);
+      /* Порог: игнорируем мелкий jitter viewport, чтобы не дёргать высоту чата */
+      const px = inset < 48 ? 0 : Math.round(inset);
+      document.documentElement.style.setProperty("--chat-keyboard-inset", `${px}px`);
     };
     vv.addEventListener("resize", sync);
     vv.addEventListener("scroll", sync);
@@ -1550,8 +1552,6 @@ export function ChatPage() {
                   <input
                     value={text}
                     onChange={(e) => setText(e.target.value)}
-                    onFocus={() => setComposerFocused(true)}
-                    onBlur={() => setComposerFocused(false)}
                     placeholder={
                       voiceFinishing
                         ? "Отправка голосового…"

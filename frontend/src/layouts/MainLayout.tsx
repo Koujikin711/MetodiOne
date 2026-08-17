@@ -173,7 +173,7 @@ export function MainLayout() {
                   deskSalesEnabled || managerChatFirst
                     ? "max-lg:!pb-[calc(4.25rem+env(safe-area-inset-bottom))]"
                     : "max-lg:!pb-[calc(5.75rem+env(safe-area-inset-bottom))]",
-                  "max-lg:flex max-lg:h-[100dvh] max-lg:max-h-[100dvh] max-lg:flex-col",
+                  "max-lg:flex max-lg:h-[100dvh] max-lg:max-h-[100dvh] max-lg:flex-col max-lg:transition-none",
                 ].join(" ")
               : "",
             location.pathname.startsWith("/chat") ||
