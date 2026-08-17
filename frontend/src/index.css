@@ -2712,7 +2712,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.18);
 }
 
-/* Время как в WhatsApp: внизу справа, на одной линии с текстом при наличии места */
+/* Время как в WhatsApp: после текста, float вправо → низ справа / та же строка */
 .chat-msg-footer {
   display: inline-flex;
   align-items: center;
@@ -2726,9 +2726,20 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 .chat-msg--text .chat-msg-footer {
   float: right;
-  margin: 0.15em 0 -0.05em 0.7em;
+  margin-left: 0.65rem;
+  margin-top: 0.35em;
   position: relative;
-  top: 0.4em;
+  top: 0.15em;
+}
+.chat-msg--media .chat-msg-footer {
+  float: none;
+  display: flex;
+  justify-content: flex-end;
+  clear: both;
+  margin: 0.35rem 0.15rem 0 0;
+  position: static;
+  top: auto;
+  color: var(--mo-text-muted);
 }
 .chat-msg-out .chat-msg-footer {
   color: rgba(248, 250, 252, 0.72);

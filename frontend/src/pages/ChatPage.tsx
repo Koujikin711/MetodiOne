@@ -1457,23 +1457,13 @@ export function ChatPage() {
                           isMedia ? "chat-msg--media" : "chat-msg--text",
                         ].join(" ")}
                       >
-                        {!isMedia ? (
-                          <span className="chat-msg-footer">
-                            {time ? (
-                              <span title={formatChatDateSeparator(m.created_at)}>{time}</span>
-                            ) : null}
-                            {isOut && meta?.label ? <span className={metaToneClass}>{meta.label}</span> : null}
-                          </span>
-                        ) : null}
                         <MessageBody m={m} />
-                        {isMedia ? (
-                          <div className="chat-msg-footer">
-                            {time ? (
-                              <span title={formatChatDateSeparator(m.created_at)}>{time}</span>
-                            ) : null}
-                            {isOut && meta?.label ? <span className={metaToneClass}>{meta.label}</span> : null}
-                          </div>
-                        ) : null}
+                        <span className="chat-msg-footer">
+                          {time ? (
+                            <span title={formatChatDateSeparator(m.created_at)}>{time}</span>
+                          ) : null}
+                          {isOut && meta?.label ? <span className={metaToneClass}>{meta.label}</span> : null}
+                        </span>
                       </div>
                     </Fragment>
                   );
