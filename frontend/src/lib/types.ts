@@ -239,6 +239,8 @@ export interface SystemAuditEvent {
   details: string | null;
   user_id: number | null;
   user_name: string | null;
+  user_email?: string | null;
+  source?: "system" | "lead" | string;
   created_at: string;
 }
 
@@ -435,6 +437,12 @@ export interface ManagerDetailedAnalyticsItem {
   unpaid_amount: string;
   clients_messaged_count: number;
   manager_replied_count: number;
+  reply_rate_pct?: number;
+  outbound_messages_count?: number;
+  win_rate_pct?: number;
+  avg_first_response_minutes?: number | null;
+  performance_score?: number;
+  activity_score?: number;
 }
 
 export interface DetailedAnalyticsRead {
@@ -476,6 +484,22 @@ export interface ManagerPlanFactItem {
   plan_completion_pct: number;
 }
 
+export interface ManagerPerformanceItem {
+  manager_id: number | null;
+  manager_name: string;
+  leads_count: number;
+  won_leads: number;
+  win_rate_pct: number;
+  plan_completion_pct: number;
+  clients_messaged_count: number;
+  manager_replied_count: number;
+  reply_rate_pct: number;
+  outbound_messages_count: number;
+  avg_first_response_minutes: number | null;
+  performance_score: number;
+  activity_score: number;
+}
+
 export interface AnalyticsAlertsRead {
   low_first_response: boolean;
   high_unpaid_share: boolean;
@@ -491,6 +515,8 @@ export interface ExecutiveKpiRead {
   unpaid_amount: string;
   avg_first_response_minutes: number | null;
   avg_lead_cycle_hours: number | null;
+  performance_score_avg?: number | null;
+  activity_reply_rate_pct?: number | null;
 }
 
 export interface AnalyticsOverviewRead {
@@ -501,6 +527,7 @@ export interface AnalyticsOverviewRead {
   by_source: SourceAnalyticsItem[];
   loss_reasons: LossReasonItem[];
   manager_plan_fact: ManagerPlanFactItem[];
+  manager_performance?: ManagerPerformanceItem[];
   alerts: AnalyticsAlertsRead;
 }
 

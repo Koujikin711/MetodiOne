@@ -96,12 +96,15 @@ export function AuditPage() {
           <ul className="space-y-2.5">
             {(query.data ?? []).map((e) => {
               const details = auditDetailsLabel(e.details);
+              const actor = (e.user_name || "").trim() || (e.user_id != null ? `Пользователь №${e.user_id}` : "Система");
               return (
-                <li key={e.id} className="audit-event-row">
+                <li key={`${e.source ?? "system"}-${e.id}`} className="audit-event-row">
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="audit-entity-tag">{auditPlaceLabel(e.entity_type, e.entity_id)}</span>
                     <span className="audit-action-tag">{auditActionLabel(e.action)}</span>
-                    <span className="lux-caption">{e.user_name ?? `пользователь №${e.user_id ?? "—"}`}</span>
+                    <span className="audit-actor" title={e.user_email || actor}>
+                      {actor}
+                    </span>
                     <span className="lux-caption">{new Date(e.created_at).toLocaleString("ru-RU")}</span>
                   </div>
                   {details ? <p className="mt-1.5 text-sm text-[var(--mo-text)]">{details}</p> : null}

@@ -101,6 +101,8 @@ const DETAIL_KEYS: Record<string, string> = {
   pipeline_id: "воронка №",
   stage_id: "этап №",
   from_manager_id: "от сотрудника №",
+  to_manager_id: "новому менеджеру №",
+  manager_id: "менеджер №",
   to_manager_ids: "менеджерам",
   reassigned: "перенесено",
   paid_amount: "оплата",

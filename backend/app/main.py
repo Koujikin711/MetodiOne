@@ -217,6 +217,7 @@ async def seed_test_admin() -> None:
                     hashed_password=hash_password("admin"),
                     role=UserRole.owner,
                     company_id=cid,
+                    full_name="Админ",
                     must_change_password=False,
                     is_active=True,
                 )
@@ -237,6 +238,9 @@ async def seed_test_admin() -> None:
             dirty = True
         if not user.is_active:
             user.is_active = True
+            dirty = True
+        if not (user.full_name or "").strip():
+            user.full_name = "Админ"
             dirty = True
         if user.company_id is None:
             user.company_id = cid

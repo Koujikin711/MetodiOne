@@ -18,6 +18,7 @@ from app.schemas.analytics import (
     FullAnalyticsRead,
     LossReasonItem,
     ManagerDetailedAnalyticsItem,
+    ManagerPerformanceItem,
     ManagerPlanFactItem,
     PipelineFullAnalyticsItem,
     SourceAnalyticsItem,
@@ -25,6 +26,37 @@ from app.schemas.analytics import (
 )
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+
+WON_STAGE_NAMES = frozenset({"Удачно"})
+
+
+def _sla_score(minutes: float | None) -> float:
+    if minutes is None:
+        return 50.0
+    if minutes <= 5:
+        return 100.0
+    if minutes >= 60:
+        return 0.0
+    return round(max(0.0, 100.0 - (minutes - 5.0) * (100.0 / 55.0)), 1)
+
+
+def _performance_score(
+    *,
+    plan_pct: float,
+    win_pct: float,
+    reply_pct: float,
+    sla_minutes: float | None,
+    has_plan: bool,
+) -> float:
+    sla = _sla_score(sla_minutes)
+    if has_plan:
+        return round(0.35 * min(plan_pct, 100.0) + 0.30 * win_pct + 0.25 * reply_pct + 0.10 * sla, 1)
+    return round(0.45 * win_pct + 0.40 * reply_pct + 0.15 * sla, 1)
+
+
+def _activity_score(*, reply_pct: float, outbound: int, messaged: int) -> float:
+    volume = min(100.0, (outbound * 8.0) + (messaged * 4.0))
+    return round(0.65 * reply_pct + 0.35 * volume, 1)
 
 
 def _period_bounds(period: str, date_from: str | None, date_to: str | None) -> tuple[datetime, datetime]:
@@ -124,6 +156,67 @@ async def _manager_message_reply_counts(
     messaged = {mid: int(cnt or 0) for mid, cnt in inbound_rows}
     replied = {mid: int(cnt or 0) for mid, cnt in outbound_rows}
     return messaged, replied
+
+
+async def _won_counts_by_manager(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    start: datetime,
+    end: datetime,
+    pipeline_id: int | None,
+) -> dict[int | None, int]:
+    q = (
+        select(Lead.manager_id, func.count(Lead.id))
+        .select_from(Lead)
+        .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+        .where(
+            Lead.company_id == company_id,
+            Lead.created_at >= start,
+            Lead.created_at < end,
+            PipelineStage.name.in_(WON_STAGE_NAMES),
+        )
+        .group_by(Lead.manager_id)
+    )
+    if pipeline_id is not None:
+        q = q.where(PipelineStage.pipeline_id == pipeline_id)
+    rows = (await db.execute(q)).all()
+    return {mid: int(cnt or 0) for mid, cnt in rows}
+
+
+async def _outbound_message_counts(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    start: datetime,
+    end: datetime,
+    pipeline_id: int | None,
+) -> dict[int, int]:
+    q = (
+        select(ChatMessage.author_user_id, func.count(ChatMessage.id))
+        .select_from(ChatMessage)
+        .join(ChatThread, ChatThread.id == ChatMessage.thread_id)
+        .join(Lead, Lead.id == ChatThread.lead_id)
+        .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+        .where(
+            Lead.company_id == company_id,
+            ChatMessage.direction == "out",
+            ChatMessage.created_at >= start,
+            ChatMessage.created_at < end,
+            ChatMessage.author_user_id.is_not(None),
+        )
+        .group_by(ChatMessage.author_user_id)
+    )
+    if pipeline_id is not None:
+        q = q.where(PipelineStage.pipeline_id == pipeline_id)
+    rows = (await db.execute(q)).all()
+    return {int(uid): int(cnt or 0) for uid, cnt in rows if uid is not None}
+
+
+def _avg_or_none(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return round(sum(values) / len(values), 2)
 
 
 async def _ensure_pipeline_scope(db: AsyncSession, company_id: int, pipeline_id: int | None) -> int | None:
@@ -269,6 +362,12 @@ async def analytics_detailed(
     messaged_map, replied_map = await _manager_message_reply_counts(
         db, company_id=company_id, start=start, end=end, pipeline_id=pipeline_id
     )
+    won_map = await _won_counts_by_manager(
+        db, company_id=company_id, start=start, end=end, pipeline_id=pipeline_id
+    )
+    outbound_map = await _outbound_message_counts(
+        db, company_id=company_id, start=start, end=end, pipeline_id=pipeline_id
+    )
 
     by_manager: list[ManagerDetailedAnalyticsItem] = []
     total_sold = Decimal("0")
@@ -278,15 +377,34 @@ async def analytics_detailed(
         unpaid_dec = Decimal(str(unpaid or 0))
         total_sold += sold_dec
         total_unpaid += unpaid_dec
+        leads_n = int(leads_count or 0)
+        messaged = messaged_map.get(uid, 0)
+        replied = replied_map.get(uid, 0)
+        reply_pct = _safe_pct(float(replied), float(messaged))
+        won_n = won_map.get(uid, 0)
+        win_pct = _safe_pct(float(won_n), float(leads_n))
+        outbound = outbound_map.get(uid, 0) if uid is not None else 0
         by_manager.append(
             ManagerDetailedAnalyticsItem(
                 manager_id=uid,
                 manager_name=(full_name or email or "Без менеджера"),
-                leads_count=int(leads_count or 0),
+                leads_count=leads_n,
                 sold_amount=sold_dec,
                 unpaid_amount=unpaid_dec,
-                clients_messaged_count=messaged_map.get(uid, 0),
-                manager_replied_count=replied_map.get(uid, 0),
+                clients_messaged_count=messaged,
+                manager_replied_count=replied,
+                reply_rate_pct=reply_pct,
+                outbound_messages_count=outbound,
+                win_rate_pct=win_pct,
+                avg_first_response_minutes=None,
+                performance_score=_performance_score(
+                    plan_pct=0,
+                    win_pct=win_pct,
+                    reply_pct=reply_pct,
+                    sla_minutes=None,
+                    has_plan=False,
+                ),
+                activity_score=_activity_score(reply_pct=reply_pct, outbound=outbound, messaged=messaged),
             )
         )
     return DetailedAnalyticsRead(
@@ -544,8 +662,14 @@ async def analytics_overview(
         )
     ).all()
     first_resp_min: list[float] = []
+    first_resp_by_mgr: dict[int | None, list[float]] = {}
     cycle_hours: list[float] = []
     lead_created_map = {int(row[0]): row[5] for row in leads}
+    lead_manager_map = {int(row[0]): (int(row[4]) if row[4] is not None else None) for row in leads}
+    leads_by_mgr: dict[int | None, int] = {}
+    for row in leads:
+        mid = int(row[4]) if row[4] is not None else None
+        leads_by_mgr[mid] = leads_by_mgr.get(mid, 0) + 1
     first_opened: dict[int, datetime] = {}
     first_closed: dict[int, datetime] = {}
     closed_actions = {"integration_deal_closed", "protocol_finished", "lead_rejected", "service_rejected"}
@@ -560,7 +684,9 @@ async def analytics_overview(
     for lid, opened_at in first_opened.items():
         created_at = lead_created_map.get(lid)
         if created_at and opened_at >= created_at:
-            first_resp_min.append((opened_at - created_at).total_seconds() / 60.0)
+            minutes = (opened_at - created_at).total_seconds() / 60.0
+            first_resp_min.append(minutes)
+            first_resp_by_mgr.setdefault(lead_manager_map.get(lid), []).append(minutes)
     for lid, closed_at in first_closed.items():
         created_at = lead_created_map.get(lid)
         if created_at and closed_at >= created_at:
@@ -570,6 +696,86 @@ async def analytics_overview(
     avg_cycle = round(sum(cycle_hours) / len(cycle_hours), 2) if cycle_hours else None
     won_leads = len([1 for _lid, action, _ts in audit_rows if action in {"integration_deal_closed", "protocol_finished"}])
     win_rate = _safe_pct(float(won_leads), float(total_leads))
+
+    messaged_map, replied_map = await _manager_message_reply_counts(
+        db, company_id=company_id, start=start, end=end, pipeline_id=pipeline_id
+    )
+    won_by_mgr = await _won_counts_by_manager(
+        db, company_id=company_id, start=start, end=end, pipeline_id=pipeline_id
+    )
+    outbound_map = await _outbound_message_counts(
+        db, company_id=company_id, start=start, end=end, pipeline_id=pipeline_id
+    )
+
+    perf_ids = (
+        set(leads_by_mgr.keys())
+        | set(plan_map.keys())
+        | set(fact_map.keys())
+        | set(messaged_map.keys())
+        | set(replied_map.keys())
+        | set(won_by_mgr.keys())
+        | {mid for mid in outbound_map.keys()}
+    )
+    missing_name_ids = {mid for mid in perf_ids if mid is not None and mid not in manager_name_map}
+    if missing_name_ids:
+        extra_names = (
+            await db.execute(
+                select(User.id, User.full_name, User.email).where(User.id.in_(missing_name_ids))
+            )
+        ).all()
+        for uid, full_name, email in extra_names:
+            manager_name_map[int(uid)] = (
+                str(full_name or "").strip() or str(email or "").strip() or f"Менеджер #{uid}"
+            )
+    manager_performance: list[ManagerPerformanceItem] = []
+    for mid in sorted(perf_ids, key=lambda x: (x is None, x or 0)):
+        leads_n = leads_by_mgr.get(mid, 0)
+        won_n = won_by_mgr.get(mid, 0)
+        messaged = messaged_map.get(mid, 0)
+        replied = replied_map.get(mid, 0)
+        reply_pct = _safe_pct(float(replied), float(messaged))
+        win_pct = _safe_pct(float(won_n), float(leads_n))
+        plan_pct = next((x.plan_completion_pct for x in manager_plan_fact if x.manager_id == mid), 0.0)
+        has_plan = any(x.manager_id == mid and x.plan_amount > 0 for x in manager_plan_fact)
+        sla_min = _avg_or_none(first_resp_by_mgr.get(mid, []))
+        outbound = outbound_map.get(mid, 0) if mid is not None else 0
+        name = (
+            manager_name_map.get(mid, "Без менеджера")
+            if mid is not None
+            else "Без менеджера"
+        )
+        if mid is not None and mid not in manager_name_map:
+            name = f"Менеджер #{mid}"
+        manager_performance.append(
+            ManagerPerformanceItem(
+                manager_id=mid,
+                manager_name=name,
+                leads_count=leads_n,
+                won_leads=won_n,
+                win_rate_pct=win_pct,
+                plan_completion_pct=plan_pct,
+                clients_messaged_count=messaged,
+                manager_replied_count=replied,
+                reply_rate_pct=reply_pct,
+                outbound_messages_count=outbound,
+                avg_first_response_minutes=sla_min,
+                performance_score=_performance_score(
+                    plan_pct=plan_pct,
+                    win_pct=win_pct,
+                    reply_pct=reply_pct,
+                    sla_minutes=sla_min,
+                    has_plan=has_plan,
+                ),
+                activity_score=_activity_score(reply_pct=reply_pct, outbound=outbound, messaged=messaged),
+            )
+        )
+    manager_performance.sort(key=lambda x: (-x.performance_score, x.manager_name))
+
+    scored = [x.performance_score for x in manager_performance if x.manager_id is not None]
+    performance_avg = round(sum(scored) / len(scored), 1) if scored else None
+    team_messaged = sum(x.clients_messaged_count for x in manager_performance)
+    team_replied = sum(x.manager_replied_count for x in manager_performance)
+    team_reply_rate = _safe_pct(float(team_replied), float(team_messaged)) if team_messaged else None
 
     unpaid_share = _safe_pct(float(unpaid_total), float(paid_total + unpaid_total))
     avg_stage_conv = 0.0
@@ -586,6 +792,10 @@ async def analytics_overview(
         alerts_list.append("Доля неоплаченного объема выше 35%")
     if low_stage_conversion:
         alerts_list.append("Средняя конверсия между стадиями ниже 20%")
+    if performance_avg is not None and performance_avg < 40:
+        alerts_list.append("Средняя успеваемость менеджеров ниже 40 баллов")
+    if team_reply_rate is not None and team_messaged > 0 and team_reply_rate < 50:
+        alerts_list.append("Команда отвечает меньше чем на 50% входящих диалогов")
 
     return AnalyticsOverviewRead(
         period_start=start.date().isoformat(),
@@ -598,11 +808,14 @@ async def analytics_overview(
             unpaid_amount=unpaid_total,
             avg_first_response_minutes=avg_first_response,
             avg_lead_cycle_hours=avg_cycle,
+            performance_score_avg=performance_avg,
+            activity_reply_rate_pct=team_reply_rate,
         ),
         stage_conversion=stage_items,
         by_source=source_items,
         loss_reasons=loss_items,
         manager_plan_fact=manager_plan_fact,
+        manager_performance=manager_performance,
         alerts=AnalyticsAlertsRead(
             low_first_response=low_first_response,
             high_unpaid_share=high_unpaid_share,

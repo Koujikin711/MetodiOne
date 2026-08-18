@@ -11,4 +11,6 @@ class SystemAuditEventRead(BaseModel):
     details: str | None = None
     user_id: int | None = None
     user_name: str | None = None
+    user_email: str | None = None
+    source: str = "system"
     created_at: datetime

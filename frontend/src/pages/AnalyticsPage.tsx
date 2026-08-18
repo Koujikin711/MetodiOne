@@ -4,7 +4,13 @@ import { type ReactNode, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { appLexicon } from "@/lib/appLexicon";
 import { formatMoney } from "@/lib/money";
-import type { AnalyticsOverviewRead, DetailedAnalyticsRead, FullAnalyticsRead, Pipeline } from "@/lib/types";
+import type {
+  AnalyticsOverviewRead,
+  DetailedAnalyticsRead,
+  FullAnalyticsRead,
+  ManagerPerformanceItem,
+  Pipeline,
+} from "@/lib/types";
 
 const moneyFmt = { format: (n: number) => formatMoney(n, { digits: 0 }) };
 
@@ -26,15 +32,36 @@ function MetricCard({
   label,
   value,
   tone = "default",
+  hint,
 }: {
   label: string;
   value: ReactNode;
   tone?: "default" | "success" | "warning" | "accent" | "neutral";
+  hint?: string;
 }) {
   return (
     <div className={`mo-kpi analytics-kpi analytics-kpi--${tone}`}>
       <div className="mo-kpi-label">{label}</div>
       <div className="mo-kpi-value">{value}</div>
+      {hint ? <div className="analytics-kpi-hint">{hint}</div> : null}
+    </div>
+  );
+}
+
+function scoreTone(score: number): "good" | "mid" | "low" {
+  if (score >= 70) return "good";
+  if (score >= 40) return "mid";
+  return "low";
+}
+
+function ScoreBar({ value, label }: { value: number; label?: string }) {
+  const tone = scoreTone(value);
+  return (
+    <div className={`analytics-score analytics-score--${tone}`} title={label}>
+      <div className="analytics-score-track">
+        <div className="analytics-score-fill" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+      </div>
+      <span className="analytics-score-num tabular-nums">{value}</span>
     </div>
   );
 }
@@ -171,15 +198,26 @@ export function AnalyticsPage() {
             onClick={() => {
               if (mode === "overview" && overviewQuery.data) {
                 downloadCsv(
-                  "analytics_overview_sources.csv",
-                  ["Источник", lex.leadCol, lex.csvLeadSharePct, "Продано", "Оплачено", "Не оплачено"],
-                  overviewQuery.data.by_source.map((r) => [
-                    r.source,
-                    r.leads_count,
-                    r.lead_share_pct,
-                    Number(r.sold_amount),
-                    Number(r.paid_amount),
-                    Number(r.unpaid_amount),
+                  "analytics_overview_managers.csv",
+                  [
+                    lex.thStaff,
+                    "Успеваемость",
+                    "Активность",
+                    "Win %",
+                    "План %",
+                    "Ответы %",
+                    "Исх. сообщения",
+                    "Первый ответ (мин)",
+                  ],
+                  (overviewQuery.data.manager_performance ?? []).map((r: ManagerPerformanceItem) => [
+                    r.manager_name,
+                    r.performance_score,
+                    r.activity_score,
+                    r.win_rate_pct,
+                    r.plan_completion_pct,
+                    r.reply_rate_pct,
+                    r.outbound_messages_count,
+                    r.avg_first_response_minutes ?? "",
                   ]),
                 );
               }
@@ -199,13 +237,27 @@ export function AnalyticsPage() {
               if (mode === "detailed" && detailedQuery.data) {
                 downloadCsv(
                   "analytics_detailed.csv",
-                  [lex.thStaff, lex.leadCol, "Продано", "Не оплачено", "Ответили (клиент / менеджер)"],
+                  [
+                    lex.thStaff,
+                    lex.leadCol,
+                    "Продано",
+                    "Не оплачено",
+                    "Успеваемость",
+                    "Активность",
+                    "Win %",
+                    "Ответы %",
+                    "Исх. сообщения",
+                  ],
                   detailedQuery.data.by_manager.map((r) => [
                     r.manager_name,
                     r.leads_count,
                     Number(r.sold_amount),
                     Number(r.unpaid_amount),
-                    `${r.clients_messaged_count ?? 0} / ${r.manager_replied_count ?? 0}`,
+                    r.performance_score ?? "",
+                    r.activity_score ?? "",
+                    r.win_rate_pct ?? "",
+                    r.reply_rate_pct ?? "",
+                    r.outbound_messages_count ?? 0,
                   ]),
                 );
               }
@@ -253,6 +305,26 @@ export function AnalyticsPage() {
                       : `${overviewQuery.data.executive.avg_lead_cycle_hours} ч`
                   }
                   tone="neutral"
+                />
+                <MetricCard
+                  label="Успеваемость"
+                  value={
+                    overviewQuery.data.executive.performance_score_avg == null
+                      ? "—"
+                      : overviewQuery.data.executive.performance_score_avg
+                  }
+                  tone="accent"
+                  hint="Средний балл менеджеров · 0–100"
+                />
+                <MetricCard
+                  label="Активность"
+                  value={
+                    overviewQuery.data.executive.activity_reply_rate_pct == null
+                      ? "—"
+                      : `${overviewQuery.data.executive.activity_reply_rate_pct}%`
+                  }
+                  tone="default"
+                  hint="Доля диалогов с ответом менеджера"
                 />
               </div>
 
@@ -360,6 +432,62 @@ export function AnalyticsPage() {
                 </AnalyticsTable>
               </AnalyticsPanel>
 
+              <AnalyticsPanel title="Успеваемость и активность менеджеров">
+                <p className="analytics-panel-note">
+                  Успеваемость — план, win rate, скорость ответа. Активность — ответы в чате и исходящие сообщения.
+                </p>
+                <AnalyticsTable minWidth={880}>
+                  <thead>
+                    <tr>
+                      <th className="py-2 pr-3">{lex.thStaff}</th>
+                      <th className="py-2 pr-3">Успеваемость</th>
+                      <th className="py-2 pr-3">Активность</th>
+                      <th className="py-2 pr-3">Win</th>
+                      <th className="py-2 pr-3">План</th>
+                      <th className="py-2 pr-3">Ответы</th>
+                      <th className="py-2 pr-3">Исх.</th>
+                      <th className="py-2 pr-3">Первый ответ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(overviewQuery.data.manager_performance ?? []).length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="analytics-empty-cell">
+                          Нет данных за период
+                        </td>
+                      </tr>
+                    ) : (
+                      (overviewQuery.data.manager_performance ?? []).map((r) => (
+                        <tr key={`${r.manager_id ?? "none"}-${r.manager_name}`}>
+                          <td className="py-2.5 pr-3 font-medium">{r.manager_name}</td>
+                          <td className="py-2.5 pr-3">
+                            <ScoreBar
+                              value={r.performance_score}
+                              label="План 35% · Win 30% · ответы 25% · SLA 10%"
+                            />
+                          </td>
+                          <td className="py-2.5 pr-3">
+                            <ScoreBar value={r.activity_score} label="Ответы 65% · объём сообщений 35%" />
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">{r.win_rate_pct}%</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{r.plan_completion_pct}%</td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {r.reply_rate_pct}%
+                            <span className="mt-0.5 block text-[10px] mo-muted">
+                              {r.manager_replied_count}/{r.clients_messaged_count}
+                            </span>
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">{r.outbound_messages_count}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {r.avg_first_response_minutes == null ? "—" : `${r.avg_first_response_minutes} мин`}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </AnalyticsTable>
+              </AnalyticsPanel>
+
               <AnalyticsPanel title={lex.sectionPlanFact}>
                 <AnalyticsTable minWidth={640}>
                   <thead>
@@ -455,13 +583,15 @@ export function AnalyticsPage() {
                 />
               </div>
               <AnalyticsPanel title="По менеджерам">
-                <AnalyticsTable minWidth={760}>
+                <AnalyticsTable minWidth={920}>
                   <thead>
                     <tr>
                       <th className="py-2 pr-4">{lex.thStaff}</th>
                       <th className="py-2 pr-4">{lex.leadCol}</th>
                       <th className="py-2 pr-4">Продано</th>
                       <th className="py-2 pr-4">Не оплачено</th>
+                      <th className="py-2 pr-4">Успеваемость</th>
+                      <th className="py-2 pr-4">Активность</th>
                       <th className="py-2 pr-4" title="Сколько лидов написали / скольким менеджер ответил">
                         Ответили
                       </th>
@@ -474,6 +604,12 @@ export function AnalyticsPage() {
                         <td className="py-2.5 pr-4 tabular-nums">{r.leads_count}</td>
                         <td className="py-2.5 pr-4 tabular-nums">{moneyFmt.format(Number(r.sold_amount))}</td>
                         <td className="py-2.5 pr-4 tabular-nums">{moneyFmt.format(Number(r.unpaid_amount))}</td>
+                        <td className="py-2.5 pr-4">
+                          <ScoreBar value={r.performance_score ?? 0} />
+                        </td>
+                        <td className="py-2.5 pr-4">
+                          <ScoreBar value={r.activity_score ?? 0} />
+                        </td>
                         <td className="py-2.5 pr-4 tabular-nums">
                           <span className="font-medium text-[var(--mo-text)]">{r.clients_messaged_count ?? 0}</span>
                           <span className="mo-muted"> / </span>

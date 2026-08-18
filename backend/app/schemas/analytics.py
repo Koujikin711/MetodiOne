@@ -33,6 +33,12 @@ class ManagerDetailedAnalyticsItem(BaseModel):
         default=0,
         description="Скольким из них менеджер ответил исходящим сообщением за период",
     )
+    reply_rate_pct: float = 0
+    outbound_messages_count: int = 0
+    win_rate_pct: float = 0
+    avg_first_response_minutes: float | None = None
+    performance_score: float = 0
+    activity_score: float = 0
 
 
 class DetailedAnalyticsRead(BaseModel):
@@ -79,6 +85,22 @@ class ManagerPlanFactItem(BaseModel):
     plan_completion_pct: float = 0
 
 
+class ManagerPerformanceItem(BaseModel):
+    manager_id: int | None = None
+    manager_name: str = "Без менеджера"
+    leads_count: int = 0
+    won_leads: int = 0
+    win_rate_pct: float = 0
+    plan_completion_pct: float = 0
+    clients_messaged_count: int = 0
+    manager_replied_count: int = 0
+    reply_rate_pct: float = 0
+    outbound_messages_count: int = 0
+    avg_first_response_minutes: float | None = None
+    performance_score: float = 0
+    activity_score: float = 0
+
+
 class AnalyticsAlertsRead(BaseModel):
     low_first_response: bool = False
     high_unpaid_share: bool = False
@@ -94,6 +116,8 @@ class ExecutiveKpiRead(BaseModel):
     unpaid_amount: Decimal = Field(default=Decimal("0"))
     avg_first_response_minutes: float | None = None
     avg_lead_cycle_hours: float | None = None
+    performance_score_avg: float | None = None
+    activity_reply_rate_pct: float | None = None
 
 
 class AnalyticsOverviewRead(BaseModel):
@@ -104,4 +128,5 @@ class AnalyticsOverviewRead(BaseModel):
     by_source: list[SourceAnalyticsItem] = Field(default_factory=list)
     loss_reasons: list[LossReasonItem] = Field(default_factory=list)
     manager_plan_fact: list[ManagerPlanFactItem] = Field(default_factory=list)
+    manager_performance: list[ManagerPerformanceItem] = Field(default_factory=list)
     alerts: AnalyticsAlertsRead

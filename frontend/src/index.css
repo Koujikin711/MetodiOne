@@ -3238,6 +3238,18 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   background: rgba(15, 23, 42, 0.75);
   color: #e2e8f0;
 }
+.audit-actor {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  border-radius: 0.5rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+  padding: 0.125rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--mo-text);
+}
 
 /* ── Задачи ── */
 .task-filter-btn {
@@ -3664,8 +3676,53 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-3;
 }
 
-.analytics-kpi {
-  @apply relative overflow-hidden;
+.analytics-kpi-hint {
+  @apply mt-1 text-[11px] leading-snug;
+  color: var(--mo-text-muted);
+}
+
+.analytics-panel-note {
+  @apply mb-3 text-xs leading-snug;
+  color: var(--mo-text-muted);
+}
+
+.analytics-score {
+  display: flex;
+  min-width: 6.5rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.analytics-score-track {
+  height: 0.4rem;
+  flex: 1 1 auto;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mo-border) 80%, transparent);
+}
+
+.analytics-score-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width var(--mo-duration) var(--mo-ease);
+}
+
+.analytics-score-num {
+  width: 2.1rem;
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--mo-text);
+}
+
+.analytics-score--good .analytics-score-fill {
+  background: linear-gradient(90deg, #059669, #34d399);
+}
+.analytics-score--mid .analytics-score-fill {
+  background: linear-gradient(90deg, #d97706, #fbbf24);
+}
+.analytics-score--low .analytics-score-fill {
+  background: linear-gradient(90deg, #dc2626, #f87171);
 }
 
 .analytics-kpi::before {
