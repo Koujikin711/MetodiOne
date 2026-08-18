@@ -410,6 +410,8 @@ class Lead(Base):
         default=_utc_now,
         insert_default=_utc_now,
     )
+    # Вечерняя реактивация из Архива: grace, чтобы classify не вернул сразу в Архив.
+    reactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
     stage: Mapped["PipelineStage"] = relationship(back_populates="leads")
     manager: Mapped["User | None"] = relationship(back_populates="leads", foreign_keys=[manager_id])

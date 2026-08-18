@@ -2309,3 +2309,21 @@ async def ensure_lead_waiting_callbacks(conn: AsyncConnection, database_url: str
     await conn.execute(
         text("CREATE INDEX IF NOT EXISTS ix_lead_waiting_callbacks_status ON lead_waiting_callbacks (status)"),
     )
+
+
+async def ensure_lead_reactivated_at(conn: AsyncConnection, database_url: str) -> None:
+    """Колонка leads.reactivated_at — grace после вечерней раздачи из Архива."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        r = await conn.execute(text("PRAGMA table_info(leads)"))
+        cols = {row[1] for row in r.fetchall()}
+        if "reactivated_at" not in cols:
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN reactivated_at DATETIME"))
+    else:
+        await conn.execute(
+            text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS reactivated_at TIMESTAMPTZ"),
+        )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_leads_reactivated_at ON leads (reactivated_at)"),
+    )

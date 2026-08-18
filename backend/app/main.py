@@ -35,6 +35,7 @@ from app.database_migrate import (
     ensure_sales_field_visits_migration,
     ensure_pipeline_stage_automation,
     ensure_lead_waiting_callbacks,
+    ensure_lead_reactivated_at,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -73,6 +74,7 @@ from app.services.google_sheets_finance_sync import run_finance_sheets_sync_tick
 from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.runtime_metrics import runtime_metrics
 from app.services.waiting_callback_reminders import run_waiting_callback_tick
+from app.services.archive_evening_reactivate import run_archive_evening_reactivate_tick
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
 
 logger = logging.getLogger(__name__)
@@ -135,6 +137,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_sales_field_visits_migration(conn, db_url)
                 await ensure_pipeline_stage_automation(conn, db_url)
                 await ensure_lead_waiting_callbacks(conn, db_url)
+                await ensure_lead_reactivated_at(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
@@ -497,6 +500,7 @@ async def lifespan(_: FastAPI):
                 async with AsyncSessionLocal() as session:
                     sent = await run_whatsapp_reminder_tick(session)
                     waiting_sent = await run_waiting_callback_tick(session)
+                    archive_evening = await run_archive_evening_reactivate_tick(session)
                     await session.commit()
                     if sent:
                         logger.info("whatsapp reminders sent: %s", sent)
@@ -512,6 +516,13 @@ async def lifespan(_: FastAPI):
                             source="waiting_callbacks",
                             ok=True,
                             message=f"Обработано callback «В ожидании»: {waiting_sent}",
+                        )
+                    if archive_evening:
+                        logger.info("archive evening reactivated: %s", archive_evening)
+                        record_background_event(
+                            source="archive_evening_reactivate",
+                            ok=True,
+                            message=f"Вечерняя раздача из Архива: {archive_evening} лидов",
                         )
                     now = asyncio.get_running_loop().time()
                     if now >= next_sheets_run:

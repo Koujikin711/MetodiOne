@@ -146,6 +146,38 @@ def test_classify_lead_stage_name():
         )
         == "Новый лид"
     )
+    # Вечерняя реактивация: старый склад остаётся «Новый лид» в grace по reactivated_at.
+    assert (
+        classify_lead_stage_name(
+            current_name="Новый лид",
+            appointment_statuses=set(),
+            has_outbound=False,
+            last_direction="in",
+            has_any_chat=True,
+            source="GREEN API",
+            last_message_at=old,
+            lead_created_at=old,
+            reactivated_at=now - timedelta(days=1),
+            now=now,
+        )
+        == "Новый лид"
+    )
+    # После истечения grace — снова Архив.
+    assert (
+        classify_lead_stage_name(
+            current_name="Новый лид",
+            appointment_statuses=set(),
+            has_outbound=False,
+            last_direction="in",
+            has_any_chat=True,
+            source="GREEN API",
+            last_message_at=old,
+            lead_created_at=old,
+            reactivated_at=now - timedelta(days=40),
+            now=now,
+        )
+        == "Архив"
+    )
     # Не ломаем ручную стадию менеджера без жёсткого сигнала записи.
     assert (
         classify_lead_stage_name(

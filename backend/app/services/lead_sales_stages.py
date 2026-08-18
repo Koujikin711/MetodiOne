@@ -158,12 +158,14 @@ def classify_lead_stage_name(
     source: str | None = None,
     last_message_at: datetime | None = None,
     lead_created_at: datetime | None = None,
+    reactivated_at: datetime | None = None,
     now: datetime | None = None,
 ) -> str:
     """
     Жёсткие сигналы (запись) перекрывают ручные стадии.
     Склад Bitrix/WhatsApp/GREEN API без свежей активности → Архив (не удалять).
     «Новый лид» только при свежем входящем (или только что созданном без чата).
+    После вечерней реактивации из Архива — grace по reactivated_at.
     """
     cur = (current_name or "").strip()
     statuses = {str(s).strip().lower() for s in appointment_statuses}
@@ -186,6 +188,14 @@ def classify_lead_stage_name(
 
     if cur == ARCHIVE_STAGE_NAME:
         return ARCHIVE_STAGE_NAME
+
+    # Вечерняя раздача из Архива: не возвращаем в Архив, пока grace жив и нет исходящих.
+    if (
+        cur in ("", "Новый лид", "Новый")
+        and not has_outbound
+        and _is_recent(reactivated_at, now=clock)
+    ):
+        return "Новый лид"
 
     # Явный склад из «Новый*» → Архив, если нет свежей активности.
     if cur in ("", "Новый лид", "Новый") and _is_warehouse_source(source):
@@ -421,7 +431,7 @@ async def redistribute_pipeline_leads_by_activity(
     while True:
         leads = (
             await db.execute(
-                select(Lead.id, Lead.status_id, Lead.source, Lead.created_at)
+                select(Lead.id, Lead.status_id, Lead.source, Lead.created_at, Lead.reactivated_at)
                 .where(
                     Lead.company_id == company_id,
                     Lead.status_id.in_(stage_id_set),
@@ -439,6 +449,7 @@ async def redistribute_pipeline_leads_by_activity(
         id_to_status = {int(r[0]): int(r[1]) for r in leads}
         id_to_source = {int(r[0]): (r[2] if r[2] is None else str(r[2])) for r in leads}
         id_to_created = {int(r[0]): r[3] for r in leads}
+        id_to_reactivated = {int(r[0]): r[4] for r in leads}
 
         appt_rows = (
             await db.execute(
@@ -519,6 +530,7 @@ async def redistribute_pipeline_leads_by_activity(
                 source=id_to_source.get(lid),
                 last_message_at=last_at.get(lid),
                 lead_created_at=id_to_created.get(lid),
+                reactivated_at=id_to_reactivated.get(lid),
                 now=clock,
             )
             target_sid = ids.get(target_name)
