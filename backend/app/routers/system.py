@@ -235,3 +235,26 @@ async def get_tariff_access(
         upgrade_hints=upgrade_hints,
     )
 
+
+class ArchiveEveningStatsRead(BaseModel):
+    day: str | None = None
+    assigned: int = 0
+    managers: int = 0
+    ran_today: bool = False
+    has_run: bool = False
+
+
+@router.get("/archive-evening-stats", response_model=ArchiveEveningStatsRead)
+async def get_archive_evening_stats(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> ArchiveEveningStatsRead:
+    """Метка раздачи Архива — только owner/admin (менеджерам 403)."""
+    if current_user.role not in (UserRole.owner, UserRole.admin, UserRole.super_owner):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только администратор")
+    from app.services.archive_evening_reactivate import get_latest_archive_evening_stats
+
+    data = await get_latest_archive_evening_stats(db, company_id=company_id)
+    return ArchiveEveningStatsRead(**data)
+

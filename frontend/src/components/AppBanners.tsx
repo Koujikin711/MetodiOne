@@ -6,6 +6,7 @@ import { apiFetch, getActiveCompanyId, getStoredToken } from "@/lib/api";
 import { decodeImpersonatorFromToken, decodeRoleFromToken } from "@/lib/auth";
 import { isOnboardingDone } from "@/lib/onboarding";
 import type { BillingStatusRead } from "@/lib/types";
+import { ArchiveEveningAdminBadge } from "@/components/ArchiveEveningAdminBadge";
 
 function trialDaysLeft(trialEndsAt: string | null): number | null {
   if (!trialEndsAt) return null;
@@ -23,6 +24,7 @@ export function AppBanners() {
   const impersonatorId = decodeImpersonatorFromToken(token);
   const showOnboardingBanner = role === "owner" && !isOnboardingDone() && !location.pathname.startsWith("/crm");
   const canBillingBanner = false;
+  const showArchiveEveningBadge = role === "owner" || role === "admin" || role === "super_owner";
 
   const billingQ = useQuery({
     queryKey: ["billing-status", companyId],
@@ -55,12 +57,13 @@ export function AppBanners() {
       b.billing_status === "payment_pending" ||
       (b.billing_status === "demo_trial" && daysLeft != null && daysLeft <= 3));
 
-  if (!demo && !showOnboardingBanner && impersonatorId == null && !showBillingUrgent) {
+  if (!demo && !showOnboardingBanner && impersonatorId == null && !showBillingUrgent && !showArchiveEveningBadge) {
     return null;
   }
 
   return (
     <div className="mb-4 space-y-2 print:hidden">
+      {showArchiveEveningBadge ? <ArchiveEveningAdminBadge /> : null}
       {impersonatorId != null ? (
         <div className="mo-section border-[var(--mo-warning)]/35 bg-[var(--mo-surface-elevated)] px-4 py-2 text-center text-xs text-[var(--mo-text)]">
           Режим поддержки: вы вошли от имени владельца компании. Сессия помечена супер-владельцем (ID{" "}

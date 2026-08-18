@@ -268,6 +268,54 @@ async def reactivate_company_archive_leads(
     return assigned
 
 
+async def get_latest_archive_evening_stats(
+    db: AsyncSession,
+    *,
+    company_id: int,
+) -> dict[str, object]:
+    """Последняя вечерняя раздача Архива для админ-метки."""
+    local = _local_now()
+    today = local.strftime("%Y-%m-%d")
+    row = (
+        await db.execute(
+            select(SystemAuditEvent)
+            .where(
+                SystemAuditEvent.company_id == company_id,
+                SystemAuditEvent.action == "archive_evening_reactivate_stats",
+            )
+            .order_by(SystemAuditEvent.id.desc())
+            .limit(1),
+        )
+    ).scalar_one_or_none()
+
+    day: str | None = None
+    assigned = 0
+    managers = 0
+    if row is not None and row.details:
+        parts = {}
+        for chunk in str(row.details).split(";"):
+            if "=" in chunk:
+                k, v = chunk.split("=", 1)
+                parts[k.strip()] = v.strip()
+        day = parts.get("day")
+        try:
+            assigned = int(parts.get("assigned") or 0)
+        except ValueError:
+            assigned = 0
+        try:
+            managers = int(parts.get("managers") or 0)
+        except ValueError:
+            managers = 0
+
+    return {
+        "day": day,
+        "assigned": assigned,
+        "managers": managers,
+        "ran_today": bool(day and day == today),
+        "has_run": day is not None,
+    }
+
+
 async def run_archive_evening_reactivate_tick(
     db: AsyncSession,
     *,
