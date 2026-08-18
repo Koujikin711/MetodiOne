@@ -1400,7 +1400,7 @@ export function CrmPage() {
       const stageName =
         sortedStages.find((s) => s.id === newStageId)?.name ?? lead.stage_name;
 
-      if (String(stageName).trim() === "В ожидании") {
+      if (String(stageName).trim().toLowerCase().includes("ожид")) {
         setWaitingModalLeadId(leadId);
         return;
       }

@@ -1948,11 +1948,18 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-board-scroller {
-  @apply no-scrollbar flex gap-4 overflow-x-auto overflow-y-hidden;
+  @apply flex gap-4 overflow-x-auto overflow-y-hidden;
   position: absolute;
   inset: 0;
   align-items: stretch;
   min-height: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.crm-board-scroller::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .crm-board-footnote {

@@ -460,6 +460,11 @@ const SALES_STAGE_COLORS: Record<SalesStageKey, string> = {
   archive: "#78716c",
 };
 
+function isWaitingStageName(name: string | null | undefined): boolean {
+  const n = (name || "").trim().toLowerCase();
+  return n === "в ожидании" || (n.includes("ожид") && !n.includes("ответа"));
+}
+
 function stageColorForThread(t: Pick<ChatThread, "lead_stage_key" | "lead_stage_name">): string {
   if (t.lead_stage_key && SALES_STAGE_COLORS[t.lead_stage_key]) {
     return SALES_STAGE_COLORS[t.lead_stage_key];
@@ -1428,7 +1433,7 @@ export function ChatPage() {
                             disabled={setLeadStatusMutation.isPending || current}
                             onClick={() => {
                               const leadId = Number(activeThread.lead_id);
-                              if (s.name.trim() === "В ожидании") {
+                              if (isWaitingStageName(s.name)) {
                                 setStatusOpen(false);
                                 setWaitingModalLeadId(leadId);
                                 return;
