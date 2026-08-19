@@ -1970,13 +1970,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   @apply w-full min-w-0 shrink-0 space-y-2;
   position: relative;
   z-index: 30;
-  padding: 0.15rem 0 0.35rem;
-  background: var(--mo-canvas);
+  padding: 0 0 0.4rem;
+  background: transparent;
   box-shadow: none;
 }
 
 :root[data-theme="dark"] .crm-toolbar {
-  background: var(--mo-canvas);
+  background: transparent;
   box-shadow: none;
 }
 
@@ -1985,11 +1985,11 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-toolbar__brand {
-  @apply min-w-0 flex-1;
+  @apply flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-0.5;
 }
 
 .crm-toolbar__subtitle {
-  @apply mt-0.5 text-xs font-medium leading-snug;
+  @apply m-0 text-sm font-medium leading-none;
   color: var(--mo-text-muted);
 }
 
@@ -1998,9 +1998,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-toolbar__bar {
-  @apply flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2;
-  border-color: var(--mo-border);
-  background: var(--mo-surface-elevated);
+  @apply flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 px-0 py-0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .crm-toolbar__funnels {
@@ -2064,8 +2065,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .crm-view-switch {
   @apply inline-flex rounded-full border p-0.5;
-  border-color: var(--mo-border-strong);
-  background-color: var(--mo-canvas);
+  border-color: var(--mo-border);
+  background: transparent;
   box-shadow: none;
 }
 
@@ -2074,10 +2075,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--mo-text-muted);
 }
 .crm-view-switch button[data-active="true"] {
-  background-color: var(--mo-surface-elevated);
+  background-color: var(--mo-accent-soft);
   color: var(--mo-text);
-  border: 1px solid var(--mo-border-strong);
-  box-shadow: var(--mo-shadow-luxury);
+  border: 1px solid transparent;
+  box-shadow: none;
 }
 
 .crm-search-wrap {
@@ -2101,8 +2102,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 :root[data-theme="dark"] .crm-toolbar__bar {
-  background: rgba(15, 23, 42, 0.55);
-  border-color: rgba(148, 163, 184, 0.2);
+  background: transparent;
+  border: none;
 }
 
 :root[data-theme="dark"] .crm-pill-btn {
@@ -2142,12 +2143,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   max-height: 100%;
   border-color: var(--mo-border);
   background-color: var(--mo-surface);
-  box-shadow: var(--mo-shadow-luxury);
+  box-shadow: none;
 }
 
 .crm-kanban-col.is-drop-target {
   border-color: var(--mo-accent);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.28), var(--mo-shadow-luxury);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.28);
 }
 
 .crm-kanban-col-header {
@@ -2192,12 +2193,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border-color: var(--mo-border);
   background-color: var(--mo-surface-elevated);
   color: var(--mo-text);
-  box-shadow: var(--mo-shadow-luxury);
+  box-shadow: none;
   flex-shrink: 0;
 }
 .crm-lead-card:hover {
   border-color: var(--mo-border-strong);
-  box-shadow: 0 8px 24px -8px rgba(99, 102, 241, 0.18);
+  box-shadow: none;
 }
 .crm-lead-card.is-dragging {
   opacity: 0.58;
@@ -2230,7 +2231,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border-color: var(--mo-accent);
   background: var(--mo-surface-elevated);
   color: var(--mo-text);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.28);
+  box-shadow: none;
 }
 
 .crm-modal-panel {
@@ -3668,6 +3669,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--mo-text-muted);
 }
 
+.analytics-toolbar-field.is-needed .mo-input {
+  border-color: color-mix(in srgb, var(--mo-accent) 55%, var(--mo-border));
+}
+
 .analytics-export-btn {
   @apply w-full shrink-0 px-4 py-2.5 text-sm font-medium lg:w-auto;
 }
@@ -3824,10 +3829,31 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .analytics-error {
-  @apply rounded-xl border px-3 py-2 text-sm;
-  border-color: rgba(244, 63, 94, 0.35);
-  background: rgba(254, 226, 226, 0.65);
-  color: #be123c;
+  @apply rounded-xl px-4 py-3 text-sm font-medium leading-snug;
+  border: 1px solid color-mix(in srgb, var(--mo-danger) 28%, var(--mo-border));
+  background: color-mix(in srgb, var(--mo-danger) 10%, var(--mo-surface));
+  color: var(--mo-text);
+  box-shadow: none;
+}
+
+.analytics-hint {
+  @apply rounded-xl px-4 py-3 text-sm leading-snug;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-accent-soft);
+  color: var(--mo-text);
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .analytics-error {
+  border-color: rgba(248, 113, 113, 0.28);
+  background: color-mix(in srgb, var(--mo-danger) 14%, var(--mo-surface-elevated));
+  color: #fecaca;
+}
+
+:root[data-theme="dark"] .analytics-hint {
+  border-color: rgba(129, 140, 248, 0.28);
+  background: rgba(99, 102, 241, 0.14);
+  color: #e8eef9;
 }
 
 :root[data-theme="dark"] .analytics-alerts {
@@ -3846,12 +3872,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 :root[data-theme="dark"] .analytics-alerts-ok {
   color: #6ee7b7;
-}
-
-:root[data-theme="dark"] .analytics-error {
-  border-color: rgba(244, 63, 94, 0.4);
-  background: rgba(127, 29, 29, 0.35);
-  color: #fda4af;
 }
 
 /* ——— MetodiOne Studio portfolio landing ——— */

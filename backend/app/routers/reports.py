@@ -40,7 +40,10 @@ def _period_bounds(period: str, date_from: str | None, date_to: str | None) -> t
         return start, end
     if period == "custom":
         if not date_from or not date_to:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите date_from и date_to")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Укажите даты начала и окончания периода",
+            )
         try:
             d_from = datetime.strptime(date_from, "%Y-%m-%d")
             d_to = datetime.strptime(date_to, "%Y-%m-%d")

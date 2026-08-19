@@ -85,6 +85,13 @@ function AnalyticsTable({ children, minWidth = 480 }: { children: ReactNode; min
   );
 }
 
+function analyticsErrorText(message: string): string {
+  if (/date_from|date_to/i.test(message) || /дат/i.test(message)) {
+    return "Выберите даты «С» и «По» — без них период не считается.";
+  }
+  return message;
+}
+
 export function AnalyticsPage() {
   const lex = appLexicon;
   const [mode, setMode] = useState<"overview" | "full" | "detailed">("overview");
@@ -92,6 +99,8 @@ export function AnalyticsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [pipelineId, setPipelineId] = useState<number | "all">("all");
+
+  const periodReady = period !== "custom" || Boolean(dateFrom && dateTo);
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -112,16 +121,19 @@ export function AnalyticsPage() {
   const fullQuery = useQuery({
     queryKey: ["analytics-full", qs],
     queryFn: () => apiFetch<FullAnalyticsRead>(`/api/analytics/full?${qs}`),
+    enabled: periodReady,
   });
 
   const detailedQuery = useQuery({
     queryKey: ["analytics-detailed", qs],
     queryFn: () => apiFetch<DetailedAnalyticsRead>(`/api/analytics/detailed?${qs}`),
+    enabled: periodReady,
   });
 
   const overviewQuery = useQuery({
     queryKey: ["analytics-overview", qs],
     queryFn: () => apiFetch<AnalyticsOverviewRead>(`/api/analytics/overview?${qs}`),
+    enabled: periodReady,
   });
 
   return (
@@ -173,7 +185,7 @@ export function AnalyticsPage() {
               ))}
             </select>
           </label>
-          <label className="analytics-toolbar-field">
+          <label className={["analytics-toolbar-field", period === "custom" && !dateFrom ? "is-needed" : ""].filter(Boolean).join(" ")}>
             <span>С</span>
             <input
               type="date"
@@ -183,7 +195,7 @@ export function AnalyticsPage() {
               className="mo-input disabled:opacity-50"
             />
           </label>
-          <label className="analytics-toolbar-field">
+          <label className={["analytics-toolbar-field", period === "custom" && !dateTo ? "is-needed" : ""].filter(Boolean).join(" ")}>
             <span>По</span>
             <input
               type="date"
@@ -271,7 +283,12 @@ export function AnalyticsPage() {
 
       {mode === "overview" && (
         <section className="space-y-4">
-          {overviewQuery.isError && <p className="analytics-error">{(overviewQuery.error as Error).message}</p>}
+          {!periodReady ? (
+            <p className="analytics-hint">Выберите даты «С» и «По» — тогда покажем аналитику за этот период.</p>
+          ) : null}
+          {periodReady && overviewQuery.isError && (
+            <p className="analytics-error">{analyticsErrorText((overviewQuery.error as Error).message)}</p>
+          )}
           {overviewQuery.isLoading && <p className="lux-caption px-1">Загрузка…</p>}
           {overviewQuery.data && (
             <>
@@ -517,7 +534,12 @@ export function AnalyticsPage() {
 
       {mode === "full" && (
         <section className="space-y-4">
-          {fullQuery.isError && <p className="analytics-error">{(fullQuery.error as Error).message}</p>}
+          {!periodReady ? (
+            <p className="analytics-hint">Выберите даты «С» и «По» — тогда покажем аналитику за этот период.</p>
+          ) : null}
+          {periodReady && fullQuery.isError && (
+            <p className="analytics-error">{analyticsErrorText((fullQuery.error as Error).message)}</p>
+          )}
           {fullQuery.isLoading && <p className="lux-caption px-1">Загрузка…</p>}
           {fullQuery.data && (
             <>
@@ -565,7 +587,12 @@ export function AnalyticsPage() {
 
       {mode === "detailed" && (
         <section className="space-y-4">
-          {detailedQuery.isError && <p className="analytics-error">{(detailedQuery.error as Error).message}</p>}
+          {!periodReady ? (
+            <p className="analytics-hint">Выберите даты «С» и «По» — тогда покажем аналитику за этот период.</p>
+          ) : null}
+          {periodReady && detailedQuery.isError && (
+            <p className="analytics-error">{analyticsErrorText((detailedQuery.error as Error).message)}</p>
+          )}
           {detailedQuery.isLoading && <p className="lux-caption px-1">Загрузка…</p>}
           {detailedQuery.data && (
             <>
