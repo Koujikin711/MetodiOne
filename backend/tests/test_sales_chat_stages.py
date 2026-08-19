@@ -197,3 +197,55 @@ def test_classify_lead_stage_name():
         )
         == "В обработке"
     )
+    # Архив + свежий входящий → снова «Новый лид» (не застревать в складе).
+    assert (
+        classify_lead_stage_name(
+            current_name="Архив",
+            appointment_statuses=set(),
+            has_outbound=False,
+            last_direction="in",
+            has_any_chat=True,
+            last_message_at=fresh,
+            now=now,
+        )
+        == "Новый лид"
+    )
+    # Архив + клиент ответил после исходящего → «В ожидании».
+    assert (
+        classify_lead_stage_name(
+            current_name="Архив",
+            appointment_statuses=set(),
+            has_outbound=True,
+            last_direction="in",
+            has_any_chat=True,
+            last_message_at=fresh,
+            now=now,
+        )
+        == "В ожидании"
+    )
+    # Архив + автоответ на свежий вход (последнее out) → «Новый лид».
+    assert (
+        classify_lead_stage_name(
+            current_name="Архив",
+            appointment_statuses=set(),
+            has_outbound=True,
+            last_direction="out",
+            has_any_chat=True,
+            last_message_at=fresh,
+            now=now,
+        )
+        == "Новый лид"
+    )
+    # Архив без свежей активности остаётся Архивом.
+    assert (
+        classify_lead_stage_name(
+            current_name="Архив",
+            appointment_statuses=set(),
+            has_outbound=False,
+            last_direction="in",
+            has_any_chat=True,
+            last_message_at=old,
+            now=now,
+        )
+        == "Архив"
+    )

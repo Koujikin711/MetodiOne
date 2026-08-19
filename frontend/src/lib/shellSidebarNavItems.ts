@@ -214,8 +214,16 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       );
     }
     if ((showDeskSales || hideKanbanForManager) && showNavForFeature("crm")) {
-      // Менеджер работает в чатах; канбан — у владельца.
-      // (чат уже добавлен выше)
+      // Менеджер работает в чатах; канбан — у владельца. Список «Лиды» оставляем.
+      items.push({
+        id: "my-leads",
+        to: "/my-leads",
+        title: navLex.navGuestsTitle,
+        labelShort: navLex.navGuests,
+        labelFull: navLex.navGuestsTitle,
+        variant: "indigo",
+        iconKey: "user-round",
+      });
     }
     if (showNavForFeature("tasks")) {
       items.push({

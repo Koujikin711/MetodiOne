@@ -411,25 +411,33 @@ export function MainLayout() {
                 </NavLink>
               </NavIf>
               {!managerChatFirst ? (
-                <>
-                  <NavIf show={showNavForFeature("crm")}>
-                    <NavLink preventScrollReset to="/crm" className={mobileBottomNavLinkClass} title={navLex.navKanbanTitle}>
-                      <GradientIconBox variant="crm" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                        <Funnel className="h-4 w-4" />
-                      </GradientIconBox>
-                      <span className="text-[9px]">{navLex.navKanban}</span>
-                    </NavLink>
-                  </NavIf>
-                  <NavIf show={showNavForFeature("crm")}>
-                    <NavLink preventScrollReset to="/my-leads" className={mobileBottomNavLinkClass} title={navLex.navGuestsTitle}>
-                      <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                        <UserRound className="h-4 w-4" />
-                      </GradientIconBox>
-                      <span className="text-[9px]">{navLex.navGuestsShort}</span>
-                    </NavLink>
-                  </NavIf>
-                </>
+                <NavIf show={showNavForFeature("crm")}>
+                  <NavLink preventScrollReset to="/crm" className={mobileBottomNavLinkClass} title={navLex.navKanbanTitle}>
+                    <GradientIconBox variant="crm" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <Funnel className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">{navLex.navKanban}</span>
+                  </NavLink>
+                </NavIf>
               ) : null}
+              <NavIf show={showNavForFeature("crm")}>
+                <NavLink
+                  preventScrollReset
+                  to="/my-leads"
+                  className={managerChatFirst ? salesMobileBottomNavLinkClass : mobileBottomNavLinkClass}
+                  title={navLex.navGuestsTitle}
+                >
+                  <GradientIconBox
+                    variant="indigo"
+                    className={managerChatFirst ? "h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" : "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4"}
+                  >
+                    <UserRound className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
+                  </GradientIconBox>
+                  <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
+                    {navLex.navGuestsShort}
+                  </span>
+                </NavLink>
+              </NavIf>
               <NavIf show={showNavForFeature("tasks")}>
                 <NavLink
                   preventScrollReset

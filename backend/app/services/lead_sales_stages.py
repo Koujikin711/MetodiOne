@@ -187,6 +187,22 @@ def classify_lead_stage_name(
         return "Отказ"
 
     if cur == ARCHIVE_STAGE_NAME:
+        # Свежая активность вытаскивает из Архива (иначе «живые» чаты висят в складе).
+        if has_outbound:
+            if (last_direction or "").strip().lower() == "in":
+                return "В ожидании"
+            # Только исходящее без нового входящего — склад остаётся Архивом
+            # (авто-приветствие по старому контакту не делает его «в работе»).
+            activity = last_message_at or lead_created_at
+            if activity is not None and _is_recent(activity, now=clock):
+                # Есть недавняя активность в треде — после автоответа ждём менеджера как новый вход.
+                if (last_direction or "").strip().lower() == "out":
+                    return "Новый лид"
+            return ARCHIVE_STAGE_NAME
+        if has_any_chat and (last_direction or "").strip().lower() == "in":
+            activity = last_message_at or lead_created_at
+            if activity is None or _is_recent(activity, now=clock):
+                return "Новый лид"
         return ARCHIVE_STAGE_NAME
 
     # Вечерняя раздача из Архива: не возвращаем в Архив, пока grace жив и нет исходящих.
