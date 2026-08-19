@@ -56,7 +56,7 @@ ARCHIVE_STAGE_NAME = "Архив"
 
 # Склад (Bitrix / старый WhatsApp / GREEN API): без свежей активности → Архив.
 # Не держим десятки тысяч «Новый лид» только из‑за старого входящего в истории.
-WAREHOUSE_RECENT_DAYS = 14
+WAREHOUSE_RECENT_DAYS = 45
 _REDISTRIBUTE_BATCH = 2000
 
 SALES_STAGE_KEY_TO_NAME: dict[str, str] = {k: n for k, n in SALES_STAGE_KEYS}

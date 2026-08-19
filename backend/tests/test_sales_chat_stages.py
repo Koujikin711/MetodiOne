@@ -116,7 +116,7 @@ def test_classify_lead_stage_name():
     from datetime import UTC, datetime, timedelta
 
     now = datetime(2026, 8, 16, tzinfo=UTC)
-    old = now - timedelta(days=40)
+    old = now - timedelta(days=50)  # старше WAREHOUSE_RECENT_DAYS (45)
     fresh = now - timedelta(days=2)
     assert (
         classify_lead_stage_name(
@@ -173,7 +173,7 @@ def test_classify_lead_stage_name():
             source="GREEN API",
             last_message_at=old,
             lead_created_at=old,
-            reactivated_at=now - timedelta(days=40),
+            reactivated_at=now - timedelta(days=50),
             now=now,
         )
         == "Архив"

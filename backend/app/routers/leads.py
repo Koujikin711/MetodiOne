@@ -787,7 +787,7 @@ async def redistribute_leads_by_activity(
 ) -> LeadActivityRedistributeResult:
     """Владелец/админ: разложить склад по Архиву / живым стадиям (батчами).
 
-    Свежие входящие (<14 дней) остаются в «Новый лид»; старый WhatsApp/Bitrix/GREEN API → Архив.
+    Свежие входящие (<45 дней) остаются в «Новый лид»; старый WhatsApp/Bitrix/GREEN API → Архив.
     """
     if not _is_lead_redistribution_admin(current_user.role):
         raise HTTPException(
