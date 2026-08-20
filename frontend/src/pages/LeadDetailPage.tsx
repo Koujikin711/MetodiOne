@@ -388,8 +388,8 @@ export function LeadDetailPage() {
   }
 
   return (
-    <div className="relative mx-auto max-w-2xl space-y-8 pb-10">
-      <div className="flex flex-wrap items-center gap-4 text-sm">
+    <div className="relative mx-auto max-w-2xl space-y-4 pb-10 sm:space-y-8">
+      <div className="flex flex-wrap items-center gap-3 text-sm sm:gap-4">
         <Link
           to="/booking"
           className="font-medium text-[var(--mo-accent-hover)] underline-offset-4 hover:underline"
@@ -407,15 +407,16 @@ export function LeadDetailPage() {
       )}
 
       {query.data && (
-        <article className="mo-section relative overflow-hidden p-5 sm:p-7">
-          <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <article className="mo-section relative flex min-h-[min(68dvh,560px)] flex-col overflow-hidden p-5 sm:min-h-0 sm:p-7">
+          <header className="flex flex-col gap-4">
             <div className="min-w-0">
-              <h1 className="truncate text-2xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-3xl">
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] mo-muted">Карточка клиента</p>
+              <h1 className="mt-1.5 text-[1.65rem] font-semibold leading-tight tracking-tight text-[var(--mo-text)] sm:text-3xl">
                 {query.data.name}
               </h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 {query.data.stage_name ? (
-                  <span className="inline-flex rounded-full bg-[var(--mo-accent-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--mo-accent-hover)]">
+                  <span className="inline-flex rounded-full bg-[var(--mo-accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--mo-accent-hover)]">
                     {query.data.stage_name === "В обработке" ? "В работе" : query.data.stage_name}
                   </span>
                 ) : null}
@@ -427,11 +428,11 @@ export function LeadDetailPage() {
                 </span>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2 sm:max-w-[14rem] sm:justify-end">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
               <button
                 type="button"
                 onClick={() => setAuditOpen(true)}
-                className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-xs font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
               >
                 Аудит
               </button>
@@ -439,41 +440,73 @@ export function LeadDetailPage() {
                 <button
                   type="button"
                   onClick={openEditLeadModal}
-                  className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-xs font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                  className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
                 >
                   Изменить
                 </button>
               ) : null}
               <Link
                 to={`/chat?lead_id=${query.data.id}`}
-                className="inline-flex items-center justify-center rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-xs font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                className="col-span-2 inline-flex items-center justify-center rounded-xl bg-[var(--mo-accent)] px-3 py-2.5 text-xs font-semibold text-white transition hover:opacity-95 sm:col-span-1"
                 title="Открыть чат с клиентом"
               >
-                Чат
+                Открыть чат
               </Link>
             </div>
           </header>
 
-          <div className="mt-5 space-y-3 border-t border-[var(--mo-border)] pt-5">
-            <p className="text-lg font-semibold tabular-nums tracking-wide text-[var(--mo-text)]" title="Телефон">
-              <PatientPhone value={query.data} />
-            </p>
-            {(query.data.email || "").trim() ? (
-              <p className="truncate text-sm text-[var(--mo-text)]" title="Email">
-                {query.data.email}
-              </p>
-            ) : null}
+          <div className="mt-6 flex-1 space-y-5 border-t border-[var(--mo-border)] pt-5">
             <div>
-              <p className="text-xs font-medium mo-muted">Источник</p>
-              <p className="mt-0.5 text-sm font-medium text-[var(--mo-text)]">
-                {(query.data.source || "").trim() || "—"}
+              <p className="text-[11px] font-medium mo-muted">Телефон</p>
+              <p className="mt-1 text-xl font-semibold tabular-nums tracking-wide text-[var(--mo-text)] sm:text-2xl">
+                <PatientPhone value={query.data} />
               </p>
             </div>
-            <div>
-              <p className="text-xs font-medium mo-muted">Ответственный менеджер</p>
-              <p className="mt-0.5 text-sm font-medium text-[var(--mo-text)]">
-                {(query.data.manager_name || "").trim() || "—"}
-              </p>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-[11px] font-medium mo-muted">Источник</p>
+                <p className="mt-0.5 text-sm font-medium text-[var(--mo-text)]">
+                  {(query.data.source || "").trim() || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-medium mo-muted">Ответственный</p>
+                <p className="mt-0.5 text-sm font-medium text-[var(--mo-text)]">
+                  {(query.data.manager_name || "").trim() || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-medium mo-muted">Создан</p>
+                <p className="mt-0.5 text-sm font-medium tabular-nums text-[var(--mo-text)]">
+                  {query.data.created_at
+                    ? new Date(query.data.created_at).toLocaleString("ru-RU", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "—"}
+                </p>
+              </div>
+              {(query.data.email || "").trim() ? (
+                <div>
+                  <p className="text-[11px] font-medium mo-muted">Email</p>
+                  <p className="mt-0.5 truncate text-sm font-medium text-[var(--mo-text)]" title={query.data.email ?? ""}>
+                    {query.data.email}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-[11px] font-medium mo-muted">Записи</p>
+                  <p className="mt-0.5 text-sm font-medium text-[var(--mo-text)]">
+                    {(leadAppointmentsQuery.data ?? []).length > 0
+                      ? `${(leadAppointmentsQuery.data ?? []).length} в онлайн-записи`
+                      : "Нет активных записей"}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
