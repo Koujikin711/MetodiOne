@@ -285,11 +285,11 @@ export function KpiPage() {
     return <AccessDenied message="Раздел KPI недоступен для вашей роли." />;
   }
 
-  const tabs: { id: TabId; label: string; shortLabel: string; show: boolean; mobileHide?: boolean }[] = [
+  const tabs: { id: TabId; label: string; shortLabel: string; show: boolean }[] = [
     { id: "plan", label: "План", shortLabel: "План", show: isOwner },
-    { id: "sales", label: "ПРОДАЖИ", shortLabel: "Продажи", show: true },
+    { id: "sales", label: "Продажи", shortLabel: "Продажи", show: true },
     { id: "company", label: "Отчёт компании", shortLabel: "Отчёт", show: isOwner },
-    { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: isAdminOrOwner, mobileHide: true },
+    { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: isAdminOrOwner },
     { id: "debtors", label: "Дебиторка", shortLabel: "Долги", show: isAdminOrOwner },
   ];
 
@@ -311,7 +311,6 @@ export function KpiPage() {
   const manualPlanItems = (planQuery.data?.items ?? []).filter((x) => x.source_type === "manual");
   const managers = planQuery.data?.managers ?? [];
   const visibleTabs = tabs.filter((t) => t.show);
-  const mobileTabs = visibleTabs.filter((t) => !t.mobileHide);
 
   return (
     <div
@@ -332,12 +331,12 @@ export function KpiPage() {
         />
       </header>
 
-      <section className="grid grid-cols-2 gap-1.5 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:gap-3 sm:rounded-2xl sm:p-4">
-        <label className="flex min-w-0 flex-col gap-0.5 text-[11px] mo-muted sm:text-sm">
+      <section className="kpi-toolbar grid grid-cols-2 gap-2 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2.5 sm:gap-3 sm:p-3.5">
+        <label className="flex min-w-0 flex-col gap-1 text-[11px] font-medium mo-muted sm:text-xs">
           Месяц
           <MonthYearPicker compact value={yearMonth} onChange={setYearMonth} />
         </label>
-        <label className="flex min-w-0 flex-col gap-0.5 text-[11px] mo-muted sm:text-sm">
+        <label className="flex min-w-0 flex-col gap-1 text-[11px] font-medium mo-muted sm:text-xs">
           Воронка
           <select
             value={pipelineId ?? ""}
@@ -353,52 +352,32 @@ export function KpiPage() {
         </label>
       </section>
 
-      {/* Телефон: без «Курсы». Десктоп: полный ряд. */}
-      <div
-        className="grid gap-1.5 sm:hidden"
-        style={{
-          gridTemplateColumns: `repeat(${Math.min(Math.max(mobileTabs.length, 1), 4)}, minmax(0, 1fr))`,
-        }}
-        role="tablist"
-        aria-label="Разделы KPI"
-      >
-        {mobileTabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            title={t.label}
-            onClick={() => setTab(t.id)}
-            className={
-              tab === t.id
-                ? "btn-primary min-h-10 w-full truncate px-1 py-2 text-center text-[11px] leading-tight"
-                : "btn-secondary min-h-10 w-full truncate px-1 py-2 text-center text-[11px] leading-tight"
-            }
-          >
-            {t.shortLabel}
-          </button>
-        ))}
-      </div>
-      <div className="hidden flex-wrap gap-1.5 sm:flex" role="tablist" aria-label="Разделы KPI">
-        {visibleTabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            title={t.label}
-            onClick={() => setTab(t.id)}
-            className={
-              tab === t.id
-                ? "btn-primary shrink-0 whitespace-nowrap px-3 py-2 text-sm"
-                : "btn-secondary shrink-0 whitespace-nowrap px-3 py-2 text-sm"
-            }
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <nav className="kpi-tabs" aria-label="Разделы KPI">
+        <div
+          className="kpi-tabs__track"
+          role="tablist"
+          style={{ ["--kpi-tab-count" as string]: String(Math.max(visibleTabs.length, 1)) }}
+        >
+          {visibleTabs.map((t) => {
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                data-active={active ? "true" : undefined}
+                title={t.label}
+                onClick={() => setTab(t.id)}
+                className="kpi-tabs__btn"
+              >
+                <span className="kpi-tabs__label kpi-tabs__label--full">{t.label}</span>
+                <span className="kpi-tabs__label kpi-tabs__label--short">{t.shortLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
 
       {tab === "plan" && isOwner ? (
         <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
@@ -1195,14 +1174,14 @@ function SalesReportSection({
   loading: boolean;
   error: Error | null;
 }) {
-  if (loading) return <p className="text-sm lux-caption">Загрузка отчёта ПРОДАЖИ…</p>;
+  if (loading) return <p className="text-sm lux-caption">Загрузка отчёта «Продажи»…</p>;
   if (error) return <p className="text-sm text-red-300">{error.message}</p>;
   if (!data) return null;
 
   if (!data.items.length) {
     return (
       <section className="mo-section p-4">
-        <h2 className="lux-subheading">ПРОДАЖИ</h2>
+        <h2 className="lux-subheading">Продажи</h2>
         <p className="mt-2 text-sm lux-caption">План на этот месяц ещё не задан. Владелец заполняет вкладку «План».</p>
       </section>
     );
@@ -1211,7 +1190,7 @@ function SalesReportSection({
   if (!data.managers.length) {
     return (
       <section className="mo-section p-4">
-        <h2 className="lux-subheading">ПРОДАЖИ</h2>
+        <h2 className="lux-subheading">Продажи</h2>
         <p className="mt-2 text-sm lux-caption">
           Нет активных менеджеров на воронке. Назначьте менеджеров — блоки появятся автоматически.
         </p>
@@ -1222,7 +1201,7 @@ function SalesReportSection({
   return (
     <div className="space-y-4 sm:space-y-6">
       <section className="mo-section p-3 sm:p-4">
-        <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">ПРОДАЖИ · {data.year_month}</h2>
+        <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажи · {data.year_month}</h2>
         <p className="mt-1 text-xs lux-caption sm:text-sm">
           Фонд: {formatMoney(num(data.bonus_fund))} на менеджера
         </p>
@@ -1342,8 +1321,8 @@ function CompanyReportSection({
         </h2>
         <p className="mt-1 hidden text-sm lux-caption sm:block">
           {hideBookingExperts
-            ? "Сводка для владельца: ход плана, выручка и долги. ПРОДАЖИ — отдельно по менеджерам."
-            : "Сводка для владельца: ход плана, выручка, дебиторка и кредиторка (оплатили, визит ещё впереди). ПРОДАЖИ — отдельно по менеджерам; здесь общий приход и явки по онлайн-записи."}
+            ? "Сводка для владельца: ход плана, выручка и долги. Продажи — отдельно по менеджерам."
+            : "Сводка для владельца: ход плана, выручка, дебиторка и кредиторка (оплатили, визит ещё впереди). Продажи — отдельно по менеджерам; здесь общий приход и явки по онлайн-записи."}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-4">
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
@@ -1447,7 +1426,7 @@ function CompanyReportSection({
         </div>
 
         <p className="mt-3 text-sm mo-muted">
-          Сумма бонусов менеджеров (из ПРОДАЖИ):{" "}
+          Сумма бонусов менеджеров (из «Продажи»):{" "}
           <span className="font-medium text-[var(--mo-text)]">
             {formatMoney(data.managers_sales_bonus_total)}
           </span>
@@ -1457,7 +1436,7 @@ function CompanyReportSection({
       <section className="mo-section p-4">
         <h3 className="mb-1 text-lg font-semibold text-[var(--mo-text)]">План компании по показателям</h3>
         <p className="mb-3 text-xs mo-muted">
-          Колонка «План» — сумма планов всех менеджеров по показателю (как во вкладке «ПРОДАЖИ»).
+          Колонка «План» — сумма планов всех менеджеров по показателю (как во вкладке «Продажи»).
         </p>
         {data.plan_lines.length === 0 ? (
           <p className="text-sm lux-caption">План на месяц не задан.</p>
