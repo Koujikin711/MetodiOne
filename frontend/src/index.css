@@ -1818,6 +1818,28 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   background: var(--mo-accent-soft);
 }
 
+.booking-attendance-remainder {
+  @apply mt-2 space-y-2 rounded-lg border px-2.5 py-2;
+  border-color: var(--mo-border-strong);
+  background: var(--mo-surface);
+}
+
+.booking-attendance-remainder__title {
+  @apply text-xs font-semibold text-[var(--mo-text)];
+}
+
+.booking-attendance-remainder__hint {
+  @apply text-[11px] leading-snug text-[var(--mo-text-muted)];
+}
+
+.booking-attendance-remainder__label {
+  @apply block text-[11px] font-medium text-[var(--mo-text)];
+}
+
+.booking-attendance-remainder__actions {
+  @apply flex items-center justify-end gap-2;
+}
+
 .mo-text { color: var(--mo-text); }
 .mo-muted { color: var(--mo-text-muted); }
 .mo-input {

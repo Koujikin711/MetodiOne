@@ -247,6 +247,8 @@ class BookingAppointmentDetailsUpdate(BaseModel):
 
 class BookingAppointmentStatusUpdate(BaseModel):
     status: Literal["booked", "completed", "no_show", "cancelled"]
+    # При «Пришёл», если есть долг по записи — обязательная доплата остатка.
+    add_payment: float | None = Field(default=None, ge=0)
 
 
 class BookingAppointmentMove(BaseModel):

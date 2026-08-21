@@ -2327,3 +2327,61 @@ async def ensure_lead_reactivated_at(conn: AsyncConnection, database_url: str) -
     await conn.execute(
         text("CREATE INDEX IF NOT EXISTS ix_leads_reactivated_at ON leads (reactivated_at)"),
     )
+
+
+async def ensure_settle_completed_booking_debts(conn: AsyncConnection, database_url: str) -> None:
+    """One-shot: у уже завершённых записей с долгом проставить полную оплату.
+
+    Нужно после введения обязательного остатка при «Пришёл» — исторические явки
+    без доплаты считаем оплаченными (как на бумаге).
+    """
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at DATETIME
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at TIMESTAMPTZ
+                )"""
+            ),
+        )
+
+    patch_name = "settle_completed_booking_debts_2026_08"
+    existing = await conn.execute(
+        text("SELECT 1 FROM app_data_patches WHERE name = :n LIMIT 1"),
+        {"n": patch_name},
+    )
+    if existing.first() is not None:
+        return
+
+    await conn.execute(
+        text(
+            """
+            UPDATE booking_appointments
+            SET paid_amount = service_amount
+            WHERE status = 'completed'
+              AND service_amount > 0
+              AND paid_amount < service_amount
+            """
+        ),
+    )
+    if sqlite:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, CURRENT_TIMESTAMP)"),
+            {"n": patch_name},
+        )
+    else:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
+            {"n": patch_name},
+        )
