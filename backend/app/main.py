@@ -182,20 +182,23 @@ async def seed_pipelines_and_stages() -> None:
 
 
 async def ensure_canonical_pipeline_stages() -> None:
-    """Все воронки → 6 стадий; существующие лиды раскладываются по записи/чату."""
+    """Все воронки → 6 стадий; бэкфилл меток Архива; раскладка по записи/чату."""
     try:
         async with AsyncSessionLocal() as session:
             from app.services.lead_sales_stages import (
+                backfill_archived_from_stage,
                 ensure_all_pipelines_chat_stages,
                 redistribute_all_pipelines_leads,
             )
 
             n = await ensure_all_pipelines_chat_stages(session)
+            backfilled = await backfill_archived_from_stage(session)
             moved = await redistribute_all_pipelines_leads(session)
             await session.commit()
             logger.info(
-                "Canonical pipeline stages ensured for %s pipeline(s); redistributed %s lead(s)",
+                "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s; redistributed %s lead(s)",
                 n,
+                backfilled,
                 moved,
             )
     except Exception:

@@ -297,3 +297,17 @@ def test_classify_lead_stage_name():
         )
         == "Удачно"
     )
+    # Свежая дата записи (appointment_activity_at) удерживает Удачно при старом чате.
+    assert (
+        classify_lead_stage_name(
+            current_name="Удачно",
+            appointment_statuses={"completed"},
+            has_outbound=False,
+            last_direction=None,
+            last_message_at=old,
+            lead_created_at=old,
+            appointment_activity_at=fresh,
+            now=now,
+        )
+        == "Удачно"
+    )

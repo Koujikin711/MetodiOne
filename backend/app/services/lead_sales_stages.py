@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -164,6 +164,7 @@ def classify_lead_stage_name(
     last_message_at: datetime | None = None,
     lead_created_at: datetime | None = None,
     reactivated_at: datetime | None = None,
+    appointment_activity_at: datetime | None = None,
     now: datetime | None = None,
 ) -> str:
     """
@@ -171,12 +172,13 @@ def classify_lead_stage_name(
     Склад Bitrix/WhatsApp/GREEN API без свежей активности → Архив (не удалять).
     «Новый лид» только при свежем входящем (или только что созданном без чата).
     «Удачно» и ручные стадии без активности >45 дней → Архив.
+    Активность: чат + дата записи/явка + created_at.
     После вечерней реактивации из Архива — grace по reactivated_at.
     """
     cur = (current_name or "").strip()
     statuses = {str(s).strip().lower() for s in appointment_statuses}
     clock = _as_utc(now) or datetime.now(UTC)
-    activity = _latest_activity(last_message_at, lead_created_at)
+    activity = _latest_activity(last_message_at, appointment_activity_at, lead_created_at)
 
     # Активная запись держит «Удачно».
     if "booked" in statuses:
@@ -472,17 +474,30 @@ async def redistribute_pipeline_leads_by_activity(
 
         appt_rows = (
             await db.execute(
-                select(BookingAppointment.lead_id, BookingAppointment.status).where(
+                select(
+                    BookingAppointment.lead_id,
+                    BookingAppointment.status,
+                    BookingAppointment.start_at,
+                    BookingAppointment.updated_at,
+                ).where(
                     BookingAppointment.company_id == company_id,
                     BookingAppointment.lead_id.in_(lead_ids),
                 ),
             )
         ).all()
         appts_by_lead: dict[int, set[str]] = defaultdict(set)
-        for lid, st in appt_rows:
+        appt_activity: dict[int, datetime] = {}
+        for lid, st, start_at, updated_at in appt_rows:
             if lid is None:
                 continue
-            appts_by_lead[int(lid)].add(str(st or ""))
+            lid_i = int(lid)
+            appts_by_lead[lid_i].add(str(st or ""))
+            stamp = _latest_activity(start_at, updated_at)
+            if stamp is None:
+                continue
+            prev = appt_activity.get(lid_i)
+            if prev is None or stamp > prev:
+                appt_activity[lid_i] = stamp
 
         out_rows = (
             await db.execute(
@@ -552,6 +567,7 @@ async def redistribute_pipeline_leads_by_activity(
                 last_message_at=last_at.get(lid),
                 lead_created_at=id_to_created.get(lid),
                 reactivated_at=id_to_reactivated.get(lid),
+                appointment_activity_at=appt_activity.get(lid),
                 now=clock,
             )
             target_sid = ids.get(target_name)
@@ -616,6 +632,73 @@ async def redistribute_all_pipelines_leads(db: AsyncSession) -> int:
             pipeline_id=int(p.id),
         )
     return total
+
+
+async def backfill_archived_from_stage(db: AsyncSession) -> int:
+    """Старый Архив без метки: если была явка (completed) — ставим archived_from_stage=Удачно.
+
+    Также по аудиту «…Удачно -> Архив» / «Удачно → Архив».
+    """
+    from app.models import LeadAuditEvent
+
+    archive_ids = (
+        await db.execute(
+            select(PipelineStage.id).where(PipelineStage.name == ARCHIVE_STAGE_NAME),
+        )
+    ).scalars().all()
+    if not archive_ids:
+        return 0
+
+    # 1) Есть completed-запись
+    completed_lead_ids = (
+        await db.execute(
+            select(BookingAppointment.lead_id)
+            .where(
+                BookingAppointment.lead_id.is_not(None),
+                BookingAppointment.status == "completed",
+            )
+            .distinct(),
+        )
+    ).scalars().all()
+    completed_set = {int(x) for x in completed_lead_ids if x is not None}
+
+    # 2) Аудит: уход из Удачно в Архив
+    audit_rows = (
+        await db.execute(
+            select(LeadAuditEvent.lead_id)
+            .where(
+                LeadAuditEvent.action == "status_changed",
+                or_(
+                    LeadAuditEvent.details.ilike("%Удачно%Архив%"),
+                    LeadAuditEvent.details.ilike("%Удачно%->%Архив%"),
+                ),
+            )
+            .distinct(),
+        )
+    ).scalars().all()
+    audit_set = {int(x) for x in audit_rows if x is not None}
+
+    candidates = completed_set | audit_set
+    if not candidates:
+        return 0
+
+    # Батчами — asyncpg bind limit
+    updated = 0
+    cand_list = sorted(candidates)
+    for i in range(0, len(cand_list), _REDISTRIBUTE_BATCH):
+        chunk = cand_list[i : i + _REDISTRIBUTE_BATCH]
+        result = await db.execute(
+            update(Lead)
+            .where(
+                Lead.id.in_(chunk),
+                Lead.status_id.in_([int(x) for x in archive_ids]),
+                Lead.archived_from_stage.is_(None),
+            )
+            .values(archived_from_stage="Удачно"),
+        )
+        updated += int(result.rowcount or 0)
+    await db.flush()
+    return updated
 
 
 async def advance_new_lead_after_manager_reply(

@@ -796,7 +796,12 @@ async def redistribute_leads_by_activity(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Только владелец или админ воронки",
         )
-    from app.services.lead_sales_stages import redistribute_pipeline_leads_by_activity
+    from app.services.lead_sales_stages import (
+        backfill_archived_from_stage,
+        redistribute_pipeline_leads_by_activity,
+    )
+
+    backfilled = await backfill_archived_from_stage(db)
 
     if pipeline_id is not None:
         pipe = await db.get(Pipeline, pipeline_id)
@@ -827,7 +832,7 @@ async def redistribute_leads_by_activity(
         entity_id=pipeline_id,
         action="leads_redistributed_by_activity",
         current_user=current_user,
-        details=f"pipeline_id={pipeline_id}, moved={moved}",
+        details=f"pipeline_id={pipeline_id}, moved={moved}, backfill_archived_from={backfilled}",
     )
     await db.commit()
     return LeadActivityRedistributeResult(
