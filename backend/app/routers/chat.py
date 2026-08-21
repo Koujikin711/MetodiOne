@@ -46,6 +46,7 @@ from app.services.patient_phone_visibility import (
     resolve_phone_fields,
 )
 from app.services.phone_match import parse_allowed_phones_json, phone_digits
+from app.services.lead_extra_phones import norm_phone
 from app.services.integration_inbound import upsert_thread
 from app.services.lead_sales_stages import (
     SALES_STAGE_KEYS,
@@ -382,6 +383,88 @@ def _msg_read(m: ChatMessage) -> ChatMessageRead:
     )
 
 
+async def _active_green_api_integration(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int | None,
+) -> Integration | None:
+    if pipeline_id is not None:
+        integ = (
+            await db.execute(
+                select(Integration)
+                .where(
+                    Integration.provider == IntegrationProvider.green_api,
+                    Integration.is_active.is_(True),
+                    Integration.company_id == company_id,
+                    Integration.pipeline_id == int(pipeline_id),
+                )
+                .order_by(Integration.id.desc())
+                .limit(1),
+            )
+        ).scalars().first()
+        if integ is not None:
+            return integ
+    return (
+        await db.execute(
+            select(Integration)
+            .where(
+                Integration.provider == IntegrationProvider.green_api,
+                Integration.is_active.is_(True),
+                Integration.company_id == company_id,
+            )
+            .order_by(Integration.id.desc())
+            .limit(1),
+        )
+    ).scalars().first()
+
+
+async def _resolve_green_outbound(
+    db: AsyncSession,
+    *,
+    thread: ChatThread,
+    company_id: int,
+    lead: Lead | None,
+) -> tuple[ChatThread, dict, str, str]:
+    """WhatsApp через GREEN API: chatId из треда или телефона лида (ручные лиды без истории)."""
+    chat_id, _used_extra = await resolve_outbound_green_chat_id(db, thread=thread)
+    if not chat_id and lead is not None:
+        await db.refresh(lead, ["extra_phones", "stage"])
+        digits = _lead_whatsapp_digits(lead)
+        if len(digits) >= 9:
+            chat_id = f"{digits}@c.us"
+    if not chat_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нет WhatsApp chat id / номера телефона у лида",
+        )
+
+    # Нормализуем и сохраняем, чтобы следующие сообщения и список чатов работали одинаково.
+    digits_only = phone_digits(str(chat_id).split("@", 1)[0])
+    if len(digits_only) >= 9:
+        chat_id = f"{digits_only}@c.us"
+    if (thread.external_chat_id or "").strip() != chat_id:
+        thread.external_chat_id = chat_id
+    if (thread.provider or "").strip() != IntegrationProvider.green_api.value:
+        thread.provider = IntegrationProvider.green_api.value
+    if thread.pipeline_id is None and lead is not None:
+        await db.refresh(lead, ["stage"])
+        if lead.stage and lead.stage.pipeline_id is not None:
+            thread.pipeline_id = int(lead.stage.pipeline_id)
+    await db.flush()
+
+    pipeline_id = thread.pipeline_id
+    if pipeline_id is None and lead is not None and lead.stage is not None:
+        pipeline_id = lead.stage.pipeline_id
+    integ = await _active_green_api_integration(db, company_id=company_id, pipeline_id=pipeline_id)
+    if integ is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нет активной интеграции WhatsApp (GREEN API)",
+        )
+    return thread, integ.config or {}, chat_id, IntegrationProvider.green_api.value
+
+
 async def _resolve_outbound_send(
     db: AsyncSession,
     thread_id: int,
@@ -391,67 +474,23 @@ async def _resolve_outbound_send(
     """Возвращает (thread, config, destination_id, provider).
 
     destination_id — WhatsApp chatId или Meta recipient id (без префикса).
+    Ручной лид с номером без переписки: исходящее всегда через GREEN API (WhatsApp),
+    независимо от того, откуда открыт чат.
     """
     thread = await db.get(ChatThread, thread_id)
     if thread is None or thread.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
     await _assert_thread_access(db, thread, current_user)
 
+    lead = await db.get(Lead, thread.lead_id) if thread.lead_id else None
     provider = (thread.provider or "").strip()
+
     if provider == IntegrationProvider.green_api.value:
-        chat_id, _used_extra = await resolve_outbound_green_chat_id(db, thread=thread)
-        if not chat_id:
-            lead = await db.get(Lead, thread.lead_id) if thread.lead_id else None
-            if lead and lead.phone:
-                chat_id = f"{lead.phone}@c.us"
-        if not chat_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No chat id / lead phone for WhatsApp",
-            )
-        integ = (
-            await db.execute(
-                select(Integration)
-                .where(
-                    Integration.provider == IntegrationProvider.green_api,
-                    Integration.is_active.is_(True),
-                    Integration.company_id == company_id,
-                    Integration.pipeline_id == (thread.pipeline_id or 0),
-                )
-                .limit(1),
-            )
-        ).scalars().first()
-        if integ is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No active GREEN API integration for thread pipeline",
-            )
-        return thread, integ.config or {}, chat_id, provider
+        return await _resolve_green_outbound(db, thread=thread, company_id=company_id, lead=lead)
 
     if provider == IntegrationProvider.instagram.value:
         kind, recipient_id = parse_meta_thread_recipient(thread.external_chat_id)
-        if not kind or not recipient_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "В этом диалоге нельзя ответить в Instagram/Messenger: "
-                    "нет IGSID/PSID (например, заявка Lead Ads без Direct)."
-                ),
-            )
-        integ = (
-            await db.execute(
-                select(Integration)
-                .where(
-                    Integration.provider == IntegrationProvider.instagram,
-                    Integration.is_active.is_(True),
-                    Integration.company_id == company_id,
-                    Integration.pipeline_id == (thread.pipeline_id or 0),
-                )
-                .limit(1),
-            )
-        ).scalars().first()
-        if integ is None:
-            # fallback: любая активная IG-интеграция компании
+        if kind and recipient_id:
             integ = (
                 await db.execute(
                     select(Integration)
@@ -459,18 +498,48 @@ async def _resolve_outbound_send(
                         Integration.provider == IntegrationProvider.instagram,
                         Integration.is_active.is_(True),
                         Integration.company_id == company_id,
+                        Integration.pipeline_id == (thread.pipeline_id or 0),
                     )
-                    .order_by(Integration.id.desc())
                     .limit(1),
                 )
             ).scalars().first()
-        if integ is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Нет активной интеграции Instagram для воронки диалога",
-            )
-        # destination кодируем как "ig:ID" / "fb:ID" чтобы знать kind при отправке
-        return thread, integ.config or {}, f"{kind}:{recipient_id}", provider
+            if integ is None:
+                integ = (
+                    await db.execute(
+                        select(Integration)
+                        .where(
+                            Integration.provider == IntegrationProvider.instagram,
+                            Integration.is_active.is_(True),
+                            Integration.company_id == company_id,
+                        )
+                        .order_by(Integration.id.desc())
+                        .limit(1),
+                    )
+                ).scalars().first()
+            if integ is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Нет активной интеграции Instagram для воронки диалога",
+                )
+            return thread, integ.config or {}, f"{kind}:{recipient_id}", provider
+        # Lead Ads / без Direct — если есть телефон, шлём в WhatsApp.
+        if lead is not None:
+            await db.refresh(lead, ["extra_phones"])
+            if len(_lead_whatsapp_digits(lead)) >= 9:
+                return await _resolve_green_outbound(db, thread=thread, company_id=company_id, lead=lead)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "В этом диалоге нельзя ответить в Instagram/Messenger: "
+                "нет IGSID/PSID и нет номера WhatsApp у лида."
+            ),
+        )
+
+    # Пустой / неизвестный provider: ручной лид с номером → WhatsApp.
+    if lead is not None:
+        await db.refresh(lead, ["extra_phones"])
+        if len(_lead_whatsapp_digits(lead)) >= 9:
+            return await _resolve_green_outbound(db, thread=thread, company_id=company_id, lead=lead)
 
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
@@ -941,11 +1010,11 @@ async def list_threads(
 
 
 def _lead_whatsapp_digits(lead: Lead) -> str:
-    digits = phone_digits(lead.phone)
+    digits = norm_phone(lead.phone) or phone_digits(lead.phone)
     if len(digits) >= 9:
         return digits
     for ep in getattr(lead, "extra_phones", None) or []:
-        d = phone_digits(getattr(ep, "phone", None))
+        d = norm_phone(getattr(ep, "phone", None)) or phone_digits(getattr(ep, "phone", None))
         if len(d) >= 9:
             return d
     return ""
@@ -996,15 +1065,64 @@ async def _ensure_whatsapp_thread_for_lead(
         return None
 
     thread_pipeline = pipeline_id or int(integ.pipeline_id)
+    chat_id = f"{digits}@c.us"
     return await upsert_thread(
         db,
         company_id=company_id,
         lead=lead,
         provider=IntegrationProvider.green_api.value,
-        external_chat_id=f"{digits}@c.us",
+        external_chat_id=chat_id,
         title=(lead.name or "").strip() or None,
         pipeline_id=thread_pipeline,
     )
+
+
+async def _resolve_whatsapp_thread_for_lead(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    lead: Lead,
+) -> ChatThread | None:
+    """Для работы с лидом из CRM предпочитаем GREEN API (WhatsApp) по номеру."""
+    green = (
+        await db.execute(
+            select(ChatThread)
+            .where(
+                ChatThread.company_id == company_id,
+                ChatThread.lead_id == lead.id,
+                ChatThread.provider == IntegrationProvider.green_api.value,
+            )
+            .order_by(ChatThread.updated_at.desc(), ChatThread.id.desc())
+            .limit(1),
+        )
+    ).scalars().first()
+
+    digits = _lead_whatsapp_digits(lead)
+    want_chat = f"{digits}@c.us" if len(digits) >= 9 else None
+
+    if green is not None:
+        if want_chat and not (green.external_chat_id or "").strip():
+            green.external_chat_id = want_chat
+            await db.flush()
+        return green
+
+    if want_chat:
+        created = await _ensure_whatsapp_thread_for_lead(db, company_id=company_id, lead=lead)
+        if created is not None:
+            return created
+
+    return (
+        await db.execute(
+            select(ChatThread)
+            .where(
+                ChatThread.company_id == company_id,
+                ChatThread.lead_id == lead.id,
+                ChatThread.provider != "internal",
+            )
+            .order_by(ChatThread.updated_at.desc(), ChatThread.id.desc())
+            .limit(1),
+        )
+    ).scalars().first()
 
 
 @router.get("/threads/by-lead/{lead_id}", response_model=ChatThreadRead)
@@ -1022,35 +1140,26 @@ async def get_thread_by_lead(
     if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Лид не найден")
 
-    thread = (
-        await db.execute(
-            select(ChatThread)
-            .where(
-                ChatThread.company_id == company_id,
-                ChatThread.lead_id == lead_id,
-                ChatThread.provider != "internal",
-            )
-            .order_by(ChatThread.updated_at.desc(), ChatThread.id.desc())
-            .limit(1),
-        )
-    ).scalars().first()
+    thread = await _resolve_whatsapp_thread_for_lead(db, company_id=company_id, lead=lead)
     if thread is None:
-        # Ручные / Instagram-лиды с WhatsApp-номером: создаём исходящий тред GREEN API.
-        thread = await _ensure_whatsapp_thread_for_lead(db, company_id=company_id, lead=lead)
-        if thread is None:
-            digits = _lead_whatsapp_digits(lead)
-            if len(digits) < 9:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="У этого клиента пока нет переписки в «Чатах» и нет номера WhatsApp",
-                )
+        digits = _lead_whatsapp_digits(lead)
+        if len(digits) < 9:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Нет активной интеграции WhatsApp (GREEN API) для создания чата",
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="У этого клиента пока нет переписки в «Чатах» и нет номера WhatsApp",
             )
-        await db.flush()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нет активной интеграции WhatsApp (GREEN API) для создания чата",
+        )
 
     await _assert_thread_access(db, thread, current_user)
+
+    # Взятие в работу: открыли чат из «Новый лид» → «В обработке».
+    if current_user.role in (UserRole.owner, UserRole.manager, UserRole.admin):
+        await advance_new_lead_after_manager_reply(
+            db, company_id=company_id, lead_id=lead_id,
+        )
 
     first_message_at_sq = (
         select(func.min(ChatMessage.created_at))

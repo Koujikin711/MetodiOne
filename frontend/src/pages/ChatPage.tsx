@@ -645,11 +645,15 @@ export function ChatPage() {
     if (!leadFromQueryValid || threadId != null) return;
     if (threadByLeadQuery.data) {
       openThread(threadByLeadQuery.data);
+      // Открытие чата с «Новый лид» переводит в «В обработке» на бэке — обновим доску.
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+      void qc.invalidateQueries({ queryKey: ["leads-table"] });
+      void qc.invalidateQueries({ queryKey: ["leads-stage-counts"] });
       return;
     }
     const match = allThreads.find((t) => t.lead_id === leadFromQuery);
     if (match) openThread(match);
-  }, [leadFromQueryValid, leadFromQuery, threadId, threadByLeadQuery.data, allThreads]);
+  }, [leadFromQueryValid, leadFromQuery, threadId, threadByLeadQuery.data, allThreads, qc]);
 
   useEffect(() => {
     if (!threadByLeadQuery.isError) return;

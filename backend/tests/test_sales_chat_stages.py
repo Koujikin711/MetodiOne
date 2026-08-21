@@ -89,11 +89,6 @@ def test_classify_lead_stage_name():
         == "В обработке"
     )
     # Живой входящий без ответа менеджера → Новый лид.
-    from datetime import UTC, datetime, timedelta
-
-    now = datetime(2026, 8, 16, tzinfo=UTC)
-    old = now - timedelta(days=50)  # старше WAREHOUSE_RECENT_DAYS (45)
-    fresh = now - timedelta(days=2)
     assert (
         classify_lead_stage_name(
             current_name="Новый лид",
@@ -101,8 +96,6 @@ def test_classify_lead_stage_name():
             has_outbound=False,
             last_direction="in",
             has_any_chat=True,
-            last_message_at=fresh,
-            now=now,
         )
         == "Новый лид"
     )
@@ -129,6 +122,11 @@ def test_classify_lead_stage_name():
         == "Архив"
     )
     # Старый GREEN API / WhatsApp входящий без ответа → Архив (склад, не «Новый лид»).
+    from datetime import UTC, datetime, timedelta
+
+    now = datetime(2026, 8, 16, tzinfo=UTC)
+    old = now - timedelta(days=50)  # старше WAREHOUSE_RECENT_DAYS (45)
+    fresh = now - timedelta(days=2)
     assert (
         classify_lead_stage_name(
             current_name="Новый лид",
@@ -157,7 +155,7 @@ def test_classify_lead_stage_name():
         )
         == "Новый лид"
     )
-    # Вечерняя реактивация: короткое grace (3 дня) по reactivated_at.
+    # Вечерняя реактивация: старый склад остаётся «Новый лид» в коротком grace.
     assert (
         classify_lead_stage_name(
             current_name="Новый лид",
@@ -173,7 +171,7 @@ def test_classify_lead_stage_name():
         )
         == "Новый лид"
     )
-    # После истечения grace ( >3 дней ) — снова Архив.
+    # После истечения grace (3 дня) — снова Архив, иначе колонка забивается.
     assert (
         classify_lead_stage_name(
             current_name="Новый лид",
