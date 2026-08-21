@@ -57,6 +57,8 @@ ARCHIVE_STAGE_NAME = "Архив"
 # Склад (Bitrix / старый WhatsApp / GREEN API): без свежей активности → Архив.
 # Не держим десятки тысяч «Новый лид» только из‑за старого входящего в истории.
 WAREHOUSE_RECENT_DAYS = 45
+# После вечерней раздачи из Архива: короткое окно в «Новый лид», иначе колонка забивается.
+REACTIVATED_NEW_LEAD_GRACE_DAYS = 3
 _REDISTRIBUTE_BATCH = 2000
 
 SALES_STAGE_KEY_TO_NAME: dict[str, str] = {k: n for k, n in SALES_STAGE_KEYS}
@@ -172,13 +174,15 @@ def classify_lead_stage_name(
     Склад Bitrix/WhatsApp/GREEN API без свежей активности → Архив (не удалять).
     «Новый лид» только при свежем входящем (или только что созданном без чата).
     «Удачно» и ручные стадии без активности >45 дней → Архив.
-    Активность: чат + дата записи/явка + created_at.
-    После вечерней реактивации из Архива — grace по reactivated_at.
+    Активность: последнее сообщение чата + даты записи (не возраст карточки).
+    После вечерней реактивации из Архива — короткое grace по reactivated_at (3 дня).
     """
     cur = (current_name or "").strip()
     statuses = {str(s).strip().lower() for s in appointment_statuses}
     clock = _as_utc(now) or datetime.now(UTC)
-    activity = _latest_activity(last_message_at, appointment_activity_at, lead_created_at)
+    # Свежесть склада / «Новый лид»: чат и запись. created_at — только запасной сигнал без чата.
+    activity = _latest_activity(last_message_at, appointment_activity_at)
+    created_recent = _is_recent(lead_created_at, now=clock)
 
     # Активная запись держит «Удачно».
     if "booked" in statuses:
@@ -196,7 +200,8 @@ def classify_lead_stage_name(
 
     # Явка: «Удачно» пока свежая активность, иначе Архив.
     if "completed" in statuses:
-        if activity is None or _is_recent(activity, now=clock):
+        stamp = activity or _as_utc(lead_created_at)
+        if stamp is None or _is_recent(stamp, now=clock):
             return "Удачно"
         return ARCHIVE_STAGE_NAME
 
@@ -216,7 +221,7 @@ def classify_lead_stage_name(
     if (
         cur in ("", "Новый лид", "Новый")
         and not has_outbound
-        and _is_recent(reactivated_at, now=clock)
+        and _is_recent(reactivated_at, now=clock, days=REACTIVATED_NEW_LEAD_GRACE_DAYS)
     ):
         return "Новый лид"
 
@@ -225,18 +230,21 @@ def classify_lead_stage_name(
             pass
         else:
             if has_any_chat and (last_direction or "").strip().lower() == "in":
-                if activity is None or _is_recent(activity, now=clock):
-                    return "Новый лид"
-                return ARCHIVE_STAGE_NAME
+                if activity is not None and not _is_recent(activity, now=clock):
+                    return ARCHIVE_STAGE_NAME
+                if activity is None and not created_recent:
+                    return ARCHIVE_STAGE_NAME
+                return "Новый лид"
             if not has_any_chat:
-                if activity is not None and _is_recent(activity, now=clock):
+                if created_recent:
                     return "Новый лид"
                 return ARCHIVE_STAGE_NAME
             return ARCHIVE_STAGE_NAME
 
     # Ручные стадии: без активности >45 дней → Архив (в т.ч. «Удачно»).
     if cur in MANAGER_SETTABLE_STAGE_NAMES:
-        if activity is not None and not _is_recent(activity, now=clock):
+        stamp = activity or _as_utc(lead_created_at)
+        if stamp is not None and not _is_recent(stamp, now=clock):
             return ARCHIVE_STAGE_NAME
         return cur
 
@@ -251,7 +259,7 @@ def classify_lead_stage_name(
         return ARCHIVE_STAGE_NAME
 
     if not has_any_chat:
-        if lead_created_at is not None and _is_recent(lead_created_at, now=clock):
+        if created_recent:
             return "Новый лид"
         return ARCHIVE_STAGE_NAME
     return ARCHIVE_STAGE_NAME

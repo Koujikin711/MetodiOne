@@ -1192,53 +1192,42 @@ function SalesReportSection({
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <section className="mo-section p-3 sm:p-4">
-        <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажи · {data.year_month}</h2>
-        <p className="mt-1 text-xs lux-caption sm:text-sm">
+    <div className="space-y-3 sm:space-y-6">
+      <section className="mo-section px-3 py-2.5 sm:p-4">
+        <h2 className="text-[15px] font-semibold text-[var(--mo-text)] sm:text-lg">Продажи · {data.year_month}</h2>
+        <p className="mt-0.5 text-[11px] lux-caption sm:mt-1 sm:text-sm">
           Фонд: {formatMoney(num(data.bonus_fund))} на менеджера
         </p>
       </section>
 
       {data.managers.map((m) => (
-        <section key={m.manager_id} className="mo-section p-3 sm:p-4">
-          <h3 className="mb-2 text-base font-semibold text-[var(--mo-text)] sm:mb-3 sm:text-lg">
+        <section key={m.manager_id} className="mo-section p-2.5 sm:p-4">
+          <h3 className="mb-1.5 text-[15px] font-semibold text-[var(--mo-text)] sm:mb-3 sm:text-lg">
             {m.manager_name}
           </h3>
 
-          <ul className="space-y-2 sm:hidden">
+          <ul className="divide-y divide-[var(--mo-border)] overflow-hidden rounded-xl border border-[var(--mo-border)] sm:hidden">
             {m.lines.map((line) => (
-              <li
-                key={line.plan_item_id}
-                className="rounded-xl border border-[var(--mo-border)] px-3 py-2.5"
-              >
-                <p className="text-sm font-medium text-[var(--mo-text)]">{line.name}</p>
-                <div className="mt-1.5 grid grid-cols-3 gap-1 text-[11px]">
-                  <div>
-                    <div className="mo-muted">План</div>
-                    <div className="tabular-nums text-[var(--mo-text)]">{line.plan_qty}</div>
-                  </div>
-                  <div>
-                    <div className="mo-muted">Факт</div>
-                    <div className="tabular-nums text-[var(--mo-text)]">{line.fact_qty}</div>
-                  </div>
-                  <div>
-                    <div className="mo-muted">Выполн.</div>
-                    <div className="tabular-nums text-[var(--mo-text)]">{pctLabel(line.completion)}</div>
-                  </div>
+              <li key={line.plan_item_id} className="px-2.5 py-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="min-w-0 truncate text-[13px] font-semibold leading-tight text-[var(--mo-text)]">
+                    {line.name}
+                  </p>
+                  <span className="shrink-0 text-[12px] font-semibold tabular-nums text-[var(--mo-text)]">
+                    {contribLabel(line.contribution)}
+                  </span>
                 </div>
-                <div className="mt-1 flex justify-between text-[11px]">
-                  <span className="mo-muted">Вес {num(line.weight_percent)}%</span>
-                  <span className="font-medium tabular-nums">{contribLabel(line.contribution)}</span>
-                </div>
+                <p className="mt-0.5 text-[11px] leading-tight tabular-nums mo-muted">
+                  {line.fact_qty}/{line.plan_qty} · {pctLabel(line.completion)} · вес {num(line.weight_percent)}%
+                </p>
               </li>
             ))}
-            <li className="rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface)]/50 px-3 py-2.5">
-              <div className="flex justify-between text-sm font-semibold">
+            <li className="bg-[var(--mo-surface)]/55 px-2.5 py-2">
+              <div className="flex items-center justify-between gap-2 text-[13px] font-semibold text-[var(--mo-text)]">
                 <span>Итого вклад</span>
                 <span className="tabular-nums">{contribLabel(m.total_contribution)}</span>
               </div>
-              <div className="mt-1 flex justify-between text-sm font-semibold">
+              <div className="mt-0.5 flex items-center justify-between gap-2 text-[13px] font-semibold text-[var(--mo-text)]">
                 <span>Бонус</span>
                 <span className="tabular-nums kpi-actual-value">{formatMoney(num(m.bonus))}</span>
               </div>
