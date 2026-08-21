@@ -51,12 +51,14 @@ from app.schemas.sales_kpi import (
 )
 from app.services.sales_kpi_weighted import (
     MANUAL_SALE_MIN_PAID_RATIO,
+    _norm_kpi_label,
     build_manager_lines,
     completion_ratio,
     contribution,
     load_bonus_fund,
     load_desk_sale_facts_full_paid,
     load_direction_facts_full_paid,
+    load_kpi_unit_prices_by_label,
     load_managers,
     load_manual_facts,
     load_plan_item_specialists,
@@ -65,6 +67,7 @@ from app.services.sales_kpi_weighted import (
     load_specialist_facts_full_paid,
     month_bounds,
     parse_year_month,
+    sum_specialist_facts_company,
 )
 
 router = APIRouter(prefix="/sales-kpi", tags=["sales-kpi"])
@@ -264,6 +267,9 @@ async def _build_sales_report(
         ym=ym,
         plan_items=items,
     )
+    unit_prices = await load_kpi_unit_prices_by_label(
+        db, company_id=company_id, pipeline_id=pipe.id, ym=ym,
+    )
 
     board: list[SalesKpiBoardManager] = []
     for mid, mname in managers:
@@ -277,6 +283,7 @@ async def _build_sales_report(
             manual_facts=manual_facts,
             desk_facts=desk_facts,
             bonus_fund=bonus_fund,
+            unit_price_by_label=unit_prices,
         )
         board.append(
             SalesKpiBoardManager(
@@ -918,6 +925,9 @@ async def company_report(
         plan_items=items,
     )
     bonus_fund = await load_bonus_fund(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+    unit_prices = await load_kpi_unit_prices_by_label(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
 
     # План компании = сумма планов менеджеров (один план на менеджера × число менеджеров).
     n_managers = len(managers)
@@ -928,7 +938,12 @@ async def company_report(
         fact = 0
         if item.source_type == "direction":
             if sids:
-                fact = sum(specialist_company_facts.get(sid, 0) for sid in sids)
+                unit_price = unit_prices.get(_norm_kpi_label(item.name))
+                fact = sum_specialist_facts_company(
+                    specialist_company_facts,
+                    specialist_ids=sids,
+                    unit_price=unit_price,
+                )
             elif item.direction_id is not None:
                 for mid, _ in managers:
                     fact += direction_facts.get((mid, int(item.direction_id)), 0)
@@ -970,6 +985,7 @@ async def company_report(
             manual_facts=manual_facts,
             desk_facts=desk_facts,
             bonus_fund=bonus_fund,
+            unit_price_by_label=unit_prices,
         )
         managers_bonus += Decimal(str(raw["bonus"]))
 

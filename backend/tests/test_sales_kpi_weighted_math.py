@@ -6,11 +6,14 @@ from zoneinfo import ZoneInfo
 from app.config import settings
 from app.services.sales_kpi_weighted import (
     _norm_kpi_label,
+    amounts_match_unit_price,
     bonus_amount,
     build_manager_lines,
     completion_ratio,
     contribution,
     kpi_booking_created_cutoff,
+    sum_specialist_facts_company,
+    sum_specialist_facts_for_manager,
 )
 
 
@@ -67,3 +70,62 @@ def test_desk_facts_add_to_manager_line():
     )
     assert raw["lines"][0]["fact_qty"] == 2
     assert raw["total_contribution"] == Decimal("0.2000")
+
+
+def test_amounts_match_unit_price_tol():
+    assert amounts_match_unit_price(Decimal("1300"), Decimal("1300"))
+    assert amounts_match_unit_price(Decimal("1300.50"), Decimal("1300"))
+    assert not amounts_match_unit_price(Decimal("150"), Decimal("1300"))
+    assert not amounts_match_unit_price(Decimal("16000"), Decimal("1300"))
+    # Без цены фильтра нет — всё подходит
+    assert amounts_match_unit_price(Decimal("150"), Decimal("0"))
+
+
+def test_kurs15_excludes_consultation_and_full_course():
+    """Мухитдинзода 150 и Сатторов 16000 не входят в «Курс 15» (1300)."""
+    item = SimpleNamespace(
+        id=2,
+        name="Курс 15",
+        source_type="direction",
+        direction_id=6,
+        plan_qty=37,
+        weight_percent=Decimal("25"),
+    )
+    # specialist 9 = Толибзода: 1300×2 + 150×1; specialist 8: 16000×1
+    specialist_facts = {
+        (1, 9, Decimal("1300.00")): 2,
+        (1, 9, Decimal("150.00")): 1,
+        (1, 8, Decimal("16000.00")): 1,
+        (1, 8, Decimal("1300.00")): 1,
+    }
+    raw = build_manager_lines(
+        manager_id=1,
+        manager_name="Мадina",
+        items=[item],
+        direction_facts={},
+        specialist_facts=specialist_facts,
+        item_specialists={2: [8, 9]},
+        manual_facts={},
+        desk_facts={},
+        bonus_fund=Decimal("10000"),
+        unit_price_by_label={"курс 15": Decimal("1300")},
+    )
+    assert raw["lines"][0]["fact_qty"] == 3
+
+    company = sum_specialist_facts_company(
+        {
+            (9, Decimal("1300.00")): 2,
+            (9, Decimal("150.00")): 1,
+            (8, Decimal("16000.00")): 1,
+            (8, Decimal("1300.00")): 1,
+        },
+        specialist_ids=[8, 9],
+        unit_price=Decimal("1300"),
+    )
+    assert company == 3
+    assert sum_specialist_facts_for_manager(
+        specialist_facts,
+        manager_id=1,
+        specialist_ids=[8, 9],
+        unit_price=None,
+    ) == 5

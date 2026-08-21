@@ -214,13 +214,18 @@ async def load_specialist_facts_full_paid(
     company_id: int,
     pipeline_id: int,
     ym: date,
-) -> dict[tuple[int, int], int]:
-    """Факт по экспертам онлайн-записи: (manager_id, specialist_id) → шт при 100% оплате."""
+) -> dict[tuple[int, int, Decimal], int]:
+    """Факт по экспертам: (manager_id, specialist_id, service_amount) → шт при 100% оплате.
+
+    Сумма услуги нужна, чтобы «Курс 15» (1300) не смешивать с разовой консультацией (150)
+    или полным «Курсом» (16000) у того же эксперта.
+    """
     rows = (
         await db.execute(
             select(
                 manager_expr(),
                 BookingAppointment.specialist_id,
+                BookingAppointment.service_amount,
                 func.count(BookingAppointment.id),
             )
             .select_from(BookingAppointment)
@@ -234,14 +239,15 @@ async def load_specialist_facts_full_paid(
                     PipelineStage.pipeline_id == pipeline_id,
                 ),
             )
-            .group_by(manager_expr(), BookingAppointment.specialist_id),
+            .group_by(manager_expr(), BookingAppointment.specialist_id, BookingAppointment.service_amount),
         )
     ).all()
-    out: dict[tuple[int, int], int] = {}
-    for manager_id, specialist_id, cnt in rows:
+    out: dict[tuple[int, int, Decimal], int] = {}
+    for manager_id, specialist_id, service_amount, cnt in rows:
         if manager_id is None or specialist_id is None:
             continue
-        out[(int(manager_id), int(specialist_id))] = int(cnt or 0)
+        amt = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
+        out[(int(manager_id), int(specialist_id), amt)] = int(cnt or 0)
     return out
 
 
@@ -251,12 +257,13 @@ async def load_specialist_facts_company_full_paid(
     company_id: int,
     pipeline_id: int,
     ym: date,
-) -> dict[int, int]:
-    """Факт компании по экспертам (без разбивки по менеджерам), 100% оплата."""
+) -> dict[tuple[int, Decimal], int]:
+    """Факт компании по экспертам: (specialist_id, service_amount) → шт, 100% оплата."""
     rows = (
         await db.execute(
             select(
                 BookingAppointment.specialist_id,
+                BookingAppointment.service_amount,
                 func.count(BookingAppointment.id),
             )
             .select_from(BookingAppointment)
@@ -270,10 +277,111 @@ async def load_specialist_facts_company_full_paid(
                     PipelineStage.pipeline_id == pipeline_id,
                 ),
             )
-            .group_by(BookingAppointment.specialist_id),
+            .group_by(BookingAppointment.specialist_id, BookingAppointment.service_amount),
         )
     ).all()
-    return {int(sid): int(cnt or 0) for sid, cnt in rows if sid is not None}
+    out: dict[tuple[int, Decimal], int] = {}
+    for specialist_id, service_amount, cnt in rows:
+        if specialist_id is None:
+            continue
+        amt = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
+        out[(int(specialist_id), amt)] = int(cnt or 0)
+    return out
+
+
+async def load_kpi_unit_prices_by_label(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int | None = None,
+    ym: date | None = None,
+) -> dict[str, Decimal]:
+    """Цена показателя по имени направления (напр. «Курс 15» → 1300).
+
+    Берём цену месяца отчёта; если для направления в этом месяце нет — последнюю
+    известную цену по тому же направлению (чтобы фильтр сумм не отключался).
+    """
+    from app.models import SalesKpiServicePrice
+
+    price_q = select(
+        SalesKpiServicePrice.direction_id,
+        SalesKpiServicePrice.year_month,
+        SalesKpiServicePrice.unit_price,
+    ).where(SalesKpiServicePrice.company_id == company_id)
+    if pipeline_id is not None:
+        price_q = price_q.where(SalesKpiServicePrice.pipeline_id == pipeline_id)
+    price_q = price_q.order_by(SalesKpiServicePrice.year_month.asc())
+    price_rows = (await db.execute(price_q)).all()
+
+    preferred: dict[int, Decimal] = {}
+    fallback: dict[int, Decimal] = {}
+    for did, year_month, up in price_rows:
+        price = Decimal(str(up or 0))
+        if price <= 0:
+            continue
+        did_i = int(did)
+        if ym is not None and year_month == ym:
+            preferred[did_i] = price
+        else:
+            fallback[did_i] = price
+
+    dir_rows = (
+        await db.execute(
+            select(BookingDirection.id, BookingDirection.name).where(
+                BookingDirection.company_id == company_id,
+            ),
+        )
+    ).all()
+    out: dict[str, Decimal] = {}
+    for did, name in dir_rows:
+        key = _norm_kpi_label(str(name or ""))
+        if not key:
+            continue
+        price = preferred.get(int(did)) or fallback.get(int(did)) or Decimal("0")
+        if price > 0:
+            out[key] = price
+    return out
+
+
+def amounts_match_unit_price(amount: Decimal, unit_price: Decimal, *, tol: Decimal = Decimal("1")) -> bool:
+    if unit_price <= 0:
+        return True
+    return abs(Decimal(str(amount)) - Decimal(str(unit_price))) <= tol
+
+
+def sum_specialist_facts_for_manager(
+    specialist_facts: dict[tuple[int, int, Decimal], int],
+    *,
+    manager_id: int,
+    specialist_ids: list[int],
+    unit_price: Decimal | None,
+) -> int:
+    total = 0
+    sid_set = set(int(s) for s in specialist_ids)
+    for (mid, sid, amt), cnt in specialist_facts.items():
+        if mid != manager_id or sid not in sid_set:
+            continue
+        if unit_price is not None and unit_price > 0 and not amounts_match_unit_price(amt, unit_price):
+            continue
+        total += int(cnt or 0)
+    return total
+
+
+def sum_specialist_facts_company(
+    specialist_company_facts: dict[tuple[int, Decimal], int],
+    *,
+    specialist_ids: list[int],
+    unit_price: Decimal | None,
+) -> int:
+    total = 0
+    sid_set = set(int(s) for s in specialist_ids)
+    for (sid, amt), cnt in specialist_company_facts.items():
+        if sid not in sid_set:
+            continue
+        if unit_price is not None and unit_price > 0 and not amounts_match_unit_price(amt, unit_price):
+            continue
+        total += int(cnt or 0)
+    return total
 
 
 async def load_plan_item_specialists(
@@ -431,20 +539,28 @@ def build_manager_lines(
     manager_name: str,
     items: list[SalesKpiPlanItem],
     direction_facts: dict[tuple[int, int], int],
-    specialist_facts: dict[tuple[int, int], int],
+    specialist_facts: dict[tuple[int, int, Decimal], int],
     item_specialists: dict[int, list[int]],
     manual_facts: dict[tuple[int, int], int],
     bonus_fund: Decimal,
     desk_facts: dict[tuple[int, int], int] | None = None,
+    unit_price_by_label: dict[str, Decimal] | None = None,
 ) -> dict:
     lines = []
     total_contrib = Decimal("0")
     desk = desk_facts or {}
+    prices = unit_price_by_label or {}
     for item in items:
         specialist_ids = item_specialists.get(int(item.id), [])
         if item.source_type == "direction":
             if specialist_ids:
-                fact = sum(specialist_facts.get((manager_id, sid), 0) for sid in specialist_ids)
+                unit_price = prices.get(_norm_kpi_label(item.name))
+                fact = sum_specialist_facts_for_manager(
+                    specialist_facts,
+                    manager_id=manager_id,
+                    specialist_ids=specialist_ids,
+                    unit_price=unit_price,
+                )
             elif item.direction_id is not None:
                 fact = direction_facts.get((manager_id, int(item.direction_id)), 0)
             else:
