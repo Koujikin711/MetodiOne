@@ -46,6 +46,7 @@ from app.services.patient_phone_visibility import (
     resolve_phone_fields,
 )
 from app.services.phone_match import parse_allowed_phones_json, phone_digits
+from app.services.integration_inbound import upsert_thread
 from app.services.lead_sales_stages import (
     SALES_STAGE_KEYS,
     SALES_STAGE_NAME_TO_KEY,
@@ -939,6 +940,73 @@ async def list_threads(
     return out
 
 
+def _lead_whatsapp_digits(lead: Lead) -> str:
+    digits = phone_digits(lead.phone)
+    if len(digits) >= 9:
+        return digits
+    for ep in getattr(lead, "extra_phones", None) or []:
+        d = phone_digits(getattr(ep, "phone", None))
+        if len(d) >= 9:
+            return d
+    return ""
+
+
+async def _ensure_whatsapp_thread_for_lead(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    lead: Lead,
+) -> ChatThread | None:
+    """Создаёт исходящий WhatsApp-тред (GREEN API) по телефону лида, если переписки ещё нет."""
+    await db.refresh(lead, ["stage", "extra_phones"])
+    digits = _lead_whatsapp_digits(lead)
+    if len(digits) < 9:
+        return None
+
+    pipeline_id = lead.stage.pipeline_id if lead.stage else None
+    integ = None
+    if pipeline_id is not None:
+        integ = (
+            await db.execute(
+                select(Integration)
+                .where(
+                    Integration.provider == IntegrationProvider.green_api,
+                    Integration.is_active.is_(True),
+                    Integration.company_id == company_id,
+                    Integration.pipeline_id == int(pipeline_id),
+                )
+                .order_by(Integration.id.desc())
+                .limit(1),
+            )
+        ).scalars().first()
+    if integ is None:
+        integ = (
+            await db.execute(
+                select(Integration)
+                .where(
+                    Integration.provider == IntegrationProvider.green_api,
+                    Integration.is_active.is_(True),
+                    Integration.company_id == company_id,
+                )
+                .order_by(Integration.id.desc())
+                .limit(1),
+            )
+        ).scalars().first()
+    if integ is None:
+        return None
+
+    thread_pipeline = pipeline_id or int(integ.pipeline_id)
+    return await upsert_thread(
+        db,
+        company_id=company_id,
+        lead=lead,
+        provider=IntegrationProvider.green_api.value,
+        external_chat_id=f"{digits}@c.us",
+        title=(lead.name or "").strip() or None,
+        pipeline_id=thread_pipeline,
+    )
+
+
 @router.get("/threads/by-lead/{lead_id}", response_model=ChatThreadRead)
 async def get_thread_by_lead(
     lead_id: int,
@@ -967,10 +1035,20 @@ async def get_thread_by_lead(
         )
     ).scalars().first()
     if thread is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="У этого клиента пока нет переписки в «Чатах» (WhatsApp / мессенджеры)",
-        )
+        # Ручные / Instagram-лиды с WhatsApp-номером: создаём исходящий тред GREEN API.
+        thread = await _ensure_whatsapp_thread_for_lead(db, company_id=company_id, lead=lead)
+        if thread is None:
+            digits = _lead_whatsapp_digits(lead)
+            if len(digits) < 9:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="У этого клиента пока нет переписки в «Чатах» и нет номера WhatsApp",
+                )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Нет активной интеграции WhatsApp (GREEN API) для создания чата",
+            )
+        await db.flush()
 
     await _assert_thread_access(db, thread, current_user)
 

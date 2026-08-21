@@ -341,14 +341,27 @@ function LeadCard({
       className={["crm-lead-card min-w-0 max-w-full", isDragging ? "is-dragging" : ""].join(" ")}
     >
       <div className="crm-lead-card-accent" aria-hidden />
-      <button
-        type="button"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={() => navigate(`/leads/${lead.id}`)}
-        className="relative z-[1] mb-2 text-[11px] font-semibold text-[var(--mo-accent-hover)] underline-offset-2 hover:text-[var(--mo-accent)] hover:underline"
-      >
-        Открыть карточку
-      </button>
+      <div className="relative z-[1] mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => navigate(`/leads/${lead.id}`)}
+          className="text-[11px] font-semibold text-[var(--mo-accent-hover)] underline-offset-2 hover:text-[var(--mo-accent)] hover:underline"
+        >
+          Открыть карточку
+        </button>
+        {(lead.phone || "").replace(/\D/g, "").length >= 9 ? (
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => navigate(`/chat?lead_id=${lead.id}`)}
+            className="text-[11px] font-semibold text-[var(--mo-accent-hover)] underline-offset-2 hover:text-[var(--mo-accent)] hover:underline"
+            title="Открыть WhatsApp-чат (создаст диалог, если переписки ещё нет)"
+          >
+            Чат WhatsApp
+          </button>
+        ) : null}
+      </div>
       <LeadCardBody lead={lead} stageColor={stageColor} />
 
       {currentRole === "owner" && stage === "Запись" && (
