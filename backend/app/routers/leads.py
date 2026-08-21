@@ -2217,7 +2217,7 @@ async def update_lead_status(
     ):
         hints = {
             "Новый лид": "Стадия «Новый лид» ставится автоматически при поступлении лида",
-            ARCHIVE_STAGE_NAME: "Стадия «Архив» выставляется автоматически (после завершения записи)",
+            ARCHIVE_STAGE_NAME: "Стадия «Архив» выставляется автоматически (старые без активности)",
         }
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

@@ -50,7 +50,16 @@ def test_classify_lead_stage_name():
             has_outbound=False,
             last_direction=None,
         )
-        == "Архив"
+        == "Удачно"
+    )
+    assert (
+        classify_lead_stage_name(
+            current_name="Удачно",
+            appointment_statuses={"completed"},
+            has_outbound=True,
+            last_direction="out",
+        )
+        == "Удачно"
     )
     assert (
         classify_lead_stage_name(

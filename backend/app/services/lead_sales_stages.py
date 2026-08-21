@@ -165,6 +165,7 @@ def classify_lead_stage_name(
     Жёсткие сигналы (запись) перекрывают ручные стадии.
     Склад Bitrix/WhatsApp/GREEN API без свежей активности → Архив (не удалять).
     «Новый лид» только при свежем входящем (или только что созданном без чата).
+    «Удачно» (запись / явка) в Архив не уходит.
     После вечерней реактивации из Архива — grace по reactivated_at.
     """
     cur = (current_name or "").strip()
@@ -172,7 +173,8 @@ def classify_lead_stage_name(
     clock = _as_utc(now) or datetime.now(UTC)
 
     if "completed" in statuses:
-        return ARCHIVE_STAGE_NAME
+        # Явка / завершённый визит — успех остаётся в «Удачно», не в Архив.
+        return "Удачно"
     if "booked" in statuses:
         return "Удачно"
     if statuses.intersection({"cancelled", "no_show", "lost"}) and cur in (
