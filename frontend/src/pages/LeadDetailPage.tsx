@@ -130,8 +130,8 @@ export function LeadDetailPage() {
     queryFn: () => apiFetch<BookingViewerContext>("/api/booking/viewer-context"),
   });
   const canEditBooking = role !== "expert" || Boolean(bookingViewerQuery.data?.is_chief_expert);
-  const homeLink = role === "manager" || role === "admin" ? "/crm" : "/app";
-  const homeLabel = "Канбан";
+  const homeLink = role === "manager" || role === "admin" ? "/my-leads" : "/app";
+  const homeLabel = role === "manager" || role === "admin" ? "Мои лиды" : "На главную";
 
   const appointmentFromUrl = Number(searchParams.get("appointment"));
 
@@ -387,52 +387,89 @@ export function LeadDetailPage() {
     );
   }
 
+  const stageDisplay =
+    query.data?.stage_name === "В обработке" ? "В работе" : (query.data?.stage_name || "").trim();
+  const createdLabel = query.data?.created_at
+    ? new Date(query.data.created_at).toLocaleString("ru-RU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+  const leadInitials = (() => {
+    const t = (query.data?.name || "").trim();
+    if (!t) return "?";
+    const parts = t.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase();
+    }
+    return t.slice(0, 2).toUpperCase();
+  })();
+
   return (
-    <div className="relative mx-auto max-w-2xl space-y-4 pb-10 sm:space-y-8">
-      <div className="flex flex-wrap items-center gap-3 text-sm sm:gap-4">
-        <Link
-          to="/booking"
-          className="font-medium text-[var(--mo-accent-hover)] underline-offset-4 hover:underline"
-        >
-          ← Онлайн запись
+    <div className="relative mx-auto w-full max-w-2xl space-y-3 pb-10 sm:space-y-8">
+      <div className="flex flex-wrap items-center gap-3 px-3 text-sm sm:px-0">
+        <Link to={homeLink} className="font-medium text-[var(--mo-accent-hover)] underline-offset-4 hover:underline">
+          ← {homeLabel}
         </Link>
-        <Link to={homeLink} className="mo-muted hover:text-[var(--mo-text)]">
-          {homeLabel}
+        <Link to="/booking" className="mo-muted hover:text-[var(--mo-text)]">
+          Онлайн запись
         </Link>
       </div>
 
-      {query.isLoading && <p className="lux-caption">Загрузка карточки…</p>}
+      {query.isLoading && <p className="px-3 lux-caption sm:px-0">Загрузка карточки…</p>}
       {query.isError && (
-        <p className="text-red-300">{(query.error as Error).message ?? "Ошибка загрузки"}</p>
+        <p className="px-3 text-red-300 sm:px-0">{(query.error as Error).message ?? "Ошибка загрузки"}</p>
       )}
 
       {query.data && (
-        <article className="mo-section relative flex min-h-[min(68dvh,560px)] flex-col overflow-hidden p-5 sm:min-h-0 sm:p-7">
+        <article className="mo-section relative w-full max-w-none overflow-hidden rounded-none border-x-0 p-5 shadow-none sm:rounded-2xl sm:border sm:p-8 sm:shadow-[var(--mo-shadow-luxury)]">
           <header className="flex flex-col gap-4">
-            <div className="min-w-0">
-              <p className="text-[11px] font-medium uppercase tracking-[0.14em] mo-muted">Карточка клиента</p>
-              <h1 className="mt-1.5 text-[1.65rem] font-semibold leading-tight tracking-tight text-[var(--mo-text)] sm:text-3xl">
-                {query.data.name}
-              </h1>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {query.data.stage_name ? (
-                  <span className="inline-flex rounded-full bg-[var(--mo-accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--mo-accent-hover)]">
-                    {query.data.stage_name === "В обработке" ? "В работе" : query.data.stage_name}
+            <div className="flex items-start gap-3.5">
+              <span
+                aria-hidden
+                className="flex h-[4.25rem] w-[4.25rem] shrink-0 items-center justify-center rounded-2xl bg-[var(--mo-accent-soft)] text-[1.35rem] font-semibold tracking-wide text-[var(--mo-accent-hover)] sm:h-20 sm:w-20 sm:text-2xl"
+              >
+                {leadInitials}
+              </span>
+              <div className="min-w-0 flex-1">
+                <h1 className="break-words text-[1.75rem] font-semibold leading-[1.15] tracking-tight text-[var(--mo-text)] sm:text-3xl">
+                  {query.data.name}
+                </h1>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {stageDisplay ? (
+                    <span className="inline-flex rounded-full bg-[var(--mo-accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--mo-accent-hover)]">
+                      {stageDisplay}
+                    </span>
+                  ) : null}
+                  <span className="text-xs tabular-nums mo-muted" title="ID в MetodiOne">
+                    #{query.data.id}
+                    {leadSessionNumber != null
+                      ? ` · ${leadSessionNumber.includes(":") ? leadSessionNumber : `сеанс ${leadSessionNumber}`}`
+                      : ""}
                   </span>
-                ) : null}
-                <span className="text-xs tabular-nums mo-muted" title="ID в MetodiOne">
-                  #{query.data.id}
-                  {leadSessionNumber != null
-                    ? ` · ${leadSessionNumber.includes(":") ? leadSessionNumber : `сеанс ${leadSessionNumber}`}`
-                    : ""}
-                </span>
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+
+            <p className="text-[1.55rem] font-semibold tabular-nums tracking-wide text-[var(--mo-text)] sm:text-2xl">
+              <PatientPhone value={query.data} />
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+              <Link
+                to={`/chat?lead_id=${query.data.id}`}
+                className="inline-flex items-center justify-center rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-3 text-sm font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                title="Открыть чат с клиентом"
+              >
+                Чат
+              </Link>
               <button
                 type="button"
                 onClick={() => setAuditOpen(true)}
-                className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-3 text-sm font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
               >
                 Аудит
               </button>
@@ -440,73 +477,48 @@ export function LeadDetailPage() {
                 <button
                   type="button"
                   onClick={openEditLeadModal}
-                  className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                  className="col-span-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-3 text-sm font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)] sm:col-span-1"
                 >
                   Изменить
                 </button>
               ) : null}
-              <Link
-                to={`/chat?lead_id=${query.data.id}`}
-                className="col-span-2 inline-flex items-center justify-center rounded-xl bg-[var(--mo-accent)] px-3 py-2.5 text-xs font-semibold text-white transition hover:opacity-95 sm:col-span-1"
-                title="Открыть чат с клиентом"
-              >
-                Открыть чат
-              </Link>
             </div>
           </header>
 
-          <div className="mt-6 flex-1 space-y-5 border-t border-[var(--mo-border)] pt-5">
-            <div>
-              <p className="text-[11px] font-medium mo-muted">Телефон</p>
-              <p className="mt-1 text-xl font-semibold tabular-nums tracking-wide text-[var(--mo-text)] sm:text-2xl">
-                <PatientPhone value={query.data} />
-              </p>
-            </div>
-
+          <div className="mt-5 space-y-4 border-t border-[var(--mo-border)] pt-5">
+            {(query.data.email || "").trim() ? (
+              <div>
+                <p className="text-xs font-medium mo-muted">Email</p>
+                <p className="mt-1 truncate text-base text-[var(--mo-text)]">{query.data.email}</p>
+              </div>
+            ) : null}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <p className="text-[11px] font-medium mo-muted">Источник</p>
-                <p className="mt-0.5 text-sm font-medium text-[var(--mo-text)]">
+                <p className="text-xs font-medium mo-muted">Источник</p>
+                <p className="mt-1 text-sm font-medium text-[var(--mo-text)]">
                   {(query.data.source || "").trim() || "—"}
                 </p>
               </div>
               <div>
-                <p className="text-[11px] font-medium mo-muted">Ответственный</p>
-                <p className="mt-0.5 text-sm font-medium text-[var(--mo-text)]">
+                <p className="text-xs font-medium mo-muted">Менеджер</p>
+                <p className="mt-1 text-sm font-medium text-[var(--mo-text)]">
                   {(query.data.manager_name || "").trim() || "—"}
                 </p>
               </div>
-              <div>
-                <p className="text-[11px] font-medium mo-muted">Создан</p>
-                <p className="mt-0.5 text-sm font-medium tabular-nums text-[var(--mo-text)]">
-                  {query.data.created_at
-                    ? new Date(query.data.created_at).toLocaleString("ru-RU", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "—"}
-                </p>
-              </div>
-              {(query.data.email || "").trim() ? (
-                <div>
-                  <p className="text-[11px] font-medium mo-muted">Email</p>
-                  <p className="mt-0.5 truncate text-sm font-medium text-[var(--mo-text)]" title={query.data.email ?? ""}>
-                    {query.data.email}
+              {createdLabel ? (
+                <div className="sm:col-span-2">
+                  <p className="text-xs font-medium mo-muted">Создан</p>
+                  <p className="mt-1 text-sm font-medium tabular-nums text-[var(--mo-text)]">{createdLabel}</p>
+                </div>
+              ) : null}
+              {(query.data.refusal_reason || "").trim() ? (
+                <div className="sm:col-span-2">
+                  <p className="text-xs font-medium mo-muted">Причина отказа</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--mo-text)]">
+                    {(query.data.refusal_reason || "").trim()}
                   </p>
                 </div>
-              ) : (
-                <div>
-                  <p className="text-[11px] font-medium mo-muted">Записи</p>
-                  <p className="mt-0.5 text-sm font-medium text-[var(--mo-text)]">
-                    {(leadAppointmentsQuery.data ?? []).length > 0
-                      ? `${(leadAppointmentsQuery.data ?? []).length} в онлайн-записи`
-                      : "Нет активных записей"}
-                  </p>
-                </div>
-              )}
+              ) : null}
             </div>
           </div>
 

@@ -176,6 +176,9 @@ export function MainLayout() {
                   "max-lg:flex max-lg:h-[100dvh] max-lg:max-h-[100dvh] max-lg:flex-col max-lg:transition-none",
                 ].join(" ")
               : "",
+            location.pathname.startsWith("/my-leads") || location.pathname.startsWith("/leads/")
+              ? "max-lg:!px-0 max-lg:!pt-1"
+              : "",
             location.pathname.startsWith("/chat") ||
             location.pathname.startsWith("/crm") ||
             location.pathname.startsWith("/sales") ||
