@@ -352,32 +352,25 @@ export function KpiPage() {
         </label>
       </section>
 
-      <nav className="kpi-tabs" aria-label="Разделы KPI">
-        <div
-          className="kpi-tabs__track"
-          role="tablist"
-          style={{ ["--kpi-tab-count" as string]: String(Math.max(visibleTabs.length, 1)) }}
-        >
-          {visibleTabs.map((t) => {
-            const active = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                data-active={active ? "true" : undefined}
-                title={t.label}
-                onClick={() => setTab(t.id)}
-                className="kpi-tabs__btn"
-              >
-                <span className="kpi-tabs__label kpi-tabs__label--full">{t.label}</span>
-                <span className="kpi-tabs__label kpi-tabs__label--short">{t.shortLabel}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      <div className="kpi-tabs" role="tablist" aria-label="Разделы KPI">
+        {visibleTabs.map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              title={t.label}
+              onClick={() => setTab(t.id)}
+              className={active ? "kpi-tabs__btn is-active" : "kpi-tabs__btn"}
+            >
+              <span className="kpi-tabs__label kpi-tabs__label--full">{t.label}</span>
+              <span className="kpi-tabs__label kpi-tabs__label--short">{t.shortLabel}</span>
+            </button>
+          );
+        })}
+      </div>
 
       {tab === "plan" && isOwner ? (
         <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
