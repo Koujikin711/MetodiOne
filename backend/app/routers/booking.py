@@ -2162,10 +2162,12 @@ async def patch_appointment_payment(
     tz = ZoneInfo(settings.booking_timezone)
     now_day = datetime.now(UTC).astimezone(tz).date()
     appt_day = _ensure_utc(appt.start_at).astimezone(tz).date()
+    # Владелец может закрывать долги в любой день (не только в день явки).
+    owner_can_pay_any_day = current_user.role in (UserRole.owner, UserRole.super_owner)
 
     if session_billing:
         target = appt
-        if appt_day != now_day:
+        if appt_day != now_day and not owner_can_pay_any_day:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Менять оплату сеанса можно только в день прихода клиента",
@@ -2175,7 +2177,7 @@ async def patch_appointment_payment(
         await _assert_can_manage_appointment_journal(db, target, current_user)
         target_day = _ensure_utc(target.start_at).astimezone(tz).date()
         # Пакет: доплату можно внести в день любого визита серии или в день биллинговой записи.
-        if appt_day != now_day and target_day != now_day:
+        if appt_day != now_day and target_day != now_day and not owner_can_pay_any_day:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Менять оплату можно только в день прихода клиента",
