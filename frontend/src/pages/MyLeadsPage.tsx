@@ -54,8 +54,8 @@ export function MyLeadsPage() {
   }, [leadsQuery.data, q]);
 
   return (
-    <div className="relative mx-auto w-full max-w-lg space-y-2 pb-8 sm:max-w-[720px] sm:space-y-4">
-      <header className="flex items-baseline justify-between gap-2 px-3 sm:px-0">
+    <div className="box-border w-full max-w-none overflow-x-hidden pb-8 sm:mx-auto sm:max-w-[720px] sm:space-y-4">
+      <header className="flex items-baseline justify-between gap-2 px-3 pt-1 sm:px-0">
         <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight text-[var(--mo-text)] sm:text-3xl">
           Мои лиды
         </h1>
@@ -67,14 +67,14 @@ export function MyLeadsPage() {
         ) : null}
       </header>
 
-      <label className="block px-3 sm:px-0">
+      <label className="mt-2 block px-3 sm:mt-0 sm:px-0">
         <span className="sr-only">Поиск</span>
         <input
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Имя, телефон или стадия…"
-          className="mo-input w-full rounded-xl px-3 py-2 text-sm"
+          placeholder="Имя, телефон…"
+          className="mo-input box-border w-full min-w-0 rounded-xl px-3 py-2 text-sm"
           autoComplete="off"
           inputMode="search"
         />
@@ -86,48 +86,38 @@ export function MyLeadsPage() {
       )}
 
       {!leadsQuery.isLoading && leads.length === 0 ? (
-        <p className="mx-3 rounded-2xl border border-dashed border-[var(--mo-border)] px-4 py-8 text-center text-sm mo-muted sm:mx-0">
+        <p className="mx-3 mt-3 rounded-2xl border border-dashed border-[var(--mo-border)] px-4 py-8 text-center text-sm mo-muted sm:mx-0">
           {q.trim() ? "Никого не нашли" : "Пока нет лидов"}
         </p>
       ) : null}
 
-      {/* Телефон: на всю ширину, плотные строки */}
-      <section className="overflow-hidden border-y border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] sm:hidden">
-        <ul className="divide-y divide-[var(--mo-border)]">
+      {/* Мобилка: на всю ширину экрана, имя слева целиком видно */}
+      <section className="mt-2 w-full min-w-0 border-y border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] sm:hidden">
+        <ul className="w-full min-w-0 divide-y divide-[var(--mo-border)]">
           {leads.map((lead) => {
             const stage = stageShort(lead.stage_name);
             return (
-              <li key={lead.id}>
+              <li key={lead.id} className="w-full min-w-0">
                 <Link
                   to={`/leads/${lead.id}`}
-                  className="flex min-w-0 items-center gap-2 px-3 py-1.5 transition active:bg-[var(--mo-accent-soft)]"
+                  className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-3 py-2 transition active:bg-[var(--mo-accent-soft)]"
                 >
-                  <span
-                    aria-hidden
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--mo-accent-soft)] text-[9px] font-semibold tracking-wide text-[var(--mo-accent-hover)]"
-                  >
-                    {leadInitial(lead.name)}
-                  </span>
-                  <div className="min-w-0 flex-1 overflow-hidden">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <p className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-tight text-[var(--mo-text)]">
-                        {lead.name}
-                      </p>
-                      <time className="shrink-0 text-[9px] font-medium tabular-nums mo-muted">
-                        {leadDateBadge(lead.created_at)}
-                      </time>
-                    </div>
-                    <div className="mt-px flex min-w-0 items-center gap-1.5">
-                      <p className="min-w-0 flex-1 truncate text-[11px] font-medium tabular-nums tracking-wide text-[var(--mo-text-muted)]">
-                        <PatientPhone value={lead} />
-                      </p>
-                      {stage ? (
-                        <span className="max-w-[36%] shrink-0 truncate rounded bg-[var(--mo-accent-soft)] px-1 py-px text-[9px] font-medium leading-tight text-[var(--mo-accent-hover)]">
-                          {stage}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
+                  <p className="min-w-0 truncate text-left text-[14px] font-semibold leading-tight text-[var(--mo-text)]">
+                    {lead.name}
+                  </p>
+                  <time className="shrink-0 text-right text-[10px] font-medium tabular-nums leading-tight mo-muted">
+                    {leadDateBadge(lead.created_at)}
+                  </time>
+                  <p className="min-w-0 truncate text-left text-[12px] font-medium tabular-nums tracking-wide text-[var(--mo-text-muted)]">
+                    <PatientPhone value={lead} />
+                  </p>
+                  {stage ? (
+                    <span className="max-w-[7.5rem] shrink-0 justify-self-end truncate rounded-md bg-[var(--mo-accent-soft)] px-1.5 py-0.5 text-right text-[10px] font-medium leading-tight text-[var(--mo-accent-hover)]">
+                      {stage}
+                    </span>
+                  ) : (
+                    <span />
+                  )}
                 </Link>
               </li>
             );
@@ -135,8 +125,8 @@ export function MyLeadsPage() {
         </ul>
       </section>
 
-      {/* Планшет/десктоп: сетка карточек */}
-      <div className="hidden gap-2.5 px-0 sm:grid sm:grid-cols-2">
+      {/* Планшет/десктоп */}
+      <div className="mt-3 hidden gap-2.5 sm:grid sm:grid-cols-2">
         {leads.map((lead) => {
           const stage = stageShort(lead.stage_name);
           return (

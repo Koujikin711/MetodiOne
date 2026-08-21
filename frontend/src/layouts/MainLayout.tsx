@@ -177,7 +177,7 @@ export function MainLayout() {
                 ].join(" ")
               : "",
             location.pathname.startsWith("/my-leads") || location.pathname.startsWith("/leads/")
-              ? "max-lg:!px-0 max-lg:!pt-1"
+              ? "max-lg:!px-0 max-lg:!pt-1 max-lg:overflow-x-hidden"
               : "",
             location.pathname.startsWith("/chat") ||
             location.pathname.startsWith("/crm") ||
