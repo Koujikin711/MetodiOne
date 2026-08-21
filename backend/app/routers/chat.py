@@ -717,7 +717,7 @@ def _apply_manager_thread_bucket(
     if bucket == "awaiting_reply":
         # Клиент написал последним ИЛИ пустой stub у «Новый лид» (ручной без истории).
         no_messages = ~exists(
-            select(ChatMessage.id).where(ChatMessage.thread_id == ChatThread.id).limit(1),
+            select(ChatMessage.id).where(ChatMessage.thread_id == ChatThread.id),
         )
         empty_new_lead = and_(
             no_messages,
