@@ -2014,6 +2014,59 @@ async def patch_appointment_status(
         if specialist is not None:
             await _assert_expert_specialist_access(db, current_user, specialist)
 
+    # «Пришёл»: если по записи есть долг — доплата остатка обязательна.
+    if body.status == "completed":
+        bill_target = await _resolve_package_billing_appointment(
+            db, company_id=company_id, appt=a,
+        )
+        service = float(bill_target.service_amount or 0)
+        prev_paid = float(bill_target.paid_amount or 0)
+        debt = max(0.0, service - prev_paid)
+        if service > 0 and debt > 0.009:
+            if body.add_payment is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"Укажите сумму остатка к оплате при явке "
+                        f"(долг {debt:g} из стоимости {service:g})"
+                    ),
+                )
+            add = float(body.add_payment)
+            if add + 1e-9 < debt:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Сумма остатка должна покрыть долг {debt:g}",
+                )
+            new_paid = prev_paid + add
+            if new_paid > service + 1e-9:
+                new_paid = service
+            bill_target.paid_amount = new_paid
+            bill_target.updated_at = datetime.now(UTC)
+            if bill_target.responsible_manager_id is None:
+                mid: int | None = None
+                if bill_target.lead_id is not None:
+                    lead = await db.get(Lead, int(bill_target.lead_id))
+                    if lead is not None and lead.manager_id is not None:
+                        mgr = await db.get(User, int(lead.manager_id))
+                        if mgr is not None and mgr.role == UserRole.manager and mgr.company_id == company_id:
+                            mid = int(lead.manager_id)
+                if mid is None and current_user.role == UserRole.manager:
+                    mid = int(current_user.id)
+                if mid is not None:
+                    bill_target.responsible_manager_id = mid
+            await write_audit_event(
+                db,
+                entity_type="booking_appointment",
+                entity_id=bill_target.id,
+                action="appointment_payment_updated",
+                current_user=current_user,
+                details=(
+                    f"via=status_completed; from_appointment_id={a.id}; "
+                    f"prev_paid={prev_paid}; add_payment={add}; new_paid={new_paid}; "
+                    f"debt_was={debt}"
+                ),
+            )
+
     a.status = body.status
     a.updated_at = datetime.now(UTC)
     await write_audit_event(

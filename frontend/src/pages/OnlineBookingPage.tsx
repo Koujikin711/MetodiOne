@@ -482,20 +482,45 @@ export function OnlineBookingPage() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) =>
-      apiFetch(`/api/booking/appointments/${id}/status`, {
+    mutationFn: ({
+      id,
+      status,
+      add_payment,
+    }: {
+      id: number;
+      status: string;
+      add_payment?: number;
+    }) =>
+      apiFetch<BookingAppointment>(`/api/booking/appointments/${id}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          ...(typeof add_payment === "number" ? { add_payment } : {}),
+        }),
       }),
-    onSuccess: (_data, { id, status }) => {
-      toast.success("Статус обновлён. Этап лида на канбане синхронизирован.");
-      setApptDetail((cur) => (cur && cur.id === id ? { ...cur, status } : cur));
+    onSuccess: (data, { id, status }) => {
+      toast.success(
+        status === "completed" && Number(data?.paid_amount ?? 0) > 0
+          ? "Явка и оплата учтены"
+          : "Статус обновлён. Этап лида на канбане синхронизирован.",
+      );
+      setApptDetail((cur) =>
+        cur && cur.id === id
+          ? {
+              ...cur,
+              ...data,
+              status: data?.status ?? status,
+            }
+          : cur,
+      );
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-by-lead"] });
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics"] });
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -751,7 +776,20 @@ export function OnlineBookingPage() {
   }, [fixedServiceAmount]);
 
   function onAppointmentCompleteToggle(a: BookingAppointment, completed: boolean) {
-    statusMutation.mutate({ id: a.id, status: completed ? "completed" : "booked" });
+    if (!completed) {
+      statusMutation.mutate({ id: a.id, status: "booked" });
+      return;
+    }
+    const service = Number(a.service_amount ?? 0);
+    const paid = Number(a.paid_amount ?? 0);
+    const debt = service > 0 ? Math.max(0, service - paid) : 0;
+    if (debt > 0.009) {
+      // Нужен ввод остатка — открываем карточку записи с панелью явки.
+      setApptDetail(a);
+      toast("Укажите сумму остатка при явке");
+      return;
+    }
+    statusMutation.mutate({ id: a.id, status: "completed" });
   }
 
   function onCalendarAppointmentClick(a: BookingAppointment) {
@@ -1591,9 +1629,20 @@ export function OnlineBookingPage() {
                       {canEditBooking ? (
                         <select
                           value={a.status}
-                          onChange={(e) =>
-                            statusMutation.mutate({ id: a.id, status: e.target.value })
-                          }
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            if (next === "completed") {
+                              const service = Number(a.service_amount ?? 0);
+                              const paid = Number(a.paid_amount ?? 0);
+                              const debt = service > 0 ? Math.max(0, service - paid) : 0;
+                              if (debt > 0.009) {
+                                setApptDetail(a);
+                                toast("Укажите сумму остатка при явке");
+                                return;
+                              }
+                            }
+                            statusMutation.mutate({ id: a.id, status: next });
+                          }}
                           className="mo-input py-1"
                         >
                           {Object.entries(statusLabels).map(([k, v]) => (
@@ -1673,7 +1722,11 @@ export function OnlineBookingPage() {
                 <BookingAttendancePanel
                   status={apptDetail.status}
                   disabled={statusMutation.isPending}
-                  onStatusChange={(status) => statusMutation.mutate({ id: apptDetail.id, status })}
+                  serviceAmount={Number(apptDetail.service_amount ?? 0)}
+                  paidAmount={Number(apptDetail.paid_amount ?? 0)}
+                  onStatusChange={(status, add_payment) =>
+                    statusMutation.mutate({ id: apptDetail.id, status, add_payment })
+                  }
                 />
               ) : null}
             </div>

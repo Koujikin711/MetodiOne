@@ -293,17 +293,34 @@ export function LeadDetailPage() {
   });
 
   const appointmentStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) =>
+    mutationFn: ({
+      id,
+      status,
+      add_payment,
+    }: {
+      id: number;
+      status: string;
+      add_payment?: number;
+    }) =>
       apiFetch(`/api/booking/appointments/${id}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          ...(typeof add_payment === "number" ? { add_payment } : {}),
+        }),
       }),
-    onSuccess: () => {
-      toast.success("Явка обновлена");
+    onSuccess: (_data, vars) => {
+      toast.success(
+        vars.status === "completed" && typeof vars.add_payment === "number"
+          ? "Явка и оплата остатка учтены"
+          : "Явка обновлена",
+      );
       void qc.invalidateQueries({ queryKey: ["booking-appointments-by-lead", leadId] });
       void qc.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void qc.invalidateQueries({ queryKey: ["booking-journal"] });
       void qc.invalidateQueries({ queryKey: ["leads"] });
+      void qc.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void qc.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -740,8 +757,10 @@ export function LeadDetailPage() {
                               <BookingAttendancePanel
                                 status={a.status}
                                 disabled={appointmentStatusMutation.isPending}
-                                onStatusChange={(status) =>
-                                  appointmentStatusMutation.mutate({ id: a.id, status })
+                                serviceAmount={Number(a.service_amount ?? 0)}
+                                paidAmount={Number(a.paid_amount ?? 0)}
+                                onStatusChange={(status, add_payment) =>
+                                  appointmentStatusMutation.mutate({ id: a.id, status, add_payment })
                                 }
                               />
                             </div>
