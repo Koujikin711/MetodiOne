@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models import (
     BookingAppointment,
     BookingDirection,
@@ -25,6 +27,9 @@ from app.models import (
 
 MANUAL_SALE_MIN_PAID_RATIO = Decimal("0.25")
 DEFAULT_BONUS_FUND = Decimal("10000")
+# С отчётов за июль 2026+: июньские (и более ранние) записи в факт не входят.
+# Бонус всегда в месяц явки (start_at); «записали в июле → пришли в августе» = август.
+KPI_EXCLUDE_PRE_JULY_BOOKINGS_FROM = date(2026, 7, 1)
 
 
 def parse_year_month(s: str) -> date:
@@ -43,6 +48,34 @@ def month_bounds(ym: date) -> tuple[datetime, datetime]:
     else:
         end = datetime(ym.year, ym.month + 1, 1, tzinfo=UTC)
     return start, end
+
+
+def kpi_booking_created_cutoff(ym: date) -> datetime | None:
+    """Нижняя граница created_at для факта KPI, или None если фильтр не нужен."""
+    if ym < KPI_EXCLUDE_PRE_JULY_BOOKINGS_FROM:
+        return None
+    local = datetime(
+        KPI_EXCLUDE_PRE_JULY_BOOKINGS_FROM.year,
+        KPI_EXCLUDE_PRE_JULY_BOOKINGS_FROM.month,
+        KPI_EXCLUDE_PRE_JULY_BOOKINGS_FROM.day,
+        tzinfo=ZoneInfo(settings.booking_timezone),
+    )
+    return local.astimezone(UTC)
+
+
+def booking_fact_filters(ym: date) -> list[ColumnElement[bool]]:
+    """Фильтры онлайн-записи для факта: месяц явки + с июля 2026 без июньских созданий."""
+    start, end = month_bounds(ym)
+    filters: list[ColumnElement[bool]] = [
+        BookingAppointment.start_at >= start,
+        BookingAppointment.start_at < end,
+        BookingAppointment.service_amount > 0,
+        BookingAppointment.paid_amount >= BookingAppointment.service_amount,
+    ]
+    cutoff = kpi_booking_created_cutoff(ym)
+    if cutoff is not None:
+        filters.append(BookingAppointment.created_at >= cutoff)
+    return filters
 
 
 def manager_expr():
@@ -146,7 +179,6 @@ async def load_direction_facts_full_paid(
     ym: date,
 ) -> dict[tuple[int, int], int]:
     """Факт по направлениям записи: только 100% оплата (fallback, если эксперты не привязаны)."""
-    start, end = month_bounds(ym)
     rows = (
         await db.execute(
             select(
@@ -159,10 +191,7 @@ async def load_direction_facts_full_paid(
             .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
             .where(
                 BookingAppointment.company_id == company_id,
-                BookingAppointment.start_at >= start,
-                BookingAppointment.start_at < end,
-                BookingAppointment.service_amount > 0,
-                BookingAppointment.paid_amount >= BookingAppointment.service_amount,
+                *booking_fact_filters(ym),
                 or_(
                     BookingAppointment.pipeline_id == pipeline_id,
                     PipelineStage.pipeline_id == pipeline_id,
@@ -187,7 +216,6 @@ async def load_specialist_facts_full_paid(
     ym: date,
 ) -> dict[tuple[int, int], int]:
     """Факт по экспертам онлайн-записи: (manager_id, specialist_id) → шт при 100% оплате."""
-    start, end = month_bounds(ym)
     rows = (
         await db.execute(
             select(
@@ -200,10 +228,7 @@ async def load_specialist_facts_full_paid(
             .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
             .where(
                 BookingAppointment.company_id == company_id,
-                BookingAppointment.start_at >= start,
-                BookingAppointment.start_at < end,
-                BookingAppointment.service_amount > 0,
-                BookingAppointment.paid_amount >= BookingAppointment.service_amount,
+                *booking_fact_filters(ym),
                 or_(
                     BookingAppointment.pipeline_id == pipeline_id,
                     PipelineStage.pipeline_id == pipeline_id,
@@ -228,7 +253,6 @@ async def load_specialist_facts_company_full_paid(
     ym: date,
 ) -> dict[int, int]:
     """Факт компании по экспертам (без разбивки по менеджерам), 100% оплата."""
-    start, end = month_bounds(ym)
     rows = (
         await db.execute(
             select(
@@ -240,10 +264,7 @@ async def load_specialist_facts_company_full_paid(
             .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
             .where(
                 BookingAppointment.company_id == company_id,
-                BookingAppointment.start_at >= start,
-                BookingAppointment.start_at < end,
-                BookingAppointment.service_amount > 0,
-                BookingAppointment.paid_amount >= BookingAppointment.service_amount,
+                *booking_fact_filters(ym),
                 or_(
                     BookingAppointment.pipeline_id == pipeline_id,
                     PipelineStage.pipeline_id == pipeline_id,

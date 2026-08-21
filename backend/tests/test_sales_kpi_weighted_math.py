@@ -1,12 +1,16 @@
+from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
+from app.config import settings
 from app.services.sales_kpi_weighted import (
     _norm_kpi_label,
     bonus_amount,
     build_manager_lines,
     completion_ratio,
     contribution,
+    kpi_booking_created_cutoff,
 )
 
 
@@ -29,6 +33,16 @@ def test_overachievement_capped():
 def test_norm_kpi_label():
     assert _norm_kpi_label("  CRM  Модули ") == "crm модули"
     assert _norm_kpi_label(None) == ""
+
+
+def test_kpi_booking_created_cutoff_from_july():
+    assert kpi_booking_created_cutoff(date(2026, 6, 1)) is None
+    cutoff = kpi_booking_created_cutoff(date(2026, 7, 1))
+    assert cutoff is not None
+    local = cutoff.astimezone(ZoneInfo(settings.booking_timezone))
+    assert local.year == 2026 and local.month == 7 and local.day == 1
+    assert local.hour == 0 and local.minute == 0
+    assert kpi_booking_created_cutoff(date(2026, 8, 1)) == cutoff
 
 
 def test_desk_facts_add_to_manager_line():
