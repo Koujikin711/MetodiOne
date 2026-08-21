@@ -172,7 +172,7 @@ class BookingAppointmentRead(BaseModel):
     comment: str | None
     can_manage_journal: bool = Field(
         default=False,
-        description="Владелец или админ воронки лида — оплата/удаление в журнале записей",
+        description="Владелец / админ / менеджер воронки лида — оплата/удаление в журнале записей",
     )
     visit_number: int | None = Field(
         default=None,
