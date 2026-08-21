@@ -178,11 +178,11 @@ async def _appointment_lead_pipeline_id(db: AsyncSession, appt: BookingAppointme
 
 
 async def compute_can_manage_journal(db: AsyncSession, appt: BookingAppointment, viewer: User) -> bool:
-    if viewer.role == UserRole.owner:
+    if viewer.role in (UserRole.owner, UserRole.super_owner):
         return True
     if viewer.role == UserRole.expert and await is_chief_expert(db, viewer):
         return True
-    if viewer.role != UserRole.admin:
+    if viewer.role not in (UserRole.admin, UserRole.manager):
         return False
     pid = await _appointment_lead_pipeline_id(db, appt)
     if pid is None:
@@ -196,19 +196,19 @@ async def _assert_can_manage_appointment_journal(
     appt: BookingAppointment,
     current_user: User,
 ) -> None:
-    if current_user.role == UserRole.owner:
+    if current_user.role in (UserRole.owner, UserRole.super_owner):
         return
     if current_user.role == UserRole.expert and await is_chief_expert(db, current_user):
         return
-    if current_user.role != UserRole.admin:
+    if current_user.role not in (UserRole.admin, UserRole.manager):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Только владелец или админ воронки по лиду записи",
+            detail="Только владелец, админ или менеджер воронки по лиду записи",
         )
     if not await compute_can_manage_journal(db, appt, current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Запись относится к воронке, к которой у вас нет прав администратора",
+            detail="Запись относится к воронке, к которой у вас нет прав",
         )
 
 
@@ -2159,29 +2159,13 @@ async def patch_appointment_payment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление или специалист не найдены")
     session_billing = _course_streams_enabled_for_booking(specialist, direction)
 
-    tz = ZoneInfo(settings.booking_timezone)
-    now_day = datetime.now(UTC).astimezone(tz).date()
-    appt_day = _ensure_utc(appt.start_at).astimezone(tz).date()
-    # Владелец может закрывать долги в любой день (не только в день явки).
-    owner_can_pay_any_day = current_user.role in (UserRole.owner, UserRole.super_owner)
-
+    # Доплату можно вносить в любой день: кто уже прошёл journal-check
+    # (owner / admin / менеджер воронки / главный эксперт).
     if session_billing:
         target = appt
-        if appt_day != now_day and not owner_can_pay_any_day:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Менять оплату сеанса можно только в день прихода клиента",
-            )
     else:
         target = await _resolve_package_billing_appointment(db, company_id=company_id, appt=appt)
         await _assert_can_manage_appointment_journal(db, target, current_user)
-        target_day = _ensure_utc(target.start_at).astimezone(tz).date()
-        # Пакет: доплату можно внести в день любого визита серии или в день биллинговой записи.
-        if appt_day != now_day and target_day != now_day and not owner_can_pay_any_day:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Менять оплату можно только в день прихода клиента",
-            )
 
     service = float(target.service_amount or 0)
     prev_paid = float(target.paid_amount or 0)
