@@ -315,7 +315,7 @@ export function KpiPage() {
   return (
     <div
       className={[
-        "sales-space-page relative mx-auto w-full max-w-none space-y-2.5 sm:space-y-6 sm:pb-10",
+        "sales-space-page relative mx-auto w-full max-w-none space-y-2 sm:space-y-5 sm:pb-10",
         tab === "plan" && isOwner ? "pb-[6.5rem]" : "pb-4",
       ].join(" ")}
     >
@@ -331,17 +331,17 @@ export function KpiPage() {
         />
       </header>
 
-      <section className="kpi-toolbar grid grid-cols-2 gap-2 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2.5 sm:gap-3 sm:p-3.5">
-        <label className="flex min-w-0 flex-col gap-1 text-[11px] font-medium mo-muted sm:text-xs">
+      <section className="kpi-toolbar grid grid-cols-2 gap-1.5 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-2 py-1.5 sm:gap-2 sm:rounded-2xl sm:px-2.5 sm:py-2">
+        <label className="flex min-w-0 flex-col gap-0.5 text-[10px] font-medium leading-tight mo-muted sm:text-[11px]">
           Месяц
-          <MonthYearPicker compact value={yearMonth} onChange={setYearMonth} />
+          <MonthYearPicker compact value={yearMonth} onChange={setYearMonth} className="kpi-toolbar__control" />
         </label>
-        <label className="flex min-w-0 flex-col gap-1 text-[11px] font-medium mo-muted sm:text-xs">
+        <label className="flex min-w-0 flex-col gap-0.5 text-[10px] font-medium leading-tight mo-muted sm:text-[11px]">
           Воронка
           <select
             value={pipelineId ?? ""}
             onChange={(e) => setPipelineId(Number(e.target.value) || null)}
-            className="mo-input !min-h-11 truncate text-base sm:!min-h-0 sm:text-sm"
+            className="mo-input kpi-toolbar__control truncate"
           >
             {(pipelinesQuery.data ?? []).map((p) => (
               <option key={p.id} value={p.id}>

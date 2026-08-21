@@ -3328,10 +3328,27 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 /* ── KPI ── */
+.kpi-toolbar .kpi-toolbar__control,
+.kpi-toolbar .kpi-toolbar__control .mo-month-picker-trigger,
+.kpi-toolbar select.kpi-toolbar__control {
+  min-height: 2rem !important;
+  height: 2rem;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+  font-size: 0.8125rem !important;
+  line-height: 1.2;
+  border-radius: 10px;
+}
+
+.kpi-toolbar .mo-month-picker-trigger svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
 .kpi-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
 }
 
@@ -3339,14 +3356,14 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   appearance: none;
   margin: 0;
   flex: 0 0 auto;
-  min-height: 2.5rem;
-  padding: 0.55rem 0.95rem;
-  border-radius: 12px;
+  min-height: 2.15rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 10px;
   border: 1px solid var(--mo-border-strong);
   background: transparent;
   color: var(--mo-text-muted);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.78rem;
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
@@ -3384,10 +3401,18 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 @media (min-width: 640px) {
+  .kpi-toolbar .kpi-toolbar__control,
+  .kpi-toolbar .kpi-toolbar__control .mo-month-picker-trigger,
+  .kpi-toolbar select.kpi-toolbar__control {
+    min-height: 2.15rem !important;
+    height: 2.15rem;
+    font-size: 0.8125rem !important;
+  }
+
   .kpi-tabs__btn {
-    min-height: 2.35rem;
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
+    min-height: 2.2rem;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.8125rem;
   }
 
   .kpi-tabs__label--full {
