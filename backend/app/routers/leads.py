@@ -473,6 +473,48 @@ async def create_lead(
     )
     db.add(lead)
     await db.flush()
+    # Stub WhatsApp-тред сразу — появится в «Ждут ответа» без входящей переписки.
+    digits = "".join(ch for ch in (body.phone or "") if ch.isdigit())
+    if len(digits) >= 9:
+        from app.models import IntegrationProvider
+        from app.services.integration_inbound import upsert_thread
+
+        integ = (
+            await db.execute(
+                select(Integration)
+                .where(
+                    Integration.provider == IntegrationProvider.green_api,
+                    Integration.is_active.is_(True),
+                    Integration.company_id == company_id,
+                    Integration.pipeline_id == int(stage.pipeline_id),
+                )
+                .order_by(Integration.id.desc())
+                .limit(1),
+            )
+        ).scalars().first()
+        if integ is None:
+            integ = (
+                await db.execute(
+                    select(Integration)
+                    .where(
+                        Integration.provider == IntegrationProvider.green_api,
+                        Integration.is_active.is_(True),
+                        Integration.company_id == company_id,
+                    )
+                    .order_by(Integration.id.desc())
+                    .limit(1),
+                )
+            ).scalars().first()
+        if integ is not None:
+            await upsert_thread(
+                db,
+                company_id=company_id,
+                lead=lead,
+                provider=IntegrationProvider.green_api.value,
+                external_chat_id=f"{digits}@c.us",
+                title=(lead.name or "").strip() or None,
+                pipeline_id=int(stage.pipeline_id),
+            )
     await _audit_lead(
         db,
         lead_id=lead.id,

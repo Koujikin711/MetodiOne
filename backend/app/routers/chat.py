@@ -715,14 +715,69 @@ def _apply_manager_thread_bucket(
     if bucket == "own":
         return query.where(~transferred)
     if bucket == "awaiting_reply":
-        # Клиент написал — менеджер ещё не ответил.
-        return query.where(last_direction_sq == "in")
+        # Клиент написал последним ИЛИ пустой stub у «Новый лид» (ручной без истории).
+        no_messages = ~exists(
+            select(ChatMessage.id).where(ChatMessage.thread_id == ChatThread.id).limit(1),
+        )
+        empty_new_lead = and_(
+            no_messages,
+            or_(
+                PipelineStage.name.in_(("Новый лид", "Новый")),
+                PipelineStage.name.is_(None),
+            ),
+        )
+        return query.where(or_(last_direction_sq == "in", empty_new_lead))
     if bucket == "no_reply":
         # Менеджер написал — клиент не ответил.
         return query.where(last_direction_sq == "out")
     if bucket == "sold":
         return query.where(_lead_closed_sale_exists(Lead.id, company_id=company_id))
     return query
+
+
+async def _ensure_whatsapp_stubs_for_new_leads(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    current_user,
+    pipeline_ids: set[int] | list[int],
+) -> int:
+    """Stub GREEN API-треды для «Новый лид» с телефоном без чата — чтобы попали в «Ждут ответа»."""
+    allowed = {int(x) for x in pipeline_ids}
+    if not allowed:
+        return 0
+    has_thread = exists(
+        select(ChatThread.id).where(
+            ChatThread.company_id == company_id,
+            ChatThread.lead_id == Lead.id,
+            ChatThread.provider != "internal",
+        ),
+    )
+    q = (
+        select(Lead)
+        .join(PipelineStage, PipelineStage.id == Lead.status_id)
+        .where(
+            Lead.company_id == company_id,
+            PipelineStage.pipeline_id.in_(allowed),
+            PipelineStage.name.in_(("Новый лид", "Новый")),
+            Lead.phone.is_not(None),
+            Lead.phone != "",
+            ~has_thread,
+        )
+        .order_by(Lead.id.desc())
+        .limit(80)
+    )
+    if current_user.role != UserRole.owner:
+        q = q.where(manager_lead_visibility(current_user.id))
+    leads = (await db.execute(q)).scalars().all()
+    created = 0
+    for lead in leads:
+        thread = await _ensure_whatsapp_thread_for_lead(db, company_id=company_id, lead=lead)
+        if thread is not None:
+            created += 1
+    if created:
+        await db.flush()
+    return created
 
 
 def _thread_stage_fields(row) -> tuple[int | None, str | None, str | None]:
@@ -783,6 +838,12 @@ async def thread_bucket_counts(
         allowed = await _manager_pipeline_ids(db, current_user.id)
     if not allowed:
         return ChatThreadBucketCounts()
+    await _ensure_whatsapp_stubs_for_new_leads(
+        db,
+        company_id=company_id,
+        current_user=current_user,
+        pipeline_ids=allowed,
+    )
     term = (q or "").strip()
     last_direction_sq = (
         select(ChatMessage.direction)
@@ -926,6 +987,13 @@ async def list_threads(
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if not allowed:
             return []
+        if bucket == "awaiting_reply" or bucket is None:
+            await _ensure_whatsapp_stubs_for_new_leads(
+                db,
+                company_id=company_id,
+                current_user=current_user,
+                pipeline_ids=allowed,
+            )
         query = query.where(
             ChatThread.pipeline_id.in_(allowed),
             manager_lead_visibility(current_user.id),
@@ -939,6 +1007,19 @@ async def list_threads(
             stage_key=stage_key,
         )
     elif is_owner_view and (stage_key or bucket):
+        if bucket == "awaiting_reply":
+            owner_pipes = {
+                int(r[0])
+                for r in (
+                    await db.execute(select(Pipeline.id).where(Pipeline.company_id == company_id))
+                ).all()
+            }
+            await _ensure_whatsapp_stubs_for_new_leads(
+                db,
+                company_id=company_id,
+                current_user=current_user,
+                pipeline_ids=owner_pipes,
+            )
         query = _apply_manager_thread_bucket(
             query,
             bucket=bucket,
@@ -954,8 +1035,12 @@ async def list_threads(
         query = query.where(ChatThread.pipeline_id.in_(allowed))
     if term:
         query = _apply_thread_search(query, term=term)
-    # Сначала диалоги, где последнее сообщение от клиента (ждём ответ), затем по свежести.
-    needs_reply = case((last_direction_sq == "in", 1), else_=0)
+    # Сначала ждут ответа (входящий или пустой stub), затем по свежести.
+    needs_reply = case(
+        (last_direction_sq == "in", 2),
+        (last_direction_sq.is_(None), 1),
+        else_=0,
+    )
     query = query.order_by(needs_reply.desc(), ChatThread.updated_at.desc(), ChatThread.id.desc())
     if offset > 0:
         query = query.offset(offset)

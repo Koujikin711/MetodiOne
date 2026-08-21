@@ -433,13 +433,13 @@ const THREADS_PAGE_SIZE = 20;
 const CHAT_BUCKET_TABS: { id: ChatThreadBucket; label: string; hint: string }[] = [
   { id: "transferred", label: "Переданные", hint: "После перераспределения" },
   { id: "own", label: "Мои", hint: "Изначально ваши" },
-  { id: "awaiting_reply", label: "Ждут ответа", hint: "Клиент написал — вы нет" },
+  { id: "awaiting_reply", label: "Ждут ответа", hint: "Клиент написал или новый лид без переписки" },
   { id: "sold", label: "Проданные", hint: "Закрытые сделки" },
 ];
 
 /** Reply-очередь менеджера (новые лиды — в общем списке, без отдельной вкладки стадии). */
 const REPLY_QUEUE_TABS: { id: ChatThreadBucket; label: string; hint: string }[] = [
-  { id: "awaiting_reply", label: "Ждут ответа", hint: "Клиент написал — вы нет" },
+  { id: "awaiting_reply", label: "Ждут ответа", hint: "Клиент написал или новый лид без переписки" },
   { id: "no_reply", label: "Не ответили", hint: "Вы написали — клиент молчит" },
 ];
 
