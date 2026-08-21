@@ -17,6 +17,7 @@ import {
 } from "@/lib/bookingTz";
 import { PatientPhone } from "@/components/PatientPhone";
 import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
+import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { auditActionLabel, auditDetailsLabel } from "@/lib/auditLabels";
 import type {
   BookingAppointment,
@@ -24,8 +25,19 @@ import type {
   BookingViewerContext,
   Lead,
   LeadAuditEvent,
+  PipelineStage,
   SalesKpiLeadPriceHint,
 } from "@/lib/types";
+
+function isWaitingStageName(name: string | null | undefined): boolean {
+  const n = (name || "").trim().toLowerCase();
+  return n === "в ожидании" || n === "ожидание";
+}
+
+function stageButtonLabel(name: string): string {
+  const n = name.trim();
+  return n === "В обработке" ? "В работе" : n;
+}
 
 export function LeadDetailPage() {
   const { id } = useParams();
@@ -44,6 +56,7 @@ export function LeadDetailPage() {
   const [moveModalAppointment, setMoveModalAppointment] = useState<BookingAppointment | null>(null);
   const [moveDateYmd, setMoveDateYmd] = useState("");
   const [moveMinuteOfDay, setMoveMinuteOfDay] = useState<number | null>(null);
+  const [waitingModalOpen, setWaitingModalOpen] = useState(false);
 
   const SLOT_STEP_MIN = 30;
 
@@ -113,7 +126,7 @@ export function LeadDetailPage() {
         body: JSON.stringify({ reason: reason?.trim() || null }),
       }),
     onSuccess: () => {
-      toast.success("Лид переведён в «Неуспешно»");
+      toast.success("Лид переведён в «Отказ»");
       void qc.invalidateQueries({ queryKey: ["lead", leadId] });
       void qc.invalidateQueries({ queryKey: ["leads"] });
       void qc.invalidateQueries({ queryKey: ["leads-table"] });
@@ -123,7 +136,8 @@ export function LeadDetailPage() {
 
   const role = decodeRoleFromToken(getStoredToken());
   const canRejectLead = role === "owner" || role === "admin" || role === "manager";
-  const canEditLeadProfile = role === "owner" || role === "admin";
+  const canEditLeadProfile = role === "owner" || role === "admin" || role === "manager";
+  const canSetLeadStage = role === "owner" || role === "admin" || role === "manager";
   const canDeleteLead = role === "owner";
   const bookingViewerQuery = useQuery({
     queryKey: ["booking-viewer-context"],
@@ -132,6 +146,46 @@ export function LeadDetailPage() {
   const canEditBooking = role !== "expert" || Boolean(bookingViewerQuery.data?.is_chief_expert);
   const homeLink = role === "manager" || role === "admin" ? "/my-leads" : "/app";
   const homeLabel = role === "manager" || role === "admin" ? "Мои лиды" : "На главную";
+
+  const pipelineId = query.data?.pipeline_id ?? null;
+  const stagesQuery = useQuery({
+    queryKey: ["stages", "lead-card", pipelineId],
+    queryFn: () =>
+      apiFetch<PipelineStage[]>(
+        pipelineId ? `/api/stages?pipeline_id=${pipelineId}` : "/api/stages",
+      ),
+    enabled: canSetLeadStage && Number.isFinite(leadId) && leadId > 0 && pipelineId != null,
+  });
+
+  const setLeadStatusMutation = useMutation({
+    mutationFn: async ({ statusId }: { statusId: number; stageName: string }) =>
+      apiFetch(`/api/leads/${leadId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status_id: statusId, assign_to_me: true }),
+      }),
+    onSuccess: (_data, vars) => {
+      toast.success(`Стадия: ${stageButtonLabel(vars.stageName)}`);
+      void qc.invalidateQueries({ queryKey: ["lead", leadId] });
+      void qc.invalidateQueries({ queryKey: ["leads"] });
+      void qc.invalidateQueries({ queryKey: ["chat-threads"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Не удалось сменить стадию"),
+  });
+
+  const managerStages = useMemo(() => {
+    return (stagesQuery.data ?? [])
+      .filter((s) => {
+        const n = s.name.trim();
+        return (
+          n === "В обработке" ||
+          n === "В работе" ||
+          n === "В ожидании" ||
+          n === "Удачно" ||
+          n === "Отказ"
+        );
+      })
+      .sort((a, b) => a.order - b.order || a.id - b.id);
+  }, [stagesQuery.data]);
 
   const appointmentFromUrl = Number(searchParams.get("appointment"));
 
@@ -477,13 +531,83 @@ export function LeadDetailPage() {
                 <button
                   type="button"
                   onClick={openEditLeadModal}
-                  className="col-span-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-3 text-sm font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)] sm:col-span-1"
+                  className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-3 text-sm font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
                 >
                   Изменить
                 </button>
               ) : null}
+              {query.data.show_close_deal_button ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCloseAmount("");
+                    setClosePaid("");
+                    setCloseDealOpen(true);
+                  }}
+                  className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-3 text-sm font-semibold text-[var(--mo-success)] transition hover:bg-emerald-500/15"
+                >
+                  Закрыть сделку
+                </button>
+              ) : null}
+              {canRejectLead ? (
+                <button
+                  type="button"
+                  disabled={rejectMutation.isPending}
+                  onClick={() => {
+                    const reason = window.prompt("Причина отказа (необязательно):");
+                    if (reason === null) return;
+                    if (!window.confirm("Перевести лид в «Отказ»?")) return;
+                    rejectMutation.mutate(reason);
+                  }}
+                  className="rounded-xl border border-[var(--mo-danger)]/40 bg-[var(--mo-danger)]/10 px-3 py-3 text-sm font-semibold text-[var(--mo-danger)] transition hover:bg-[var(--mo-danger)]/15 disabled:opacity-50"
+                >
+                  Отказ
+                </button>
+              ) : null}
             </div>
           </header>
+
+          {canSetLeadStage ? (
+            <section className="mt-5 border-t border-[var(--mo-border)] pt-5">
+              <h2 className="text-sm font-semibold text-[var(--mo-text)]">Стадия</h2>
+              <p className="mt-1 text-xs mo-muted">
+                В работе / В ожидании / Удачно / Отказ — прямо с карточки. «Новый лид» ставится автоматически.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {managerStages.map((s) => {
+                  const current = query.data.status_id === s.id;
+                  const label = stageButtonLabel(s.name);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      disabled={setLeadStatusMutation.isPending || current}
+                      onClick={() => {
+                        if (isWaitingStageName(s.name)) {
+                          setWaitingModalOpen(true);
+                          return;
+                        }
+                        setLeadStatusMutation.mutate({ statusId: s.id, stageName: s.name });
+                      }}
+                      className={[
+                        "rounded-xl border px-3 py-2 text-sm transition disabled:opacity-50",
+                        current
+                          ? "border-[var(--mo-accent)] bg-[var(--mo-accent-soft)] font-semibold text-[var(--mo-text)]"
+                          : "border-[var(--mo-border)] bg-[var(--mo-surface)] text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]",
+                      ].join(" ")}
+                      style={{ borderLeftWidth: 3, borderLeftColor: s.color }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+                {stagesQuery.isLoading ? <span className="text-xs mo-muted">Загрузка стадий…</span> : null}
+                {!stagesQuery.isLoading && managerStages.length === 0 ? (
+                  <span className="text-xs mo-muted">Стадии воронки не найдены</span>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
           <div className="mt-5 space-y-4 border-t border-[var(--mo-border)] pt-5">
             {(query.data.email || "").trim() ? (
@@ -959,6 +1083,21 @@ export function LeadDetailPage() {
           </div>
         </div>
       )}
+
+      {waitingModalOpen ? (
+        <WaitingCallbackModal
+          leadId={leadId}
+          open
+          onClose={() => setWaitingModalOpen(false)}
+          onSaved={() => {
+            setWaitingModalOpen(false);
+            void qc.invalidateQueries({ queryKey: ["lead", leadId] });
+            void qc.invalidateQueries({ queryKey: ["leads"] });
+            void qc.invalidateQueries({ queryKey: ["tasks"] });
+            void qc.invalidateQueries({ queryKey: ["chat-threads"] });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

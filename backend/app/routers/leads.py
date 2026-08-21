@@ -1828,15 +1828,18 @@ async def patch_lead(
 
     if current_user.role == UserRole.owner:
         pass
-    elif current_user.role == UserRole.admin:
+    elif current_user.role in (UserRole.admin, UserRole.manager):
         pipeline_id = lead.stage.pipeline_id if lead.stage else None
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if pipeline_id is None or pipeline_id not in allowed:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside admin directions")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Lead is outside manager directions",
+            )
     else:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Редактирование карточки доступно только владельцу и админу назначенной воронки",
+            detail="Редактирование карточки доступно владельцу, админу и менеджеру воронки",
         )
 
     patch = body.model_dump(exclude_unset=True)
