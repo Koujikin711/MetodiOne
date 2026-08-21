@@ -184,6 +184,9 @@ export interface Lead {
   paid_extras_amount?: unknown;
   show_close_deal_button?: boolean;
   created_at?: string | null;
+  /** Откуда ушёл в Архив (напр. «Удачно») — двойная метка */
+  archived_from_stage?: string | null;
+  reactivated_at?: string | null;
 }
 
 export interface LeadImportErrorItem {

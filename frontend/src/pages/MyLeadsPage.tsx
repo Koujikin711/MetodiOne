@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
 import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
+import { leadStageChips } from "@/lib/leadStageChips";
 import { apiFetch } from "@/lib/api";
 import type { Lead } from "@/lib/types";
 
@@ -96,6 +97,7 @@ export function MyLeadsPage() {
         <ul className="w-full min-w-0 divide-y divide-[var(--mo-border)]">
           {leads.map((lead) => {
             const stage = stageShort(lead.stage_name);
+            const chips = leadStageChips(lead);
             return (
               <li key={lead.id} className="w-full min-w-0">
                 <Link
@@ -111,13 +113,24 @@ export function MyLeadsPage() {
                   <p className="min-w-0 truncate text-left text-[12px] font-medium tabular-nums tracking-wide text-[var(--mo-text-muted)]">
                     <PatientPhone value={lead} />
                   </p>
-                  {stage ? (
-                    <span className="max-w-[7.5rem] shrink-0 justify-self-end truncate rounded-md bg-[var(--mo-accent-soft)] px-1.5 py-0.5 text-right text-[10px] font-medium leading-tight text-[var(--mo-accent-hover)]">
-                      {stage}
-                    </span>
-                  ) : (
-                    <span />
-                  )}
+                  <span className="flex max-w-[9.5rem] shrink-0 flex-wrap justify-end gap-1">
+                    {chips.secondary ? (
+                      <>
+                        <span className="truncate rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-emerald-600">
+                          {chips.primary}
+                        </span>
+                        <span className="truncate rounded-md bg-[var(--mo-accent-soft)] px-1.5 py-0.5 text-[10px] font-medium leading-tight text-[var(--mo-accent-hover)]">
+                          {chips.secondary}
+                        </span>
+                      </>
+                    ) : stage || chips.primary !== "—" ? (
+                      <span className="truncate rounded-md bg-[var(--mo-accent-soft)] px-1.5 py-0.5 text-[10px] font-medium leading-tight text-[var(--mo-accent-hover)]">
+                        {chips.secondary ? `${chips.primary} · ${chips.secondary}` : chips.primary}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                  </span>
                 </Link>
               </li>
             );

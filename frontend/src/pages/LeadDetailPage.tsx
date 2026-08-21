@@ -19,6 +19,7 @@ import { PatientPhone } from "@/components/PatientPhone";
 import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
 import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { auditActionLabel, auditDetailsLabel } from "@/lib/auditLabels";
+import { leadStageChips } from "@/lib/leadStageChips";
 import type {
   BookingAppointment,
   BookingSpecialist,
@@ -443,6 +444,7 @@ export function LeadDetailPage() {
 
   const stageDisplay =
     query.data?.stage_name === "В обработке" ? "В работе" : (query.data?.stage_name || "").trim();
+  const stageChips = query.data ? leadStageChips(query.data) : { primary: "" };
   const createdLabel = query.data?.created_at
     ? new Date(query.data.created_at).toLocaleString("ru-RU", {
         day: "numeric",
@@ -493,7 +495,16 @@ export function LeadDetailPage() {
                   {query.data.name}
                 </h1>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {stageDisplay ? (
+                  {stageChips.secondary ? (
+                    <>
+                      <span className="inline-flex rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-600">
+                        {stageChips.primary}
+                      </span>
+                      <span className="inline-flex rounded-full bg-[var(--mo-accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--mo-accent-hover)]">
+                        {stageChips.secondary}
+                      </span>
+                    </>
+                  ) : stageDisplay ? (
                     <span className="inline-flex rounded-full bg-[var(--mo-accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--mo-accent-hover)]">
                       {stageDisplay}
                     </span>

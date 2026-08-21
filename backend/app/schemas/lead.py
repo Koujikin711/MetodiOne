@@ -44,6 +44,9 @@ class LeadRead(BaseModel):
     refusal_reason: str | None = None
     pipeline_id: int | None = None
     created_at: datetime | None = None
+    # Откуда ушёл в Архив (напр. «Удачно») — двойная метка / бейдж после раздачи
+    archived_from_stage: str | None = None
+    reactivated_at: datetime | None = None
 
     # Для Kanban и workflow (иконки и управление протоколом)
     protocol_deal_id: int | None = None

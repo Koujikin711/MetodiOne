@@ -20,6 +20,7 @@ import { CrmToolbar } from "@/components/crm/CrmToolbar";
 import { PatientPhone } from "@/components/PatientPhone";
 import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { apiDownloadBlob, apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
+import { leadStageChips } from "@/lib/leadStageChips";
 import { formatCompactCount } from "@/lib/money";
 import { theme } from "@/lib/theme";
 import { decodeRoleFromToken } from "@/lib/auth";
@@ -107,6 +108,7 @@ function LeadCardBody({ lead, stageColor }: { lead: Lead; stageColor?: string })
   const paidNum =
     lead.paid_extras_amount == null ? 0 : typeof lead.paid_extras_amount === "number" ? lead.paid_extras_amount : Number(lead.paid_extras_amount);
   const dotColor = stageColor ?? "#6366f1";
+  const chips = leadStageChips(lead);
 
   return (
     <>
@@ -126,6 +128,16 @@ function LeadCardBody({ lead, stageColor }: { lead: Lead; stageColor?: string })
       <p className="mt-2 break-all text-sm font-medium text-[var(--mo-text)]">
         <PatientPhone value={lead} />
       </p>
+      {chips.secondary ? (
+        <div className="mt-2 flex flex-wrap gap-1">
+          <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600">
+            {chips.primary}
+          </span>
+          <span className="rounded-md bg-[var(--mo-accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--mo-accent-hover)]">
+            {chips.secondary}
+          </span>
+        </div>
+      ) : null}
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--mo-border)] pt-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <span className="crm-stage-gem shrink-0" style={{ backgroundColor: dotColor }} />

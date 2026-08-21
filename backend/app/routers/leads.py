@@ -373,6 +373,8 @@ def _lead_to_read(lead: Lead) -> LeadRead:
         refusal_reason=lead.refusal_reason,
         pipeline_id=lead.stage.pipeline_id if lead.stage else None,
         created_at=lead.created_at,
+        archived_from_stage=getattr(lead, "archived_from_stage", None),
+        reactivated_at=getattr(lead, "reactivated_at", None),
     )
 
 
@@ -2264,6 +2266,15 @@ async def update_lead_status(
 
     if body.assign_to_me and current_user.role in (UserRole.manager, UserRole.admin):
         lead.manager_id = current_user.id
+
+    from app.services.lead_sales_stages import ARCHIVE_STAGE_NAME
+
+    to_name = (stage.name or "").strip()
+    from_name = (from_stage.name or "").strip()
+    if to_name == ARCHIVE_STAGE_NAME and from_name and from_name != ARCHIVE_STAGE_NAME:
+        lead.archived_from_stage = from_name
+    elif to_name in ("В обработке", "В работе", "Удачно"):
+        lead.archived_from_stage = None
 
     lead.status_id = body.status_id
     await db.flush()

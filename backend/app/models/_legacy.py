@@ -412,6 +412,8 @@ class Lead(Base):
     )
     # Вечерняя реактивация из Архива: grace, чтобы classify не вернул сразу в Архив.
     reactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    # Откуда ушли в Архив (напр. «Удачно») — для двойной метки Удачно+Архив.
+    archived_from_stage: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     stage: Mapped["PipelineStage"] = relationship(back_populates="leads")
     manager: Mapped["User | None"] = relationship(back_populates="leads", foreign_keys=[manager_id])

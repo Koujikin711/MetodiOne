@@ -2327,3 +2327,18 @@ async def ensure_lead_reactivated_at(conn: AsyncConnection, database_url: str) -
     await conn.execute(
         text("CREATE INDEX IF NOT EXISTS ix_leads_reactivated_at ON leads (reactivated_at)"),
     )
+
+
+async def ensure_lead_archived_from_stage(conn: AsyncConnection, database_url: str) -> None:
+    """Колонка leads.archived_from_stage — двойная метка (напр. Удачно + Архив)."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        r = await conn.execute(text("PRAGMA table_info(leads)"))
+        cols = {row[1] for row in r.fetchall()}
+        if "archived_from_stage" not in cols:
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN archived_from_stage VARCHAR(120)"))
+    else:
+        await conn.execute(
+            text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS archived_from_stage VARCHAR(120)"),
+        )

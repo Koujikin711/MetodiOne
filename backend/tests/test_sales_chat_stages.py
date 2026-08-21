@@ -258,3 +258,42 @@ def test_classify_lead_stage_name():
         )
         == "Архив"
     )
+    # «Удачно» без активности >45 дней → Архив.
+    assert (
+        classify_lead_stage_name(
+            current_name="Удачно",
+            appointment_statuses=set(),
+            has_outbound=True,
+            last_direction="out",
+            has_any_chat=True,
+            last_message_at=old,
+            lead_created_at=old,
+            now=now,
+        )
+        == "Архив"
+    )
+    # Явка completed, но активность старая → Архив.
+    assert (
+        classify_lead_stage_name(
+            current_name="Удачно",
+            appointment_statuses={"completed"},
+            has_outbound=False,
+            last_direction=None,
+            last_message_at=old,
+            lead_created_at=old,
+            now=now,
+        )
+        == "Архив"
+    )
+    # Активная запись booked держит Удачно даже при старых сообщениях.
+    assert (
+        classify_lead_stage_name(
+            current_name="Удачно",
+            appointment_statuses={"booked"},
+            has_outbound=False,
+            last_direction=None,
+            last_message_at=old,
+            now=now,
+        )
+        == "Удачно"
+    )

@@ -127,6 +127,11 @@ def _is_recent(dt: datetime | None, *, now: datetime, days: int = WAREHOUSE_RECE
     return stamp >= (now - timedelta(days=days))
 
 
+def _latest_activity(*dts: datetime | None) -> datetime | None:
+    stamps = [s for s in (_as_utc(d) for d in dts) if s is not None]
+    return max(stamps) if stamps else None
+
+
 def _is_warehouse_source(source: str | None) -> bool:
     src = (source or "").strip().lower()
     if not src:
@@ -165,16 +170,15 @@ def classify_lead_stage_name(
     Жёсткие сигналы (запись) перекрывают ручные стадии.
     Склад Bitrix/WhatsApp/GREEN API без свежей активности → Архив (не удалять).
     «Новый лид» только при свежем входящем (или только что созданном без чата).
-    «Удачно» (запись / явка) в Архив не уходит.
+    «Удачно» и ручные стадии без активности >45 дней → Архив.
     После вечерней реактивации из Архива — grace по reactivated_at.
     """
     cur = (current_name or "").strip()
     statuses = {str(s).strip().lower() for s in appointment_statuses}
     clock = _as_utc(now) or datetime.now(UTC)
+    activity = _latest_activity(last_message_at, lead_created_at)
 
-    if "completed" in statuses:
-        # Явка / завершённый визит — успех остаётся в «Удачно», не в Архив.
-        return "Удачно"
+    # Активная запись держит «Удачно».
     if "booked" in statuses:
         return "Удачно"
     if statuses.intersection({"cancelled", "no_show", "lost"}) and cur in (
@@ -188,26 +192,25 @@ def classify_lead_stage_name(
     ):
         return "Отказ"
 
+    # Явка: «Удачно» пока свежая активность, иначе Архив.
+    if "completed" in statuses:
+        if activity is None or _is_recent(activity, now=clock):
+            return "Удачно"
+        return ARCHIVE_STAGE_NAME
+
     if cur == ARCHIVE_STAGE_NAME:
-        # Свежая активность вытаскивает из Архива (иначе «живые» чаты висят в складе).
         if has_outbound:
             if (last_direction or "").strip().lower() == "in":
                 return "В ожидании"
-            # Только исходящее без нового входящего — склад остаётся Архивом
-            # (авто-приветствие по старому контакту не делает его «в работе»).
-            activity = last_message_at or lead_created_at
             if activity is not None and _is_recent(activity, now=clock):
-                # Есть недавняя активность в треде — после автоответа ждём менеджера как новый вход.
                 if (last_direction or "").strip().lower() == "out":
                     return "Новый лид"
             return ARCHIVE_STAGE_NAME
         if has_any_chat and (last_direction or "").strip().lower() == "in":
-            activity = last_message_at or lead_created_at
             if activity is None or _is_recent(activity, now=clock):
                 return "Новый лид"
         return ARCHIVE_STAGE_NAME
 
-    # Вечерняя раздача из Архива: не возвращаем в Архив, пока grace жив и нет исходящих.
     if (
         cur in ("", "Новый лид", "Новый")
         and not has_outbound
@@ -215,12 +218,10 @@ def classify_lead_stage_name(
     ):
         return "Новый лид"
 
-    # Явный склад из «Новый*» → Архив, если нет свежей активности.
     if cur in ("", "Новый лид", "Новый") and _is_warehouse_source(source):
         if has_outbound:
-            pass  # ниже по чату
+            pass
         else:
-            activity = last_message_at or lead_created_at
             if has_any_chat and (last_direction or "").strip().lower() == "in":
                 if activity is None or _is_recent(activity, now=clock):
                     return "Новый лид"
@@ -231,8 +232,10 @@ def classify_lead_stage_name(
                 return ARCHIVE_STAGE_NAME
             return ARCHIVE_STAGE_NAME
 
-    # Ручные стадии менеджера не откатываем без записи.
+    # Ручные стадии: без активности >45 дней → Архив (в т.ч. «Удачно»).
     if cur in MANAGER_SETTABLE_STAGE_NAMES:
+        if activity is not None and not _is_recent(activity, now=clock):
+            return ARCHIVE_STAGE_NAME
         return cur
 
     if has_outbound:
@@ -240,19 +243,17 @@ def classify_lead_stage_name(
             return "В ожидании"
         return "В обработке"
 
-    # Нет исходящих: «Новый лид» при свежем входящем (или без метки — не ломаем тесты/край).
     if has_any_chat and (last_direction or "").strip().lower() == "in":
-        activity = last_message_at or lead_created_at
         if activity is None or _is_recent(activity, now=clock):
             return "Новый лид"
         return ARCHIVE_STAGE_NAME
 
-    # Без чата: свежесозданный остаётся новым, остальное — склад в Архив.
     if not has_any_chat:
         if lead_created_at is not None and _is_recent(lead_created_at, now=clock):
             return "Новый лид"
         return ARCHIVE_STAGE_NAME
     return ARCHIVE_STAGE_NAME
+
 
 
 async def stage_id_by_name_in_pipeline(
@@ -536,6 +537,8 @@ async def redistribute_pipeline_leads_by_activity(
         last_at = {int(lid): created for lid, _, created in last_dir_rows if lid is not None}
 
         moves: dict[int, list[int]] = defaultdict(list)
+        archive_from: dict[int, str] = {}
+        clear_archived_from: list[int] = []
         for lid in lead_ids:
             cur_sid = id_to_status[lid]
             cur_name = id_to_name.get(cur_sid)
@@ -555,6 +558,10 @@ async def redistribute_pipeline_leads_by_activity(
             if target_sid is None or target_sid == cur_sid:
                 continue
             moves[int(target_sid)].append(lid)
+            if target_name == ARCHIVE_STAGE_NAME and cur_name and cur_name != ARCHIVE_STAGE_NAME:
+                archive_from[lid] = cur_name
+            elif target_name in ("В обработке", "В работе", "Удачно"):
+                clear_archived_from.append(lid)
 
         for target_sid, lids in moves.items():
             await db.execute(
@@ -563,6 +570,19 @@ async def redistribute_pipeline_leads_by_activity(
                 .values(status_id=int(target_sid)),
             )
             updated += len(lids)
+
+        for lid, from_name in archive_from.items():
+            await db.execute(
+                update(Lead)
+                .where(Lead.company_id == company_id, Lead.id == lid)
+                .values(archived_from_stage=from_name),
+            )
+        if clear_archived_from:
+            await db.execute(
+                update(Lead)
+                .where(Lead.company_id == company_id, Lead.id.in_(clear_archived_from))
+                .values(archived_from_stage=None),
+            )
 
         await db.flush()
 
@@ -623,5 +643,6 @@ async def advance_new_lead_after_manager_reply(
     if to_id is None:
         return False
     lead.status_id = int(to_id)
+    lead.archived_from_stage = None
     await db.flush()
     return True
