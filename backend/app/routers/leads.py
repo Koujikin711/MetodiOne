@@ -49,6 +49,7 @@ from app.services.audit import write_audit_event
 from app.services.patient_phone_visibility import resolve_phone_fields
 from app.services.automation import process_lead_automation
 from app.services.lead_assignment import assign_manager_for_new_lead
+from app.services.lead_extra_phones import find_lead_by_any_phone, norm_phone
 from app.services.lead_redistribution_undo import (
     REDISTRIBUTE_ACTIONS,
     collect_restorable_by_from_manager,
@@ -462,10 +463,26 @@ async def create_lead(
         if stage.pipeline_id not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Stage is outside manager directions")
     manager_id = await _manager_id_for_manual_lead_create(db, stage=stage, current_user=current_user, company_id=company_id)
+    phone_norm = norm_phone(body.phone)
+    if phone_norm and len(phone_norm) >= 9:
+        existing = await find_lead_by_any_phone(
+            db,
+            company_id=company_id,
+            phone=phone_norm,
+            pipeline_id=int(stage.pipeline_id),
+        )
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Лид с таким телефоном уже есть: {existing.name or 'без имени'} "
+                    f"(#{existing.id}). Откройте существующую карточку."
+                ),
+            )
     lead = Lead(
         company_id=company_id,
         name=body.name,
-        phone=body.phone,
+        phone=phone_norm or body.phone,
         email=body.email,
         source=body.source,
         status_id=body.status_id,
@@ -474,7 +491,7 @@ async def create_lead(
     db.add(lead)
     await db.flush()
     # Stub WhatsApp-тред сразу — появится в «Ждут ответа» без входящей переписки.
-    digits = "".join(ch for ch in (body.phone or "") if ch.isdigit())
+    digits = phone_norm or "".join(ch for ch in (body.phone or "") if ch.isdigit())
     if len(digits) >= 9:
         from app.models import IntegrationProvider
         from app.services.integration_inbound import upsert_thread

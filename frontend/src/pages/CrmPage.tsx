@@ -735,17 +735,15 @@ export function CrmPage() {
     setLeadStageId(st[0].id);
   }, [createLeadOpen, createLeadStagesQuery.data, leadStageId]);
 
-  async function submitCreateLead() {
-    if (!leadName.trim() || !leadPhone.trim()) {
-      toast.error("Введите имя и телефон");
-      return;
-    }
-    if (!leadStageId) {
-      toast.error("Выберите стадию");
-      return;
-    }
-    try {
-      await apiFetch<Lead>("/api/leads", {
+  const createLeadMutation = useMutation({
+    mutationFn: async () => {
+      if (!leadName.trim() || !leadPhone.trim()) {
+        throw new Error("Введите имя и телефон");
+      }
+      if (!leadStageId) {
+        throw new Error("Выберите стадию");
+      }
+      return apiFetch<Lead>("/api/leads", {
         method: "POST",
         body: JSON.stringify({
           name: leadName.trim(),
@@ -755,6 +753,8 @@ export function CrmPage() {
           status_id: leadStageId,
         }),
       });
+    },
+    onSuccess: () => {
       toast.success("Лид создан");
       setCreateLeadOpen(false);
       setLeadName("");
@@ -764,9 +764,13 @@ export function CrmPage() {
       setLeadStageId(null);
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
       void queryClient.invalidateQueries({ queryKey: ["leads-table"] });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Не удалось создать лида");
-    }
+      void queryClient.invalidateQueries({ queryKey: ["chat-threads"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function submitCreateLead() {
+    createLeadMutation.mutate();
   }
 
   const [createPipelineOpen, setCreatePipelineOpen] = useState(false);
@@ -2385,10 +2389,11 @@ export function CrmPage() {
 
               <button
                 type="button"
-                onClick={() => void submitCreateLead()}
-                className="mt-2 w-full btn-primary w-full"
+                disabled={createLeadMutation.isPending}
+                onClick={() => submitCreateLead()}
+                className="mt-2 w-full btn-primary w-full disabled:opacity-60"
               >
-                Создать
+                {createLeadMutation.isPending ? "Создание…" : "Создать"}
               </button>
             </div>
           </div>

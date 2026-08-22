@@ -17,6 +17,8 @@ import type {
   ChatThread,
   ChatThreadBucket,
   ChatThreadBucketCounts,
+  Lead,
+  LeadStatusPatchResponse,
   PipelineStage,
   SalesStageKey,
 } from "@/lib/types";
@@ -465,6 +467,33 @@ function isWaitingStageName(name: string | null | undefined): boolean {
   return n === "в ожидании" || (n.includes("ожид") && !n.includes("ответа"));
 }
 
+function salesStageKeyFromName(name: string | null | undefined): SalesStageKey | null {
+  const n = (name || "").trim().toLowerCase();
+  if (!n) return null;
+  if (n.includes("нов")) return "new";
+  if (n.includes("архив")) return "archive";
+  if (n.includes("ожид")) return "waiting";
+  if (n.includes("удач") || n.includes("успеш")) return "won";
+  if (n.includes("отказ") || n.includes("потеря")) return "lost";
+  if (n.includes("обработ") || n.includes("работ")) return "in_progress";
+  return null;
+}
+
+function patchPinnedThreadLeadStage(
+  prev: ChatThread | null,
+  lead: Pick<Lead, "id" | "status_id" | "stage_name" | "manager_id" | "manager_name">,
+): ChatThread | null {
+  if (!prev || prev.lead_id !== lead.id) return prev;
+  return {
+    ...prev,
+    lead_status_id: lead.status_id,
+    lead_stage_name: lead.stage_name,
+    lead_stage_key: salesStageKeyFromName(lead.stage_name),
+    manager_id: lead.manager_id ?? prev.manager_id,
+    manager_name: lead.manager_name ?? prev.manager_name,
+  };
+}
+
 function stageColorForThread(t: Pick<ChatThread, "lead_stage_key" | "lead_stage_name">): string {
   if (t.lead_stage_key && SALES_STAGE_COLORS[t.lead_stage_key]) {
     return SALES_STAGE_COLORS[t.lead_stage_key];
@@ -526,7 +555,7 @@ function threadRowClasses(t: ChatThread, selected: boolean) {
 export function ChatPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -670,6 +699,11 @@ export function ChatPage() {
     setThreadId(null);
     setPinnedThread(null);
     setStatusOpen(false);
+    if (searchParams.has("lead_id")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("lead_id");
+      setSearchParams(next, { replace: true });
+    }
   }
 
   const [text, setText] = useState("");
@@ -735,8 +769,20 @@ export function ChatPage() {
 
   const activeThread = useMemo(() => {
     if (threadId == null) return null;
-    if (pinnedThread?.id === threadId) return pinnedThread;
-    return selectedThread;
+    const pinned = pinnedThread?.id === threadId ? pinnedThread : null;
+    const fromList = selectedThread;
+    if (pinned && fromList) {
+      return {
+        ...pinned,
+        lead_status_id: fromList.lead_status_id ?? pinned.lead_status_id,
+        lead_stage_name: fromList.lead_stage_name ?? pinned.lead_stage_name,
+        lead_stage_key: fromList.lead_stage_key ?? pinned.lead_stage_key,
+        manager_id: fromList.manager_id ?? pinned.manager_id,
+        manager_name: fromList.manager_name ?? pinned.manager_name,
+        updated_at: fromList.updated_at,
+      };
+    }
+    return pinned ?? fromList;
   }, [threadId, pinnedThread, selectedThread]);
 
   const selectedManagerLabel = useMemo(() => {
@@ -859,19 +905,18 @@ export function ChatPage() {
     mutationFn: async ({
       leadId,
       statusId,
-      stageName,
     }: {
       leadId: number;
       statusId: number;
       stageName: string;
     }) => {
-      await apiFetch(`/api/leads/${leadId}/status`, {
+      return apiFetch<LeadStatusPatchResponse>(`/api/leads/${leadId}/status`, {
         method: "PATCH",
         body: JSON.stringify({ status_id: statusId, assign_to_me: true }),
       });
-      return { leadId, stageName };
     },
-    onSuccess: ({ leadId, stageName }) => {
+    onSuccess: (data, { stageName }) => {
+      setPinnedThread((prev) => patchPinnedThreadLeadStage(prev, data));
       toast.success("Статус обновлён");
       setStatusOpen(false);
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
@@ -880,10 +925,10 @@ export function ChatPage() {
       if (salesChatMode && stageName.trim() === "Удачно") {
         if (salesSpace || meQuery.data?.booking_enabled === false) {
           toast.success("Открываем окно продаж");
-          navigate(`/sales?lead_id=${leadId}`);
+          navigate(`/sales?lead_id=${data.id}`);
         } else {
           toast.success("Открываем онлайн-запись — выберите эксперта, дату и сумму");
-          navigate(`/booking?lead_id=${leadId}`);
+          navigate(`/booking?lead_id=${data.id}`);
         }
       }
     },
