@@ -793,6 +793,139 @@ def _thread_stage_fields(row) -> tuple[int | None, str | None, str | None]:
         key,
     )
 
+
+async def _chat_thread_read_from_row(
+    db: AsyncSession,
+    current_user: User,
+    company_id: int,
+    row,
+) -> ChatThreadRead:
+    lead_id = getattr(row, "lead_id", None)
+    sale_info: dict[int, dict[str, object]] = {}
+    if lead_id is not None:
+        sale_info = await _sale_info_by_lead_ids(
+            db,
+            company_id=company_id,
+            lead_ids=[int(lead_id)],
+        )
+    ext_chat = row.external_chat_id
+    raw_phone = (row.phone if getattr(row, "phone", None) else None) or _phone_from_external_chat_id(ext_chat)
+    phone_val, phone_display, can_view_phone = await resolve_phone_fields(
+        db,
+        current_user,
+        row.pipeline_id,
+        raw_phone,
+    )
+    if current_user.role == UserRole.manager and ext_chat and not can_view_phone:
+        ext_chat = mask_patient_phone(ext_chat.split("@")[0] if "@" in ext_chat else ext_chat)
+    sale = sale_info.get(int(lead_id)) if lead_id is not None else None
+    status_id, stage_name, stage_key_val = _thread_stage_fields(row)
+    return ChatThreadRead(
+        id=int(row.id),
+        lead_id=lead_id,
+        lead_name=row.name,
+        lead_phone=phone_val if phone_val is not None else (phone_display if phone_display != "—" else None),
+        lead_phone_display=phone_display,
+        lead_phone_can_view_full=can_view_phone,
+        lead_status_id=status_id,
+        lead_stage_name=stage_name,
+        lead_stage_key=stage_key_val,
+        manager_id=getattr(row, "manager_id", None),
+        manager_name=getattr(row, "manager_name", None),
+        provider=row.provider,
+        external_chat_id=ext_chat,
+        title=row.title,
+        pipeline_id=row.pipeline_id,
+        updated_at=row.updated_at,
+        unread_count=int(row.unread_count or 0),
+        first_message_at=row.first_message_at,
+        last_message_direction=row.last_message_direction,
+        is_transferred=bool(getattr(row, "is_transferred", False)),
+        sale_service_title=sale.get("service") if sale else None,
+        sale_amount=sale.get("amount") if sale else None,
+        sale_paid_amount=sale.get("paid") if sale else None,
+    )
+
+
+async def _fetch_thread_read_row(
+    db: AsyncSession,
+    current_user: User,
+    company_id: int,
+    thread_id: int,
+):
+    first_message_at_sq = (
+        select(func.min(ChatMessage.created_at))
+        .where(ChatMessage.thread_id == ChatThread.id)
+        .correlate(ChatThread)
+        .scalar_subquery()
+    )
+    last_direction_sq = (
+        select(ChatMessage.direction)
+        .where(ChatMessage.thread_id == ChatThread.id)
+        .order_by(ChatMessage.id.desc())
+        .limit(1)
+        .correlate(ChatThread)
+        .scalar_subquery()
+    )
+    unread_count_sq = (
+        select(func.count(ChatMessage.id))
+        .select_from(ChatMessage)
+        .outerjoin(
+            ChatThreadUserRead,
+            and_(
+                ChatThreadUserRead.thread_id == ChatThread.id,
+                ChatThreadUserRead.user_id == current_user.id,
+            ),
+        )
+        .where(
+            ChatMessage.thread_id == ChatThread.id,
+            ChatMessage.direction == "in",
+            ChatMessage.id > func.coalesce(ChatThreadUserRead.last_read_message_id, 0),
+        )
+        .correlate(ChatThread)
+        .scalar_subquery()
+    )
+    transferred_sq = None
+    if current_user.role in (UserRole.manager, UserRole.admin):
+        transferred_sq = _lead_transferred_to_manager_exists(
+            Lead.id,
+            manager_id=current_user.id,
+            company_id=company_id,
+        )
+
+    select_cols = [
+        ChatThread.id,
+        ChatThread.lead_id,
+        Lead.name,
+        Lead.phone,
+        Lead.status_id.label("status_id"),
+        PipelineStage.name.label("stage_name"),
+        Lead.manager_id.label("manager_id"),
+        func.coalesce(User.full_name, User.email).label("manager_name"),
+        ChatThread.provider,
+        ChatThread.external_chat_id,
+        ChatThread.title,
+        ChatThread.pipeline_id,
+        ChatThread.updated_at,
+        first_message_at_sq.label("first_message_at"),
+        last_direction_sq.label("last_message_direction"),
+        unread_count_sq.label("unread_count"),
+    ]
+    if transferred_sq is not None:
+        select_cols.append(case((transferred_sq, True), else_=False).label("is_transferred"))
+
+    return (
+        await db.execute(
+            select(*select_cols)
+            .select_from(ChatThread)
+            .outerjoin(Lead, Lead.id == ChatThread.lead_id)
+            .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
+            .outerjoin(User, User.id == Lead.manager_id)
+            .where(ChatThread.id == thread_id, ChatThread.company_id == company_id),
+        )
+    ).one()
+
+
 @router.websocket("/ws")
 async def chat_websocket(websocket: WebSocket, token: str = Query(..., min_length=10)) -> None:
     """WebSocket ping/push для обновления чата без polling."""
@@ -1246,116 +1379,28 @@ async def get_thread_by_lead(
             db, company_id=company_id, lead_id=lead_id,
         )
 
-    first_message_at_sq = (
-        select(func.min(ChatMessage.created_at))
-        .where(ChatMessage.thread_id == ChatThread.id)
-        .correlate(ChatThread)
-        .scalar_subquery()
-    )
-    last_direction_sq = (
-        select(ChatMessage.direction)
-        .where(ChatMessage.thread_id == ChatThread.id)
-        .order_by(ChatMessage.id.desc())
-        .limit(1)
-        .correlate(ChatThread)
-        .scalar_subquery()
-    )
-    unread_count_sq = (
-        select(func.count(ChatMessage.id))
-        .select_from(ChatMessage)
-        .outerjoin(
-            ChatThreadUserRead,
-            and_(
-                ChatThreadUserRead.thread_id == ChatThread.id,
-                ChatThreadUserRead.user_id == current_user.id,
-            ),
-        )
-        .where(
-            ChatMessage.thread_id == ChatThread.id,
-            ChatMessage.direction == "in",
-            ChatMessage.id > func.coalesce(ChatThreadUserRead.last_read_message_id, 0),
-        )
-        .correlate(ChatThread)
-        .scalar_subquery()
-    )
-    transferred_sq = None
-    if current_user.role in (UserRole.manager, UserRole.admin):
-        transferred_sq = _lead_transferred_to_manager_exists(
-            Lead.id,
-            manager_id=current_user.id,
-            company_id=company_id,
-        )
+    row = await _fetch_thread_read_row(db, current_user, company_id, thread.id)
+    return await _chat_thread_read_from_row(db, current_user, company_id, row)
 
-    select_cols = [
-        ChatThread.id,
-        ChatThread.lead_id,
-        Lead.name,
-        Lead.phone,
-        Lead.status_id.label("status_id"),
-        PipelineStage.name.label("stage_name"),
-        Lead.manager_id.label("manager_id"),
-        func.coalesce(User.full_name, User.email).label("manager_name"),
-        ChatThread.provider,
-        ChatThread.external_chat_id,
-        ChatThread.title,
-        ChatThread.pipeline_id,
-        ChatThread.updated_at,
-        first_message_at_sq.label("first_message_at"),
-        last_direction_sq.label("last_message_direction"),
-        unread_count_sq.label("unread_count"),
-    ]
-    if transferred_sq is not None:
-        select_cols.append(case((transferred_sq, True), else_=False).label("is_transferred"))
 
-    row = (
-        await db.execute(
-            select(*select_cols)
-            .select_from(ChatThread)
-            .outerjoin(Lead, Lead.id == ChatThread.lead_id)
-            .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
-            .outerjoin(User, User.id == Lead.manager_id)
-            .where(ChatThread.id == thread.id, ChatThread.company_id == company_id),
-        )
-    ).one()
+@router.get("/threads/{thread_id}", response_model=ChatThreadRead)
+async def get_thread(
+    thread_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> ChatThreadRead:
+    """Метаданные диалога по id — шапка чата не зависит от вкладки и пагинации списка."""
+    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.expert):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
 
-    sale_info = await _sale_info_by_lead_ids(db, company_id=company_id, lead_ids=[lead_id])
-    ext_chat = row.external_chat_id
-    raw_phone = (row.phone if getattr(row, "phone", None) else None) or _phone_from_external_chat_id(ext_chat)
-    phone_val, phone_display, can_view_phone = await resolve_phone_fields(
-        db,
-        current_user,
-        row.pipeline_id,
-        raw_phone,
-    )
-    if current_user.role == UserRole.manager and ext_chat and not can_view_phone:
-        ext_chat = mask_patient_phone(ext_chat.split("@")[0] if "@" in ext_chat else ext_chat)
-    sale = sale_info.get(lead_id)
-    status_id, stage_name, stage_key_val = _thread_stage_fields(row)
-    return ChatThreadRead(
-        id=int(row.id),
-        lead_id=row.lead_id,
-        lead_name=row.name,
-        lead_phone=phone_val if phone_val is not None else (phone_display if phone_display != "—" else None),
-        lead_phone_display=phone_display,
-        lead_phone_can_view_full=can_view_phone,
-        lead_status_id=status_id,
-        lead_stage_name=stage_name,
-        lead_stage_key=stage_key_val,
-        manager_id=getattr(row, "manager_id", None),
-        manager_name=getattr(row, "manager_name", None),
-        provider=row.provider,
-        external_chat_id=ext_chat,
-        title=row.title,
-        pipeline_id=row.pipeline_id,
-        updated_at=row.updated_at,
-        unread_count=int(row.unread_count or 0),
-        first_message_at=row.first_message_at,
-        last_message_direction=row.last_message_direction,
-        is_transferred=bool(getattr(row, "is_transferred", False)),
-        sale_service_title=sale.get("service") if sale else None,
-        sale_amount=sale.get("amount") if sale else None,
-        sale_paid_amount=sale.get("paid") if sale else None,
-    )
+    thread = await db.get(ChatThread, thread_id)
+    if thread is None or thread.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+    await _assert_thread_access(db, thread, current_user)
+
+    row = await _fetch_thread_read_row(db, current_user, company_id, thread_id)
+    return await _chat_thread_read_from_row(db, current_user, company_id, row)
 
 
 @router.get("/threads/{thread_id}/messages", response_model=list[ChatMessageRead])

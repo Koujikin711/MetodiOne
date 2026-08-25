@@ -1146,6 +1146,14 @@ async def integration_webhook(
             file_name=mfn,
             media_mime=mmime,
         )
+        if lead.id is not None:
+            from app.services.lead_sales_stages import reclassify_lead_by_activity
+
+            await reclassify_lead_by_activity(
+                db,
+                company_id=company_id,
+                lead_id=int(lead.id),
+            )
         await send_welcome_if_first_incoming(
             db,
             lead=lead,
