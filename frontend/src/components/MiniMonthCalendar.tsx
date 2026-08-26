@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 type Props = {
   value: string;
   onChange: (isoDate: string) => void;
+  compact?: boolean;
 };
 
 const weekDays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -12,7 +13,7 @@ function parseYmd(s: string): { y: number; m: number; d: number } {
   return { y, m: m || 1, d: d || 1 };
 }
 
-export function MiniMonthCalendar({ value, onChange }: Props) {
+export function MiniMonthCalendar({ value, onChange, compact = false }: Props) {
   const selected = parseYmd(value);
   const [view, setView] = useState(() => ({ y: selected.y, m: selected.m }));
 
@@ -66,27 +67,45 @@ export function MiniMonthCalendar({ value, onChange }: Props) {
   }
 
   return (
-    <div className="w-full rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2.5">
-      <div className="mb-2 flex items-center justify-between gap-1.5">
+    <div
+      className={[
+        "w-full rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]",
+        compact ? "p-1.5 mini-month-calendar--compact" : "p-2.5",
+      ].join(" ")}
+    >
+      <div className={["mb-2 flex items-center justify-between gap-1.5", compact ? "mb-1" : ""].join(" ")}>
         <button
           type="button"
           onClick={() => shiftMonth(-1)}
-          className="rounded-md px-1.5 py-0.5 lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]"
+          className={[
+            "rounded-md lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]",
+            compact ? "px-1 py-0.5 text-xs" : "px-1.5 py-0.5",
+          ].join(" ")}
           aria-label="Предыдущий месяц"
         >
           ‹
         </button>
-        <span className="text-xs font-semibold text-[var(--mo-text)]">{label}</span>
+        <span className={compact ? "text-[10px] font-semibold text-[var(--mo-text)]" : "text-xs font-semibold text-[var(--mo-text)]"}>
+          {label}
+        </span>
         <button
           type="button"
           onClick={() => shiftMonth(1)}
-          className="rounded-md px-1.5 py-0.5 lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]"
+          className={[
+            "rounded-md lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]",
+            compact ? "px-1 py-0.5 text-xs" : "px-1.5 py-0.5",
+          ].join(" ")}
           aria-label="Следующий месяц"
         >
           ›
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-medium uppercase mo-muted">
+      <div
+        className={[
+          "grid grid-cols-7 gap-0.5 text-center font-medium uppercase mo-muted",
+          compact ? "text-[8px]" : "text-[9px]",
+        ].join(" ")}
+      >
         {weekDays.map((w) => (
           <div key={w} className="py-0.5">
             {w}
@@ -101,7 +120,8 @@ export function MiniMonthCalendar({ value, onChange }: Props) {
               type="button"
               onClick={() => onChange(iso)}
               className={[
-                "rounded-md py-1 text-[11px] font-medium transition-colors",
+                "rounded-md font-medium transition-colors",
+                compact ? "py-0.5 text-[10px]" : "py-1 text-[11px]",
                 iso === value
                   ? "border border-[#8c6d31] bg-[#A38A53] font-semibold text-white shadow-[var(--mo-shadow-luxury)]"
                   : c.isToday

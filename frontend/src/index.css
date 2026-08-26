@@ -1527,6 +1527,80 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   background: rgb(239 68 68 / 0.2);
 }
 
+.booking-journal-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.625rem;
+}
+
+.booking-journal-filter-label {
+  display: block;
+  margin-bottom: 0.125rem;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  color: var(--mo-text-muted);
+}
+
+.booking-journal-date-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  max-width: 11rem;
+}
+
+.booking-journal-date-nav {
+  padding: 0.125rem 0.125rem !important;
+  gap: 0 !important;
+}
+
+.booking-journal-date-nav-btn {
+  height: 1.625rem !important;
+  width: 1.625rem !important;
+  font-size: 0.875rem !important;
+}
+
+.booking-journal-date-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 6.75rem;
+  border: 0;
+  background: transparent;
+  padding: 0 0.125rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--mo-text);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.booking-journal-date-btn:hover {
+  color: var(--mo-accent);
+}
+
+.booking-journal-search {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.booking-journal-calendar-popover {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 40;
+  width: min(17.5rem, calc(100vw - 1.5rem));
+  border-radius: 0.75rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+  padding: 0.25rem;
+  box-shadow: var(--mo-shadow-luxury);
+}
+
+.booking-journal-calendar-popover .mini-month-calendar--compact {
+  border: 0;
+  background: transparent;
+}
+
 .booking-week-grid {
   @apply w-full overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)];
 }

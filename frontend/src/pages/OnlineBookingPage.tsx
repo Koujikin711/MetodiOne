@@ -60,6 +60,17 @@ function formatBookingToolbarDate(ymd: string): string {
   });
 }
 
+function formatJournalDateShort(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    weekday: "short",
+  });
+}
+
 function shiftFilterDateYmd(ymd: string, deltaDays: number): string {
   const [y, m, d] = ymd.split("-").map(Number);
   if (!y || !m || !d) return ymd;
@@ -134,6 +145,8 @@ export function OnlineBookingPage() {
   const [filterDate, setFilterDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalDate, setJournalDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalSearch, setJournalSearch] = useState("");
+  const [journalCalendarOpen, setJournalCalendarOpen] = useState(false);
+  const journalDateWrapRef = useRef<HTMLDivElement>(null);
   const formPanelRef = useRef<HTMLDivElement>(null);
   const patientSuggestRef = useRef<HTMLDivElement>(null);
   const lastAutoSuggestKeyRef = useRef<string | null>(null);
@@ -321,6 +334,16 @@ export function OnlineBookingPage() {
       ),
     enabled: tab === "journal" && journalSearch.trim().length >= 2,
   });
+
+  useEffect(() => {
+    if (!journalCalendarOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const el = journalDateWrapRef.current;
+      if (el && !el.contains(e.target as Node)) setJournalCalendarOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [journalCalendarOpen]);
 
   const patientSuggestTerm = useMemo(() => {
     const n = patientName.trim();
@@ -1452,24 +1475,57 @@ export function OnlineBookingPage() {
 
       {tab === "journal" && (
         <section className="mo-section booking-journal-section p-3 sm:p-4">
-          <div className="mb-2 flex flex-wrap items-end gap-2">
-            <label className="text-xs mo-muted">
-              Дата
-              <input
-                type="date"
-                value={journalDate}
-                onChange={(e) => setJournalDate(e.target.value)}
-                className="mo-input ml-1.5 py-1 text-sm"
-              />
-            </label>
-            <label className="min-w-0 flex-1 text-xs mo-muted">
-              Поиск клиента (ФИО / телефон)
+          <div className="booking-journal-filters mb-2">
+            <div ref={journalDateWrapRef} className="booking-journal-date-wrap">
+              <span className="booking-journal-filter-label">Дата</span>
+              <div className="booking-page-date-nav booking-journal-date-nav" aria-label="Дата журнала">
+                <button
+                  type="button"
+                  className="booking-page-date-nav-btn booking-journal-date-nav-btn"
+                  aria-label="Предыдущий день"
+                  onClick={() => setJournalDate((d) => shiftFilterDateYmd(d, -1))}
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="booking-journal-date-btn"
+                  aria-expanded={journalCalendarOpen}
+                  aria-haspopup="dialog"
+                  onClick={() => setJournalCalendarOpen((o) => !o)}
+                >
+                  {formatJournalDateShort(journalDate)}
+                </button>
+                <button
+                  type="button"
+                  className="booking-page-date-nav-btn booking-journal-date-nav-btn"
+                  aria-label="Следующий день"
+                  onClick={() => setJournalDate((d) => shiftFilterDateYmd(d, 1))}
+                >
+                  ›
+                </button>
+              </div>
+              {journalCalendarOpen ? (
+                <div className="booking-journal-calendar-popover" role="dialog" aria-label="Выбор даты">
+                  <MiniMonthCalendar
+                    compact
+                    value={journalDate}
+                    onChange={(d) => {
+                      setJournalDate(d);
+                      setJournalCalendarOpen(false);
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
+            <label className="booking-journal-search min-w-0 flex-1">
+              <span className="booking-journal-filter-label">Поиск клиента (ФИО / телефон)</span>
               <input
                 type="text"
                 value={journalSearch}
                 onChange={(e) => setJournalSearch(e.target.value)}
                 placeholder="Напр. Иванов или 992..."
-                className="mo-input ml-1.5 w-full min-w-0 py-1 text-sm placeholder:mo-muted sm:max-w-xs"
+                className="mo-input w-full min-w-0 py-1 text-sm placeholder:mo-muted"
               />
             </label>
           </div>
