@@ -581,25 +581,6 @@ export function OnlineBookingPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const paymentMutation = useMutation({
-    mutationFn: ({ id, add_payment }: { id: number; add_payment: number }) =>
-      apiFetch(`/api/booking/appointments/${id}/payment`, {
-        method: "PATCH",
-        body: JSON.stringify({ add_payment }),
-      }),
-    onSuccess: () => {
-      toast.success("Доплата учтена");
-      void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
-      void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
-      void queryClient.invalidateQueries({ queryKey: ["analytics-full"] });
-      void queryClient.invalidateQueries({ queryKey: ["analytics-detailed"] });
-      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
-      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
-      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const patchSpecialistUserMutation = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
       apiFetch<BookingSpecialist>(`/api/users/${id}`, {
@@ -1475,9 +1456,8 @@ export function OnlineBookingPage() {
 
       {tab === "journal" && (
         <section className="mo-section booking-journal-section p-3 sm:p-4">
-          <div className="booking-journal-filters mb-2">
+          <div className="booking-journal-filters">
             <div ref={journalDateWrapRef} className="booking-journal-date-wrap">
-              <span className="booking-journal-filter-label">Дата</span>
               <div className="booking-page-date-nav booking-journal-date-nav" aria-label="Дата журнала">
                 <button
                   type="button"
@@ -1492,6 +1472,7 @@ export function OnlineBookingPage() {
                   className="booking-journal-date-btn"
                   aria-expanded={journalCalendarOpen}
                   aria-haspopup="dialog"
+                  title="Выбрать дату"
                   onClick={() => setJournalCalendarOpen((o) => !o)}
                 >
                   {formatJournalDateShort(journalDate)}
@@ -1518,16 +1499,14 @@ export function OnlineBookingPage() {
                 </div>
               ) : null}
             </div>
-            <label className="booking-journal-search min-w-0 flex-1">
-              <span className="booking-journal-filter-label">Поиск клиента (ФИО / телефон)</span>
-              <input
-                type="text"
-                value={journalSearch}
-                onChange={(e) => setJournalSearch(e.target.value)}
-                placeholder="Напр. Иванов или 992..."
-                className="mo-input w-full min-w-0 py-1 text-sm placeholder:mo-muted"
-              />
-            </label>
+            <input
+              type="search"
+              value={journalSearch}
+              onChange={(e) => setJournalSearch(e.target.value)}
+              placeholder="Поиск: ФИО или телефон"
+              aria-label="Поиск клиента по ФИО или телефону"
+              className="mo-input booking-journal-search-input"
+            />
           </div>
           {journalSearch.trim().length >= 2 ? (
             <div className="mb-4 mo-section p-3">
@@ -1598,7 +1577,7 @@ export function OnlineBookingPage() {
             </div>
           ) : null}
           <div className="overflow-x-auto -mx-1 px-1">
-            <table className="booking-journal-table w-full min-w-[960px] border-collapse text-left text-[var(--mo-text)]">
+            <table className="booking-journal-table w-full min-w-[840px] border-collapse text-left text-[var(--mo-text)]">
               <thead>
                 <tr className="border-b border-[var(--mo-border)] lux-caption">
                   <th>{showSessionInsteadOfTime ? "Сеанс" : "Время"}</th>
@@ -1607,7 +1586,6 @@ export function OnlineBookingPage() {
                   <th>Спец.</th>
                   <th>Сумма</th>
                   <th>Оплата</th>
-                  <th>Допл.</th>
                   <th>Долг</th>
                   <th className="booking-journal-col-status">Статус</th>
                   <th className="max-w-[140px]">Заметка</th>
@@ -1644,33 +1622,6 @@ export function OnlineBookingPage() {
                     <td className="lux-caption">{a.specialist_name}</td>
                     <td className="tabular-nums">{formatMoney(a.service_amount ?? 0)}</td>
                     <td className="tabular-nums">{formatMoney(a.paid_amount ?? 0)}</td>
-                    <td>
-                      {a.can_manage_journal ? (
-                        <input
-                          key={`add-pay-${a.id}-${a.paid_amount}`}
-                          type="number"
-                          min={0}
-                          step={1}
-                          defaultValue=""
-                          placeholder="0"
-                          onBlur={(e) => {
-                            const raw = e.target.value.trim();
-                            if (!raw) return;
-                            const add = Number(raw);
-                            if (!Number.isFinite(add) || add <= 0) {
-                              e.target.value = "";
-                              return;
-                            }
-                            paymentMutation.mutate({ id: a.id, add_payment: add });
-                            e.target.value = "";
-                          }}
-                          className="mo-input booking-journal-pay-input py-0.5"
-                          title="Доплата (TJS): при сеансах — в этот день; без сеансов — в пакет"
-                        />
-                      ) : (
-                        <span className="mo-muted">—</span>
-                      )}
-                    </td>
                     <td>
                       {Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? (
                         <span className="booking-journal-debt">
