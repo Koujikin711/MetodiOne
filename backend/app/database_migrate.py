@@ -2406,6 +2406,16 @@ async def ensure_fix_kurs_direction_and_session_pay(conn: AsyncConnection, datab
     """One-shot: (1) Курс/протокол в service_title → правильный direction_id;
     (2) предоплата сеансов массажа размазана по дням, а не только на первый.
     """
+    import logging
+
+    log = logging.getLogger("crm.migrate")
+    try:
+        await _ensure_fix_kurs_direction_and_session_pay_impl(conn, database_url)
+    except Exception as exc:  # noqa: BLE001 — не валим старт API из‑за one-shot патча
+        log.exception("fix_kurs_direction_and_session_pay failed (skipped): %s", exc)
+
+
+async def _ensure_fix_kurs_direction_and_session_pay_impl(conn: AsyncConnection, database_url: str) -> None:
     import re
     from collections import defaultdict
     from datetime import timezone
