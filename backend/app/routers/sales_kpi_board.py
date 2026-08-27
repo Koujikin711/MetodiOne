@@ -764,6 +764,8 @@ async def debtors_report(
                     BookingAppointment.start_at >= start,
                     BookingAppointment.start_at < end,
                     BookingAppointment.service_amount > BookingAppointment.paid_amount,
+                    # Неявки и отмены — не долг (услугу не оказали).
+                    BookingAppointment.status.notin_(("no_show", "cancelled")),
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,
@@ -1064,29 +1066,31 @@ async def company_report(
                     "creditor_amount": Decimal("0"),
                 }
             bucket = expert_acc[sid]
-            if st != "cancelled":
+            if st == "cancelled":
+                bucket["cancelled_count"] += 1
+            else:
                 bucket["appointments_total"] += 1
                 bucket["revenue_paid"] += pa
                 revenue_booking += pa
-                debt = max(sa - pa, Decimal("0"))
-                if debt > 0:
-                    bucket["debtor_amount"] += debt
-                    debtor_booking += debt
-            if st == "completed":
-                bucket["appeared_count"] += 1
-            elif st == "no_show":
-                bucket["no_show_count"] += 1
-            elif st == "cancelled":
-                bucket["cancelled_count"] += 1
-            elif st == "booked":
-                start_at = appt.start_at
-                if start_at is not None and start_at.tzinfo is None:
-                    start_at = start_at.replace(tzinfo=UTC)
-                if start_at is not None and start_at > now and pa > 0:
-                    cred = pa
-                    bucket["creditor_amount"] += cred
-                    creditor_total += cred
-                    bucket["booked_future_count"] += 1
+                # Неявка: оплаченное остаётся выручкой, недоплату в дебиторку не ставим.
+                if st != "no_show":
+                    debt = max(sa - pa, Decimal("0"))
+                    if debt > 0:
+                        bucket["debtor_amount"] += debt
+                        debtor_booking += debt
+                if st == "completed":
+                    bucket["appeared_count"] += 1
+                elif st == "no_show":
+                    bucket["no_show_count"] += 1
+                elif st == "booked":
+                    start_at = appt.start_at
+                    if start_at is not None and start_at.tzinfo is None:
+                        start_at = start_at.replace(tzinfo=UTC)
+                    if start_at is not None and start_at > now and pa > 0:
+                        cred = pa
+                        bucket["creditor_amount"] += cred
+                        creditor_total += cred
+                        bucket["booked_future_count"] += 1
 
     # Ручные продажи курсов/протоколов
     manual_rows = (
