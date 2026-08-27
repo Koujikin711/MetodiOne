@@ -529,11 +529,11 @@ async def lifespan(_: FastAPI):
                             message=f"Обработано callback «В ожидании»: {waiting_sent}",
                         )
                     if archive_evening:
-                        logger.info("archive evening reactivated: %s", archive_evening)
+                        logger.info("archive daytime reactivate: %s", archive_evening)
                         record_background_event(
                             source="archive_evening_reactivate",
                             ok=True,
-                            message=f"Вечерняя раздача из Архива: {archive_evening} лидов",
+                            message=f"Дневная раздача из Архива: {archive_evening} лидов",
                         )
                     now = asyncio.get_running_loop().time()
                     if now >= next_sheets_run:

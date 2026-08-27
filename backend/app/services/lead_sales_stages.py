@@ -57,7 +57,7 @@ ARCHIVE_STAGE_NAME = "Архив"
 # Склад (Bitrix / старый WhatsApp / GREEN API): без свежей активности → Архив.
 # Не держим десятки тысяч «Новый лид» только из‑за старого входящего в истории.
 WAREHOUSE_RECENT_DAYS = 45
-# После вечерней раздачи из Архива: короткое окно «Новый лид» без ответа,
+# После дневной раздачи из Архива: короткое окно «Новый лид» без ответа,
 # иначе колонка забивается сотнями старых WhatsApp-лидов.
 REACTIVATION_GRACE_DAYS = 3
 _REDISTRIBUTE_BATCH = 2000
@@ -176,7 +176,7 @@ def classify_lead_stage_name(
     «Новый лид» только при свежем входящем (или только что созданном без чата).
     «Удачно» и ручные стадии без активности >45 дней → Архив.
     Активность: чат + дата записи/явка + created_at.
-    После вечерней реактивации из Архива — grace по reactivated_at.
+    После дневной реактивации из Архива — grace по reactivated_at.
     """
     cur = (current_name or "").strip()
     statuses = {str(s).strip().lower() for s in appointment_statuses}
@@ -606,6 +606,127 @@ async def redistribute_pipeline_leads_by_activity(
         await db.flush()
 
     return updated
+
+
+async def reclassify_lead_by_activity(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    lead_id: int,
+    now: datetime | None = None,
+) -> bool:
+    """Пересчитывает стадию одного лида по чату/записи (входящий WA, и т.д.)."""
+    lead = await db.get(Lead, int(lead_id))
+    if lead is None or lead.company_id != company_id:
+        return False
+    await db.refresh(lead, ["stage"])
+    if lead.stage is None:
+        return False
+    pipeline_id = lead.stage.pipeline_id
+    if pipeline_id is None:
+        return False
+
+    ids = await ensure_sales_pipeline_chat_stages(
+        db,
+        company_id=company_id,
+        pipeline_id=int(pipeline_id),
+    )
+    if not ids:
+        return False
+
+    id_to_name = {sid: name for name, sid in ids.items()}
+    cur_sid = int(lead.status_id)
+    cur_name = id_to_name.get(cur_sid) or (lead.stage.name or "").strip()
+    lid = int(lead_id)
+    clock = _as_utc(now) or datetime.now(UTC)
+
+    appt_rows = (
+        await db.execute(
+            select(
+                BookingAppointment.status,
+                BookingAppointment.start_at,
+                BookingAppointment.updated_at,
+            ).where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.lead_id == lid,
+            ),
+        )
+    ).all()
+    appt_statuses: set[str] = set()
+    appt_activity: datetime | None = None
+    for st, start_at, updated_at in appt_rows:
+        appt_statuses.add(str(st or ""))
+        stamp = _latest_activity(start_at, updated_at)
+        if stamp is not None and (appt_activity is None or stamp > appt_activity):
+            appt_activity = stamp
+
+    has_out = (
+        await db.scalar(
+            select(func.count())
+            .select_from(ChatThread)
+            .join(ChatMessage, ChatMessage.thread_id == ChatThread.id)
+            .where(
+                ChatThread.company_id == company_id,
+                ChatThread.lead_id == lid,
+                ChatMessage.direction == "out",
+            )
+            .limit(1),
+        )
+    ) or 0
+    has_any_chat = (
+        await db.scalar(
+            select(func.count())
+            .select_from(ChatThread)
+            .join(ChatMessage, ChatMessage.thread_id == ChatThread.id)
+            .where(
+                ChatThread.company_id == company_id,
+                ChatThread.lead_id == lid,
+            )
+            .limit(1),
+        )
+    ) or 0
+
+    last_msg = (
+        await db.execute(
+            select(ChatMessage.direction, ChatMessage.created_at)
+            .select_from(ChatMessage)
+            .join(ChatThread, ChatThread.id == ChatMessage.thread_id)
+            .where(
+                ChatThread.company_id == company_id,
+                ChatThread.lead_id == lid,
+            )
+            .order_by(ChatMessage.id.desc())
+            .limit(1),
+        )
+    ).one_or_none()
+
+    last_direction = str(last_msg[0]) if last_msg else None
+    last_message_at = last_msg[1] if last_msg else None
+
+    target_name = classify_lead_stage_name(
+        current_name=cur_name,
+        appointment_statuses=appt_statuses,
+        has_outbound=has_out > 0,
+        last_direction=last_direction,
+        has_any_chat=has_any_chat > 0,
+        source=lead.source if lead.source is None else str(lead.source),
+        last_message_at=last_message_at,
+        lead_created_at=lead.created_at,
+        reactivated_at=lead.reactivated_at,
+        appointment_activity_at=appt_activity,
+        now=clock,
+    )
+    target_sid = ids.get(target_name)
+    if target_sid is None or int(target_sid) == cur_sid:
+        return False
+
+    lead.status_id = int(target_sid)
+    if target_name == ARCHIVE_STAGE_NAME and cur_name and cur_name != ARCHIVE_STAGE_NAME:
+        lead.archived_from_stage = cur_name
+    elif target_name in ("В обработке", "В работе", "Удачно"):
+        lead.archived_from_stage = None
+    await db.flush()
+    return True
 
 
 async def ensure_all_pipelines_chat_stages(db: AsyncSession) -> int:

@@ -12,6 +12,7 @@ import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { PatientPhone } from "@/components/PatientPhone";
 import { BookingSpecialistsFilter } from "@/components/BookingSpecialistsFilter";
 import { SpecialistModal, type SpecialistFormValues } from "@/components/SpecialistModal";
+import { Trash2 } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import { formatMoney } from "@/lib/money";
@@ -42,10 +43,10 @@ import type {
 type Tab = "online" | "journal";
 
 const statusLabels: Record<string, string> = {
-  booked: "Записан",
-  completed: "Завершён",
-  no_show: "Не явился",
-  cancelled: "Отменён",
+  booked: "Запись",
+  completed: "Пришёл",
+  no_show: "Неявка",
+  cancelled: "Отмена",
 };
 
 function formatBookingToolbarDate(ymd: string): string {
@@ -55,6 +56,17 @@ function formatBookingToolbarDate(ymd: string): string {
   return dt.toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
+    weekday: "short",
+  });
+}
+
+function formatJournalDateShort(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
     weekday: "short",
   });
 }
@@ -133,6 +145,8 @@ export function OnlineBookingPage() {
   const [filterDate, setFilterDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalDate, setJournalDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalSearch, setJournalSearch] = useState("");
+  const [journalCalendarOpen, setJournalCalendarOpen] = useState(false);
+  const journalDateWrapRef = useRef<HTMLDivElement>(null);
   const formPanelRef = useRef<HTMLDivElement>(null);
   const patientSuggestRef = useRef<HTMLDivElement>(null);
   const lastAutoSuggestKeyRef = useRef<string | null>(null);
@@ -320,6 +334,16 @@ export function OnlineBookingPage() {
       ),
     enabled: tab === "journal" && journalSearch.trim().length >= 2,
   });
+
+  useEffect(() => {
+    if (!journalCalendarOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const el = journalDateWrapRef.current;
+      if (el && !el.contains(e.target as Node)) setJournalCalendarOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [journalCalendarOpen]);
 
   const patientSuggestTerm = useMemo(() => {
     const n = patientName.trim();
@@ -553,25 +577,6 @@ export function OnlineBookingPage() {
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics-full"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics-detailed"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const paymentMutation = useMutation({
-    mutationFn: ({ id, add_payment }: { id: number; add_payment: number }) =>
-      apiFetch(`/api/booking/appointments/${id}/payment`, {
-        method: "PATCH",
-        body: JSON.stringify({ add_payment }),
-      }),
-    onSuccess: () => {
-      toast.success("Доплата учтена");
-      void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
-      void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
-      void queryClient.invalidateQueries({ queryKey: ["analytics-full"] });
-      void queryClient.invalidateQueries({ queryKey: ["analytics-detailed"] });
-      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
-      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
-      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1450,27 +1455,58 @@ export function OnlineBookingPage() {
       <BookingDirectionsPanel open={directionsPanelOpen} onClose={() => setDirectionsPanelOpen(false)} />
 
       {tab === "journal" && (
-        <section className="mo-section p-5">
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <label className="text-sm mo-muted">
-              Дата
-              <input
-                type="date"
-                value={journalDate}
-                onChange={(e) => setJournalDate(e.target.value)}
-                className="ml-2 mo-input ml-2 py-1.5"
-              />
-            </label>
-            <label className="text-sm mo-muted">
-              Поиск клиента (ФИО / телефон)
-              <input
-                type="text"
-                value={journalSearch}
-                onChange={(e) => setJournalSearch(e.target.value)}
-                placeholder="Напр. Иванов или 992..."
-                className="mo-input ml-2 w-72 py-1.5 placeholder:mo-muted"
-              />
-            </label>
+        <section className="mo-section booking-journal-section p-3 sm:p-4">
+          <div className="booking-journal-filters">
+            <div ref={journalDateWrapRef} className="booking-journal-date-wrap">
+              <div className="booking-page-date-nav booking-journal-date-nav" aria-label="Дата журнала">
+                <button
+                  type="button"
+                  className="booking-page-date-nav-btn booking-journal-date-nav-btn"
+                  aria-label="Предыдущий день"
+                  onClick={() => setJournalDate((d) => shiftFilterDateYmd(d, -1))}
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="booking-journal-date-btn"
+                  aria-expanded={journalCalendarOpen}
+                  aria-haspopup="dialog"
+                  title="Выбрать дату"
+                  onClick={() => setJournalCalendarOpen((o) => !o)}
+                >
+                  {formatJournalDateShort(journalDate)}
+                </button>
+                <button
+                  type="button"
+                  className="booking-page-date-nav-btn booking-journal-date-nav-btn"
+                  aria-label="Следующий день"
+                  onClick={() => setJournalDate((d) => shiftFilterDateYmd(d, 1))}
+                >
+                  ›
+                </button>
+              </div>
+              {journalCalendarOpen ? (
+                <div className="booking-journal-calendar-popover" role="dialog" aria-label="Выбор даты">
+                  <MiniMonthCalendar
+                    compact
+                    value={journalDate}
+                    onChange={(d) => {
+                      setJournalDate(d);
+                      setJournalCalendarOpen(false);
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
+            <input
+              type="search"
+              value={journalSearch}
+              onChange={(e) => setJournalSearch(e.target.value)}
+              placeholder="Поиск: ФИО или телефон"
+              aria-label="Поиск клиента по ФИО или телефону"
+              className="mo-input booking-journal-search-input"
+            />
           </div>
           {journalSearch.trim().length >= 2 ? (
             <div className="mb-4 mo-section p-3">
@@ -1540,22 +1576,21 @@ export function OnlineBookingPage() {
               )}
             </div>
           ) : null}
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1200px] border-collapse text-left text-sm text-[var(--mo-text)]">
+          <div className="overflow-x-auto -mx-1 px-1">
+            <table className="booking-journal-table w-full min-w-[840px] border-collapse text-left text-[var(--mo-text)]">
               <thead>
                 <tr className="border-b border-[var(--mo-border)] lux-caption">
-                  <th className="py-2 pr-4">{showSessionInsteadOfTime ? "Сеанс" : "Время"}</th>
-                  <th className="py-2 pr-4">Пациент</th>
-                  <th className="py-2 pr-4">Услуга</th>
-                  <th className="py-2 pr-4">Специалист</th>
-                  <th className="py-2 pr-4">Стоимость (TJS)</th>
-                  <th className="py-2 pr-4">Оплачено (TJS)</th>
-                  <th className="py-2 pr-4">Доплата</th>
-                  <th className="py-2 pr-4">Дебиторка</th>
-                  <th className="py-2 pr-4">Статус</th>
-                  <th className="py-2 pr-4 max-w-[200px]">Заметка</th>
+                  <th>{showSessionInsteadOfTime ? "Сеанс" : "Время"}</th>
+                  <th>Пациент</th>
+                  <th>Услуга</th>
+                  <th>Спец.</th>
+                  <th>Сумма</th>
+                  <th>Оплата</th>
+                  <th>Долг</th>
+                  <th className="booking-journal-col-status">Статус</th>
+                  <th className="max-w-[140px]">Заметка</th>
                   {(journalQuery.data ?? []).some((x) => x.can_manage_journal) && (
-                    <th className="py-2 pr-4">Действия</th>
+                    <th className="booking-journal-col-actions w-9" aria-label="Действия" />
                   )}
                 </tr>
               </thead>
@@ -1568,64 +1603,37 @@ export function OnlineBookingPage() {
                       Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? "bg-amber-500/5" : "",
                     ].join(" ")}
                   >
-                    <td className="py-2 pr-4 whitespace-nowrap tabular-nums">
+                    <td className="whitespace-nowrap tabular-nums">
                       {showSessionInsteadOfTime ? (
                         <span className="font-semibold text-indigo-800">{visitDisplayValue(a) ?? "—"}</span>
                       ) : (
                         formatDt(a.start_at)
                       )}
                     </td>
-                    <td className="py-2 pr-4">
-                      {a.patient_name}
-                      <span className="block text-xs mo-muted">
+                    <td>
+                      <span className="font-medium leading-tight">{a.patient_name}</span>
+                      <span className="block text-[11px] leading-tight mo-muted">
                         <PatientPhone value={a} />
                       </span>
                     </td>
-                    <td className="py-2 pr-4 mo-muted">
+                    <td className="mo-muted">
                       {(a.service_title || "").trim() || a.direction_name || "—"}
                     </td>
-                    <td className="py-2 pr-4 lux-caption">{a.specialist_name}</td>
-                    <td className="py-2 pr-4">{formatMoney(a.service_amount ?? 0)}</td>
-                    <td className="py-2 pr-4">{formatMoney(a.paid_amount ?? 0)}</td>
-                    <td className="py-2 pr-4">
-                      {a.can_manage_journal ? (
-                        <input
-                          key={`add-pay-${a.id}-${a.paid_amount}`}
-                          type="number"
-                          min={0}
-                          step={1}
-                          defaultValue=""
-                          placeholder="0"
-                          onBlur={(e) => {
-                            const raw = e.target.value.trim();
-                            if (!raw) return;
-                            const add = Number(raw);
-                            if (!Number.isFinite(add) || add <= 0) {
-                              e.target.value = "";
-                              return;
-                            }
-                            paymentMutation.mutate({ id: a.id, add_payment: add });
-                            e.target.value = "";
-                          }}
-                          className="mo-input w-28 py-1"
-                          title="Доплата (TJS): при сеансах — в этот день; без сеансов — в пакет"
-                        />
+                    <td className="lux-caption">{a.specialist_name}</td>
+                    <td className="tabular-nums">{formatMoney(a.service_amount ?? 0)}</td>
+                    <td className="tabular-nums">{formatMoney(a.paid_amount ?? 0)}</td>
+                    <td>
+                      {Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? (
+                        <span className="booking-journal-debt">
+                          {formatMoney(Number(a.service_amount ?? 0) - Number(a.paid_amount ?? 0))}
+                        </span>
+                      ) : Number(a.service_amount ?? 0) > 0 ? (
+                        <span className="text-[var(--mo-success)]">0</span>
                       ) : (
                         <span className="mo-muted">—</span>
                       )}
                     </td>
-                    <td className="py-2 pr-4 text-xs">
-                      {Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? (
-                        <span className="rounded bg-amber-500/20 px-2 py-0.5 text-amber-300">
-                          Долг {formatMoney(Number(a.service_amount ?? 0) - Number(a.paid_amount ?? 0))}
-                        </span>
-                      ) : Number(a.service_amount ?? 0) > 0 ? (
-                        <span className="text-[var(--mo-success)]">Оплачено</span>
-                      ) : (
-                        <span className="mo-muted">пакет</span>
-                      )}
-                    </td>
-                    <td className="py-2 pr-4">
+                    <td className="booking-journal-col-status">
                       {canEditBooking ? (
                         <select
                           value={a.status}
@@ -1643,7 +1651,8 @@ export function OnlineBookingPage() {
                             }
                             statusMutation.mutate({ id: a.id, status: next });
                           }}
-                          className="mo-input py-1"
+                          className="mo-input booking-journal-status"
+                          aria-label={`Статус: ${statusLabels[a.status] ?? a.status}`}
                         >
                           {Object.entries(statusLabels).map(([k, v]) => (
                             <option key={k} value={k}>
@@ -1655,10 +1664,10 @@ export function OnlineBookingPage() {
                         <span className="mo-muted">{statusLabels[a.status] ?? a.status}</span>
                       )}
                     </td>
-                    <td className="py-2 pr-4 max-w-[200px]">
+                    <td className="max-w-[140px]">
                       {(a.comment || "").trim() ? (
                         <span
-                          className="line-clamp-2 text-xs mo-muted"
+                          className="line-clamp-2 text-[11px] leading-snug mo-muted"
                           title={(a.comment || "").trim()}
                         >
                           {(a.comment || "").trim()}
@@ -1668,7 +1677,7 @@ export function OnlineBookingPage() {
                       )}
                     </td>
                     {(journalQuery.data ?? []).some((x) => x.can_manage_journal) && (
-                      <td className="py-2 pr-4">
+                      <td className="booking-journal-col-actions">
                         {a.can_manage_journal ? (
                           <button
                             type="button"
@@ -1676,9 +1685,11 @@ export function OnlineBookingPage() {
                               if (!window.confirm("Удалить эту запись?")) return;
                               deleteAppointmentMutation.mutate(a.id);
                             }}
-                            className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs text-red-300 hover:bg-red-500/20"
+                            className="booking-journal-delete"
+                            aria-label="Удалить запись"
+                            title="Удалить"
                           >
-                            Удалить
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         ) : null}
                       </td>
@@ -1688,7 +1699,7 @@ export function OnlineBookingPage() {
               </tbody>
             </table>
             {!journalQuery.isLoading && (journalQuery.data ?? []).length === 0 && (
-              <p className="py-6 text-center mo-muted">Нет записей на эту дату</p>
+              <p className="py-4 text-center text-sm mo-muted">Нет записей на эту дату</p>
             )}
           </div>
         </section>

@@ -21,7 +21,7 @@ function formatDay(day: string | null): string {
   });
 }
 
-/** Метка вечерней раздачи Архива — только owner/admin. */
+/** Метка дневной раздачи Архива — только owner/admin. */
 export function ArchiveEveningAdminBadge() {
   const role = decodeRoleFromToken(getStoredToken());
   const companyId = getActiveCompanyId();
@@ -48,7 +48,7 @@ export function ArchiveEveningAdminBadge() {
   return (
     <div
       className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-3 py-1.5 text-[11px] text-[var(--mo-text-muted)]"
-      title="Видно только администратору. Вечерняя раздача лидов из Архива менеджерам."
+      title="Видно только администратору. Дневная раздача лидов из Архива менеджерам (около 10:00–14:00)."
     >
       <span className="font-semibold text-[var(--mo-text)]/80">Админ</span>
       <span className="mx-1.5 opacity-40">·</span>

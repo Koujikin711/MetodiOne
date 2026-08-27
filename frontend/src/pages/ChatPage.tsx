@@ -574,6 +574,7 @@ export function ChatPage() {
   const [threadSearch, setThreadSearch] = useState("");
   const [threadSearchDebounced, setThreadSearchDebounced] = useState("");
   const userRole = decodeRoleFromToken(getStoredToken());
+  const companyId = getActiveCompanyId();
   const meQuery = useCurrentUserMe();
   const salesChatMode = meQuery.data?.chat_stages_enabled !== false;
   const salesSpace =
@@ -654,6 +655,13 @@ export function ChatPage() {
     queryFn: () => apiFetch<ChatThread>(`/api/chat/threads/by-lead/${leadFromQuery}`),
     enabled: leadFromQueryValid && threadId == null,
     retry: false,
+  });
+
+  const threadByIdQuery = useQuery({
+    queryKey: ["chat-thread", threadId, companyId],
+    queryFn: () => apiFetch<ChatThread>(`/api/chat/threads/${threadId}`),
+    enabled: threadId != null,
+    staleTime: 15_000,
   });
 
   const allThreads = useMemo(() => {
@@ -764,11 +772,16 @@ export function ChatPage() {
       setPinnedThread(null);
       return;
     }
+    if (threadByIdQuery.data?.id === threadId) {
+      setPinnedThread(threadByIdQuery.data);
+      return;
+    }
     if (selectedThread) setPinnedThread(selectedThread);
-  }, [threadId, selectedThread]);
+  }, [threadId, selectedThread, threadByIdQuery.data]);
 
   const activeThread = useMemo(() => {
     if (threadId == null) return null;
+    if (threadByIdQuery.data?.id === threadId) return threadByIdQuery.data;
     const pinned = pinnedThread?.id === threadId ? pinnedThread : null;
     const fromList = selectedThread;
     if (pinned && fromList) {
@@ -783,7 +796,7 @@ export function ChatPage() {
       };
     }
     return pinned ?? fromList;
-  }, [threadId, pinnedThread, selectedThread]);
+  }, [threadId, threadByIdQuery.data, pinnedThread, selectedThread]);
 
   const selectedManagerLabel = useMemo(() => {
     const raw = (activeThread?.manager_name || "").trim();
@@ -884,6 +897,7 @@ export function ChatPage() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       void qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
+      void qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
       void qc.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -920,6 +934,7 @@ export function ChatPage() {
       toast.success("Статус обновлён");
       setStatusOpen(false);
       void qc.invalidateQueries({ queryKey: ["chat-threads"] });
+      void qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
       void qc.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
       void qc.invalidateQueries({ queryKey: ["leads"] });
       if (salesChatMode && stageName.trim() === "Удачно") {

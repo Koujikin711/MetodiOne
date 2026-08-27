@@ -1,7 +1,7 @@
-"""Вечерняя раздача архивных лидов менеджерам как «Новый лид».
+"""Дневная раздача архивных лидов менеджерам как «Новый лид».
 
 Правило: из «Архив», первое обращение ≥ 2 месяцев назад → каждому активному
-менеджеру компании по 5 лидов в «Новый лид» (раз в календарный вечер).
+менеджеру компании по 5 лидов в «Новый лид» (раз в календарный день).
 """
 
 from __future__ import annotations
@@ -33,7 +33,8 @@ LEADS_PER_MANAGER = 5
 FIRST_CONTACT_MIN_DAYS = 60
 # Не брать снова лиды, реактивированные недавно (цикл «игнор → Архив → снова»).
 REACTIVATION_COOLDOWN_DAYS = 14
-EVENING_HOUR_LOCAL = 19  # Asia/Dushanbe 19:00–19:59
+REACTIVATE_HOUR_START = 10  # booking_timezone, inclusive
+REACTIVATE_HOUR_END = 14  # inclusive → 10:00–14:59
 AUDIT_ACTION = "archive_evening_reactivate_done"
 _BATCH = 2000
 
@@ -49,9 +50,9 @@ def _local_now() -> datetime:
     return datetime.now(UTC).astimezone(_tz())
 
 
-def _is_evening_window(local: datetime | None = None) -> bool:
+def _is_reactivate_window(local: datetime | None = None) -> bool:
     clock = local or _local_now()
-    return clock.hour == EVENING_HOUR_LOCAL
+    return REACTIVATE_HOUR_START <= clock.hour <= REACTIVATE_HOUR_END
 
 
 async def _already_done_today(db: AsyncSession, *, company_id: int, day_key: str) -> bool:
@@ -273,7 +274,7 @@ async def get_latest_archive_evening_stats(
     *,
     company_id: int,
 ) -> dict[str, object]:
-    """Последняя вечерняя раздача Архива для админ-метки."""
+    """Последняя дневная раздача Архива для админ-метки."""
     local = _local_now()
     today = local.strftime("%Y-%m-%d")
     row = (
@@ -324,11 +325,11 @@ async def run_archive_evening_reactivate_tick(
 ) -> int:
     """
     Тик раз в ~минуту из _reminder_loop.
-    В 19:00 локального TZ (booking_timezone) — по одному прогону на компанию в день.
+    В окне 10:00–14:59 локального TZ (booking_timezone) — по одному прогону на компанию в день.
     force=True — игнор окна (для тестов/ручного вызова).
     """
     local = local_now or _local_now()
-    if not force and not _is_evening_window(local):
+    if not force and not _is_reactivate_window(local):
         return 0
 
     day_key = local.strftime("%Y-%m-%d")
@@ -361,7 +362,7 @@ async def run_archive_evening_reactivate_tick(
         )
         if n:
             logger.info(
-                "archive evening reactivate company=%s assigned=%s managers=%s",
+                "archive daytime reactivate company=%s assigned=%s managers=%s",
                 company_id,
                 n,
                 len(managers),
