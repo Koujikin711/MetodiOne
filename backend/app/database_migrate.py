@@ -2472,7 +2472,9 @@ async def ensure_fix_kurs_direction_and_session_pay(conn: AsyncConnection, datab
     dirs = (
         await conn.execute(
             text(
-                "SELECT id, company_id, name, COALESCE(course_streams_enabled, 0) AS cse FROM booking_directions"
+                "SELECT id, company_id, name, "
+                "CASE WHEN course_streams_enabled THEN 1 ELSE 0 END AS cse "
+                "FROM booking_directions"
             )
         )
     ).mappings().all()
@@ -2581,7 +2583,7 @@ async def ensure_fix_kurs_direction_and_session_pay(conn: AsyncConnection, datab
         await conn.execute(
             text(
                 """
-                SELECT id, COALESCE(course_streams_enabled, 0) AS cse
+                SELECT id, CASE WHEN course_streams_enabled THEN 1 ELSE 0 END AS cse
                 FROM booking_specialists
                 """
             )
