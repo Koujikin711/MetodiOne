@@ -23,6 +23,7 @@ from app.models import (
     Lead,
     Pipeline,
     PipelineStage,
+    SalesKpiManualSale,
     User,
     UserPipelineAssignment,
     UserRole,
@@ -34,6 +35,7 @@ from app.schemas.booking import (
     BookingAppointmentRead,
     BookingAppointmentDetailsUpdate,
     BookingAppointmentStatusUpdate,
+    BookingFreeConsultHint,
     BookingPatientHistoryItem,
     BookingPatientSuggestItem,
     BookingPatientVisitRead,
@@ -59,8 +61,12 @@ from app.services.booking_directions import (
     archived_direction_name,
     consolidate_duplicate_directions,
     direction_base_name,
+    direction_name_key,
     find_direction_name_conflict,
     get_specialist_direction_ids,
+    is_consultation_direction_name,
+    is_course_like_direction_name,
+    is_ganchina_specialist_name,
     load_specialist_direction_ids_map,
     normalize_direction_name,
     prefer_direction_keeper,
@@ -462,6 +468,106 @@ def _course_streams_enabled_for_booking(specialist: BookingSpecialist, direction
     return bool(getattr(specialist, "course_streams_enabled", False))
 
 
+def _can_book_course_like(role: UserRole) -> bool:
+    return role in (UserRole.owner, UserRole.super_owner, UserRole.admin)
+
+
+def _split_prepaid_across_days(total_paid: float, day_prices: list[float]) -> list[float]:
+    """Размазать предоплату по сеансам (каждый день ≤ своей стоимости)."""
+    remaining = max(0.0, float(total_paid or 0))
+    out: list[float] = []
+    for price in day_prices:
+        p = max(0.0, float(price or 0))
+        pay = min(remaining, p) if p > 0 else 0.0
+        out.append(round(pay, 2))
+        remaining = max(0.0, remaining - pay)
+    if remaining > 0.009 and out:
+        # остаток сверх пакета — на первый день
+        out[0] = round(out[0] + remaining, 2)
+    return out
+
+
+async def _find_direction_by_name_key(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    name: str,
+) -> BookingDirection | None:
+    key = direction_name_key(name)
+    if not key:
+        return None
+    rows = (
+        await db.execute(
+            select(BookingDirection).where(
+                BookingDirection.company_id == company_id,
+                BookingDirection.is_active.is_(True),
+            )
+        )
+    ).scalars().all()
+    exact = [d for d in rows if direction_name_key(d.name) == key]
+    if exact:
+        return exact[0]
+    # мягкий матч: «Курс 15» / «15 руза» / «курс15»
+    soft = []
+    for d in rows:
+        dk = direction_name_key(d.name)
+        if key in dk or dk in key:
+            soft.append(d)
+        elif is_course_like_direction_name(key) and is_course_like_direction_name(dk):
+            if ("15" in key and "15" in dk) or ("90" in key and "90" in dk) or ("протокол" in key and "протокол" in dk):
+                soft.append(d)
+    return soft[0] if soft else None
+
+
+async def _patient_has_course_or_protocol(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    patient_phone: str,
+    lead_id: int | None,
+) -> bool:
+    digits = "".join(ch for ch in (patient_phone or "") if ch.isdigit())
+    q = (
+        select(BookingAppointment.id, BookingAppointment.service_title, BookingDirection.name)
+        .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+        .where(
+            BookingAppointment.company_id == company_id,
+            BookingAppointment.status.in_(("booked", "completed")),
+        )
+        .limit(80)
+    )
+    if lead_id is not None:
+        q = q.where(BookingAppointment.lead_id == lead_id)
+    elif len(digits) >= 9:
+        tail = digits[-9:]
+        q = q.where(BookingAppointment.patient_phone.ilike(f"%{tail}"))
+    else:
+        q = None
+    if q is not None:
+        rows = (await db.execute(q)).all()
+        for _aid, service_title, dir_name in rows:
+            if is_course_like_direction_name(dir_name) or is_course_like_direction_name(service_title):
+                return True
+
+    # Ручные продажи курсов/протоколов в KPI (без онлайн-записи).
+    if len(digits) >= 9:
+        tail = digits[-9:]
+        sale = (
+            await db.execute(
+                select(SalesKpiManualSale.id)
+                .where(
+                    SalesKpiManualSale.company_id == company_id,
+                    SalesKpiManualSale.status == "active",
+                    SalesKpiManualSale.client_phone.ilike(f"%{tail}"),
+                )
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if sale is not None:
+            return True
+    return False
+
+
 def _date_ymd_in_booking_tz(dt: datetime) -> str:
     tz = ZoneInfo(settings.booking_timezone)
     return dt.astimezone(tz).strftime("%Y-%m-%d")
@@ -731,6 +837,11 @@ async def create_direction(
     name = normalize_direction_name(body.name)
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите название направления")
+    if is_course_like_direction_name(name) and not _can_book_course_like(current_user.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Курс и протокол может добавлять только администратор / владелец",
+        )
 
     existing = await find_direction_name_conflict(db, company_id=company_id, name=name)
     if existing is not None and existing.is_active:
@@ -817,6 +928,11 @@ async def patch_direction(
         target_name = direction_base_name(d.name)
 
     if target_name is not None:
+        if is_course_like_direction_name(target_name) and not _can_book_course_like(current_user.role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Курс и протокол может добавлять только администратор / владелец",
+            )
         conflict = await find_direction_name_conflict(
             db,
             company_id=company_id,
@@ -994,6 +1110,17 @@ async def patch_specialist(
     if "specialization" in patch:
         s.specialization = (body.specialization or "").strip() or None
     if "direction_ids" in patch and body.direction_ids is not None:
+        if not _can_book_course_like(current_user.role):
+            dirs = (
+                await db.execute(
+                    select(BookingDirection).where(BookingDirection.id.in_(list(body.direction_ids)))
+                )
+            ).scalars().all()
+            if any(is_course_like_direction_name(d.name) for d in dirs):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Курс и протокол может назначать только администратор / владелец",
+                )
         try:
             await set_specialist_directions(
                 db,
@@ -1003,6 +1130,16 @@ async def patch_specialist(
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     elif "direction_id" in patch and body.direction_id is not None:
+        one_dir = await db.get(BookingDirection, int(body.direction_id))
+        if (
+            one_dir is not None
+            and is_course_like_direction_name(one_dir.name)
+            and not _can_book_course_like(current_user.role)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Курс и протокол может назначать только администратор / владелец",
+            )
         try:
             await set_specialist_directions(
                 db,
@@ -1658,6 +1795,48 @@ async def booking_patient_suggest(
     return out[:limit]
 
 
+@router.get("/free-consult-hint", response_model=BookingFreeConsultHint)
+async def free_consult_hint(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    specialist_id: Annotated[int, Query(ge=1)],
+    direction_id: Annotated[int, Query(ge=1)],
+    patient_phone: Annotated[str, Query()] = "",
+    lead_id: Annotated[int | None, Query()] = None,
+) -> BookingFreeConsultHint:
+    """Подсказка для формы: консультация у Ганчины бесплатна при курсе/протоколе."""
+    del current_user  # auth only
+    specialist = await db.get(BookingSpecialist, specialist_id)
+    direction = await db.get(BookingDirection, direction_id)
+    if (
+        specialist is None
+        or specialist.company_id != company_id
+        or direction is None
+        or direction.company_id != company_id
+    ):
+        return BookingFreeConsultHint(eligible=False)
+    if not is_ganchina_specialist_name(specialist.full_name):
+        return BookingFreeConsultHint(eligible=False)
+    if not is_consultation_direction_name(direction.name):
+        return BookingFreeConsultHint(eligible=False)
+    has_pkg = await _patient_has_course_or_protocol(
+        db,
+        company_id=company_id,
+        patient_phone=patient_phone,
+        lead_id=lead_id,
+    )
+    if not has_pkg:
+        return BookingFreeConsultHint(
+            eligible=False,
+            reason="Если клиент уже на курсе или протоколе — консультация будет бесплатной",
+        )
+    return BookingFreeConsultHint(
+        eligible=True,
+        reason="Клиент уже на курсе/протоколе — консультация у Замири Ганчины бесплатно",
+    )
+
+
 @router.post("/appointments", response_model=BookingAppointmentRead, status_code=status.HTTP_201_CREATED)
 async def create_appointment(
     body: BookingAppointmentCreate,
@@ -1674,18 +1853,53 @@ async def create_appointment(
     allowed_direction_ids = await get_specialist_direction_ids(db, specialist.id)
     if not allowed_direction_ids:
         allowed_direction_ids = [int(specialist.direction_id)]
+
+    service_title_raw = (body.service_title or "").strip()
+    resolved_direction_id: int | None = None
+
+    # 1) Явно выбранное направление с формы.
     if body.direction_id is not None:
-        if int(body.direction_id) not in allowed_direction_ids:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="direction_id не входит в направления выбранного специалиста",
-            )
         resolved_direction_id = int(body.direction_id)
-    else:
+    # 2) Если в тексте услуги курс/протокол — ищем направление по имени (не молча «Консультация»).
+    if service_title_raw and is_course_like_direction_name(service_title_raw):
+        by_title = await _find_direction_by_name_key(
+            db, company_id=company_id, name=service_title_raw
+        )
+        if by_title is not None:
+            resolved_direction_id = int(by_title.id)
+    # 3) Fallback — основное направление специалиста.
+    if resolved_direction_id is None:
         resolved_direction_id = int(specialist.direction_id)
+
     direction = await db.get(BookingDirection, resolved_direction_id)
     if direction is None or direction.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
+
+    course_like = is_course_like_direction_name(direction.name) or is_course_like_direction_name(
+        service_title_raw
+    )
+    if course_like and not _can_book_course_like(current_user.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Курс и протокол может записывать только администратор / владелец",
+        )
+
+    # Админ может записать на курс даже если направление ещё не в списке специалиста —
+    # привязываем, чтобы direction_id сохранился корректно.
+    if int(resolved_direction_id) not in allowed_direction_ids:
+        if _can_book_course_like(current_user.role) and course_like:
+            new_ids = list(dict.fromkeys([*allowed_direction_ids, int(resolved_direction_id)]))
+            await set_specialist_directions(
+                db,
+                specialist=specialist,
+                direction_ids=new_ids,
+            )
+            allowed_direction_ids = new_ids
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Услуга не входит в направления выбранного специалиста",
+            )
 
     start_at = _from_payload_to_utc(body.start_at)
     duration_min = _appointment_duration_minutes(specialist, direction)
@@ -1754,7 +1968,23 @@ async def create_appointment(
                     resolved_manager_id = lead.manager_id
 
     service_amount_value = float(body.service_amount)
-    if appointment_pipeline_id is not None:
+    paid_amount_value = float(body.paid_amount or 0)
+
+    # Клиент уже на курсе/протоколе → консультация у Замири Ганчины бесплатно.
+    if is_ganchina_specialist_name(specialist.full_name) and is_consultation_direction_name(
+        direction.name
+    ):
+        has_pkg = await _patient_has_course_or_protocol(
+            db,
+            company_id=company_id,
+            patient_phone=body.patient_phone,
+            lead_id=lead_id,
+        )
+        if has_pkg:
+            service_amount_value = 0.0
+            paid_amount_value = 0.0
+
+    if appointment_pipeline_id is not None and service_amount_value > 0:
         fixed_price = await get_kpi_service_price(
             db,
             company_id=company_id,
@@ -1764,7 +1994,7 @@ async def create_appointment(
         )
         if fixed_price is not None:
             service_amount_value = float(fixed_price)
-    if float(body.paid_amount or 0) > float(service_amount_value):
+    if paid_amount_value > float(service_amount_value) and service_amount_value > 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Оплата не может быть больше стоимости услуги")
 
     if lead_id is not None and body.extra_phones:
@@ -1779,7 +2009,7 @@ async def create_appointment(
             )
 
     now = datetime.now(UTC)
-    service_title = (body.service_title or "").strip()
+    service_title = service_title_raw or (direction.name or "").strip()
     stored_phone = body.patient_phone.strip()
     if lead_id is not None:
         lead_for_phone = await db.get(Lead, lead_id)
@@ -1788,28 +2018,38 @@ async def create_appointment(
 
     created_appts: list[BookingAppointment] = []
     wa_sent = False
-    initial_paid = float(body.paid_amount or 0)
+    initial_paid = float(paid_amount_value or 0)
+
+    # Предрасчёт сумм по дням (KPI-цена может отличаться по месяцу слота).
+    day_prices: list[float] = []
+    for idx, slot_start in enumerate(start_times):
+        if session_billing:
+            slot_service_amount = float(service_amount_value)
+            if appointment_pipeline_id is not None and idx > 0 and service_amount_value > 0:
+                fixed_price = await get_kpi_service_price(
+                    db,
+                    company_id=company_id,
+                    pipeline_id=int(appointment_pipeline_id),
+                    direction_id=resolved_direction_id,
+                    at_datetime=slot_start,
+                )
+                if fixed_price is not None:
+                    slot_service_amount = float(fixed_price)
+            day_prices.append(slot_service_amount)
+        else:
+            day_prices.append(float(service_amount_value) if idx == 0 else 0.0)
+
+    if session_billing and consecutive_days > 1:
+        day_paids = _split_prepaid_across_days(initial_paid, day_prices)
+    elif session_billing:
+        day_paids = [initial_paid]
+    else:
+        day_paids = [initial_paid if i == 0 else 0.0 for i in range(consecutive_days)]
+
     for idx, slot_start in enumerate(start_times):
         slot_end = slot_start + timedelta(minutes=duration_min)
-        if session_billing:
-            # Режим сеансов: каждый день — своя стоимость (150 + 150 + …).
-            slot_service_amount = float(service_amount_value)
-            slot_paid = initial_paid if idx == 0 else 0.0
-        else:
-            # Пакет без сеансов: стоимость и оплата только на первом дне.
-            slot_service_amount = float(service_amount_value) if idx == 0 else 0.0
-            slot_paid = initial_paid if idx == 0 else 0.0
-        if session_billing and appointment_pipeline_id is not None and idx > 0:
-            # На каждый день серии пересчитываем KPI-цену месяца слота.
-            fixed_price = await get_kpi_service_price(
-                db,
-                company_id=company_id,
-                pipeline_id=int(appointment_pipeline_id),
-                direction_id=resolved_direction_id,
-                at_datetime=slot_start,
-            )
-            if fixed_price is not None:
-                slot_service_amount = float(fixed_price)
+        slot_service_amount = day_prices[idx]
+        slot_paid = day_paids[idx] if idx < len(day_paids) else 0.0
         appt = BookingAppointment(
             company_id=company_id,
             lead_id=lead_id,

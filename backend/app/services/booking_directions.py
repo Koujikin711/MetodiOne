@@ -37,6 +37,33 @@ def direction_name_key(name: str) -> str:
     return direction_base_name(name).casefold()
 
 
+def is_course_like_direction_name(name: str | None) -> bool:
+    """Курс / Курс 15 / Курс 90 / Протокол — только админ/владелец в онлайн-записи."""
+    k = direction_name_key(name or "")
+    if not k:
+        return False
+    if k in {"курс", "курс 15", "курс 90", "протокол", "пртокол"}:
+        return True
+    if k.startswith("курс ") or k.startswith("протокол"):
+        return True
+    # частые опечатки/варианты из журнала
+    if "курс" in k and ("15" in k or "90" in k or "руз" in k or "калон" in k):
+        return True
+    if "протокол" in k or "пртокол" in k:
+        return True
+    return False
+
+
+def is_consultation_direction_name(name: str | None) -> bool:
+    k = direction_name_key(name or "")
+    return "консульт" in k or "консулт" in k or k.startswith("консульт")
+
+
+def is_ganchina_specialist_name(name: str | None) -> bool:
+    k = direction_name_key(name or "")
+    return "ганчин" in k or ("замири" in k and "ганч" in k)
+
+
 def archived_direction_name(name: str, direction_id: int) -> str:
     base = direction_base_name(name) or "направление"
     suffix = f" [архив #{direction_id}]"

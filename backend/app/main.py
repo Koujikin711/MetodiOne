@@ -38,6 +38,7 @@ from app.database_migrate import (
     ensure_lead_reactivated_at,
     ensure_lead_archived_from_stage,
     ensure_settle_completed_booking_debts,
+    ensure_fix_kurs_direction_and_session_pay,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -142,6 +143,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_lead_reactivated_at(conn, db_url)
                 await ensure_lead_archived_from_stage(conn, db_url)
                 await ensure_settle_completed_booking_debts(conn, db_url)
+                await ensure_fix_kurs_direction_and_session_pay(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts

@@ -2400,3 +2400,279 @@ async def ensure_settle_completed_booking_debts(conn: AsyncConnection, database_
             text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
             {"n": patch_name},
         )
+
+
+async def ensure_fix_kurs_direction_and_session_pay(conn: AsyncConnection, database_url: str) -> None:
+    """One-shot: (1) Курс/протокол в service_title → правильный direction_id;
+    (2) предоплата сеансов массажа размазана по дням, а не только на первый.
+    """
+    import re
+    from collections import defaultdict
+    from datetime import timezone
+
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at DATETIME
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at TIMESTAMPTZ
+                )"""
+            ),
+        )
+
+    patch_name = "fix_kurs_direction_and_session_pay_2026_08"
+    existing = await conn.execute(
+        text("SELECT 1 FROM app_data_patches WHERE name = :n LIMIT 1"),
+        {"n": patch_name},
+    )
+    if existing.first() is not None:
+        return
+
+    def _name_key(name: str | None) -> str:
+        s = re.sub(r"\s*\[архив #\d+\]\s*$", "", (name or "").strip(), flags=re.IGNORECASE)
+        return " ".join(s.split()).casefold()
+
+    def _is_course(name: str | None) -> bool:
+        k = _name_key(name)
+        if not k:
+            return False
+        if k in {"курс", "курс 15", "курс 90", "протокол", "пртокол"}:
+            return True
+        if k.startswith("курс ") or k.startswith("протокол"):
+            return True
+        if "курс" in k and ("15" in k or "90" in k or "руз" in k or "калон" in k):
+            return True
+        if "протокол" in k or "пртокол" in k:
+            return True
+        return False
+
+    def _split_prepaid(total_paid: float, day_prices: list[float]) -> list[float]:
+        remaining = max(0.0, float(total_paid or 0))
+        out: list[float] = []
+        for price in day_prices:
+            p = max(0.0, float(price or 0))
+            pay = min(remaining, p) if p > 0 else 0.0
+            out.append(round(pay, 2))
+            remaining = max(0.0, remaining - pay)
+        if remaining > 0.009 and out:
+            out[0] = round(out[0] + remaining, 2)
+        return out
+
+    dirs = (
+        await conn.execute(
+            text("SELECT id, company_id, name, COALESCE(course_streams_enabled, false) AS cse FROM booking_directions")
+        )
+    ).mappings().all()
+    dirs_by_company: dict[int, list] = defaultdict(list)
+    dir_by_id: dict[int, dict] = {}
+    for d in dirs:
+        row = dict(d)
+        dirs_by_company[int(row["company_id"])].append(row)
+        dir_by_id[int(row["id"])] = row
+
+    def _find_course_dir(company_id: int, title: str):
+        key = _name_key(title)
+        rows = dirs_by_company.get(company_id, [])
+        exact = [d for d in rows if _name_key(d["name"]) == key and _is_course(d["name"])]
+        if exact:
+            return exact[0]
+        soft = []
+        for d in rows:
+            if not _is_course(d["name"]):
+                continue
+            dk = _name_key(d["name"])
+            if key in dk or dk in key:
+                soft.append(d)
+            elif ("15" in key and "15" in dk) or ("90" in key and "90" in dk) or (
+                "протокол" in key and "протокол" in dk
+            ):
+                soft.append(d)
+        return soft[0] if soft else None
+
+    # --- 1) Remap course/protocol titles stuck on consultation direction ---
+    appts = (
+        await conn.execute(
+            text(
+                """
+                SELECT a.id, a.company_id, a.direction_id, a.service_title, a.specialist_id,
+                       a.patient_phone, a.lead_id, a.start_at, a.service_amount, a.paid_amount,
+                       a.status, a.created_at
+                FROM booking_appointments a
+                WHERE a.status IN ('booked', 'completed', 'no_show')
+                """
+            )
+        )
+    ).mappings().all()
+
+    for a in appts:
+        title = (a["service_title"] or "").strip()
+        if not _is_course(title):
+            continue
+        cur_dir = dir_by_id.get(int(a["direction_id"]))
+        if cur_dir is None:
+            continue
+        # Уже правильное направление-курс — пропускаем.
+        if _is_course(cur_dir["name"]):
+            continue
+        # Чиним: title=Курс/Протокол, а direction = консультация (или другое не-курс).
+        target = _find_course_dir(int(a["company_id"]), title)
+        if target is None:
+            continue
+        if int(target["id"]) == int(a["direction_id"]):
+            continue
+        await conn.execute(
+            text("UPDATE booking_appointments SET direction_id = :did WHERE id = :aid"),
+            {"did": int(target["id"]), "aid": int(a["id"])},
+        )
+        # привязка направления к специалисту (если таблицы есть)
+        try:
+            exists_link = await conn.execute(
+                text(
+                    """
+                    SELECT 1 FROM booking_specialist_directions
+                    WHERE specialist_id = :sid AND direction_id = :did LIMIT 1
+                    """
+                ),
+                {"sid": int(a["specialist_id"]), "did": int(target["id"])},
+            )
+            if exists_link.first() is None:
+                await conn.execute(
+                    text(
+                        """
+                        INSERT INTO booking_specialist_directions (specialist_id, direction_id)
+                        VALUES (:sid, :did)
+                        """
+                    ),
+                    {"sid": int(a["specialist_id"]), "did": int(target["id"])},
+                )
+        except Exception:
+            # таблица/уникальный ключ может отличаться — направление уже на записи
+            pass
+
+    # reload appointments after remap for session pay
+    appts = (
+        await conn.execute(
+            text(
+                """
+                SELECT a.id, a.company_id, a.direction_id, a.service_title, a.specialist_id,
+                       a.patient_phone, a.lead_id, a.start_at, a.service_amount, a.paid_amount,
+                       a.status, a.created_at
+                FROM booking_appointments a
+                WHERE a.status IN ('booked', 'completed', 'no_show')
+                """
+            )
+        )
+    ).mappings().all()
+
+    specs = (
+        await conn.execute(
+            text(
+                """
+                SELECT id, COALESCE(course_streams_enabled, false) AS cse
+                FROM booking_specialists
+                """
+            )
+        )
+    ).mappings().all()
+    spec_cse = {int(s["id"]): bool(s["cse"]) for s in specs}
+
+    def _session_billing(a) -> bool:
+        d = dir_by_id.get(int(a["direction_id"]))
+        if d and bool(d.get("cse")):
+            return True
+        return bool(spec_cse.get(int(a["specialist_id"])))
+
+    def _phone_key(phone: str | None) -> str:
+        digits = "".join(ch for ch in (phone or "") if ch.isdigit())
+        return digits[-9:] if len(digits) >= 9 else digits
+
+    def _ymd(dt) -> str:
+        if dt is None:
+            return ""
+        if getattr(dt, "tzinfo", None) is None:
+            # naive → treat as UTC
+            return str(dt)[:10]
+        # Asia/Dushanbe ≈ UTC+5 for booking calendar grouping
+        from datetime import timedelta
+
+        local = dt.astimezone(timezone.utc) + timedelta(hours=5)
+        return local.strftime("%Y-%m-%d")
+
+    # --- 2) Redistribute prepaid across consecutive session days ---
+    groups: dict[tuple, list] = defaultdict(list)
+    for a in appts:
+        if not _session_billing(a):
+            continue
+        key = (
+            int(a["company_id"]),
+            int(a["specialist_id"]),
+            _phone_key(a["patient_phone"]),
+            (a["service_title"] or "").strip().casefold(),
+            int(a["direction_id"]),
+        )
+        groups[key].append(dict(a))
+
+    for _gkey, rows in groups.items():
+        rows.sort(key=lambda r: (r["start_at"], r["id"]))
+        i = 0
+        while i < len(rows):
+            series = [rows[i]]
+            j = i + 1
+            while j < len(rows):
+                prev_ymd = _ymd(series[-1]["start_at"])
+                cur_ymd = _ymd(rows[j]["start_at"])
+                # consecutive calendar day
+                try:
+                    from datetime import date, timedelta
+
+                    p = date.fromisoformat(prev_ymd)
+                    c = date.fromisoformat(cur_ymd)
+                    if c == p + timedelta(days=1):
+                        series.append(rows[j])
+                        j += 1
+                        continue
+                except Exception:
+                    pass
+                break
+            if len(series) >= 2:
+                day_prices = [float(r["service_amount"] or 0) for r in series]
+                day_paids = [float(r["paid_amount"] or 0) for r in series]
+                total_paid = sum(day_paids)
+                # типичный баг: вся предоплата на первом дне, остальные 0 при service>0
+                later_unpaid = any(
+                    day_prices[k] > 0.009 and day_paids[k] < 0.009 for k in range(1, len(series))
+                )
+                first_over = day_paids[0] > day_prices[0] + 0.009
+                if later_unpaid and (first_over or total_paid > day_prices[0] + 0.009):
+                    new_paids = _split_prepaid(total_paid, day_prices)
+                    for r, pay in zip(series, new_paids):
+                        if abs(float(r["paid_amount"] or 0) - pay) > 0.009:
+                            await conn.execute(
+                                text(
+                                    "UPDATE booking_appointments SET paid_amount = :p WHERE id = :aid"
+                                ),
+                                {"p": pay, "aid": int(r["id"])},
+                            )
+            i = j if j > i else i + 1
+
+    if sqlite:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, CURRENT_TIMESTAMP)"),
+            {"n": patch_name},
+        )
+    else:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
+            {"n": patch_name},
+        )

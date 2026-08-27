@@ -15,6 +15,12 @@ import { SpecialistModal, type SpecialistFormValues } from "@/components/Special
 import { Trash2 } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
+import {
+  canBookCourseLike,
+  isConsultationDirectionName,
+  isCourseLikeDirectionName,
+  isGanchinaSpecialistName,
+} from "@/lib/bookingDirectionKinds";
 import { formatMoney } from "@/lib/money";
 import { BOOKING_TIME_ZONE, addCalendarDaysInBookingTz, datetimeLocalBookingToIsoUtc, formatWeekRangeLabel, weekWorkDayYmds, ymdInBookingTz } from "@/lib/bookingTz";
 import {
@@ -179,6 +185,7 @@ export function OnlineBookingPage() {
   const currentUserName = decodeDisplayNameFromToken(token) || "Текущий пользователь";
   const isExpert = currentRole === "expert";
   const isManagerOrAdmin = currentRole === "manager" || currentRole === "admin";
+  const canBookCourses = canBookCourseLike(currentRole);
   const bookingViewerQuery = useQuery({
     queryKey: ["booking-viewer-context"],
     queryFn: () => apiFetch<BookingViewerContext>("/api/booking/viewer-context"),
@@ -265,10 +272,17 @@ export function OnlineBookingPage() {
   }, [specialistsQuery.data, specialistId]);
   const courseStreamsForForm = useMemo(() => {
     if (!selectedSpecialistForForm) return false;
-    const dir = directionsQuery.data?.find((d) => d.id === selectedSpecialistForForm.direction_id);
-    if (dir?.course_streams_enabled) return true;
+    const selectedDir =
+      serviceDirectionId !== ""
+        ? directionsQuery.data?.find((d) => d.id === serviceDirectionId)
+        : undefined;
+    if (selectedDir?.course_streams_enabled) return true;
+    const primaryDir = directionsQuery.data?.find(
+      (d) => d.id === selectedSpecialistForForm.direction_id,
+    );
+    if (primaryDir?.course_streams_enabled) return true;
     return Boolean(selectedSpecialistForForm.course_streams_enabled);
-  }, [selectedSpecialistForForm, directionsQuery.data]);
+  }, [selectedSpecialistForForm, directionsQuery.data, serviceDirectionId]);
   const seriesEndDateYmd = useMemo(() => {
     if (!startAt || !seriesBookingEnabled || consecutiveDays < 2) return null;
     const m = startAt.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -285,6 +299,34 @@ export function OnlineBookingPage() {
   });
   const fixedServiceAmount =
     kpiPriceHintQuery.data?.fixed_price != null ? Number(kpiPriceHintQuery.data.fixed_price) : null;
+
+  const freeConsultHintQuery = useQuery({
+    queryKey: [
+      "booking-free-consult-hint",
+      specialistId,
+      serviceDirectionId,
+      patientPhone,
+      leadId,
+    ],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      qs.set("specialist_id", String(specialistId));
+      qs.set("direction_id", String(serviceDirectionId));
+      if (patientPhone.trim()) qs.set("patient_phone", patientPhone.trim());
+      if (leadId != null) qs.set("lead_id", String(leadId));
+      return apiFetch<{ eligible: boolean; reason: string | null }>(
+        `/api/booking/free-consult-hint?${qs.toString()}`,
+      );
+    },
+    enabled:
+      Boolean(specialistId) &&
+      serviceDirectionId !== "" &&
+      isGanchinaSpecialistName(selectedSpecialistForForm?.full_name) &&
+      isConsultationDirectionName(
+        (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId)?.name,
+      ),
+  });
+  const freeConsultEligible = Boolean(freeConsultHintQuery.data?.eligible);
 
   const [sourceName, setSourceName] = useState("");
   const addSourceMutation = useMutation({
@@ -716,18 +758,33 @@ export function OnlineBookingPage() {
     return list;
   }, [specialistsActive, specialistsQuery.data, specialistId]);
 
-  /** Услуги = активные направления записи (+ выбранное, даже если архив). */
+  /** Услуги = активные направления записи (+ выбранное, даже если архив).
+   *  Курс/протокол — только admin/owner (менеджеры не видят и не могут выбрать). */
   const serviceDirectionOptions = useMemo(() => {
     const map = new Map<number, BookingDirection>();
     for (const d of directionsQuery.data ?? []) {
-      if (d.is_active) map.set(d.id, d);
+      if (!d.is_active) continue;
+      if (!canBookCourses && isCourseLikeDirectionName(d.name)) continue;
+      map.set(d.id, d);
     }
     if (serviceDirectionId !== "" && !map.has(serviceDirectionId)) {
       const cur = (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId);
-      if (cur) map.set(cur.id, cur);
+      if (cur && (canBookCourses || !isCourseLikeDirectionName(cur.name))) {
+        map.set(cur.id, cur);
+      }
     }
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"));
-  }, [directionsQuery.data, serviceDirectionId]);
+  }, [directionsQuery.data, serviceDirectionId, canBookCourses]);
+
+  // Если менеджер открыл форму с уже выбранным курсом — сбрасываем.
+  useEffect(() => {
+    if (canBookCourses || serviceDirectionId === "") return;
+    const cur = (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId);
+    if (cur && isCourseLikeDirectionName(cur.name)) {
+      setServiceDirectionId("");
+      setServiceTitle("");
+    }
+  }, [canBookCourses, serviceDirectionId, directionsQuery.data]);
 
   const reorderSpecialistsMutation = useMutation({
     mutationFn: (ordered_ids: number[]) =>
@@ -861,6 +918,10 @@ export function OnlineBookingPage() {
   function handleServiceDirectionChange(directionId: number) {
     const dir = serviceDirectionOptions.find((d) => d.id === directionId);
     if (!dir) return;
+    if (!canBookCourses && isCourseLikeDirectionName(dir.name)) {
+      toast.error("Курс и протокол может записывать только администратор");
+      return;
+    }
     setServiceDirectionId(dir.id);
     setServiceTitle(dir.name);
   }
@@ -904,9 +965,14 @@ export function OnlineBookingPage() {
       toast.error("Неверная дата.");
       return;
     }
-    const resolvedServiceAmount =
-      fixedServiceAmount ?? (serviceAmount.trim() === "" ? NaN : Number(serviceAmount));
-    const resolvedPaidAmount = paidAmount.trim() === "" ? 0 : Number(paidAmount);
+    const resolvedServiceAmount = freeConsultEligible
+      ? 0
+      : fixedServiceAmount ?? (serviceAmount.trim() === "" ? NaN : Number(serviceAmount));
+    const resolvedPaidAmount = freeConsultEligible
+      ? 0
+      : paidAmount.trim() === ""
+        ? 0
+        : Number(paidAmount);
     if (!Number.isFinite(resolvedServiceAmount) || resolvedServiceAmount < 0) {
       toast.error("Укажите стоимость услуги");
       return;
@@ -915,28 +981,31 @@ export function OnlineBookingPage() {
       toast.error("Сумма оплаты указана неверно");
       return;
     }
+    if (serviceDirectionId === "") {
+      toast.error("Выберите услугу");
+      return;
+    }
+    const selectedDir = (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId);
+    if (selectedDir && !canBookCourses && isCourseLikeDirectionName(selectedDir.name)) {
+      toast.error("Курс и протокол может записывать только администратор");
+      return;
+    }
+    if (!canBookCourses && isCourseLikeDirectionName(serviceTitle)) {
+      toast.error("Курс и протокол может записывать только администратор");
+      return;
+    }
     const payload: Record<string, unknown> = {
       patient_name: patientName.trim(),
       patient_phone: patientPhone.trim(),
       extra_phones: extraPhones.map((p) => p.trim()).filter(Boolean),
       specialist_id: specialistId,
       service_title: serviceTitle.trim(),
+      direction_id: serviceDirectionId,
       start_at: startIso,
       service_amount: resolvedServiceAmount,
       paid_amount: resolvedPaidAmount,
       comment: comment.trim() || null,
     };
-    const specDirs =
-      selectedSpecialistForForm?.direction_ids?.length
-        ? selectedSpecialistForForm.direction_ids
-        : selectedSpecialistForForm?.direction_id != null
-          ? [selectedSpecialistForForm.direction_id]
-          : [];
-    if (serviceDirectionId !== "" && specDirs.includes(serviceDirectionId)) {
-      payload.direction_id = serviceDirectionId;
-    } else if (selectedSpecialistForForm?.direction_id != null) {
-      payload.direction_id = selectedSpecialistForForm.direction_id;
-    }
     if (resolvedPaidAmount > resolvedServiceAmount) {
       toast.error("Оплата не может быть больше стоимости услуги");
       return;
@@ -1281,7 +1350,7 @@ export function OnlineBookingPage() {
                       </span>
                     </span>
                   </label>
-                  {seriesBookingEnabled ? (
+                      {seriesBookingEnabled ? (
                     <label className="block text-sm mo-muted">
                       Дней подряд
                       <select
@@ -1305,6 +1374,12 @@ export function OnlineBookingPage() {
                             : " · стоимость один раз"}
                         </p>
                       ) : null}
+                      {courseStreamsForForm && consecutiveDays > 1 ? (
+                        <p className="mt-1 text-xs mo-muted">
+                          Предоплата распределится по дням (каждый сеанс ≤ своей стоимости). Не оставляйте
+                          оплату только на первый день.
+                        </p>
+                      ) : null}
                     </label>
                   ) : null}
                 </div>
@@ -1315,12 +1390,26 @@ export function OnlineBookingPage() {
                     min={0}
                     step={1}
                     required
-                    value={fixedServiceAmount != null ? String(fixedServiceAmount) : serviceAmount}
+                    value={
+                      freeConsultEligible
+                        ? "0"
+                        : fixedServiceAmount != null
+                          ? String(fixedServiceAmount)
+                          : serviceAmount
+                    }
                     onChange={(e) => setServiceAmount(e.target.value)}
-                    disabled={fixedServiceAmount != null}
+                    disabled={fixedServiceAmount != null || freeConsultEligible}
                     className="mt-1 w-full mo-input disabled:opacity-70"
                   />
-                  {fixedServiceAmount != null ? (
+                  {freeConsultEligible ? (
+                    <p className="mt-1 text-xs text-[var(--mo-success)]">
+                      {freeConsultHintQuery.data?.reason ||
+                        "Клиент уже на курсе/протоколе — консультация бесплатно"}
+                    </p>
+                  ) : freeConsultHintQuery.data?.reason &&
+                    isGanchinaSpecialistName(selectedSpecialistForForm?.full_name) ? (
+                    <p className="mt-1 text-xs mo-muted">{freeConsultHintQuery.data.reason}</p>
+                  ) : fixedServiceAmount != null ? (
                     <p className="mt-1 text-xs text-[var(--mo-success)]">
                       Цена зафиксирована в KPI ({kpiPriceHintQuery.data?.year_month}). Введите только сумму оплаты.
                     </p>
@@ -1337,9 +1426,10 @@ export function OnlineBookingPage() {
                     min={0}
                     step={1}
                     required
-                    value={paidAmount}
+                    value={freeConsultEligible ? "0" : paidAmount}
                     onChange={(e) => setPaidAmount(e.target.value)}
-                    className="mt-1 w-full mo-input"
+                    disabled={freeConsultEligible}
+                    className="mt-1 w-full mo-input disabled:opacity-70"
                   />
                 </label>
                 {isManagerOrAdmin ? (

@@ -315,3 +315,10 @@ class BookingPatientSuggestItem(BaseModel):
     patient_phone_can_view_full: bool = False
     manager_name: str | None = None
     source: str = Field(description="crm | visits")
+
+
+class BookingFreeConsultHint(BaseModel):
+    """Консультация у Замири Ганчины бесплатна, если клиент уже на курсе/протоколе."""
+
+    eligible: bool = False
+    reason: str | None = None
