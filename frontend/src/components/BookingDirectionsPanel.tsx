@@ -4,14 +4,21 @@ import toast from "react-hot-toast";
 
 import { Pencil, Plus, Trash2 } from "@/components/icons";
 import { apiFetch } from "@/lib/api";
+import { isCourseLikeDirectionName } from "@/lib/bookingDirectionKinds";
 import type { BookingDirection, Pipeline } from "@/lib/types";
 
 type Props = {
   open: boolean;
   onClose: () => void;
+  /** Курс/протокол — только admin/owner */
+  canManageCourseDirections?: boolean;
 };
 
-export function BookingDirectionsPanel({ open, onClose }: Props) {
+export function BookingDirectionsPanel({
+  open,
+  onClose,
+  canManageCourseDirections = true,
+}: Props) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [durationMin, setDurationMin] = useState(30);
@@ -64,10 +71,14 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
   const createMut = useMutation({
     mutationFn: () => {
       if (pipelineId === "") throw new Error("Выберите воронку");
+      const trimmed = name.trim();
+      if (!canManageCourseDirections && isCourseLikeDirectionName(trimmed)) {
+        throw new Error("Курс и протокол может добавлять только администратор");
+      }
       return apiFetch<BookingDirection>("/api/booking/directions", {
         method: "POST",
         body: JSON.stringify({
-          name: name.trim(),
+          name: trimmed,
           duration_min: durationMin,
           pipeline_id: pipelineId,
         }),
@@ -86,11 +97,22 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
     mutationFn: () => {
       if (!editing) throw new Error("Не выбрано");
       if (editPipelineId === "") throw new Error("Выберите воронку");
+      const trimmed = editName.trim();
+      if (!canManageCourseDirections && isCourseLikeDirectionName(trimmed)) {
+        throw new Error("Курс и протокол может добавлять только администратор");
+      }
+      if (
+        !canManageCourseDirections &&
+        editing &&
+        isCourseLikeDirectionName(editing.name)
+      ) {
+        throw new Error("Курс и протокол может изменять только администратор");
+      }
       const editingId = editing.id;
       return apiFetch<BookingDirection>(`/api/booking/directions/${editingId}`, {
         method: "PATCH",
         body: JSON.stringify({
-          name: editName.trim(),
+          name: trimmed,
           duration_min: editDuration,
           pipeline_id: editPipelineId,
           is_active: true,
@@ -193,6 +215,11 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
           }}
         >
           <p className="text-sm font-medium text-[var(--mo-text)]">Добавить направление</p>
+          {!canManageCourseDirections ? (
+            <p className="text-xs mo-muted">
+              Курс и протокол может добавлять только администратор. Остальные направления — можно.
+            </p>
+          ) : null}
           <label className="block text-xs mo-muted">
             Название
             <input
@@ -245,7 +272,9 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
           {!directionsQ.isLoading && directions.length === 0 && (
             <p className="text-sm mo-muted">Пока нет направлений — добавьте первое выше.</p>
           )}
-          {directions.map((d) => (
+          {directions.map((d) => {
+            const courseLocked = !canManageCourseDirections && isCourseLikeDirectionName(d.name);
+            return (
             <div
               key={d.id}
               className={[
@@ -321,8 +350,10 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
                       {d.duration_min} мин
                       {d.pipeline_name ? ` · ${d.pipeline_name}` : ""}
                       {!d.is_active ? " · архив" : ""}
+                      {courseLocked ? " · только админ" : ""}
                     </p>
                   </div>
+                  {!courseLocked ? (
                   <div className="flex shrink-0 gap-1">
                     <button
                       type="button"
@@ -363,10 +394,12 @@ export function BookingDirectionsPanel({ open, onClose }: Props) {
                       </button>
                     )}
                   </div>
+                  ) : null}
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

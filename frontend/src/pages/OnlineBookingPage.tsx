@@ -1531,6 +1531,7 @@ export function OnlineBookingPage() {
           name: d.name,
           is_active: d.is_active,
         }))}
+        canAssignCourseDirections={canBookCourses}
         isSubmitting={patchSpecialistUserMutation.isPending}
         isDeleting={deleteSpecialistUserMutation.isPending}
         onClose={() => {
@@ -1542,7 +1543,11 @@ export function OnlineBookingPage() {
         onDelete={canEditBooking ? handleDeleteSpecialistFromModal : undefined}
       />
 
-      <BookingDirectionsPanel open={directionsPanelOpen} onClose={() => setDirectionsPanelOpen(false)} />
+      <BookingDirectionsPanel
+        open={directionsPanelOpen}
+        onClose={() => setDirectionsPanelOpen(false)}
+        canManageCourseDirections={canBookCourses}
+      />
 
       {tab === "journal" && (
         <section className="mo-section booking-journal-section p-3 sm:p-4">

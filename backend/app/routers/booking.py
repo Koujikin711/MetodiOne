@@ -21,6 +21,7 @@ from app.models import (
     BookingDirection,
     BookingSpecialist,
     Lead,
+    PatientServiceEnrollment,
     Pipeline,
     PipelineStage,
     SalesKpiManualSale,
@@ -527,38 +528,60 @@ async def _patient_has_course_or_protocol(
     lead_id: int | None,
 ) -> bool:
     digits = "".join(ch for ch in (patient_phone or "") if ch.isdigit())
-    q = (
-        select(BookingAppointment.id, BookingAppointment.service_title, BookingDirection.name)
-        .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
-        .where(
-            BookingAppointment.company_id == company_id,
-            BookingAppointment.status.in_(("booked", "completed")),
-        )
-        .limit(80)
-    )
+    phone_tail = digits[-9:] if len(digits) >= 9 else ""
+
+    appt_filters = [
+        BookingAppointment.company_id == company_id,
+        BookingAppointment.status.in_(("booked", "completed")),
+    ]
+    identity = []
     if lead_id is not None:
-        q = q.where(BookingAppointment.lead_id == lead_id)
-    elif len(digits) >= 9:
-        tail = digits[-9:]
-        q = q.where(BookingAppointment.patient_phone.ilike(f"%{tail}"))
-    else:
-        q = None
-    if q is not None:
-        rows = (await db.execute(q)).all()
+        identity.append(BookingAppointment.lead_id == lead_id)
+    if phone_tail:
+        identity.append(BookingAppointment.patient_phone.ilike(f"%{phone_tail}"))
+    if identity:
+        rows = (
+            await db.execute(
+                select(BookingAppointment.id, BookingAppointment.service_title, BookingDirection.name)
+                .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+                .where(*appt_filters, or_(*identity))
+                .limit(120)
+            )
+        ).all()
         for _aid, service_title, dir_name in rows:
             if is_course_like_direction_name(dir_name) or is_course_like_direction_name(service_title):
                 return True
 
+    # Активные enrollment с направлением-курсом/протоколом.
+    if lead_id is not None:
+        enr_rows = (
+            await db.execute(
+                select(BookingDirection.name)
+                .join(
+                    PatientServiceEnrollment,
+                    PatientServiceEnrollment.direction_id == BookingDirection.id,
+                )
+                .where(
+                    PatientServiceEnrollment.company_id == company_id,
+                    PatientServiceEnrollment.lead_id == lead_id,
+                    PatientServiceEnrollment.status == "active",
+                )
+                .limit(40)
+            )
+        ).all()
+        for (dir_name,) in enr_rows:
+            if is_course_like_direction_name(dir_name):
+                return True
+
     # Ручные продажи курсов/протоколов в KPI (без онлайн-записи).
-    if len(digits) >= 9:
-        tail = digits[-9:]
+    if phone_tail:
         sale = (
             await db.execute(
                 select(SalesKpiManualSale.id)
                 .where(
                     SalesKpiManualSale.company_id == company_id,
                     SalesKpiManualSale.status == "active",
-                    SalesKpiManualSale.client_phone.ilike(f"%{tail}"),
+                    SalesKpiManualSale.client_phone.ilike(f"%{phone_tail}"),
                 )
                 .limit(1)
             )
@@ -914,6 +937,11 @@ async def patch_direction(
     d = await db.get(BookingDirection, direction_id)
     if d is None or d.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
+    if is_course_like_direction_name(d.name) and not _can_book_course_like(current_user.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Курс и протокол может изменять только администратор / владелец",
+        )
     patch = body.model_dump(exclude_unset=True)
     if not patch:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет полей для обновления")
@@ -1025,6 +1053,11 @@ async def delete_direction(
     d = await db.get(BookingDirection, direction_id)
     if d is None or d.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
+    if is_course_like_direction_name(d.name) and not _can_book_course_like(current_user.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Курс и протокол может изменять только администратор / владелец",
+        )
     # Soft archive: hide from new bookings, keep history + FK rows.
     if not d.is_active:
         return Response(status_code=status.HTTP_204_NO_CONTENT)

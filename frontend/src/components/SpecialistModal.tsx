@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { isCourseLikeDirectionName } from "@/lib/bookingDirectionKinds";
 import type { BookingSpecialist } from "@/lib/types";
 
 const GRID_START = 7;
@@ -40,6 +41,8 @@ type Props = {
   mode: "add" | "edit";
   initial: BookingSpecialist | null;
   directions?: DirectionOption[];
+  /** Если false — направления «Курс/Протокол» скрыты и нельзя назначить */
+  canAssignCourseDirections?: boolean;
   isSubmitting: boolean;
   isDeleting?: boolean;
   onClose: () => void;
@@ -74,6 +77,7 @@ export function SpecialistModal({
   mode,
   initial,
   directions = [],
+  canAssignCourseDirections = true,
   isSubmitting,
   isDeleting = false,
   onClose,
@@ -93,13 +97,21 @@ export function SpecialistModal({
   const [courseStreamMinDay, setCourseStreamMinDay] = useState(10);
   const [courseStreamGapDays, setCourseStreamGapDays] = useState(10);
 
+  const visibleDirections = useMemo(
+    () =>
+      canAssignCourseDirections
+        ? directions
+        : directions.filter((d) => !isCourseLikeDirectionName(d.name)),
+    [directions, canAssignCourseDirections],
+  );
+
   useEffect(() => {
     if (!open) return;
     if (mode === "edit" && initial) {
       setFullName(initial.full_name);
       setPhone(initial.phone ?? "");
       setSpecialization(initial.specialization ?? "");
-      setDirectionIds(initialDirectionIds(initial, directions));
+      setDirectionIds(initialDirectionIds(initial, visibleDirections));
       setSlotDurationMin(initial.slot_duration_min ?? 30);
       setWorkStart(initial.work_start_hour ?? 9);
       setWorkEnd(initial.work_end_hour ?? 18);
@@ -112,7 +124,7 @@ export function SpecialistModal({
       setFullName("");
       setPhone("");
       setSpecialization("");
-      setDirectionIds(initialDirectionIds(null, directions));
+      setDirectionIds(initialDirectionIds(null, visibleDirections));
       setSlotDurationMin(30);
       setWorkStart(9);
       setWorkEnd(18);
@@ -122,7 +134,7 @@ export function SpecialistModal({
       setCourseStreamMinDay(10);
       setCourseStreamGapDays(10);
     }
-  }, [open, mode, initial, directions]);
+  }, [open, mode, initial, visibleDirections]);
 
   useEffect(() => {
     if (!open) return;
@@ -159,10 +171,10 @@ export function SpecialistModal({
 
   if (!open) return null;
 
-  const activeDirections = directions.filter((d) => d.is_active);
+  const activeDirections = visibleDirections.filter((d) => d.is_active);
   const hasArchivedPrimary =
     initial?.direction_id != null &&
-    directions.some((d) => d.id === initial.direction_id && !d.is_active) &&
+    visibleDirections.some((d) => d.id === initial.direction_id && !d.is_active) &&
     !directionIds.includes(initial.direction_id);
 
   function handleSubmit(e: React.FormEvent) {
@@ -171,12 +183,26 @@ export function SpecialistModal({
     if (workStart >= workEnd) return;
     if (!workWeekdays.length) return;
     if (!directionIds.length) return;
+    // Менеджер не снимает уже назначенные курсы/протоколы при сохранении графика.
+    let submitIds = [...directionIds];
+    if (!canAssignCourseDirections && initial) {
+      const existingCourseIds = (initial.direction_ids?.length
+        ? initial.direction_ids
+        : initial.direction_id != null
+          ? [initial.direction_id]
+          : []
+      ).filter((id) => {
+        const d = directions.find((x) => x.id === id);
+        return d != null && isCourseLikeDirectionName(d.name);
+      });
+      submitIds = [...new Set([...existingCourseIds, ...submitIds])];
+    }
     onSubmit({
       full_name: fullName.trim(),
       phone: phone.trim(),
       specialization: specialization.trim(),
-      direction_id: directionIds[0],
-      direction_ids: [...directionIds],
+      direction_id: submitIds[0],
+      direction_ids: submitIds,
       slot_duration_min: slotDurationMin,
       work_start_hour: workStart,
       work_end_hour: workEnd,
