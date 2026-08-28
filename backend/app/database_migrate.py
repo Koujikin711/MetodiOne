@@ -2690,3 +2690,103 @@ async def _ensure_fix_kurs_direction_and_session_pay_impl(conn: AsyncConnection,
             text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
             {"n": patch_name},
         )
+
+
+async def ensure_fix_ayub_massage_prepaid_10x150(conn: AsyncConnection, database_url: str) -> None:
+    """One-shot: Бахтиёрзода Аюб — массаж 10×150, предоплата 1500 размазана по сеансам."""
+    import logging
+
+    log = logging.getLogger("crm.migrate")
+    try:
+        await _fix_ayub_massage_prepaid_10x150_body(conn, database_url)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("fix_ayub_massage_prepaid_10x150 failed (skipped): %s", exc)
+
+
+async def _fix_ayub_massage_prepaid_10x150_body(conn: AsyncConnection, database_url: str) -> None:
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at DATETIME
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at TIMESTAMPTZ
+                )"""
+            ),
+        )
+
+    patch_name = "fix_ayub_massage_prepaid_10x150_2026_08"
+    existing = await conn.execute(
+        text("SELECT 1 FROM app_data_patches WHERE name = :n LIMIT 1"),
+        {"n": patch_name},
+    )
+    if existing.first() is not None:
+        return
+
+    # 10 сеансов пакета (прод): 03–14 авг 2026, Абдулоева Рухшона.
+    target_ids = (2350, 2351, 2352, 2353, 2355, 2356, 2357, 2358, 2359, 2606)
+    id_list = ",".join(str(i) for i in target_ids)
+
+    found = (
+        await conn.execute(
+            text(f"SELECT id FROM booking_appointments WHERE id IN ({id_list}) ORDER BY start_at ASC, id ASC")
+        )
+    ).scalars().all()
+    ids = [int(x) for x in found]
+
+    if len(ids) < 10:
+        # fallback: телефон + окно дат + массаж
+        rows = (
+            await conn.execute(
+                text(
+                    """
+                    SELECT id
+                    FROM booking_appointments
+                    WHERE patient_phone LIKE :phone
+                      AND start_at >= :d0
+                      AND start_at < :d1
+                      AND lower(coalesce(service_title, '')) LIKE '%масс%'
+                    ORDER BY start_at ASC, id ASC
+                    """
+                ),
+                {
+                    "phone": "%002020010%",
+                    "d0": "2026-08-03T00:00:00+00:00" if not sqlite else "2026-08-03",
+                    "d1": "2026-08-15T00:00:00+00:00" if not sqlite else "2026-08-15",
+                },
+            )
+        ).scalars().all()
+        ids = [int(x) for x in rows[:10]]
+
+    for aid in ids[:10]:
+        await conn.execute(
+            text(
+                """
+                UPDATE booking_appointments
+                SET service_amount = 150, paid_amount = 150
+                WHERE id = :aid
+                """
+            ),
+            {"aid": aid},
+        )
+
+    if sqlite:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, CURRENT_TIMESTAMP)"),
+            {"n": patch_name},
+        )
+    else:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
+            {"n": patch_name},
+        )

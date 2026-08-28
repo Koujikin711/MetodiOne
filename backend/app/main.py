@@ -39,6 +39,7 @@ from app.database_migrate import (
     ensure_lead_archived_from_stage,
     ensure_settle_completed_booking_debts,
     ensure_fix_kurs_direction_and_session_pay,
+    ensure_fix_ayub_massage_prepaid_10x150,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
