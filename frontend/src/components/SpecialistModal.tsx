@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { isCourseLikeDirectionName } from "@/lib/bookingDirectionKinds";
+import { isAdminOnlyBookingDirectionName } from "@/lib/bookingDirectionKinds";
 import type { BookingSpecialist } from "@/lib/types";
 
 const GRID_START = 7;
@@ -101,7 +101,7 @@ export function SpecialistModal({
     () =>
       canAssignCourseDirections
         ? directions
-        : directions.filter((d) => !isCourseLikeDirectionName(d.name)),
+        : directions.filter((d) => !isAdminOnlyBookingDirectionName(d.name)),
     [directions, canAssignCourseDirections],
   );
 
@@ -183,7 +183,7 @@ export function SpecialistModal({
     if (workStart >= workEnd) return;
     if (!workWeekdays.length) return;
     if (!directionIds.length) return;
-    // Менеджер не снимает уже назначенные курсы/протоколы при сохранении графика.
+    // Менеджер не снимает уже назначенные «Курс»/«Протокол» при сохранении графика.
     let submitIds = [...directionIds];
     if (!canAssignCourseDirections && initial) {
       const existingCourseIds = (initial.direction_ids?.length
@@ -193,7 +193,7 @@ export function SpecialistModal({
           : []
       ).filter((id) => {
         const d = directions.find((x) => x.id === id);
-        return d != null && isCourseLikeDirectionName(d.name);
+        return d != null && isAdminOnlyBookingDirectionName(d.name);
       });
       submitIds = [...new Set([...existingCourseIds, ...submitIds])];
     }

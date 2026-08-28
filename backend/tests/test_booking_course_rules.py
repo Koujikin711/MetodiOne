@@ -2,6 +2,7 @@
 
 from app.routers.booking import _split_prepaid_across_days
 from app.services.booking_directions import (
+    is_admin_only_booking_direction_name,
     is_consultation_direction_name,
     is_course_like_direction_name,
     is_ganchina_specialist_name,
@@ -11,10 +12,23 @@ from app.services.booking_directions import (
 def test_course_like_names():
     assert is_course_like_direction_name("Курс 15")
     assert is_course_like_direction_name("курс15")
+    assert is_course_like_direction_name("Курс")
     assert is_course_like_direction_name("Протокол")
     assert is_course_like_direction_name("15 руза курс")
     assert not is_course_like_direction_name("Консультация")
     assert not is_course_like_direction_name("Массаж")
+
+
+def test_admin_only_booking_names():
+    # KPI-пакеты — только админ
+    assert is_admin_only_booking_direction_name("Курс")
+    assert is_admin_only_booking_direction_name("Протокол")
+    assert is_admin_only_booking_direction_name("Курс 90")
+    # «Курс 15» — обычная запись, менеджер может
+    assert not is_admin_only_booking_direction_name("Курс 15")
+    assert not is_admin_only_booking_direction_name("курс 15")
+    assert not is_admin_only_booking_direction_name("Массаж")
+    assert not is_admin_only_booking_direction_name("Консультация")
 
 
 def test_consultation_and_ganchina():

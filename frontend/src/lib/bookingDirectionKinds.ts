@@ -8,6 +8,7 @@ function normalizeName(name: string | null | undefined): string {
     .toLocaleLowerCase("ru");
 }
 
+/** Курс / Курс 15 / Протокол — пакетные услуги (free-consult, ремап). */
 export function isCourseLikeDirectionName(name: string | null | undefined): boolean {
   const k = normalizeName(name);
   if (!k) return false;
@@ -19,6 +20,16 @@ export function isCourseLikeDirectionName(name: string | null | undefined): bool
     return true;
   }
   if (k.includes("протокол") || k.includes("пртокол")) return true;
+  return false;
+}
+
+/** Только админ в онлайн-записи: «Курс» и «Протокол». «Курс 15» — менеджер может. */
+export function isAdminOnlyBookingDirectionName(name: string | null | undefined): boolean {
+  const k = normalizeName(name);
+  if (!k) return false;
+  if (k === "курс" || k === "протокол" || k === "пртокол") return true;
+  if (k.startsWith("протокол") || k.startsWith("пртокол")) return true;
+  if (k === "курс 90" || (k.startsWith("курс ") && k.includes("90") && !k.includes("15"))) return true;
   return false;
 }
 

@@ -4,13 +4,13 @@ import toast from "react-hot-toast";
 
 import { Pencil, Plus, Trash2 } from "@/components/icons";
 import { apiFetch } from "@/lib/api";
-import { isCourseLikeDirectionName } from "@/lib/bookingDirectionKinds";
+import { isAdminOnlyBookingDirectionName } from "@/lib/bookingDirectionKinds";
 import type { BookingDirection, Pipeline } from "@/lib/types";
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  /** Курс/протокол — только admin/owner */
+  /** «Курс» / «Протокол» — только admin/owner («Курс 15» — можно менеджеру) */
   canManageCourseDirections?: boolean;
 };
 
@@ -72,8 +72,8 @@ export function BookingDirectionsPanel({
     mutationFn: () => {
       if (pipelineId === "") throw new Error("Выберите воронку");
       const trimmed = name.trim();
-      if (!canManageCourseDirections && isCourseLikeDirectionName(trimmed)) {
-        throw new Error("Курс и протокол может добавлять только администратор");
+      if (!canManageCourseDirections && isAdminOnlyBookingDirectionName(trimmed)) {
+        throw new Error("«Курс» и «Протокол» может добавлять только администратор");
       }
       return apiFetch<BookingDirection>("/api/booking/directions", {
         method: "POST",
@@ -98,15 +98,15 @@ export function BookingDirectionsPanel({
       if (!editing) throw new Error("Не выбрано");
       if (editPipelineId === "") throw new Error("Выберите воронку");
       const trimmed = editName.trim();
-      if (!canManageCourseDirections && isCourseLikeDirectionName(trimmed)) {
-        throw new Error("Курс и протокол может добавлять только администратор");
+      if (!canManageCourseDirections && isAdminOnlyBookingDirectionName(trimmed)) {
+        throw new Error("«Курс» и «Протокол» может добавлять только администратор");
       }
       if (
         !canManageCourseDirections &&
         editing &&
-        isCourseLikeDirectionName(editing.name)
+        isAdminOnlyBookingDirectionName(editing.name)
       ) {
-        throw new Error("Курс и протокол может изменять только администратор");
+        throw new Error("«Курс» и «Протокол» может изменять только администратор");
       }
       const editingId = editing.id;
       return apiFetch<BookingDirection>(`/api/booking/directions/${editingId}`, {
@@ -217,7 +217,7 @@ export function BookingDirectionsPanel({
           <p className="text-sm font-medium text-[var(--mo-text)]">Добавить направление</p>
           {!canManageCourseDirections ? (
             <p className="text-xs mo-muted">
-              Курс и протокол может добавлять только администратор. Остальные направления — можно.
+              «Курс» и «Протокол» может добавлять только администратор. Остальные направления — можно.
             </p>
           ) : null}
           <label className="block text-xs mo-muted">
@@ -273,7 +273,7 @@ export function BookingDirectionsPanel({
             <p className="text-sm mo-muted">Пока нет направлений — добавьте первое выше.</p>
           )}
           {directions.map((d) => {
-            const courseLocked = !canManageCourseDirections && isCourseLikeDirectionName(d.name);
+            const courseLocked = !canManageCourseDirections && isAdminOnlyBookingDirectionName(d.name);
             return (
             <div
               key={d.id}

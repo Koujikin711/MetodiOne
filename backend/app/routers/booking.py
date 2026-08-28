@@ -65,6 +65,7 @@ from app.services.booking_directions import (
     direction_name_key,
     find_direction_name_conflict,
     get_specialist_direction_ids,
+    is_admin_only_booking_direction_name,
     is_consultation_direction_name,
     is_course_like_direction_name,
     is_ganchina_specialist_name,
@@ -469,7 +470,8 @@ def _course_streams_enabled_for_booking(specialist: BookingSpecialist, direction
     return bool(getattr(specialist, "course_streams_enabled", False))
 
 
-def _can_book_course_like(role: UserRole) -> bool:
+def _can_book_admin_package(role: UserRole) -> bool:
+    """«Курс» / «Протокол» в онлайн-записи — только admin/owner (не «Курс 15»)."""
     return role in (UserRole.owner, UserRole.super_owner, UserRole.admin)
 
 
@@ -860,10 +862,10 @@ async def create_direction(
     name = normalize_direction_name(body.name)
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите название направления")
-    if is_course_like_direction_name(name) and not _can_book_course_like(current_user.role):
+    if is_admin_only_booking_direction_name(name) and not _can_book_admin_package(current_user.role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Курс и протокол может добавлять только администратор / владелец",
+            detail="«Курс» и «Протокол» может добавлять только администратор / владелец",
         )
 
     existing = await find_direction_name_conflict(db, company_id=company_id, name=name)
@@ -937,10 +939,10 @@ async def patch_direction(
     d = await db.get(BookingDirection, direction_id)
     if d is None or d.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
-    if is_course_like_direction_name(d.name) and not _can_book_course_like(current_user.role):
+    if is_admin_only_booking_direction_name(d.name) and not _can_book_admin_package(current_user.role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Курс и протокол может изменять только администратор / владелец",
+            detail="«Курс» и «Протокол» может изменять только администратор / владелец",
         )
     patch = body.model_dump(exclude_unset=True)
     if not patch:
@@ -956,10 +958,10 @@ async def patch_direction(
         target_name = direction_base_name(d.name)
 
     if target_name is not None:
-        if is_course_like_direction_name(target_name) and not _can_book_course_like(current_user.role):
+        if is_admin_only_booking_direction_name(target_name) and not _can_book_admin_package(current_user.role):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Курс и протокол может добавлять только администратор / владелец",
+                detail="«Курс» и «Протокол» может добавлять только администратор / владелец",
             )
         conflict = await find_direction_name_conflict(
             db,
@@ -1053,10 +1055,10 @@ async def delete_direction(
     d = await db.get(BookingDirection, direction_id)
     if d is None or d.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
-    if is_course_like_direction_name(d.name) and not _can_book_course_like(current_user.role):
+    if is_admin_only_booking_direction_name(d.name) and not _can_book_admin_package(current_user.role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Курс и протокол может изменять только администратор / владелец",
+            detail="«Курс» и «Протокол» может изменять только администратор / владелец",
         )
     # Soft archive: hide from new bookings, keep history + FK rows.
     if not d.is_active:
@@ -1143,16 +1145,16 @@ async def patch_specialist(
     if "specialization" in patch:
         s.specialization = (body.specialization or "").strip() or None
     if "direction_ids" in patch and body.direction_ids is not None:
-        if not _can_book_course_like(current_user.role):
+        if not _can_book_admin_package(current_user.role):
             dirs = (
                 await db.execute(
                     select(BookingDirection).where(BookingDirection.id.in_(list(body.direction_ids)))
                 )
             ).scalars().all()
-            if any(is_course_like_direction_name(d.name) for d in dirs):
+            if any(is_admin_only_booking_direction_name(d.name) for d in dirs):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Курс и протокол может назначать только администратор / владелец",
+                    detail="«Курс» и «Протокол» может назначать только администратор / владелец",
                 )
         try:
             await set_specialist_directions(
@@ -1166,12 +1168,12 @@ async def patch_specialist(
         one_dir = await db.get(BookingDirection, int(body.direction_id))
         if (
             one_dir is not None
-            and is_course_like_direction_name(one_dir.name)
-            and not _can_book_course_like(current_user.role)
+            and is_admin_only_booking_direction_name(one_dir.name)
+            and not _can_book_admin_package(current_user.role)
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Курс и протокол может назначать только администратор / владелец",
+                detail="«Курс» и «Протокол» может назначать только администратор / владелец",
             )
         try:
             await set_specialist_directions(
@@ -1908,19 +1910,23 @@ async def create_appointment(
     if direction is None or direction.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
 
+    # «Курс» / «Протокол» (KPI-пакеты) — только админ. «Курс 15» — обычная услуга записи.
+    admin_package = is_admin_only_booking_direction_name(
+        direction.name
+    ) or is_admin_only_booking_direction_name(service_title_raw)
     course_like = is_course_like_direction_name(direction.name) or is_course_like_direction_name(
         service_title_raw
     )
-    if course_like and not _can_book_course_like(current_user.role):
+    if admin_package and not _can_book_admin_package(current_user.role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Курс и протокол может записывать только администратор / владелец",
+            detail="«Курс» и «Протокол» может записывать только администратор / владелец",
         )
 
-    # Админ может записать на курс даже если направление ещё не в списке специалиста —
+    # Админ может записать на пакет даже если направление ещё не в списке специалиста —
     # привязываем, чтобы direction_id сохранился корректно.
     if int(resolved_direction_id) not in allowed_direction_ids:
-        if _can_book_course_like(current_user.role) and course_like:
+        if _can_book_admin_package(current_user.role) and course_like:
             new_ids = list(dict.fromkeys([*allowed_direction_ids, int(resolved_direction_id)]))
             await set_specialist_directions(
                 db,

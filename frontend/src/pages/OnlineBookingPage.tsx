@@ -17,8 +17,8 @@ import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import {
   canBookCourseLike,
+  isAdminOnlyBookingDirectionName,
   isConsultationDirectionName,
-  isCourseLikeDirectionName,
   isGanchinaSpecialistName,
 } from "@/lib/bookingDirectionKinds";
 import { formatMoney } from "@/lib/money";
@@ -758,29 +758,29 @@ export function OnlineBookingPage() {
     return list;
   }, [specialistsActive, specialistsQuery.data, specialistId]);
 
-  /** Услуги = активные направления записи (+ выбранное, даже если архив).
-   *  Курс/протокол — только admin/owner (менеджеры не видят и не могут выбрать). */
+  /** Услуги = активные направления (+ выбранное, даже если архив).
+   *  «Курс» / «Протокол» — только admin; «Курс 15» видят менеджеры. */
   const serviceDirectionOptions = useMemo(() => {
     const map = new Map<number, BookingDirection>();
     for (const d of directionsQuery.data ?? []) {
       if (!d.is_active) continue;
-      if (!canBookCourses && isCourseLikeDirectionName(d.name)) continue;
+      if (!canBookCourses && isAdminOnlyBookingDirectionName(d.name)) continue;
       map.set(d.id, d);
     }
     if (serviceDirectionId !== "" && !map.has(serviceDirectionId)) {
       const cur = (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId);
-      if (cur && (canBookCourses || !isCourseLikeDirectionName(cur.name))) {
+      if (cur && (canBookCourses || !isAdminOnlyBookingDirectionName(cur.name))) {
         map.set(cur.id, cur);
       }
     }
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"));
   }, [directionsQuery.data, serviceDirectionId, canBookCourses]);
 
-  // Если менеджер открыл форму с уже выбранным курсом — сбрасываем.
+  // Если менеджер открыл форму с уже выбранным «Курс»/«Протокол» — сбрасываем.
   useEffect(() => {
     if (canBookCourses || serviceDirectionId === "") return;
     const cur = (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId);
-    if (cur && isCourseLikeDirectionName(cur.name)) {
+    if (cur && isAdminOnlyBookingDirectionName(cur.name)) {
       setServiceDirectionId("");
       setServiceTitle("");
     }
@@ -918,8 +918,8 @@ export function OnlineBookingPage() {
   function handleServiceDirectionChange(directionId: number) {
     const dir = serviceDirectionOptions.find((d) => d.id === directionId);
     if (!dir) return;
-    if (!canBookCourses && isCourseLikeDirectionName(dir.name)) {
-      toast.error("Курс и протокол может записывать только администратор");
+    if (!canBookCourses && isAdminOnlyBookingDirectionName(dir.name)) {
+      toast.error("«Курс» и «Протокол» может записывать только администратор");
       return;
     }
     setServiceDirectionId(dir.id);
@@ -986,12 +986,12 @@ export function OnlineBookingPage() {
       return;
     }
     const selectedDir = (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId);
-    if (selectedDir && !canBookCourses && isCourseLikeDirectionName(selectedDir.name)) {
-      toast.error("Курс и протокол может записывать только администратор");
+    if (selectedDir && !canBookCourses && isAdminOnlyBookingDirectionName(selectedDir.name)) {
+      toast.error("«Курс» и «Протокол» может записывать только администратор");
       return;
     }
-    if (!canBookCourses && isCourseLikeDirectionName(serviceTitle)) {
-      toast.error("Курс и протокол может записывать только администратор");
+    if (!canBookCourses && isAdminOnlyBookingDirectionName(serviceTitle)) {
+      toast.error("«Курс» и «Протокол» может записывать только администратор");
       return;
     }
     const payload: Record<string, unknown> = {

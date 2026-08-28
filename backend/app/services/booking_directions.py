@@ -38,7 +38,7 @@ def direction_name_key(name: str) -> str:
 
 
 def is_course_like_direction_name(name: str | None) -> bool:
-    """Курс / Курс 15 / Курс 90 / Протокол — только админ/владелец в онлайн-записи."""
+    """Курс / Курс 15 / Курс 90 / Протокол — пакетные услуги (free-consult, ремап direction)."""
     k = direction_name_key(name or "")
     if not k:
         return False
@@ -50,6 +50,24 @@ def is_course_like_direction_name(name: str | None) -> bool:
     if "курс" in k and ("15" in k or "90" in k or "руз" in k or "калон" in k):
         return True
     if "протокол" in k or "пртокол" in k:
+        return True
+    return False
+
+
+def is_admin_only_booking_direction_name(name: str | None) -> bool:
+    """Только админ в онлайн-записи: «Курс» (KPI-пакет) и «Протокол».
+
+    «Курс 15» — отдельное направление записи, менеджер может записывать.
+    """
+    k = direction_name_key(name or "")
+    if not k:
+        return False
+    if k in {"курс", "протокол", "пртокол"}:
+        return True
+    if k.startswith("протокол") or k.startswith("пртокол"):
+        return True
+    # «Курс 90» / крупный пакет без «15» — тоже только админ
+    if k == "курс 90" or (k.startswith("курс ") and "90" in k and "15" not in k):
         return True
     return False
 
