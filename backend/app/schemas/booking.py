@@ -235,7 +235,9 @@ class BookingAppointmentCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_money(self) -> "BookingAppointmentCreate":
-        if self.paid_amount > self.service_amount:
+        # Серия сеансов: предоплата может быть за все дни (service × days).
+        # Точный потолок проверяет роутер с учётом session_billing.
+        if self.consecutive_days <= 1 and self.paid_amount > self.service_amount:
             raise ValueError("Оплаченная сумма не может быть больше стоимости услуги")
         return self
 

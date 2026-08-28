@@ -1006,8 +1006,15 @@ export function OnlineBookingPage() {
       paid_amount: resolvedPaidAmount,
       comment: comment.trim() || null,
     };
-    if (resolvedPaidAmount > resolvedServiceAmount) {
-      toast.error("Оплата не может быть больше стоимости услуги");
+    if (seriesBookingEnabled && consecutiveDays > 1 && courseStreamsForForm
+      ? resolvedPaidAmount > resolvedServiceAmount * consecutiveDays
+      : resolvedPaidAmount > resolvedServiceAmount)
+    {
+      toast.error(
+        seriesBookingEnabled && consecutiveDays > 1 && courseStreamsForForm
+          ? `Оплата не может быть больше стоимости серии (${resolvedServiceAmount * consecutiveDays})`
+          : "Оплата не может быть больше стоимости услуги",
+      );
       return;
     }
     if (currentRole === "manager" && resolvedPaidAmount > 0 && !currentUserId) {
@@ -1376,8 +1383,8 @@ export function OnlineBookingPage() {
                       ) : null}
                       {courseStreamsForForm && consecutiveDays > 1 ? (
                         <p className="mt-1 text-xs mo-muted">
-                          Предоплата распределится по дням (каждый сеанс ≤ своей стоимости). Не оставляйте
-                          оплату только на первый день.
+                          Можно принять предоплату за все дни сразу (например {consecutiveDays}×стоимость) — она
+                          распределится по сеансам.
                         </p>
                       ) : null}
                     </label>

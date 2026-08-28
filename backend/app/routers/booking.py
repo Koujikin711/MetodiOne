@@ -2027,8 +2027,20 @@ async def create_appointment(
         )
         if fixed_price is not None:
             service_amount_value = float(fixed_price)
-    if paid_amount_value > float(service_amount_value) and service_amount_value > 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Оплата не может быть больше стоимости услуги")
+    # Сеансы на N дней: предоплата может покрывать всю серию (150×2=300).
+    # Пакет без сеансов: оплата ≤ одной стоимости.
+    max_paid_allowed = float(service_amount_value)
+    if session_billing and consecutive_days > 1 and service_amount_value > 0:
+        max_paid_allowed = float(service_amount_value) * consecutive_days
+    if paid_amount_value > max_paid_allowed + 1e-9 and max_paid_allowed > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Оплата не может быть больше стоимости услуги"
+                if consecutive_days <= 1 or not session_billing
+                else f"Оплата не может быть больше стоимости серии ({max_paid_allowed:g})"
+            ),
+        )
 
     if lead_id is not None and body.extra_phones:
         lead_for_extras = await db.get(Lead, lead_id)
