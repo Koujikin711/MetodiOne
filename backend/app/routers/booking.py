@@ -2440,6 +2440,14 @@ async def patch_appointment_payment(
         target = await _resolve_package_billing_appointment(db, company_id=company_id, appt=appt)
         await _assert_can_manage_appointment_journal(db, target, current_user)
 
+    if body.service_amount is not None:
+        if current_user.role not in (UserRole.owner, UserRole.super_owner, UserRole.admin):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Стоимость услуги может менять только администратор / владелец",
+            )
+        target.service_amount = float(body.service_amount)
+
     service = float(target.service_amount or 0)
     prev_paid = float(target.paid_amount or 0)
     if body.add_payment is not None:
