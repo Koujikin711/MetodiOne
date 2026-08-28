@@ -145,6 +145,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_lead_archived_from_stage(conn, db_url)
                 await ensure_settle_completed_booking_debts(conn, db_url)
                 await ensure_fix_kurs_direction_and_session_pay(conn, db_url)
+                await ensure_fix_ayub_massage_prepaid_10x150(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
