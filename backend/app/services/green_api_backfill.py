@@ -287,7 +287,8 @@ async def sync_green_api_backfill(
             if ok:
                 added += 1
 
-        thread.updated_at = datetime.now(UTC)
+        if added:
+            thread.updated_at = datetime.now(UTC)
         await db.flush()
         stats["messages_added"] += added
         stats["chats_imported"] += 1

@@ -36,6 +36,7 @@ from app.models import (
 _INTEGRATION_CLOSE_DEAL_TYPE = "integration_close"
 from app.services.audio_prepare import prepare_file_for_green_whatsapp
 from app.services.chat_media_store import resolve_chat_media, save_outgoing_chat_media
+from app.services.chat_thread_state import touch_thread_on_message
 from app.services.green_incoming_media import ensure_chat_message_media_local, repair_thread_media
 from app.services.green_api_send import send_green_file_upload, send_green_text_async
 from app.services.instagram_api_send import parse_meta_thread_recipient, send_meta_dm_text
@@ -617,7 +618,7 @@ async def _send_green_file_message(
             created_at=datetime.now(UTC),
         )
         db.add(msg)
-        thread.updated_at = datetime.now(UTC)
+        touch_thread_on_message(thread, "out")
         await db.flush()
         d = f"Send failed: {err}"
         logger.warning("chat green upload failed thread=%s detail=%s", thread.id, d[:800])
@@ -649,7 +650,7 @@ async def _send_green_file_message(
         created_at=datetime.now(UTC),
     )
     db.add(msg)
-    thread.updated_at = datetime.now(UTC)
+    touch_thread_on_message(thread, "out")
     await db.flush()
     msg.media_url = save_outgoing_chat_media(msg.id, filename, file_bytes)
     if thread.company_id is not None:
@@ -859,14 +860,7 @@ async def _fetch_thread_read_row(
         .correlate(ChatThread)
         .scalar_subquery()
     )
-    last_direction_sq = (
-        select(ChatMessage.direction)
-        .where(ChatMessage.thread_id == ChatThread.id)
-        .order_by(ChatMessage.id.desc())
-        .limit(1)
-        .correlate(ChatThread)
-        .scalar_subquery()
-    )
+    last_direction_sq = ChatThread.last_message_direction
     unread_count_sq = (
         select(func.count(ChatMessage.id))
         .select_from(ChatMessage)
@@ -942,10 +936,15 @@ async def chat_websocket(websocket: WebSocket, token: str = Query(..., min_lengt
     try:
         while True:
             try:
-                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                raw = await asyncio.wait_for(websocket.receive_text(), timeout=45.0)
             except TimeoutError:
-                pass
-            await websocket.send_json({"type": "chat_refresh", "at": datetime.now(UTC).isoformat()})
+                await websocket.send_json({"type": "pong"})
+                continue
+            # Keepalive only — real updates come from polling (без спама invalidate на каждый ping).
+            if (raw or "").strip().lower() in {"ping", "pong", ""}:
+                await websocket.send_json({"type": "pong"})
+            else:
+                await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
         return
 
@@ -971,21 +970,9 @@ async def thread_bucket_counts(
         allowed = await _manager_pipeline_ids(db, current_user.id)
     if not allowed:
         return ChatThreadBucketCounts()
-    await _ensure_whatsapp_stubs_for_new_leads(
-        db,
-        company_id=company_id,
-        current_user=current_user,
-        pipeline_ids=allowed,
-    )
+    # Не создаём stubs на каждый poll счётчиков — только в list_threads(awaiting_reply).
     term = (q or "").strip()
-    last_direction_sq = (
-        select(ChatMessage.direction)
-        .where(ChatMessage.thread_id == ChatThread.id)
-        .order_by(ChatMessage.id.desc())
-        .limit(1)
-        .correlate(ChatThread)
-        .scalar_subquery()
-    )
+    last_direction_sq = ChatThread.last_message_direction
     base = (
         select(func.count(ChatThread.id))
         .select_from(ChatThread)
@@ -1054,14 +1041,7 @@ async def list_threads(
         .correlate(ChatThread)
         .scalar_subquery()
     )
-    last_direction_sq = (
-        select(ChatMessage.direction)
-        .where(ChatMessage.thread_id == ChatThread.id)
-        .order_by(ChatMessage.id.desc())
-        .limit(1)
-        .correlate(ChatThread)
-        .scalar_subquery()
-    )
+    last_direction_sq = ChatThread.last_message_direction
     unread_count_sq = (
         select(func.count(ChatMessage.id))
         .select_from(ChatMessage)
@@ -1630,7 +1610,7 @@ async def send_message(
             created_at=datetime.now(UTC),
         )
         db.add(msg)
-        thread.updated_at = datetime.now(UTC)
+        touch_thread_on_message(thread, "out")
         await db.flush()
         d = f"Send failed ({fail_prefix}): {err}"
         logger.warning("chat text failed thread=%s provider=%s detail=%s", thread_id, provider, d[:800])
@@ -1647,7 +1627,7 @@ async def send_message(
         created_at=datetime.now(UTC),
     )
     db.add(msg)
-    thread.updated_at = datetime.now(UTC)
+    touch_thread_on_message(thread, "out")
     await db.flush()
     await advance_new_lead_after_manager_reply(db, company_id=company_id, lead_id=thread.lead_id)
     await db.refresh(msg)

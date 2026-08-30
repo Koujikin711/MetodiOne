@@ -538,6 +538,8 @@ class ChatThread(Base):
     provider: Mapped[str] = mapped_column(String(40), default="green_api")
     external_chat_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Denormalized last ChatMessage.direction (in/out) for reply-bucket counts/filters.
+    last_message_direction: Mapped[str | None] = mapped_column(String(8), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
 

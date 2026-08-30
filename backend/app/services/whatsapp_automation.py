@@ -19,6 +19,7 @@ from app.models import (
     User,
 )
 from app.services.audit import write_audit_event
+from app.services.chat_thread_state import touch_thread_on_message
 from app.services.green_api_send import send_green_text
 
 _DEFAULT_TEMPLATES = {
@@ -124,7 +125,7 @@ async def _log_outgoing_message(
             created_at=datetime.now(UTC),
         )
     )
-    thread.updated_at = datetime.now(UTC)
+    touch_thread_on_message(thread, "out")
     await db.flush()
 
 

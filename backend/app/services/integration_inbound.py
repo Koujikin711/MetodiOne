@@ -18,6 +18,7 @@ from app.models import (
     Pipeline,
     PipelineStage,
 )
+from app.services.chat_thread_state import touch_thread_on_message
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.lead_extra_phones import find_lead_by_any_phone
 from app.services.lead_sales_stages import resolve_new_lead_stage_id
@@ -298,6 +299,9 @@ async def add_incoming_message(
         created_at=created_at or datetime.now(UTC),
     )
     db.add(msg)
+    thread = await db.get(ChatThread, thread_id)
+    if thread is not None:
+        touch_thread_on_message(thread, "in")
     await db.flush()
     await db.refresh(msg)
     return msg
@@ -329,5 +333,8 @@ async def add_outgoing_message(
             created_at=created_at or datetime.now(UTC),
         )
     )
+    thread = await db.get(ChatThread, thread_id)
+    if thread is not None:
+        touch_thread_on_message(thread, "out")
     await db.flush()
     return True

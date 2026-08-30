@@ -3,7 +3,7 @@ import { useEffect } from "react";
 
 import { getStoredToken } from "@/lib/api";
 
-/** WebSocket: сигнал обновить чаты (меньше polling). */
+/** WebSocket keepalive. Обновление списков — по polling / явным chat_refresh. */
 export function useChatRealtime(enabled: boolean) {
   const qc = useQueryClient();
 
@@ -30,7 +30,15 @@ export function useChatRealtime(enabled: boolean) {
         ? apiBase.replace(/^http/i, (m) => (m.toLowerCase() === "https" ? "wss" : "ws"))
         : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
       ws = new WebSocket(`${wsBase}/api/chat/ws?token=${encodeURIComponent(token)}`);
-      ws.onmessage = () => invalidate();
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(String(ev.data || "{}")) as { type?: string };
+          // Игнорируем pong/keepalive — раньше каждый ping сбрасывал тяжёлые списки.
+          if (data?.type === "chat_refresh") invalidate();
+        } catch {
+          /* ignore non-JSON */
+        }
+      };
       ws.onopen = () => {
         pingTimer = window.setInterval(() => {
           if (ws?.readyState === WebSocket.OPEN) ws.send("ping");

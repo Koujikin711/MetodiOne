@@ -605,7 +605,7 @@ export function ChatPage() {
       return apiFetch<ChatThreadBucketCounts>(`/api/chat/threads/bucket-counts?${p.toString()}`);
     },
     enabled: showManagerChatBuckets,
-    refetchInterval: tabVisible ? 6000 : false,
+    refetchInterval: tabVisible ? 20000 : false,
     refetchOnWindowFocus: false,
   });
 
@@ -639,7 +639,7 @@ export function ChatPage() {
       if (lastPage.length < THREADS_PAGE_SIZE) return undefined;
       return Number(lastPageParam) + lastPage.length;
     },
-    refetchInterval: tabVisible ? 6000 : false,
+    refetchInterval: tabVisible ? 20000 : false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     placeholderData: (prev) => prev,
@@ -830,9 +830,12 @@ export function ChatPage() {
 
   const messagesQuery = useQuery({
     queryKey: ["chat-messages", threadId],
-    queryFn: () => apiFetch<ChatMessage[]>(`/api/chat/threads/${threadId}/messages?limit=120&offset=0`),
+    queryFn: () =>
+      apiFetch<ChatMessage[]>(`/api/chat/threads/${threadId}/messages?limit=120&offset=0`, {
+        timeoutMs: 45_000,
+      }),
     enabled: !!threadId,
-    refetchInterval: tabVisible && threadId ? 5000 : false,
+    refetchInterval: tabVisible && threadId ? 10000 : false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
   });
@@ -863,11 +866,6 @@ export function ChatPage() {
     if (!box) return;
     box.scrollTo({ top: box.scrollHeight, behavior: "auto" });
   }, [threadId, lastMsgId, msgCount]);
-
-  useEffect(() => {
-    if (threadId == null || !messagesQuery.isSuccess) return;
-    void qc.invalidateQueries({ queryKey: ["chat-threads"] });
-  }, [threadId, messagesQuery.isSuccess, qc]);
 
   const sendMutation = useMutation({
     mutationFn: async (voiceOrOverrideFile?: File) => {
@@ -1529,7 +1527,9 @@ export function ChatPage() {
 
               <div className="flex min-h-0 flex-1 flex-col">
               <div ref={messagesScrollRef} className="chat-thread min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-1 py-3 sm:px-2">
-                {messagesQuery.isLoading && <p className="text-sm lux-caption">Загрузка сообщений…</p>}
+                {messagesQuery.isLoading && !messagesQuery.data && (
+                  <p className="text-sm lux-caption">Загрузка сообщений…</p>
+                )}
                 {(messagesQuery.data ?? []).map((m, idx, arr) => {
                   const isOut = m.direction === "out";
                   const time = formatChatTime(m.created_at);

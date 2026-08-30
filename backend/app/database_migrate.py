@@ -1296,11 +1296,39 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
 async def ensure_chat_performance_indexes(conn: AsyncConnection, database_url: str) -> None:
     low = database_url.lower()
     if "sqlite" in low:
+        try:
+            await conn.execute(
+                text("ALTER TABLE chat_threads ADD COLUMN last_message_direction VARCHAR(8)"),
+            )
+        except Exception:  # noqa: BLE001 — column may already exist
+            pass
+        try:
+            await conn.execute(
+                text(
+                    """
+                    UPDATE chat_threads
+                    SET last_message_direction = (
+                        SELECT m.direction FROM chat_messages m
+                        WHERE m.thread_id = chat_threads.id
+                        ORDER BY m.id DESC LIMIT 1
+                    )
+                    WHERE last_message_direction IS NULL
+                    """
+                ),
+            )
+        except Exception:  # noqa: BLE001
+            pass
         await conn.execute(
             text("CREATE INDEX IF NOT EXISTS idx_chat_threads_company_pipeline_updated ON chat_threads(company_id, pipeline_id, updated_at, id)"),
         )
         await conn.execute(
             text("CREATE INDEX IF NOT EXISTS idx_chat_threads_company_lead ON chat_threads(company_id, lead_id)"),
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_chat_threads_company_pipeline_last_dir "
+                "ON chat_threads(company_id, pipeline_id, last_message_direction)",
+            ),
         )
         await conn.execute(
             text("CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_id_id ON chat_messages(thread_id, id)"),
@@ -1327,12 +1355,37 @@ async def ensure_chat_performance_indexes(conn: AsyncConnection, database_url: s
 
     if "postgresql" in low or "asyncpg" in low:
         await conn.execute(
+            text("ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS last_message_direction VARCHAR(8)"),
+        )
+        # One-shot backfill for reply buckets (avoids correlated subqueries on every poll).
+        await conn.execute(
+            text(
+                """
+                UPDATE chat_threads AS t
+                SET last_message_direction = m.direction
+                FROM (
+                    SELECT DISTINCT ON (thread_id) thread_id, direction
+                    FROM chat_messages
+                    ORDER BY thread_id, id DESC
+                ) AS m
+                WHERE t.id = m.thread_id
+                  AND t.last_message_direction IS DISTINCT FROM m.direction
+                """
+            ),
+        )
+        await conn.execute(
             text(
                 "CREATE INDEX IF NOT EXISTS idx_chat_threads_company_pipeline_updated ON chat_threads(company_id, pipeline_id, updated_at DESC, id DESC)",
             ),
         )
         await conn.execute(
             text("CREATE INDEX IF NOT EXISTS idx_chat_threads_company_lead ON chat_threads(company_id, lead_id)"),
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_chat_threads_company_pipeline_last_dir "
+                "ON chat_threads(company_id, pipeline_id, last_message_direction)",
+            ),
         )
         await conn.execute(
             text("CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_id_id ON chat_messages(thread_id, id DESC)"),
