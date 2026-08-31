@@ -253,7 +253,9 @@ class SalesKpiCompanyExpertStat(BaseModel):
     booked_future_count: int
     no_show_count: int
     cancelled_count: int
-    revenue_paid: Decimal
+    revenue_paid: Decimal  # все оплаты по строке (частичные + полные)
+    paid_full_amount: Decimal = Decimal("0")  # оплатили полностью и явились
+    paid_no_show_amount: Decimal = Decimal("0")  # оплатили, но не явились
     debtor_amount: Decimal
     creditor_amount: Decimal  # оплачено, визит ещё в будущем
 
@@ -273,6 +275,7 @@ class SalesKpiCompanyReport(BaseModel):
     debtor_manual: Decimal
     creditor_total: Decimal  # предоплата за будущие визиты
     plan_lines: list[SalesKpiCompanyPlanLine]
+    # Одна строка = эксперт × услуга (Курс / Курс 15 / Протокол и т.д. раздельно)
     expert_stats: list[SalesKpiCompanyExpertStat]
     managers_sales_bonus_total: Decimal
     # Шкала / прогноз

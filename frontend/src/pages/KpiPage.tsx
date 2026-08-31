@@ -1462,44 +1462,60 @@ function CompanyReportSection({
 
       {!hideBookingExperts ? (
       <section className="mo-section p-4">
-        <h3 className="mb-3 text-lg font-semibold text-[var(--mo-text)]">Онлайн-запись по экспертам</h3>
+        <h3 className="mb-3 text-lg font-semibold text-[var(--mo-text)]">Онлайн-запись по экспертам и услугам</h3>
         <p className="mb-3 text-sm lux-caption">
-          Все эксперты воронки: записи, явки (completed), выручка и долги — даже если эксперт не в KPI менеджеров.
+          Курс, Курс 15, Протокол и остальные услуги — отдельные строки. Даже если эксперт один.
+          «Оплачено полностью» — явились и закрыли сумму; «Оплачено при неявке» — деньги по no_show.
         </p>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] border-collapse text-left text-sm text-[var(--mo-text)]">
+          <table className="w-full min-w-[1200px] border-collapse text-left text-sm text-[var(--mo-text)]">
             <thead>
               <tr className="border-b border-[var(--mo-border)] lux-caption">
                 <th className="py-2 pr-3">Эксперт</th>
-                <th className="py-2 pr-3">Услуга KPI</th>
+                <th className="py-2 pr-3">Услуга</th>
                 <th className="py-2 pr-3">Записей</th>
                 <th className="py-2 pr-3">Явились</th>
                 <th className="py-2 pr-3">Не явились</th>
-                <th className="py-2 pr-3">Будущие оплач.</th>
-                <th className="py-2 pr-3">Выручка</th>
+                <th className="py-2 pr-3">Оплачено полностью</th>
+                <th className="py-2 pr-3">Оплачено при неявке</th>
+                <th className="py-2 pr-3">Всего оплат</th>
                 <th className="py-2 pr-3">Дебиторка</th>
                 <th className="py-2 pr-3">Кредиторка</th>
               </tr>
             </thead>
             <tbody>
-              {data.expert_stats.map((e) => (
-                <tr key={e.specialist_id} className="border-b border-[var(--mo-border)]/70">
-                  <td className="py-2 pr-3">
-                    <div>{e.specialist_name}</div>
-                    {e.direction_name ? (
-                      <div className="text-xs mo-muted">{e.direction_name}</div>
-                    ) : null}
-                  </td>
-                  <td className="py-2 pr-3">{e.kpi_service_name ?? "—"}</td>
-                  <td className="py-2 pr-3">{e.appointments_total}</td>
-                  <td className="py-2 pr-3">{e.appeared_count}</td>
-                  <td className="py-2 pr-3">{e.no_show_count}</td>
-                  <td className="py-2 pr-3">{e.booked_future_count}</td>
-                  <td className="py-2 pr-3">{formatMoney(e.revenue_paid)}</td>
-                  <td className="py-2 pr-3">{formatMoney(e.debtor_amount)}</td>
-                  <td className="py-2 pr-3">{formatMoney(e.creditor_amount)}</td>
-                </tr>
-              ))}
+              {data.expert_stats.map((e, idx) => {
+                const prev = idx > 0 ? data.expert_stats[idx - 1] : null;
+                const showExpert = !prev || prev.specialist_id !== e.specialist_id;
+                return (
+                  <tr
+                    key={`${e.specialist_id}-${e.direction_id ?? "x"}-${idx}`}
+                    className="border-b border-[var(--mo-border)]/70"
+                  >
+                    <td className="py-2 pr-3">
+                      {showExpert ? (
+                        <div>
+                          <div>{e.specialist_name}</div>
+                          {e.kpi_service_name ? (
+                            <div className="text-xs mo-muted">KPI: {e.kpi_service_name}</div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="mo-muted">↳</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3">{e.direction_name ?? "—"}</td>
+                    <td className="py-2 pr-3">{e.appointments_total}</td>
+                    <td className="py-2 pr-3">{e.appeared_count}</td>
+                    <td className="py-2 pr-3">{e.no_show_count}</td>
+                    <td className="py-2 pr-3">{formatMoney(e.paid_full_amount ?? 0)}</td>
+                    <td className="py-2 pr-3">{formatMoney(e.paid_no_show_amount ?? 0)}</td>
+                    <td className="py-2 pr-3">{formatMoney(e.revenue_paid)}</td>
+                    <td className="py-2 pr-3">{formatMoney(e.debtor_amount)}</td>
+                    <td className="py-2 pr-3">{formatMoney(e.creditor_amount)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -995,7 +995,7 @@ async def company_report(
     revenue_booking = Decimal("0")
     debtor_booking = Decimal("0")
     creditor_total = Decimal("0")
-    expert_acc: dict[int, dict] = {}
+    expert_acc: dict[tuple[int, int], dict] = {}
     sales_mode = await company_is_sales_mode(db, company_id)
 
     if sales_mode:
@@ -1046,15 +1046,18 @@ async def company_report(
 
         for appt, spec_name, dir_id, dir_name in appt_rows:
             sid = int(appt.specialist_id)
+            did = int(dir_id) if dir_id is not None else 0
             sa = Decimal(str(appt.service_amount or 0))
             pa = Decimal(str(appt.paid_amount or 0))
             st = (appt.status or "").strip()
-            if sid not in expert_acc:
-                expert_acc[sid] = {
+            key = (sid, did)
+            if key not in expert_acc:
+                expert_acc[key] = {
                     "specialist_id": sid,
                     "specialist_name": str(spec_name or f"#{sid}"),
-                    "direction_id": int(dir_id) if dir_id is not None else None,
+                    "direction_id": did if did else None,
                     "direction_name": str(dir_name) if dir_name else None,
+                    # KPI-метка специалиста (план), не фильтр услуги строки
                     "kpi_service_name": specialist_to_kpi.get(sid),
                     "appointments_total": 0,
                     "appeared_count": 0,
@@ -1062,10 +1065,12 @@ async def company_report(
                     "no_show_count": 0,
                     "cancelled_count": 0,
                     "revenue_paid": Decimal("0"),
+                    "paid_full_amount": Decimal("0"),
+                    "paid_no_show_amount": Decimal("0"),
                     "debtor_amount": Decimal("0"),
                     "creditor_amount": Decimal("0"),
                 }
-            bucket = expert_acc[sid]
+            bucket = expert_acc[key]
             if st == "cancelled":
                 bucket["cancelled_count"] += 1
             else:
@@ -1080,8 +1085,12 @@ async def company_report(
                         debtor_booking += debt
                 if st == "completed":
                     bucket["appeared_count"] += 1
+                    if sa <= 0 or pa + Decimal("0.01") >= sa:
+                        bucket["paid_full_amount"] += pa
                 elif st == "no_show":
                     bucket["no_show_count"] += 1
+                    if pa > 0:
+                        bucket["paid_no_show_amount"] += pa
                 elif st == "booked":
                     start_at = appt.start_at
                     if start_at is not None and start_at.tzinfo is None:
@@ -1115,27 +1124,38 @@ async def company_report(
     # Эксперты воронки без записей в месяце — тоже покажем 0 (только clinic)
     if not sales_mode:
         specialists_meta = await _load_specialists_meta(db, company_id, pipeline_id)
+        seen_specialists = {int(k[0]) for k in expert_acc}
         for s in specialists_meta:
-            if s.id not in expert_acc and s.is_active:
-                expert_acc[s.id] = {
-                    "specialist_id": s.id,
+            if s.id not in seen_specialists and s.is_active:
+                did = int(s.direction_id) if s.direction_id is not None else 0
+                expert_acc[(int(s.id), did)] = {
+                    "specialist_id": int(s.id),
                     "specialist_name": s.full_name,
-                    "direction_id": s.direction_id,
+                    "direction_id": did if did else None,
                     "direction_name": s.direction_name,
-                    "kpi_service_name": specialist_to_kpi.get(s.id),
+                    "kpi_service_name": specialist_to_kpi.get(int(s.id)),
                     "appointments_total": 0,
                     "appeared_count": 0,
                     "booked_future_count": 0,
                     "no_show_count": 0,
                     "cancelled_count": 0,
                     "revenue_paid": Decimal("0"),
+                    "paid_full_amount": Decimal("0"),
+                    "paid_no_show_amount": Decimal("0"),
                     "debtor_amount": Decimal("0"),
                     "creditor_amount": Decimal("0"),
                 }
 
     expert_stats = [
         SalesKpiCompanyExpertStat(**row)
-        for row in sorted(expert_acc.values(), key=lambda x: (-int(x["appointments_total"]), str(x["specialist_name"])))
+        for row in sorted(
+            expert_acc.values(),
+            key=lambda x: (
+                str(x["specialist_name"]),
+                -int(x["appointments_total"]),
+                str(x.get("direction_name") or ""),
+            ),
+        )
     ]
 
     plan_pct = float((total_contrib * Decimal("100")).quantize(Decimal("0.01")))

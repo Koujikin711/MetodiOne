@@ -1030,6 +1030,10 @@ export interface SalesKpiCompanyExpertStat {
   no_show_count: number;
   cancelled_count: number;
   revenue_paid: string | number;
+  /** Оплатили полностью и явились (completed). */
+  paid_full_amount?: string | number;
+  /** Оплатили, но не явились (no_show). */
+  paid_no_show_amount?: string | number;
   debtor_amount: string | number;
   creditor_amount: string | number;
 }
