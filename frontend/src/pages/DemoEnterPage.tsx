@@ -22,7 +22,15 @@ export function DemoEnterPage() {
         setActiveCompanyId(null);
         navigate("/app", { replace: true });
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) {
+          const raw = err instanceof Error ? err.message : String(err);
+          const lower = raw.toLowerCase();
+          const friendly =
+            lower.includes("connection refused") || lower.includes("errno 111")
+              ? "База данных CRM сейчас недоступна (PostgreSQL на Amvera). Перезапустите сервис БД в Amvera и откройте /demo снова."
+              : raw;
+          setError(friendly);
+        }
       }
     })();
     return () => {
