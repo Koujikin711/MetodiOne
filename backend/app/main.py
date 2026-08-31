@@ -490,20 +490,27 @@ async def _ensure_default_company(session: AsyncSession) -> int:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     _install_asyncio_dns_exception_handler()
-    await _run_startup_migrations_with_retry()
-    # enum-миграции PostgreSQL нельзя выполнять внутри begin-транзакции.
-    # Для надёжности запускаем каждую миграцию на отдельном "свежем" connection.
-    async with engine.connect() as conn:
-        await ensure_owner_role_migration(conn, settings.database_url)
-    async with engine.connect() as conn:
-        await ensure_integration_provider_migration(conn, settings.database_url)
-    await seed_pipelines_and_stages()
-    await seed_test_admin()
-    await seed_super_owner()
-    await seed_booking_defaults()
-    await seed_lead_sources_defaults()
-    await seed_sales_crm_space()
-    await ensure_canonical_pipeline_stages()
+    try:
+        await _run_startup_migrations_with_retry()
+    except Exception as exc:
+        # Не валим весь API (Amvera 503): /health и /health/db должны отвечать.
+        logger.exception("startup migrations failed (API still starts): %s", exc)
+    try:
+        # enum-миграции PostgreSQL нельзя выполнять внутри begin-транзакции.
+        # Для надёжности запускаем каждую миграцию на отдельном "свежем" connection.
+        async with engine.connect() as conn:
+            await ensure_owner_role_migration(conn, settings.database_url)
+        async with engine.connect() as conn:
+            await ensure_integration_provider_migration(conn, settings.database_url)
+        await seed_pipelines_and_stages()
+        await seed_test_admin()
+        await seed_super_owner()
+        await seed_booking_defaults()
+        await seed_lead_sources_defaults()
+        await seed_sales_crm_space()
+        await ensure_canonical_pipeline_stages()
+    except Exception as exc:
+        logger.exception("startup seed/enum failed (API still starts): %s", exc)
     stop_event = asyncio.Event()
 
     async def _reminder_loop() -> None:
