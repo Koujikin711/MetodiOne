@@ -85,8 +85,8 @@ export function DirectionStreamsPanel() {
       )}
 
       {directions.length > 0 ? (
-        <div className="overflow-hidden rounded-xl border border-[var(--mo-border)]">
-          <div className="hidden grid-cols-[minmax(0,1.4fr)_auto_repeat(3,4.5rem)_auto] gap-2 border-b border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide mo-muted sm:grid">
+        <div className="direction-streams-table overflow-x-auto rounded-xl border border-[var(--mo-border)]">
+          <div className="direction-streams-grid direction-streams-head">
             <span>Направление</span>
             <span>Потоки</span>
             <span title="Длина потока, дней">Длина</span>
@@ -154,24 +154,13 @@ function DirectionRow({
   return (
     <li
       className={[
-        "grid grid-cols-1 items-center gap-2 px-3 py-2 sm:grid-cols-[minmax(0,1.4fr)_auto_repeat(3,4.5rem)_auto] sm:gap-2",
-        enabled ? "bg-[var(--mo-accent-soft)]/25" : "bg-[var(--mo-surface-elevated)]",
+        "direction-streams-grid direction-streams-row",
+        enabled ? "is-enabled" : "",
       ].join(" ")}
     >
-      <div className="flex min-w-0 items-center justify-between gap-2 sm:block">
-        <p className="truncate text-sm font-medium text-[var(--mo-text)]">{direction.name}</p>
-        <label className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--mo-text)] sm:hidden">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-            className="rounded border-[var(--mo-border-strong)]"
-          />
-          Потоки
-        </label>
-      </div>
+      <p className="direction-streams-name truncate">{direction.name}</p>
 
-      <label className="hidden items-center justify-center gap-1.5 text-xs text-[var(--mo-text)] sm:flex">
+      <label className="direction-streams-check">
         <input
           type="checkbox"
           checked={enabled}
@@ -181,61 +170,48 @@ function DirectionRow({
         />
       </label>
 
-      <label className="flex items-center gap-1 text-[10px] mo-muted sm:block sm:text-center">
-        <span className="sm:hidden">Длина</span>
-        <input
-          className="mo-input w-full px-1.5 py-1 text-center text-xs tabular-nums disabled:opacity-40"
-          type="number"
-          min={5}
-          max={90}
-          value={maxDays}
-          disabled={!enabled}
-          onChange={(e) => setMaxDays(e.target.value)}
-          aria-label="Длина потока, дней"
-        />
-      </label>
-      <label className="flex items-center gap-1 text-[10px] mo-muted sm:block sm:text-center">
-        <span className="sm:hidden">Мин.</span>
-        <input
-          className="mo-input w-full px-1.5 py-1 text-center text-xs tabular-nums disabled:opacity-40"
-          type="number"
-          min={1}
-          max={60}
-          value={minDay}
-          disabled={!enabled}
-          onChange={(e) => setMinDay(e.target.value)}
-          aria-label="Мин. день для нового потока"
-        />
-      </label>
-      <label className="flex items-center gap-1 text-[10px] mo-muted sm:block sm:text-center">
-        <span className="sm:hidden">Пауза</span>
-        <input
-          className="mo-input w-full px-1.5 py-1 text-center text-xs tabular-nums disabled:opacity-40"
-          type="number"
-          min={1}
-          max={60}
-          value={gapDays}
-          disabled={!enabled}
-          onChange={(e) => setGapDays(e.target.value)}
-          aria-label="Перерыв, дней"
-        />
-      </label>
+      <input
+        className="mo-input direction-streams-num"
+        type="number"
+        min={5}
+        max={90}
+        value={maxDays}
+        disabled={!enabled}
+        onChange={(e) => setMaxDays(e.target.value)}
+        aria-label="Длина потока, дней"
+      />
+      <input
+        className="mo-input direction-streams-num"
+        type="number"
+        min={1}
+        max={60}
+        value={minDay}
+        disabled={!enabled}
+        onChange={(e) => setMinDay(e.target.value)}
+        aria-label="Мин. день для нового потока"
+      />
+      <input
+        className="mo-input direction-streams-num"
+        type="number"
+        min={1}
+        max={60}
+        value={gapDays}
+        disabled={!enabled}
+        onChange={(e) => setGapDays(e.target.value)}
+        aria-label="Перерыв, дней"
+      />
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          className={[
-            "rounded-lg px-2.5 py-1 text-xs font-medium transition disabled:opacity-50",
-            dirty
-              ? "bg-[var(--mo-accent)] text-white hover:opacity-90"
-              : "border border-[var(--mo-border)] mo-muted hover:bg-[var(--mo-accent-soft)]",
-          ].join(" ")}
-          disabled={saving || !dirty}
-          onClick={handleSave}
-        >
-          {dirty ? "Сохранить" : "Ок"}
-        </button>
-      </div>
+      <button
+        type="button"
+        className={[
+          "direction-streams-save",
+          dirty ? "is-dirty" : "",
+        ].join(" ")}
+        disabled={saving || !dirty}
+        onClick={handleSave}
+      >
+        {dirty ? "Сохр." : "Ок"}
+      </button>
     </li>
   );
 }
