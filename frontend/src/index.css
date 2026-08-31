@@ -2213,9 +2213,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   overflow: hidden;
   gap: 0.35rem;
   padding-bottom: 0;
-  /* Мобилка: родитель shell-main уже 100dvh+flex — берём 100%, иначе absolute-доска = 0px */
-  height: 100%;
-  max-height: 100%;
+  /* Мобилка: явная высота — иначе доска схлопывается и карточек не видно */
+  height: calc(100dvh - 4.75rem - env(safe-area-inset-bottom, 0px));
+  max-height: calc(100dvh - 4.75rem - env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 640px) {
@@ -2228,19 +2228,42 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .crm-board-wrap {
   position: relative;
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 16rem;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 640px) {
+  .crm-board-wrap {
+    min-height: 0;
+    display: block;
+  }
 }
 
 .crm-board-scroller {
   @apply flex gap-4 overflow-x-auto overflow-y-hidden;
-  position: absolute;
-  inset: 0;
+  position: relative;
+  flex: 1 1 auto;
   align-items: stretch;
-  min-height: 0;
+  width: 100%;
+  min-height: 16rem;
+  height: 100%;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
+@media (min-width: 640px) {
+  .crm-board-scroller {
+    position: absolute;
+    inset: 0;
+    flex: none;
+    min-height: 0;
+    height: auto;
+  }
+}
+
 .crm-board-scroller::-webkit-scrollbar {
   width: 0;
   height: 0;

@@ -228,9 +228,11 @@ export function MainLayout() {
               location.pathname.startsWith("/integrations") ||
               location.pathname.startsWith("/finance")
                 ? [
-                    "flex h-full min-h-0 flex-1 flex-col",
+                    "flex min-h-0 flex-1 flex-col",
                     location.pathname.startsWith("/chat") ? "max-lg:h-full max-lg:min-h-0" : "",
-                    location.pathname.startsWith("/crm") ? "min-h-0 flex-1 [&>*]:min-h-0 [&>*]:flex-1" : "",
+                    location.pathname.startsWith("/crm")
+                      ? "min-h-0 flex-1 overflow-hidden [&>*]:min-h-0 [&>*]:flex-1"
+                      : "",
                     location.pathname.startsWith("/sales") ? "min-h-0 flex-1 [&>*]:min-h-0 [&>*]:flex-1" : "",
                   ]
                     .filter(Boolean)
