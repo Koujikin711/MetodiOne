@@ -881,6 +881,17 @@ async def health_db():
 
     url = effective_database_url()
     dialect = "sqlite" if "sqlite" in url.lower() else ("postgres" if "postgres" in url.lower() else "other")
+    db_host = None
+    db_port = None
+    db_name = None
+    try:
+        from sqlalchemy.engine.url import make_url as _make_url
+        _parsed = _make_url(url)
+        db_host = _parsed.host
+        db_port = int(_parsed.port) if _parsed.port else None
+        db_name = _parsed.database
+    except Exception:
+        pass
     pool_status = ""
     try:
         pool_status = engine.sync_engine.pool.status()
@@ -893,6 +904,9 @@ async def health_db():
         return {
             "status": "ok",
             "dialect": dialect,
+            "host": db_host,
+            "port": db_port,
+            "database": db_name,
             "select_1": int(one or 0),
             "users": int(user_n or 0),
             "db_pool": pool_status,
@@ -908,6 +922,9 @@ async def health_db():
             content={
                 "status": "error",
                 "dialect": dialect,
+                "host": db_host,
+                "port": db_port,
+                "database": db_name,
                 "db_pool": pool_status,
                 "error_type": exc.__class__.__name__,
                 "detail": raw,
