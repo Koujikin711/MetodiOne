@@ -260,6 +260,23 @@ class SalesKpiCompanyExpertStat(BaseModel):
     creditor_amount: Decimal  # оплачено, визит ещё в будущем
 
 
+class SalesKpiCompanyServiceStat(BaseModel):
+    """Итог по услуге (направлению) за месяц — отдельно от экспертов."""
+
+    direction_id: int | None = None
+    direction_name: str
+    appointments_total: int
+    appeared_count: int
+    no_show_count: int
+    booked_count: int = 0
+    cancelled_count: int = 0
+    revenue_paid: Decimal
+    paid_full_amount: Decimal = Decimal("0")
+    paid_no_show_amount: Decimal = Decimal("0")
+    debtor_amount: Decimal = Decimal("0")
+    creditor_amount: Decimal = Decimal("0")
+
+
 class SalesKpiCompanyReport(BaseModel):
     pipeline_id: int
     pipeline_name: str
@@ -275,8 +292,10 @@ class SalesKpiCompanyReport(BaseModel):
     debtor_manual: Decimal
     creditor_total: Decimal  # предоплата за будущие визиты
     plan_lines: list[SalesKpiCompanyPlanLine]
-    # Одна строка = эксперт × услуга (Курс / Курс 15 / Протокол и т.д. раздельно)
+    # Сводка по эксперту (все услуги эксперта вместе)
     expert_stats: list[SalesKpiCompanyExpertStat]
+    # Отдельная таблица: Курс / Курс 15 / Протокол / … по всей клинике
+    service_stats: list[SalesKpiCompanyServiceStat] = []
     managers_sales_bonus_total: Decimal
     # Шкала / прогноз
     days_elapsed: int = 0

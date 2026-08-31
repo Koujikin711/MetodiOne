@@ -1038,6 +1038,21 @@ export interface SalesKpiCompanyExpertStat {
   creditor_amount: string | number;
 }
 
+export interface SalesKpiCompanyServiceStat {
+  direction_id: number | null;
+  direction_name: string;
+  appointments_total: number;
+  appeared_count: number;
+  no_show_count: number;
+  booked_count?: number;
+  cancelled_count?: number;
+  revenue_paid: string | number;
+  paid_full_amount?: string | number;
+  paid_no_show_amount?: string | number;
+  debtor_amount?: string | number;
+  creditor_amount?: string | number;
+}
+
 export interface SalesKpiCompanyReport {
   pipeline_id: number;
   pipeline_name: string;
@@ -1053,6 +1068,8 @@ export interface SalesKpiCompanyReport {
   creditor_total: string | number;
   plan_lines: SalesKpiCompanyPlanLine[];
   expert_stats: SalesKpiCompanyExpertStat[];
+  /** Отдельная сводка по услугам (Курс / Курс 15 / Протокол …). */
+  service_stats?: SalesKpiCompanyServiceStat[];
   managers_sales_bonus_total: string | number;
   days_elapsed?: number;
   days_in_month?: number;

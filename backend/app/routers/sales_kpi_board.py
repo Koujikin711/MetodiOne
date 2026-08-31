@@ -37,6 +37,7 @@ from app.schemas.sales_kpi import (
     SalesKpiCompanyExpertStat,
     SalesKpiCompanyPlanLine,
     SalesKpiCompanyReport,
+    SalesKpiCompanyServiceStat,
     SalesKpiDebtorRow,
     SalesKpiDebtorsReport,
     SalesKpiDirectionMeta,
@@ -1062,6 +1063,7 @@ async def company_report(
                     "appointments_total": 0,
                     "appeared_count": 0,
                     "booked_future_count": 0,
+                    "booked_count": 0,
                     "no_show_count": 0,
                     "cancelled_count": 0,
                     "revenue_paid": Decimal("0"),
@@ -1092,6 +1094,7 @@ async def company_report(
                     if pa > 0:
                         bucket["paid_no_show_amount"] += pa
                 elif st == "booked":
+                    bucket["booked_count"] += 1
                     start_at = appt.start_at
                     if start_at is not None and start_at.tzinfo is None:
                         start_at = start_at.replace(tzinfo=UTC)
@@ -1137,6 +1140,7 @@ async def company_report(
                     "appointments_total": 0,
                     "appeared_count": 0,
                     "booked_future_count": 0,
+                    "booked_count": 0,
                     "no_show_count": 0,
                     "cancelled_count": 0,
                     "revenue_paid": Decimal("0"),
@@ -1146,15 +1150,85 @@ async def company_report(
                     "creditor_amount": Decimal("0"),
                 }
 
+    # Отдельная сводка по услугам (Курс / Курс 15 / Протокол …) — не под экспертом.
+    service_acc: dict[int, dict] = {}
+    for row in expert_acc.values():
+        did = int(row["direction_id"] or 0)
+        if did not in service_acc:
+            service_acc[did] = {
+                "direction_id": row["direction_id"],
+                "direction_name": str(row.get("direction_name") or "—"),
+                "appointments_total": 0,
+                "appeared_count": 0,
+                "no_show_count": 0,
+                "booked_count": 0,
+                "cancelled_count": 0,
+                "revenue_paid": Decimal("0"),
+                "paid_full_amount": Decimal("0"),
+                "paid_no_show_amount": Decimal("0"),
+                "debtor_amount": Decimal("0"),
+                "creditor_amount": Decimal("0"),
+            }
+        s = service_acc[did]
+        s["appointments_total"] += int(row["appointments_total"])
+        s["appeared_count"] += int(row["appeared_count"])
+        s["no_show_count"] += int(row["no_show_count"])
+        s["booked_count"] += int(row.get("booked_count") or 0)
+        s["cancelled_count"] += int(row["cancelled_count"])
+        s["revenue_paid"] += Decimal(str(row["revenue_paid"]))
+        s["paid_full_amount"] += Decimal(str(row["paid_full_amount"]))
+        s["paid_no_show_amount"] += Decimal(str(row["paid_no_show_amount"]))
+        s["debtor_amount"] += Decimal(str(row["debtor_amount"]))
+        s["creditor_amount"] += Decimal(str(row["creditor_amount"]))
+
+    service_stats = [
+        SalesKpiCompanyServiceStat(**row)
+        for row in sorted(
+            service_acc.values(),
+            key=lambda x: (-int(x["appointments_total"]), str(x["direction_name"])),
+        )
+        if int(row["appointments_total"]) > 0 or int(row["cancelled_count"]) > 0
+    ]
+
+    # Сводка по эксперту (все услуги вместе) — без вложенных строк услуг.
+    expert_roll: dict[int, dict] = {}
+    for row in expert_acc.values():
+        sid = int(row["specialist_id"])
+        if sid not in expert_roll:
+            expert_roll[sid] = {
+                "specialist_id": sid,
+                "specialist_name": row["specialist_name"],
+                "direction_id": None,
+                "direction_name": None,
+                "kpi_service_name": row.get("kpi_service_name"),
+                "appointments_total": 0,
+                "appeared_count": 0,
+                "booked_future_count": 0,
+                "no_show_count": 0,
+                "cancelled_count": 0,
+                "revenue_paid": Decimal("0"),
+                "paid_full_amount": Decimal("0"),
+                "paid_no_show_amount": Decimal("0"),
+                "debtor_amount": Decimal("0"),
+                "creditor_amount": Decimal("0"),
+            }
+        e = expert_roll[sid]
+        e["appointments_total"] += int(row["appointments_total"])
+        e["appeared_count"] += int(row["appeared_count"])
+        e["booked_future_count"] += int(row["booked_future_count"])
+        e["no_show_count"] += int(row["no_show_count"])
+        e["cancelled_count"] += int(row["cancelled_count"])
+        e["revenue_paid"] += Decimal(str(row["revenue_paid"]))
+        e["paid_full_amount"] += Decimal(str(row["paid_full_amount"]))
+        e["paid_no_show_amount"] += Decimal(str(row["paid_no_show_amount"]))
+        e["debtor_amount"] += Decimal(str(row["debtor_amount"]))
+        e["creditor_amount"] += Decimal(str(row["creditor_amount"]))
+
     expert_stats = [
         SalesKpiCompanyExpertStat(**row)
         for row in sorted(
-            expert_acc.values(),
-            key=lambda x: (
-                str(x["specialist_name"]),
-                -int(x["appointments_total"]),
-                str(x.get("direction_name") or ""),
-            ),
+            expert_roll.values(),
+            key=lambda x: (-int(x["appointments_total"]), str(x["specialist_name"])),
         )
     ]
 
@@ -1216,6 +1290,7 @@ async def company_report(
         creditor_total=creditor_total,
         plan_lines=plan_lines,
         expert_stats=expert_stats,
+        service_stats=service_stats,
         managers_sales_bonus_total=managers_bonus.quantize(Decimal("0.01")),
         days_elapsed=days_elapsed,
         days_in_month=days_in_month,
