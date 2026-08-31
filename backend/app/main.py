@@ -118,8 +118,8 @@ async def _run_startup_migrations_with_retry() -> None:
     могут быть недоступны первые секунды. Делаем несколько попыток,
     чтобы не падать мгновенно при временном сбое резолва.
     """
-    max_attempts = 8
-    base_delay_sec = 1.5
+    max_attempts = 4
+    base_delay_sec = 1.0
     for attempt in range(1, max_attempts + 1):
         try:
             async with engine.begin() as conn:
@@ -129,7 +129,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_multi_tenant_migration(conn, db_url)
                 await ensure_finance_osv_tables(conn, db_url)
                 await ensure_sales_kpi_plans(conn, db_url)
-                await ensure_chat_performance_indexes(conn, db_url)
+                # Тяжёлые chat-индексы/backfill — после ответа health (см. lifespan background).
                 await ensure_attendance_tracker_tables(conn, db_url)
                 await ensure_super_owner_platform(conn, db_url)
                 await ensure_tariff_plans_platform(conn, db_url)
@@ -512,6 +512,16 @@ async def lifespan(_: FastAPI):
     except Exception as exc:
         logger.exception("startup seed/enum failed (API still starts): %s", exc)
     stop_event = asyncio.Event()
+
+    async def _deferred_chat_indexes() -> None:
+        try:
+            await asyncio.sleep(2)
+            async with engine.begin() as conn:
+                await ensure_chat_performance_indexes(conn, effective_database_url())
+        except Exception:
+            logger.exception("deferred chat performance indexes failed")
+
+    deferred_chat_task = asyncio.create_task(_deferred_chat_indexes())
 
     async def _reminder_loop() -> None:
         next_sheets_run = 0.0

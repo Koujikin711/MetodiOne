@@ -1357,22 +1357,31 @@ async def ensure_chat_performance_indexes(conn: AsyncConnection, database_url: s
         await conn.execute(
             text("ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS last_message_direction VARCHAR(8)"),
         )
-        # One-shot backfill for reply buckets (avoids correlated subqueries on every poll).
-        await conn.execute(
-            text(
-                """
-                UPDATE chat_threads AS t
-                SET last_message_direction = m.direction
-                FROM (
-                    SELECT DISTINCT ON (thread_id) thread_id, direction
-                    FROM chat_messages
-                    ORDER BY thread_id, id DESC
-                ) AS m
-                WHERE t.id = m.thread_id
-                  AND t.last_message_direction IS DISTINCT FROM m.direction
-                """
-            ),
-        )
+        # One-shot backfill — только пока есть NULL (полный DISTINCT ON по messages
+        # на каждом старте держит Amvera в 503 на минуты).
+        need_backfill = (
+            await conn.execute(
+                text(
+                    "SELECT 1 FROM chat_threads WHERE last_message_direction IS NULL LIMIT 1"
+                )
+            )
+        ).first()
+        if need_backfill is not None:
+            await conn.execute(
+                text(
+                    """
+                    UPDATE chat_threads AS t
+                    SET last_message_direction = m.direction
+                    FROM (
+                        SELECT DISTINCT ON (thread_id) thread_id, direction
+                        FROM chat_messages
+                        ORDER BY thread_id, id DESC
+                    ) AS m
+                    WHERE t.id = m.thread_id
+                      AND t.last_message_direction IS NULL
+                    """
+                ),
+            )
         await conn.execute(
             text(
                 "CREATE INDEX IF NOT EXISTS idx_chat_threads_company_pipeline_updated ON chat_threads(company_id, pipeline_id, updated_at DESC, id DESC)",
