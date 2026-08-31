@@ -2843,3 +2843,171 @@ async def _fix_ayub_massage_prepaid_10x150_body(conn: AsyncConnection, database_
             text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
             {"n": patch_name},
         )
+
+
+async def ensure_fix_aug2026_konsult_to_kurs15(conn: AsyncConnection, database_url: str) -> None:
+    """One-shot: август 2026 — записи, в кассе «15-Руза», в CRM ошибочно «Консультация» → Курс 15."""
+    import logging
+
+    log = logging.getLogger("crm.migrate")
+    try:
+        await _fix_aug2026_konsult_to_kurs15_body(conn, database_url)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("fix_aug2026_konsult_to_kurs15 failed (skipped): %s", exc)
+
+
+async def _fix_aug2026_konsult_to_kurs15_body(conn: AsyncConnection, database_url: str) -> None:
+    import logging
+
+    log = logging.getLogger("crm.migrate")
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at DATETIME
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at TIMESTAMPTZ
+                )"""
+            ),
+        )
+
+    patch_name = "fix_aug2026_konsult_to_kurs15_v1"
+    existing = await conn.execute(
+        text("SELECT 1 FROM app_data_patches WHERE name = :n LIMIT 1"),
+        {"n": patch_name},
+    )
+    if existing.first() is not None:
+        return
+
+    # Prod appointment ids (company 1), verified 2026-08 against cash «15-Руза Курс».
+    target_ids = (
+        2244,  # Чамшедзода Манучехр 06.08
+        2246,  # Омонов Алиахмад 03.08
+        2247,  # Сулаймони Абубакр 03.08
+        2248,  # Сабзаева Сухайло 03.08
+        2250,  # Омонов Ёсинчон 03.08
+        2251,  # Омонов Мухаммад 03.08
+        2286,  # Зоиров Умарчон 14.08
+        2410,  # Махмадуллоев Мухаммад 13.08
+        2413,  # Мачнунзода Мухаммад 12.08
+        2417,  # Саидзода Яхё 13.08
+        2444,  # Зафарзода Шахнура 06.08
+        2467,  # Хуршедзода Абдулло 08.08
+        2475,  # Пахлавонова Гулистон 12.08
+        2584,  # Амиршоев Халидчон 13.08
+    )
+    id_list = ",".join(str(i) for i in target_ids)
+
+    # Resolve Курс 15 direction per company of each appointment.
+    rows = (
+        await conn.execute(
+            text(
+                f"""
+                SELECT ba.id, ba.company_id, ba.direction_id, bd.name AS dir_name
+                FROM booking_appointments ba
+                JOIN booking_directions bd ON bd.id = ba.direction_id
+                WHERE ba.id IN ({id_list})
+                """
+            )
+        )
+    ).mappings().all()
+
+    if not rows:
+        # Nothing to fix in this DB (demo/local) — still mark applied to avoid retries.
+        if sqlite:
+            await conn.execute(
+                text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, CURRENT_TIMESTAMP)"),
+                {"n": patch_name},
+            )
+        else:
+            await conn.execute(
+                text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
+                {"n": patch_name},
+            )
+        return
+
+    # Map company_id -> Курс 15 direction id
+    kurs15_by_company: dict[int, int] = {}
+    for company_id in {int(r["company_id"]) for r in rows}:
+        found = (
+            await conn.execute(
+                text(
+                    """
+                    SELECT id FROM booking_directions
+                    WHERE company_id = :cid
+                      AND lower(trim(name)) IN ('курс 15', '15-руза курс', '15 руза курс')
+                    ORDER BY id ASC
+                    LIMIT 1
+                    """
+                ),
+                {"cid": company_id},
+            )
+        ).first()
+        if found is None:
+            # fallback: name contains both курс and 15
+            found = (
+                await conn.execute(
+                    text(
+                        """
+                        SELECT id FROM booking_directions
+                        WHERE company_id = :cid
+                          AND lower(name) LIKE '%курс%'
+                          AND name LIKE '%15%'
+                          AND lower(name) NOT LIKE '%архив%'
+                        ORDER BY id ASC
+                        LIMIT 1
+                        """
+                    ),
+                    {"cid": company_id},
+                )
+            ).first()
+        if found is not None:
+            kurs15_by_company[company_id] = int(found[0])
+
+    updated = 0
+    for r in rows:
+        aid = int(r["id"])
+        cid = int(r["company_id"])
+        dir_name = (r["dir_name"] or "").strip().casefold()
+        # Only remap mistaken consultations (and close variants).
+        if dir_name not in {"консультация", "консультация (старый дубликат)"} and "консульт" not in dir_name:
+            continue
+        new_dir = kurs15_by_company.get(cid)
+        if not new_dir:
+            log.warning("fix_aug2026_konsult_to_kurs15: no Курс 15 for company %s (appt %s)", cid, aid)
+            continue
+        await conn.execute(
+            text(
+                """
+                UPDATE booking_appointments
+                SET direction_id = :did,
+                    service_title = 'Курс 15'
+                WHERE id = :aid
+                """
+            ),
+            {"did": new_dir, "aid": aid},
+        )
+        updated += 1
+
+    log.info("fix_aug2026_konsult_to_kurs15: updated %s appointments", updated)
+
+    if sqlite:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, CURRENT_TIMESTAMP)"),
+            {"n": patch_name},
+        )
+    else:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
+            {"n": patch_name},
+        )

@@ -2267,6 +2267,46 @@ async def patch_appointment_details(
         if not title:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Название услуги не может быть пустым")
         a.service_title = title
+    details_bits: list[str] = []
+    if body.comment is not None or body.service_title is not None:
+        details_bits.append("comment/service_title")
+    if body.direction_id is not None:
+        if current_user.role not in (UserRole.owner, UserRole.super_owner, UserRole.admin):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Смену услуги может сделать только владелец/админ",
+            )
+        new_dir = await db.get(BookingDirection, int(body.direction_id))
+        if new_dir is None or new_dir.company_id != company_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление не найдено")
+        if is_admin_only_booking_direction_name(new_dir.name) and not _can_book_admin_package(current_user.role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Это направление доступно только админу",
+            )
+        specialist = await db.get(BookingSpecialist, a.specialist_id)
+        if specialist is not None:
+            allowed_direction_ids = await get_specialist_direction_ids(db, specialist.id)
+            if not allowed_direction_ids:
+                allowed_direction_ids = [int(specialist.direction_id)]
+            if int(new_dir.id) not in allowed_direction_ids:
+                if _can_book_admin_package(current_user.role):
+                    new_ids = list(dict.fromkeys([*allowed_direction_ids, int(new_dir.id)]))
+                    await set_specialist_directions(
+                        db,
+                        specialist=specialist,
+                        direction_ids=new_ids,
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Услуга не входит в направления выбранного специалиста",
+                    )
+        old_dir_id = int(a.direction_id)
+        a.direction_id = int(new_dir.id)
+        if body.service_title is None:
+            a.service_title = new_dir.name
+        details_bits.append(f"direction_id {old_dir_id}->{int(new_dir.id)}")
     a.updated_at = datetime.now(UTC)
     await write_audit_event(
         db,
@@ -2274,7 +2314,7 @@ async def patch_appointment_details(
         entity_id=a.id,
         action="appointment_details_updated",
         current_user=current_user,
-        details="comment/service_title",
+        details=", ".join(details_bits) or "details",
     )
 
     direction = await db.get(BookingDirection, a.direction_id)

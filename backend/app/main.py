@@ -40,6 +40,7 @@ from app.database_migrate import (
     ensure_settle_completed_booking_debts,
     ensure_fix_kurs_direction_and_session_pay,
     ensure_fix_ayub_massage_prepaid_10x150,
+    ensure_fix_aug2026_konsult_to_kurs15,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -146,6 +147,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_settle_completed_booking_debts(conn, db_url)
                 await ensure_fix_kurs_direction_and_session_pay(conn, db_url)
                 await ensure_fix_ayub_massage_prepaid_10x150(conn, db_url)
+                await ensure_fix_aug2026_konsult_to_kurs15(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts

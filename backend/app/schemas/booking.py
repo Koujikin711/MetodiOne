@@ -245,6 +245,8 @@ class BookingAppointmentCreate(BaseModel):
 class BookingAppointmentDetailsUpdate(BaseModel):
     comment: str | None = Field(None, max_length=2000)
     service_title: str | None = Field(None, min_length=1, max_length=500)
+    # Смена услуги/направления (owner/admin) — для правок журнала без пересоздания записи.
+    direction_id: int | None = Field(None, ge=1)
 
 
 class BookingAppointmentStatusUpdate(BaseModel):
