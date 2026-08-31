@@ -618,8 +618,13 @@ async def lifespan(_: FastAPI):
     yield
     stop_event.set()
     reminder_task.cancel()
+    deferred_chat_task.cancel()
     try:
         await reminder_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await deferred_chat_task
     except asyncio.CancelledError:
         pass
     await engine.dispose()
