@@ -69,49 +69,61 @@ async def demo_login(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Token:
     """Passwordless studio entry into an isolated sandbox company (not client tenants)."""
-    company = (
-        await db.execute(select(Company).where(Company.name == SANDBOX_COMPANY_NAME).limit(1))
-    ).scalars().first()
-    if company is None:
-        company = Company(name=SANDBOX_COMPANY_NAME, is_active=True)
-        db.add(company)
-        await db.flush()
-    user = (
-        await db.execute(select(User).where(User.email == SANDBOX_EMAIL).limit(1))
-    ).scalars().first()
-    if user is None:
-        user = User(
-            email=SANDBOX_EMAIL,
-            hashed_password=hash_password("sandbox-not-used"),
-            role=UserRole.owner,
-            company_id=int(company.id),
-            full_name="Studio Demo",
-            must_change_password=False,
-            is_active=True,
-        )
-        db.add(user)
-        await db.flush()
-    else:
-        user.company_id = int(company.id)
-        user.is_active = True
-        user.must_change_password = False
-    await db.flush()
-    await db.refresh(user)
-
-    # Fill the sandbox with a year of believable CRM history on first entry.
-    # A savepoint keeps the company/user even if the (best-effort) seeding fails.
     try:
-        from app.services.demo_seed import seed_sandbox_demo_data
+        company = (
+            await db.execute(select(Company).where(Company.name == SANDBOX_COMPANY_NAME).limit(1))
+        ).scalars().first()
+        if company is None:
+            company = Company(name=SANDBOX_COMPANY_NAME, is_active=True)
+            db.add(company)
+            await db.flush()
+        user = (
+            await db.execute(select(User).where(User.email == SANDBOX_EMAIL).limit(1))
+        ).scalars().first()
+        if user is None:
+            user = User(
+                email=SANDBOX_EMAIL,
+                hashed_password=hash_password("sandbox-not-used"),
+                role=UserRole.owner,
+                company_id=int(company.id),
+                full_name="Studio Demo",
+                must_change_password=False,
+                is_active=True,
+            )
+            db.add(user)
+            await db.flush()
+        else:
+            user.company_id = int(company.id)
+            user.is_active = True
+            user.must_change_password = False
+        await db.flush()
+        await db.refresh(user)
 
-        async with db.begin_nested():
-            await seed_sandbox_demo_data(db, int(company.id), int(user.id))
-    except Exception:  # noqa: BLE001 — demo entry must succeed even if seeding fails
-        pass
+        # Fill the sandbox with a year of believable CRM history on first entry.
+        # A savepoint keeps the company/user even if the (best-effort) seeding fails.
+        try:
+            from app.services.demo_seed import seed_sandbox_demo_data
 
-    extra = jwt_claims_for_user(user)
-    extra["sandbox"] = True
-    token = create_access_token(str(user.id), extra=extra)
-    return Token(access_token=token, must_change_password=False)
+            async with db.begin_nested():
+                await seed_sandbox_demo_data(db, int(company.id), int(user.id))
+        except Exception:  # noqa: BLE001 — demo entry must succeed even if seeding fails
+            pass
+
+        extra = jwt_claims_for_user(user)
+        extra["sandbox"] = True
+        token = create_access_token(str(user.id), extra=extra)
+        return Token(access_token=token, must_change_password=False)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        # Surface a short reason so /demo UI is not a blank "500".
+        raw = str(exc).replace("\n", " ")[:240]
+        if "password" in raw.lower() or "secret" in raw.lower():
+            raw = exc.__class__.__name__
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Sandbox login failed: {raw}",
+        ) from exc
 
 
 def _login_company_choices(rows: list[tuple[User, Company | None]]) -> list[dict]:

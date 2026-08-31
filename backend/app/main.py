@@ -621,6 +621,19 @@ async def integrity_error_handler(_request: Request, exc: IntegrityError) -> JSO
     return JSONResponse(status_code=409, content={"detail": detail})
 
 
+@app.exception_handler(Exception)
+async def unhandled_api_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """API 500 as JSON with a short reason (helps debug Amvera without log access)."""
+    logger.exception("unhandled error on %s %s", request.method, request.url.path)
+    raw = str(exc) or exc.__class__.__name__
+    detail = raw.replace("\n", " ")[:300]
+    if "password" in detail.lower() or "secret" in detail.lower():
+        detail = exc.__class__.__name__
+    return JSONResponse(
+        status_code=500,
+        content={"detail": detail, "error_type": exc.__class__.__name__},
+    )
+
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -639,7 +652,7 @@ async def enforce_must_change_password(request: Request, call_next):  # type: ig
     path = request.url.path
     if not path.startswith("/api/"):
         return await call_next(request)
-    if path in ("/api/auth/login", "/api/auth/register"):
+    if path in ("/api/auth/login", "/api/auth/register", "/api/auth/demo-login"):
         return await call_next(request)
     auth = request.headers.get("Authorization")
     if not auth or not auth.lower().startswith("bearer "):
@@ -835,6 +848,50 @@ app.include_router(waiting_callbacks.router, prefix="/api")
 @app.get("/health")
 async def health():
     return {"status": "ok", "build": settings.build_version}
+
+
+@app.get("/health/db")
+async def health_db():
+    """Проверка БД без auth — диагностика Amvera 500 на /demo и /login."""
+    from sqlalchemy import text
+
+    from app.database import AsyncSessionLocal, effective_database_url
+
+    url = effective_database_url()
+    dialect = "sqlite" if "sqlite" in url.lower() else ("postgres" if "postgres" in url.lower() else "other")
+    pool_status = ""
+    try:
+        pool_status = engine.sync_engine.pool.status()
+    except Exception:
+        pool_status = "unavailable"
+    try:
+        async with AsyncSessionLocal() as session:
+            one = await session.scalar(text("SELECT 1"))
+            user_n = await session.scalar(text("SELECT COUNT(*) FROM users"))
+        return {
+            "status": "ok",
+            "dialect": dialect,
+            "select_1": int(one or 0),
+            "users": int(user_n or 0),
+            "db_pool": pool_status,
+            "build": settings.build_version,
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("health_db failed")
+        raw = str(exc).replace("\n", " ")[:300]
+        if "password" in raw.lower():
+            raw = exc.__class__.__name__
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "dialect": dialect,
+                "db_pool": pool_status,
+                "error_type": exc.__class__.__name__,
+                "detail": raw,
+                "build": settings.build_version,
+            },
+        )
 
 
 @app.get("/health/metrics")
