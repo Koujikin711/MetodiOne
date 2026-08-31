@@ -190,11 +190,11 @@ export function MainLayout() {
             location.pathname.startsWith("/integrations") ||
             location.pathname.startsWith("/finance")
               ? [
-                  "max-lg:overflow-hidden sm:flex sm:flex-col sm:overflow-hidden sm:!py-4 sm:!pb-4 lg:overflow-hidden lg:py-4 lg:pb-4",
+                  "max-lg:overflow-hidden max-lg:flex max-lg:flex-col max-lg:min-h-0 sm:flex sm:flex-col sm:overflow-hidden sm:!py-4 sm:!pb-4 lg:overflow-hidden lg:py-4 lg:pb-4",
                   location.pathname.startsWith("/chat") || location.pathname.startsWith("/messenger")
                     ? "lg:px-6"
                     : location.pathname.startsWith("/crm")
-                      ? "sm:!px-5 lg:!px-5 sm:!py-2 sm:!pb-2 lg:!py-2 lg:!pb-2"
+                      ? "sm:!px-5 lg:!px-5 sm:!py-2 sm:!pb-2 lg:!py-2 lg:!pb-2 max-lg:!h-[100dvh] max-lg:!max-h-[100dvh]"
                       : location.pathname.startsWith("/sales")
                         ? "sm:!px-3 lg:!px-4 sm:!py-2 sm:!pb-2 lg:!py-2 lg:!pb-2"
                         : "",

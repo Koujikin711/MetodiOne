@@ -88,7 +88,7 @@ export function DirectionStreamsPanel() {
         <div className="direction-streams-table overflow-x-auto rounded-xl border border-[var(--mo-border)]">
           <div className="direction-streams-grid direction-streams-head">
             <span>Направление</span>
-            <span>Потоки</span>
+            <span title="Включить потоки">Поток</span>
             <span title="Длина потока, дней">Длина</span>
             <span title="Мин. день для нового потока">Мин.</span>
             <span title="Перерыв, дней">Пауза</span>
