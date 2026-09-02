@@ -796,10 +796,31 @@ async def booking_queue_add(
         # Только менеджер может стать ответственным; owner/admin — никогда.
         manager_id = current_user.id
 
+    phone_digits = "".join(ch for ch in (body.phone or "") if ch.isdigit()) or None
+    if phone_digits and len(phone_digits) >= 9:
+        existing = await find_lead_by_any_phone(
+            db,
+            company_id=company_id,
+            phone=phone_digits,
+            pipeline_id=pipeline_id,
+        )
+        if existing is not None:
+            await db.refresh(existing, ["stage"])
+            return LeadRead(
+                id=existing.id,
+                name=existing.name,
+                phone=existing.phone,
+                email=existing.email,
+                source=existing.source,
+                status_id=existing.status_id,
+                stage_name=existing.stage.name if existing.stage else None,
+                manager_id=existing.manager_id,
+            )
+
     lead = Lead(
         company_id=company_id,
         name=body.name.strip(),
-        phone=(body.phone or "").strip() or None,
+        phone=phone_digits or ((body.phone or "").strip() or None),
         email=(body.email or "").strip() or None,
         source=(body.source or "").strip() or None,
         status_id=q_sid,

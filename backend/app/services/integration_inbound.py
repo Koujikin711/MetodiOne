@@ -74,7 +74,7 @@ async def find_existing_lead(
         if found is not None:
             return found
 
-    # 2) Телефон в этой воронке — без фильтра по source (иначе GREEN API + «Гость» = 2 карточки).
+    # 2) Телефон: сначала воронка интеграции, затем вся компания (один номер ≠ две карточки).
     if phone:
         found = await find_lead_by_any_phone(
             db,
@@ -84,22 +84,12 @@ async def find_existing_lead(
         )
         if found is not None:
             return found
-        # Точное совпадение source+phone (legacy), на случай другой воронки не нужна.
-        res = await db.execute(
-            select(Lead)
-            .join(PipelineStage, PipelineStage.id == Lead.status_id)
-            .where(
-                and_(
-                    Lead.phone == phone,
-                    Lead.company_id == company_id,
-                    Lead.source == source_name,
-                    PipelineStage.pipeline_id == pipeline_id,
-                )
-            )
-            .order_by(Lead.id.desc())
-            .limit(1),
+        found = await find_lead_by_any_phone(
+            db,
+            company_id=company_id,
+            phone=phone,
+            pipeline_id=None,
         )
-        found = res.scalars().first()
         if found is not None:
             return found
     return None

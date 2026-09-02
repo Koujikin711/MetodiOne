@@ -244,23 +244,15 @@ async def _find_existing_lead(
     source_name: str,
     pipeline_id: int,
 ) -> Lead | None:
-    if not phone:
-        return None
-    res = await db.execute(
-        select(Lead)
-        .join(PipelineStage, PipelineStage.id == Lead.status_id)
-        .where(
-            and_(
-                Lead.phone == phone,
-                Lead.company_id == company_id,
-                Lead.source == source_name,
-                PipelineStage.pipeline_id == pipeline_id,
-            ),
-        )
-        .order_by(Lead.id.desc())
-        .limit(1),
+    from app.services.lead_extra_phones import find_lead_by_any_phone
+
+    # Один телефон в воронке = один лид (не плодим дубли из Sheets при другом source).
+    return await find_lead_by_any_phone(
+        db,
+        company_id=company_id,
+        phone=phone,
+        pipeline_id=pipeline_id,
     )
-    return res.scalars().first()
 
 
 async def _upsert_sheet_lead(

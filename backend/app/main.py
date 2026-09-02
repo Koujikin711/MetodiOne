@@ -190,9 +190,10 @@ async def seed_pipelines_and_stages() -> None:
 
 
 async def ensure_canonical_pipeline_stages() -> None:
-    """Все воронки → 6 стадий; бэкфилл меток Архива; раскладка по записи/чату."""
+    """Все воронки → 6 стадий; бэкфилл меток Архива; раскладка; слияние дублей по телефону."""
     try:
         async with AsyncSessionLocal() as session:
+            from app.services.lead_phone_dedup import merge_duplicate_phone_leads
             from app.services.lead_sales_stages import (
                 backfill_archived_from_stage,
                 ensure_all_pipelines_chat_stages,
@@ -201,12 +202,17 @@ async def ensure_canonical_pipeline_stages() -> None:
 
             n = await ensure_all_pipelines_chat_stages(session)
             backfilled = await backfill_archived_from_stage(session)
+            dedup = await merge_duplicate_phone_leads(session)
             moved = await redistribute_all_pipelines_leads(session)
             await session.commit()
             logger.info(
-                "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s; redistributed %s lead(s)",
+                "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s; "
+                "phone_dedup groups=%s removed=%s threads=%s; redistributed %s lead(s)",
                 n,
                 backfilled,
+                dedup.get("merged_groups"),
+                dedup.get("removed_leads"),
+                dedup.get("moved_threads"),
                 moved,
             )
     except Exception:

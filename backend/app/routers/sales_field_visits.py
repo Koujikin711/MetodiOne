@@ -264,19 +264,13 @@ async def _find_or_create_lead_for_visit(
     enterprise_type: str,
 ) -> int | None:
     """Найти лид по телефону или создать нового — клиент сразу в базе с визитом/гео."""
+    from app.services.lead_extra_phones import find_lead_by_any_phone
+
     digits = _norm_phone(client_phone)
     if len(digits) >= 4:
-        candidates = (
-            await db.execute(
-                select(Lead)
-                .where(Lead.company_id == company_id)
-                .order_by(Lead.id.desc())
-                .limit(200),
-            )
-        ).scalars().all()
-        for lead in candidates:
-            if _phone_matches(lead.phone, digits):
-                return int(lead.id)
+        found = await find_lead_by_any_phone(db, company_id=company_id, phone=digits)
+        if found is not None:
+            return int(found.id)
 
     stage_id = (
         await db.execute(

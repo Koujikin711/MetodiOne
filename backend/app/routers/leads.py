@@ -1037,6 +1037,22 @@ async def import_leads_csv(
             errors.append(LeadImportErrorItem(row=idx, message="Нет названия, имени или компании"))
             continue
         email = normalize_email_strict(parsed.email) if parsed.email else None
+        phone_n = norm_phone(parsed.phone)
+        if phone_n and len(phone_n) >= 9:
+            existing = await find_lead_by_any_phone(
+                db,
+                company_id=company_id,
+                phone=phone_n,
+                pipeline_id=int(stage.pipeline_id) if stage.pipeline_id is not None else None,
+            )
+            if existing is not None:
+                errors.append(
+                    LeadImportErrorItem(
+                        row=idx,
+                        message=f"Телефон уже есть у лида #{existing.id} ({existing.name or 'без имени'}) — пропуск",
+                    ),
+                )
+                continue
         row_manager_id = await _import_manager_id_for_row()
         work.append(
             (
@@ -1044,7 +1060,7 @@ async def import_leads_csv(
                 Lead(
                     company_id=company_id,
                     name=parsed.name,
-                    phone=parsed.phone,
+                    phone=phone_n or parsed.phone,
                     email=email,
                     source=parsed.source,
                     status_id=default_stage_id,
