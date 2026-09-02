@@ -2449,9 +2449,16 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   @apply flex w-[min(100%,300px)] min-w-[268px] shrink-0 flex-col overflow-hidden rounded-2xl border;
   height: 100%;
   max-height: 100%;
+  min-height: 16rem;
   border-color: var(--mo-border);
   background-color: var(--mo-surface);
   box-shadow: none;
+}
+
+@media (min-width: 640px) {
+  .crm-kanban-col {
+    min-height: 0;
+  }
 }
 
 .crm-kanban-col.is-drop-target {
