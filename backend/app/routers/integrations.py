@@ -1122,6 +1122,11 @@ async def integration_webhook(
             title=str(sender_name),
             pipeline_id=int(integ.pipeline_id),
         )
+        # Если тред уже был у другого лида — сообщения и стадия на нём, не на дубле.
+        if thread.lead_id and int(thread.lead_id) != int(lead.id):
+            linked = await db.get(Lead, int(thread.lead_id))
+            if linked is not None and linked.company_id == company_id:
+                lead = linked
         incoming_msg = await _add_incoming_message(
             db,
             company_id,
