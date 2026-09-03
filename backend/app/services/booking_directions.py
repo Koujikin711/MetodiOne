@@ -54,6 +54,29 @@ def is_course_like_direction_name(name: str | None) -> bool:
     return False
 
 
+def is_hidden_booking_direction_name(name: str | None) -> bool:
+    """Устаревшие услуги — не показывать в онлайн-записи."""
+    k = direction_name_key(name or "")
+    return k in {"узи", "анализы", "анализ"}
+
+
+async def archive_hidden_booking_directions(db: AsyncSession, company_id: int | None = None) -> int:
+    """Деактивирует УЗИ / Анализы (и аналоги) во всех или одной компании."""
+    q = select(BookingDirection).where(BookingDirection.is_active.is_(True))
+    if company_id is not None:
+        q = q.where(BookingDirection.company_id == company_id)
+    rows = (await db.execute(q)).scalars().all()
+    n = 0
+    for d in rows:
+        if is_hidden_booking_direction_name(d.name):
+            d.is_active = False
+            n += 1
+    if n:
+        await db.flush()
+        logger.info("archived %s hidden booking direction(s)", n)
+    return n
+
+
 def is_admin_only_booking_direction_name(name: str | None) -> bool:
     """Только админ в онлайн-записи: «Курс» (KPI-пакет) и «Протокол».
 

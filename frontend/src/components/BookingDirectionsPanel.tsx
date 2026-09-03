@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 
 import { Pencil, Plus, Trash2 } from "@/components/icons";
 import { apiFetch } from "@/lib/api";
-import { isAdminOnlyBookingDirectionName } from "@/lib/bookingDirectionKinds";
+import { isAdminOnlyBookingDirectionName, isHiddenBookingDirectionName } from "@/lib/bookingDirectionKinds";
 import type { BookingDirection, Pipeline } from "@/lib/types";
 
 type Props = {
@@ -41,10 +41,12 @@ export function BookingDirectionsPanel({
   });
 
   const pipelines = pipelinesQ.data ?? [];
-  const directions = [...(directionsQ.data ?? [])].sort((a, b) => {
-    if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
-    return a.name.localeCompare(b.name, "ru");
-  });
+  const directions = [...(directionsQ.data ?? [])]
+    .filter((d) => !isHiddenBookingDirectionName(d.name))
+    .sort((a, b) => {
+      if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
+      return a.name.localeCompare(b.name, "ru");
+    });
 
   useEffect(() => {
     if (!open) return;

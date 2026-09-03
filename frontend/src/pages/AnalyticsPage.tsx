@@ -4,6 +4,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { appLexicon } from "@/lib/appLexicon";
 import { formatMoney } from "@/lib/money";
+import { DateField } from "@/components/DateField";
 import type {
   AnalyticsOverviewRead,
   DetailedAnalyticsRead,
@@ -187,22 +188,20 @@ export function AnalyticsPage() {
           </label>
           <label className={["analytics-toolbar-field", period === "custom" && !dateFrom ? "is-needed" : ""].filter(Boolean).join(" ")}>
             <span>С</span>
-            <input
-              type="date"
-              disabled={period !== "custom"}
+            <DateField
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="mo-input disabled:opacity-50"
+              onChange={setDateFrom}
+              disabled={period !== "custom"}
+              aria-label="Дата с"
             />
           </label>
           <label className={["analytics-toolbar-field", period === "custom" && !dateTo ? "is-needed" : ""].filter(Boolean).join(" ")}>
             <span>По</span>
-            <input
-              type="date"
-              disabled={period !== "custom"}
+            <DateField
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="mo-input disabled:opacity-50"
+              onChange={setDateTo}
+              disabled={period !== "custom"}
+              aria-label="Дата по"
             />
           </label>
           <button

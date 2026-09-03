@@ -33,6 +33,13 @@ export function isAdminOnlyBookingDirectionName(name: string | null | undefined)
   return false;
 }
 
+/** Скрыть из выбора услуг (устаревшие направления клиники). */
+export function isHiddenBookingDirectionName(name: string | null | undefined): boolean {
+  const k = normalizeName(name);
+  if (!k) return false;
+  return k === "узи" || k === "анализы" || k === "анализ";
+}
+
 export function isConsultationDirectionName(name: string | null | undefined): boolean {
   const k = normalizeName(name);
   return k.includes("консульт") || k.includes("консулт") || k.startsWith("консульт");

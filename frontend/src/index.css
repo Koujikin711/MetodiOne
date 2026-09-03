@@ -1596,6 +1596,48 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   background: transparent;
 }
 
+.date-field__popover {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  width: min(17.5rem, calc(100vw - 1.5rem));
+  border-radius: 0.75rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+  padding: 0.35rem;
+  box-shadow: var(--mo-shadow-luxury);
+}
+
+.date-field__popover .mini-month-calendar--compact {
+  border: 0;
+  background: transparent;
+  width: 100%;
+}
+
+.date-field__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem 0.45rem;
+  border-top: 1px solid color-mix(in srgb, var(--mo-border) 85%, transparent);
+}
+
+.date-field__link {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mo-accent-hover);
+  background: transparent;
+  border: 0;
+  padding: 0.2rem 0.15rem;
+  cursor: pointer;
+}
+
+.date-field__link:hover {
+  text-decoration: underline;
+}
+
 /* Потоки курсов: одна строка и на мобиле (горизонтальный скролл, без наложения заголовков) */
 .direction-streams-table {
   -webkit-overflow-scrolling: touch;

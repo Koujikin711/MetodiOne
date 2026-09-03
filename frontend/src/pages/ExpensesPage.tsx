@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
 import { APP_CURRENCY } from "@/lib/money";
+import { DateField } from "@/components/DateField";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 
 type ExpenseCatalog = {
@@ -173,12 +174,12 @@ export function ExpensesPage() {
           <div className="expenses-form__grid">
             <label className="expenses-field">
               <span className="expenses-field__label">Дата</span>
-              <input
-                type="date"
-                className="mo-input mt-1 w-full min-w-0"
+              <DateField
+                className="mt-1"
                 value={txnDate}
-                onChange={(e) => setTxnDate(e.target.value)}
+                onChange={setTxnDate}
                 required
+                aria-label="Дата расхода"
               />
             </label>
             <label className="expenses-field">

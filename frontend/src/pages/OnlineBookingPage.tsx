@@ -20,6 +20,7 @@ import {
   isAdminOnlyBookingDirectionName,
   isConsultationDirectionName,
   isGanchinaSpecialistName,
+  isHiddenBookingDirectionName,
 } from "@/lib/bookingDirectionKinds";
 import { formatMoney } from "@/lib/money";
 import { BOOKING_TIME_ZONE, addCalendarDaysInBookingTz, datetimeLocalBookingToIsoUtc, formatWeekRangeLabel, weekWorkDayYmds, ymdInBookingTz } from "@/lib/bookingTz";
@@ -782,12 +783,17 @@ export function OnlineBookingPage() {
     const map = new Map<number, BookingDirection>();
     for (const d of directionsQuery.data ?? []) {
       if (!d.is_active) continue;
+      if (isHiddenBookingDirectionName(d.name)) continue;
       if (!canBookCourses && isAdminOnlyBookingDirectionName(d.name)) continue;
       map.set(d.id, d);
     }
     if (serviceDirectionId !== "" && !map.has(serviceDirectionId)) {
       const cur = (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId);
-      if (cur && (canBookCourses || !isAdminOnlyBookingDirectionName(cur.name))) {
+      if (
+        cur &&
+        !isHiddenBookingDirectionName(cur.name) &&
+        (canBookCourses || !isAdminOnlyBookingDirectionName(cur.name))
+      ) {
         map.set(cur.id, cur);
       }
     }
@@ -796,9 +802,15 @@ export function OnlineBookingPage() {
 
   // Если менеджер открыл форму с уже выбранным «Курс»/«Протокол» — сбрасываем.
   useEffect(() => {
-    if (canBookCourses || serviceDirectionId === "") return;
+    if (serviceDirectionId === "") return;
     const cur = (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId);
-    if (cur && isAdminOnlyBookingDirectionName(cur.name)) {
+    if (!cur) return;
+    if (isHiddenBookingDirectionName(cur.name)) {
+      setServiceDirectionId("");
+      setServiceTitle("");
+      return;
+    }
+    if (!canBookCourses && isAdminOnlyBookingDirectionName(cur.name)) {
       setServiceDirectionId("");
       setServiceTitle("");
     }
@@ -1372,14 +1384,7 @@ export function OnlineBookingPage() {
                       onChange={(e) => setSeriesBookingEnabled(e.target.checked)}
                       className="mt-0.5"
                     />
-                    <span>
-                      Записать на несколько дней подряд
-                      <span className="mt-0.5 block text-xs mo-muted">
-                        {courseStreamsForForm
-                          ? "Сеансы включены: каждый день — отдельная оплата (массаж, логопед…)"
-                          : "Сеансы выключены: одна стоимость на весь период, доплаты суммируются"}
-                      </span>
-                    </span>
+                    <span>Записать на несколько дней подряд</span>
                   </label>
                       {seriesBookingEnabled ? (
                     <label className="block text-sm mo-muted">
@@ -1400,15 +1405,6 @@ export function OnlineBookingPage() {
                           Будет {consecutiveDays}{" "}
                           {consecutiveDays === 1 ? "запись" : consecutiveDays < 5 ? "записи" : "записей"} с{" "}
                           {startAt.slice(0, 10)} по {seriesEndDateYmd} в одно время
-                          {courseStreamsForForm
-                            ? ` · стоимость × ${consecutiveDays}`
-                            : " · стоимость один раз"}
-                        </p>
-                      ) : null}
-                      {courseStreamsForForm && consecutiveDays > 1 ? (
-                        <p className="mt-1 text-xs mo-muted">
-                          Можно принять предоплату за все дни сразу (например {consecutiveDays}×стоимость) — она
-                          распределится по сеансам.
                         </p>
                       ) : null}
                     </label>
@@ -1432,23 +1428,6 @@ export function OnlineBookingPage() {
                     disabled={fixedServiceAmount != null || freeConsultEligible}
                     className="mt-1 w-full mo-input disabled:opacity-70"
                   />
-                  {freeConsultEligible ? (
-                    <p className="mt-1 text-xs text-[var(--mo-success)]">
-                      {freeConsultHintQuery.data?.reason ||
-                        "Клиент уже на курсе/протоколе — консультация бесплатно"}
-                    </p>
-                  ) : freeConsultHintQuery.data?.reason &&
-                    isGanchinaSpecialistName(selectedSpecialistForForm?.full_name) ? (
-                    <p className="mt-1 text-xs mo-muted">{freeConsultHintQuery.data.reason}</p>
-                  ) : fixedServiceAmount != null ? (
-                    <p className="mt-1 text-xs text-[var(--mo-success)]">
-                      Цена зафиксирована в KPI ({kpiPriceHintQuery.data?.year_month}). Введите только сумму оплаты.
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs mo-muted">
-                      Если владелец задал цену услуги в KPI на этот месяц, поле подставится автоматически.
-                    </p>
-                  )}
                 </label>
                 <label className="block text-sm mo-muted">
                   Оплатил клиент (TJS)

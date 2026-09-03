@@ -319,9 +319,13 @@ async def seed_super_owner() -> None:
 
 async def seed_booking_defaults() -> None:
     async with AsyncSessionLocal() as session:
+        from app.services.booking_directions import archive_hidden_booking_directions
+
         cid = await _ensure_default_company(session)
+        await archive_hidden_booking_directions(session)
         result = await session.execute(select(BookingDirection).where(BookingDirection.company_id == cid).limit(1))
         if result.scalar_one_or_none() is not None:
+            await session.commit()
             return
         d = BookingDirection(name="Консультация", duration_min=30, is_active=True, company_id=cid)
         session.add(d)
