@@ -498,7 +498,7 @@ export function KpiPage() {
           title="KPI продаж"
           description={
             salesSpace
-              ? "Условия KPI без онлайн-записи: факт из окна «Продажи» (полная оплата) и курсов/протоколов (≥25%). Имя показателя = сфера/услуга в продажах."
+              ? "Условия KPI без онлайн-записи: факт из окна «Продажи» (полная оплата) и курсов/протоколов (≥25%). Имя продукта = сфера/услуга в продажах."
               : "Онлайн-запись — в факт при 100% оплате. Окно «Продажи» — полная оплата тоже в факт. Курсы/протоколы вносит админ — в факт с оплаты ≥25%."
           }
         />
@@ -552,7 +552,7 @@ export function KpiPage() {
               <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">План на месяц</h2>
               <p className="mt-1 hidden text-sm lux-caption sm:block">
                 Один план на всех менеджеров. Сохранили один раз — в следующем месяце подтянется
-                автоматически (показатели, веса, эксперты, фонд). Для услуг из онлайн-записи привяжите экспертов — запись к
+                автоматически (продукты, веса, эксперты, фонд). Для услуг из онлайн-записи привяжите экспертов — запись к
                 ним пойдёт в факт этой услуги (при 100% оплате). Один эксперт = одна услуга KPI.
               </p>
             </div>
@@ -584,7 +584,7 @@ export function KpiPage() {
               className="btn-secondary min-h-11 shrink-0 px-3 text-sm sm:hidden"
               onClick={addPlanIndicator}
             >
-              + Показатель
+              + Продукт
             </button>
           </div>
 
@@ -601,7 +601,7 @@ export function KpiPage() {
                   className="space-y-1.5 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-2.5"
                 >
                   <label className="block text-[11px] mo-muted">
-                    Показатель
+                    Продукт
                     <input
                       className="mo-input mt-1 w-full !min-h-11 text-base"
                       value={row.name}
@@ -732,7 +732,7 @@ export function KpiPage() {
                     className="text-xs text-rose-500"
                     onClick={() => setPlanItems((prev) => prev.filter((x) => x.key !== row.key))}
                   >
-                    Удалить показатель
+                    Удалить продукт
                   </button>
                 </article>
               );
@@ -743,7 +743,7 @@ export function KpiPage() {
             <table className="kpi-data-table min-w-[900px] text-sm">
               <thead>
                 <tr>
-                  <th className="py-2 pr-3">Показатель</th>
+                  <th className="py-2 pr-3">Продукт</th>
                   <th className="py-2 pr-3">Источник</th>
                   {!salesSpace ? <th className="py-2 pr-3">Эксперты онлайн-записи</th> : null}
                   <th className="py-2 pr-3">План (шт)</th>
@@ -903,7 +903,7 @@ export function KpiPage() {
             className="btn-secondary hidden min-h-0 w-auto text-sm sm:inline-flex"
             onClick={addPlanIndicator}
           >
-            + Показатель
+            + Продукт
           </button>
 
           {!salesSpace && (planQuery.data?.directions.length ?? 0) > 0 ? (
@@ -969,13 +969,13 @@ export function KpiPage() {
           {manualPlanItems.length === 0 ? (
             <p className="text-sm text-amber-200/90">
               {salesSpace
-                ? "Сначала владелец должен добавить показатели во вкладке «План»."
-                : "Сначала владелец должен добавить показатели с источником «Курс / протокол» во вкладке «План»."}
+                ? "Сначала владелец должен добавить продукты во вкладке «План»."
+                : "Сначала владелец должен добавить продукты с источником «Курс / протокол» во вкладке «План»."}
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
               <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
-                Показатель
+                Продукт
                 <select
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.plan_item_id}
@@ -1159,7 +1159,7 @@ export function KpiPage() {
               <thead>
                 <tr>
                   <th>Дата</th>
-                  <th>Показатель</th>
+                  <th>Продукт</th>
                   <th>Поток</th>
                   <th>Менеджер</th>
                   <th>Клиент</th>
@@ -1433,7 +1433,7 @@ function SalesReportSection({
             <table className="kpi-data-table min-w-[900px] text-sm">
               <thead>
                 <tr>
-                  <th className="py-2 pr-3">Показатель</th>
+                  <th className="py-2 pr-3">Продукт</th>
                   <th className="py-2 pr-3">План</th>
                   <th className="py-2 pr-3">Вес %</th>
                   <th className="py-2 pr-3">Факт</th>
@@ -1611,9 +1611,9 @@ function CompanyReportSection({
       </section>
 
       <section className="mo-section p-4">
-        <h3 className="mb-1 text-lg font-semibold text-[var(--mo-text)]">План компании по показателям</h3>
+        <h3 className="mb-1 text-lg font-semibold text-[var(--mo-text)]">План компании по продуктам</h3>
         <p className="mb-3 text-xs mo-muted">
-          Колонка «План» — сумма планов всех менеджеров по показателю (как во вкладке «Продажи»).
+          Колонка «План» — сумма планов всех менеджеров по продукту (как во вкладке «Продажи»).
         </p>
         {data.plan_lines.length === 0 ? (
           <p className="text-sm lux-caption">План на месяц не задан.</p>
@@ -1622,7 +1622,7 @@ function CompanyReportSection({
             <table className="kpi-data-table min-w-[800px] text-sm">
               <thead>
                 <tr>
-                  <th className="py-2 pr-3">Показатель</th>
+                  <th className="py-2 pr-3">Продукт</th>
                   <th className="py-2 pr-3">План</th>
                   <th className="py-2 pr-3">Вес %</th>
                   <th className="py-2 pr-3">Факт</th>

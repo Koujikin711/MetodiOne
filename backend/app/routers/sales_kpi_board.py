@@ -460,7 +460,7 @@ async def put_weighted_plan(
             if sale_n is not None:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Нельзя удалить показатель «{old.name}»: есть продажи. Сначала оформите возвраты/удалите продажи.",
+                    detail=f"Нельзя удалить продукт «{old.name}»: есть продажи. Сначала оформите возвраты/удалите продажи.",
                 )
             await db.delete(old)
 
@@ -648,9 +648,9 @@ async def create_manual_sale(
 
     item = await db.get(SalesKpiPlanItem, body.plan_item_id)
     if item is None or item.company_id != company_id or item.pipeline_id != body.pipeline_id:
-        raise HTTPException(status_code=400, detail="Показатель плана не найден")
+        raise HTTPException(status_code=400, detail="Продукт плана не найден")
     if item.source_type != "manual":
-        raise HTTPException(status_code=400, detail="Этот показатель берётся из онлайн-записи, не из формы курса/протокола")
+        raise HTTPException(status_code=400, detail="Этот продукт берётся из онлайн-записи, не из формы курса/протокола")
 
     manager = await db.get(User, body.manager_user_id)
     if manager is None or manager.company_id != company_id or manager.role != UserRole.manager:
