@@ -1484,7 +1484,12 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-journal-table tbody tr.is-debt td {
-  background: color-mix(in srgb, var(--mo-warning) 7%, #fff);
+  background: transparent;
+}
+
+:root[data-theme="dark"] .booking-journal-table tbody tr.is-debt td {
+  background: transparent;
+  color: var(--mo-text);
 }
 
 .booking-journal-col-status {
