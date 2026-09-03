@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Circle, MapContainer, TileLayer, useMapEvents } from "react-leaflet";
 import toast from "react-hot-toast";
 
+import { DateField } from "@/components/DateField";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import type { AttendanceGeofence, AttendanceMyStatus, AttendanceReport } from "@/lib/types";
@@ -391,20 +392,20 @@ export function AttendanceTrackerPage() {
           <div className="flex flex-wrap items-end gap-2">
             <div>
               <label className="text-xs lux-caption">С</label>
-              <input
-                type="date"
+              <DateField
+                className="mt-1"
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="mt-1 block rounded-lg mo-input px-3 py-2 text-sm"
+                onChange={setDateFrom}
+                aria-label="Дата с"
               />
             </div>
             <div>
               <label className="text-xs lux-caption">По</label>
-              <input
-                type="date"
+              <DateField
+                className="mt-1"
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="mt-1 block rounded-lg mo-input px-3 py-2 text-sm"
+                onChange={setDateTo}
+                aria-label="Дата по"
               />
             </div>
             <button

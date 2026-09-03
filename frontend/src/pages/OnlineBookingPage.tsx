@@ -8,6 +8,7 @@ import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { BookingDirectionsPanel } from "@/components/BookingDirectionsPanel";
 import { BookingWeekSpecialistGrid } from "@/components/BookingWeekSpecialistGrid";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
+import { DateTimeField } from "@/components/DateTimeField";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { PatientPhone } from "@/components/PatientPhone";
 import { BookingSpecialistsFilter } from "@/components/BookingSpecialistsFilter";
@@ -1368,12 +1369,14 @@ export function OnlineBookingPage() {
                 </label>
                 <label className="block text-sm mo-muted">
                   Дата и время
-                  <input
-                    type="datetime-local"
+                  <DateTimeField
                     required
                     value={startAt}
-                    onChange={(e) => setStartAt(e.target.value)}
-                    className="mt-1 w-full mo-input"
+                    onChange={setStartAt}
+                    minuteStep={30}
+                    allowClear={false}
+                    className="mt-1"
+                    aria-label="Дата и время записи"
                   />
                 </label>
                 <div className="space-y-2 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface-soft)] p-3">

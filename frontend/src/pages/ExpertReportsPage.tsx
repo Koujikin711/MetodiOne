@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
+import { DateField } from "@/components/DateField";
 import { apiFetch } from "@/lib/api";
 import type { ExpertReportsResponse } from "@/lib/types";
 
@@ -44,19 +45,17 @@ export function ExpertReportsPage() {
             <option value="week">За неделю</option>
             <option value="custom">За период</option>
           </select>
-          <input
-            type="date"
+          <DateField
             disabled={period !== "custom"}
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="mo-input disabled:opacity-50"
+            onChange={setDateFrom}
+            aria-label="Дата с"
           />
-          <input
-            type="date"
+          <DateField
             disabled={period !== "custom"}
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="mo-input disabled:opacity-50"
+            onChange={setDateTo}
+            aria-label="Дата по"
           />
         </div>
       </section>

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
+import { DateTimeField } from "@/components/DateTimeField";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
@@ -181,11 +182,11 @@ export function TasksPage() {
             </label>
             <label className="block">
               <span className="mo-admin-toolbar-label">Срок</span>
-              <input
-                type="datetime-local"
+              <DateTimeField
                 value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                className="mo-input"
+                onChange={setDeadline}
+                className="mt-1"
+                aria-label="Срок задачи"
               />
             </label>
             <button type="submit" disabled={createM.isPending} className="btn-primary w-full sm:w-auto">

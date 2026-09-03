@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
+import { DateTimeField } from "@/components/DateTimeField";
 import { apiDownloadBlob, apiFetch, setActiveCompanyId, setStoredToken } from "@/lib/api";
 import type {
   PendingPaymentCompanyRead,
@@ -804,11 +805,11 @@ export function CompaniesPage() {
               </label>
               <label className="block text-sm mo-muted">
                 Дата и время вступления (локальное)
-                <input
-                  type="datetime-local"
+                <DateTimeField
                   value={scheduleAtDraft}
-                  onChange={(e) => setScheduleAtDraft(e.target.value)}
-                  className="mo-input mt-1 w-full"
+                  onChange={setScheduleAtDraft}
+                  className="mt-1"
+                  aria-label="Дата и время вступления тарифа"
                 />
               </label>
             </div>
