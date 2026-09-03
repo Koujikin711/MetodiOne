@@ -2669,6 +2669,87 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--mo-text-muted);
 }
 
+/* Расходы — на всю ширину shell, удобно на телефоне */
+.expenses-page__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.expenses-form {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid var(--mo-border);
+  background: color-mix(in srgb, var(--mo-surface) 60%, transparent);
+  padding: 0.875rem;
+}
+
+@media (min-width: 640px) {
+  .expenses-form {
+    padding: 1rem 1.25rem;
+  }
+}
+
+.expenses-form__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .expenses-form__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.875rem 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .expenses-form__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .expenses-form__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.expenses-field {
+  display: block;
+  min-width: 0;
+}
+
+.expenses-field__label {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--mo-text-muted);
+}
+
+.expenses-field--span {
+  grid-column: 1 / -1;
+}
+
+.expenses-form__actions {
+  margin-top: 0.875rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--mo-border) 80%, transparent);
+}
+
+.expenses-month {
+  width: 100%;
+}
+
+@media (max-width: 639px) {
+  .expenses-page .mo-input {
+    font-size: 16px; /* без автозума iOS */
+    min-height: 2.75rem;
+  }
+}
+
 .mo-page-header {
   @apply flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
 }

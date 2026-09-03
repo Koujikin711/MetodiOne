@@ -119,10 +119,10 @@ export function ExpensesPage() {
   ) {
     const known = options.includes(value);
     return (
-      <label className="text-sm mo-muted">
-        {label}
+      <label className="expenses-field">
+        <span className="expenses-field__label">{label}</span>
         <select
-          className="mo-input mt-1 w-full"
+          className="mo-input mt-1 w-full min-w-0"
           value={known ? value : "__custom__"}
           onChange={(ev) => {
             if (ev.target.value === "__custom__") onChange("");
@@ -139,7 +139,7 @@ export function ExpensesPage() {
         </select>
         {!known ? (
           <input
-            className="mo-input mt-1 w-full"
+            className="mo-input mt-1.5 w-full min-w-0"
             value={value}
             onChange={(ev) => onChange(ev.target.value)}
             placeholder="Своё значение"
@@ -150,123 +150,170 @@ export function ExpensesPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--mo-text)]">Расходы</h1>
-          <p className="mt-1 text-sm mo-muted">
+    <div className="expenses-page mo-fill-page relative w-full min-w-0">
+      <div className="mo-admin-page-head expenses-page__head">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-2xl">Расходы</h1>
+          <p className="mt-1 text-xs mo-muted sm:text-sm">
             Ввод расходов по статьям ОСВ клиники (банк, статья, подробно, товар/услуга).
           </p>
         </div>
         <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
-      </header>
+      </div>
 
-      <form
-        onSubmit={onSubmit}
-        className="grid gap-3 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/60 p-4 sm:grid-cols-2 lg:grid-cols-3"
-      >
-        <label className="text-sm mo-muted">
-          Дата
-          <input
-            type="date"
-            className="mo-input mt-1 w-full"
-            value={txnDate}
-            onChange={(e) => setTxnDate(e.target.value)}
-            required
-          />
-        </label>
-        <label className="text-sm mo-muted">
-          Сумма (SOM)
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            className="mo-input mt-1 w-full tabular-nums"
-            value={expense}
-            onChange={(e) => setExpense(e.target.value)}
-            required
-          />
-        </label>
-        {selectOrCustom(bank, catalog?.banks ?? [], setBank, "Банк")}
-        {selectOrCustom(article, catalog?.articles ?? [], setArticle, "Статья")}
-        {selectOrCustom(brief, catalog?.brief_categories ?? [], setBrief, "Кратко")}
-        {selectOrCustom(detail, catalog?.detail_categories ?? [], setDetail, "Подробно")}
-        {selectOrCustom(product, catalog?.products ?? [], setProduct, "Товар / услуга")}
-        <label className="text-sm mo-muted sm:col-span-2 lg:col-span-3">
-          Основание
-          <input className="mo-input mt-1 w-full" value={basis} onChange={(e) => setBasis(e.target.value)} />
-        </label>
-        <label className="text-sm mo-muted">
-          Контрагент
-          <input
-            className="mo-input mt-1 w-full"
-            value={counterparty}
-            onChange={(e) => setCounterparty(e.target.value)}
-          />
-        </label>
-        <label className="text-sm mo-muted">
-          Телефон
-          <input className="mo-input mt-1 w-full" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        </label>
-        <label className="text-sm mo-muted">
-          Через кого
-          <input
-            className="mo-input mt-1 w-full"
-            value={viaPerson}
-            onChange={(e) => setViaPerson(e.target.value)}
-          />
-        </label>
-        <div className="sm:col-span-2 lg:col-span-3">
-          <button
-            type="submit"
-            disabled={createMutation.isPending}
-            className="mo-btn-primary rounded-xl px-4 py-2 text-sm font-medium"
-          >
-            {createMutation.isPending ? "Сохранение…" : "Добавить расход"}
-          </button>
-        </div>
-      </form>
-
-      <section className="overflow-hidden rounded-2xl border border-[var(--mo-border)]">
-        <div className="flex items-center justify-between border-b border-[var(--mo-border)] px-4 py-3">
-          <h2 className="text-sm font-semibold text-[var(--mo-text)]">За месяц</h2>
-          <span className="tabular-nums text-sm mo-muted">Итого: {money(total)}</span>
-        </div>
-        {listQuery.isLoading ? (
-          <p className="px-4 py-6 text-sm mo-muted">Загрузка…</p>
-        ) : rows.length === 0 ? (
-          <p className="px-4 py-6 text-sm mo-muted">Пока нет расходов за этот месяц.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-[var(--mo-surface)]/80 text-xs mo-muted">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Дата</th>
-                  <th className="px-3 py-2 font-medium">Сумма</th>
-                  <th className="px-3 py-2 font-medium">Банк</th>
-                  <th className="px-3 py-2 font-medium">Статья</th>
-                  <th className="px-3 py-2 font-medium">Подробно</th>
-                  <th className="px-3 py-2 font-medium">Товар</th>
-                  <th className="px-3 py-2 font-medium">Контрагент</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-t border-[var(--mo-border)]/70">
-                    <td className="px-3 py-2 tabular-nums">{r.txn_date}</td>
-                    <td className="px-3 py-2 tabular-nums">{money(r.expense)}</td>
-                    <td className="px-3 py-2">{r.bank || "—"}</td>
-                    <td className="px-3 py-2">{r.article || "—"}</td>
-                    <td className="px-3 py-2">{r.detail_category || "—"}</td>
-                    <td className="px-3 py-2">{r.product_service || "—"}</td>
-                    <td className="px-3 py-2">{r.counterparty || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <div className="mo-fill-page-scroll space-y-4 pt-3 sm:space-y-5 sm:pt-4">
+        <form onSubmit={onSubmit} className="expenses-form">
+          <div className="expenses-form__grid">
+            <label className="expenses-field">
+              <span className="expenses-field__label">Дата</span>
+              <input
+                type="date"
+                className="mo-input mt-1 w-full min-w-0"
+                value={txnDate}
+                onChange={(e) => setTxnDate(e.target.value)}
+                required
+              />
+            </label>
+            <label className="expenses-field">
+              <span className="expenses-field__label">Сумма (SOM)</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                className="mo-input mt-1 w-full min-w-0 tabular-nums"
+                value={expense}
+                onChange={(e) => setExpense(e.target.value)}
+                required
+              />
+            </label>
+            {selectOrCustom(bank, catalog?.banks ?? [], setBank, "Банк")}
+            {selectOrCustom(article, catalog?.articles ?? [], setArticle, "Статья")}
+            {selectOrCustom(brief, catalog?.brief_categories ?? [], setBrief, "Кратко")}
+            {selectOrCustom(detail, catalog?.detail_categories ?? [], setDetail, "Подробно")}
+            {selectOrCustom(product, catalog?.products ?? [], setProduct, "Товар / услуга")}
+            <label className="expenses-field expenses-field--span">
+              <span className="expenses-field__label">Основание</span>
+              <input
+                className="mo-input mt-1 w-full min-w-0"
+                value={basis}
+                onChange={(e) => setBasis(e.target.value)}
+              />
+            </label>
+            <label className="expenses-field">
+              <span className="expenses-field__label">Контрагент</span>
+              <input
+                className="mo-input mt-1 w-full min-w-0"
+                value={counterparty}
+                onChange={(e) => setCounterparty(e.target.value)}
+              />
+            </label>
+            <label className="expenses-field">
+              <span className="expenses-field__label">Телефон</span>
+              <input
+                type="tel"
+                inputMode="tel"
+                className="mo-input mt-1 w-full min-w-0"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </label>
+            <label className="expenses-field">
+              <span className="expenses-field__label">Через кого</span>
+              <input
+                className="mo-input mt-1 w-full min-w-0"
+                value={viaPerson}
+                onChange={(e) => setViaPerson(e.target.value)}
+              />
+            </label>
           </div>
-        )}
-      </section>
+          <div className="expenses-form__actions">
+            <button
+              type="submit"
+              disabled={createMutation.isPending}
+              className="mo-btn-primary w-full rounded-xl px-4 py-2.5 text-sm font-medium sm:w-auto sm:py-2"
+            >
+              {createMutation.isPending ? "Сохранение…" : "Добавить расход"}
+            </button>
+          </div>
+        </form>
+
+        <section className="expenses-month overflow-hidden rounded-2xl border border-[var(--mo-border)]">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--mo-border)] px-3 py-3 sm:px-4">
+            <h2 className="text-sm font-semibold text-[var(--mo-text)]">За месяц</h2>
+            <span className="tabular-nums text-sm font-medium text-[var(--mo-text)]">
+              Итого: {money(total)}
+            </span>
+          </div>
+          {listQuery.isLoading ? (
+            <p className="px-3 py-6 text-sm mo-muted sm:px-4">Загрузка…</p>
+          ) : rows.length === 0 ? (
+            <p className="px-3 py-6 text-sm mo-muted sm:px-4">Пока нет расходов за этот месяц.</p>
+          ) : (
+            <>
+              <ul className="expenses-month__cards space-y-2 p-3 md:hidden">
+                {rows.map((r) => (
+                  <li
+                    key={r.id}
+                    className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/50 px-3 py-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-[var(--mo-text)]">
+                          {r.article || r.detail_category || "Расход"}
+                        </div>
+                        <div className="mt-0.5 text-xs mo-muted">
+                          {r.txn_date}
+                          {r.bank ? ` · ${r.bank}` : ""}
+                        </div>
+                      </div>
+                      <div className="shrink-0 tabular-nums text-sm font-semibold text-[var(--mo-text)]">
+                        {money(r.expense)}
+                      </div>
+                    </div>
+                    {(r.product_service || r.counterparty || r.detail_category) && (
+                      <div className="mt-1.5 space-y-0.5 text-xs mo-muted">
+                        {r.detail_category ? <div>Подробно: {r.detail_category}</div> : null}
+                        {r.product_service ? <div>Товар: {r.product_service}</div> : null}
+                        {r.counterparty ? <div>Контрагент: {r.counterparty}</div> : null}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="hidden overflow-x-auto md:block">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-[var(--mo-surface)]/80 text-xs mo-muted">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Дата</th>
+                      <th className="px-3 py-2 font-medium">Сумма</th>
+                      <th className="px-3 py-2 font-medium">Банк</th>
+                      <th className="px-3 py-2 font-medium">Статья</th>
+                      <th className="px-3 py-2 font-medium">Подробно</th>
+                      <th className="px-3 py-2 font-medium">Товар</th>
+                      <th className="px-3 py-2 font-medium">Контрагент</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.id} className="border-t border-[var(--mo-border)]/70">
+                        <td className="px-3 py-2 tabular-nums whitespace-nowrap">{r.txn_date}</td>
+                        <td className="px-3 py-2 tabular-nums whitespace-nowrap">{money(r.expense)}</td>
+                        <td className="px-3 py-2">{r.bank || "—"}</td>
+                        <td className="px-3 py-2">{r.article || "—"}</td>
+                        <td className="px-3 py-2">{r.detail_category || "—"}</td>
+                        <td className="px-3 py-2">{r.product_service || "—"}</td>
+                        <td className="px-3 py-2">{r.counterparty || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
