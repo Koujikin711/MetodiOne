@@ -2391,10 +2391,17 @@ async def patch_appointment_status(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Сумма остатка должна покрыть долг {debt:g}",
                 )
+            if add > 1e-9 and body.payment_method is None and not bill_target.payment_method:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Укажите способ оплаты: наличные, Алиф или DC",
+                )
             new_paid = prev_paid + add
             if new_paid > service + 1e-9:
                 new_paid = service
             bill_target.paid_amount = new_paid
+            if body.payment_method is not None and new_paid > 0:
+                bill_target.payment_method = body.payment_method
             bill_target.updated_at = datetime.now(UTC)
             if bill_target.responsible_manager_id is None:
                 mid: int | None = None
@@ -2417,7 +2424,7 @@ async def patch_appointment_status(
                 details=(
                     f"via=status_completed; from_appointment_id={a.id}; "
                     f"prev_paid={prev_paid}; add_payment={add}; new_paid={new_paid}; "
-                    f"debt_was={debt}"
+                    f"payment_method={bill_target.payment_method}; debt_was={debt}"
                 ),
             )
 

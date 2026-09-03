@@ -567,16 +567,19 @@ export function OnlineBookingPage() {
       id,
       status,
       add_payment,
+      payment_method,
     }: {
       id: number;
       status: string;
       add_payment?: number;
+      payment_method?: "cash" | "alif" | "dc";
     }) =>
       apiFetch<BookingAppointment>(`/api/booking/appointments/${id}/status`, {
         method: "PATCH",
         body: JSON.stringify({
           status,
           ...(typeof add_payment === "number" ? { add_payment } : {}),
+          ...(payment_method ? { payment_method } : {}),
         }),
       }),
     onSuccess: (data, { id, status }) => {
@@ -1892,8 +1895,8 @@ export function OnlineBookingPage() {
                   disabled={statusMutation.isPending}
                   serviceAmount={Number(apptDetail.service_amount ?? 0)}
                   paidAmount={Number(apptDetail.paid_amount ?? 0)}
-                  onStatusChange={(status, add_payment) =>
-                    statusMutation.mutate({ id: apptDetail.id, status, add_payment })
+                  onStatusChange={(status, add_payment, payment_method) =>
+                    statusMutation.mutate({ id: apptDetail.id, status, add_payment, payment_method })
                   }
                 />
               ) : null}

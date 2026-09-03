@@ -3,13 +3,24 @@ import { Check, CheckCircle2 } from "@/components/icons";
 import { formatMoney } from "@/lib/money";
 
 type AttendanceStatus = "booked" | "completed" | "no_show";
+type PaymentMethod = "cash" | "alif" | "dc";
+
+const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
+  { value: "cash", label: "Наличные" },
+  { value: "alif", label: "Алиф" },
+  { value: "dc", label: "DC" },
+];
 
 type Props = {
   status: string;
   disabled?: boolean;
   serviceAmount?: number;
   paidAmount?: number;
-  onStatusChange: (status: AttendanceStatus, addPayment?: number) => void;
+  onStatusChange: (
+    status: AttendanceStatus,
+    addPayment?: number,
+    paymentMethod?: PaymentMethod,
+  ) => void;
 };
 
 function XCircleIcon({ className }: { className?: string }) {
@@ -53,10 +64,12 @@ export function BookingAttendancePanel({
   const debt = debtOf(serviceAmount, paidAmount);
   const [remainderOpen, setRemainderOpen] = useState(false);
   const [remainder, setRemainder] = useState(String(debt || ""));
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
 
   function requestArrived() {
     if (debt > 0.009) {
       setRemainder(String(debt));
+      setPaymentMethod("");
       setRemainderOpen(true);
       return;
     }
@@ -72,7 +85,10 @@ export function BookingAttendancePanel({
     if (value + 1e-9 < debt) {
       return;
     }
-    onStatusChange("completed", value);
+    if (value > 1e-9 && !paymentMethod) {
+      return;
+    }
+    onStatusChange("completed", value, paymentMethod || undefined);
     setRemainderOpen(false);
   }
 
@@ -146,6 +162,32 @@ export function BookingAttendancePanel({
               }}
             />
           </label>
+          {Number(remainder.replace(",", ".") || 0) > 0 ? (
+            <fieldset className="mt-2">
+              <legend className="mb-1.5 text-xs mo-muted">Способ оплаты</legend>
+              <div className="flex flex-wrap gap-1.5">
+                {PAYMENT_METHOD_OPTIONS.map((opt) => {
+                  const active = paymentMethod === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setPaymentMethod(opt.value)}
+                      className={[
+                        "rounded-lg border px-2.5 py-1.5 text-xs font-medium transition",
+                        active
+                          ? "border-[var(--mo-accent)] bg-[var(--mo-accent)]/15 text-[var(--mo-text)]"
+                          : "border-[var(--mo-border)] bg-[var(--mo-surface)] text-[var(--mo-text-muted)] hover:border-[var(--mo-accent)]/50",
+                      ].join(" ")}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ) : null}
           <div className="booking-attendance-remainder__actions">
             <button
               type="button"
@@ -161,7 +203,8 @@ export function BookingAttendancePanel({
               disabled={
                 disabled ||
                 !Number.isFinite(Number(remainder.replace(",", "."))) ||
-                Number(remainder.replace(",", ".")) + 1e-9 < debt
+                Number(remainder.replace(",", ".")) + 1e-9 < debt ||
+                (Number(remainder.replace(",", ".")) > 1e-9 && !paymentMethod)
               }
               onClick={confirmArrivedWithRemainder}
             >

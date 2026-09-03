@@ -297,16 +297,19 @@ export function LeadDetailPage() {
       id,
       status,
       add_payment,
+      payment_method,
     }: {
       id: number;
       status: string;
       add_payment?: number;
+      payment_method?: "cash" | "alif" | "dc";
     }) =>
       apiFetch(`/api/booking/appointments/${id}/status`, {
         method: "PATCH",
         body: JSON.stringify({
           status,
           ...(typeof add_payment === "number" ? { add_payment } : {}),
+          ...(payment_method ? { payment_method } : {}),
         }),
       }),
     onSuccess: (_data, vars) => {
@@ -759,8 +762,13 @@ export function LeadDetailPage() {
                                 disabled={appointmentStatusMutation.isPending}
                                 serviceAmount={Number(a.service_amount ?? 0)}
                                 paidAmount={Number(a.paid_amount ?? 0)}
-                                onStatusChange={(status, add_payment) =>
-                                  appointmentStatusMutation.mutate({ id: a.id, status, add_payment })
+                                onStatusChange={(status, add_payment, payment_method) =>
+                                  appointmentStatusMutation.mutate({
+                                    id: a.id,
+                                    status,
+                                    add_payment,
+                                    payment_method,
+                                  })
                                 }
                               />
                             </div>
