@@ -27,15 +27,8 @@ from app.schemas.extra_services import (
 router = APIRouter(prefix="/extra-services", tags=["extra-services"])
 
 _MONEY = Decimal("0.01")
+# Только главный (owner) и администратор (admin / administrator).
 _ACCESS_ROLES = (
-    UserRole.owner,
-    UserRole.super_owner,
-    UserRole.admin,
-    UserRole.administrator,
-    UserRole.curator,
-    UserRole.manager,
-)
-_SETTINGS_ROLES = (
     UserRole.owner,
     UserRole.super_owner,
     UserRole.admin,
@@ -49,8 +42,7 @@ def _assert_access(user: CurrentUser) -> None:
 
 
 def _assert_settings(user: CurrentUser) -> None:
-    if user.role not in _SETTINGS_ROLES:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Настройки доступны администратору")
+    _assert_access(user)
 
 
 def _money(v: Decimal | float | int | str) -> Decimal:

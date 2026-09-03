@@ -106,6 +106,8 @@ export function MainLayout() {
   // Онлайн-запись только в clinic; в sales скрыта (booking_enabled=false).
   const bookingEnabled = meQuery.isSuccess && meQuery.data?.booking_enabled !== false;
   const deskSalesEnabled = salesSpace;
+  const showExtraServices =
+    role === "owner" || role === "admin" || role === "administrator";
   const managerChatFirst = chatStagesEnabled && isManagerLikeNav;
   const { showNavForFeature } = useTariffNavAccess();
   const { expanded: sidebarExpanded, toggle: toggleSidebar } = useShellSidebarExpanded();
@@ -169,6 +171,7 @@ export function MainLayout() {
               bookingEnabled={bookingEnabled}
               deskSalesEnabled={deskSalesEnabled}
               chatStagesEnabled={chatStagesEnabled}
+              showExtraServices={showExtraServices}
               showNavForFeature={showNavForFeature}
               onLogout={logout}
             />

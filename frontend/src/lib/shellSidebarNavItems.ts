@@ -42,6 +42,8 @@ type BuildParams = {
   bookingEnabled?: boolean;
   deskSalesEnabled?: boolean;
   chatStagesEnabled?: boolean;
+  /** Доп услуги — только owner / admin / administrator */
+  showExtraServices?: boolean;
   showNavForFeature: (feature: string) => boolean;
   navLex: {
     navKanban: string;
@@ -88,6 +90,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     bookingEnabled = true,
     deskSalesEnabled = false,
     chatStagesEnabled: _chatStagesEnabled = true,
+    showExtraServices = false,
     showNavForFeature,
     navLex,
   } = params;
@@ -128,7 +131,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         variant: "online",
         iconKey: "calendar",
       });
-      items.push(extraServicesNavItem());
+      if (showExtraServices) items.push(extraServicesNavItem());
     }
     if (showKpi && showNavForFeature("kpi")) {
       items.push({
@@ -179,7 +182,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         variant: "online",
         iconKey: "calendar",
       });
-      items.push(extraServicesNavItem());
+      if (showExtraServices) items.push(extraServicesNavItem());
     }
     if (showKpi && showNavForFeature("kpi")) {
       items.push({
@@ -266,7 +269,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         variant: "online",
         iconKey: "calendar",
       });
-      items.push(extraServicesNavItem());
+      if (showExtraServices) items.push(extraServicesNavItem());
     }
     if (showDeskSales) {
       items.push(
@@ -308,7 +311,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
           variant: "online",
           iconKey: "calendar",
         });
-      items.push(extraServicesNavItem());
+        if (showExtraServices) items.push(extraServicesNavItem());
       }
       if (showKpi && showNavForFeature("kpi")) {
         items.push({
@@ -457,7 +460,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         variant: "tasks",
         iconKey: "calendar",
       });
-      items.push(extraServicesNavItem());
+      if (showExtraServices) items.push(extraServicesNavItem());
     }
     if (bookingEnabled && showNavForFeature("reports")) {
       items.push({
@@ -527,7 +530,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       variant: "tasks",
       iconKey: "calendar",
     });
-      items.push(extraServicesNavItem());
+    if (showExtraServices) items.push(extraServicesNavItem());
   }
   if (showDeskSales) {
     items.push(

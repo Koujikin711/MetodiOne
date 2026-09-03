@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 
 import { DateField } from "@/components/DateField";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
@@ -104,8 +104,8 @@ function n(v: number | string | null | undefined): number {
   return Number(v || 0);
 }
 
-function canEditSettings(role: string | null): boolean {
-  return role === "owner" || role === "super_owner" || role === "admin" || role === "administrator";
+function canAccessExtraServices(role: string | null): boolean {
+  return role === "owner" || role === "admin" || role === "administrator";
 }
 
 const fieldClass = "mo-input mt-1.5 w-full";
@@ -113,7 +113,7 @@ const fieldClass = "mo-input mt-1.5 w-full";
 export function ExtraServicesPage() {
   const qc = useQueryClient();
   const role = decodeRoleFromToken(getStoredToken());
-  const settingsOk = canEditSettings(role);
+  const accessOk = canAccessExtraServices(role);
   const [tab, setTab] = useState<TabId>("new");
   const [yearMonth, setYearMonth] = useState(defaultYearMonth);
   const range = useMemo(() => monthRange(yearMonth), [yearMonth]);
@@ -121,6 +121,7 @@ export function ExtraServicesPage() {
   const typesQuery = useQuery({
     queryKey: ["extra-service-types"],
     queryFn: () => apiFetch<ExtraServiceType[]>("/api/extra-services/types"),
+    enabled: accessOk,
   });
   const activeTypes = useMemo(
     () => (typesQuery.data ?? []).filter((t) => t.is_active),
@@ -258,7 +259,7 @@ export function ExtraServicesPage() {
       if (journalDebounced) qs.set("q", journalDebounced);
       return apiFetch<ExtraServiceSale[]>(`/api/extra-services/sales?${qs.toString()}`);
     },
-    enabled: tab === "journal" || tab === "new",
+    enabled: accessOk && (tab === "journal" || tab === "new"),
   });
 
   const cancelSale = useMutation({
@@ -280,8 +281,12 @@ export function ExtraServicesPage() {
       });
       return apiFetch<ExtraServiceReport>(`/api/extra-services/report?${qs.toString()}`);
     },
-    enabled: tab === "report",
+    enabled: accessOk && tab === "report",
   });
+
+  if (!accessOk) {
+    return <Navigate to="/booking" replace />;
+  }
 
   return (
     <div className="mo-page space-y-4">
@@ -328,19 +333,14 @@ export function ExtraServicesPage() {
             </label>
             {!activeTypes.length ? (
               <p className="text-xs mo-muted">
-                Сначала добавьте услуги во вкладке «Настройки %»
-                {settingsOk ? (
-                  <>
-                    {" "}
-                    <button
-                      type="button"
-                      className="text-[var(--mo-accent-hover)] underline"
-                      onClick={() => setTab("settings")}
-                    >
-                      открыть
-                    </button>
-                  </>
-                ) : null}
+                Сначала добавьте услуги во вкладке «Настройки %»{" "}
+                <button
+                  type="button"
+                  className="text-[var(--mo-accent-hover)] underline"
+                  onClick={() => setTab("settings")}
+                >
+                  открыть
+                </button>
                 .
               </p>
             ) : null}
@@ -432,26 +432,23 @@ export function ExtraServicesPage() {
 
       {tab === "settings" && (
         <div className="space-y-4">
-          {!settingsOk ? (
-            <p className="text-sm mo-muted">Настройки % доступны администратору и владельцу.</p>
-          ) : (
-            <form
-              className="grid gap-3 rounded-2xl border border-[var(--mo-border)] p-4 sm:grid-cols-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const k = Number(String(newKeep).replace(",", "."));
-                const p = Number(String(newPayout).replace(",", "."));
-                if (!newName.trim()) {
-                  toast.error("Укажите название");
-                  return;
-                }
-                if (Math.abs(k + p - 100) > 0.01) {
-                  toast.error("Сумма % должна быть 100");
-                  return;
-                }
-                createType.mutate();
-              }}
-            >
+          <form
+            className="grid gap-3 rounded-2xl border border-[var(--mo-border)] p-4 sm:grid-cols-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const k = Number(String(newKeep).replace(",", "."));
+              const p = Number(String(newPayout).replace(",", "."));
+              if (!newName.trim()) {
+                toast.error("Укажите название");
+                return;
+              }
+              if (Math.abs(k + p - 100) > 0.01) {
+                toast.error("Сумма % должна быть 100");
+                return;
+              }
+              createType.mutate();
+            }}
+          >
               <label className="block text-sm sm:col-span-2">
                 Название услуги
                 <input
@@ -493,7 +490,6 @@ export function ExtraServicesPage() {
                 </button>
               </div>
             </form>
-          )}
 
           <div className="overflow-x-auto">
             <table className="mo-table min-w-[640px]">
@@ -503,7 +499,7 @@ export function ExtraServicesPage() {
                   <th>% нам</th>
                   <th>% отдаём</th>
                   <th>Статус</th>
-                  {settingsOk ? <th /> : null}
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -551,31 +547,29 @@ export function ExtraServicesPage() {
                       <td className="tabular-nums">{n(t.keep_percent)}%</td>
                       <td className="tabular-nums">{n(t.payout_percent)}%</td>
                       <td>{t.is_active ? "Активна" : "Выкл."}</td>
-                      {settingsOk ? (
-                        <td className="space-x-2 whitespace-nowrap">
+                      <td className="space-x-2 whitespace-nowrap">
+                        <button
+                          type="button"
+                          className="text-xs text-[var(--mo-accent-hover)] underline"
+                          onClick={() => {
+                            setEditId(t.id);
+                            setEditName(t.name);
+                            setEditKeep(String(n(t.keep_percent)));
+                            setEditPayout(String(n(t.payout_percent)));
+                          }}
+                        >
+                          Изменить
+                        </button>
+                        {t.is_active ? (
                           <button
                             type="button"
-                            className="text-xs text-[var(--mo-accent-hover)] underline"
-                            onClick={() => {
-                              setEditId(t.id);
-                              setEditName(t.name);
-                              setEditKeep(String(n(t.keep_percent)));
-                              setEditPayout(String(n(t.payout_percent)));
-                            }}
+                            className="text-xs text-red-600 underline"
+                            onClick={() => deactivateType.mutate(t.id)}
                           >
-                            Изменить
+                            Отключить
                           </button>
-                          {t.is_active ? (
-                            <button
-                              type="button"
-                              className="text-xs text-red-600 underline"
-                              onClick={() => deactivateType.mutate(t.id)}
-                            >
-                              Отключить
-                            </button>
-                          ) : null}
-                        </td>
-                      ) : null}
+                        ) : null}
+                      </td>
                     </tr>
                   ),
                 )}
