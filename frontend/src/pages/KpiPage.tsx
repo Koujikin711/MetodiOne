@@ -19,7 +19,7 @@ import type {
   SalesKpiWeightedPlan,
 } from "@/lib/types";
 
-type TabId = "plan" | "sales" | "company" | "manual" | "streams" | "debtors";
+type TabId = "plan" | "sales" | "company" | "manual" | "debtors";
 
 type PlanDraftItem = {
   key: string;
@@ -247,7 +247,6 @@ export function KpiPage() {
     note: "",
   });
   const [payDraft, setPayDraft] = useState<Record<number, string>>({});
-  const [streamTabNo, setStreamTabNo] = useState("1");
 
   const pipelinesQuery = useQuery({
     queryKey: ["sales-kpi-pipelines"],
@@ -286,7 +285,7 @@ export function KpiPage() {
   const manualQuery = useQuery({
     queryKey: ["sales-kpi-manual-sales", qs],
     queryFn: () => apiFetch<SalesKpiManualSale[]>(`/api/sales-kpi/manual-sales?${qs}`),
-    enabled: Boolean(pipelineId && isAdminOrOwner && (tab === "manual" || tab === "streams")),
+    enabled: Boolean(pipelineId && isAdminOrOwner && tab === "manual"),
   });
 
   const debtorsQuery = useQuery({
@@ -493,7 +492,6 @@ export function KpiPage() {
     },
     { id: "company", label: "Отчёт компании", shortLabel: "Отчёт", show: isOwner || isAccountant },
     { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: isAdminOrOwner },
-    { id: "streams", label: "Поток", shortLabel: "Поток", show: isAdminOrOwner },
     {
       id: "debtors",
       label: isCurator ? "Дебиторка курсов / протоколов" : "Дебиторка",
@@ -995,10 +993,10 @@ export function KpiPage() {
         <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
           <div>
             <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажа курса / протокола</h2>
-            <p className="mt-1 hidden text-sm lux-caption sm:block">
+            <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
               {salesSpace
-                ? "Факт KPI без онлайн-записи. В KPI с оплаты ≥25%. Список тянется до 3 месяцев или пока есть долг; отказ/завершение — со статусом и причиной."
-                : "Без онлайн-записи. В KPI с оплаты ≥25%. Пациенты остаются в списке до полной оплаты и 3 месяцев лечения либо до статуса «отказ»/«завершён» с причиной."}
+                ? "Факт KPI без онлайн-записи. В KPI с оплаты ≥25%. Группа — время образования, поток — номер платежа."
+                : "Без онлайн-записи. В KPI с оплаты ≥25%. Группа — время образования, поток — номер платежа."}
             </p>
           </div>
 
@@ -1311,91 +1309,6 @@ export function KpiPage() {
             </table>
             {manualQuery.isLoading ? <p className="mt-2 text-sm lux-caption">Загрузка…</p> : null}
           </div>
-        </section>
-      ) : null}
-
-      {tab === "streams" && isAdminOrOwner ? (
-        <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
-          <div>
-            <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Поток</h2>
-            <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
-              Поток — номер платежа. Группа — время образования.
-            </p>
-          </div>
-          <label className="flex max-w-xs flex-col gap-1 text-[11px] mo-muted sm:text-sm">
-            Поток
-            <select
-              className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-              value={streamTabNo}
-              onChange={(e) => setStreamTabNo(e.target.value)}
-            >
-              {KPI_STREAM_OPTIONS.map((n) => (
-                <option key={n} value={String(n)}>
-                  Поток {n}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {(() => {
-            const selected = Number(streamTabNo);
-            const rows = (manualQuery.data ?? []).filter((s) => Number(s.stream_no) === selected);
-            return (
-              <>
-                <p className="text-xs text-[var(--mo-text-muted)] sm:text-sm">
-                  {streamLabel(selected)} · записей: {rows.length}
-                </p>
-                <div className="overflow-x-auto">
-                  <table className="kpi-data-table min-w-[720px] text-sm">
-                    <thead>
-                      <tr>
-                        <th>Дата</th>
-                        <th>Продукт</th>
-                        <th>Группа</th>
-                        <th>Клиент</th>
-                        <th>Менеджер</th>
-                        <th>Сумма</th>
-                        <th>Оплачено</th>
-                        <th>Долг</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((s) => (
-                        <tr key={s.id}>
-                          <td className="whitespace-nowrap tabular-nums">
-                            {s.sold_at ? formatSaleDt(s.sold_at) : "—"}
-                          </td>
-                          <td>{s.plan_item_name}</td>
-                          <td className="whitespace-nowrap">{groupLabel(s.group_no)}</td>
-                          <td className="font-medium">{s.client_name}</td>
-                          <td>{s.manager_name}</td>
-                          <td className="tabular-nums whitespace-nowrap">{formatMoney(num(s.service_amount))}</td>
-                          <td className="tabular-nums whitespace-nowrap">{formatMoney(num(s.paid_amount))}</td>
-                          <td>
-                            <span
-                              className={["kpi-debt", num(s.debt_amount) <= 0 ? "is-zero" : ""]
-                                .filter(Boolean)
-                                .join(" ")}
-                            >
-                              {formatMoney(num(s.debt_amount))}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                      {rows.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="py-3 text-[var(--mo-text-muted)]">
-                            В этом потоке пока нет продаж
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-                {manualQuery.isLoading ? <p className="text-sm lux-caption">Загрузка…</p> : null}
-              </>
-            );
-          })()}
         </section>
       ) : null}
 

@@ -4114,18 +4114,19 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: #6ee7b7;
 }
 
-/* Таблицы KPI — как журнал записи: ровные строки, без zebra */
+/* Таблицы KPI — читаемый размер, без zebra */
 .kpi-data-table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
   color: var(--mo-text);
+  font-size: 0.875rem;
 }
 
 .kpi-data-table thead th {
-  padding: 0.25rem 0.375rem;
-  font-size: 0.6875rem;
-  font-weight: 600;
+  padding: 0.5rem 0.65rem 0.5rem 0;
+  font-size: 0.8125rem;
+  font-weight: 650;
   white-space: nowrap;
   color: #334155;
   background: transparent;
@@ -4133,10 +4134,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .kpi-data-table tbody td {
-  padding: 0.25rem 0.375rem;
-  font-size: 0.75rem;
-  line-height: 1.25;
-  vertical-align: top;
+  padding: 0.5rem 0.65rem 0.5rem 0;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  vertical-align: middle;
   border-bottom: 1px solid #e8eaee;
   color: var(--mo-text);
 }
@@ -4154,7 +4155,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 :root[data-theme="dark"] .kpi-data-table thead th {
-  color: var(--mo-text-muted);
+  color: #cbd5e1;
   background: transparent;
   border-bottom: 1px solid var(--mo-border);
 }
