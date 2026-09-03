@@ -603,18 +603,14 @@ export interface BookingAppointment {
   comment: string | null;
   /** Оплата/удаление в журнале (владелец или админ воронки по лиду) */
   can_manage_journal?: boolean;
-  /** Когда клиенту отправили уведомление о записи */
-  notification_sent_at?: string | null;
-  /** Когда клиент ответил на уведомление */
-  notification_replied_at?: string | null;
+  /** WhatsApp-подтверждение записи отправлено (Green API) */
+  whatsapp_confirmation_sent?: boolean;
   /** Номер визита или день в потоке */
   visit_number?: number | null;
   /** Поток:день, например 1:10 */
   visit_label?: string | null;
   visit_stream?: number | null;
   visit_stream_day?: number | null;
-  /** WhatsApp-подтверждение записи отправлено */
-  whatsapp_confirmation_sent?: boolean;
 }
 
 /** Правила отображения номера сеанса в онлайн-записи (главный эксперт воронки). */

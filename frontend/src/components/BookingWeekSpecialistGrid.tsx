@@ -78,15 +78,10 @@ function countsKey(specId: number, dateYmd: string): string {
 }
 
 function appointmentVisualClass(a: BookingAppointment): string {
-  const anyA = a as BookingAppointment & {
-    notification_sent_at?: string | null;
-    notification_replied_at?: string | null;
-  };
   if (a.status === "cancelled") return "booking-appt booking-appt--cancelled";
   if (a.status === "no_show") return "booking-appt booking-appt--no_show";
   if (a.status === "completed") return "booking-appt booking-appt--completed";
-  if (anyA.notification_replied_at) return "booking-appt booking-appt--replied";
-  if (anyA.notification_sent_at) return "booking-appt booking-appt--notify";
+  if (a.whatsapp_confirmation_sent) return "booking-appt booking-appt--notify";
   const c = (a.comment || "").toLowerCase();
   if (c.includes("ответил") || c.includes("подтвердил")) return "booking-appt booking-appt--replied";
   if (c.includes("уведом") || c.includes("напомин")) return "booking-appt booking-appt--notify";

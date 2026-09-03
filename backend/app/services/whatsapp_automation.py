@@ -230,15 +230,25 @@ async def send_booking_confirmation_if_needed(
             delivery_status=("sent" if ok else "failed"),
             provider_message_id=provider_id,
         )
+    if not ok:
+        await write_audit_event(
+            db,
+            entity_type="booking_appointment",
+            entity_id=appointment.id,
+            action="whatsapp_confirm_failed",
+            current_user=None,
+            details=f"send_failed={err}",
+        )
+        return False
     await write_audit_event(
         db,
         entity_type="booking_appointment",
         entity_id=appointment.id,
         action="whatsapp_confirm_sent",
         current_user=None,
-        details=None if ok else f"send_failed={err}",
+        details=None,
     )
-    return bool(ok)
+    return True
 
 
 async def run_whatsapp_reminder_tick(db: AsyncSession) -> int:
