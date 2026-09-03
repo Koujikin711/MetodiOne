@@ -41,6 +41,7 @@ from app.database_migrate import (
     ensure_fix_kurs_direction_and_session_pay,
     ensure_fix_ayub_massage_prepaid_10x150,
     ensure_fix_aug2026_konsult_to_kurs15,
+    ensure_fix_massage_osv_prepaid_aug2026,
     ensure_clinic_staff_roles,
 )
 from app.core.security import decode_token, hash_password, verify_password
@@ -149,6 +150,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_fix_kurs_direction_and_session_pay(conn, db_url)
                 await ensure_fix_ayub_massage_prepaid_10x150(conn, db_url)
                 await ensure_fix_aug2026_konsult_to_kurs15(conn, db_url)
+                await ensure_fix_massage_osv_prepaid_aug2026(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts

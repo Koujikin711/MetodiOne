@@ -3058,3 +3058,161 @@ async def _fix_aug2026_konsult_to_kurs15_body(conn: AsyncConnection, database_ur
             text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
             {"n": patch_name},
         )
+
+
+async def ensure_fix_massage_osv_prepaid_aug2026(conn: AsyncConnection, database_url: str) -> None:
+    """One-shot: разнести предоплаты массажа из ОСВ по сеансам (авг 2026) + Алия → Курс 15."""
+    import logging
+
+    log = logging.getLogger("crm.migrate")
+    try:
+        await _fix_massage_osv_prepaid_aug2026_body(conn, database_url)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("fix_massage_osv_prepaid_aug2026 failed (skipped): %s", exc)
+
+
+async def _fix_massage_osv_prepaid_aug2026_body(conn: AsyncConnection, database_url: str) -> None:
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at DATETIME
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at TIMESTAMPTZ
+                )"""
+            ),
+        )
+
+    patch_name = "fix_massage_osv_prepaid_aug2026_v1"
+    existing = await conn.execute(
+        text("SELECT 1 FROM app_data_patches WHERE name = :n LIMIT 1"),
+        {"n": patch_name},
+    )
+    if existing.first() is not None:
+        return
+
+    async def _set_paid(aids: list[int] | tuple[int, ...], *, service: float, paid: float) -> None:
+        for aid in aids:
+            await conn.execute(
+                text(
+                    """
+                    UPDATE booking_appointments
+                    SET service_amount = :svc, paid_amount = :paid
+                    WHERE id = :aid
+                    """
+                ),
+                {"svc": service, "paid": paid, "aid": int(aid)},
+            )
+
+    # Курбонова Фотима: 900 массаж (6×150) + 600 логопед (4×150)
+    await _set_paid((2304, 2723, 2502, 2744, 2745, 2746), service=150, paid=150)
+    await _set_paid((2305, 2306, 2503, 2504, 2747, 2748), service=150, paid=0)
+    await _set_paid((2448, 2449, 2742, 2743), service=150, paid=150)
+
+    # Розизода Иброхим: 2250 на 14 сеансов (первый 300, остальные 150)
+    await _set_paid((1900,), service=300, paid=300)
+    await _set_paid(
+        (1901, 2004, 2005, 2006, 2007, 2008, 2009, 2192, 2193, 2208, 2209, 2210, 2211),
+        service=150,
+        paid=150,
+    )
+
+    # Ибодулозода Гулбахор: 2250 = 15×150
+    await _set_paid(
+        (2080, 2081, 2119, 2120, 2121, 2122, 2123, 2124, 2403, 2404, 2405, 2406, 2407, 2408, 2541),
+        service=150,
+        paid=150,
+    )
+    await _set_paid((2542, 2543), service=150, paid=0)
+
+    # Сулаймони Абубакр: 1500 = 10×150
+    await _set_paid(
+        (2293, 2294, 2296, 2476, 2477, 2478, 2479, 2480, 2481, 2681),
+        service=150,
+        paid=150,
+    )
+    await _set_paid((2682, 2683, 2684, 2685, 2686, 2855, 2856), service=150, paid=0)
+
+    # Хикматов Сино: 1350 = 9×150
+    await _set_paid((2805, 2907, 2908, 2909, 2910, 2911, 3055, 3056, 3057), service=150, paid=150)
+    await _set_paid((3058, 3059, 3060), service=150, paid=0)
+
+    # Хуршедзода Абдулло: 1500 = 10×150
+    await _set_paid(
+        (2752, 2753, 2794, 2921, 2922, 2923, 2924, 2925, 2926, 3039),
+        service=150,
+        paid=150,
+    )
+
+    # Яхёев Мансур: 1950 = 13×150
+    await _set_paid(
+        (2637, 2700, 2701, 2702, 2703, 2704, 2857, 2896, 2897, 2898, 2899, 2900, 3068),
+        service=150,
+        paid=150,
+    )
+    await _set_paid((3069, 3070), service=150, paid=0)
+
+    # Нусратуллозода Ёсуман: 1950 = 13×150
+    await _set_paid(
+        (2705, 2706, 2707, 2708, 2709, 2710, 2882, 2883, 2884, 2885, 2886, 2887, 3006),
+        service=150,
+        paid=150,
+    )
+    await _set_paid((2638,), service=150, paid=0)
+
+    # Чунайдуллозода Гулноза: 600 = 4×150
+    await _set_paid((2172, 2173, 2174, 1958), service=150, paid=150)
+
+    # Махмуров Абдулло / Махмурова Хатича: по 1350 = 9×150
+    await _set_paid((2556, 2557, 2558, 2559, 2651, 2652, 2653, 2654, 2836), service=150, paid=150)
+    await _set_paid((2838, 2933), service=150, paid=0)
+    await _set_paid((2560, 2561, 2562, 2563, 2657, 2756, 2658, 2660, 2661), service=150, paid=150)
+    await _set_paid((2837, 2927), service=150, paid=0)
+
+    # Бахтиёрзода Алия 1000 — в документе ошибка «массаж», это Курс 15
+    kurs15 = (
+        await conn.execute(
+            text(
+                """
+                SELECT id FROM booking_directions
+                WHERE company_id = 1 AND lower(name) LIKE '%курс%15%'
+                ORDER BY id ASC LIMIT 1
+                """
+            )
+        )
+    ).scalar_one_or_none()
+    if kurs15 is not None:
+        await conn.execute(
+            text(
+                """
+                UPDATE booking_appointments
+                SET direction_id = :did,
+                    service_title = 'Курс 15',
+                    service_amount = 1000,
+                    paid_amount = 1000
+                WHERE id = 2566
+                """
+            ),
+            {"did": int(kurs15)},
+        )
+
+    if sqlite:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, CURRENT_TIMESTAMP)"),
+            {"n": patch_name},
+        )
+    else:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
+            {"n": patch_name},
+        )
