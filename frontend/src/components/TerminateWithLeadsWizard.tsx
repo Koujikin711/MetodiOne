@@ -4,7 +4,6 @@ import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/Button";
 import { apiFetch } from "@/lib/api";
-import { theme } from "@/lib/theme";
 import type { Employee } from "@/pages/EmployeesPage";
 
 type Props = {
@@ -19,13 +18,16 @@ export function TerminateWithLeadsWizard({ employee, activeManagers, onClose, on
   const [step, setStep] = useState<1 | 2>(1);
   const [toIds, setToIds] = useState<number[]>([]);
 
+  const canHaveLeads = employee.role === "manager" || employee.role === "admin" || employee.role === "owner";
+
   const previewQuery = useQuery({
     queryKey: ["terminate-lead-preview", employee.id],
     queryFn: () =>
       apiFetch<{ lead_count: number }>(`/api/leads/redistribution/preview?from_manager_id=${employee.id}`),
+    enabled: canHaveLeads,
   });
 
-  const leadCount = previewQuery.data?.lead_count ?? 0;
+  const leadCount = canHaveLeads ? (previewQuery.data?.lead_count ?? 0) : 0;
   const targets = useMemo(
     () => activeManagers.filter((m) => m.id !== employee.id && (m.role === "manager" || m.role === "admin")),
     [activeManagers, employee.id],
@@ -63,31 +65,47 @@ export function TerminateWithLeadsWizard({ employee, activeManagers, onClose, on
 
   const label = employee.full_name ?? employee.email;
   const busy = redistributeMutation.isPending || terminateMutation.isPending;
+  const checkingLeads = canHaveLeads && previewQuery.isLoading;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/65 p-4">
-      <div className={`w-full max-w-lg ${theme.surfaceCard} p-6 shadow-2xl`}>
-        <h2 className="lux-subheading">Увольнение: {label}</h2>
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/65 p-4"
+      role="dialog"
+      aria-modal
+      aria-labelledby="terminate-wizard-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !busy) onClose();
+      }}
+    >
+      <div
+        className="w-full max-w-lg rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-6 shadow-2xl crm-modal-panel"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="terminate-wizard-title" className="text-base font-semibold text-[var(--mo-text)]">
+          Увольнение: {label}
+        </h2>
 
         {step === 1 && (
           <>
-            <p className="mt-2 text-sm lux-caption">
-              {previewQuery.isLoading
+            <p className="mt-2 text-sm text-[var(--mo-text-muted)]">
+              {checkingLeads
                 ? "Проверяем лиды…"
-                : leadCount > 0
-                  ? `У сотрудника ${leadCount} лид(ов). Рекомендуем передать их другим менеджерам до блокировки доступа.`
-                  : "Активных лидов на этом сотруднике нет — можно сразу уволить."}
+                : !canHaveLeads
+                  ? "У эксперта нет закреплённых лидов CRM — можно сразу уволить (запись к специалисту отключится)."
+                  : leadCount > 0
+                    ? `У сотрудника ${leadCount} лид(ов). Рекомендуем передать их другим менеджерам до блокировки доступа.`
+                    : "Активных лидов на этом сотруднике нет — можно сразу уволить."}
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               <Button variant="secondary" onClick={onClose} disabled={busy}>
                 Отмена
               </Button>
               {leadCount > 0 ? (
-                <Button onClick={() => setStep(2)} disabled={previewQuery.isLoading}>
+                <Button onClick={() => setStep(2)} disabled={checkingLeads}>
                   Передать лиды →
                 </Button>
               ) : null}
-              <Button variant="danger" onClick={() => void finish()} disabled={busy || previewQuery.isLoading}>
+              <Button variant="danger" onClick={() => void finish()} disabled={busy || checkingLeads}>
                 {busy ? "…" : "Уволить"}
               </Button>
             </div>
@@ -96,7 +114,7 @@ export function TerminateWithLeadsWizard({ employee, activeManagers, onClose, on
 
         {step === 2 && (
           <>
-            <p className="mt-2 text-sm lux-caption">Выберите получателей (round-robin).</p>
+            <p className="mt-2 text-sm text-[var(--mo-text-muted)]">Выберите получателей (round-robin).</p>
             <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
               {targets.map((m) => (
                 <label key={m.id} className="flex items-center gap-2 text-sm text-[var(--mo-text)]">

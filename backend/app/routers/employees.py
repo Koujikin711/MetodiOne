@@ -131,6 +131,25 @@ async def _employee_read(db: AsyncSession, u: User) -> EmployeeRead:
     )
 
 
+def _employee_read_cached(
+    u: User,
+    *,
+    pipeline_ids: list[int],
+    specialist: BookingSpecialist | None,
+) -> EmployeeRead:
+    sp_text = (specialist.specialization or "").strip() if specialist else ""
+    return EmployeeRead(
+        id=u.id,
+        email=u.email,
+        phone=u.phone,
+        full_name=u.full_name,
+        role=u.role,
+        pipeline_ids=pipeline_ids,
+        specialization=sp_text or None,
+        booking_direction_id=specialist.direction_id if specialist else None,
+    )
+
+
 async def _sync_expert_calendar_profile(
     db: AsyncSession,
     *,
@@ -426,8 +445,43 @@ async def list_employees(
 ) -> list[EmployeeRead]:
     await assert_owner_admin_or_chief_expert(db, current_user, detail="Недостаточно прав для просмотра сотрудников")
     r = await db.execute(select(User).where(User.company_id == company_id, User.is_active.is_(True)).order_by(User.id.desc()))
-    users = r.scalars().all()
-    return [await _employee_read(db, u) for u in users]
+    users = list(r.scalars().all())
+    if not users:
+        return []
+    user_ids = [int(u.id) for u in users]
+
+    assign_rows = (
+        await db.execute(
+            select(UserPipelineAssignment.user_id, UserPipelineAssignment.pipeline_id).where(
+                UserPipelineAssignment.company_id == company_id,
+                UserPipelineAssignment.user_id.in_(user_ids),
+            )
+        )
+    ).all()
+    pipes_by_user: dict[int, list[int]] = {uid: [] for uid in user_ids}
+    for uid, pid in assign_rows:
+        pipes_by_user.setdefault(int(uid), []).append(int(pid))
+
+    spec_rows = (
+        await db.execute(select(BookingSpecialist).where(BookingSpecialist.crm_user_id.in_(user_ids)))
+    ).scalars().all()
+    spec_by_user: dict[int, BookingSpecialist] = {}
+    for sp in spec_rows:
+        cid = sp.crm_user_id
+        if cid is None:
+            continue
+        uid = int(cid)
+        if uid not in spec_by_user:
+            spec_by_user[uid] = sp
+
+    return [
+        _employee_read_cached(
+            u,
+            pipeline_ids=pipes_by_user.get(int(u.id), []),
+            specialist=spec_by_user.get(int(u.id)),
+        )
+        for u in users
+    ]
 
 
 @router.post("/invite", response_model=InviteEmployeeResult, status_code=status.HTTP_201_CREATED)

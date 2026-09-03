@@ -246,8 +246,10 @@ export function EmployeesPage() {
     queryKey: ["leads-redistribution-undoable"],
     queryFn: () =>
       apiFetch<UndoableRedistribution[]>("/api/leads/redistribution/undoable?limit=5", {
-        timeoutMs: 60_000,
+        timeoutMs: 45_000,
       }),
+    enabled: !!employeesQuery.data,
+    staleTime: 30_000,
     retry: 1,
   });
 
