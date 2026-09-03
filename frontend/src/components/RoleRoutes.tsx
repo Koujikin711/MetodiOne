@@ -57,7 +57,13 @@ export function HomeEntry() {
   if (role === "accountant" || role === "finance_analyst") {
     return <Navigate to="/finance" replace />;
   }
-  // Менеджер/админ: стадии только из чата (и clinic admin/admin, и sales).
+  if (role === "curator") {
+    return <Navigate to="/booking" replace />;
+  }
+  if (role === "administrator") {
+    return <Navigate to="/chat" replace />;
+  }
+  // Менеджер/админ воронки: стадии только из чата.
   if (chatStages && (role === "manager" || role === "admin")) {
     return <Navigate to="/chat" replace />;
   }
@@ -94,9 +100,10 @@ export function BookingOrSalesEntry() {
 }
 
 export function RequireNotManager({ children }: { children: ReactNode }) {
-  if (isManagerNavRole(decodeRoleFromToken(getStoredToken()))) {
+  const role = decodeRoleFromToken(getStoredToken());
+  if (isManagerNavRole(role) || role === "curator" || role === "administrator" || role === "accountant") {
     return (
-      <AccessDenied message="Этот раздел недоступен для роли менеджера или администратора воронки. Обратитесь к владельцу компании." />
+      <AccessDenied message="Этот раздел недоступен для вашей роли. Обратитесь к владельцу компании." />
     );
   }
   return <>{children}</>;
@@ -112,7 +119,12 @@ export function RequireOwner({ children }: { children: ReactNode }) {
 export function RequireOwnerOrAdmin({ children }: { children: ReactNode }) {
   const r = decodeRoleFromToken(getStoredToken());
   const meQuery = useCurrentUserMe();
-  if (r !== "owner" && r !== "admin" && !isChiefExpertFromMe(r, meQuery.data?.is_chief_expert)) {
+  if (
+    r !== "owner" &&
+    r !== "admin" &&
+    r !== "administrator" &&
+    !isChiefExpertFromMe(r, meQuery.data?.is_chief_expert)
+  ) {
     return <AccessDenied message="Раздел доступен владельцу, администратору или главному эксперту воронки." />;
   }
   return <>{children}</>;
@@ -124,6 +136,7 @@ export function RequireFinance({ children }: { children: ReactNode }) {
   if (
     r !== "owner" &&
     r !== "admin" &&
+    r !== "administrator" &&
     r !== "super_owner" &&
     r !== "finance_analyst" &&
     r !== "accountant" &&
@@ -132,6 +145,14 @@ export function RequireFinance({ children }: { children: ReactNode }) {
     return (
       <AccessDenied message="Раздел «Финансы» доступен владельцу, администратору, бухгалтеру, финансовому аналитику или главному эксперту воронки." />
     );
+  }
+  return <>{children}</>;
+}
+
+export function RequireExpenses({ children }: { children: ReactNode }) {
+  const r = decodeRoleFromToken(getStoredToken());
+  if (r !== "owner" && r !== "super_owner" && r !== "accountant" && r !== "admin") {
+    return <AccessDenied message="Раздел «Расходы» доступен бухгалтеру и владельцу." />;
   }
   return <>{children}</>;
 }

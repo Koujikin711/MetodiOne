@@ -75,6 +75,9 @@ export function MainLayout() {
   const userId = decodeUserIdFromToken(getStoredToken());
   const isSuperOwner = role === "super_owner";
   const isManagerNav = role === "manager" || role === "admin";
+  const isAdministrator = role === "administrator";
+  const isCurator = role === "curator";
+  const isAccountant = role === "accountant";
   const isExpert = role === "expert";
   const meQuery = useCurrentUserMe();
   const isChiefExpert = Boolean(meQuery.data?.is_chief_expert);
@@ -83,12 +86,20 @@ export function MainLayout() {
   const showFinance =
     role === "owner" ||
     role === "admin" ||
+    role === "administrator" ||
     role === "super_owner" ||
     role === "finance_analyst" ||
     role === "accountant" ||
     isChiefExpert;
+  const showExpenses = role === "owner" || role === "super_owner" || role === "accountant" || role === "admin";
   const showIntegrationsHub = role === "owner" || isChiefExpert;
-  const showKpi = role === "owner" || role === "super_owner" || role === "manager" || role === "admin";
+  const showKpi =
+    role === "owner" ||
+    role === "super_owner" ||
+    role === "manager" ||
+    role === "admin" ||
+    role === "administrator" ||
+    role === "curator";
   const crmMode = meQuery.data?.crm_mode;
   const salesSpace = crmMode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
   const chatStagesEnabled = meQuery.data?.chat_stages_enabled !== false;
@@ -148,7 +159,11 @@ export function MainLayout() {
               isManagerNav={isManagerNav}
               isExpert={isExpert}
               isChiefExpert={isChiefExpert}
+              isAdministrator={isAdministrator}
+              isCurator={isCurator}
+              isAccountant={isAccountant}
               showFinance={showFinance}
+              showExpenses={showExpenses}
               showIntegrationsHub={showIntegrationsHub}
               showKpi={showKpi}
               bookingEnabled={bookingEnabled}
@@ -267,6 +282,101 @@ export function MainLayout() {
                 className={mobileBottomLogoutClass}
                 title="Выход"
               >
+                <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <LogOut className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Выход</span>
+              </button>
+            </>
+          ) : isCurator ? (
+            <>
+              <NavIf show={bookingEnabled && showNavForFeature("booking")}>
+                <NavLink preventScrollReset to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
+                  <GradientIconBox variant="online" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Calendar className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Онлайн</span>
+                </NavLink>
+              </NavIf>
+              {showKpi ? (
+                <NavIf show={showNavForFeature("kpi")}>
+                  <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title="Дебиторка">
+                    <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <Target className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">Долги</span>
+                  </NavLink>
+                </NavIf>
+              ) : null}
+              <button type="button" onClick={logout} className={mobileBottomLogoutClass} title="Выход">
+                <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <LogOut className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Выход</span>
+              </button>
+            </>
+          ) : isAdministrator ? (
+            <>
+              <NavIf show={showNavForFeature("chat")}>
+                <NavLink preventScrollReset to="/chat" className={mobileBottomNavLinkClass} title="Чаты">
+                  <GradientIconBox variant="chat" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <MessageCircle className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Чаты</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={showNavForFeature("crm")}>
+                <NavLink preventScrollReset to="/crm" className={mobileBottomNavLinkClass} title={navLex.navKanbanTitle}>
+                  <GradientIconBox variant="crm" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Funnel className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">{navLex.navKanban}</span>
+                </NavLink>
+              </NavIf>
+              <NavIf show={bookingEnabled && showNavForFeature("booking")}>
+                <NavLink preventScrollReset to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
+                  <GradientIconBox variant="online" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Calendar className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Онлайн</span>
+                </NavLink>
+              </NavIf>
+              {showKpi ? (
+                <NavIf show={showNavForFeature("kpi")}>
+                  <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title={navLex.navKpiTitle}>
+                    <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                      <Target className="h-4 w-4" />
+                    </GradientIconBox>
+                    <span className="text-[9px]">KPI</span>
+                  </NavLink>
+                </NavIf>
+              ) : null}
+              <button type="button" onClick={logout} className={mobileBottomLogoutClass} title="Выход">
+                <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <LogOut className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Выход</span>
+              </button>
+            </>
+          ) : isAccountant ? (
+            <>
+              <NavIf show={showFinance && showNavForFeature("finance")}>
+                <NavLink preventScrollReset to="/finance" className={mobileBottomNavLinkClass} title="Финансы">
+                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Wallet className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Финансы</span>
+                </NavLink>
+              </NavIf>
+              {showExpenses ? (
+                <NavLink preventScrollReset to="/expenses" className={mobileBottomNavLinkClass} title="Расходы">
+                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <ClipboardList className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Расходы</span>
+                </NavLink>
+              ) : null}
+              <button type="button" onClick={logout} className={mobileBottomLogoutClass} title="Выход">
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <LogOut className="h-4 w-4" />
                 </GradientIconBox>

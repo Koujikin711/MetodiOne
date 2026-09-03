@@ -12,6 +12,7 @@ _FINANCE_VIEW_ROLES = frozenset(
     {
         UserRole.owner,
         UserRole.admin,
+        UserRole.administrator,
         UserRole.super_owner,
         UserRole.finance_analyst,
         UserRole.accountant,
@@ -22,6 +23,7 @@ _FINANCE_SETTINGS_ROLES = frozenset(
     {
         UserRole.owner,
         UserRole.admin,
+        UserRole.administrator,
         UserRole.super_owner,
         UserRole.accountant,
     },

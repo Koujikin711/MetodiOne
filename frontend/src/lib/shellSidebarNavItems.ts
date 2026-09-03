@@ -32,7 +32,11 @@ type BuildParams = {
   isManagerNav: boolean;
   isExpert: boolean;
   isChiefExpert: boolean;
+  isAdministrator?: boolean;
+  isCurator?: boolean;
+  isAccountant?: boolean;
   showFinance: boolean;
+  showExpenses?: boolean;
   showIntegrationsHub: boolean;
   showKpi: boolean;
   bookingEnabled?: boolean;
@@ -61,7 +65,11 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     isManagerNav,
     isExpert,
     isChiefExpert,
+    isAdministrator = false,
+    isCurator = false,
+    isAccountant = false,
     showFinance,
+    showExpenses = false,
     showIntegrationsHub,
     showKpi,
     bookingEnabled = true,
@@ -77,8 +85,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
   const showBooking = bookingEnabled && showNavForFeature("booking");
   const showDeskSales = deskSalesEnabled && (isManagerNav || !isExpert);
   const chatStages = chatStagesEnabled !== false;
-  // Менеджер/админ не видит канбан — только чат со стадиями.
-  const hideKanbanForManager = isManagerNav && chatStages;
+  // Менеджер/админ воронки не видит канбан — только чат со стадиями.
+  const hideKanbanForManager = isManagerNav && chatStages && !isAdministrator;
 
   if (isSuperOwner) {
     return [
@@ -92,6 +100,112 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "users",
       },
     ];
+  }
+
+  // Куратор: только онлайн-запись + дебиторка (KPI вкладка)
+  if (isCurator) {
+    const items: ShellSidebarNavItem[] = [];
+    if (showBooking) {
+      items.push({
+        id: "booking",
+        to: "/booking",
+        title: "Онлайн-записи",
+        labelShort: "Онлайн",
+        labelFull: "Онлайн-запись",
+        variant: "online",
+        iconKey: "calendar",
+      });
+    }
+    if (showKpi && showNavForFeature("kpi")) {
+      items.push({
+        id: "kpi",
+        to: "/kpi",
+        title: "Дебиторка",
+        labelShort: "Долги",
+        labelFull: "Дебиторка курсов",
+        variant: "indigo",
+        iconKey: "target",
+      });
+    }
+    return items;
+  }
+
+  // Администратор клиники: чаты, канбан, онлайн-запись, KPI
+  if (isAdministrator) {
+    const items: ShellSidebarNavItem[] = [];
+    if (showNavForFeature("chat")) {
+      items.push({
+        id: "chat",
+        to: "/chat",
+        title: "Чаты",
+        labelShort: "Чаты",
+        labelFull: "Чаты",
+        variant: "chat",
+        iconKey: "message-circle",
+      });
+    }
+    if (showNavForFeature("crm")) {
+      items.push({
+        id: "crm",
+        to: "/crm",
+        title: navLex.navKanbanTitle,
+        labelShort: navLex.navKanban,
+        labelFull: navLex.navKanbanTitle,
+        variant: "crm",
+        iconKey: "funnel",
+      });
+    }
+    if (showBooking) {
+      items.push({
+        id: "booking",
+        to: "/booking",
+        title: "Онлайн-записи",
+        labelShort: "Онлайн",
+        labelFull: "Онлайн-запись",
+        variant: "online",
+        iconKey: "calendar",
+      });
+    }
+    if (showKpi && showNavForFeature("kpi")) {
+      items.push({
+        id: "kpi",
+        to: "/kpi",
+        title: navLex.navKpiTitle,
+        labelShort: navLex.navKpi,
+        labelFull: navLex.navKpiTitle,
+        variant: "indigo",
+        iconKey: "target",
+      });
+    }
+    return items;
+  }
+
+  // Бухгалтер: финансы (отчёт компании) + расходы
+  if (isAccountant) {
+    const items: ShellSidebarNavItem[] = [];
+    if (showFinanceNav && showNavForFeature("finance")) {
+      items.push({
+        id: "finance",
+        to: "/finance",
+        title: "Финансы",
+        labelShort: "Финансы",
+        labelFull: "Финансы — отчёт компании",
+        variant: "blue",
+        iconKey: "wallet",
+      });
+    }
+    if (showExpenses) {
+      items.push({
+        id: "expenses",
+        to: "/expenses",
+        title: "Расходы",
+        labelShort: "Расходы",
+        labelFull: "Расходы",
+        variant: "indigo",
+        iconKey: "clipboard-list",
+      });
+    }
+    return items;
   }
 
   if (managerLikeNav) {
@@ -265,6 +379,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         labelFull: navLex.navFinanceTitle,
         variant: "blue",
         iconKey: "wallet",
+      });
+    }
+    if (showExpenses) {
+      items.push({
+        id: "expenses",
+        to: "/expenses",
+        title: "Расходы",
+        labelShort: "Расходы",
+        labelFull: "Расходы",
+        variant: "indigo",
+        iconKey: "clipboard-list",
       });
     }
     if (isChiefExpert && bookingEnabled && showNavForFeature("reports")) {
@@ -478,6 +603,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       labelFull: navLex.navFinanceTitle,
       variant: "blue",
       iconKey: "wallet",
+    });
+  }
+  if (showExpenses) {
+    items.push({
+      id: "expenses",
+      to: "/expenses",
+      title: "Расходы",
+      labelShort: "Расходы",
+      labelFull: "Расходы",
+      variant: "indigo",
+      iconKey: "clipboard-list",
     });
   }
   if (showNavForFeature("employees")) {

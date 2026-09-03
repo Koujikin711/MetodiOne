@@ -60,10 +60,13 @@ def _month_bounds(ym: date) -> tuple[datetime, datetime]:
 
 
 def _assert_kpi_access(current_user: CurrentUser) -> None:
+    from app.services.clinic_roles import can_access_company_report, can_access_debtors, can_access_kpi
+
     if current_user.role in (UserRole.expert, UserRole.finance_analyst):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Раздел KPI недоступен для этой роли")
-    if current_user.role not in (UserRole.owner, UserRole.super_owner, UserRole.manager, UserRole.admin):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к KPI")
+    if can_access_kpi(current_user.role) or can_access_company_report(current_user.role) or can_access_debtors(current_user.role):
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к KPI")
 
 
 def _manager_expr():

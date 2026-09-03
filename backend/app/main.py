@@ -41,6 +41,7 @@ from app.database_migrate import (
     ensure_fix_kurs_direction_and_session_pay,
     ensure_fix_ayub_massage_prepaid_10x150,
     ensure_fix_aug2026_konsult_to_kurs15,
+    ensure_clinic_staff_roles,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -520,6 +521,8 @@ async def lifespan(_: FastAPI):
             await ensure_owner_role_migration(conn, settings.database_url)
         async with engine.connect() as conn:
             await ensure_integration_provider_migration(conn, settings.database_url)
+        async with engine.connect() as conn:
+            await ensure_clinic_staff_roles(conn, settings.database_url)
         await seed_pipelines_and_stages()
         await seed_test_admin()
         await seed_super_owner()

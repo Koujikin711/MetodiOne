@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import {
   BookingOrSalesEntry,
   HomeEntry,
+  RequireExpenses,
   RequireFinance,
   RequireNotManager,
   RequireOwner,
@@ -16,6 +17,7 @@ import { AuditPage } from "@/pages/AuditPage";
 import { ChatPage } from "@/pages/ChatPage";
 import { EmployeesPage } from "@/pages/EmployeesPage";
 import { ExpertReportsPage } from "@/pages/ExpertReportsPage";
+import { ExpensesPage } from "@/pages/ExpensesPage";
 import { LeadDetailPage } from "@/pages/LeadDetailPage";
 import { ForcePasswordPage } from "@/pages/ForcePasswordPage";
 import { LoginPage } from "@/pages/LoginPage";
@@ -82,6 +84,14 @@ export default function App() {
                 <RequireFinance>
                   <FinancePage />
                 </RequireFinance>
+              }
+            />
+            <Route
+              path="/expenses"
+              element={
+                <RequireExpenses>
+                  <ExpensesPage />
+                </RequireExpenses>
               }
             />
             <Route path="/reports" element={<ExpertReportsPage />} />

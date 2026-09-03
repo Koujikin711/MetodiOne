@@ -25,7 +25,15 @@ async def register(
     body: UserCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
-    if body.role in (UserRole.super_owner, UserRole.owner, UserRole.admin, UserRole.finance_analyst, UserRole.accountant):
+    if body.role in (
+        UserRole.super_owner,
+        UserRole.owner,
+        UserRole.admin,
+        UserRole.administrator,
+        UserRole.curator,
+        UserRole.finance_analyst,
+        UserRole.accountant,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Высокие роли выдаются только приглашением",

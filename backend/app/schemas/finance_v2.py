@@ -108,3 +108,25 @@ class FinanceIntegrateResultRead(BaseModel):
     skipped_duplicates: int = 0
     osv_rows_count: int = 0
     message: str
+
+
+class FinanceExpenseCatalogRead(BaseModel):
+    banks: list[str] = Field(default_factory=list)
+    articles: list[str] = Field(default_factory=list)
+    brief_categories: list[str] = Field(default_factory=list)
+    detail_categories: list[str] = Field(default_factory=list)
+    products: list[str] = Field(default_factory=list)
+
+
+class FinanceExpenseCreate(BaseModel):
+    txn_date: date
+    expense: Decimal = Field(..., gt=0)
+    bank: str | None = Field(default=None, max_length=64)
+    basis: str | None = Field(default=None, max_length=255)
+    counterparty: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=64)
+    via_person: str | None = Field(default=None, max_length=128)
+    product_service: str | None = Field(default=None, max_length=255)
+    article: str | None = Field(default=None, max_length=128)
+    detail_category: str | None = Field(default=None, max_length=128)
+    brief_category: str | None = Field(default="Расход", max_length=64)

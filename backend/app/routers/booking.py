@@ -186,7 +186,7 @@ async def _appointment_lead_pipeline_id(db: AsyncSession, appt: BookingAppointme
 
 
 async def compute_can_manage_journal(db: AsyncSession, appt: BookingAppointment, viewer: User) -> bool:
-    if viewer.role in (UserRole.owner, UserRole.super_owner):
+    if viewer.role in (UserRole.owner, UserRole.super_owner, UserRole.administrator, UserRole.curator):
         return True
     if viewer.role == UserRole.expert and await is_chief_expert(db, viewer):
         return True
@@ -204,14 +204,14 @@ async def _assert_can_manage_appointment_journal(
     appt: BookingAppointment,
     current_user: User,
 ) -> None:
-    if current_user.role in (UserRole.owner, UserRole.super_owner):
+    if current_user.role in (UserRole.owner, UserRole.super_owner, UserRole.administrator, UserRole.curator):
         return
     if current_user.role == UserRole.expert and await is_chief_expert(db, current_user):
         return
     if current_user.role not in (UserRole.admin, UserRole.manager):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Только владелец, админ или менеджер воронки по лиду записи",
+            detail="Только владелец, админ, куратор или менеджер воронки по лиду записи",
         )
     if not await compute_can_manage_journal(db, appt, current_user):
         raise HTTPException(
@@ -471,8 +471,8 @@ def _course_streams_enabled_for_booking(specialist: BookingSpecialist, direction
 
 
 def _can_book_admin_package(role: UserRole) -> bool:
-    """«Курс» / «Протокол» в онлайн-записи — только admin/owner (не «Курс 15»)."""
-    return role in (UserRole.owner, UserRole.super_owner, UserRole.admin)
+    """«Курс» / «Протокол» в онлайн-записи — admin/owner/administrator (не «Курс 15»)."""
+    return role in (UserRole.owner, UserRole.super_owner, UserRole.admin, UserRole.administrator)
 
 
 def _split_prepaid_across_days(total_paid: float, day_prices: list[float]) -> list[float]:

@@ -25,8 +25,10 @@ export function decodeRoleFromToken(token: string | null): UserRole | null {
     role === "super_owner" ||
     role === "owner" ||
     role === "admin" ||
+    role === "administrator" ||
     role === "manager" ||
     role === "expert" ||
+    role === "curator" ||
     role === "finance_analyst" ||
     role === "accountant"
   )

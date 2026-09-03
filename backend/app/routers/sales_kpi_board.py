@@ -75,10 +75,13 @@ router = APIRouter(prefix="/sales-kpi", tags=["sales-kpi"])
 
 
 def _assert_kpi_access(current_user: CurrentUser) -> None:
+    from app.services.clinic_roles import can_access_company_report, can_access_debtors, can_access_kpi
+
     if current_user.role in (UserRole.expert, UserRole.finance_analyst):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Раздел KPI недоступен для этой роли")
-    if current_user.role not in (UserRole.owner, UserRole.super_owner, UserRole.manager, UserRole.admin):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к KPI")
+    if can_access_kpi(current_user.role) or can_access_company_report(current_user.role) or can_access_debtors(current_user.role):
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к KPI")
 
 
 def _assert_owner(current_user: CurrentUser) -> None:
@@ -87,8 +90,29 @@ def _assert_owner(current_user: CurrentUser) -> None:
 
 
 def _assert_admin_or_owner(current_user: CurrentUser) -> None:
-    if current_user.role not in (UserRole.owner, UserRole.super_owner, UserRole.admin):
+    if current_user.role not in (
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.admin,
+        UserRole.administrator,
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ")
+
+
+def _assert_debtors_access(current_user: CurrentUser) -> None:
+    from app.services.clinic_roles import can_access_debtors
+
+    if can_access_debtors(current_user.role):
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Дебиторка недоступна")
+
+
+def _assert_company_report_access(current_user: CurrentUser) -> None:
+    from app.services.clinic_roles import can_access_company_report
+
+    if can_access_company_report(current_user.role):
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Отчёт компании недоступен")
 
 
 async def _load_pipeline(db: AsyncSession, company_id: int, pipeline_id: int) -> Pipeline:
@@ -724,7 +748,7 @@ async def debtors_report(
     year_month: str = Query(..., description="YYYY-MM"),
 ) -> SalesKpiDebtorsReport:
     _assert_kpi_access(current_user)
-    _assert_admin_or_owner(current_user)
+    _assert_debtors_access(current_user)
     pipe = await _load_pipeline(db, company_id, pipeline_id)
     try:
         ym = parse_year_month(year_month)
@@ -874,6 +898,11 @@ async def debtors_report(
         )
 
     total = sum((r.debt_amount for r in rows_out), Decimal("0"))
+    from app.services.clinic_roles import debtors_course_protocol_only, is_course_or_protocol_indicator
+
+    if debtors_course_protocol_only(current_user.role):
+        rows_out = [r for r in rows_out if is_course_or_protocol_indicator(r.indicator_name)]
+        total = sum((r.debt_amount for r in rows_out), Decimal("0"))
     return SalesKpiDebtorsReport(
         pipeline_id=pipe.id,
         pipeline_name=pipe.name,
@@ -891,9 +920,9 @@ async def company_report(
     pipeline_id: int = Query(..., ge=1),
     year_month: str = Query(..., description="YYYY-MM"),
 ) -> SalesKpiCompanyReport:
-    """Сводный отчёт компании — только владелец."""
+    """Сводный отчёт компании — владелец и бухгалтер."""
     _assert_kpi_access(current_user)
-    _assert_owner(current_user)
+    _assert_company_report_access(current_user)
     pipe = await _load_pipeline(db, company_id, pipeline_id)
     try:
         ym = parse_year_month(year_month)

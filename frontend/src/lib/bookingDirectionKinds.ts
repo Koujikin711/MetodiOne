@@ -44,5 +44,5 @@ export function isGanchinaSpecialistName(name: string | null | undefined): boole
 }
 
 export function canBookCourseLike(role: string | null | undefined): boolean {
-  return role === "owner" || role === "super_owner" || role === "admin";
+  return role === "owner" || role === "super_owner" || role === "admin" || role === "administrator";
 }

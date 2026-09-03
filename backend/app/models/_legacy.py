@@ -15,8 +15,10 @@ class UserRole(str, enum.Enum):
     super_owner = "super_owner"
     owner = "owner"
     admin = "admin"
+    administrator = "administrator"
     manager = "manager"
     expert = "expert"
+    curator = "curator"
     finance_analyst = "finance_analyst"
     accountant = "accountant"
 

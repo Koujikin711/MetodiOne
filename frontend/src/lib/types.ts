@@ -1,4 +1,13 @@
-export type UserRole = "super_owner" | "owner" | "admin" | "manager" | "expert" | "finance_analyst" | "accountant";
+export type UserRole =
+  | "super_owner"
+  | "owner"
+  | "admin"
+  | "administrator"
+  | "manager"
+  | "expert"
+  | "curator"
+  | "finance_analyst"
+  | "accountant";
 
 export interface User {
   id: number;

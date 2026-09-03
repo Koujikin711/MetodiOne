@@ -1662,6 +1662,28 @@ async def ensure_accountant_role(conn: AsyncConnection, database_url: str) -> No
         await ac.execute(text("ALTER TYPE user_role ADD VALUE 'accountant'"))
 
 
+async def ensure_clinic_staff_roles(conn: AsyncConnection, database_url: str) -> None:
+    """Куратор и Администратор клиники (+ гарантия accountant в enum)."""
+    low = database_url.lower()
+    if "postgresql" not in low and "asyncpg" not in low:
+        return
+    if conn.in_transaction():
+        await conn.commit()
+    ac = conn.execution_options(isolation_level="AUTOCOMMIT")
+    if hasattr(ac, "__await__"):
+        ac = await ac  # type: ignore[assignment]
+    exists_q = text(
+        """
+        SELECT 1 FROM pg_enum e
+        JOIN pg_type t ON t.oid = e.enumtypid
+        WHERE t.typname = 'user_role' AND e.enumlabel = :val LIMIT 1
+        """,
+    )
+    for val in ("accountant", "curator", "administrator"):
+        if await ac.scalar(exists_q, {"val": val}) is None:
+            await ac.execute(text(f"ALTER TYPE user_role ADD VALUE '{val}'"))
+
+
 async def ensure_service_catalog_tables(conn: AsyncConnection, database_url: str) -> None:
     low = database_url.lower()
     sqlite = "sqlite" in low

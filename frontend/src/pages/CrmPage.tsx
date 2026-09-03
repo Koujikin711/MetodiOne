@@ -677,10 +677,12 @@ export function CrmPage() {
   const isCompanyAdmin =
     currentRole === "owner" ||
     currentRole === "admin" ||
+    currentRole === "administrator" ||
     (currentRole === "expert" && Boolean(meQuery.data?.is_chief_expert));
 
   useEffect(() => {
     if (!chatStages) return;
+    // Администратор клиники работает и в канбане — не уводим в чат.
     if (currentRole === "manager" || currentRole === "admin") {
       navigate("/chat", { replace: true });
     }

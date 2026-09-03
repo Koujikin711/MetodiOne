@@ -281,7 +281,7 @@ async def _assert_thread_access(db: AsyncSession, thread: ChatThread, current_us
         if thread.pipeline_id not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Thread is outside expert pipelines")
         return
-    if current_user.role not in (UserRole.manager, UserRole.admin):
+    if current_user.role not in (UserRole.manager, UserRole.admin, UserRole.administrator):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
     allowed = await _manager_pipeline_ids(db, current_user.id)
     if thread.pipeline_id not in allowed:
@@ -895,7 +895,7 @@ async def _fetch_thread_read_row(
         .scalar_subquery()
     )
     transferred_sq = None
-    if current_user.role in (UserRole.manager, UserRole.admin):
+    if current_user.role in (UserRole.manager, UserRole.admin, UserRole.administrator):
         transferred_sq = _lead_transferred_to_manager_exists(
             Lead.id,
             manager_id=current_user.id,
@@ -972,7 +972,7 @@ async def thread_bucket_counts(
     q: str | None = Query(default=None, max_length=120),
 ) -> ChatThreadBucketCounts:
     """Счётчики для вкладок чат-воронки (менеджер / админ / владелец)."""
-    if current_user.role not in (UserRole.manager, UserRole.admin, UserRole.owner):
+    if current_user.role not in (UserRole.manager, UserRole.admin, UserRole.administrator, UserRole.owner):
         return ChatThreadBucketCounts()
     if current_user.role == UserRole.owner:
         allowed = {
@@ -1047,7 +1047,7 @@ async def list_threads(
     limit: int | None = Query(default=None, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> list[ChatThreadRead]:
-    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.expert):
+    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.administrator, UserRole.expert):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
     term = (q or "").strip()
     first_message_at_sq = (
@@ -1076,7 +1076,7 @@ async def list_threads(
         .scalar_subquery()
     )
     is_manager_view = current_user.role in (UserRole.manager, UserRole.admin)
-    is_owner_view = current_user.role == UserRole.owner
+    is_owner_view = current_user.role in (UserRole.owner, UserRole.administrator)
     transferred_sq = None
     if is_manager_view:
         transferred_sq = _lead_transferred_to_manager_exists(
@@ -1346,7 +1346,7 @@ async def get_thread_by_lead(
     company_id: CurrentCompanyId,
 ) -> ChatThreadRead:
     """Открытие чата из карточки лида — не зависит от вкладки и пагинации списка."""
-    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.expert):
+    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.administrator, UserRole.expert):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
 
     lead = await db.get(Lead, lead_id)
@@ -1369,7 +1369,7 @@ async def get_thread_by_lead(
     await _assert_thread_access(db, thread, current_user)
 
     # Взятие в работу: открыли чат из «Новый лид» → «В обработке».
-    if current_user.role in (UserRole.owner, UserRole.manager, UserRole.admin):
+    if current_user.role in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.administrator):
         await advance_new_lead_after_manager_reply(
             db, company_id=company_id, lead_id=lead_id,
         )
@@ -1386,7 +1386,7 @@ async def get_thread(
     company_id: CurrentCompanyId,
 ) -> ChatThreadRead:
     """Метаданные диалога по id — шапка чата не зависит от вкладки и пагинации списка."""
-    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.expert):
+    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.administrator, UserRole.expert):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
 
     thread = await db.get(ChatThread, thread_id)

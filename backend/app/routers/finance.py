@@ -11,19 +11,30 @@ from app.database import get_db
 from app.models import FinanceCompanySettings, FinanceOsvRow, UserRole
 from app.schemas.finance_v2 import (
     FinanceDdsReportRead,
+    FinanceExpenseCatalogRead,
+    FinanceExpenseCreate,
     FinanceIntegrateResultRead,
     FinanceIntegrationStatusRead,
     FinanceOpiuReportRead,
+    FinanceOsvRowRead,
     FinanceOsvSummaryRead,
     FinanceSettingsPatch,
     FinanceSettingsRead,
 )
 from app.services.chief_expert_access import assert_finance_access, assert_finance_settings_access, is_chief_expert
+from app.services.clinic_roles import can_access_expenses
+from app.services.finance_expense_catalog import expense_catalog
 from app.services.finance_integrate import ensure_finance_settings, get_gmail_integration, run_finance_integrate
 from app.services.finance_report_build import build_dds_report, build_opiu_report, load_osv_summary
 from app.services.google_sheets_sync import _google_service_account_ready
 
 router = APIRouter(prefix="/finance", tags=["finance"])
+
+
+def _assert_expenses_access(user) -> None:
+    if can_access_expenses(user.role):
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к расходам")
 
 
 def _settings_read(row: FinanceCompanySettings | None) -> FinanceSettingsRead:
@@ -151,3 +162,72 @@ async def get_opiu_report(
 ) -> FinanceOpiuReportRead:
     await assert_finance_access(db, current_user)
     return await build_opiu_report(db, company_id=company_id, year=year)
+
+
+@router.get("/expense-catalog", response_model=FinanceExpenseCatalogRead)
+async def get_expense_catalog(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> FinanceExpenseCatalogRead:
+    _assert_expenses_access(current_user)
+    await assert_finance_access(db, current_user)
+    return FinanceExpenseCatalogRead(**expense_catalog())
+
+
+@router.get("/expenses", response_model=list[FinanceOsvRowRead])
+async def list_expenses(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    year: int = Query(default_factory=lambda: datetime.now().year, ge=2020, le=2100),
+    month: int | None = Query(default=None, ge=1, le=12),
+    limit: int = Query(default=200, ge=1, le=1000),
+) -> list[FinanceOsvRowRead]:
+    _assert_expenses_access(current_user)
+    await assert_finance_access(db, current_user)
+    q = (
+        select(FinanceOsvRow)
+        .where(
+            FinanceOsvRow.company_id == company_id,
+            FinanceOsvRow.expense > 0,
+            func.extract("year", FinanceOsvRow.txn_date) == year,
+        )
+        .order_by(FinanceOsvRow.txn_date.desc(), FinanceOsvRow.id.desc())
+        .limit(limit)
+    )
+    if month is not None:
+        q = q.where(func.extract("month", FinanceOsvRow.txn_date) == month)
+    rows = (await db.execute(q)).scalars().all()
+    return [FinanceOsvRowRead.model_validate(r) for r in rows]
+
+
+@router.post("/expenses", response_model=FinanceOsvRowRead, status_code=status.HTTP_201_CREATED)
+async def create_expense(
+    body: FinanceExpenseCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceOsvRowRead:
+    _assert_expenses_access(current_user)
+    await assert_finance_access(db, current_user)
+    row = FinanceOsvRow(
+        company_id=company_id,
+        txn_date=body.txn_date,
+        revenue=0,
+        expense=body.expense,
+        bank=(body.bank or "").strip() or None,
+        basis=(body.basis or "").strip() or None,
+        counterparty=(body.counterparty or "").strip() or None,
+        phone=(body.phone or "").strip() or None,
+        via_person=(body.via_person or "").strip() or None,
+        product_service=(body.product_service or "").strip() or None,
+        article=(body.article or "").strip() or None,
+        detail_category=(body.detail_category or "").strip() or None,
+        brief_category=(body.brief_category or "Расход").strip() or "Расход",
+        source="manual",
+        external_key=None,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return FinanceOsvRowRead.model_validate(row)

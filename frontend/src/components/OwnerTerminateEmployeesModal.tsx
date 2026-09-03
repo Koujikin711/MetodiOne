@@ -15,10 +15,13 @@ interface EmployeeRow {
 
 const roleLabel: Record<UserRole, string> = {
   owner: "Владелец",
-  admin: "Админ",
+  admin: "Админ воронки",
+  administrator: "Администратор",
   manager: "Менеджер",
   expert: "Эксперт",
+  curator: "Куратор",
   finance_analyst: "Финансы",
+  accountant: "Бухгалтер",
   super_owner: "Супер-владелец",
 };
 
