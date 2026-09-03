@@ -1007,7 +1007,7 @@ export function KpiPage() {
                 : "Сначала владелец должен добавить продукты с источником «Курс / протокол» во вкладке «План»."}
             </p>
           ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
               <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
                 Продукт
                 <select
@@ -1111,7 +1111,7 @@ export function KpiPage() {
                   onChange={(e) => setSaleForm((s) => ({ ...s, paid_amount: e.target.value }))}
                 />
               </label>
-              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:text-sm lg:col-span-4">
                 Комментарий
                 <input
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
