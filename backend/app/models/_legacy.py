@@ -363,9 +363,11 @@ class SalesKpiManualSale(Base):
     service_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     sold_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
-    # active | returned
+    # active | returned | refused | completed
     status: Mapped[str] = mapped_column(String(24), default="active")
     returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Причина при статусе отказ / завершён (и при необходимости возврат).
+    status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)

@@ -988,6 +988,8 @@ export interface SalesKpiManualSale {
   status: string;
   returned_at: string | null;
   note: string | null;
+  /** Причина отказа / завершения */
+  status_reason?: string | null;
   counts_in_kpi: boolean;
 }
 

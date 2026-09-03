@@ -1181,6 +1181,8 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
         cols = {row[1] for row in (await conn.execute(text("PRAGMA table_info(sales_kpi_manual_sales)"))).fetchall()}
         if "stream_no" not in cols:
             await conn.execute(text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN stream_no INTEGER"))
+        if "status_reason" not in cols:
+            await conn.execute(text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN status_reason TEXT"))
         return
 
     if "postgresql" in low or "asyncpg" in low:
@@ -1295,6 +1297,9 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
         )
         await conn.execute(
             text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN IF NOT EXISTS stream_no INTEGER"),
+        )
+        await conn.execute(
+            text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN IF NOT EXISTS status_reason TEXT"),
         )
 
 

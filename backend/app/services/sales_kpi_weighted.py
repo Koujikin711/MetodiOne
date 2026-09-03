@@ -141,6 +141,97 @@ async def load_plan_items(
     return list(rows)
 
 
+def shift_year_month(ym: date, months: int) -> date:
+    """Сдвиг YYYY-MM-01 на N месяцев (months может быть отрицательным)."""
+    idx = ym.year * 12 + (ym.month - 1) + months
+    return date(idx // 12, idx % 12 + 1, 1)
+
+
+async def ensure_plan_carried_forward(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> tuple[list[SalesKpiPlanItem], bool]:
+    """Если в выбранном месяце плана нет — копируем последний сохранённый.
+
+    Возвращает (items, carried): carried=True если только что скопировали.
+    """
+    items = await load_plan_items(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+    if items:
+        return items, False
+
+    prev_ym = (
+        await db.execute(
+            select(SalesKpiPlanItem.year_month)
+            .where(
+                SalesKpiPlanItem.company_id == company_id,
+                SalesKpiPlanItem.pipeline_id == pipeline_id,
+                SalesKpiPlanItem.year_month < ym,
+            )
+            .order_by(SalesKpiPlanItem.year_month.desc())
+            .limit(1),
+        )
+    ).scalar_one_or_none()
+    if prev_ym is None:
+        return [], False
+
+    prev_items = await load_plan_items(db, company_id=company_id, pipeline_id=pipeline_id, ym=prev_ym)
+    if not prev_items:
+        return [], False
+
+    prev_specs = await load_plan_item_specialists(db, plan_item_ids=[int(i.id) for i in prev_items])
+    bonus = await load_bonus_fund(db, company_id=company_id, pipeline_id=pipeline_id, ym=prev_ym)
+
+    existing_settings = (
+        await db.execute(
+            select(SalesKpiWeightedSettings).where(
+                SalesKpiWeightedSettings.company_id == company_id,
+                SalesKpiWeightedSettings.pipeline_id == pipeline_id,
+                SalesKpiWeightedSettings.year_month == ym,
+            ),
+        )
+    ).scalar_one_or_none()
+    if existing_settings is None:
+        db.add(
+            SalesKpiWeightedSettings(
+                company_id=company_id,
+                pipeline_id=pipeline_id,
+                year_month=ym,
+                bonus_fund=bonus,
+            ),
+        )
+    else:
+        existing_settings.bonus_fund = bonus
+
+    for src in prev_items:
+        dst = SalesKpiPlanItem(
+            company_id=company_id,
+            pipeline_id=pipeline_id,
+            year_month=ym,
+            name=src.name,
+            plan_qty=int(src.plan_qty or 0),
+            weight_percent=Decimal(str(src.weight_percent or 0)),
+            source_type=src.source_type or "manual",
+            direction_id=src.direction_id,
+            sort_order=int(src.sort_order or 0),
+        )
+        db.add(dst)
+        await db.flush()
+        for sid in prev_specs.get(int(src.id), []):
+            db.add(
+                SalesKpiPlanItemSpecialist(
+                    plan_item_id=int(dst.id),
+                    specialist_id=int(sid),
+                ),
+            )
+
+    await db.commit()
+    items = await load_plan_items(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+    return items, True
+
+
 async def load_managers(
     db: AsyncSession,
     *,

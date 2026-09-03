@@ -285,6 +285,40 @@ export function KpiPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const closeSaleMutation = useMutation({
+    mutationFn: async ({
+      id,
+      status,
+      reason,
+    }: {
+      id: number;
+      status: "refused" | "completed";
+      reason: string;
+    }) => {
+      await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, reason }),
+      });
+    },
+    onSuccess: (_data, vars) => {
+      toast.success(vars.status === "refused" ? "Статус: отказ" : "Статус: завершён");
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function askCloseSale(id: number, status: "refused" | "completed") {
+    const label = status === "refused" ? "отказ" : "завершён";
+    const reason = window.prompt(`Причина статуса «${label}» (обязательно):`)?.trim() ?? "";
+    if (!reason) {
+      toast.error("Укажите причину");
+      return;
+    }
+    closeSaleMutation.mutate({ id, status, reason });
+  }
+
   if (role === "expert" || role === "finance_analyst") {
     return <AccessDenied message="Раздел KPI недоступен для вашей роли." />;
   }
@@ -392,7 +426,8 @@ export function KpiPage() {
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">План на месяц</h2>
               <p className="mt-1 hidden text-sm lux-caption sm:block">
-                Один план на всех менеджеров. Для услуг из онлайн-записи привяжите экспертов — запись к
+                Один план на всех менеджеров. Сохранили один раз — в следующем месяце подтянется
+                автоматически (показатели, веса, эксперты, фонд). Для услуг из онлайн-записи привяжите экспертов — запись к
                 ним пойдёт в факт этой услуги (при 100% оплате). Один эксперт = одна услуга KPI.
               </p>
             </div>
@@ -801,8 +836,8 @@ export function KpiPage() {
             <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажа курса / протокола</h2>
             <p className="mt-1 hidden text-sm lux-caption sm:block">
               {salesSpace
-                ? "Факт KPI без онлайн-записи. В KPI с оплаты ≥25%. Возврат снимает продажу с факта."
-                : "Без онлайн-записи. В KPI попадает с оплаты ≥25%. Возврат снимает продажу с факта."}
+                ? "Факт KPI без онлайн-записи. В KPI с оплаты ≥25%. Список тянется до 3 месяцев или пока есть долг; отказ/завершение — со статусом и причиной."
+                : "Без онлайн-записи. В KPI с оплаты ≥25%. Пациенты остаются в списке до полной оплаты и 3 месяцев лечения либо до статуса «отказ»/«завершён» с причиной."}
             </p>
           </div>
 
@@ -944,14 +979,18 @@ export function KpiPage() {
                   </span>
                   {s.status === "returned" ? (
                     <span className="text-red-300">возврат</span>
+                  ) : s.status === "refused" ? (
+                    <span className="text-amber-600">отказ</span>
+                  ) : s.status === "completed" ? (
+                    <span className="text-sky-600">завершён</span>
                   ) : s.counts_in_kpi ? (
                     <span className="text-emerald-600">в факте</span>
                   ) : (
                     <span className="mo-muted">&lt;25%</span>
                   )}
                 </div>
-                {s.status !== "returned" ? (
-                  <div className="mt-2 flex items-center gap-2">
+                {s.status === "active" ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     <input
                       type="number"
                       min={0}
@@ -983,7 +1022,23 @@ export function KpiPage() {
                     >
                       Возврат
                     </button>
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs text-amber-600"
+                      onClick={() => askCloseSale(s.id, "refused")}
+                    >
+                      Отказ
+                    </button>
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs text-emerald-700"
+                      onClick={() => askCloseSale(s.id, "completed")}
+                    >
+                      Завершён
+                    </button>
                   </div>
+                ) : s.status_reason ? (
+                  <p className="mt-1 text-[11px] mo-muted">Причина: {s.status_reason}</p>
                 ) : null}
               </li>
             ))}
@@ -1050,25 +1105,50 @@ export function KpiPage() {
                     <td className="py-2 pr-3">
                       {s.status === "returned" ? (
                         <span className="text-xs text-red-300">возврат</span>
+                      ) : s.status === "refused" ? (
+                        <span className="text-xs text-amber-400">отказ</span>
+                      ) : s.status === "completed" ? (
+                        <span className="text-xs text-sky-300">завершён</span>
                       ) : s.counts_in_kpi ? (
                         <span className="text-xs text-emerald-300">в факте</span>
                       ) : (
                         <span className="text-xs mo-muted">&lt;25%</span>
                       )}
+                      {s.status_reason ? (
+                        <div className="mt-0.5 max-w-[10rem] truncate text-[10px] mo-muted" title={s.status_reason}>
+                          {s.status_reason}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="py-2 pr-3">
-                      {s.status !== "returned" ? (
-                        <button
-                          type="button"
-                          className="btn-secondary text-xs"
-                          onClick={() => {
-                            if (window.confirm("Отметить возврат и снять с KPI?")) {
-                              returnMutation.mutate(s.id);
-                            }
-                          }}
-                        >
-                          Возврат
-                        </button>
+                      {s.status === "active" ? (
+                        <div className="flex flex-wrap gap-1">
+                          <button
+                            type="button"
+                            className="btn-secondary text-xs"
+                            onClick={() => {
+                              if (window.confirm("Отметить возврат и снять с KPI?")) {
+                                returnMutation.mutate(s.id);
+                              }
+                            }}
+                          >
+                            Возврат
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary text-xs"
+                            onClick={() => askCloseSale(s.id, "refused")}
+                          >
+                            Отказ
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary text-xs"
+                            onClick={() => askCloseSale(s.id, "completed")}
+                          >
+                            Завершён
+                          </button>
+                        </div>
                       ) : (
                         "—"
                       )}

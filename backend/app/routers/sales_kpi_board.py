@@ -8,7 +8,7 @@ import calendar
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import delete, or_, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentCompanyId, CurrentUser
@@ -44,6 +44,7 @@ from app.schemas.sales_kpi import (
     SalesKpiManualSaleCreate,
     SalesKpiManualSaleOut,
     SalesKpiManualSalePaymentPatch,
+    SalesKpiManualSaleStatusPatch,
     SalesKpiPlanItemOut,
     SalesKpiSalesReport,
     SalesKpiSpecialistMeta,
@@ -56,6 +57,7 @@ from app.services.sales_kpi_weighted import (
     build_manager_lines,
     completion_ratio,
     contribution,
+    ensure_plan_carried_forward,
     load_bonus_fund,
     load_desk_sale_facts_full_paid,
     load_direction_facts_full_paid,
@@ -68,6 +70,7 @@ from app.services.sales_kpi_weighted import (
     load_specialist_facts_full_paid,
     month_bounds,
     parse_year_month,
+    shift_year_month,
     sum_specialist_facts_company,
 )
 
@@ -260,6 +263,7 @@ def _manual_sale_out(
         status=sale.status,
         returned_at=sale.returned_at,
         note=sale.note,
+        status_reason=getattr(sale, "status_reason", None),
         counts_in_kpi=_manual_counts_in_kpi(sa, pa, sale.status),
     )
 
@@ -350,7 +354,13 @@ async def get_weighted_plan(
         if not await _is_user_assigned_pipeline(db, company_id, current_user.id, pipeline_id):
             raise HTTPException(status_code=403, detail="Вы не назначены на эту воронку")
 
-    items = await load_plan_items(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+    # Пустой месяц ← копируем последний сохранённый план (показатели, веса, эксперты, фонд).
+    items, _carried = await ensure_plan_carried_forward(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        ym=ym,
+    )
     item_specialists = await load_plan_item_specialists(db, plan_item_ids=[int(i.id) for i in items])
     bonus_fund = await load_bonus_fund(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
     directions = await _load_directions_meta(db, company_id, pipeline_id, ym)
@@ -581,6 +591,8 @@ async def list_manual_sales(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     start, end = month_bounds(ym)
+    # Окно лечения 3 месяца: июнь при просмотре сентября → sold_at >= June 1.
+    horizon_start, _ = month_bounds(shift_year_month(ym, -3))
 
     rows = (
         await db.execute(
@@ -590,8 +602,22 @@ async def list_manual_sales(
             .where(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
-                SalesKpiManualSale.sold_at >= start,
                 SalesKpiManualSale.sold_at < end,
+                or_(
+                    # В выбранном месяце — все записи (в т.ч. возврат / отказ / завершён).
+                    and_(
+                        SalesKpiManualSale.sold_at >= start,
+                        SalesKpiManualSale.sold_at < end,
+                    ),
+                    # Активные курсы тянутся, пока есть долг или не прошли 3 месяца лечения.
+                    and_(
+                        SalesKpiManualSale.status == "active",
+                        or_(
+                            SalesKpiManualSale.paid_amount < SalesKpiManualSale.service_amount,
+                            SalesKpiManualSale.sold_at >= horizon_start,
+                        ),
+                    ),
+                ),
             )
             .order_by(SalesKpiManualSale.sold_at.desc(), SalesKpiManualSale.id.desc()),
         )
@@ -739,6 +765,48 @@ async def return_manual_sale(
     return out
 
 
+@router.patch("/manual-sales/{sale_id}/status", response_model=SalesKpiManualSaleOut)
+async def patch_manual_sale_status(
+    sale_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    body: SalesKpiManualSaleStatusPatch,
+) -> SalesKpiManualSaleOut:
+    """Отказ или завершение курса/протокола с обязательной причиной."""
+    _assert_kpi_access(current_user)
+    _assert_admin_or_owner(current_user)
+    sale = await db.get(SalesKpiManualSale, sale_id)
+    if sale is None or sale.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Продажа не найдена")
+    if sale.status in ("returned", "refused", "completed"):
+        raise HTTPException(status_code=400, detail=f"Уже закрыто: {sale.status}")
+
+    reason = (body.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Укажите причину")
+
+    sale.status = body.status
+    sale.status_reason = reason
+    sale.updated_at = datetime.now(UTC)
+    if not (sale.note or "").strip():
+        sale.note = reason
+    await db.commit()
+    await db.refresh(sale)
+
+    item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    manager = await db.get(User, sale.manager_user_id)
+    return _manual_sale_out(
+        sale,
+        plan_item_name=item.name if item else "",
+        manager_name=str(
+            (manager.full_name if manager else None)
+            or (manager.email if manager else None)
+            or f"#{sale.manager_user_id}"
+        ),
+    )
+
+
 @router.get("/debtors", response_model=SalesKpiDebtorsReport)
 async def debtors_report(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -815,7 +883,6 @@ async def debtors_report(
             .where(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
-                SalesKpiManualSale.sold_at >= start,
                 SalesKpiManualSale.sold_at < end,
                 SalesKpiManualSale.status == "active",
                 SalesKpiManualSale.service_amount > SalesKpiManualSale.paid_amount,
