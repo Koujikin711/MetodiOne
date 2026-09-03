@@ -1100,7 +1100,7 @@ export function OnlineBookingPage() {
               {tab === "online" ? (
                 <div className="booking-page-legend" aria-label="Статусы записей">
                   <span className="booking-legend-item booking-legend-item--booked">Запись</span>
-                  <span className="booking-legend-item booking-legend-item--notify">Уведомление отправлено</span>
+                  <span className="booking-legend-item booking-legend-item--notify">Смс отправлено</span>
                   <span className="booking-legend-item booking-legend-item--completed">Пришёл</span>
                   <span className="booking-legend-item booking-legend-item--no_show">Неявка</span>
                   <span className="booking-legend-item booking-legend-item--cancelled">Отмена</span>
