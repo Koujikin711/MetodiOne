@@ -1165,7 +1165,13 @@ export function KpiPage() {
       {tab === "debtors" && (isAdminOrOwner || isCurator) ? (
         <section className="mo-section space-y-3 p-3 sm:p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Дебиторка</h2>
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Дебиторка</h2>
+              <p className="mt-1 hidden text-sm lux-caption sm:block">
+                Открытые долги на конец выбранного месяца: тянутся из прошлых месяцев, пока клиент не
+                закроет долг (или курс/протокол не закрыт статусом отказ/завершён).
+              </p>
+            </div>
             <p className="text-xs mo-muted sm:text-sm">
               Итого:{" "}
               <span className="font-semibold text-[var(--mo-text)]">
@@ -1397,8 +1403,8 @@ function CompanyReportSection({
         </h2>
         <p className="mt-1 hidden text-sm lux-caption sm:block">
           {hideBookingExperts
-            ? "Сводка для владельца: ход плана, выручка и долги. Продажи — отдельно по менеджерам."
-            : "Сводка для владельца: ход плана, выручка, дебиторка и кредиторка (оплатили, визит ещё впереди). Продажи — отдельно по менеджерам; здесь общий приход и явки по онлайн-записи."}
+            ? "Сводка для владельца: ход плана, выручка и долги. Выручка = оплаты по продажам месяца (не кассовый ОСВ по дате проводки). Дебиторка — открытый остаток на конец месяца с переносом."
+            : "Сводка для владельца. Выручка = сумма оплат по визитам и курсам месяца (нал/Алиф/DC), без неявок; это не ОСВ по дате кассовой проводки. Дебиторка — кто ещё должен на конец месяца (долги прошлых месяцев тоже)."}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-4">
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
@@ -1423,7 +1429,7 @@ function CompanyReportSection({
             </div>
           </div>
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
-            <div className="text-[11px] mo-muted sm:text-xs">Дебиторка</div>
+            <div className="text-[11px] mo-muted sm:text-xs">Дебиторка (остаток)</div>
             <div className="mt-1 text-xl font-semibold text-amber-600 sm:text-2xl dark:text-amber-200">
               {formatMoney(data.debtor_total)}
             </div>

@@ -830,12 +830,12 @@ async def debtors_report(
     booking_q: list = []
     desk_q: list = []
     if sales_mode:
+        # Открытые долги на конец выбранного месяца (включая прошлые месяцы).
         desk_q = (
             await db.execute(
                 select(ManagerDeskSale).where(
                     ManagerDeskSale.company_id == company_id,
                     ManagerDeskSale.status == "active",
-                    ManagerDeskSale.sold_at >= start,
                     ManagerDeskSale.sold_at < end,
                     ManagerDeskSale.service_amount > ManagerDeskSale.paid_amount,
                     or_(
@@ -846,6 +846,7 @@ async def debtors_report(
             )
         ).scalars().all()
     else:
+        # Дебиторка записи тоже переносится: клиент всё ещё должен, даже если визит был в прошлом месяце.
         booking_q = (
             await db.execute(
                 select(BookingAppointment, BookingDirection.name, Lead.manager_id)
@@ -854,7 +855,6 @@ async def debtors_report(
                 .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
                 .where(
                     BookingAppointment.company_id == company_id,
-                    BookingAppointment.start_at >= start,
                     BookingAppointment.start_at < end,
                     BookingAppointment.service_amount > BookingAppointment.paid_amount,
                     # Неявки и отмены — не долг (услугу не оказали).
@@ -862,6 +862,7 @@ async def debtors_report(
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,
+                        BookingDirection.pipeline_id == pipeline_id,
                     ),
                 )
                 .order_by(BookingAppointment.start_at.desc()),
@@ -1114,6 +1115,24 @@ async def company_report(
             sa = Decimal(str(sale.service_amount or 0))
             pa = Decimal(str(sale.paid_amount or 0))
             revenue_booking += pa
+        # Дебиторка продаж — открытый остаток на конец месяца (с переносом прошлых).
+        desk_debt_rows = (
+            await db.execute(
+                select(ManagerDeskSale).where(
+                    ManagerDeskSale.company_id == company_id,
+                    ManagerDeskSale.status == "active",
+                    ManagerDeskSale.sold_at < end,
+                    ManagerDeskSale.service_amount > ManagerDeskSale.paid_amount,
+                    or_(
+                        ManagerDeskSale.pipeline_id == pipeline_id,
+                        ManagerDeskSale.pipeline_id.is_(None),
+                    ),
+                ),
+            )
+        ).scalars().all()
+        for sale in desk_debt_rows:
+            sa = Decimal(str(sale.service_amount or 0))
+            pa = Decimal(str(sale.paid_amount or 0))
             debtor_booking += max(sa - pa, Decimal("0"))
     else:
         appt_rows = (
@@ -1173,34 +1192,60 @@ async def company_report(
                 bucket["cancelled_count"] += 1
             else:
                 bucket["appointments_total"] += 1
-                bucket["revenue_paid"] += pa
-                revenue_booking += pa
-                # Неявка: оплаченное остаётся выручкой, недоплату в дебиторку не ставим.
-                if st != "no_show":
-                    debt = max(sa - pa, Decimal("0"))
-                    if debt > 0:
-                        bucket["debtor_amount"] += debt
-                        debtor_booking += debt
-                if st == "completed":
-                    bucket["appeared_count"] += 1
-                    if sa <= 0 or pa + Decimal("0.01") >= sa:
-                        bucket["paid_full_amount"] += pa
-                elif st == "no_show":
+                # Неявка: деньги отдельно (не в выручке месяца), долг не ставим.
+                if st == "no_show":
                     bucket["no_show_count"] += 1
                     if pa > 0:
                         bucket["paid_no_show_amount"] += pa
-                elif st == "booked":
-                    bucket["booked_count"] += 1
-                    start_at = appt.start_at
-                    if start_at is not None and start_at.tzinfo is None:
-                        start_at = start_at.replace(tzinfo=UTC)
-                    if start_at is not None and start_at > now and pa > 0:
-                        cred = pa
-                        bucket["creditor_amount"] += cred
-                        creditor_total += cred
-                        bucket["booked_future_count"] += 1
+                else:
+                    bucket["revenue_paid"] += pa
+                    revenue_booking += pa
+                    debt = max(sa - pa, Decimal("0"))
+                    if debt > 0:
+                        bucket["debtor_amount"] += debt
+                    if st == "completed":
+                        bucket["appeared_count"] += 1
+                        if sa <= 0 or pa + Decimal("0.01") >= sa:
+                            bucket["paid_full_amount"] += pa
+                    elif st == "booked":
+                        bucket["booked_count"] += 1
+                        start_at = appt.start_at
+                        if start_at is not None and start_at.tzinfo is None:
+                            start_at = start_at.replace(tzinfo=UTC)
+                        if start_at is not None and start_at > now and pa > 0:
+                            cred = pa
+                            bucket["creditor_amount"] += cred
+                            creditor_total += cred
+                            bucket["booked_future_count"] += 1
 
-    # Ручные продажи курсов/протоколов
+        # Дебиторка записи на конец месяца — с переносом прошлых визитов.
+        open_booking_debt = (
+            await db.execute(
+                select(BookingAppointment.service_amount, BookingAppointment.paid_amount)
+                .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+                .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+                .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id, isouter=True)
+                .where(
+                    BookingAppointment.company_id == company_id,
+                    BookingAppointment.start_at < end,
+                    BookingAppointment.service_amount > BookingAppointment.paid_amount,
+                    BookingAppointment.status.notin_(("no_show", "cancelled")),
+                    or_(
+                        BookingAppointment.pipeline_id == pipeline_id,
+                        PipelineStage.pipeline_id == pipeline_id,
+                        BookingDirection.pipeline_id == pipeline_id,
+                    ),
+                ),
+            )
+        ).all()
+        debtor_booking = Decimal("0")
+        for sa_raw, pa_raw in open_booking_debt:
+            sa = Decimal(str(sa_raw or 0))
+            pa = Decimal(str(pa_raw or 0))
+            debtor_booking += max(sa - pa, Decimal("0"))
+
+    # Ручные продажи курсов/протоколов: выручка — оплаты за продажи месяца;
+    # дебиторка — открытый остаток на конец месяца (с переносом).
     manual_rows = (
         await db.execute(
             select(SalesKpiManualSale).where(
@@ -1213,11 +1258,25 @@ async def company_report(
         )
     ).scalars().all()
     revenue_manual = Decimal("0")
-    debtor_manual = Decimal("0")
     for sale in manual_rows:
-        sa = Decimal(str(sale.service_amount or 0))
         pa = Decimal(str(sale.paid_amount or 0))
         revenue_manual += pa
+
+    manual_debt_rows = (
+        await db.execute(
+            select(SalesKpiManualSale).where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.sold_at < end,
+                SalesKpiManualSale.status == "active",
+                SalesKpiManualSale.service_amount > SalesKpiManualSale.paid_amount,
+            ),
+        )
+    ).scalars().all()
+    debtor_manual = Decimal("0")
+    for sale in manual_debt_rows:
+        sa = Decimal(str(sale.service_amount or 0))
+        pa = Decimal(str(sale.paid_amount or 0))
         debtor_manual += max(sa - pa, Decimal("0"))
 
     # Эксперты воронки без записей в месяце — тоже покажем 0 (только clinic)
