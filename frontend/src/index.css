@@ -3405,6 +3405,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   box-shadow: none;
 }
 .chat-thread-row--waiting {
+  --mo-text: #064e3b;
+  --mo-text-muted: #047857;
+  --mo-accent-hover: #059669;
   border-color: color-mix(in srgb, #059669 35%, var(--mo-border));
   background: #ecfdf5;
   box-shadow: none;
@@ -3414,8 +3417,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   background: #d1fae5;
 }
 .chat-thread-row--waiting .mo-muted,
-.chat-thread-row--waiting [class*="mo-muted"] {
-  color: #047857 !important;
+.chat-thread-row--waiting .lux-caption {
+  color: var(--mo-text-muted);
 }
 .chat-thread-row--recent {
   border-color: color-mix(in srgb, var(--mo-accent) 35%, var(--mo-border));
