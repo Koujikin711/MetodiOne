@@ -59,6 +59,19 @@ type BuildParams = {
   };
 };
 
+
+function extraServicesNavItem(): ShellSidebarNavItem {
+  return {
+    id: "extra-services",
+    to: "/extra-services",
+    title: "Доп услуги",
+    labelShort: "Доп",
+    labelFull: "Доп услуги",
+    variant: "indigo",
+    iconKey: "clipboard-list",
+  };
+}
+
 export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavItem[] {
   const {
     isSuperOwner,
@@ -115,6 +128,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         variant: "online",
         iconKey: "calendar",
       });
+      items.push(extraServicesNavItem());
     }
     if (showKpi && showNavForFeature("kpi")) {
       items.push({
@@ -165,6 +179,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         variant: "online",
         iconKey: "calendar",
       });
+      items.push(extraServicesNavItem());
     }
     if (showKpi && showNavForFeature("kpi")) {
       items.push({
@@ -251,6 +266,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         variant: "online",
         iconKey: "calendar",
       });
+      items.push(extraServicesNavItem());
     }
     if (showDeskSales) {
       items.push(
@@ -292,6 +308,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
           variant: "online",
           iconKey: "calendar",
         });
+      items.push(extraServicesNavItem());
       }
       if (showKpi && showNavForFeature("kpi")) {
         items.push({
@@ -440,6 +457,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         variant: "tasks",
         iconKey: "calendar",
       });
+      items.push(extraServicesNavItem());
     }
     if (bookingEnabled && showNavForFeature("reports")) {
       items.push({
@@ -509,6 +527,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       variant: "tasks",
       iconKey: "calendar",
     });
+      items.push(extraServicesNavItem());
   }
   if (showDeskSales) {
     items.push(

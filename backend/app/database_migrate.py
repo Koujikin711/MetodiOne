@@ -3244,3 +3244,98 @@ async def _fix_massage_osv_prepaid_aug2026_body(conn: AsyncConnection, database_
             text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
             {"n": patch_name},
         )
+
+
+async def ensure_extra_services_tables(conn: AsyncConnection, database_url: str) -> None:
+    """Доп. услуги: типы с % нам/отдаём + журнал продаж."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS extra_service_types (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    keep_percent NUMERIC(7, 2) NOT NULL DEFAULT 0,
+                    payout_percent NUMERIC(7, 2) NOT NULL DEFAULT 0,
+                    is_active BOOLEAN NOT NULL DEFAULT 1,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS extra_service_sales (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    service_type_id INTEGER NOT NULL,
+                    client_name VARCHAR(255) NOT NULL,
+                    client_phone VARCHAR(64) NOT NULL DEFAULT '',
+                    amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    keep_percent NUMERIC(7, 2) NOT NULL DEFAULT 0,
+                    payout_percent NUMERIC(7, 2) NOT NULL DEFAULT 0,
+                    keep_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    payout_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    sold_at DATETIME,
+                    note TEXT,
+                    status VARCHAR(24) NOT NULL DEFAULT 'active',
+                    created_by_user_id INTEGER,
+                    created_at DATETIME
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS extra_service_types (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    name VARCHAR(255) NOT NULL,
+                    keep_percent NUMERIC(7, 2) NOT NULL DEFAULT 0,
+                    payout_percent NUMERIC(7, 2) NOT NULL DEFAULT 0,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS extra_service_sales (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    service_type_id INTEGER NOT NULL REFERENCES extra_service_types(id) ON DELETE RESTRICT,
+                    client_name VARCHAR(255) NOT NULL,
+                    client_phone VARCHAR(64) NOT NULL DEFAULT '',
+                    amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    keep_percent NUMERIC(7, 2) NOT NULL DEFAULT 0,
+                    payout_percent NUMERIC(7, 2) NOT NULL DEFAULT 0,
+                    keep_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    payout_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    sold_at TIMESTAMPTZ,
+                    note TEXT,
+                    status VARCHAR(24) NOT NULL DEFAULT 'active',
+                    created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )"""
+            ),
+        )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_extra_service_types_company_id ON extra_service_types (company_id)"),
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_extra_service_sales_company_id ON extra_service_sales (company_id)"),
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_extra_service_sales_service_type_id ON extra_service_sales (service_type_id)"),
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_extra_service_sales_sold_at ON extra_service_sales (sold_at)"),
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_extra_service_sales_status ON extra_service_sales (status)"),
+    )

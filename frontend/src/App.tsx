@@ -41,6 +41,7 @@ import { ManagerDeskPage } from "@/pages/ManagerDeskPage";
 import { ManagerSalesPage } from "@/pages/ManagerSalesPage";
 import { SalesQuoteCalculatorPage } from "@/pages/SalesQuoteCalculatorPage";
 import { SalesVisitTrackerPage } from "@/pages/SalesVisitTrackerPage";
+import { ExtraServicesPage } from "@/pages/ExtraServicesPage";
 
 export default function App() {
   return (
@@ -63,6 +64,7 @@ export default function App() {
             <Route path="/crm" element={<CrmPage />} />
             <Route path="/my-leads" element={<MyLeadsPage />} />
             <Route path="/booking" element={<BookingOrSalesEntry />} />
+            <Route path="/extra-services" element={<ExtraServicesPage />} />
             <Route path="/sales" element={<ManagerSalesPage />} />
             <Route path="/quote" element={<SalesQuoteCalculatorPage />} />
             <Route path="/tracker" element={<SalesVisitTrackerPage />} />
