@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.manager_scope import manager_lead_visibility
 from app.core.security import decode_token
-from app.database import get_db
+from app.database import AsyncSessionLocal, get_db
 from app.models import (
     BookingAppointment,
     BookingDirection,
@@ -37,7 +37,12 @@ _INTEGRATION_CLOSE_DEAL_TYPE = "integration_close"
 from app.services.audio_prepare import prepare_file_for_green_whatsapp
 from app.services.chat_media_store import resolve_chat_media, save_outgoing_chat_media
 from app.services.chat_thread_state import touch_thread_on_message
-from app.services.green_incoming_media import ensure_chat_message_media_local, repair_thread_media
+from app.services.green_incoming_media import (
+    apply_downloaded_chat_media,
+    fetch_media_bytes_for_plan,
+    prepare_chat_message_media_download,
+    repair_thread_media,
+)
 from app.services.green_api_send import send_green_file_upload, send_green_text_async
 from app.services.instagram_api_send import parse_meta_thread_recipient, send_meta_dm_text
 from app.services.whatsapp_phone_fallback import resolve_outbound_green_chat_id
@@ -338,9 +343,14 @@ async def _unread_incoming_count(db: AsyncSession, *, user_id: int, thread_id: i
     return int(n or 0)
 
 
-async def _mark_thread_read_up_to_latest(db: AsyncSession, *, user_id: int, thread_id: int) -> None:
-    mx = await db.scalar(select(func.max(ChatMessage.id)).where(ChatMessage.thread_id == thread_id))
-    last_id = int(mx or 0)
+async def _mark_thread_read_up_to(
+    db: AsyncSession,
+    *,
+    user_id: int,
+    thread_id: int,
+    last_id: int,
+) -> None:
+    last_id = int(last_id or 0)
     r = await db.execute(
         select(ChatThreadUserRead).where(
             ChatThreadUserRead.user_id == user_id,
@@ -366,6 +376,11 @@ async def _mark_thread_read_up_to_latest(db: AsyncSession, *, user_id: int, thre
     else:
         row.last_read_message_id = max(row.last_read_message_id, last_id)
     await db.flush()
+
+
+async def _mark_thread_read_up_to_latest(db: AsyncSession, *, user_id: int, thread_id: int) -> None:
+    mx = await db.scalar(select(func.max(ChatMessage.id)).where(ChatMessage.thread_id == thread_id))
+    await _mark_thread_read_up_to(db, user_id=user_id, thread_id=thread_id, last_id=int(mx or 0))
 
 
 def _msg_read(m: ChatMessage) -> ChatMessageRead:
@@ -1389,7 +1404,7 @@ async def list_messages(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
-    limit: int = Query(default=120, ge=1, le=500),
+    limit: int = Query(default=60, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[ChatMessageRead]:
     thread = await db.get(ChatThread, thread_id)
@@ -1397,48 +1412,86 @@ async def list_messages(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
     await _assert_thread_access(db, thread, current_user)
     # Последние `limit` сообщений (offset от самых новых), в ответе — по возрастанию id для UI.
-    # Раньше брались самые старые записи: при >limit сообщений в чате новые не попадали в выборку.
+    # Фильтр только по thread_id: доступ к компании уже проверен через тред (индекс thread_id,id).
     rows = (
         await db.execute(
             select(ChatMessage)
-            .where(
-                ChatMessage.thread_id == thread_id,
-                or_(ChatMessage.company_id == company_id, ChatMessage.company_id.is_(None)),
-            )
+            .where(ChatMessage.thread_id == thread_id)
             .order_by(ChatMessage.id.desc())
             .offset(offset)
             .limit(limit)
         )
     ).scalars().all()
     rows_chronological = list(reversed(rows))
-    await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread_id)
+    # offset=0 → первый ряд (desc) = max(id); без второго MAX()-запроса.
+    if offset == 0:
+        last_id = int(rows[0].id) if rows else 0
+        await _mark_thread_read_up_to(db, user_id=current_user.id, thread_id=thread_id, last_id=last_id)
+    else:
+        await _mark_thread_read_up_to_latest(db, user_id=current_user.id, thread_id=thread_id)
     return [_msg_read(m) for m in rows_chronological]
 
 
 @router.get("/messages/{message_id}/media")
 async def get_message_media(
     message_id: int,
-    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ):
-    msg = await db.get(ChatMessage, message_id)
-    if msg is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
-    thread = await db.get(ChatThread, msg.thread_id)
-    if thread is None or thread.company_id != company_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
-    if msg.company_id is not None and msg.company_id != company_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
-    await _assert_thread_access(db, thread, current_user)
+    """Медиа: HTTP к Green API вне сессии БД, чтобы не забивать пул и не тормозить чат."""
+    file_name: str | None = None
+    media_mime: str | None = None
+    plan: dict | None = None
+
+    async with AsyncSessionLocal() as db:
+        msg = await db.get(ChatMessage, message_id)
+        if msg is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+        thread = await db.get(ChatThread, msg.thread_id)
+        if thread is None or thread.company_id != company_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+        if msg.company_id is not None and msg.company_id != company_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+        await _assert_thread_access(db, thread, current_user)
+        file_name = msg.file_name
+        media_mime = msg.media_mime
+        fpath = resolve_chat_media(message_id)
+        if fpath is not None and fpath.exists():
+            await db.commit()
+            media_type = (media_mime or "").strip() or mimetypes.guess_type(fpath.name)[0] or "application/octet-stream"
+            return FileResponse(path=fpath, media_type=media_type, filename=file_name or fpath.name)
+        plan = await prepare_chat_message_media_download(db, msg=msg, thread=thread)
+        await db.commit()
+
+    if plan is not None:
+        try:
+            content, fetched_mime = await asyncio.wait_for(fetch_media_bytes_for_plan(plan), timeout=22.0)
+            if content:
+                async with AsyncSessionLocal() as db:
+                    ok = await apply_downloaded_chat_media(
+                        db,
+                        message_id=message_id,
+                        content=content,
+                        mime=fetched_mime or media_mime,
+                        file_name=file_name,
+                        message_type=plan.get("message_type"),
+                    )
+                    if ok:
+                        await db.commit()
+                        if fetched_mime:
+                            media_mime = fetched_mime
+                    else:
+                        await db.rollback()
+        except TimeoutError:
+            logger.warning("chat media download timed out message_id=%s", message_id)
+        except Exception:
+            logger.exception("chat media download failed message_id=%s", message_id)
+
     fpath = resolve_chat_media(message_id)
     if fpath is None or not fpath.exists():
-        await ensure_chat_message_media_local(db, msg=msg, thread=thread)
-        fpath = resolve_chat_media(message_id)
-    if fpath is None or not fpath.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
-    media_type = (msg.media_mime or "").strip() or mimetypes.guess_type(fpath.name)[0] or "application/octet-stream"
-    return FileResponse(path=fpath, media_type=media_type, filename=msg.file_name or fpath.name)
+    media_type = (media_mime or "").strip() or mimetypes.guess_type(fpath.name)[0] or "application/octet-stream"
+    return FileResponse(path=fpath, media_type=media_type, filename=file_name or fpath.name)
 
 
 class RepairMediaResult(BaseModel):

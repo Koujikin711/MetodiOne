@@ -104,62 +104,130 @@ async def persist_incoming_green_media(
     return True
 
 
+async def _green_config_for_thread(db: AsyncSession, thread: ChatThread) -> dict:
+    integ = (
+        await db.execute(
+            select(Integration)
+            .where(
+                Integration.provider == IntegrationProvider.green_api,
+                Integration.is_active.is_(True),
+                Integration.company_id == thread.company_id,
+                Integration.pipeline_id == (thread.pipeline_id or 0),
+            )
+            .order_by(Integration.id.desc())
+            .limit(1),
+        )
+    ).scalars().first()
+    return integ.config if integ and isinstance(integ.config, dict) else {}
+
+
+async def prepare_chat_message_media_download(
+    db: AsyncSession,
+    *,
+    msg: ChatMessage,
+    thread: ChatThread,
+) -> dict | None:
+    """Короткий DB-lookup: план скачивания без HTTP (чтобы не держать пул)."""
+    if msg.id is None or local_media_exists(msg.id):
+        return None
+
+    raw_url = (msg.media_url or "").strip()
+    provider_msg = (msg.provider_message_id or "").strip() or None
+    ext_chat = (thread.external_chat_id or "").strip()
+    mime = (msg.media_mime or "").strip() or None
+
+    if thread.provider == IntegrationProvider.green_api.value and ext_chat and provider_msg:
+        cfg = await _green_config_for_thread(db, thread)
+        return {
+            "kind": "green",
+            "message_id": int(msg.id),
+            "cfg": cfg,
+            "chat_id": ext_chat,
+            "id_message": provider_msg,
+            "download_url": raw_url or None,
+            "mime": mime,
+            "file_name": msg.file_name,
+            "message_type": msg.message_type,
+        }
+    if raw_url.startswith("http"):
+        return {
+            "kind": "url",
+            "message_id": int(msg.id),
+            "url": raw_url,
+            "mime": mime,
+            "file_name": msg.file_name,
+            "message_type": msg.message_type,
+        }
+    return None
+
+
+async def fetch_media_bytes_for_plan(plan: dict) -> tuple[bytes | None, str | None]:
+    """HTTP без сессии БД."""
+    mime = plan.get("mime")
+    if plan.get("kind") == "green":
+        content, fetched_mime = await download_green_incoming_media(
+            plan.get("cfg") if isinstance(plan.get("cfg"), dict) else {},
+            chat_id=str(plan.get("chat_id") or ""),
+            id_message=plan.get("id_message"),
+            download_url=plan.get("download_url"),
+        )
+        return content, fetched_mime or mime
+    if plan.get("kind") == "url":
+        content, fetched_mime = await fetch_url_bytes(str(plan.get("url") or ""))
+        return content, fetched_mime or mime
+    return None, mime
+
+
+async def apply_downloaded_chat_media(
+    db: AsyncSession,
+    *,
+    message_id: int,
+    content: bytes,
+    mime: str | None,
+    file_name: str | None,
+    message_type: str | None,
+) -> bool:
+    msg = await db.get(ChatMessage, message_id)
+    if msg is None:
+        return False
+    ok = await _store_message_media(
+        msg,
+        content=content,
+        file_name=file_name or msg.file_name,
+        mime=mime,
+        message_type=message_type or msg.message_type,
+    )
+    if ok:
+        await db.flush()
+    return ok
+
+
 async def ensure_chat_message_media_local(
     db: AsyncSession,
     *,
     msg: ChatMessage,
     thread: ChatThread,
 ) -> bool:
-    """Ленивая подгрузка медиа для старых сообщений (внешняя ссылка без локального файла)."""
+    """Ленивая подгрузка медиа (для repair и путей, где сессия уже открыта)."""
     if msg.id is None or local_media_exists(msg.id):
         return local_media_exists(msg.id or 0)
 
-    raw_url = (msg.media_url or "").strip()
-    provider_msg = (msg.provider_message_id or "").strip() or None
-    ext_chat = (thread.external_chat_id or "").strip()
-    content: bytes | None = None
-    mime: str | None = (msg.media_mime or "").strip() or None
+    plan = await prepare_chat_message_media_download(db, msg=msg, thread=thread)
+    if plan is None:
+        return local_media_exists(msg.id)
 
-    if thread.provider == IntegrationProvider.green_api.value and ext_chat and provider_msg:
-        integ = (
-            await db.execute(
-                select(Integration)
-                .where(
-                    Integration.provider == IntegrationProvider.green_api,
-                    Integration.is_active.is_(True),
-                    Integration.company_id == thread.company_id,
-                    Integration.pipeline_id == (thread.pipeline_id or 0),
-                )
-                .order_by(Integration.id.desc())
-                .limit(1),
-            )
-        ).scalars().first()
-        cfg = integ.config if integ and isinstance(integ.config, dict) else {}
-        content, fetched_mime = await download_green_incoming_media(
-            cfg,
-            chat_id=ext_chat,
-            id_message=provider_msg,
-            download_url=raw_url or None,
-        )
-        if fetched_mime and not mime:
-            mime = fetched_mime
-    elif raw_url.startswith("http"):
-        content, fetched_mime = await fetch_url_bytes(raw_url)
-        if fetched_mime and not mime:
-            mime = fetched_mime
-
+    content, mime = await fetch_media_bytes_for_plan(plan)
     if not content:
         return False
 
-    await _store_message_media(
-        msg,
+    return await apply_downloaded_chat_media(
+        db,
+        message_id=int(msg.id),
         content=content,
-        file_name=msg.file_name,
         mime=mime,
+        file_name=msg.file_name,
         message_type=msg.message_type,
     )
-    await db.flush()
-    return True
 
 
 async def repair_thread_media(

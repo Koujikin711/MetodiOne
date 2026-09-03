@@ -43,7 +43,7 @@ async def resolve_green_file_download_url(
     url = f"{base}/waInstance{instance_id}/downloadFile/{api_token}"
     body: dict[str, Any] = {"chatId": chat_id, "idMessage": id_message}
     try:
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        async with httpx.AsyncClient(timeout=12.0) as client:
             r = await client.post(url, json=body)
             if r.status_code >= 400:
                 logger.warning("green downloadFile HTTP %s chat=%s msg=%s", r.status_code, chat_id, id_message)
@@ -58,7 +58,7 @@ async def resolve_green_file_download_url(
 
 async def fetch_url_bytes(url: str) -> tuple[bytes | None, str | None]:
     try:
-        async with httpx.AsyncClient(timeout=90.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
             r = await client.get(url)
             if r.status_code >= 400:
                 return None, None

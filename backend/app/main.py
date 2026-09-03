@@ -190,33 +190,45 @@ async def seed_pipelines_and_stages() -> None:
 
 
 async def ensure_canonical_pipeline_stages() -> None:
-    """Все воронки → 6 стадий; бэкфилл меток Архива; раскладка; слияние дублей по телефону."""
+    """Лёгкая часть при старте: стадии + бэкфилл меток Архива (без долгого lock пула)."""
     try:
         async with AsyncSessionLocal() as session:
-            from app.services.lead_phone_dedup import merge_duplicate_phone_leads
             from app.services.lead_sales_stages import (
                 backfill_archived_from_stage,
                 ensure_all_pipelines_chat_stages,
-                redistribute_all_pipelines_leads,
             )
 
             n = await ensure_all_pipelines_chat_stages(session)
             backfilled = await backfill_archived_from_stage(session)
+            await session.commit()
+            logger.info(
+                "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s",
+                n,
+                backfilled,
+            )
+    except Exception:
+        logger.exception("ensure_canonical_pipeline_stages failed; continuing startup")
+
+
+async def ensure_canonical_pipeline_heavy_jobs() -> None:
+    """Тяжёлое: дедуп телефонов + раскладка — в фоне после старта API."""
+    try:
+        async with AsyncSessionLocal() as session:
+            from app.services.lead_phone_dedup import merge_duplicate_phone_leads
+            from app.services.lead_sales_stages import redistribute_all_pipelines_leads
+
             dedup = await merge_duplicate_phone_leads(session)
             moved = await redistribute_all_pipelines_leads(session)
             await session.commit()
             logger.info(
-                "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s; "
-                "phone_dedup groups=%s removed=%s threads=%s; redistributed %s lead(s)",
-                n,
-                backfilled,
+                "Canonical heavy jobs: phone_dedup groups=%s removed=%s threads=%s; redistributed %s lead(s)",
                 dedup.get("merged_groups"),
                 dedup.get("removed_leads"),
                 dedup.get("moved_threads"),
                 moved,
             )
     except Exception:
-        logger.exception("ensure_canonical_pipeline_stages failed; continuing startup")
+        logger.exception("ensure_canonical_pipeline_heavy_jobs failed")
 
 
 TEST_ADMIN_EMAIL = "admin@crm.local"
@@ -527,7 +539,15 @@ async def lifespan(_: FastAPI):
         except Exception:
             logger.exception("deferred chat performance indexes failed")
 
+    async def _deferred_canonical_heavy() -> None:
+        try:
+            await asyncio.sleep(5)
+            await ensure_canonical_pipeline_heavy_jobs()
+        except Exception:
+            logger.exception("deferred canonical heavy jobs failed")
+
     deferred_chat_task = asyncio.create_task(_deferred_chat_indexes())
+    deferred_heavy_task = asyncio.create_task(_deferred_canonical_heavy())
 
     async def _reminder_loop() -> None:
         next_sheets_run = 0.0
@@ -625,12 +645,17 @@ async def lifespan(_: FastAPI):
     stop_event.set()
     reminder_task.cancel()
     deferred_chat_task.cancel()
+    deferred_heavy_task.cancel()
     try:
         await reminder_task
     except asyncio.CancelledError:
         pass
     try:
         await deferred_chat_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await deferred_heavy_task
     except asyncio.CancelledError:
         pass
     await engine.dispose()

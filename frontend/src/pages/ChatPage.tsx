@@ -227,6 +227,34 @@ function isProtectedApiMediaUrl(url: string | null | undefined): boolean {
   }
 }
 
+function useInViewport(rootMargin = "240px"): {
+  ref: { current: HTMLDivElement | null };
+  visible: boolean;
+} {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || visible) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return;
+    }
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible(true);
+          obs.disconnect();
+        }
+      },
+      { rootMargin },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [rootMargin, visible]);
+  return { ref, visible };
+}
+
 function useProtectedMediaSrc(message: ChatMessage, enabled: boolean): {
   src: string | null;
   loading: boolean;
@@ -299,6 +327,7 @@ function useProtectedMediaSrc(message: ChatMessage, enabled: boolean): {
 }
 
 function MessageBody({ m }: { m: ChatMessage }) {
+  const { ref: mediaGateRef, visible: mediaInView } = useInViewport("280px");
   const mt = m.message_type ?? "text";
   const showAsAudio = mt === "audio" || looksLikeAudioAttachment(m);
   const hasMedia = mt !== "text" || Boolean((m.media_url || "").trim());
@@ -308,7 +337,7 @@ function MessageBody({ m }: { m: ChatMessage }) {
     (isProtectedApiMediaUrl(rawMedia) || !/^https?:\/\//i.test(rawMedia) || rawMedia.toLowerCase().includes("downloadfile"));
   const { src: protectedSrc, loading: mediaLoading, failed: mediaFailed } = useProtectedMediaSrc(
     m,
-    needsProtectedFetch,
+    needsProtectedFetch && mediaInView,
   );
   const directUrl =
     !needsProtectedFetch && rawMedia && /^https?:\/\//i.test(rawMedia) ? resolveMediaUrl(rawMedia) : null;
@@ -319,6 +348,13 @@ function MessageBody({ m }: { m: ChatMessage }) {
     mt !== "audio" &&
     (mt === "image" || looksLikeImageAttachment(m));
 
+  if (needsProtectedFetch && !mediaInView) {
+    return (
+      <div ref={mediaGateRef} className="min-h-[2.75rem] text-sm lux-caption">
+        {m.text?.trim() || (showAsAudio ? "Голосовое…" : showAsImage ? "Фото…" : mt === "video" ? "Видео…" : "Медиа…")}
+      </div>
+    );
+  }
   if (showAsImage) {
     const cap = imageCaptionToShow(m);
     if (url) {
@@ -831,11 +867,13 @@ export function ChatPage() {
   const messagesQuery = useQuery({
     queryKey: ["chat-messages", threadId],
     queryFn: () =>
-      apiFetch<ChatMessage[]>(`/api/chat/threads/${threadId}/messages?limit=120&offset=0`, {
-        timeoutMs: 45_000,
+      apiFetch<ChatMessage[]>(`/api/chat/threads/${threadId}/messages?limit=50&offset=0`, {
+        timeoutMs: 25_000,
       }),
     enabled: !!threadId,
-    refetchInterval: tabVisible && threadId ? 10000 : false,
+    staleTime: 4_000,
+    retry: 1,
+    refetchInterval: tabVisible && threadId ? 12_000 : false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
   });
@@ -1529,6 +1567,20 @@ export function ChatPage() {
               <div ref={messagesScrollRef} className="chat-thread min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-1 py-3 sm:px-2">
                 {messagesQuery.isLoading && !messagesQuery.data && (
                   <p className="text-sm lux-caption">Загрузка сообщений…</p>
+                )}
+                {messagesQuery.isError && !messagesQuery.data && (
+                  <div className="space-y-2 py-2">
+                    <p className="text-sm text-[var(--mo-danger,#ef4444)]">
+                      {(messagesQuery.error as Error)?.message || "Не удалось загрузить сообщения"}
+                    </p>
+                    <button
+                      type="button"
+                      className="chat-thread-header-btn"
+                      onClick={() => void messagesQuery.refetch()}
+                    >
+                      Повторить
+                    </button>
+                  </div>
                 )}
                 {(messagesQuery.data ?? []).map((m, idx, arr) => {
                   const isOut = m.direction === "out";
