@@ -1747,8 +1747,8 @@ export function OnlineBookingPage() {
                       )}
                     </td>
                     <td>
-                      <span className="font-medium leading-snug text-[var(--mo-text)]">{a.patient_name}</span>
-                      <span className="mt-0.5 block text-xs leading-snug text-[var(--mo-text-muted)]">
+                      <span className="font-medium leading-tight text-[var(--mo-text)]">{a.patient_name}</span>
+                      <span className="block text-[11px] leading-tight text-[var(--mo-text-muted)]">
                         <PatientPhone value={a} />
                       </span>
                     </td>
@@ -1805,10 +1805,10 @@ export function OnlineBookingPage() {
                         <span className="mo-muted">{statusLabels[a.status] ?? a.status}</span>
                       )}
                     </td>
-                    <td className="max-w-[160px]">
+                    <td className="max-w-[140px]">
                       {(a.comment || "").trim() ? (
                         <span
-                          className="line-clamp-2 text-xs leading-snug text-[var(--mo-text)]"
+                          className="line-clamp-2 text-[11px] leading-snug text-[var(--mo-text)]"
                           title={(a.comment || "").trim()}
                         >
                           {(a.comment || "").trim()}

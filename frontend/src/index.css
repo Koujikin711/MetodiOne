@@ -35,7 +35,7 @@
   --mo-border: #dbe2ef;
   --mo-border-strong: #c8d3e6;
   --mo-text: #0f172a;
-  --mo-text-muted: #64748b;
+  --mo-text-muted: #475569;
   --mo-accent: #6366f1;
   --mo-accent-hover: #4f46e5;
   --mo-accent-soft: #eef2ff;
@@ -1465,64 +1465,60 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   @apply grid w-full gap-3 lg:grid-cols-[minmax(0,1fr)_min(100%,17.5rem)] xl:grid-cols-[minmax(0,1fr)_17.5rem] xl:items-start;
 }
 
-.booking-journal-table {
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
 .booking-journal-table th,
 .booking-journal-table td {
-  padding: 0.55rem 0.6rem;
-  font-size: 0.8125rem;
-  line-height: 1.35;
-  vertical-align: middle;
-  border-bottom: 1px solid color-mix(in srgb, var(--mo-border) 70%, transparent);
+  padding: 0.25rem 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  vertical-align: top;
+  border-bottom: 1px solid #e8eaee;
+  color: var(--mo-text);
 }
 
 .booking-journal-table thead th {
-  font-size: 0.75rem;
-  font-weight: 650;
-  letter-spacing: 0.01em;
+  font-size: 0.6875rem;
+  font-weight: 600;
   white-space: nowrap;
-  color: var(--mo-text);
-  background: color-mix(in srgb, var(--mo-surface) 80%, var(--mo-surface-elevated));
-  border-bottom: 1px solid var(--mo-border);
-}
-
-.booking-journal-table tbody tr:nth-child(even) td {
-  background: color-mix(in srgb, var(--mo-surface) 55%, transparent);
-}
-
-.booking-journal-table tbody tr:hover td {
-  background: var(--mo-accent-soft);
+  color: #334155;
+  border-bottom: 1px solid #dde1e8;
 }
 
 .booking-journal-table tbody tr.is-debt td {
-  background: color-mix(in srgb, var(--mo-warning) 6%, var(--mo-surface-elevated));
+  background: color-mix(in srgb, var(--mo-warning) 7%, #fff);
 }
 
 .booking-journal-col-status {
-  min-width: 5.5rem;
-  width: 5.5rem;
+  min-width: 4.75rem;
+  width: 4.75rem;
 }
 
 .booking-journal-status {
   width: 100%;
-  min-width: 5rem;
-  padding: 0.3rem 0.4rem !important;
-  font-size: 0.8125rem !important;
-  line-height: 1.25;
+  min-width: 4.5rem;
+  padding: 0.125rem 0.25rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.2;
 }
 
 .booking-journal-debt {
   display: inline-block;
-  border-radius: 0.375rem;
-  background: color-mix(in srgb, var(--mo-warning) 16%, #fff);
-  padding: 0.15rem 0.4rem;
-  font-size: 0.75rem;
-  font-weight: 650;
+  border-radius: 0.25rem;
+  background: #fff4e0;
+  padding: 0.0625rem 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
   color: #9a6700;
   white-space: nowrap;
+}
+
+:root[data-theme="dark"] .booking-journal-table th,
+:root[data-theme="dark"] .booking-journal-table td {
+  border-bottom-color: var(--mo-border);
+}
+
+:root[data-theme="dark"] .booking-journal-table thead th {
+  color: var(--mo-text-muted);
+  border-bottom-color: var(--mo-border);
 }
 
 :root[data-theme="dark"] .booking-journal-debt {
@@ -1531,26 +1527,26 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-journal-col-actions {
-  width: 2.25rem;
-  padding-left: 0.25rem !important;
-  padding-right: 0.25rem !important;
+  width: 2rem;
+  padding-left: 0.125rem !important;
+  padding-right: 0.125rem !important;
   text-align: center;
 }
 
 .booking-journal-delete {
   display: inline-flex;
-  height: 2rem;
-  width: 2rem;
+  height: 1.75rem;
+  width: 1.75rem;
   align-items: center;
   justify-content: center;
-  border-radius: 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--mo-danger) 30%, var(--mo-border));
-  background: color-mix(in srgb, var(--mo-danger) 8%, #fff);
-  color: var(--mo-danger);
+  border-radius: 0.375rem;
+  border: 1px solid color-mix(in srgb, var(--mo-danger) 28%, #e5e7eb);
+  background: #fef2f2;
+  color: #dc2626;
 }
 
 .booking-journal-delete:hover {
-  background: color-mix(in srgb, var(--mo-danger) 16%, #fff);
+  background: #fee2e2;
 }
 
 :root[data-theme="dark"] .booking-journal-delete {
@@ -4425,9 +4421,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .analytics-toolbar-field > span {
-  @apply mb-1 block text-xs font-semibold tracking-wide;
-  color: var(--mo-text);
-  opacity: 0.72;
+  @apply mb-1 block text-[11px] font-semibold uppercase tracking-wide;
+  color: #334155;
 }
 
 .analytics-toolbar-field.is-needed .mo-input {
@@ -4442,32 +4437,28 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-3;
 }
 
-.analytics-kpi {
-  /* без цветной полоски слева — карточка сама читается */
-  padding-left: 0.85rem;
+/* Синяя полоска слева у KPI — убрана */
+.analytics-kpi::before,
+.analytics-kpi--accent::before,
+.analytics-kpi--success::before,
+.analytics-kpi--warning::before,
+.analytics-kpi--neutral::before,
+.analytics-kpi--default::before {
+  content: none !important;
+  display: none !important;
 }
 
 .analytics-kpi .mo-kpi-label {
-  font-size: 0.75rem;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  color: var(--mo-text);
-  opacity: 0.7;
-}
-
-.analytics-kpi .mo-kpi-value {
-  margin-top: 0.35rem;
-  font-size: 1.65rem;
-  line-height: 1.15;
+  color: #334155;
 }
 
 .analytics-kpi-hint {
-  @apply mt-1.5 text-xs leading-snug;
+  @apply mt-1 text-[11px] leading-snug;
   color: var(--mo-text-muted);
 }
 
 .analytics-panel-note {
-  @apply mb-3 text-sm leading-snug;
+  @apply mb-3 text-xs leading-snug;
   color: var(--mo-text-muted);
 }
 
@@ -4564,10 +4555,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .analytics-table thead th {
-  @apply border-b pb-2.5 text-[0.8125rem] font-semibold tracking-wide;
-  border-color: var(--mo-border);
-  color: var(--mo-text);
-  opacity: 0.75;
+  @apply border-b pb-2 text-xs font-semibold uppercase tracking-wide;
+  border-color: #e8eaee;
+  color: #334155;
 }
 
 .analytics-table tbody tr {
