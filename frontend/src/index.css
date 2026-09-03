@@ -2724,6 +2724,119 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   align-items: flex-end;
   justify-content: space-between;
   gap: 0.75rem 1rem;
+  overflow: visible;
+  position: relative;
+  z-index: 5;
+}
+
+.mo-month-picker {
+  min-width: min(12rem, 100%);
+  max-width: 16rem;
+}
+
+.mo-month-picker-panel {
+  position: fixed;
+  z-index: 80;
+  box-sizing: border-box;
+  border-radius: 1rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+  padding: 0.75rem;
+  box-shadow: var(--mo-shadow-luxury);
+}
+
+.mo-month-picker-panel__year {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.75rem;
+  background: var(--mo-surface);
+}
+
+.mo-month-picker-panel__year-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--mo-text);
+}
+
+.mo-month-picker-panel__nav {
+  border: 0;
+  background: transparent;
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  color: var(--mo-text-muted);
+  cursor: pointer;
+}
+
+.mo-month-picker-panel__nav:hover {
+  background: var(--mo-accent-soft);
+  color: var(--mo-accent-hover);
+}
+
+.mo-month-picker-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.mo-month-picker-panel__month {
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.25rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mo-text);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s var(--mo-ease), border-color 0.15s var(--mo-ease), color 0.15s var(--mo-ease);
+}
+
+.mo-month-picker-panel__month:hover {
+  border-color: var(--mo-border-strong);
+  background: var(--mo-accent-soft);
+}
+
+.mo-month-picker-panel__month.is-current {
+  border-color: var(--mo-border-strong);
+  background: var(--mo-accent-soft);
+  color: var(--mo-accent-hover);
+}
+
+.mo-month-picker-panel__month.is-selected {
+  border-color: transparent;
+  background: var(--mo-accent-hover);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.mo-month-picker-panel__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--mo-border);
+}
+
+.mo-month-picker-panel__link {
+  border: 0;
+  background: transparent;
+  padding: 0.15rem 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mo-accent-hover);
+  cursor: pointer;
+}
+
+.mo-month-picker-panel__link:hover {
+  text-decoration: underline;
 }
 
 .expenses-form {
