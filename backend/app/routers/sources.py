@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import LeadSource, UserRole
 from app.schemas.sources import LeadSourceCreate, LeadSourceRead, LeadSourceUpdate
@@ -16,9 +16,23 @@ router = APIRouter(prefix="/sources", tags=["sources"])
 async def list_sources(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> list[LeadSourceRead]:
-    r = await db.execute(select(LeadSource).order_by(LeadSource.is_active.desc(), LeadSource.name))
-    return [LeadSourceRead.model_validate(x) for x in r.scalars().all()]
+    r = await db.execute(
+        select(LeadSource)
+        .where(LeadSource.company_id == company_id)
+        .order_by(LeadSource.is_active.desc(), LeadSource.name, LeadSource.id),
+    )
+    # На случай старых дублей без unique — показываем одно имя.
+    seen: set[str] = set()
+    out: list[LeadSourceRead] = []
+    for row in r.scalars().all():
+        key = (row.name or "").strip().casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(LeadSourceRead.model_validate(row))
+    return out
 
 
 @router.post("", response_model=LeadSourceRead, status_code=status.HTTP_201_CREATED)
@@ -26,15 +40,22 @@ async def create_source(
     body: LeadSourceCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadSourceRead:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
-    exists = await db.scalar(select(LeadSource.id).where(LeadSource.name == body.name.strip()))
+    name = body.name.strip()
+    exists = await db.scalar(
+        select(LeadSource.id).where(
+            LeadSource.company_id == company_id,
+            LeadSource.name == name,
+        ),
+    )
     if exists is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Source name already exists")
 
-    s = LeadSource(name=body.name.strip(), is_active=body.is_active)
+    s = LeadSource(name=name, is_active=body.is_active, company_id=company_id)
     db.add(s)
     await db.flush()
     await db.refresh(s)
@@ -47,12 +68,13 @@ async def patch_source(
     body: LeadSourceUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ) -> LeadSourceRead:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
     s = await db.get(LeadSource, source_id)
-    if s is None:
+    if s is None or s.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
 
     if body.name is not None:
@@ -69,16 +91,16 @@ async def delete_source(
     source_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
+    company_id: CurrentCompanyId,
 ):
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
     s = await db.get(LeadSource, source_id)
-    if s is None:
+    if s is None or s.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
 
     # soft-delete
     s.is_active = False
     await db.flush()
     return
-

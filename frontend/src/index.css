@@ -1942,6 +1942,18 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   color: var(--booking-appt-completed-text);
 }
 
+.booking-legend-item--no_show {
+  background: var(--booking-appt-neutral-bg);
+  border-color: var(--booking-appt-neutral-border);
+  color: var(--booking-appt-neutral-text);
+}
+
+.booking-legend-item--cancelled {
+  background: var(--booking-appt-cancel-bg);
+  border-color: var(--booking-appt-cancel-border);
+  color: var(--booking-appt-cancel-text);
+}
+
 :root[data-theme="dark"] .booking-page-date-nav {
   background: rgba(15, 23, 42, 0.55);
   border-color: rgba(148, 163, 184, 0.2);
