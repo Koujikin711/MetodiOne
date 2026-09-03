@@ -1046,6 +1046,7 @@ export function KpiPage() {
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.group_no}
                   onChange={(e) => setSaleForm((s) => ({ ...s, group_no: e.target.value }))}
+                  title="Группа — время образования"
                 >
                   <option value="">—</option>
                   {KPI_GROUP_OPTIONS.map((n) => (
@@ -1054,6 +1055,7 @@ export function KpiPage() {
                     </option>
                   ))}
                 </select>
+                <span className="text-[10px] leading-snug text-[var(--mo-text-muted)]">время образования</span>
               </label>
               <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                 Поток
@@ -1061,6 +1063,7 @@ export function KpiPage() {
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.stream_no}
                   onChange={(e) => setSaleForm((s) => ({ ...s, stream_no: e.target.value }))}
+                  title="Поток — номер платежа"
                 >
                   <option value="">—</option>
                   {KPI_STREAM_OPTIONS.map((n) => (
@@ -1069,6 +1072,7 @@ export function KpiPage() {
                     </option>
                   ))}
                 </select>
+                <span className="text-[10px] leading-snug text-[var(--mo-text-muted)]">номер платежа</span>
               </label>
               <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                 Клиент
@@ -1314,8 +1318,8 @@ export function KpiPage() {
         <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
           <div>
             <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Поток</h2>
-            <p className="mt-1 hidden text-sm lux-caption sm:block">
-              Выберите поток — ниже продажи курсов/протоколов этого потока.
+            <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
+              Поток — номер платежа. Группа — время образования.
             </p>
           </div>
           <label className="flex max-w-xs flex-col gap-1 text-[11px] mo-muted sm:text-sm">
