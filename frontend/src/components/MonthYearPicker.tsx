@@ -1,18 +1,19 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 const MONTH_SHORT = [
-  "янв.",
-  "февр.",
-  "марта",
-  "апр.",
-  "мая",
-  "июня",
-  "июля",
-  "авг.",
-  "сент.",
-  "окт.",
-  "нояб.",
-  "дек.",
+  "янв",
+  "фев",
+  "мар",
+  "апр",
+  "май",
+  "июн",
+  "июл",
+  "авг",
+  "сен",
+  "окт",
+  "ноя",
+  "дек",
 ] as const;
 
 function parseYearMonth(value: string): { year: number; month: number } | null {
@@ -36,7 +37,6 @@ function displayLabel(value: string, compact = false): string {
   }
   const d = new Date(parsed.year, parsed.month - 1, 1);
   const label = d.toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
-  // «август 2026 г.»
   return label.includes("г.") ? label : `${label} г.`;
 }
 
@@ -50,6 +50,8 @@ type Props = {
   compact?: boolean;
 };
 
+const PANEL_W = 288;
+
 export function MonthYearPicker({
   value,
   onChange,
@@ -61,7 +63,9 @@ export function MonthYearPicker({
   const autoId = useId();
   const inputId = id ?? autoId;
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null);
   const parsed = parseYearMonth(value);
   const [viewYear, setViewYear] = useState(() => parsed?.year ?? new Date().getFullYear());
 
@@ -70,10 +74,41 @@ export function MonthYearPicker({
     setViewYear(parsed?.year ?? new Date().getFullYear());
   }, [open, parsed?.year]);
 
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelPos(null);
+      return;
+    }
+    function place() {
+      const el = triggerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const gap = 6;
+      let left = r.right - PANEL_W;
+      left = Math.max(8, Math.min(left, window.innerWidth - PANEL_W - 8));
+      let top = r.bottom + gap;
+      const panelH = 280;
+      if (top + panelH > window.innerHeight - 8 && r.top > panelH + gap) {
+        top = r.top - panelH - gap;
+      }
+      setPanelPos({ top, left });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t)) return;
+      if ((e.target as Element | null)?.closest?.(".mo-month-picker-panel")) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -106,9 +141,80 @@ export function MonthYearPicker({
     setOpen(false);
   }
 
+  const panel =
+    open && panelPos && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            role="dialog"
+            aria-label="Выбор месяца"
+            className="mo-month-picker-panel"
+            style={{ top: panelPos.top, left: panelPos.left, width: PANEL_W }}
+          >
+            <div className="mo-month-picker-panel__year">
+              <button
+                type="button"
+                className="mo-month-picker-panel__nav"
+                aria-label="Предыдущий год"
+                onClick={() => setViewYear((y) => y - 1)}
+              >
+                ‹
+              </button>
+              <span className="mo-month-picker-panel__year-label">{viewYear}</span>
+              <button
+                type="button"
+                className="mo-month-picker-panel__nav"
+                aria-label="Следующий год"
+                onClick={() => setViewYear((y) => y + 1)}
+              >
+                ›
+              </button>
+            </div>
+
+            <div className="mo-month-picker-panel__grid">
+              {MONTH_SHORT.map((label, idx) => {
+                const month = idx + 1;
+                const selected = parsed?.year === viewYear && parsed.month === month;
+                const isCurrent = now.getFullYear() === viewYear && now.getMonth() + 1 === month;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => pickMonth(month)}
+                    className={[
+                      "mo-month-picker-panel__month",
+                      selected ? "is-selected" : "",
+                      !selected && isCurrent ? "is-current" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mo-month-picker-panel__footer">
+              {allowClear ? (
+                <button type="button" className="mo-month-picker-panel__link" onClick={clearValue}>
+                  Удалить
+                </button>
+              ) : (
+                <span />
+              )}
+              <button type="button" className="mo-month-picker-panel__link" onClick={goThisMonth}>
+                В этом месяце
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div ref={rootRef} className={`mo-month-picker relative ${className}`}>
       <button
+        ref={triggerRef}
         id={inputId}
         type="button"
         className="mo-input mo-month-picker-trigger flex min-h-11 w-full items-center justify-between gap-1.5 text-left text-base sm:min-h-0 sm:gap-2 sm:text-sm"
@@ -135,80 +241,7 @@ export function MonthYearPicker({
           />
         </svg>
       </button>
-
-      {open ? (
-        <div
-          role="dialog"
-          aria-label="Выбор месяца"
-          className="mo-month-picker-panel absolute left-0 top-[calc(100%+6px)] z-50 w-[min(100vw-1.25rem,280px)] min-w-[16rem] overflow-hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-3 shadow-[var(--mo-shadow-luxury)]"
-        >
-          <div className="mb-2 flex items-center justify-between gap-2 rounded-xl bg-[var(--mo-surface)] px-2 py-1.5">
-            <button
-              type="button"
-              className="rounded-lg px-2 py-1 text-sm mo-muted transition hover:bg-[var(--mo-accent-soft)] hover:text-[var(--mo-accent-hover)]"
-              aria-label="Предыдущий год"
-              onClick={() => setViewYear((y) => y - 1)}
-            >
-              ‹
-            </button>
-            <span className="text-sm font-semibold tabular-nums text-[var(--mo-text)]">{viewYear}</span>
-            <button
-              type="button"
-              className="rounded-lg px-2 py-1 text-sm mo-muted transition hover:bg-[var(--mo-accent-soft)] hover:text-[var(--mo-accent-hover)]"
-              aria-label="Следующий год"
-              onClick={() => setViewYear((y) => y + 1)}
-            >
-              ›
-            </button>
-          </div>
-
-          <div className="grid grid-cols-4 gap-1.5">
-            {MONTH_SHORT.map((label, idx) => {
-              const month = idx + 1;
-              const selected = parsed?.year === viewYear && parsed.month === month;
-              const isCurrent = now.getFullYear() === viewYear && now.getMonth() + 1 === month;
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => pickMonth(month)}
-                  className={[
-                    "rounded-xl px-1 py-2 text-center text-xs font-medium transition",
-                    selected
-                      ? "bg-[var(--mo-accent-hover)] text-white shadow-sm"
-                      : isCurrent
-                        ? "border border-[var(--mo-border-strong)] bg-[var(--mo-accent-soft)] text-[var(--mo-accent-hover)]"
-                        : "text-[var(--mo-text)] hover:border hover:border-[var(--mo-border-strong)] hover:bg-[var(--mo-accent-soft)]",
-                  ].join(" ")}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--mo-border)] pt-2">
-            {allowClear ? (
-              <button
-                type="button"
-                className="text-xs font-medium text-[var(--mo-accent-hover)] transition hover:underline"
-                onClick={clearValue}
-              >
-                Удалить
-              </button>
-            ) : (
-              <span />
-            )}
-            <button
-              type="button"
-              className="text-xs font-semibold text-[var(--mo-accent-hover)] transition hover:underline"
-              onClick={goThisMonth}
-            >
-              В этом месяце
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {panel}
     </div>
   );
 }
