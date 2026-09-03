@@ -665,6 +665,8 @@ class BookingAppointment(Base):
     status: Mapped[str] = mapped_column(String(32), default="booked")
     service_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    # Способ оплаты при внесении суммы: cash | alif | dc
+    payment_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
     responsible_manager_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,

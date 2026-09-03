@@ -55,6 +55,19 @@ const statusLabels: Record<string, string> = {
   cancelled: "Отмена",
 };
 
+type BookingPaymentMethod = "cash" | "alif" | "dc";
+
+const PAYMENT_METHOD_OPTIONS: { value: BookingPaymentMethod; label: string }[] = [
+  { value: "cash", label: "Наличные" },
+  { value: "alif", label: "Алиф" },
+  { value: "dc", label: "DC" },
+];
+
+function paymentMethodLabel(method: string | null | undefined): string {
+  if (!method) return "—";
+  return PAYMENT_METHOD_OPTIONS.find((o) => o.value === method)?.label ?? method;
+}
+
 function formatBookingToolbarDate(ymd: string): string {
   const [y, m, d] = ymd.split("-").map(Number);
   if (!y || !m || !d) return ymd;
@@ -173,6 +186,7 @@ export function OnlineBookingPage() {
   const [startAt, setStartAt] = useState("");
   const [serviceAmount, setServiceAmount] = useState("");
   const [paidAmount, setPaidAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod | "">("");
   const [comment, setComment] = useState("");
   const [seriesBookingEnabled, setSeriesBookingEnabled] = useState(false);
   const [consecutiveDays, setConsecutiveDays] = useState(5);
@@ -530,6 +544,7 @@ export function OnlineBookingPage() {
       setServiceDirectionId("");
       setServiceAmount("");
       setPaidAmount("");
+      setPaymentMethod("");
       setLeadId(null);
       setSeriesBookingEnabled(false);
       setConsecutiveDays(5);
@@ -981,6 +996,10 @@ export function OnlineBookingPage() {
       toast.error("Сумма оплаты указана неверно");
       return;
     }
+    if (resolvedPaidAmount > 0 && !paymentMethod) {
+      toast.error("Выберите способ оплаты: наличные, Алиф или DC");
+      return;
+    }
     if (serviceDirectionId === "") {
       toast.error("Выберите услугу");
       return;
@@ -1004,6 +1023,7 @@ export function OnlineBookingPage() {
       start_at: startIso,
       service_amount: resolvedServiceAmount,
       paid_amount: resolvedPaidAmount,
+      payment_method: resolvedPaidAmount > 0 ? paymentMethod : null,
       comment: comment.trim() || null,
     };
     if (seriesBookingEnabled && consecutiveDays > 1 && courseStreamsForForm
@@ -1434,11 +1454,39 @@ export function OnlineBookingPage() {
                     step={1}
                     required
                     value={freeConsultEligible ? "0" : paidAmount}
-                    onChange={(e) => setPaidAmount(e.target.value)}
+                    onChange={(e) => {
+                      setPaidAmount(e.target.value);
+                      if (Number(e.target.value || 0) <= 0) setPaymentMethod("");
+                    }}
                     disabled={freeConsultEligible}
                     className="mt-1 w-full mo-input disabled:opacity-70"
                   />
                 </label>
+                {!freeConsultEligible && Number(paidAmount || 0) > 0 ? (
+                  <fieldset className="block text-sm mo-muted">
+                    <legend className="mb-1.5">Способ оплаты</legend>
+                    <div className="flex flex-wrap gap-1.5">
+                      {PAYMENT_METHOD_OPTIONS.map((opt) => {
+                        const active = paymentMethod === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setPaymentMethod(opt.value)}
+                            className={[
+                              "rounded-lg border px-3 py-2 text-sm font-medium transition",
+                              active
+                                ? "border-[var(--mo-accent)] bg-[var(--mo-accent)]/15 text-[var(--mo-text)]"
+                                : "border-[var(--mo-border)] bg-[var(--mo-surface)] text-[var(--mo-text-muted)] hover:border-[var(--mo-accent)]/50",
+                            ].join(" ")}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                ) : null}
                 {isManagerOrAdmin ? (
                   <label className="block text-sm mo-muted">
                     Ответственный менеджер
@@ -1688,6 +1736,7 @@ export function OnlineBookingPage() {
                   <th>Спец.</th>
                   <th>Сумма</th>
                   <th>Оплата</th>
+                  <th>Способ</th>
                   <th>Долг</th>
                   <th className="booking-journal-col-status">Статус</th>
                   <th className="max-w-[140px]">Заметка</th>
@@ -1724,6 +1773,11 @@ export function OnlineBookingPage() {
                     <td className="lux-caption">{a.specialist_name}</td>
                     <td className="tabular-nums">{formatMoney(a.service_amount ?? 0)}</td>
                     <td className="tabular-nums">{formatMoney(a.paid_amount ?? 0)}</td>
+                    <td className="whitespace-nowrap text-xs">
+                      {Number(a.paid_amount ?? 0) > 0
+                        ? paymentMethodLabel(a.payment_method)
+                        : "—"}
+                    </td>
                     <td>
                       {Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? (
                         <span className="booking-journal-debt">

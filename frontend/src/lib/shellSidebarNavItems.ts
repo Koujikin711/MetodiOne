@@ -74,7 +74,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     showKpi,
     bookingEnabled = true,
     deskSalesEnabled = false,
-    chatStagesEnabled = true,
+    chatStagesEnabled: _chatStagesEnabled = true,
     showNavForFeature,
     navLex,
   } = params;
@@ -84,9 +84,9 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
   const showIntegrationsNav = showIntegrationsHub || isChiefExpert;
   const showBooking = bookingEnabled && showNavForFeature("booking");
   const showDeskSales = deskSalesEnabled && (isManagerNav || !isExpert);
-  const chatStages = chatStagesEnabled !== false;
-  // Менеджер/админ воронки не видит канбан — только чат со стадиями.
-  const hideKanbanForManager = isManagerNav && chatStages && !isAdministrator;
+  // Канбан снова доступен менеджерам (чат со стадиями не скрывает воронку).
+  const hideKanbanForManager = false;
+  void _chatStagesEnabled;
 
   if (isSuperOwner) {
     return [

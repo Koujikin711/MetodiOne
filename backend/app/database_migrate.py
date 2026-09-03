@@ -259,6 +259,8 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             )
         if ba_cols and "service_title" not in ba_cols:
             await conn.execute(text("ALTER TABLE booking_appointments ADD COLUMN service_title VARCHAR(500)"))
+        if ba_cols and "payment_method" not in ba_cols:
+            await conn.execute(text("ALTER TABLE booking_appointments ADD COLUMN payment_method VARCHAR(16)"))
         await conn.execute(
             text(
                 """UPDATE booking_appointments
@@ -505,6 +507,9 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             ),
         )
         await conn.execute(text("ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS service_title VARCHAR(500)"))
+        await conn.execute(
+            text("ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS payment_method VARCHAR(16)"),
+        )
         await conn.execute(
             text(
                 """UPDATE booking_appointments ba

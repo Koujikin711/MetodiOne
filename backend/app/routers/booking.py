@@ -376,6 +376,7 @@ async def _booking_appointment_read(
         status=a.status,
         service_amount=float(a.service_amount or 0),
         paid_amount=float(a.paid_amount or 0),
+        payment_method=(str(a.payment_method).strip().lower() if getattr(a, "payment_method", None) else None),
         responsible_manager_id=a.responsible_manager_id,
         service_title=st,
         direction_name=direction_name,
@@ -2135,6 +2136,7 @@ async def create_appointment(
             status="booked",
             service_amount=slot_service_amount,
             paid_amount=slot_paid,
+            payment_method=(body.payment_method if float(slot_paid or 0) > 0 else None),
             responsible_manager_id=resolved_manager_id,
             created_by_user_id=current_user.id,
             comment=((body.comment or "").strip() or None) if idx == 0 else None,
@@ -2546,7 +2548,17 @@ async def patch_appointment_payment(
     if new_paid < 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Оплата не может быть отрицательной")
 
+    if new_paid > prev_paid + 1e-9 and body.payment_method is None and not target.payment_method:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Укажите способ оплаты: наличные, Алиф или DC",
+        )
+
     target.paid_amount = new_paid
+    if body.payment_method is not None and new_paid > 0:
+        target.payment_method = body.payment_method
+    elif new_paid <= 0:
+        target.payment_method = None
     target.updated_at = datetime.now(UTC)
     # Чтобы полная оплата попала в KPI менеджера — нужен responsible_manager_id.
     if target.responsible_manager_id is None:
@@ -2575,6 +2587,7 @@ async def patch_appointment_payment(
             f"session_billing={session_billing}; from_appointment_id={appt.id}; "
             f"prev_paid={prev_paid}; add_payment={body.add_payment}; "
             f"paid_amount={body.paid_amount}; new_paid={new_paid}; "
+            f"payment_method={target.payment_method}; "
             f"responsible_manager_id={target.responsible_manager_id}"
         ),
     )
