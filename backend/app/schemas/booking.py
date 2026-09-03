@@ -165,6 +165,10 @@ class BookingAppointmentRead(BaseModel):
     status: str
     service_amount: float = 0
     paid_amount: float = 0
+    payment_method: str | None = Field(
+        default=None,
+        description="Способ оплаты: cash | alif | dc",
+    )
     responsible_manager_id: int | None
     service_title: str | None = None
     direction_name: str | None = None
@@ -208,6 +212,10 @@ class BookingAppointmentCreate(BaseModel):
     service_title: str = Field(..., min_length=1, max_length=500)
     service_amount: float = Field(..., ge=0)
     paid_amount: float = Field(..., ge=0)
+    payment_method: Literal["cash", "alif", "dc"] | None = Field(
+        default=None,
+        description="Способ оплаты при paid_amount > 0: cash / alif / dc",
+    )
     responsible_manager_id: int | None = None
     extra_phones: list[str] = Field(default_factory=list, max_length=5)
     comment: str | None = Field(None, max_length=2000)
@@ -239,6 +247,10 @@ class BookingAppointmentCreate(BaseModel):
         # Точный потолок проверяет роутер с учётом session_billing.
         if self.consecutive_days <= 1 and self.paid_amount > self.service_amount:
             raise ValueError("Оплаченная сумма не может быть больше стоимости услуги")
+        if float(self.paid_amount or 0) > 0 and self.payment_method is None:
+            raise ValueError("Укажите способ оплаты: наличные, Алиф или DC")
+        if float(self.paid_amount or 0) <= 0:
+            self.payment_method = None
         return self
 
 
@@ -272,6 +284,10 @@ class BookingAppointmentPaymentUpdate(BaseModel):
     paid_amount: float | None = Field(default=None, ge=0)
     add_payment: float | None = Field(default=None, ge=0)
     service_amount: float | None = Field(default=None, ge=0)
+    payment_method: Literal["cash", "alif", "dc"] | None = Field(
+        default=None,
+        description="Способ оплаты при доплате / корректировке: cash / alif / dc",
+    )
 
     @model_validator(mode="after")
     def _one_of_payment_fields(self) -> "BookingAppointmentPaymentUpdate":

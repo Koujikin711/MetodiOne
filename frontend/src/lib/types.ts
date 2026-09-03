@@ -594,6 +594,8 @@ export interface BookingAppointment {
   status: string;
   service_amount: number;
   paid_amount: number;
+  /** Способ оплаты: cash | alif | dc */
+  payment_method?: "cash" | "alif" | "dc" | null;
   responsible_manager_id: number | null;
   service_title?: string | null;
   direction_name: string | null;
