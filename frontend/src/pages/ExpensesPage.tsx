@@ -3,6 +3,7 @@ import { FormEvent, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
+import { APP_CURRENCY } from "@/lib/money";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 
 type ExpenseCatalog = {
@@ -175,7 +176,7 @@ export function ExpensesPage() {
               />
             </label>
             <label className="expenses-field">
-              <span className="expenses-field__label">Сумма (SOM)</span>
+              <span className="expenses-field__label">Сумма ({APP_CURRENCY})</span>
               <input
                 type="number"
                 inputMode="decimal"
