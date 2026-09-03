@@ -1959,6 +1959,12 @@ async def ensure_finance_osv_tables(conn: AsyncConnection, database_url: str) ->
         )
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_osv_rows_company_id ON finance_osv_rows (company_id)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_osv_rows_txn_date ON finance_osv_rows (txn_date)"))
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_finance_osv_rows_company_txn_expense "
+                "ON finance_osv_rows (company_id, txn_date DESC, id DESC)"
+            ),
+        )
 
     for col, ddl_sqlite, ddl_pg in (
         ("osv_sheet_url", "VARCHAR(500)", "VARCHAR(500)"),

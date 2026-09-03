@@ -1,4 +1,5 @@
-from datetime import UTC, datetime
+from calendar import monthrange
+from datetime import UTC, date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -185,19 +186,26 @@ async def list_expenses(
 ) -> list[FinanceOsvRowRead]:
     _assert_expenses_access(current_user)
     await assert_finance_access(db, current_user)
-    q = (
-        select(FinanceOsvRow)
-        .where(
-            FinanceOsvRow.company_id == company_id,
-            FinanceOsvRow.expense > 0,
-            func.extract("year", FinanceOsvRow.txn_date) == year,
-        )
-        .order_by(FinanceOsvRow.txn_date.desc(), FinanceOsvRow.id.desc())
-        .limit(limit)
-    )
+    # Диапазон дат (не extract) — чтобы работал индекс txn_date / company_id.
     if month is not None:
-        q = q.where(func.extract("month", FinanceOsvRow.txn_date) == month)
-    rows = (await db.execute(q)).scalars().all()
+        day_from = date(year, month, 1)
+        day_to = date(year, month, monthrange(year, month)[1])
+    else:
+        day_from = date(year, 1, 1)
+        day_to = date(year, 12, 31)
+    rows = (
+        await db.execute(
+            select(FinanceOsvRow)
+            .where(
+                FinanceOsvRow.company_id == company_id,
+                FinanceOsvRow.expense > 0,
+                FinanceOsvRow.txn_date >= day_from,
+                FinanceOsvRow.txn_date <= day_to,
+            )
+            .order_by(FinanceOsvRow.txn_date.desc(), FinanceOsvRow.id.desc())
+            .limit(limit)
+        )
+    ).scalars().all()
     return [FinanceOsvRowRead.model_validate(r) for r in rows]
 
 
@@ -228,6 +236,6 @@ async def create_expense(
         external_key=None,
     )
     db.add(row)
-    await db.commit()
+    await db.flush()
     await db.refresh(row)
     return FinanceOsvRowRead.model_validate(row)

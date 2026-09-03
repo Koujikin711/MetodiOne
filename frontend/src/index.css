@@ -65,6 +65,9 @@
   --booking-appt-neutral-bg: #f3f4f6;
   --booking-appt-neutral-border: #9ca3af;
   --booking-appt-neutral-text: #374151;
+  --booking-appt-noshow-bg: #fee2e2;
+  --booking-appt-noshow-border: #ef4444;
+  --booking-appt-noshow-text: #991b1b;
   --booking-appt-cancel-bg: #f5f5f4;
   --booking-appt-cancel-border: #a8a29e;
   --booking-appt-cancel-text: #78716c;
@@ -136,6 +139,9 @@
   --booking-appt-neutral-bg: #292524;
   --booking-appt-neutral-border: #78716c;
   --booking-appt-neutral-text: #e7e5e4;
+  --booking-appt-noshow-bg: #7f1d1d;
+  --booking-appt-noshow-border: #f87171;
+  --booking-appt-noshow-text: #fecaca;
   --booking-appt-cancel-bg: #1c1917;
   --booking-appt-cancel-border: #57534e;
   --booking-appt-cancel-text: #a8a29e;
@@ -1338,9 +1344,9 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   color: var(--booking-appt-completed-text);
 }
 .booking-appt--no_show {
-  background: var(--booking-appt-neutral-bg);
-  border-color: var(--booking-appt-neutral-border);
-  color: var(--booking-appt-neutral-text);
+  background: var(--booking-appt-noshow-bg);
+  border-color: var(--booking-appt-noshow-border);
+  color: var(--booking-appt-noshow-text);
 }
 .booking-appt--cancelled {
   background: var(--booking-appt-cancel-bg);
@@ -1943,9 +1949,9 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-legend-item--no_show {
-  background: var(--booking-appt-neutral-bg);
-  border-color: var(--booking-appt-neutral-border);
-  color: var(--booking-appt-neutral-text);
+  background: var(--booking-appt-noshow-bg);
+  border-color: var(--booking-appt-noshow-border);
+  color: var(--booking-appt-noshow-text);
 }
 
 .booking-legend-item--cancelled {

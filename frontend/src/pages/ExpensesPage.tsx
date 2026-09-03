@@ -48,13 +48,18 @@ export function ExpensesPage() {
 
   const catalogQuery = useQuery({
     queryKey: ["finance-expense-catalog"],
-    queryFn: () => apiFetch<ExpenseCatalog>("/api/finance/expense-catalog"),
+    queryFn: () =>
+      apiFetch<ExpenseCatalog>("/api/finance/expense-catalog", { timeoutMs: 45_000 }),
+    staleTime: 60_000,
   });
 
   const listQuery = useQuery({
     queryKey: ["finance-expenses", year, month],
     queryFn: () =>
-      apiFetch<ExpenseRow[]>(`/api/finance/expenses?year=${year}&month=${month}&limit=300`),
+      apiFetch<ExpenseRow[]>(`/api/finance/expenses?year=${year}&month=${month}&limit=300`, {
+        timeoutMs: 45_000,
+      }),
+    retry: 1,
   });
 
   const [txnDate, setTxnDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -77,6 +82,7 @@ export function ExpensesPage() {
     mutationFn: () =>
       apiFetch<ExpenseRow>("/api/finance/expenses", {
         method: "POST",
+        timeoutMs: 60_000,
         body: JSON.stringify({
           txn_date: txnDate,
           expense: Number(expense),
@@ -248,6 +254,19 @@ export function ExpensesPage() {
           </div>
           {listQuery.isLoading ? (
             <p className="px-3 py-6 text-sm mo-muted sm:px-4">Загрузка…</p>
+          ) : listQuery.isError ? (
+            <div className="space-y-2 px-3 py-6 sm:px-4">
+              <p className="text-sm text-[var(--mo-danger,#ef4444)]">
+                {(listQuery.error as Error)?.message || "Не удалось загрузить расходы"}
+              </p>
+              <button
+                type="button"
+                className="mo-btn-primary rounded-xl px-3 py-1.5 text-sm"
+                onClick={() => void listQuery.refetch()}
+              >
+                Повторить
+              </button>
+            </div>
           ) : rows.length === 0 ? (
             <p className="px-3 py-6 text-sm mo-muted sm:px-4">Пока нет расходов за этот месяц.</p>
           ) : (
