@@ -3394,27 +3394,33 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .chat-thread-row {
   border-color: var(--mo-border);
   background: var(--mo-surface-elevated);
+  box-shadow: none;
 }
 .chat-thread-row:hover {
   border-color: var(--mo-border-strong);
 }
 .chat-thread-row--selected {
-  border-color: color-mix(in srgb, var(--mo-accent) 55%, transparent);
+  border-color: color-mix(in srgb, var(--mo-accent) 45%, var(--mo-border));
   background: var(--mo-accent-soft);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 28%, transparent);
+  box-shadow: none;
 }
 .chat-thread-row--waiting {
-  border-color: color-mix(in srgb, var(--mo-success) 45%, transparent);
-  background: color-mix(in srgb, var(--mo-success) 12%, var(--mo-surface-elevated));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-success) 18%, transparent);
+  border-color: color-mix(in srgb, #059669 35%, var(--mo-border));
+  background: #ecfdf5;
+  box-shadow: none;
+  color: #064e3b;
 }
 .chat-thread-row--waiting:hover {
-  background: color-mix(in srgb, var(--mo-success) 18%, var(--mo-surface-elevated));
+  background: #d1fae5;
+}
+.chat-thread-row--waiting .mo-muted,
+.chat-thread-row--waiting [class*="mo-muted"] {
+  color: #047857 !important;
 }
 .chat-thread-row--recent {
-  border-color: color-mix(in srgb, var(--mo-accent) 35%, transparent);
+  border-color: color-mix(in srgb, var(--mo-accent) 35%, var(--mo-border));
   background: color-mix(in srgb, var(--mo-accent) 8%, var(--mo-surface-elevated));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 14%, transparent);
+  box-shadow: none;
 }
 .chat-thread-row--recent:hover {
   background: color-mix(in srgb, var(--mo-accent) 14%, var(--mo-surface-elevated));
@@ -3425,26 +3431,35 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 .chat-thread-row--default:hover {
   border-color: color-mix(in srgb, var(--mo-accent) 30%, var(--mo-border));
-  box-shadow: var(--mo-shadow-luxury);
+  box-shadow: none;
 }
 
 :root[data-theme="dark"] .chat-thread-row--selected {
-  border-color: color-mix(in srgb, var(--mo-accent) 50%, transparent);
-  background: color-mix(in srgb, var(--mo-accent) 20%, var(--mo-surface-elevated));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 25%, transparent);
+  border-color: color-mix(in srgb, var(--mo-accent) 40%, var(--mo-border));
+  background: color-mix(in srgb, var(--mo-accent) 18%, var(--mo-surface-elevated));
+  box-shadow: none;
 }
+/* Тёмный фон + светлый текст — читаемо; без неонового зелёного */
 :root[data-theme="dark"] .chat-thread-row--waiting {
-  border-color: color-mix(in srgb, var(--mo-success) 40%, transparent);
-  background: color-mix(in srgb, var(--mo-success) 14%, var(--mo-surface));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-success) 14%, transparent);
+  --mo-text: #ecfdf5;
+  --mo-text-muted: #86efac;
+  --mo-accent-hover: #bbf7d0;
+  border-color: rgba(52, 211, 153, 0.35);
+  background: #0d281f;
+  box-shadow: none;
+  color: #ecfdf5;
 }
 :root[data-theme="dark"] .chat-thread-row--waiting:hover {
-  background: color-mix(in srgb, var(--mo-success) 20%, var(--mo-surface));
+  background: #113528;
+}
+:root[data-theme="dark"] .chat-thread-row--waiting .mo-muted,
+:root[data-theme="dark"] .chat-thread-row--waiting .lux-caption {
+  color: var(--mo-text-muted);
 }
 :root[data-theme="dark"] .chat-thread-row--recent {
-  border-color: color-mix(in srgb, var(--mo-accent) 35%, transparent);
+  border-color: color-mix(in srgb, var(--mo-accent) 35%, var(--mo-border));
   background: color-mix(in srgb, var(--mo-accent) 12%, var(--mo-surface));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 12%, transparent);
+  box-shadow: none;
 }
 :root[data-theme="dark"] .chat-thread-row--recent:hover {
   background: color-mix(in srgb, var(--mo-accent) 18%, var(--mo-surface));
@@ -3463,18 +3478,17 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border-color: var(--mo-border);
   background: var(--mo-surface);
   color: var(--mo-text);
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--mo-text) 4%, transparent);
+  box-shadow: none;
 }
 .chat-bucket-tab:hover {
   border-color: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 45%, var(--mo-border));
   background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 10%, var(--mo-surface));
 }
 .chat-bucket-tab.is-active {
-  border-color: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 70%, transparent);
-  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 16%, var(--mo-surface));
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 28%, transparent),
-    0 6px 16px -10px color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 45%, transparent);
+  border-color: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 55%, var(--mo-border));
+  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 14%, var(--mo-surface));
+  box-shadow: none;
+  color: var(--mo-text);
 }
 .chat-bucket-tab.is-active[data-bucket="transferred"],
 .chat-bucket-tab.is-active[data-bucket="own"],
@@ -3488,21 +3502,19 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .chat-bucket-tab.is-active[data-bucket="won"],
 .chat-bucket-tab.is-active[data-bucket="lost"],
 .chat-bucket-tab.is-active[data-bucket="archive"] {
-  border-color: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 70%, transparent);
-  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 16%, var(--mo-surface));
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 28%, transparent),
-    0 6px 16px -10px color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 45%, transparent);
+  border-color: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 55%, var(--mo-border));
+  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 14%, var(--mo-surface));
+  box-shadow: none;
 }
 
 .chat-reply-tab.is-active[data-bucket="awaiting_reply"] {
-  --chat-stage-color: #10b981;
+  --chat-stage-color: #059669;
 }
 .chat-reply-tab.is-active[data-bucket="no_reply"] {
   --chat-stage-color: #64748b;
 }
 .chat-reply-tab:not(.is-active)[data-bucket="awaiting_reply"] {
-  --chat-stage-color: #10b981;
+  --chat-stage-color: #059669;
 }
 .chat-reply-tab:not(.is-active)[data-bucket="no_reply"] {
   --chat-stage-color: #64748b;
@@ -3511,14 +3523,22 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 :root[data-theme="dark"] .chat-bucket-tab {
   border-color: var(--mo-border);
   background: var(--mo-surface-elevated);
+  color: var(--mo-text);
 }
 :root[data-theme="dark"] .chat-bucket-tab:hover {
-  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 14%, var(--mo-surface-elevated));
+  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 12%, var(--mo-surface-elevated));
 }
 :root[data-theme="dark"] .chat-bucket-tab.is-active,
 :root[data-theme="dark"] .chat-bucket-tab.is-active[data-bucket] {
-  border-color: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 65%, transparent);
-  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 18%, var(--mo-surface-elevated));
+  border-color: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 45%, var(--mo-border));
+  background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 16%, var(--mo-surface-elevated));
+  box-shadow: none;
+  color: var(--mo-text);
+}
+:root[data-theme="dark"] .chat-reply-tab.is-active[data-bucket="awaiting_reply"] {
+  border-color: rgba(52, 211, 153, 0.4);
+  background: #0d281f;
+  color: #ecfdf5;
 }
 
 .chat-date-sep {
