@@ -73,11 +73,11 @@ function SaleRowActionsMenu({
       const el = btnRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      const w = 168;
+      const w = 200;
       let left = r.right - w;
       left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
       let top = r.bottom + 6;
-      if (top + 160 > window.innerHeight - 8) top = Math.max(8, r.top - 160 - 6);
+      if (top + 200 > window.innerHeight - 8) top = Math.max(8, r.top - 200 - 6);
       setPos({ top, left });
     }
     place();
@@ -96,7 +96,7 @@ function SaleRowActionsMenu({
             role="menu"
             aria-label="Действия по продаже"
             className="kpi-actions-menu"
-            style={{ top: pos.top, left: pos.left }}
+            style={{ top: pos.top, left: pos.left, width: 200 }}
           >
             <button
               type="button"
@@ -107,7 +107,11 @@ function SaleRowActionsMenu({
                 onReturn();
               }}
             >
-              Возврат
+              <span className="kpi-actions-menu__mark" aria-hidden />
+              <span className="kpi-actions-menu__copy">
+                <span className="kpi-actions-menu__title">Возврат</span>
+                <span className="kpi-actions-menu__hint">Снять с KPI</span>
+              </span>
             </button>
             <button
               type="button"
@@ -118,7 +122,11 @@ function SaleRowActionsMenu({
                 onRefuse();
               }}
             >
-              Отказ
+              <span className="kpi-actions-menu__mark" aria-hidden />
+              <span className="kpi-actions-menu__copy">
+                <span className="kpi-actions-menu__title">Отказ</span>
+                <span className="kpi-actions-menu__hint">С причиной</span>
+              </span>
             </button>
             <button
               type="button"
@@ -129,7 +137,11 @@ function SaleRowActionsMenu({
                 onComplete();
               }}
             >
-              Завершён
+              <span className="kpi-actions-menu__mark" aria-hidden />
+              <span className="kpi-actions-menu__copy">
+                <span className="kpi-actions-menu__title">Завершён</span>
+                <span className="kpi-actions-menu__hint">Курс закрыт</span>
+              </span>
             </button>
           </div>,
           document.body,
@@ -148,7 +160,15 @@ function SaleRowActionsMenu({
         onClick={() => setOpen((v) => !v)}
       >
         Действия
-        <span aria-hidden>▾</span>
+        <svg className="kpi-actions-trigger__chev" width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden>
+          <path
+            d="M6 8l4 4 4-4"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
       {menu}
     </div>
