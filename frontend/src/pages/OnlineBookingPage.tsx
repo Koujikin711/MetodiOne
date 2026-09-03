@@ -1715,7 +1715,7 @@ export function OnlineBookingPage() {
           <div className="overflow-x-auto -mx-1 px-1">
             <table className="booking-journal-table w-full min-w-[840px] border-collapse text-left text-[var(--mo-text)]">
               <thead>
-                <tr className="border-b border-[var(--mo-border)] lux-caption">
+                <tr>
                   <th>{showSessionInsteadOfTime ? "Сеанс" : "Время"}</th>
                   <th>Пациент</th>
                   <th>Услуга</th>
@@ -1735,10 +1735,9 @@ export function OnlineBookingPage() {
                 {(journalQuery.data ?? []).map((a) => (
                   <tr
                     key={a.id}
-                    className={[
-                      "border-b border-[var(--mo-border)]",
-                      Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? "bg-amber-500/5" : "",
-                    ].join(" ")}
+                    className={
+                      Number(a.service_amount ?? 0) > Number(a.paid_amount ?? 0) ? "is-debt" : undefined
+                    }
                   >
                     <td className="whitespace-nowrap tabular-nums">
                       {showSessionInsteadOfTime ? (
@@ -1748,15 +1747,15 @@ export function OnlineBookingPage() {
                       )}
                     </td>
                     <td>
-                      <span className="font-medium leading-tight">{a.patient_name}</span>
-                      <span className="block text-[11px] leading-tight mo-muted">
+                      <span className="font-medium leading-snug text-[var(--mo-text)]">{a.patient_name}</span>
+                      <span className="mt-0.5 block text-xs leading-snug text-[var(--mo-text-muted)]">
                         <PatientPhone value={a} />
                       </span>
                     </td>
-                    <td className="mo-muted">
+                    <td className="text-[var(--mo-text)]">
                       {(a.service_title || "").trim() || a.direction_name || "—"}
                     </td>
-                    <td className="lux-caption">{a.specialist_name}</td>
+                    <td className="text-[var(--mo-text-muted)]">{a.specialist_name}</td>
                     <td className="tabular-nums">{formatMoney(a.service_amount ?? 0)}</td>
                     <td className="tabular-nums">{formatMoney(a.paid_amount ?? 0)}</td>
                     <td className="whitespace-nowrap text-xs">
@@ -1806,10 +1805,10 @@ export function OnlineBookingPage() {
                         <span className="mo-muted">{statusLabels[a.status] ?? a.status}</span>
                       )}
                     </td>
-                    <td className="max-w-[140px]">
+                    <td className="max-w-[160px]">
                       {(a.comment || "").trim() ? (
                         <span
-                          className="line-clamp-2 text-[11px] leading-snug mo-muted"
+                          className="line-clamp-2 text-xs leading-snug text-[var(--mo-text)]"
                           title={(a.comment || "").trim()}
                         >
                           {(a.comment || "").trim()}
