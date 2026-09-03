@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 
 import { AccessDenied } from "@/components/AccessDenied";
@@ -29,6 +30,130 @@ type PlanDraftItem = {
   direction_id: string;
   specialist_ids: number[];
 };
+
+function SaleRowActionsMenu({
+  onReturn,
+  onRefuse,
+  onComplete,
+}: {
+  onReturn: () => void;
+  onRefuse: () => void;
+  onComplete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t)) return;
+      if ((e.target as Element | null)?.closest?.(".kpi-actions-menu")) return;
+      setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    function place() {
+      const el = btnRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const w = 168;
+      let left = r.right - w;
+      left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+      let top = r.bottom + 6;
+      if (top + 160 > window.innerHeight - 8) top = Math.max(8, r.top - 160 - 6);
+      setPos({ top, left });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+
+  const menu =
+    open && pos && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            role="menu"
+            aria-label="Действия по продаже"
+            className="kpi-actions-menu"
+            style={{ top: pos.top, left: pos.left }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className="kpi-actions-menu__item kpi-actions-menu__item--return"
+              onClick={() => {
+                setOpen(false);
+                onReturn();
+              }}
+            >
+              Возврат
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="kpi-actions-menu__item kpi-actions-menu__item--refuse"
+              onClick={() => {
+                setOpen(false);
+                onRefuse();
+              }}
+            >
+              Отказ
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="kpi-actions-menu__item kpi-actions-menu__item--done"
+              onClick={() => {
+                setOpen(false);
+                onComplete();
+              }}
+            >
+              Завершён
+            </button>
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <div ref={rootRef} className="kpi-actions-wrap">
+      <button
+        ref={btnRef}
+        type="button"
+        className="kpi-actions-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Действия"
+        onClick={() => setOpen((v) => !v)}
+      >
+        Действия
+        <span aria-hidden>▾</span>
+      </button>
+      {menu}
+    </div>
+  );
+}
 
 function defaultYearMonth(): string {
   const d = new Date();
@@ -1011,31 +1136,15 @@ export function KpiPage() {
                     >
                       OK
                     </button>
-                    <button
-                      type="button"
-                      className="kpi-action kpi-action--return"
-                      onClick={() => {
+                    <SaleRowActionsMenu
+                      onReturn={() => {
                         if (window.confirm("Отметить возврат и снять с KPI?")) {
                           returnMutation.mutate(s.id);
                         }
                       }}
-                    >
-                      Возврат
-                    </button>
-                    <button
-                      type="button"
-                      className="kpi-action kpi-action--refuse"
-                      onClick={() => askCloseSale(s.id, "refused")}
-                    >
-                      Отказ
-                    </button>
-                    <button
-                      type="button"
-                      className="kpi-action kpi-action--done"
-                      onClick={() => askCloseSale(s.id, "completed")}
-                    >
-                      Завершён
-                    </button>
+                      onRefuse={() => askCloseSale(s.id, "refused")}
+                      onComplete={() => askCloseSale(s.id, "completed")}
+                    />
                   </div>
                 ) : s.status_reason ? (
                   <p className="mt-1 text-[11px] text-[var(--mo-text-muted)]">Причина: {s.status_reason}</p>
@@ -1126,33 +1235,15 @@ export function KpiPage() {
                     </td>
                     <td>
                       {s.status === "active" ? (
-                        <div className="kpi-actions">
-                          <button
-                            type="button"
-                            className="kpi-action kpi-action--return"
-                            onClick={() => {
-                              if (window.confirm("Отметить возврат и снять с KPI?")) {
-                                returnMutation.mutate(s.id);
-                              }
-                            }}
-                          >
-                            Возврат
-                          </button>
-                          <button
-                            type="button"
-                            className="kpi-action kpi-action--refuse"
-                            onClick={() => askCloseSale(s.id, "refused")}
-                          >
-                            Отказ
-                          </button>
-                          <button
-                            type="button"
-                            className="kpi-action kpi-action--done"
-                            onClick={() => askCloseSale(s.id, "completed")}
-                          >
-                            Завершён
-                          </button>
-                        </div>
+                        <SaleRowActionsMenu
+                          onReturn={() => {
+                            if (window.confirm("Отметить возврат и снять с KPI?")) {
+                              returnMutation.mutate(s.id);
+                            }
+                          }}
+                          onRefuse={() => askCloseSale(s.id, "refused")}
+                          onComplete={() => askCloseSale(s.id, "completed")}
+                        />
                       ) : (
                         <span className="text-[var(--mo-text-muted)]">—</span>
                       )}
