@@ -4113,6 +4113,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 :root[data-theme="dark"] .kpi-actual-value {
   color: #6ee7b7;
 }
+/* выше специфичности .kpi-data-table tbody td { color } */
+.kpi-data-table td.kpi-actual-value,
+.kpi-data-table .kpi-actual-value {
+  color: var(--mo-success);
+}
+:root[data-theme="dark"] .kpi-data-table td.kpi-actual-value,
+:root[data-theme="dark"] .kpi-data-table .kpi-actual-value {
+  color: #6ee7b7;
+}
 
 /* Таблицы KPI — читаемый размер, без zebra */
 .kpi-data-table {

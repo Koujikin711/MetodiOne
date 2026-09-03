@@ -1514,7 +1514,7 @@ function SalesReportSection({
                   <td className="py-2 pr-3 font-semibold">{contribLabel(m.total_contribution)}</td>
                 </tr>
                 <tr>
-                  <td className="py-2 pr-3 font-semibold" colSpan={5}>
+                  <td className="py-2 pr-3 font-semibold kpi-actual-value" colSpan={5}>
                     Бонус
                   </td>
                   <td className="py-2 pr-3 font-semibold kpi-actual-value">
