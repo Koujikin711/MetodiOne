@@ -615,9 +615,9 @@ export function KpiPage() {
           </div>
 
           <div className="hidden overflow-x-auto sm:block">
-            <table className="w-full min-w-[900px] border-collapse text-left text-sm text-[var(--mo-text)]">
+            <table className="kpi-data-table min-w-[900px] text-sm">
               <thead>
-                <tr className="border-b border-[var(--mo-border)] lux-caption">
+                <tr>
                   <th className="py-2 pr-3">Показатель</th>
                   <th className="py-2 pr-3">Источник</th>
                   {!salesSpace ? <th className="py-2 pr-3">Эксперты онлайн-записи</th> : null}
@@ -634,7 +634,7 @@ export function KpiPage() {
                       .flatMap((x) => x.specialist_ids),
                   );
                   return (
-                  <tr key={row.key} className="border-b border-[var(--mo-border)]/70">
+                  <tr key={row.key}>
                     <td className="py-2 pr-3">
                       <input
                         className="mo-input w-full min-w-[140px]"
@@ -955,15 +955,15 @@ export function KpiPage() {
 
           <ul className="space-y-2 pt-1 sm:hidden">
             {(manualQuery.data ?? []).map((s) => (
-              <li key={s.id} className="rounded-xl border border-[var(--mo-border)] px-3 py-2.5">
+              <li key={s.id} className="kpi-sale-card">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{s.client_name}</p>
-                    <p className="truncate text-[11px] mo-muted">
+                    <p className="truncate text-[11px] text-[var(--mo-text-muted)]">
                       {s.plan_item_name} · {streamLabel(s.stream_no)}
                     </p>
                   </div>
-                  <span className="shrink-0 text-[11px] tabular-nums mo-muted">
+                  <span className="shrink-0 text-[11px] tabular-nums text-[var(--mo-text-muted)]">
                     {s.sold_at
                       ? new Date(s.sold_at).toLocaleDateString("ru-RU", {
                           day: "2-digit",
@@ -972,21 +972,21 @@ export function KpiPage() {
                       : "—"}
                   </span>
                 </div>
-                <p className="mt-1 text-[11px] mo-muted">{s.manager_name}</p>
-                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+                <p className="mt-1 text-[11px] text-[var(--mo-text-muted)]">{s.manager_name}</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-[var(--mo-text)]">
                   <span className="tabular-nums">
                     {formatMoney(num(s.paid_amount))} / {formatMoney(num(s.service_amount))}
                   </span>
                   {s.status === "returned" ? (
-                    <span className="text-red-300">возврат</span>
+                    <span className="kpi-chip kpi-chip--return">возврат</span>
                   ) : s.status === "refused" ? (
-                    <span className="text-amber-600">отказ</span>
+                    <span className="kpi-chip kpi-chip--refuse">отказ</span>
                   ) : s.status === "completed" ? (
-                    <span className="text-sky-600">завершён</span>
+                    <span className="kpi-chip kpi-chip--done">завершён</span>
                   ) : s.counts_in_kpi ? (
-                    <span className="text-emerald-600">в факте</span>
+                    <span className="kpi-chip kpi-chip--fact">в факте</span>
                   ) : (
-                    <span className="mo-muted">&lt;25%</span>
+                    <span className="kpi-chip kpi-chip--low">&lt;25%</span>
                   )}
                 </div>
                 {s.status === "active" ? (
@@ -995,13 +995,13 @@ export function KpiPage() {
                       type="number"
                       min={0}
                       inputMode="decimal"
-                      className="mo-input !min-h-10 flex-1 text-base"
+                      className="kpi-cell-input !min-h-10 flex-1 text-base"
                       value={payDraft[s.id] ?? String(num(s.paid_amount))}
                       onChange={(e) => setPayDraft((prev) => ({ ...prev, [s.id]: e.target.value }))}
                     />
                     <button
                       type="button"
-                      className="btn-secondary shrink-0 px-3 py-2 text-xs"
+                      className="kpi-action kpi-action--ok shrink-0"
                       onClick={() =>
                         payMutation.mutate({
                           id: s.id,
@@ -1013,7 +1013,7 @@ export function KpiPage() {
                     </button>
                     <button
                       type="button"
-                      className="shrink-0 text-xs text-rose-500"
+                      className="kpi-action kpi-action--return"
                       onClick={() => {
                         if (window.confirm("Отметить возврат и снять с KPI?")) {
                           returnMutation.mutate(s.id);
@@ -1024,21 +1024,21 @@ export function KpiPage() {
                     </button>
                     <button
                       type="button"
-                      className="shrink-0 text-xs text-amber-600"
+                      className="kpi-action kpi-action--refuse"
                       onClick={() => askCloseSale(s.id, "refused")}
                     >
                       Отказ
                     </button>
                     <button
                       type="button"
-                      className="shrink-0 text-xs text-emerald-700"
+                      className="kpi-action kpi-action--done"
                       onClick={() => askCloseSale(s.id, "completed")}
                     >
                       Завершён
                     </button>
                   </div>
                 ) : s.status_reason ? (
-                  <p className="mt-1 text-[11px] mo-muted">Причина: {s.status_reason}</p>
+                  <p className="mt-1 text-[11px] text-[var(--mo-text-muted)]">Причина: {s.status_reason}</p>
                 ) : null}
               </li>
             ))}
@@ -1046,39 +1046,39 @@ export function KpiPage() {
           </ul>
 
           <div className="hidden overflow-x-auto pt-2 sm:block">
-            <table className="w-full min-w-[1100px] border-collapse text-left text-sm text-[var(--mo-text)]">
+            <table className="kpi-data-table min-w-[1100px] text-sm">
               <thead>
-                <tr className="border-b border-[var(--mo-border)] lux-caption">
-                  <th className="py-2 pr-3">Дата</th>
-                  <th className="py-2 pr-3">Показатель</th>
-                  <th className="py-2 pr-3">Поток</th>
-                  <th className="py-2 pr-3">Менеджер</th>
-                  <th className="py-2 pr-3">Клиент</th>
-                  <th className="py-2 pr-3">Телефон</th>
-                  <th className="py-2 pr-3">Сумма</th>
-                  <th className="py-2 pr-3">Оплачено</th>
-                  <th className="py-2 pr-3">Долг</th>
-                  <th className="py-2 pr-3">KPI</th>
-                  <th className="py-2 pr-3">Действия</th>
+                <tr>
+                  <th>Дата</th>
+                  <th>Показатель</th>
+                  <th>Поток</th>
+                  <th>Менеджер</th>
+                  <th>Клиент</th>
+                  <th>Телефон</th>
+                  <th>Сумма</th>
+                  <th>Оплачено</th>
+                  <th>Долг</th>
+                  <th>KPI</th>
+                  <th>Действия</th>
                 </tr>
               </thead>
               <tbody>
                 {(manualQuery.data ?? []).map((s) => (
-                  <tr key={s.id} className="border-b border-[var(--mo-border)]/70">
-                    <td className="py-2 pr-3 whitespace-nowrap">
+                  <tr key={s.id}>
+                    <td className="whitespace-nowrap tabular-nums">
                       {s.sold_at ? new Date(s.sold_at).toLocaleString("ru-RU") : "—"}
                     </td>
-                    <td className="py-2 pr-3">{s.plan_item_name}</td>
-                    <td className="py-2 pr-3 whitespace-nowrap">{streamLabel(s.stream_no)}</td>
-                    <td className="py-2 pr-3">{s.manager_name}</td>
-                    <td className="py-2 pr-3">{s.client_name}</td>
-                    <td className="py-2 pr-3">{s.client_phone}</td>
-                    <td className="py-2 pr-3">{formatMoney(num(s.service_amount))}</td>
-                    <td className="py-2 pr-3">
+                    <td>{s.plan_item_name}</td>
+                    <td className="whitespace-nowrap">{streamLabel(s.stream_no)}</td>
+                    <td>{s.manager_name}</td>
+                    <td className="font-medium">{s.client_name}</td>
+                    <td className="tabular-nums">{s.client_phone}</td>
+                    <td className="tabular-nums whitespace-nowrap">{formatMoney(num(s.service_amount))}</td>
+                    <td>
                       {s.status === "returned" ? (
-                        formatMoney(num(s.paid_amount))
+                        <span className="tabular-nums">{formatMoney(num(s.paid_amount))}</span>
                       ) : (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
                           <input
                             type="number"
                             min={0}
@@ -1088,7 +1088,7 @@ export function KpiPage() {
                           />
                           <button
                             type="button"
-                            className="btn-secondary text-xs"
+                            className="kpi-action kpi-action--ok"
                             onClick={() =>
                               payMutation.mutate({
                                 id: s.id,
@@ -1101,31 +1101,35 @@ export function KpiPage() {
                         </div>
                       )}
                     </td>
-                    <td className="py-2 pr-3">{formatMoney(num(s.debt_amount))}</td>
-                    <td className="py-2 pr-3">
+                    <td>
+                      <span className={["kpi-debt", num(s.debt_amount) <= 0 ? "is-zero" : ""].filter(Boolean).join(" ")}>
+                        {formatMoney(num(s.debt_amount))}
+                      </span>
+                    </td>
+                    <td>
                       {s.status === "returned" ? (
-                        <span className="text-xs text-red-300">возврат</span>
+                        <span className="kpi-chip kpi-chip--return">возврат</span>
                       ) : s.status === "refused" ? (
-                        <span className="text-xs text-amber-400">отказ</span>
+                        <span className="kpi-chip kpi-chip--refuse">отказ</span>
                       ) : s.status === "completed" ? (
-                        <span className="text-xs text-sky-300">завершён</span>
+                        <span className="kpi-chip kpi-chip--done">завершён</span>
                       ) : s.counts_in_kpi ? (
-                        <span className="text-xs text-emerald-300">в факте</span>
+                        <span className="kpi-chip kpi-chip--fact">в факте</span>
                       ) : (
-                        <span className="text-xs mo-muted">&lt;25%</span>
+                        <span className="kpi-chip kpi-chip--low">&lt;25%</span>
                       )}
                       {s.status_reason ? (
-                        <div className="mt-0.5 max-w-[10rem] truncate text-[10px] mo-muted" title={s.status_reason}>
+                        <div className="mt-0.5 max-w-[10rem] truncate text-[10px] text-[var(--mo-text-muted)]" title={s.status_reason}>
                           {s.status_reason}
                         </div>
                       ) : null}
                     </td>
-                    <td className="py-2 pr-3">
+                    <td>
                       {s.status === "active" ? (
-                        <div className="flex flex-wrap gap-1">
+                        <div className="kpi-actions">
                           <button
                             type="button"
-                            className="btn-secondary text-xs"
+                            className="kpi-action kpi-action--return"
                             onClick={() => {
                               if (window.confirm("Отметить возврат и снять с KPI?")) {
                                 returnMutation.mutate(s.id);
@@ -1136,21 +1140,21 @@ export function KpiPage() {
                           </button>
                           <button
                             type="button"
-                            className="btn-secondary text-xs"
+                            className="kpi-action kpi-action--refuse"
                             onClick={() => askCloseSale(s.id, "refused")}
                           >
                             Отказ
                           </button>
                           <button
                             type="button"
-                            className="btn-secondary text-xs"
+                            className="kpi-action kpi-action--done"
                             onClick={() => askCloseSale(s.id, "completed")}
                           >
                             Завершён
                           </button>
                         </div>
                       ) : (
-                        "—"
+                        <span className="text-[var(--mo-text-muted)]">—</span>
                       )}
                     </td>
                   </tr>
@@ -1208,9 +1212,9 @@ export function KpiPage() {
           </ul>
 
           <div className="hidden overflow-x-auto sm:block">
-            <table className="w-full min-w-[1000px] border-collapse text-left text-sm text-[var(--mo-text)]">
+            <table className="kpi-data-table min-w-[1000px] text-sm">
               <thead>
-                <tr className="border-b border-[var(--mo-border)] lux-caption">
+                <tr>
                   <th className="py-2 pr-3">Источник</th>
                   <th className="py-2 pr-3">Дата</th>
                   <th className="py-2 pr-3">Клиент</th>
@@ -1224,7 +1228,7 @@ export function KpiPage() {
               </thead>
               <tbody>
                 {(debtorsQuery.data?.rows ?? []).map((r) => (
-                  <tr key={`${r.source}-${r.source_id}`} className="border-b border-[var(--mo-border)]/70">
+                  <tr key={`${r.source}-${r.source_id}`}>
                     <td className="py-2 pr-3">{r.source === "booking" ? "Запись" : "Курс/протокол"}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">
                       {r.sold_at ? new Date(r.sold_at).toLocaleString("ru-RU") : "—"}
@@ -1335,9 +1339,9 @@ function SalesReportSection({
           </ul>
 
           <div className="hidden overflow-x-auto sm:block">
-            <table className="w-full min-w-[900px] border-collapse text-left text-sm text-[var(--mo-text)]">
+            <table className="kpi-data-table min-w-[900px] text-sm">
               <thead>
-                <tr className="border-b border-[var(--mo-border)] lux-caption">
+                <tr>
                   <th className="py-2 pr-3">Показатель</th>
                   <th className="py-2 pr-3">План</th>
                   <th className="py-2 pr-3">Вес %</th>
@@ -1348,7 +1352,7 @@ function SalesReportSection({
               </thead>
               <tbody>
                 {m.lines.map((line) => (
-                  <tr key={line.plan_item_id} className="border-b border-[var(--mo-border)]/70">
+                  <tr key={line.plan_item_id}>
                     <td className="py-2 pr-3">{line.name}</td>
                     <td className="py-2 pr-3">{line.plan_qty}</td>
                     <td className="py-2 pr-3">{num(line.weight_percent)}</td>
@@ -1524,9 +1528,9 @@ function CompanyReportSection({
           <p className="text-sm lux-caption">План на месяц не задан.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px] border-collapse text-left text-sm text-[var(--mo-text)]">
+            <table className="kpi-data-table min-w-[800px] text-sm">
               <thead>
-                <tr className="border-b border-[var(--mo-border)] lux-caption">
+                <tr>
                   <th className="py-2 pr-3">Показатель</th>
                   <th className="py-2 pr-3">План</th>
                   <th className="py-2 pr-3">Вес %</th>
@@ -1537,7 +1541,7 @@ function CompanyReportSection({
               </thead>
               <tbody>
                 {data.plan_lines.map((line) => (
-                  <tr key={line.plan_item_id} className="border-b border-[var(--mo-border)]/70">
+                  <tr key={line.plan_item_id}>
                     <td className="py-2 pr-3">{line.name}</td>
                     <td className="py-2 pr-3">{line.plan_qty}</td>
                     <td className="py-2 pr-3">{num(line.weight_percent)}</td>
@@ -1568,9 +1572,9 @@ function CompanyReportSection({
           Отдельно: Курс, Курс 15, Протокол, Массаж и т.д. — итог по всей клинике за месяц.
         </p>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] border-collapse text-left text-sm text-[var(--mo-text)]">
+          <table className="kpi-data-table min-w-[1100px] text-sm">
             <thead>
-              <tr className="border-b border-[var(--mo-border)] lux-caption">
+              <tr>
                 <th className="py-2 pr-3">Услуга</th>
                 <th className="py-2 pr-3">Записей</th>
                 <th className="py-2 pr-3">Явились</th>
@@ -1586,7 +1590,7 @@ function CompanyReportSection({
               {(data.service_stats ?? []).map((s) => (
                 <tr
                   key={s.direction_id ?? s.direction_name}
-                  className="border-b border-[var(--mo-border)]/70"
+                 
                 >
                   <td className="py-2 pr-3 font-medium">{s.direction_name}</td>
                   <td className="py-2 pr-3">{s.appointments_total}</td>
@@ -1617,9 +1621,9 @@ function CompanyReportSection({
           Сводка по специалисту (все его услуги вместе). Детализация по услугам — в таблице выше.
         </p>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] border-collapse text-left text-sm text-[var(--mo-text)]">
+          <table className="kpi-data-table min-w-[1000px] text-sm">
             <thead>
-              <tr className="border-b border-[var(--mo-border)] lux-caption">
+              <tr>
                 <th className="py-2 pr-3">Эксперт</th>
                 <th className="py-2 pr-3">Записей</th>
                 <th className="py-2 pr-3">Явились</th>
@@ -1633,7 +1637,7 @@ function CompanyReportSection({
             </thead>
             <tbody>
               {data.expert_stats.map((e) => (
-                <tr key={e.specialist_id} className="border-b border-[var(--mo-border)]/70">
+                <tr key={e.specialist_id}>
                   <td className="py-2 pr-3">
                     <div>{e.specialist_name}</div>
                     {e.kpi_service_name ? (
