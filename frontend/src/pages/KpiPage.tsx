@@ -1588,10 +1588,7 @@ function CompanyReportSection({
             </thead>
             <tbody>
               {(data.service_stats ?? []).map((s) => (
-                <tr
-                  key={s.direction_id ?? s.direction_name}
-                 
-                >
+                <tr key={s.direction_id ?? s.direction_name}>
                   <td className="py-2 pr-3 font-medium">{s.direction_name}</td>
                   <td className="py-2 pr-3">{s.appointments_total}</td>
                   <td className="py-2 pr-3">{s.appeared_count}</td>
