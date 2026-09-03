@@ -431,7 +431,12 @@ class Lead(Base):
     booking_appointments: Mapped[list["BookingAppointment"]] = relationship(
         back_populates="lead",
     )
-    audit_events: Mapped[list["LeadAuditEvent"]] = relationship(back_populates="lead")
+    # passive_deletes: FK ON DELETE CASCADE в БД; без этого ORM при delete(lead)
+    # шлёт UPDATE lead_id=NULL и падает на NOT NULL (см. phone dedup heavy jobs).
+    audit_events: Mapped[list["LeadAuditEvent"]] = relationship(
+        back_populates="lead",
+        passive_deletes=True,
+    )
     extra_phones: Mapped[list["LeadExtraPhone"]] = relationship(
         back_populates="lead",
         order_by="LeadExtraPhone.sort_order",

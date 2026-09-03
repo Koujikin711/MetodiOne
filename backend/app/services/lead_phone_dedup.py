@@ -223,6 +223,13 @@ async def merge_duplicate_phone_leads(
                     .where(Deal.company_id == int(cid), Deal.lead_id == lid)
                     .values(lead_id=int(keeper.id)),
                 )
+                # Журнал аудита: переносим на keeper ДО delete, иначе ORM
+                # пытается UPDATE lead_id=NULL и ломает NOT NULL constraint.
+                await db.execute(
+                    update(LeadAuditEvent)
+                    .where(LeadAuditEvent.lead_id == lid)
+                    .values(lead_id=int(keeper.id)),
+                )
                 db.add(
                     LeadAuditEvent(
                         company_id=int(cid),
@@ -232,9 +239,11 @@ async def merge_duplicate_phone_leads(
                         details=f"merged_from_lead_id={lid};phone={keeper.phone}",
                     ),
                 )
+                # SAVEPOINT: ошибка delete не откатывает уже слитые группы.
                 try:
-                    await db.delete(loser)
-                    await db.flush()
+                    async with db.begin_nested():
+                        await db.delete(loser)
+                        await db.flush()
                     removed_leads += 1
                 except Exception:
                     # Если FK мешает удалить — обнуляем телефон, чтобы не светился как дубль.
