@@ -15,6 +15,20 @@ function formatMoney(v: string | number) {
   return `${n.toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} TJS`;
 }
 
+/** Как в KPI: «26 сент., 09:30» */
+function formatSaleDt(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("ru-RU", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
 const fieldClass = "mo-input mt-1.5 w-full";
 
 export function ManagerSalesPage() {
@@ -245,12 +259,7 @@ export function ManagerSalesPage() {
                         <p className="truncate text-xs mo-muted">{s.client_phone}</p>
                       </div>
                       <time className="shrink-0 text-[11px] tabular-nums mo-muted">
-                        {new Date(s.sold_at).toLocaleString("ru-RU", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {formatSaleDt(s.sold_at)}
                       </time>
                     </div>
                     <p className="mt-1 text-xs text-[var(--mo-text)]">{s.activity_sphere}</p>
@@ -287,7 +296,7 @@ export function ManagerSalesPage() {
                   <tbody>
                     {(salesQuery.data ?? []).map((s) => (
                       <tr key={s.id}>
-                        <td className="whitespace-nowrap px-2 py-2.5">{new Date(s.sold_at).toLocaleString("ru-RU")}</td>
+                        <td className="whitespace-nowrap px-2 py-2.5 tabular-nums">{formatSaleDt(s.sold_at)}</td>
                         <td className="px-2 py-2.5">
                           <div className="font-medium">{s.client_name}</div>
                           <div className="text-xs mo-muted">{s.client_phone}</div>

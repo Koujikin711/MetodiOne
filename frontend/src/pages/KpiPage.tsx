@@ -96,7 +96,7 @@ function SaleRowActionsMenu({
             role="menu"
             aria-label="Действия по продаже"
             className="kpi-actions-menu"
-            style={{ top: pos.top, left: pos.left, width: 200 }}
+            style={{ top: pos.top, left: pos.left, width: 168 }}
           >
             <button
               type="button"
@@ -108,10 +108,7 @@ function SaleRowActionsMenu({
               }}
             >
               <span className="kpi-actions-menu__mark" aria-hidden />
-              <span className="kpi-actions-menu__copy">
-                <span className="kpi-actions-menu__title">Возврат</span>
-                <span className="kpi-actions-menu__hint">Снять с KPI</span>
-              </span>
+              Возврат
             </button>
             <button
               type="button"
@@ -123,10 +120,7 @@ function SaleRowActionsMenu({
               }}
             >
               <span className="kpi-actions-menu__mark" aria-hidden />
-              <span className="kpi-actions-menu__copy">
-                <span className="kpi-actions-menu__title">Отказ</span>
-                <span className="kpi-actions-menu__hint">С причиной</span>
-              </span>
+              Отказ
             </button>
             <button
               type="button"
@@ -138,10 +132,7 @@ function SaleRowActionsMenu({
               }}
             >
               <span className="kpi-actions-menu__mark" aria-hidden />
-              <span className="kpi-actions-menu__copy">
-                <span className="kpi-actions-menu__title">Завершён</span>
-                <span className="kpi-actions-menu__hint">Курс закрыт</span>
-              </span>
+              Завершён
             </button>
           </div>,
           document.body,
@@ -1469,7 +1460,7 @@ export function KpiPage() {
                   <tr key={`${r.source}-${r.source_id}`}>
                     <td className="py-2 pr-3">{r.source === "booking" ? "Запись" : "Курс/протокол"}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">
-                      {r.sold_at ? new Date(r.sold_at).toLocaleString("ru-RU") : "—"}
+                      {r.sold_at ? formatSaleDt(r.sold_at) : "—"}
                     </td>
                     <td className="py-2 pr-3">{r.client_name}</td>
                     <td className="py-2 pr-3">{r.client_phone}</td>

@@ -4361,9 +4361,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border: 0;
   border-radius: 0.65rem;
   background: transparent;
-  padding: 0.55rem 0.6rem;
+  padding: 0.55rem 0.65rem;
   text-align: left;
   cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.25;
   color: var(--mo-text);
   transition: background 0.15s ease;
 }
@@ -4378,27 +4381,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border-radius: 999px;
   flex-shrink: 0;
   box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
-}
-
-.kpi-actions-menu__copy {
-  display: flex;
-  min-w-0;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
-.kpi-actions-menu__title {
-  font-size: 0.8125rem;
-  font-weight: 650;
-  line-height: 1.2;
-  color: var(--mo-text);
-}
-
-.kpi-actions-menu__hint {
-  font-size: 0.6875rem;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--mo-text-muted);
 }
 
 .kpi-actions-menu__item--return .kpi-actions-menu__mark {
