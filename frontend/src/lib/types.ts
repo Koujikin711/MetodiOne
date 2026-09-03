@@ -979,8 +979,10 @@ export interface SalesKpiManualSale {
   manager_name: string;
   client_name: string;
   client_phone: string;
-  /** Номер потока (Поток 1, 2, …); может отсутствовать у старых записей */
+  /** Номер потока (Поток 1…10) */
   stream_no?: number | null;
+  /** Номер группы (Группа 1…20) */
+  group_no?: number | null;
   service_amount: string | number;
   paid_amount: string | number;
   debt_amount: string | number;

@@ -19,7 +19,7 @@ import type {
   SalesKpiWeightedPlan,
 } from "@/lib/types";
 
-type TabId = "plan" | "sales" | "company" | "manual" | "debtors";
+type TabId = "plan" | "sales" | "company" | "manual" | "streams" | "debtors";
 
 type PlanDraftItem = {
   key: string;
@@ -176,11 +176,30 @@ function num(v: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-const KPI_STREAM_OPTIONS = Array.from({ length: 20 }, (_, i) => i + 1);
+const KPI_GROUP_OPTIONS = Array.from({ length: 20 }, (_, i) => i + 1);
+const KPI_STREAM_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
+
+function groupLabel(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(Number(n)) || Number(n) < 1) return "—";
+  return `Группа ${Number(n)}`;
+}
 
 function streamLabel(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(Number(n)) || Number(n) < 1) return "—";
   return `Поток ${Number(n)}`;
+}
+
+function formatSaleDt(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("ru-RU", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
 }
 
 export function KpiPage() {
@@ -209,6 +228,7 @@ export function KpiPage() {
     plan_item_id: "",
     manager_user_id: "",
     stream_no: "",
+    group_no: "",
     client_name: "",
     client_phone: "",
     service_amount: "",
@@ -216,6 +236,7 @@ export function KpiPage() {
     note: "",
   });
   const [payDraft, setPayDraft] = useState<Record<number, string>>({});
+  const [streamTabNo, setStreamTabNo] = useState("1");
 
   const pipelinesQuery = useQuery({
     queryKey: ["sales-kpi-pipelines"],
@@ -254,7 +275,7 @@ export function KpiPage() {
   const manualQuery = useQuery({
     queryKey: ["sales-kpi-manual-sales", qs],
     queryFn: () => apiFetch<SalesKpiManualSale[]>(`/api/sales-kpi/manual-sales?${qs}`),
-    enabled: Boolean(pipelineId && isAdminOrOwner && tab === "manual"),
+    enabled: Boolean(pipelineId && isAdminOrOwner && (tab === "manual" || tab === "streams")),
   });
 
   const debtorsQuery = useQuery({
@@ -344,6 +365,7 @@ export function KpiPage() {
     mutationFn: async () => {
       if (!pipelineId) throw new Error("Выберите воронку");
       if (!saleForm.stream_no) throw new Error("Укажите поток");
+      if (!saleForm.group_no) throw new Error("Укажите группу");
       await apiFetch<SalesKpiManualSale>("/api/sales-kpi/manual-sales", {
         method: "POST",
         body: JSON.stringify({
@@ -351,6 +373,7 @@ export function KpiPage() {
           plan_item_id: Number(saleForm.plan_item_id),
           manager_user_id: Number(saleForm.manager_user_id),
           stream_no: Number(saleForm.stream_no),
+          group_no: Number(saleForm.group_no),
           client_name: saleForm.client_name.trim(),
           client_phone: saleForm.client_phone.trim(),
           service_amount: Number(saleForm.service_amount),
@@ -365,6 +388,7 @@ export function KpiPage() {
         plan_item_id: "",
         manager_user_id: "",
         stream_no: "",
+        group_no: "",
         client_name: "",
         client_phone: "",
         service_amount: "",
@@ -458,6 +482,7 @@ export function KpiPage() {
     },
     { id: "company", label: "Отчёт компании", shortLabel: "Отчёт", show: isOwner || isAccountant },
     { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: isAdminOrOwner },
+    { id: "streams", label: "Поток", shortLabel: "Поток", show: isAdminOrOwner },
     {
       id: "debtors",
       label: isCurator ? "Дебиторка курсов / протоколов" : "Дебиторка",
@@ -1005,6 +1030,21 @@ export function KpiPage() {
                 </select>
               </label>
               <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                Группа
+                <select
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                  value={saleForm.group_no}
+                  onChange={(e) => setSaleForm((s) => ({ ...s, group_no: e.target.value }))}
+                >
+                  <option value="">—</option>
+                  {KPI_GROUP_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      Группа {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                 Поток
                 <select
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
@@ -1085,7 +1125,7 @@ export function KpiPage() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{s.client_name}</p>
                     <p className="truncate text-[11px] text-[var(--mo-text-muted)]">
-                      {s.plan_item_name} · {streamLabel(s.stream_no)}
+                      {s.plan_item_name} · {groupLabel(s.group_no)} · {streamLabel(s.stream_no)}
                     </p>
                   </div>
                   <span className="shrink-0 text-[11px] tabular-nums text-[var(--mo-text-muted)]">
@@ -1160,6 +1200,7 @@ export function KpiPage() {
                 <tr>
                   <th>Дата</th>
                   <th>Продукт</th>
+                  <th>Группа</th>
                   <th>Поток</th>
                   <th>Менеджер</th>
                   <th>Клиент</th>
@@ -1175,9 +1216,10 @@ export function KpiPage() {
                 {(manualQuery.data ?? []).map((s) => (
                   <tr key={s.id}>
                     <td className="whitespace-nowrap tabular-nums">
-                      {s.sold_at ? new Date(s.sold_at).toLocaleString("ru-RU") : "—"}
+                      {s.sold_at ? formatSaleDt(s.sold_at) : "—"}
                     </td>
                     <td>{s.plan_item_name}</td>
+                    <td className="whitespace-nowrap">{groupLabel(s.group_no)}</td>
                     <td className="whitespace-nowrap">{streamLabel(s.stream_no)}</td>
                     <td>{s.manager_name}</td>
                     <td className="font-medium">{s.client_name}</td>
@@ -1254,6 +1296,91 @@ export function KpiPage() {
             </table>
             {manualQuery.isLoading ? <p className="mt-2 text-sm lux-caption">Загрузка…</p> : null}
           </div>
+        </section>
+      ) : null}
+
+      {tab === "streams" && isAdminOrOwner ? (
+        <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
+          <div>
+            <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Поток</h2>
+            <p className="mt-1 hidden text-sm lux-caption sm:block">
+              Выберите поток — ниже продажи курсов/протоколов этого потока.
+            </p>
+          </div>
+          <label className="flex max-w-xs flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+            Поток
+            <select
+              className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+              value={streamTabNo}
+              onChange={(e) => setStreamTabNo(e.target.value)}
+            >
+              {KPI_STREAM_OPTIONS.map((n) => (
+                <option key={n} value={String(n)}>
+                  Поток {n}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {(() => {
+            const selected = Number(streamTabNo);
+            const rows = (manualQuery.data ?? []).filter((s) => Number(s.stream_no) === selected);
+            return (
+              <>
+                <p className="text-xs text-[var(--mo-text-muted)] sm:text-sm">
+                  {streamLabel(selected)} · записей: {rows.length}
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="kpi-data-table min-w-[720px] text-sm">
+                    <thead>
+                      <tr>
+                        <th>Дата</th>
+                        <th>Продукт</th>
+                        <th>Группа</th>
+                        <th>Клиент</th>
+                        <th>Менеджер</th>
+                        <th>Сумма</th>
+                        <th>Оплачено</th>
+                        <th>Долг</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((s) => (
+                        <tr key={s.id}>
+                          <td className="whitespace-nowrap tabular-nums">
+                            {s.sold_at ? formatSaleDt(s.sold_at) : "—"}
+                          </td>
+                          <td>{s.plan_item_name}</td>
+                          <td className="whitespace-nowrap">{groupLabel(s.group_no)}</td>
+                          <td className="font-medium">{s.client_name}</td>
+                          <td>{s.manager_name}</td>
+                          <td className="tabular-nums whitespace-nowrap">{formatMoney(num(s.service_amount))}</td>
+                          <td className="tabular-nums whitespace-nowrap">{formatMoney(num(s.paid_amount))}</td>
+                          <td>
+                            <span
+                              className={["kpi-debt", num(s.debt_amount) <= 0 ? "is-zero" : ""]
+                                .filter(Boolean)
+                                .join(" ")}
+                            >
+                              {formatMoney(num(s.debt_amount))}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {rows.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-3 text-[var(--mo-text-muted)]">
+                            В этом потоке пока нет продаж
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+                {manualQuery.isLoading ? <p className="text-sm lux-caption">Загрузка…</p> : null}
+              </>
+            );
+          })()}
         </section>
       ) : null}
 

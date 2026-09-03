@@ -246,6 +246,7 @@ def _manual_sale_out(
     sa = Decimal(str(sale.service_amount or 0))
     pa = Decimal(str(sale.paid_amount or 0))
     stream_raw = getattr(sale, "stream_no", None)
+    group_raw = getattr(sale, "group_no", None)
     return SalesKpiManualSaleOut(
         id=int(sale.id),
         pipeline_id=int(sale.pipeline_id),
@@ -256,6 +257,7 @@ def _manual_sale_out(
         client_name=sale.client_name,
         client_phone=sale.client_phone,
         stream_no=int(stream_raw) if stream_raw is not None else None,
+        group_no=int(group_raw) if group_raw is not None else None,
         service_amount=sa,
         paid_amount=pa,
         debt_amount=max(sa - pa, Decimal("0")),
@@ -673,6 +675,7 @@ async def create_manual_sale(
         client_name=body.client_name.strip(),
         client_phone=body.client_phone.strip(),
         stream_no=int(body.stream_no),
+        group_no=int(body.group_no),
         service_amount=body.service_amount,
         paid_amount=body.paid_amount,
         sold_at=sold_at,

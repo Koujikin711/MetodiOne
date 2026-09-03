@@ -1181,6 +1181,16 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
         cols = {row[1] for row in (await conn.execute(text("PRAGMA table_info(sales_kpi_manual_sales)"))).fetchall()}
         if "stream_no" not in cols:
             await conn.execute(text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN stream_no INTEGER"))
+        if "group_no" not in cols:
+            await conn.execute(text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN group_no INTEGER"))
+            # Старые «Поток N» → Группа; поток задаётся отдельно (1…10)
+            await conn.execute(
+                text(
+                    "UPDATE sales_kpi_manual_sales SET group_no = stream_no "
+                    "WHERE group_no IS NULL AND stream_no IS NOT NULL"
+                )
+            )
+            await conn.execute(text("UPDATE sales_kpi_manual_sales SET stream_no = NULL WHERE stream_no IS NOT NULL"))
         if "status_reason" not in cols:
             await conn.execute(text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN status_reason TEXT"))
         return
@@ -1298,6 +1308,24 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
         await conn.execute(
             text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN IF NOT EXISTS stream_no INTEGER"),
         )
+        # group_no: один раз переносим старые stream_no → группа
+        group_exists = (
+            await conn.execute(
+                text(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name = 'sales_kpi_manual_sales' AND column_name = 'group_no'"
+                )
+            )
+        ).first()
+        if not group_exists:
+            await conn.execute(text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN group_no INTEGER"))
+            await conn.execute(
+                text(
+                    "UPDATE sales_kpi_manual_sales SET group_no = stream_no "
+                    "WHERE group_no IS NULL AND stream_no IS NOT NULL"
+                )
+            )
+            await conn.execute(text("UPDATE sales_kpi_manual_sales SET stream_no = NULL WHERE stream_no IS NOT NULL"))
         await conn.execute(
             text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN IF NOT EXISTS status_reason TEXT"),
         )

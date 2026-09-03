@@ -177,7 +177,8 @@ class SalesKpiManualSaleCreate(BaseModel):
     manager_user_id: int = Field(..., ge=1)
     client_name: str = Field(..., min_length=1, max_length=255)
     client_phone: str = Field(..., min_length=1, max_length=64)
-    stream_no: int = Field(..., ge=1, le=50, description="Номер потока (Поток 1, 2, …)")
+    stream_no: int = Field(..., ge=1, le=10, description="Номер потока (Поток 1…10)")
+    group_no: int = Field(..., ge=1, le=20, description="Номер группы (Группа 1…20)")
     service_amount: Decimal = Field(..., gt=0)
     paid_amount: Decimal = Field(default=Decimal("0"), ge=0)
     sold_at: datetime | None = None
@@ -206,6 +207,7 @@ class SalesKpiManualSaleOut(BaseModel):
     client_name: str
     client_phone: str
     stream_no: int | None = None
+    group_no: int | None = None
     service_amount: Decimal
     paid_amount: Decimal
     debt_amount: Decimal
