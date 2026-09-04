@@ -192,7 +192,7 @@ const KPI_STREAM_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
 
 function groupLabel(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(Number(n)) || Number(n) < 1) return "—";
-  return `Группа ${Number(n)}`;
+  return `Поток ${Number(n)}`;
 }
 
 function streamLabel(n: number | null | undefined): string {
@@ -379,7 +379,7 @@ export function KpiPage() {
     mutationFn: async () => {
       if (!pipelineId) throw new Error("Выберите воронку");
       if (!saleForm.stream_no) throw new Error("Укажите этап");
-      if (!saleForm.group_no) throw new Error("Укажите группу");
+      if (!saleForm.group_no) throw new Error("Укажите поток");
       await apiFetch<SalesKpiManualSale>("/api/sales-kpi/manual-sales", {
         method: "POST",
         body: JSON.stringify({
@@ -1044,17 +1044,17 @@ export function KpiPage() {
                 </select>
               </label>
               <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
-                Группа
+                Поток
                 <select
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.group_no}
                   onChange={(e) => setSaleForm((s) => ({ ...s, group_no: e.target.value }))}
-                  title="Группа — время образования"
+                  title="Поток — время образования"
                 >
                   <option value="">—</option>
                   {KPI_GROUP_OPTIONS.map((n) => (
                     <option key={n} value={n}>
-                      Группа {n}
+                      Поток {n}
                     </option>
                   ))}
                 </select>
@@ -1233,7 +1233,7 @@ export function KpiPage() {
                 <tr>
                   <th>Дата</th>
                   <th>Продукт</th>
-                  <th>Группа</th>
+                  <th>Поток</th>
                   <th>Этап</th>
                   <th>Менеджер</th>
                   <th>Клиент</th>
