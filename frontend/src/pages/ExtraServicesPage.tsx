@@ -5,6 +5,7 @@ import { Link, Navigate } from "react-router-dom";
 
 import { DateField } from "@/components/DateField";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
+import { Settings } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { formatMoney } from "@/lib/money";
@@ -59,9 +60,8 @@ type ExtraServiceReport = {
   }>;
 };
 
-const TABS: { id: TabId; label: string; shortLabel: string }[] = [
+const TABS: { id: Exclude<TabId, "settings">; label: string; shortLabel: string }[] = [
   { id: "new", label: "Новая запись", shortLabel: "Новая" },
-  { id: "settings", label: "Настройки %", shortLabel: "%" },
   { id: "report", label: "Отчёты", shortLabel: "Отчёт" },
   { id: "journal", label: "Журнал", shortLabel: "Журнал" },
 ];
@@ -299,28 +299,56 @@ export function ExtraServicesPage() {
             </Link>
           </p>
         </div>
-        <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
+        <div className="extra-services-head-actions">
+          <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
+          <button
+            type="button"
+            className={[
+              "extra-services-settings-btn",
+              tab === "settings" ? "is-active" : "",
+            ].join(" ")}
+            aria-label="Настройки %"
+            title="Настройки %"
+            aria-pressed={tab === "settings"}
+            onClick={() => setTab((prev) => (prev === "settings" ? "new" : "settings"))}
+          >
+            <Settings className="h-[1.05rem] w-[1.05rem]" aria-hidden />
+          </button>
+        </div>
       </div>
 
       <div className="mo-fill-page-scroll space-y-4 pt-3 sm:space-y-5 sm:pt-4">
-        <div className="kpi-tabs" role="tablist" aria-label="Доп услуги">
-          {TABS.map((t) => {
-            const active = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                className={active ? "kpi-tabs__btn is-active" : "kpi-tabs__btn"}
-                onClick={() => setTab(t.id)}
-              >
-                <span className="kpi-tabs__label kpi-tabs__label--full">{t.label}</span>
-                <span className="kpi-tabs__label kpi-tabs__label--short">{t.shortLabel}</span>
-              </button>
-            );
-          })}
-        </div>
+        {tab !== "settings" ? (
+          <div className="kpi-tabs" role="tablist" aria-label="Доп услуги">
+            {TABS.map((t) => {
+              const active = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={active ? "kpi-tabs__btn is-active" : "kpi-tabs__btn"}
+                  onClick={() => setTab(t.id)}
+                >
+                  <span className="kpi-tabs__label kpi-tabs__label--full">{t.label}</span>
+                  <span className="kpi-tabs__label kpi-tabs__label--short">{t.shortLabel}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-[var(--mo-text)]">Настройки %</h2>
+            <button
+              type="button"
+              className="text-xs text-[var(--mo-accent-hover)] underline"
+              onClick={() => setTab("new")}
+            >
+              ← К записям
+            </button>
+          </div>
+        )}
 
         {tab === "new" ? (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-5">
@@ -345,7 +373,7 @@ export function ExtraServicesPage() {
                 </label>
                 {!activeTypes.length ? (
                   <p className="expenses-field--span text-xs mo-muted">
-                    Сначала добавьте услуги во вкладке «Настройки %»{" "}
+                    Сначала добавьте услуги в настройках %{" "}
                     <button
                       type="button"
                       className="text-[var(--mo-accent-hover)] underline"
