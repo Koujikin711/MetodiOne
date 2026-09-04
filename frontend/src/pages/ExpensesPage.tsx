@@ -3,17 +3,10 @@ import { FormEvent, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
+import { EXPENSE_CATALOG } from "@/lib/expenseCatalog";
 import { APP_CURRENCY } from "@/lib/money";
 import { DateField } from "@/components/DateField";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
-
-type ExpenseCatalog = {
-  banks: string[];
-  articles: string[];
-  brief_categories: string[];
-  detail_categories: string[];
-  products: string[];
-};
 
 type ExpenseRow = {
   id: number;
@@ -47,18 +40,11 @@ export function ExpensesPage() {
   const year = Number(yearMonth.slice(0, 4));
   const month = Number(yearMonth.slice(5, 7));
 
-  const catalogQuery = useQuery({
-    queryKey: ["finance-expense-catalog"],
-    queryFn: () =>
-      apiFetch<ExpenseCatalog>("/api/finance/expense-catalog", { timeoutMs: 45_000 }),
-    staleTime: 60_000,
-  });
-
   const listQuery = useQuery({
     queryKey: ["finance-expenses", year, month],
     queryFn: () =>
       apiFetch<ExpenseRow[]>(`/api/finance/expenses?year=${year}&month=${month}&limit=300`, {
-        timeoutMs: 45_000,
+        timeoutMs: 25_000,
       }),
     retry: 1,
   });
@@ -75,7 +61,7 @@ export function ExpensesPage() {
   const [phone, setPhone] = useState("");
   const [viaPerson, setViaPerson] = useState("");
 
-  const catalog = catalogQuery.data;
+  const catalog = EXPENSE_CATALOG;
   const rows = listQuery.data ?? [];
   const total = useMemo(() => rows.reduce((s, r) => s + Number(r.expense || 0), 0), [rows]);
 
@@ -195,11 +181,11 @@ export function ExpensesPage() {
                 required
               />
             </label>
-            {selectOrCustom(bank, catalog?.banks ?? [], setBank, "Банк")}
-            {selectOrCustom(article, catalog?.articles ?? [], setArticle, "Статья")}
-            {selectOrCustom(brief, catalog?.brief_categories ?? [], setBrief, "Кратко")}
-            {selectOrCustom(detail, catalog?.detail_categories ?? [], setDetail, "Подробно")}
-            {selectOrCustom(product, catalog?.products ?? [], setProduct, "Товар / услуга")}
+            {selectOrCustom(bank, [...catalog.banks], setBank, "Банк")}
+            {selectOrCustom(article, [...catalog.articles], setArticle, "Статья")}
+            {selectOrCustom(brief, [...catalog.brief_categories], setBrief, "Кратко")}
+            {selectOrCustom(detail, [...catalog.detail_categories], setDetail, "Подробно")}
+            {selectOrCustom(product, [...catalog.products], setProduct, "Товар / услуга")}
             <label className="expenses-field expenses-field--span">
               <span className="expenses-field__label">Основание</span>
               <input
@@ -250,11 +236,13 @@ export function ExpensesPage() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--mo-border)] px-3 py-3 sm:px-4">
             <h2 className="text-sm font-semibold text-[var(--mo-text)]">За месяц</h2>
             <span className="tabular-nums text-sm font-medium text-[var(--mo-text)]">
-              Итого: {money(total)}
+              {listQuery.isLoading ? "Итого: …" : `Итого: ${money(total)}`}
             </span>
           </div>
           {listQuery.isLoading ? (
-            <p className="px-3 py-6 text-sm mo-muted sm:px-4">Загрузка…</p>
+            <p className="px-3 py-6 text-sm mo-muted sm:px-4">
+              Загрузка списка с сервера… Если долго — API/БД на Amvera отвечает медленно, подождите или нажмите «Повторить».
+            </p>
           ) : listQuery.isError ? (
             <div className="space-y-2 px-3 py-6 sm:px-4">
               <p className="text-sm text-[var(--mo-danger,#ef4444)]">
