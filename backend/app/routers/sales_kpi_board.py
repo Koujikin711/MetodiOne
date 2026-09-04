@@ -9,7 +9,7 @@ import calendar
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import and_, delete, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentCompanyId, CurrentUser
@@ -1380,17 +1380,49 @@ async def company_report(
             pa = Decimal(str(pa_raw or 0))
             debtor_booking += max(sa - pa, Decimal("0"))
 
-    # Ручные продажи курсов/протоколов: выручка — оплаты за продажи месяца;
-    # дебиторка — открытый остаток на конец месяца (с переносом).
-    manual_month_q = select(
-        SalesKpiManualSale.paid_amount,
-    ).where(
-        SalesKpiManualSale.company_id == company_id,
-        SalesKpiManualSale.pipeline_id == pipeline_id,
-        SalesKpiManualSale.sold_at >= start,
-        SalesKpiManualSale.sold_at < end,
-        SalesKpiManualSale.status == "active",
-    )
+    # Ручные продажи курсов/протоколов:
+    # выручка месяца = сумма платежей с paid_at в этом месяце (не нарастающий итог
+    # и не «весь paid_amount продажи» — иначе доплаты раздувают прошлый месяц продажи);
+    # дебиторка — открытый остаток на конец месяца (с переносом — это отдельно).
+    revenue_manual_paid = (
+        await db.execute(
+            select(func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0)).where(
+                SalesKpiManualSalePayment.company_id == company_id,
+                SalesKpiManualSalePayment.paid_at >= start,
+                SalesKpiManualSalePayment.paid_at < end,
+                SalesKpiManualSalePayment.sale_id.in_(
+                    select(SalesKpiManualSale.id).where(
+                        SalesKpiManualSale.company_id == company_id,
+                        SalesKpiManualSale.pipeline_id == pipeline_id,
+                        SalesKpiManualSale.status == "active",
+                    ),
+                ),
+            ),
+        )
+    ).scalar_one()
+    revenue_manual = Decimal(str(revenue_manual_paid or 0))
+
+    # Старые продажи без строк в журнале: один раз относим paid_amount к месяцу sold_at.
+    legacy_manual_rows = (
+        await db.execute(
+            select(SalesKpiManualSale).where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.sold_at >= start,
+                SalesKpiManualSale.sold_at < end,
+                SalesKpiManualSale.status == "active",
+                SalesKpiManualSale.paid_amount > 0,
+                ~exists(
+                    select(SalesKpiManualSalePayment.id).where(
+                        SalesKpiManualSalePayment.sale_id == SalesKpiManualSale.id,
+                    ),
+                ),
+            ),
+        )
+    ).scalars().all()
+    for sale in legacy_manual_rows:
+        revenue_manual += Decimal(str(sale.paid_amount or 0))
+
     manual_debt_q = select(
         SalesKpiManualSale.service_amount,
         SalesKpiManualSale.paid_amount,
@@ -1401,10 +1433,6 @@ async def company_report(
         SalesKpiManualSale.status == "active",
         SalesKpiManualSale.service_amount > SalesKpiManualSale.paid_amount,
     )
-    manual_paid_rows = (await db.execute(manual_month_q)).all()
-    revenue_manual = Decimal("0")
-    for (pa_raw,) in manual_paid_rows:
-        revenue_manual += Decimal(str(pa_raw or 0))
 
     manual_debt_rows = (await db.execute(manual_debt_q)).all()
     debtor_manual = Decimal("0")
