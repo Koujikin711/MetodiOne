@@ -1556,13 +1556,12 @@ async def company_report(
     # Sales-mode: визитов нет, выручка = продажи стола + курсы.
     if sales_mode:
         revenue_total = revenue_booking + revenue_manual
-        debtor_total = debtor_booking + debtor_manual
     else:
+        # Выручка клиники = только касса визитов (курсы KPI уже сидят в paid визитов).
         revenue_total = revenue_booking
-        # Дебиторка кассы = остаток по визитам. Долги вкладки «Курсы/протоколы»
-        # — учёт плана/пакета для KPI; в итоговую дебиторку клиники не суммируем
-        # (иначе +пакет поверх уже учтённых визитов / фейковых сумм).
-        debtor_total = debtor_booking
+    # Дебиторка всегда = остаток визитов + открытые пакеты курсов/протоколов KPI.
+    # Выручку курсов не плюсуем (двойной счёт), долг пакетов в карточке показываем.
+    debtor_total = debtor_booking + debtor_manual
 
     # Дни месяца для прогноза (линейный run-rate)
     days_in_month = calendar.monthrange(ym.year, ym.month)[1]
