@@ -366,7 +366,7 @@ export function ExtraServicesPage() {
                     <option value="">Выберите…</option>
                     {activeTypes.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.name} (нам {n(t.keep_percent)}% / отдаём {n(t.payout_percent)}%)
+                        {t.name}
                       </option>
                     ))}
                   </select>
