@@ -6,7 +6,6 @@ import { Link, Navigate } from "react-router-dom";
 import { DateField } from "@/components/DateField";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { Settings } from "@/components/icons";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { formatMoney } from "@/lib/money";
@@ -289,34 +288,35 @@ export function ExtraServicesPage() {
   }
 
   return (
-    <div className="extra-services-page mo-page space-y-4">
-      <PageHeader
-        title="Доп услуги"
-        description={
-          <>
+    <div className="extra-services-page mo-fill-page relative w-full min-w-0">
+      <div className="mo-admin-page-head expenses-page__head">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-2xl">
+            Доп услуги
+          </h1>
+          <p className="mt-1 text-xs mo-muted sm:text-sm">
             Под онлайн-записью: ФИО, телефон, сумма — система считает, сколько нам и сколько отдаём.{" "}
             <Link to="/booking" className="text-[var(--mo-accent-hover)] hover:underline">
               ← К онлайн-записи
             </Link>
-          </>
-        }
-        actions={
-          <div className="extra-services-head-actions">
-            <MonthYearPicker value={yearMonth} onChange={setYearMonth} className="w-[10.5rem]" />
-            <button
-              type="button"
-              className={["extra-services-settings-btn", tab === "settings" ? "is-active" : ""].join(" ")}
-              aria-label="Настройки %"
-              title="Настройки %"
-              aria-pressed={tab === "settings"}
-              onClick={() => setTab((prev) => (prev === "settings" ? "new" : "settings"))}
-            >
-              <Settings className="h-[1.05rem] w-[1.05rem]" aria-hidden />
-            </button>
-          </div>
-        }
-      />
+          </p>
+        </div>
+        <div className="extra-services-head-actions">
+          <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
+          <button
+            type="button"
+            className={["extra-services-settings-btn", tab === "settings" ? "is-active" : ""].join(" ")}
+            aria-label="Настройки %"
+            title="Настройки %"
+            aria-pressed={tab === "settings"}
+            onClick={() => setTab((prev) => (prev === "settings" ? "new" : "settings"))}
+          >
+            <Settings className="h-[1.05rem] w-[1.05rem]" aria-hidden />
+          </button>
+        </div>
+      </div>
 
+      <div className="mo-fill-page-scroll space-y-4 pt-3 sm:space-y-5 sm:pt-4">
       {tab !== "settings" ? (
         <div className="crm-view-switch flex flex-wrap gap-2" role="tablist" aria-label="Доп услуги">
           {TABS.map((t) => (
