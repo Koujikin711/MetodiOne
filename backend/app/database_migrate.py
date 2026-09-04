@@ -3405,3 +3405,71 @@ async def ensure_extra_services_tables(conn: AsyncConnection, database_url: str)
     await conn.execute(
         text("CREATE INDEX IF NOT EXISTS ix_extra_service_sales_status ON extra_service_sales (status)"),
     )
+
+
+async def ensure_fix_kurs15_price_2000_to_1300(conn: AsyncConnection, database_url: str) -> None:
+    """One-shot: Курс 15 с ценой 2000 при оплате 1300 → стоимость 1300 (убирает фейковый долг 700)."""
+    import logging
+
+    log = logging.getLogger("crm.migrate")
+    try:
+        await _fix_kurs15_price_2000_to_1300_body(conn, database_url)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("fix_kurs15_price_2000_to_1300 failed (skipped): %s", exc)
+
+
+async def _fix_kurs15_price_2000_to_1300_body(conn: AsyncConnection, database_url: str) -> None:
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at DATETIME
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at TIMESTAMPTZ
+                )"""
+            ),
+        )
+
+    patch_name = "fix_kurs15_price_2000_to_1300_aug2026_v1"
+    existing = await conn.execute(
+        text("SELECT 1 FROM app_data_patches WHERE name = :n LIMIT 1"),
+        {"n": patch_name},
+    )
+    if existing.first() is not None:
+        return
+
+    # Цена сеанса Курс 15 = 1300. Записи с service_amount=2000 и paid≈1300 давали ложный долг 700.
+    await conn.execute(
+        text(
+            """
+            UPDATE booking_appointments
+            SET service_amount = paid_amount
+            WHERE abs(service_amount - 2000) < 0.01
+              AND abs(paid_amount - 1300) < 0.01
+              AND (
+                lower(coalesce(service_title, '')) LIKE '%курс%15%'
+                OR lower(coalesce(service_title, '')) LIKE '%15%курс%'
+              )
+            """
+        ),
+    )
+    if sqlite:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, CURRENT_TIMESTAMP)"),
+            {"n": patch_name},
+        )
+    else:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
+            {"n": patch_name},
+        )
