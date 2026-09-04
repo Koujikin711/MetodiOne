@@ -590,28 +590,30 @@ export function ExtraServicesPage() {
                       <td className="tabular-nums kpi-actual-value">{n(t.keep_percent)}%</td>
                       <td className="tabular-nums">{n(t.payout_percent)}%</td>
                       <td>{t.is_active ? "Активна" : "Выкл."}</td>
-                      <td className="space-x-2 whitespace-nowrap">
-                        <button
-                          type="button"
-                          className="text-xs text-[var(--mo-accent-hover)] underline"
-                          onClick={() => {
-                            setEditId(t.id);
-                            setEditName(t.name);
-                            setEditKeep(String(n(t.keep_percent)));
-                            setEditPayout(String(n(t.payout_percent)));
-                          }}
-                        >
-                          Изменить
-                        </button>
-                        {t.is_active ? (
+                      <td className="whitespace-nowrap">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <button
                             type="button"
-                            className="text-xs text-red-400 underline"
-                            onClick={() => deactivateType.mutate(t.id)}
+                            className="btn-secondary px-2.5 py-1 text-xs"
+                            onClick={() => {
+                              setEditId(t.id);
+                              setEditName(t.name);
+                              setEditKeep(String(n(t.keep_percent)));
+                              setEditPayout(String(n(t.payout_percent)));
+                            }}
                           >
-                            Отключить
+                            Изменить
                           </button>
-                        ) : null}
+                          {t.is_active ? (
+                            <button
+                              type="button"
+                              className="rounded-xl border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-300 transition hover:bg-red-500/20"
+                              onClick={() => deactivateType.mutate(t.id)}
+                            >
+                              Отключить
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ),
