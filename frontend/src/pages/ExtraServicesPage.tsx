@@ -6,6 +6,7 @@ import { Link, Navigate } from "react-router-dom";
 import { DateField } from "@/components/DateField";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { Settings } from "@/components/icons";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { formatMoney } from "@/lib/money";
@@ -60,10 +61,10 @@ type ExtraServiceReport = {
   }>;
 };
 
-const TABS: { id: Exclude<TabId, "settings">; label: string; shortLabel: string }[] = [
-  { id: "new", label: "Новая запись", shortLabel: "Новая" },
-  { id: "report", label: "Отчёты", shortLabel: "Отчёт" },
-  { id: "journal", label: "Журнал", shortLabel: "Журнал" },
+const TABS: { id: Exclude<TabId, "settings">; label: string }[] = [
+  { id: "new", label: "Новая запись" },
+  { id: "report", label: "Отчёты" },
+  { id: "journal", label: "Журнал" },
 ];
 
 function defaultYearMonth() {
@@ -106,6 +107,8 @@ function n(v: number | string | null | undefined): number {
 function canAccessExtraServices(role: string | null): boolean {
   return role === "owner" || role === "admin" || role === "administrator";
 }
+
+const fieldClass = "mo-input mt-1.5 w-full min-w-0";
 
 export function ExtraServicesPage() {
   const qc = useQueryClient();
@@ -286,665 +289,494 @@ export function ExtraServicesPage() {
   }
 
   return (
-    <div className="extra-services-page mo-fill-page relative w-full min-w-0">
-      <div className="mo-admin-page-head expenses-page__head">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-2xl">
-            Доп услуги
-          </h1>
-          <p className="mt-1 text-xs mo-muted sm:text-sm">
+    <div className="extra-services-page mo-page space-y-4">
+      <PageHeader
+        title="Доп услуги"
+        description={
+          <>
             Под онлайн-записью: ФИО, телефон, сумма — система считает, сколько нам и сколько отдаём.{" "}
             <Link to="/booking" className="text-[var(--mo-accent-hover)] hover:underline">
               ← К онлайн-записи
             </Link>
-          </p>
-        </div>
-        <div className="extra-services-head-actions">
-          <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
-          <button
-            type="button"
-            className={[
-              "extra-services-settings-btn",
-              tab === "settings" ? "is-active" : "",
-            ].join(" ")}
-            aria-label="Настройки %"
-            title="Настройки %"
-            aria-pressed={tab === "settings"}
-            onClick={() => setTab((prev) => (prev === "settings" ? "new" : "settings"))}
-          >
-            <Settings className="h-[1.05rem] w-[1.05rem]" aria-hidden />
-          </button>
-        </div>
-      </div>
-
-      <div className="mo-fill-page-scroll space-y-4 pt-3 sm:space-y-5 sm:pt-4">
-        {tab !== "settings" ? (
-          <div className="kpi-tabs" role="tablist" aria-label="Доп услуги">
-            {TABS.map((t) => {
-              const active = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  className={active ? "kpi-tabs__btn is-active" : "kpi-tabs__btn"}
-                  onClick={() => setTab(t.id)}
-                >
-                  <span className="kpi-tabs__label kpi-tabs__label--full">{t.label}</span>
-                  <span className="kpi-tabs__label kpi-tabs__label--short">{t.shortLabel}</span>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-[var(--mo-text)]">Настройки %</h2>
+          </>
+        }
+        actions={
+          <div className="extra-services-head-actions">
+            <MonthYearPicker value={yearMonth} onChange={setYearMonth} className="w-[10.5rem]" />
             <button
               type="button"
-              className="text-xs text-[var(--mo-accent-hover)] underline"
-              onClick={() => setTab("new")}
+              className={["extra-services-settings-btn", tab === "settings" ? "is-active" : ""].join(" ")}
+              aria-label="Настройки %"
+              title="Настройки %"
+              aria-pressed={tab === "settings"}
+              onClick={() => setTab((prev) => (prev === "settings" ? "new" : "settings"))}
             >
-              ← К записям
+              <Settings className="h-[1.05rem] w-[1.05rem]" aria-hidden />
             </button>
           </div>
-        )}
+        }
+      />
 
-        {tab === "new" ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-5">
-            <form onSubmit={onSubmitSale} className="expenses-form">
-              <h2 className="mb-3 text-sm font-semibold text-[var(--mo-text)]">Новая доп. услуга</h2>
-              <div className="expenses-form__grid">
-                <label className="expenses-field expenses-field--span">
-                  <span className="expenses-field__label">Услуга</span>
-                  <select
-                    className="mo-input mt-1 w-full min-w-0 !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                    value={serviceTypeId}
-                    onChange={(e) => setServiceTypeId(e.target.value ? Number(e.target.value) : "")}
-                    required
-                  >
-                    <option value="">Выберите…</option>
-                    {activeTypes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {!activeTypes.length ? (
-                  <p className="expenses-field--span text-xs mo-muted">
-                    Сначала добавьте услуги в настройках %{" "}
-                    <button
-                      type="button"
-                      className="text-[var(--mo-accent-hover)] underline"
-                      onClick={() => setTab("settings")}
-                    >
-                      открыть
-                    </button>
-                    .
-                  </p>
-                ) : null}
-                <label className="expenses-field">
-                  <span className="expenses-field__label">ФИО клиента</span>
-                  <input
-                    className="mo-input mt-1 w-full min-w-0 !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    placeholder="Иванов Иван"
-                    required
-                  />
-                </label>
-                <label className="expenses-field">
-                  <span className="expenses-field__label">Телефон</span>
-                  <input
-                    className="mo-input mt-1 w-full min-w-0 !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                    inputMode="tel"
-                    value={clientPhone}
-                    onChange={(e) => setClientPhone(e.target.value)}
-                    placeholder="+992…"
-                  />
-                </label>
-                <label className="expenses-field">
-                  <span className="expenses-field__label">Сумма</span>
-                  <input
-                    className="mo-input mt-1 w-full min-w-0 tabular-nums !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                    inputMode="decimal"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0"
-                    required
-                  />
-                </label>
-                <label className="expenses-field">
-                  <span className="expenses-field__label">Дата</span>
-                  <DateField className="mt-1" value={soldDate} onChange={setSoldDate} />
-                </label>
-                <label className="expenses-field expenses-field--span">
-                  <span className="expenses-field__label">Комментарий</span>
-                  <input
-                    className="mo-input mt-1 w-full min-w-0 !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                  />
-                </label>
-              </div>
+      {tab !== "settings" ? (
+        <div className="crm-view-switch flex flex-wrap gap-2" role="tablist" aria-label="Доп услуги">
+          {TABS.map((t) => (
+            <button key={t.id} type="button" data-active={tab === t.id} onClick={() => setTab(t.id)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-[var(--mo-text)]">Настройки %</h2>
+          <button
+            type="button"
+            className="text-xs text-[var(--mo-accent-hover)] underline"
+            onClick={() => setTab("new")}
+          >
+            ← К записям
+          </button>
+        </div>
+      )}
 
-              {selectedType && amountNum > 0 ? (
-                <div className="extra-services-split mt-3">
-                  <div>
-                    <span className="extra-services-split__label">Нам</span>
-                    <span className="extra-services-split__value kpi-actual-value">
-                      {formatMoney(previewKeep)}
-                    </span>
-                    <span className="extra-services-split__pct">{n(selectedType.keep_percent)}%</span>
-                  </div>
-                  <div>
-                    <span className="extra-services-split__label">Отдаём</span>
-                    <span className="extra-services-split__value">{formatMoney(previewPayout)}</span>
-                    <span className="extra-services-split__pct">{n(selectedType.payout_percent)}%</span>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="expenses-form__actions">
-                <button
-                  type="submit"
-                  className="mo-btn-primary w-full rounded-xl px-4 py-2.5 text-sm font-medium sm:w-auto sm:py-2"
-                  disabled={createSale.isPending}
-                >
-                  {createSale.isPending ? "Сохранение…" : "Сохранить"}
-                </button>
-              </div>
-            </form>
-
-            <section className="expenses-month overflow-hidden rounded-2xl border border-[var(--mo-border)]">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--mo-border)] px-3 py-3 sm:px-4">
-                <h2 className="text-sm font-semibold text-[var(--mo-text)]">Недавние · {yearMonth}</h2>
-              </div>
-              {salesQuery.isLoading ? (
-                <p className="px-3 py-6 text-sm mo-muted sm:px-4">Загрузка…</p>
-              ) : !(salesQuery.data ?? []).length ? (
-                <p className="px-3 py-6 text-sm mo-muted sm:px-4">Пока нет записей за этот месяц.</p>
-              ) : (
-                <ul className="divide-y divide-[var(--mo-border)]">
-                  {(salesQuery.data ?? []).slice(0, 12).map((s) => (
-                    <li key={s.id} className="flex flex-wrap items-start justify-between gap-2 px-3 py-2.5 sm:px-4">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-[var(--mo-text)]">{s.client_name}</p>
-                        <p className="mt-0.5 text-xs mo-muted">
-                          {s.service_name} · {formatDt(s.sold_at)}
-                          {s.client_phone ? ` · ${s.client_phone}` : ""}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right tabular-nums">
-                        <p className="text-sm font-semibold text-[var(--mo-text)]">{formatMoney(s.amount)}</p>
-                        <p className="text-[11px] mo-muted">
-                          <span className="kpi-actual-value">нам {formatMoney(s.keep_amount)}</span>
-                          {" / "}
-                          отдали {formatMoney(s.payout_amount)}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </div>
-        ) : null}
-
-        {tab === "settings" ? (
-          <div className="space-y-4">
-            <form
-              className="expenses-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const k = Number(String(newKeep).replace(",", "."));
-                const p = Number(String(newPayout).replace(",", "."));
-                if (!newName.trim()) {
-                  toast.error("Укажите название");
-                  return;
-                }
-                if (Math.abs(k + p - 100) > 0.01) {
-                  toast.error("Сумма % должна быть 100");
-                  return;
-                }
-                createType.mutate();
-              }}
-            >
-              <h2 className="mb-3 text-sm font-semibold text-[var(--mo-text)]">Добавить услугу</h2>
-              <div className="expenses-form__grid">
-                <label className="expenses-field sm:col-span-2">
-                  <span className="expenses-field__label">Название</span>
-                  <input
-                    className="mo-input mt-1 w-full min-w-0 !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="Лаборатория"
-                  />
-                </label>
-                <label className="expenses-field">
-                  <span className="expenses-field__label">% нам</span>
-                  <input
-                    className="mo-input mt-1 w-full min-w-0 tabular-nums !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                    inputMode="decimal"
-                    value={newKeep}
-                    onChange={(e) => {
-                      setNewKeep(e.target.value);
-                      const k = Number(String(e.target.value).replace(",", "."));
-                      if (Number.isFinite(k)) setNewPayout(String(Math.round((100 - k) * 100) / 100));
-                    }}
-                  />
-                </label>
-                <label className="expenses-field">
-                  <span className="expenses-field__label">% отдаём</span>
-                  <input
-                    className="mo-input mt-1 w-full min-w-0 tabular-nums !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                    inputMode="decimal"
-                    value={newPayout}
-                    onChange={(e) => {
-                      setNewPayout(e.target.value);
-                      const p = Number(String(e.target.value).replace(",", "."));
-                      if (Number.isFinite(p)) setNewKeep(String(Math.round((100 - p) * 100) / 100));
-                    }}
-                  />
-                </label>
-              </div>
-              <div className="expenses-form__actions">
-                <button
-                  type="submit"
-                  className="mo-btn-primary w-full rounded-xl px-4 py-2.5 text-sm font-medium sm:w-auto sm:py-2"
-                  disabled={createType.isPending}
-                >
-                  Добавить услугу
-                </button>
-              </div>
-            </form>
-
-            <section className="expenses-month overflow-hidden rounded-2xl border border-[var(--mo-border)]">
-              <div className="border-b border-[var(--mo-border)] px-3 py-3 sm:px-4">
-                <h2 className="text-sm font-semibold text-[var(--mo-text)]">Список услуг</h2>
-              </div>
-              <ul className="space-y-2 p-3 md:hidden">
-                {(typesQuery.data ?? []).map((t) => (
-                  <li
-                    key={t.id}
-                    className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/50 px-3 py-2.5"
-                  >
-                    {editId === t.id ? (
-                      <div className="space-y-2">
-                        <input
-                          className="mo-input w-full !min-h-11 text-base"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            className="mo-input !min-h-11 text-base tabular-nums"
-                            value={editKeep}
-                            onChange={(e) => {
-                              setEditKeep(e.target.value);
-                              const k = Number(String(e.target.value).replace(",", "."));
-                              if (Number.isFinite(k)) setEditPayout(String(Math.round((100 - k) * 100) / 100));
-                            }}
-                          />
-                          <input
-                            className="mo-input !min-h-11 text-base tabular-nums"
-                            value={editPayout}
-                            onChange={(e) => {
-                              setEditPayout(e.target.value);
-                              const p = Number(String(e.target.value).replace(",", "."));
-                              if (Number.isFinite(p)) setEditKeep(String(Math.round((100 - p) * 100) / 100));
-                            }}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button type="button" className="btn-primary flex-1 text-sm" onClick={() => updateType.mutate()}>
-                            OK
-                          </button>
-                          <button type="button" className="btn-secondary flex-1 text-sm" onClick={() => setEditId(null)}>
-                            Отмена
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="text-sm font-medium text-[var(--mo-text)]">{t.name}</p>
-                            <p className="mt-0.5 text-xs mo-muted">
-                              нам {n(t.keep_percent)}% · отдаём {n(t.payout_percent)}% ·{" "}
-                              {t.is_active ? "активна" : "выкл."}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                          <button
-                            type="button"
-                            className="text-[var(--mo-accent-hover)] underline"
-                            onClick={() => {
-                              setEditId(t.id);
-                              setEditName(t.name);
-                              setEditKeep(String(n(t.keep_percent)));
-                              setEditPayout(String(n(t.payout_percent)));
-                            }}
-                          >
-                            Изменить
-                          </button>
-                          {t.is_active ? (
-                            <button
-                              type="button"
-                              className="text-red-400 underline"
-                              onClick={() => deactivateType.mutate(t.id)}
-                            >
-                              Отключить
-                            </button>
-                          ) : null}
-                        </div>
-                      </>
-                    )}
-                  </li>
+      {tab === "new" ? (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+          <form
+            onSubmit={onSubmitSale}
+            className="space-y-3 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4"
+          >
+            <h2 className="text-sm font-semibold text-[var(--mo-text)]">Новая доп. услуга</h2>
+            <label className="block text-sm text-[var(--mo-text)]">
+              Услуга
+              <select
+                className={fieldClass}
+                value={serviceTypeId}
+                onChange={(e) => setServiceTypeId(e.target.value ? Number(e.target.value) : "")}
+                required
+              >
+                <option value="">Выберите…</option>
+                {activeTypes.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
                 ))}
-              </ul>
-              <div className="hidden overflow-x-auto md:block">
-                <table className="kpi-data-table min-w-[640px]">
-                  <thead>
-                    <tr>
-                      <th>Услуга</th>
-                      <th>% нам</th>
-                      <th>% отдаём</th>
-                      <th>Статус</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(typesQuery.data ?? []).map((t) =>
-                      editId === t.id ? (
-                        <tr key={t.id}>
-                          <td>
-                            <input className="mo-input w-full" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                          </td>
-                          <td>
-                            <input
-                              className="mo-input w-20 tabular-nums"
-                              value={editKeep}
-                              onChange={(e) => {
-                                setEditKeep(e.target.value);
-                                const k = Number(String(e.target.value).replace(",", "."));
-                                if (Number.isFinite(k)) setEditPayout(String(Math.round((100 - k) * 100) / 100));
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              className="mo-input w-20 tabular-nums"
-                              value={editPayout}
-                              onChange={(e) => {
-                                setEditPayout(e.target.value);
-                                const p = Number(String(e.target.value).replace(",", "."));
-                                if (Number.isFinite(p)) setEditKeep(String(Math.round((100 - p) * 100) / 100));
-                              }}
-                            />
-                          </td>
-                          <td>{t.is_active ? "Активна" : "Выкл."}</td>
-                          <td className="space-x-2 whitespace-nowrap">
-                            <button type="button" className="btn-primary px-2 py-1 text-xs" onClick={() => updateType.mutate()}>
-                              OK
-                            </button>
-                            <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => setEditId(null)}>
-                              Отмена
-                            </button>
-                          </td>
-                        </tr>
-                      ) : (
-                        <tr key={t.id}>
-                          <td className="font-medium">{t.name}</td>
-                          <td className="tabular-nums kpi-actual-value">{n(t.keep_percent)}%</td>
-                          <td className="tabular-nums">{n(t.payout_percent)}%</td>
-                          <td>{t.is_active ? "Активна" : "Выкл."}</td>
-                          <td className="space-x-2 whitespace-nowrap">
-                            <button
-                              type="button"
-                              className="text-xs text-[var(--mo-accent-hover)] underline"
-                              onClick={() => {
-                                setEditId(t.id);
-                                setEditName(t.name);
-                                setEditKeep(String(n(t.keep_percent)));
-                                setEditPayout(String(n(t.payout_percent)));
-                              }}
-                            >
-                              Изменить
-                            </button>
-                            {t.is_active ? (
-                              <button
-                                type="button"
-                                className="text-xs text-red-400 underline"
-                                onClick={() => deactivateType.mutate(t.id)}
-                              >
-                                Отключить
-                              </button>
-                            ) : null}
-                          </td>
-                        </tr>
-                      ),
-                    )}
-                  </tbody>
-                </table>
+              </select>
+            </label>
+            {!activeTypes.length ? (
+              <p className="text-xs mo-muted">
+                Сначала добавьте услуги в настройках %{" "}
+                <button
+                  type="button"
+                  className="text-[var(--mo-accent-hover)] underline"
+                  onClick={() => setTab("settings")}
+                >
+                  открыть
+                </button>
+                .
+              </p>
+            ) : null}
+            <label className="block text-sm text-[var(--mo-text)]">
+              ФИО клиента
+              <input
+                className={fieldClass}
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                placeholder="Иванов Иван"
+                required
+              />
+            </label>
+            <label className="block text-sm text-[var(--mo-text)]">
+              Телефон
+              <input
+                className={fieldClass}
+                inputMode="tel"
+                value={clientPhone}
+                onChange={(e) => setClientPhone(e.target.value)}
+                placeholder="+992…"
+              />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm text-[var(--mo-text)]">
+                Сумма
+                <input
+                  className={fieldClass}
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0"
+                  required
+                />
+              </label>
+              <label className="block text-sm text-[var(--mo-text)]">
+                Дата
+                <div className="mt-1.5">
+                  <DateField value={soldDate} onChange={setSoldDate} />
+                </div>
+              </label>
+            </div>
+            <label className="block text-sm text-[var(--mo-text)]">
+              Комментарий
+              <input className={fieldClass} value={note} onChange={(e) => setNote(e.target.value)} />
+            </label>
+            {selectedType && amountNum > 0 ? (
+              <div className="extra-services-split">
+                <div>
+                  <span className="extra-services-split__label">Нам</span>
+                  <span className="extra-services-split__value kpi-actual-value">
+                    {formatMoney(previewKeep)}
+                  </span>
+                  <span className="extra-services-split__pct">{n(selectedType.keep_percent)}%</span>
+                </div>
+                <div>
+                  <span className="extra-services-split__label">Отдаём</span>
+                  <span className="extra-services-split__value">{formatMoney(previewPayout)}</span>
+                  <span className="extra-services-split__pct">{n(selectedType.payout_percent)}%</span>
+                </div>
               </div>
-              {!typesQuery.data?.length && !typesQuery.isLoading ? (
-                <p className="px-3 py-6 text-sm mo-muted sm:px-4">
-                  Пока нет услуг. Добавьте, например, «Лаборатория».
-                </p>
-              ) : null}
-            </section>
-          </div>
-        ) : null}
+            ) : null}
+            <button type="submit" className="btn-primary" disabled={createSale.isPending}>
+              {createSale.isPending ? "Сохранение…" : "Сохранить"}
+            </button>
+          </form>
 
-        {tab === "report" ? (
-          <div className="space-y-4">
-            {reportQuery.isLoading ? <p className="text-sm mo-muted">Загрузка отчёта…</p> : null}
-            {reportQuery.data ? (
-              <>
-                <div className="extra-services-kpis">
-                  <div className="extra-services-kpi">
-                    <div className="extra-services-kpi__label">Кол-во</div>
-                    <div className="extra-services-kpi__value">{reportQuery.data.count}</div>
-                  </div>
-                  <div className="extra-services-kpi">
-                    <div className="extra-services-kpi__label">Сумма оплат</div>
-                    <div className="extra-services-kpi__value">{formatMoney(reportQuery.data.amount_total)}</div>
-                  </div>
-                  <div className="extra-services-kpi">
-                    <div className="extra-services-kpi__label">Заработали (нам)</div>
-                    <div className="extra-services-kpi__value kpi-actual-value">
-                      {formatMoney(reportQuery.data.keep_total)}
-                    </div>
-                  </div>
-                  <div className="extra-services-kpi">
-                    <div className="extra-services-kpi__label">Отдали</div>
-                    <div className="extra-services-kpi__value">{formatMoney(reportQuery.data.payout_total)}</div>
+          <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4">
+            <h2 className="mb-3 text-sm font-semibold text-[var(--mo-text)]">
+              Недавние записи ({yearMonth})
+            </h2>
+            {salesQuery.isLoading ? <p className="text-sm mo-muted">Загрузка…</p> : null}
+            {(salesQuery.data ?? []).slice(0, 12).map((s) => (
+              <div
+                key={s.id}
+                className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[var(--mo-border)] py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium text-[var(--mo-text)]">{s.client_name}</div>
+                  <div className="text-xs mo-muted">
+                    {s.service_name} · {formatDt(s.sold_at)}
+                    {s.client_phone ? ` · ${s.client_phone}` : ""}
                   </div>
                 </div>
-
-                <section className="expenses-month overflow-hidden rounded-2xl border border-[var(--mo-border)]">
-                  <div className="border-b border-[var(--mo-border)] px-3 py-3 sm:px-4">
-                    <h2 className="text-sm font-semibold text-[var(--mo-text)]">По услугам</h2>
+                <div className="shrink-0 text-right tabular-nums">
+                  <div className="text-[var(--mo-text)]">{formatMoney(s.amount)}</div>
+                  <div className="text-xs mo-muted">
+                    <span className="kpi-actual-value">нам {formatMoney(s.keep_amount)}</span>
+                    {" / "}
+                    отдали {formatMoney(s.payout_amount)}
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="kpi-data-table min-w-[560px]">
-                      <thead>
-                        <tr>
-                          <th>Услуга</th>
-                          <th>Кол-во</th>
-                          <th>Сумма</th>
-                          <th>Нам</th>
-                          <th>Отдали</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {reportQuery.data.by_type.map((r) => (
-                          <tr key={r.service_type_id}>
-                            <td>{r.service_name}</td>
-                            <td className="tabular-nums">{r.count}</td>
-                            <td className="tabular-nums">{formatMoney(r.amount_total)}</td>
-                            <td className="tabular-nums kpi-actual-value">{formatMoney(r.keep_total)}</td>
-                            <td className="tabular-nums">{formatMoney(r.payout_total)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-
-                <section className="expenses-month overflow-hidden rounded-2xl border border-[var(--mo-border)]">
-                  <div className="border-b border-[var(--mo-border)] px-3 py-3 sm:px-4">
-                    <h2 className="text-sm font-semibold text-[var(--mo-text)]">По клиентам</h2>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="kpi-data-table min-w-[640px]">
-                      <thead>
-                        <tr>
-                          <th>Клиент</th>
-                          <th>Телефон</th>
-                          <th>Кол-во</th>
-                          <th>Оплатил</th>
-                          <th>Нам</th>
-                          <th>Отдали</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {reportQuery.data.by_client.map((r, i) => (
-                          <tr key={`${r.client_name}-${r.client_phone}-${i}`}>
-                            <td className="font-medium">{r.client_name}</td>
-                            <td>{r.client_phone || "—"}</td>
-                            <td className="tabular-nums">{r.count}</td>
-                            <td className="tabular-nums">{formatMoney(r.amount_total)}</td>
-                            <td className="tabular-nums kpi-actual-value">{formatMoney(r.keep_total)}</td>
-                            <td className="tabular-nums">{formatMoney(r.payout_total)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {!reportQuery.data.by_client.length ? (
-                      <p className="px-3 py-6 text-sm mo-muted sm:px-4">Нет данных за выбранный месяц.</p>
-                    ) : null}
-                  </div>
-                </section>
-              </>
+                </div>
+              </div>
+            ))}
+            {!salesQuery.data?.length && !salesQuery.isLoading ? (
+              <p className="text-sm mo-muted">Пока нет записей за этот месяц.</p>
             ) : null}
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
-        {tab === "journal" ? (
-          <section className="expenses-month overflow-hidden rounded-2xl border border-[var(--mo-border)]">
-            <div className="flex flex-col gap-2 border-b border-[var(--mo-border)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-              <h2 className="text-sm font-semibold text-[var(--mo-text)]">Журнал · {yearMonth}</h2>
-              <input
-                className="mo-input w-full min-w-0 sm:max-w-md !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                placeholder="Поиск: ФИО, телефон, услуга…"
-                value={journalQ}
-                onChange={(e) => setJournalQ(e.target.value)}
-              />
+      {tab === "settings" ? (
+        <div className="space-y-4">
+          <form
+            className="space-y-3 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const k = Number(String(newKeep).replace(",", "."));
+              const p = Number(String(newPayout).replace(",", "."));
+              if (!newName.trim()) {
+                toast.error("Укажите название");
+                return;
+              }
+              if (Math.abs(k + p - 100) > 0.01) {
+                toast.error("Сумма % должна быть 100");
+                return;
+              }
+              createType.mutate();
+            }}
+          >
+            <h2 className="text-sm font-semibold text-[var(--mo-text)]">Добавить услугу</h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="block text-sm text-[var(--mo-text)] sm:col-span-2">
+                Название
+                <input
+                  className={fieldClass}
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Лаборатория"
+                />
+              </label>
+              <label className="block text-sm text-[var(--mo-text)]">
+                % нам
+                <input
+                  className={fieldClass}
+                  inputMode="decimal"
+                  value={newKeep}
+                  onChange={(e) => {
+                    setNewKeep(e.target.value);
+                    const k = Number(String(e.target.value).replace(",", "."));
+                    if (Number.isFinite(k)) setNewPayout(String(Math.round((100 - k) * 100) / 100));
+                  }}
+                />
+              </label>
+              <label className="block text-sm text-[var(--mo-text)]">
+                % отдаём
+                <input
+                  className={fieldClass}
+                  inputMode="decimal"
+                  value={newPayout}
+                  onChange={(e) => {
+                    setNewPayout(e.target.value);
+                    const p = Number(String(e.target.value).replace(",", "."));
+                    if (Number.isFinite(p)) setNewKeep(String(Math.round((100 - p) * 100) / 100));
+                  }}
+                />
+              </label>
             </div>
+            <button type="submit" className="btn-primary" disabled={createType.isPending}>
+              Добавить услугу
+            </button>
+          </form>
 
-            <ul className="space-y-2 p-3 md:hidden">
-              {(salesQuery.data ?? []).map((s) => (
-                <li
-                  key={s.id}
-                  className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/50 px-3 py-2.5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-[var(--mo-text)]">{s.client_name}</p>
-                      <p className="mt-0.5 text-xs mo-muted">
-                        {formatDt(s.sold_at)}
-                        {s.client_phone ? ` · ${s.client_phone}` : ""}
-                      </p>
-                      <p className="mt-1 text-xs text-[var(--mo-text)]">
-                        {s.service_name}{" "}
-                        <span className="mo-muted">
-                          ({n(s.keep_percent)}% / {n(s.payout_percent)}%)
-                        </span>
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right tabular-nums">
-                      <p className="text-sm font-semibold">{formatMoney(s.amount)}</p>
-                      <p className="text-[11px]">
-                        <span className="kpi-actual-value">{formatMoney(s.keep_amount)}</span>
-                        <span className="mo-muted"> / {formatMoney(s.payout_amount)}</span>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-2 text-xs mo-muted">
-                    <span>{s.created_by_name || "—"}</span>
-                    <button
-                      type="button"
-                      className="text-red-400 underline"
-                      onClick={() => {
-                        if (window.confirm("Отменить эту запись?")) cancelSale.mutate(s.id);
-                      }}
-                    >
-                      Отмена
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            <div className="hidden overflow-x-auto md:block">
-              <table className="kpi-data-table min-w-[900px]">
-                <thead>
-                  <tr>
-                    <th>Когда</th>
-                    <th>Клиент</th>
-                    <th>Телефон</th>
-                    <th>Услуга</th>
-                    <th>Оплатил</th>
-                    <th>Нам</th>
-                    <th>Отдали</th>
-                    <th>Кто внёс</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {(salesQuery.data ?? []).map((s) => (
-                    <tr key={s.id}>
-                      <td className="whitespace-nowrap">{formatDt(s.sold_at)}</td>
-                      <td className="font-medium">{s.client_name}</td>
-                      <td>{s.client_phone || "—"}</td>
+          <div className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:p-3">
+            <table className="mo-table min-w-[640px]">
+              <thead>
+                <tr>
+                  <th>Услуга</th>
+                  <th>% нам</th>
+                  <th>% отдаём</th>
+                  <th>Статус</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {(typesQuery.data ?? []).map((t) =>
+                  editId === t.id ? (
+                    <tr key={t.id}>
                       <td>
-                        {s.service_name}
-                        <div className="text-[11px] mo-muted">
-                          {n(s.keep_percent)}% / {n(s.payout_percent)}%
-                        </div>
+                        <input className="mo-input w-full" value={editName} onChange={(e) => setEditName(e.target.value)} />
                       </td>
-                      <td className="tabular-nums">{formatMoney(s.amount)}</td>
-                      <td className="tabular-nums kpi-actual-value">{formatMoney(s.keep_amount)}</td>
-                      <td className="tabular-nums">{formatMoney(s.payout_amount)}</td>
-                      <td className="mo-muted">{s.created_by_name || "—"}</td>
                       <td>
-                        <button
-                          type="button"
-                          className="text-xs text-red-400 underline"
-                          onClick={() => {
-                            if (window.confirm("Отменить эту запись?")) cancelSale.mutate(s.id);
+                        <input
+                          className="mo-input w-20 tabular-nums"
+                          value={editKeep}
+                          onChange={(e) => {
+                            setEditKeep(e.target.value);
+                            const k = Number(String(e.target.value).replace(",", "."));
+                            if (Number.isFinite(k)) setEditPayout(String(Math.round((100 - k) * 100) / 100));
                           }}
-                        >
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="mo-input w-20 tabular-nums"
+                          value={editPayout}
+                          onChange={(e) => {
+                            setEditPayout(e.target.value);
+                            const p = Number(String(e.target.value).replace(",", "."));
+                            if (Number.isFinite(p)) setEditKeep(String(Math.round((100 - p) * 100) / 100));
+                          }}
+                        />
+                      </td>
+                      <td>{t.is_active ? "Активна" : "Выкл."}</td>
+                      <td className="space-x-2 whitespace-nowrap">
+                        <button type="button" className="btn-primary px-2 py-1 text-xs" onClick={() => updateType.mutate()}>
+                          OK
+                        </button>
+                        <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => setEditId(null)}>
                           Отмена
                         </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {salesQuery.isLoading ? <p className="px-3 py-6 text-sm mo-muted sm:px-4">Загрузка…</p> : null}
-            {!salesQuery.isLoading && !(salesQuery.data ?? []).length ? (
-              <p className="px-3 py-6 text-sm mo-muted sm:px-4">Ничего не найдено за выбранный месяц.</p>
+                  ) : (
+                    <tr key={t.id}>
+                      <td className="font-medium">{t.name}</td>
+                      <td className="tabular-nums kpi-actual-value">{n(t.keep_percent)}%</td>
+                      <td className="tabular-nums">{n(t.payout_percent)}%</td>
+                      <td>{t.is_active ? "Активна" : "Выкл."}</td>
+                      <td className="space-x-2 whitespace-nowrap">
+                        <button
+                          type="button"
+                          className="text-xs text-[var(--mo-accent-hover)] underline"
+                          onClick={() => {
+                            setEditId(t.id);
+                            setEditName(t.name);
+                            setEditKeep(String(n(t.keep_percent)));
+                            setEditPayout(String(n(t.payout_percent)));
+                          }}
+                        >
+                          Изменить
+                        </button>
+                        {t.is_active ? (
+                          <button
+                            type="button"
+                            className="text-xs text-red-400 underline"
+                            onClick={() => deactivateType.mutate(t.id)}
+                          >
+                            Отключить
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+            {!typesQuery.data?.length && !typesQuery.isLoading ? (
+              <p className="mt-3 px-1 text-sm mo-muted">Пока нет услуг. Добавьте, например, «Лаборатория».</p>
             ) : null}
-          </section>
-        ) : null}
-      </div>
+          </div>
+        </div>
+      ) : null}
+
+      {tab === "report" ? (
+        <div className="space-y-5">
+          {reportQuery.isLoading ? <p className="text-sm mo-muted">Загрузка отчёта…</p> : null}
+          {reportQuery.data ? (
+            <>
+              <div className="extra-services-kpis">
+                <div className="extra-services-kpi">
+                  <div className="extra-services-kpi__label">Кол-во</div>
+                  <div className="extra-services-kpi__value">{reportQuery.data.count}</div>
+                </div>
+                <div className="extra-services-kpi">
+                  <div className="extra-services-kpi__label">Сумма оплат</div>
+                  <div className="extra-services-kpi__value">{formatMoney(reportQuery.data.amount_total)}</div>
+                </div>
+                <div className="extra-services-kpi">
+                  <div className="extra-services-kpi__label">Заработали (нам)</div>
+                  <div className="extra-services-kpi__value kpi-actual-value">
+                    {formatMoney(reportQuery.data.keep_total)}
+                  </div>
+                </div>
+                <div className="extra-services-kpi">
+                  <div className="extra-services-kpi__label">Отдали</div>
+                  <div className="extra-services-kpi__value">{formatMoney(reportQuery.data.payout_total)}</div>
+                </div>
+              </div>
+
+              <div>
+                <h2 className="mb-2 text-sm font-semibold text-[var(--mo-text)]">По услугам</h2>
+                <div className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:p-3">
+                  <table className="mo-table min-w-[560px]">
+                    <thead>
+                      <tr>
+                        <th>Услуга</th>
+                        <th>Кол-во</th>
+                        <th>Сумма</th>
+                        <th>Нам</th>
+                        <th>Отдали</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportQuery.data.by_type.map((r) => (
+                        <tr key={r.service_type_id}>
+                          <td>{r.service_name}</td>
+                          <td className="tabular-nums">{r.count}</td>
+                          <td className="tabular-nums">{formatMoney(r.amount_total)}</td>
+                          <td className="tabular-nums kpi-actual-value">{formatMoney(r.keep_total)}</td>
+                          <td className="tabular-nums">{formatMoney(r.payout_total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div>
+                <h2 className="mb-2 text-sm font-semibold text-[var(--mo-text)]">По клиентам</h2>
+                <div className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:p-3">
+                  <table className="mo-table min-w-[640px]">
+                    <thead>
+                      <tr>
+                        <th>Клиент</th>
+                        <th>Телефон</th>
+                        <th>Кол-во</th>
+                        <th>Оплатил</th>
+                        <th>Нам</th>
+                        <th>Отдали</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportQuery.data.by_client.map((r, i) => (
+                        <tr key={`${r.client_name}-${r.client_phone}-${i}`}>
+                          <td className="font-medium">{r.client_name}</td>
+                          <td>{r.client_phone || "—"}</td>
+                          <td className="tabular-nums">{r.count}</td>
+                          <td className="tabular-nums">{formatMoney(r.amount_total)}</td>
+                          <td className="tabular-nums kpi-actual-value">{formatMoney(r.keep_total)}</td>
+                          <td className="tabular-nums">{formatMoney(r.payout_total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {!reportQuery.data.by_client.length ? (
+                    <p className="mt-2 px-1 text-sm mo-muted">Нет данных за выбранный месяц.</p>
+                  ) : null}
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      {tab === "journal" ? (
+        <div className="space-y-3">
+          <input
+            className="mo-input w-full max-w-md"
+            placeholder="Поиск: ФИО, телефон, услуга…"
+            value={journalQ}
+            onChange={(e) => setJournalQ(e.target.value)}
+          />
+          <div className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:p-3">
+            <table className="mo-table min-w-[900px]">
+              <thead>
+                <tr>
+                  <th>Когда</th>
+                  <th>Клиент</th>
+                  <th>Телефон</th>
+                  <th>Услуга</th>
+                  <th>Оплатил</th>
+                  <th>Нам</th>
+                  <th>Отдали</th>
+                  <th>Кто внёс</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {(salesQuery.data ?? []).map((s) => (
+                  <tr key={s.id}>
+                    <td className="whitespace-nowrap text-xs">{formatDt(s.sold_at)}</td>
+                    <td className="font-medium">{s.client_name}</td>
+                    <td>{s.client_phone || "—"}</td>
+                    <td>
+                      {s.service_name}
+                      <div className="text-[11px] mo-muted">
+                        {n(s.keep_percent)}% / {n(s.payout_percent)}%
+                      </div>
+                    </td>
+                    <td className="tabular-nums">{formatMoney(s.amount)}</td>
+                    <td className="tabular-nums kpi-actual-value">{formatMoney(s.keep_amount)}</td>
+                    <td className="tabular-nums">{formatMoney(s.payout_amount)}</td>
+                    <td className="text-xs mo-muted">{s.created_by_name || "—"}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="text-xs text-red-400 underline"
+                        onClick={() => {
+                          if (window.confirm("Отменить эту запись?")) cancelSale.mutate(s.id);
+                        }}
+                      >
+                        Отмена
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {salesQuery.isLoading ? <p className="mt-2 px-1 text-sm mo-muted">Загрузка…</p> : null}
+            {!salesQuery.isLoading && !(salesQuery.data ?? []).length ? (
+              <p className="mt-2 px-1 text-sm mo-muted">Ничего не найдено за выбранный месяц.</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
