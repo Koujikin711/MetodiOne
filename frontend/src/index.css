@@ -1233,6 +1233,16 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 .btn-primary:hover:not(:disabled) {
   background-color: #4338ca;
 }
+.mo-btn-primary {
+  @apply rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+  background-color: var(--mo-accent-hover);
+  color: #fff;
+  border: 1px solid #4338ca;
+  box-shadow: var(--mo-shadow-luxury);
+}
+.mo-btn-primary:hover:not(:disabled) {
+  background-color: #4338ca;
+}
 
 .btn-secondary {
   @apply rounded-xl border px-4 py-2 text-sm font-semibold transition disabled:opacity-50;

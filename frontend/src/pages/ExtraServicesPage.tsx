@@ -779,6 +779,7 @@ export function ExtraServicesPage() {
           </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }
