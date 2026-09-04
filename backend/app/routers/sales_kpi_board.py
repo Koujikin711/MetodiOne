@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, date, datetime
 from decimal import Decimal
 import calendar
@@ -12,7 +13,7 @@ from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentCompanyId, CurrentUser
-from app.database import get_db
+from app.database import AsyncSessionLocal, get_db
 from app.models import (
     BookingAppointment,
     BookingDirection,
@@ -1089,23 +1090,69 @@ async def company_report(
     start, end = month_bounds(ym)
     now = datetime.now(UTC)
     items = await load_plan_items(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
-    item_specialists = await load_plan_item_specialists(db, plan_item_ids=[int(i.id) for i in items])
-    specialist_to_kpi: dict[int, str] = {}
-    for item in items:
-        for sid in item_specialists.get(int(item.id), []):
-            specialist_to_kpi[sid] = item.name
+    plan_item_ids = [int(i.id) for i in items]
 
-    managers = await load_managers(db, company_id=company_id, pipeline_id=pipeline_id)
-    direction_facts = await load_direction_facts_full_paid(
-        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    async def _q_specialists(session: AsyncSession):
+        return await load_plan_item_specialists(session, plan_item_ids=plan_item_ids)
+
+    async def _q_managers(session: AsyncSession):
+        return await load_managers(session, company_id=company_id, pipeline_id=pipeline_id)
+
+    async def _q_dir_facts(session: AsyncSession):
+        return await load_direction_facts_full_paid(
+            session, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+        )
+
+    async def _q_spec_facts(session: AsyncSession):
+        return await load_specialist_facts_full_paid(
+            session, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+        )
+
+    async def _q_spec_company(session: AsyncSession):
+        return await load_specialist_facts_company_full_paid(
+            session, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+        )
+
+    async def _q_manual(session: AsyncSession):
+        return await load_manual_facts(session, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+
+    async def _q_bonus(session: AsyncSession):
+        return await load_bonus_fund(session, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+
+    async def _q_prices(session: AsyncSession):
+        return await load_kpi_unit_prices_by_label(
+            session, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+        )
+
+    async def _q_sales_mode(session: AsyncSession):
+        return await company_is_sales_mode(session, company_id)
+
+    async def _run(fn):
+        async with AsyncSessionLocal() as session:
+            return await fn(session)
+
+    (
+        item_specialists,
+        managers,
+        direction_facts,
+        specialist_facts,
+        specialist_company_facts,
+        manual_facts,
+        bonus_fund,
+        unit_prices,
+        sales_mode,
+    ) = await asyncio.gather(
+        _run(_q_specialists),
+        _run(_q_managers),
+        _run(_q_dir_facts),
+        _run(_q_spec_facts),
+        _run(_q_spec_company),
+        _run(_q_manual),
+        _run(_q_bonus),
+        _run(_q_prices),
+        _run(_q_sales_mode),
     )
-    specialist_facts = await load_specialist_facts_full_paid(
-        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
-    )
-    specialist_company_facts = await load_specialist_facts_company_full_paid(
-        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
-    )
-    manual_facts = await load_manual_facts(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+    # plan_items из текущей сессии — не таскаем в другой AsyncSession
     desk_facts = await load_desk_sale_facts_full_paid(
         db,
         company_id=company_id,
@@ -1113,10 +1160,10 @@ async def company_report(
         ym=ym,
         plan_items=items,
     )
-    bonus_fund = await load_bonus_fund(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
-    unit_prices = await load_kpi_unit_prices_by_label(
-        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
-    )
+    specialist_to_kpi: dict[int, str] = {}
+    for item in items:
+        for sid in item_specialists.get(int(item.id), []):
+            specialist_to_kpi[sid] = item.name
 
     # План компании = сумма планов менеджеров (один план на менеджера × число менеджеров).
     n_managers = len(managers)
@@ -1139,7 +1186,6 @@ async def company_report(
         else:
             for mid, _ in managers:
                 fact += manual_facts.get((mid, int(item.id)), 0)
-            # продажи без менеджера в map не попадают; считаем все active manual по показателю
         for mid, _ in managers:
             fact += desk_facts.get((mid, int(item.id)), 0)
         per_manager_plan = int(item.plan_qty or 0)
@@ -1161,7 +1207,6 @@ async def company_report(
             ),
         )
 
-    # Бонусы менеджеров (продажи) — сумма для справки
     managers_bonus = Decimal("0")
     for mid, mname in managers:
         raw = build_manager_lines(
@@ -1178,12 +1223,10 @@ async def company_report(
         )
         managers_bonus += Decimal(str(raw["bonus"]))
 
-    # Онлайн-запись ИЛИ окно продаж (crm_mode=sales): выручка / дебиторка / кредиторка
     revenue_booking = Decimal("0")
     debtor_booking = Decimal("0")
     creditor_total = Decimal("0")
     expert_acc: dict[tuple[int, int], dict] = {}
-    sales_mode = await company_is_sales_mode(db, company_id)
 
     if sales_mode:
         desk_rows = (
@@ -1224,18 +1267,23 @@ async def company_report(
             pa = Decimal(str(sale.paid_amount or 0))
             debtor_booking += max(sa - pa, Decimal("0"))
     else:
+        # Только нужные колонки — без полной ORM-сущности на каждую запись месяца.
         appt_rows = (
             await db.execute(
                 select(
-                    BookingAppointment,
+                    BookingAppointment.specialist_id,
+                    BookingAppointment.service_amount,
+                    BookingAppointment.paid_amount,
+                    BookingAppointment.status,
+                    BookingAppointment.start_at,
                     BookingSpecialist.full_name,
                     BookingDirection.id,
                     BookingDirection.name,
                 )
                 .join(BookingSpecialist, BookingSpecialist.id == BookingAppointment.specialist_id)
                 .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
-                .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
-                .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+                .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
+                .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
                 .where(
                     BookingAppointment.company_id == company_id,
                     BookingAppointment.start_at >= start,
@@ -1249,12 +1297,12 @@ async def company_report(
             )
         ).all()
 
-        for appt, spec_name, dir_id, dir_name in appt_rows:
-            sid = int(appt.specialist_id)
+        for sid_raw, sa_raw, pa_raw, status_raw, start_at, spec_name, dir_id, dir_name in appt_rows:
+            sid = int(sid_raw)
             did = int(dir_id) if dir_id is not None else 0
-            sa = Decimal(str(appt.service_amount or 0))
-            pa = Decimal(str(appt.paid_amount or 0))
-            st = (appt.status or "").strip()
+            sa = Decimal(str(sa_raw or 0))
+            pa = Decimal(str(pa_raw or 0))
+            st = (status_raw or "").strip()
             key = (sid, did)
             if key not in expert_acc:
                 expert_acc[key] = {
@@ -1298,7 +1346,6 @@ async def company_report(
                             bucket["paid_full_amount"] += pa
                     elif st == "booked":
                         bucket["booked_count"] += 1
-                        start_at = appt.start_at
                         if start_at is not None and start_at.tzinfo is None:
                             start_at = start_at.replace(tzinfo=UTC)
                         if start_at is not None and start_at > now and pa > 0:
@@ -1311,9 +1358,9 @@ async def company_report(
         open_booking_debt = (
             await db.execute(
                 select(BookingAppointment.service_amount, BookingAppointment.paid_amount)
-                .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
-                .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
-                .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id, isouter=True)
+                .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
+                .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
+                .outerjoin(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
                 .where(
                     BookingAppointment.company_id == company_id,
                     BookingAppointment.start_at < end,
@@ -1335,37 +1382,35 @@ async def company_report(
 
     # Ручные продажи курсов/протоколов: выручка — оплаты за продажи месяца;
     # дебиторка — открытый остаток на конец месяца (с переносом).
-    manual_rows = (
-        await db.execute(
-            select(SalesKpiManualSale).where(
-                SalesKpiManualSale.company_id == company_id,
-                SalesKpiManualSale.pipeline_id == pipeline_id,
-                SalesKpiManualSale.sold_at >= start,
-                SalesKpiManualSale.sold_at < end,
-                SalesKpiManualSale.status == "active",
-            ),
-        )
-    ).scalars().all()
+    manual_month_q = select(
+        SalesKpiManualSale.paid_amount,
+    ).where(
+        SalesKpiManualSale.company_id == company_id,
+        SalesKpiManualSale.pipeline_id == pipeline_id,
+        SalesKpiManualSale.sold_at >= start,
+        SalesKpiManualSale.sold_at < end,
+        SalesKpiManualSale.status == "active",
+    )
+    manual_debt_q = select(
+        SalesKpiManualSale.service_amount,
+        SalesKpiManualSale.paid_amount,
+    ).where(
+        SalesKpiManualSale.company_id == company_id,
+        SalesKpiManualSale.pipeline_id == pipeline_id,
+        SalesKpiManualSale.sold_at < end,
+        SalesKpiManualSale.status == "active",
+        SalesKpiManualSale.service_amount > SalesKpiManualSale.paid_amount,
+    )
+    manual_paid_rows = (await db.execute(manual_month_q)).all()
     revenue_manual = Decimal("0")
-    for sale in manual_rows:
-        pa = Decimal(str(sale.paid_amount or 0))
-        revenue_manual += pa
+    for (pa_raw,) in manual_paid_rows:
+        revenue_manual += Decimal(str(pa_raw or 0))
 
-    manual_debt_rows = (
-        await db.execute(
-            select(SalesKpiManualSale).where(
-                SalesKpiManualSale.company_id == company_id,
-                SalesKpiManualSale.pipeline_id == pipeline_id,
-                SalesKpiManualSale.sold_at < end,
-                SalesKpiManualSale.status == "active",
-                SalesKpiManualSale.service_amount > SalesKpiManualSale.paid_amount,
-            ),
-        )
-    ).scalars().all()
+    manual_debt_rows = (await db.execute(manual_debt_q)).all()
     debtor_manual = Decimal("0")
-    for sale in manual_debt_rows:
-        sa = Decimal(str(sale.service_amount or 0))
-        pa = Decimal(str(sale.paid_amount or 0))
+    for sa_raw, pa_raw in manual_debt_rows:
+        sa = Decimal(str(sa_raw or 0))
+        pa = Decimal(str(pa_raw or 0))
         debtor_manual += max(sa - pa, Decimal("0"))
 
     # Эксперты воронки без записей в месяце — тоже покажем 0 (только clinic)

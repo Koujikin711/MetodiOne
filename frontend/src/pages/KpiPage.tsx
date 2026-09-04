@@ -296,8 +296,12 @@ export function KpiPage() {
 
   const companyQuery = useQuery({
     queryKey: ["sales-kpi-company-report", qs],
-    queryFn: () => apiFetch<SalesKpiCompanyReport>(`/api/sales-kpi/company-report?${qs}`),
+    queryFn: () =>
+      apiFetch<SalesKpiCompanyReport>(`/api/sales-kpi/company-report?${qs}`, {
+        timeoutMs: 60_000,
+      }),
     enabled: Boolean(pipelineId && (isOwner || isAccountant) && tab === "company"),
+    staleTime: 30_000,
   });
 
   useEffect(() => {
@@ -1571,7 +1575,13 @@ function CompanyReportSection({
   error: Error | null;
   hideBookingExperts?: boolean;
 }) {
-  if (loading) return <p className="text-sm lux-caption">Загрузка отчёта компании…</p>;
+  if (loading) {
+    return (
+      <p className="text-sm lux-caption">
+        Загрузка отчёта компании… Считаем записи и продажи за месяц — обычно 5–20 сек.
+      </p>
+    );
+  }
   if (error) return <p className="text-sm text-red-300">{error.message}</p>;
   if (!data) return null;
 

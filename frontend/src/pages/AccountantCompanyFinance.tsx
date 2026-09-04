@@ -41,7 +41,10 @@ export function AccountantCompanyFinance() {
 
   const companyQuery = useQuery({
     queryKey: ["sales-kpi-company-report", qs],
-    queryFn: () => apiFetch<SalesKpiCompanyReport>(`/api/sales-kpi/company-report?${qs}`),
+    queryFn: () =>
+      apiFetch<SalesKpiCompanyReport>(`/api/sales-kpi/company-report?${qs}`, {
+        timeoutMs: 60_000,
+      }),
     enabled: Boolean(qs),
   });
 
