@@ -1329,11 +1329,13 @@ async def company_report(
                 bucket["cancelled_count"] += 1
             else:
                 bucket["appointments_total"] += 1
-                # Неявка: деньги отдельно (не в выручке месяца), долг не ставим.
+                # Неявка: долг не ставим, но оплата уже полученная — в выручку кассы.
                 if st == "no_show":
                     bucket["no_show_count"] += 1
                     if pa > 0:
                         bucket["paid_no_show_amount"] += pa
+                        bucket["revenue_paid"] += pa
+                        revenue_booking += pa
                 else:
                     bucket["revenue_paid"] += pa
                     revenue_booking += pa
@@ -1380,10 +1382,10 @@ async def company_report(
             pa = Decimal(str(pa_raw or 0))
             debtor_booking += max(sa - pa, Decimal("0"))
 
-    # Ручные продажи курсов/протоколов:
-    # выручка месяца = сумма платежей с paid_at в этом месяце (не нарастающий итог
-    # и не «весь paid_amount продажи» — иначе доплаты раздувают прошлый месяц продажи);
-    # дебиторка — открытый остаток на конец месяца (с переносом — это отдельно).
+    # Курсы/протоколы (окно KPI): платежи с paid_at в этом месяце — для плана/бонусов
+    # и дебиторки. В клинике в ИТОГО выручку НЕ плюсуем: те же деньги уже сидят в
+    # paid_amount визитов (Курс / Курс 15 / Протокол) — иначе отчёт задваивает кассу.
+    # В sales-mode визитов нет — там курсы входят в выручку (см. revenue_total ниже).
     revenue_manual_paid = (
         await db.execute(
             select(func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0)).where(
@@ -1550,7 +1552,12 @@ async def company_report(
     ]
 
     plan_pct = float((total_contrib * Decimal("100")).quantize(Decimal("0.01")))
-    revenue_total = revenue_booking + revenue_manual
+    # Клиника: выручка = оплаты визитов (касса CRM). Курсы KPI не плюсуем — двойной счёт.
+    # Sales-mode: визитов нет, выручка = продажи стола + курсы.
+    if sales_mode:
+        revenue_total = revenue_booking + revenue_manual
+    else:
+        revenue_total = revenue_booking
 
     # Дни месяца для прогноза (линейный run-rate)
     days_in_month = calendar.monthrange(ym.year, ym.month)[1]
@@ -1569,8 +1576,11 @@ async def company_report(
     ) if days_in_month else 0.0
 
     def _revenue_at_plan_pct(target_pct: float) -> Decimal | None:
-        """Оценка выручки при target_pct% плана: текущая выручка × (target / текущий %)."""
+        """Грубая оценка: выручка × (target / текущий % плана). Не касса и не прогноз банка."""
         if plan_pct < 0.01 or revenue_total <= 0:
+            return None
+        # При низком % плана экстраполяция улетает в космос — не показываем.
+        if plan_pct < 20 and target_pct >= 100:
             return None
         return (revenue_total * Decimal(str(target_pct)) / Decimal(str(plan_pct))).quantize(Decimal("0.01"))
 

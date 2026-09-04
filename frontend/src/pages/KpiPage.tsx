@@ -1593,8 +1593,8 @@ function CompanyReportSection({
         </h2>
         <p className="mt-1 hidden text-sm lux-caption sm:block">
           {hideBookingExperts
-            ? "Сводка за выбранный месяц (не сумма с прошлых). Выручка курсов = платежи с датой в этом месяце; доплаты прошлых продаж попадают в месяц доплаты. Дебиторка — остаток на конец месяца с переносом."
-            : "Сводка за выбранный месяц (не сумма с прошлых). Выручка = оплаты визитов этого месяца + платежи по курсам с датой в этом месяце. Дебиторка — кто ещё должен на конец месяца (долги прошлых месяцев тоже переносятся)."}
+            ? "Сводка за выбранный месяц (не сумма с прошлых). Выручка = продажи стола + платежи по курсам с датой в этом месяце. Дебиторка — остаток на конец месяца с переносом."
+            : "Сводка за месяц. Выручка = оплаты по визитам (касса CRM, включая оплаченные неявки). Курсы/протоколы из вкладки KPI в сумму не входят — иначе двойной счёт с оплатами на визитах. Дебиторка — остаток на конец месяца с переносом."}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-4">
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
@@ -1615,7 +1615,13 @@ function CompanyReportSection({
               {formatMoney(data.revenue_total)}
             </div>
             <div className="mt-1 text-[10px] mo-muted sm:text-xs">
-              запись {formatMoney(data.revenue_booking)} · курсы {formatMoney(data.revenue_manual)}
+              {hideBookingExperts
+                ? `стол ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}`
+                : `визиты ${formatMoney(data.revenue_booking)}${
+                    Number(data.revenue_manual) > 0
+                      ? ` · курсы KPI ${formatMoney(data.revenue_manual)} (не в сумме)`
+                      : ""
+                  }`}
             </div>
           </div>
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
@@ -1637,14 +1643,15 @@ function CompanyReportSection({
         </div>
 
         <div className="mt-4 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/50 p-4">
-          <h3 className="text-sm font-semibold text-[var(--mo-text)]">Выручка при 100% плана</h3>
+          <h3 className="text-sm font-semibold text-[var(--mo-text)]">Ориентир при % плана</h3>
           <p className="mt-1 text-xs mo-muted">
-            Оценка целевой выручки: текущая выручка ÷ текущий % плана × 100%. Рядом — факт и промежуточные
-            ориентиры 25% / 50%.
+            Грубо: факт выручки × (цель % / текущий %). Это не касса и не прогноз банка — только
+            линейная оценка от выполнения плана по продуктам. При низком % плана блок скрыт.
           </p>
           {data.revenue_at_plan_100_percent == null ? (
             <p className="mt-3 text-sm lux-caption">
-              Недостаточно данных (нужны выручка и выполнение плана &gt; 0).
+              Нет оценки (нужны выручка и достаточный % плана; при &lt;20% экстраполяция на 100% не
+              показывается).
             </p>
           ) : (
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

@@ -54,7 +54,7 @@ export function AccountantCompanyFinance() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
       <PageHeader
         title="Финансы"
-        description="Отчёт компании за месяц. Расходы вносятся отдельно."
+        description="Выручка клиники = оплаты по визитам за месяц. Курсы KPI в сумму не плюсуются (иначе двойной счёт). Расходы — отдельно."
         actions={
           <Link to="/expenses" className="mo-btn-primary rounded-xl px-3 py-2 text-sm">
             Расходы
@@ -88,10 +88,15 @@ export function AccountantCompanyFinance() {
         <div className="grid gap-4">
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-[var(--mo-border)] p-4">
-              <div className="text-xs mo-muted">Выручка</div>
+              <div className="text-xs mo-muted">Выручка (визиты)</div>
               <div className="mt-1 text-xl font-semibold tabular-nums">
                 {formatMoney(data.revenue_total, { digits: 0 })}
               </div>
+              {Number(data.revenue_manual) > 0 ? (
+                <div className="mt-1 text-[11px] mo-muted">
+                  курсы KPI {formatMoney(data.revenue_manual, { digits: 0 })} (не в сумме)
+                </div>
+              ) : null}
             </div>
             <div className="rounded-2xl border border-[var(--mo-border)] p-4">
               <div className="text-xs mo-muted">Дебиторка (запись)</div>
