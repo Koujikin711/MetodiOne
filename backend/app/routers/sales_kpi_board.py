@@ -22,6 +22,7 @@ from app.models import (
     Pipeline,
     PipelineStage,
     SalesKpiManualSale,
+    SalesKpiManualSalePayment,
     SalesKpiPlanItem,
     SalesKpiPlanItemSpecialist,
     SalesKpiServicePrice,
@@ -43,6 +44,7 @@ from app.schemas.sales_kpi import (
     SalesKpiDirectionMeta,
     SalesKpiManualSaleCreate,
     SalesKpiManualSaleOut,
+    SalesKpiManualSalePaymentOut,
     SalesKpiManualSalePaymentPatch,
     SalesKpiManualSaleStatusPatch,
     SalesKpiPlanItemOut,
@@ -229,12 +231,23 @@ async def _replace_item_specialists(
         db.add(SalesKpiPlanItemSpecialist(plan_item_id=plan_item_id, specialist_id=sid))
 
 
-def _manual_counts_in_kpi(service_amount: Decimal, paid_amount: Decimal, status: str) -> bool:
+def _manual_counts_in_kpi(service_amount: Decimal, first_paid_amount: Decimal, status: str) -> bool:
+    """В KPI/бонус идёт только первый платёж (≥25% стоимости). Доплаты — только дебиторка."""
     if status != "active":
         return False
     if service_amount <= 0:
         return False
-    return paid_amount >= (service_amount * MANUAL_SALE_MIN_PAID_RATIO)
+    return first_paid_amount >= (service_amount * MANUAL_SALE_MIN_PAID_RATIO)
+
+
+def _payment_out(row: SalesKpiManualSalePayment) -> SalesKpiManualSalePaymentOut:
+    return SalesKpiManualSalePaymentOut(
+        id=int(row.id),
+        amount=Decimal(str(row.amount or 0)),
+        is_first=bool(row.is_first),
+        note=row.note,
+        paid_at=row.paid_at,
+    )
 
 
 def _manual_sale_out(
@@ -242,11 +255,14 @@ def _manual_sale_out(
     *,
     plan_item_name: str,
     manager_name: str,
+    payments: list[SalesKpiManualSalePayment] | None = None,
 ) -> SalesKpiManualSaleOut:
     sa = Decimal(str(sale.service_amount or 0))
     pa = Decimal(str(sale.paid_amount or 0))
+    first = Decimal(str(getattr(sale, "first_paid_amount", None) or pa or 0))
     stream_raw = getattr(sale, "stream_no", None)
     group_raw = getattr(sale, "group_no", None)
+    pay_rows = payments if payments is not None else []
     return SalesKpiManualSaleOut(
         id=int(sale.id),
         pipeline_id=int(sale.pipeline_id),
@@ -260,14 +276,35 @@ def _manual_sale_out(
         group_no=int(group_raw) if group_raw is not None else None,
         service_amount=sa,
         paid_amount=pa,
+        first_paid_amount=first,
         debt_amount=max(sa - pa, Decimal("0")),
         sold_at=sale.sold_at,
         status=sale.status,
         returned_at=sale.returned_at,
         note=sale.note,
         status_reason=getattr(sale, "status_reason", None),
-        counts_in_kpi=_manual_counts_in_kpi(sa, pa, sale.status),
+        counts_in_kpi=_manual_counts_in_kpi(sa, first, sale.status),
+        payments=[_payment_out(p) for p in pay_rows],
     )
+
+
+async def _load_sale_payments(
+    db: AsyncSession,
+    sale_ids: list[int],
+) -> dict[int, list[SalesKpiManualSalePayment]]:
+    if not sale_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(SalesKpiManualSalePayment)
+            .where(SalesKpiManualSalePayment.sale_id.in_(sale_ids))
+            .order_by(SalesKpiManualSalePayment.id.asc()),
+        )
+    ).scalars().all()
+    out: dict[int, list[SalesKpiManualSalePayment]] = {int(i): [] for i in sale_ids}
+    for row in rows:
+        out.setdefault(int(row.sale_id), []).append(row)
+    return out
 
 
 async def _build_sales_report(
@@ -625,6 +662,8 @@ async def list_manual_sales(
         )
     ).all()
 
+    sale_ids = [int(sale.id) for sale, *_ in rows]
+    payments_by_sale = await _load_sale_payments(db, sale_ids)
     out: list[SalesKpiManualSaleOut] = []
     for sale, item_name, full_name, email in rows:
         out.append(
@@ -632,6 +671,7 @@ async def list_manual_sales(
                 sale,
                 plan_item_name=str(item_name),
                 manager_name=str(full_name or email or f"#{sale.manager_user_id}"),
+                payments=payments_by_sale.get(int(sale.id), []),
             ),
         )
     return out
@@ -667,6 +707,7 @@ async def create_manual_sale(
     if sold_at.tzinfo is None:
         sold_at = sold_at.replace(tzinfo=UTC)
 
+    first_paid = Decimal(str(body.paid_amount or 0))
     sale = SalesKpiManualSale(
         company_id=company_id,
         pipeline_id=body.pipeline_id,
@@ -677,20 +718,38 @@ async def create_manual_sale(
         stream_no=int(body.stream_no),
         group_no=int(body.group_no),
         service_amount=body.service_amount,
-        paid_amount=body.paid_amount,
+        paid_amount=first_paid,
+        first_paid_amount=first_paid,
         sold_at=sold_at,
         status="active",
         note=body.note,
         created_by_user_id=current_user.id,
     )
     db.add(sale)
+    await db.flush()
+    payments: list[SalesKpiManualSalePayment] = []
+    if first_paid > 0:
+        pay = SalesKpiManualSalePayment(
+            company_id=company_id,
+            sale_id=int(sale.id),
+            amount=first_paid,
+            is_first=True,
+            note="Первый платёж",
+            paid_at=sold_at,
+            created_by_user_id=current_user.id,
+        )
+        db.add(pay)
+        payments.append(pay)
     await db.commit()
     await db.refresh(sale)
+    for p in payments:
+        await db.refresh(p)
 
     return _manual_sale_out(
         sale,
         plan_item_name=item.name,
         manager_name=str(manager.full_name or manager.email or f"#{manager.id}"),
+        payments=payments,
     )
 
 
@@ -709,16 +768,42 @@ async def patch_manual_sale_payment(
         raise HTTPException(status_code=404, detail="Продажа не найдена")
     if sale.status == "returned":
         raise HTTPException(status_code=400, detail="По возвращённой продаже нельзя менять оплату")
-    if body.paid_amount > sale.service_amount:
-        raise HTTPException(status_code=400, detail="Оплата не может быть больше стоимости")
+    if sale.status != "active":
+        raise HTTPException(status_code=400, detail="Доплата только по активной продаже")
 
-    sale.paid_amount = body.paid_amount
+    add_amount = Decimal(str(body.add_amount))
+    service_amount = Decimal(str(sale.service_amount or 0))
+    current_paid = Decimal(str(sale.paid_amount or 0))
+    new_paid = current_paid + add_amount
+    if new_paid > service_amount:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Доплата превышает долг: остаток {service_amount - current_paid}",
+        )
+
+    sale.paid_amount = new_paid
+    # first_paid_amount не трогаем — KPI/бонус только по первому платежу
+    if getattr(sale, "first_paid_amount", None) is None:
+        sale.first_paid_amount = current_paid
     sale.updated_at = datetime.now(UTC)
-    if body.note is not None:
-        sale.note = body.note
+    if body.note is not None and body.note.strip():
+        sale.note = body.note.strip()
+
+    pay = SalesKpiManualSalePayment(
+        company_id=company_id,
+        sale_id=int(sale.id),
+        amount=add_amount,
+        is_first=False,
+        note=(body.note.strip() if body.note else None) or "Доплата",
+        paid_at=datetime.now(UTC),
+        created_by_user_id=current_user.id,
+    )
+    db.add(pay)
     await db.commit()
     await db.refresh(sale)
+    await db.refresh(pay)
 
+    payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
     item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
     manager = await db.get(User, sale.manager_user_id)
     return _manual_sale_out(
@@ -729,6 +814,7 @@ async def patch_manual_sale_payment(
             or (manager.email if manager else None)
             or f"#{sale.manager_user_id}"
         ),
+        payments=payments,
     )
 
 

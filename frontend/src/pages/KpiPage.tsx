@@ -413,14 +413,15 @@ export function KpiPage() {
   });
 
   const payMutation = useMutation({
-    mutationFn: async ({ id, paid }: { id: number; paid: number }) => {
+    mutationFn: async ({ id, add }: { id: number; add: number }) => {
       await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${id}/payment`, {
         method: "PATCH",
-        body: JSON.stringify({ paid_amount: paid }),
+        body: JSON.stringify({ add_amount: add }),
       });
     },
     onSuccess: () => {
-      toast.success("Оплата обновлена");
+      toast.success("Доплата записана в журнал");
+      setPayDraft({});
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
@@ -995,8 +996,8 @@ export function KpiPage() {
             <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажа курса / протокола</h2>
             <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
               {salesSpace
-                ? "Факт KPI без онлайн-записи. В KPI с оплаты ≥25%. Группа — время образования, поток — номер платежа."
-                : "Без онлайн-записи. В KPI с оплаты ≥25%. Группа — время образования, поток — номер платежа."}
+                ? "Без онлайн-записи. В бонус/KPI идёт только первый платёж (≥25%). Доплаты уменьшают долг и пишутся в журнал."
+                : "Без онлайн-записи. В бонус/KPI идёт только первый платёж (≥25%). Доплаты уменьшают долг и пишутся в журнал."}
             </p>
           </div>
 
@@ -1101,7 +1102,7 @@ export function KpiPage() {
                 />
               </label>
               <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
-                Оплачено сейчас
+                Первый платёж
                 <input
                   type="number"
                   min={0}
@@ -1167,28 +1168,43 @@ export function KpiPage() {
                     <span className="kpi-chip kpi-chip--low">&lt;25%</span>
                   )}
                 </div>
-                {s.status === "active" ? (
+                {s.status === "active" && num(s.debt_amount) > 0 ? (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <input
                       type="number"
                       min={0}
                       inputMode="decimal"
                       className="kpi-cell-input !min-h-10 flex-1 text-base"
-                      value={payDraft[s.id] ?? String(num(s.paid_amount))}
+                      placeholder="Доплата"
+                      value={payDraft[s.id] ?? ""}
                       onChange={(e) => setPayDraft((prev) => ({ ...prev, [s.id]: e.target.value }))}
                     />
                     <button
                       type="button"
                       className="kpi-action kpi-action--ok shrink-0"
+                      disabled={!(Number(payDraft[s.id] || 0) > 0)}
                       onClick={() =>
                         payMutation.mutate({
                           id: s.id,
-                          paid: Number(payDraft[s.id] ?? s.paid_amount),
+                          add: Number(payDraft[s.id] || 0),
                         })
                       }
                     >
                       OK
                     </button>
+                    <SaleRowActionsMenu
+                      onReturn={() => {
+                        if (window.confirm("Отметить возврат и снять с KPI?")) {
+                          returnMutation.mutate(s.id);
+                        }
+                      }}
+                      onRefuse={() => askCloseSale(s.id, "refused")}
+                      onComplete={() => askCloseSale(s.id, "completed")}
+                    />
+                  </div>
+                ) : s.status === "active" ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] text-[var(--mo-text-muted)]">оплачено полностью</span>
                     <SaleRowActionsMenu
                       onReturn={() => {
                         if (window.confirm("Отметить возврат и снять с KPI?")) {
@@ -1242,26 +1258,40 @@ export function KpiPage() {
                       {s.status === "returned" ? (
                         <span className="tabular-nums">{formatMoney(num(s.paid_amount))}</span>
                       ) : (
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="number"
-                            min={0}
-                            className="kpi-cell-input w-24"
-                            value={payDraft[s.id] ?? String(num(s.paid_amount))}
-                            onChange={(e) => setPayDraft((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                          />
-                          <button
-                            type="button"
-                            className="kpi-action kpi-action--ok"
-                            onClick={() =>
-                              payMutation.mutate({
-                                id: s.id,
-                                paid: Number(payDraft[s.id] ?? s.paid_amount),
-                              })
-                            }
-                          >
-                            OK
-                          </button>
+                        <div className="flex flex-col gap-1">
+                          <span className="tabular-nums text-[11px] text-[var(--mo-text-muted)]">
+                            уже {formatMoney(num(s.paid_amount))}
+                            {num(s.first_paid_amount) > 0
+                              ? ` · 1-й ${formatMoney(num(s.first_paid_amount))}`
+                              : ""}
+                          </span>
+                          {num(s.debt_amount) > 0 ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min={0}
+                                className="kpi-cell-input w-24"
+                                placeholder="Доплата"
+                                value={payDraft[s.id] ?? ""}
+                                onChange={(e) => setPayDraft((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                              />
+                              <button
+                                type="button"
+                                className="kpi-action kpi-action--ok"
+                                disabled={!(Number(payDraft[s.id] || 0) > 0)}
+                                onClick={() =>
+                                  payMutation.mutate({
+                                    id: s.id,
+                                    add: Number(payDraft[s.id] || 0),
+                                  })
+                                }
+                              >
+                                OK
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-[var(--mo-text-muted)]">оплачено полностью</span>
+                          )}
                         </div>
                       )}
                     </td>

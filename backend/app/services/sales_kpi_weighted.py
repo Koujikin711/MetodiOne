@@ -502,7 +502,7 @@ async def load_manual_facts(
     pipeline_id: int,
     ym: date,
 ) -> dict[tuple[int, int], int]:
-    """Факт по курсам/протоколам: ≥25% оплаты, не возврат."""
+    """Факт по курсам/протоколам: только первый платёж ≥25%, не возврат. Доплаты не влияют на KPI."""
     start, end = month_bounds(ym)
     rows = (
         await db.execute(
@@ -510,6 +510,7 @@ async def load_manual_facts(
                 SalesKpiManualSale.manager_user_id,
                 SalesKpiManualSale.plan_item_id,
                 SalesKpiManualSale.service_amount,
+                SalesKpiManualSale.first_paid_amount,
                 SalesKpiManualSale.paid_amount,
             ).where(
                 SalesKpiManualSale.company_id == company_id,
@@ -521,12 +522,12 @@ async def load_manual_facts(
         )
     ).all()
     out: dict[tuple[int, int], int] = {}
-    for manager_id, plan_item_id, service_amount, paid_amount in rows:
+    for manager_id, plan_item_id, service_amount, first_paid_amount, paid_amount in rows:
         sa = Decimal(str(service_amount or 0))
-        pa = Decimal(str(paid_amount or 0))
+        first = Decimal(str(first_paid_amount if first_paid_amount is not None else paid_amount or 0))
         if sa <= 0:
             continue
-        if pa < (sa * MANUAL_SALE_MIN_PAID_RATIO):
+        if first < (sa * MANUAL_SALE_MIN_PAID_RATIO):
             continue
         key = (int(manager_id), int(plan_item_id))
         out[key] = out.get(key, 0) + 1

@@ -1193,6 +1193,39 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
             await conn.execute(text("UPDATE sales_kpi_manual_sales SET stream_no = NULL WHERE stream_no IS NOT NULL"))
         if "status_reason" not in cols:
             await conn.execute(text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN status_reason TEXT"))
+        if "first_paid_amount" not in cols:
+            await conn.execute(
+                text(
+                    "ALTER TABLE sales_kpi_manual_sales ADD COLUMN first_paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0",
+                ),
+            )
+            await conn.execute(
+                text(
+                    "UPDATE sales_kpi_manual_sales SET first_paid_amount = paid_amount "
+                    "WHERE first_paid_amount = 0 AND paid_amount > 0",
+                ),
+            )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_manual_sale_payments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    sale_id INTEGER NOT NULL,
+                    amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    is_first INTEGER NOT NULL DEFAULT 0,
+                    note TEXT,
+                    paid_at DATETIME,
+                    created_by_user_id INTEGER,
+                    created_at DATETIME
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_sales_kpi_manual_sale_payments_sale "
+                "ON sales_kpi_manual_sale_payments(sale_id, id)",
+            ),
+        )
         return
 
     if "postgresql" in low or "asyncpg" in low:
@@ -1328,6 +1361,39 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
             await conn.execute(text("UPDATE sales_kpi_manual_sales SET stream_no = NULL WHERE stream_no IS NOT NULL"))
         await conn.execute(
             text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN IF NOT EXISTS status_reason TEXT"),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE sales_kpi_manual_sales ADD COLUMN IF NOT EXISTS "
+                "first_paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0",
+            ),
+        )
+        await conn.execute(
+            text(
+                "UPDATE sales_kpi_manual_sales SET first_paid_amount = paid_amount "
+                "WHERE first_paid_amount = 0 AND paid_amount > 0",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_manual_sale_payments (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    sale_id INTEGER NOT NULL REFERENCES sales_kpi_manual_sales(id) ON DELETE CASCADE,
+                    amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    is_first BOOLEAN NOT NULL DEFAULT FALSE,
+                    note TEXT,
+                    paid_at TIMESTAMPTZ,
+                    created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    created_at TIMESTAMPTZ
+                )""",
+            ),
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_sales_kpi_manual_sale_payments_sale "
+                "ON sales_kpi_manual_sale_payments(sale_id, id)",
+            ),
         )
 
 

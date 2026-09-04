@@ -970,6 +970,14 @@ export interface SalesKpiSalesReport {
   managers: SalesKpiBoardManager[];
 }
 
+export interface SalesKpiManualSalePayment {
+  id: number;
+  amount: string | number;
+  is_first: boolean;
+  note: string | null;
+  paid_at: string;
+}
+
 export interface SalesKpiManualSale {
   id: number;
   pipeline_id: number;
@@ -985,6 +993,8 @@ export interface SalesKpiManualSale {
   group_no?: number | null;
   service_amount: string | number;
   paid_amount: string | number;
+  /** Первый платёж — для KPI/бонуса; доплаты его не меняют */
+  first_paid_amount?: string | number;
   debt_amount: string | number;
   sold_at: string;
   status: string;
@@ -993,6 +1003,7 @@ export interface SalesKpiManualSale {
   /** Причина отказа / завершения */
   status_reason?: string | null;
   counts_in_kpi: boolean;
+  payments?: SalesKpiManualSalePayment[];
 }
 
 export interface SalesKpiDebtorRow {

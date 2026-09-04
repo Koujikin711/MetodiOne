@@ -186,8 +186,18 @@ class SalesKpiManualSaleCreate(BaseModel):
 
 
 class SalesKpiManualSalePaymentPatch(BaseModel):
-    paid_amount: Decimal = Field(..., ge=0)
+    """Доплата по курсу/протоколу (не перезапись итога)."""
+
+    add_amount: Decimal = Field(..., gt=0, description="Сумма доплаты")
     note: str | None = None
+
+
+class SalesKpiManualSalePaymentOut(BaseModel):
+    id: int
+    amount: Decimal
+    is_first: bool
+    note: str | None = None
+    paid_at: datetime
 
 
 class SalesKpiManualSaleStatusPatch(BaseModel):
@@ -210,6 +220,7 @@ class SalesKpiManualSaleOut(BaseModel):
     group_no: int | None = None
     service_amount: Decimal
     paid_amount: Decimal
+    first_paid_amount: Decimal = Decimal("0")
     debt_amount: Decimal
     sold_at: datetime
     status: str
@@ -217,7 +228,7 @@ class SalesKpiManualSaleOut(BaseModel):
     note: str | None = None
     status_reason: str | None = None
     counts_in_kpi: bool
-
+    payments: list[SalesKpiManualSalePaymentOut] = Field(default_factory=list)
 
 class SalesKpiDebtorRow(BaseModel):
     source: str  # booking | manual

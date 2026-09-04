@@ -364,6 +364,8 @@ class SalesKpiManualSale(Base):
     group_no: Mapped[int | None] = mapped_column(nullable=True)
     service_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    # Сумма первого платежа — для KPI/бонуса; доплаты её не меняют.
+    first_paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     sold_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
     # active | returned | refused | completed
     status: Mapped[str] = mapped_column(String(24), default="active")
@@ -374,6 +376,25 @@ class SalesKpiManualSale(Base):
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+
+
+class SalesKpiManualSalePayment(Base):
+    """Журнал платежей по курсу/протоколу (первый + доплаты в дебиторку)."""
+
+    __tablename__ = "sales_kpi_manual_sale_payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    sale_id: Mapped[int] = mapped_column(
+        ForeignKey("sales_kpi_manual_sales.id", ondelete="CASCADE"),
+        index=True,
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    is_first: Mapped[bool] = mapped_column(default=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
 
 
 class PipelineStage(Base):
