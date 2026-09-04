@@ -99,18 +99,21 @@ export function AccountantCompanyFinance() {
               ) : null}
             </div>
             <div className="rounded-2xl border border-[var(--mo-border)] p-4">
-              <div className="text-xs mo-muted">Дебиторка (визиты)</div>
+              <div className="text-xs mo-muted">Дебиторка (итого)</div>
               <div className="mt-1 text-xl font-semibold tabular-nums">
-                {formatMoney(data.debtor_total ?? data.debtor_booking, { digits: 0 })}
+                {formatMoney(data.debtor_total, { digits: 0 })}
               </div>
-              <div className="mt-1 text-[11px] mo-muted">касса CRM · остаток по записям</div>
+              <div className="mt-1 text-[11px] mo-muted">
+                визиты {formatMoney(data.debtor_booking, { digits: 0 })} · курсы{" "}
+                {formatMoney(data.debtor_manual, { digits: 0 })}
+              </div>
             </div>
             <div className="rounded-2xl border border-[var(--mo-border)] p-4">
-              <div className="text-xs mo-muted">Курсы KPI (не в сумме)</div>
+              <div className="text-xs mo-muted">Дебиторка курсов KPI</div>
               <div className="mt-1 text-xl font-semibold tabular-nums">
                 {formatMoney(data.debtor_manual, { digits: 0 })}
               </div>
-              <div className="mt-1 text-[11px] mo-muted">пакеты вкладки KPI, не касса визитов</div>
+              <div className="mt-1 text-[11px] mo-muted">открытые пакеты вкладки KPI</div>
             </div>
           </div>
 
