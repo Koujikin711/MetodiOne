@@ -1278,7 +1278,6 @@ export function KpiPage() {
                   </div>
                 ) : s.status === "active" ? (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] text-[var(--mo-text-muted)]">оплачено полностью</span>
                     <SaleRowActionsMenu
                       onReturn={() => {
                         if (window.confirm("Отметить возврат и снять с KPI?")) {
@@ -1331,44 +1330,34 @@ export function KpiPage() {
                     <td className="font-medium">{s.client_name}</td>
                     <td className="tabular-nums">{s.client_phone}</td>
                     <td className="tabular-nums whitespace-nowrap">{formatMoney(num(s.service_amount))}</td>
-                    <td>
-                      {s.status === "returned" ? (
-                        <span className="tabular-nums">{formatMoney(num(s.paid_amount))}</span>
+                    <td className="tabular-nums whitespace-nowrap">
+                      {s.status === "returned" || num(s.debt_amount) <= 0 ? (
+                        formatMoney(num(s.paid_amount))
                       ) : (
-                        <div className="flex flex-col gap-1">
-                          <span className="tabular-nums text-[11px] text-[var(--mo-text-muted)]">
-                            уже {formatMoney(num(s.paid_amount))}
-                            {num(s.first_paid_amount) > 0
-                              ? ` · 1-й ${formatMoney(num(s.first_paid_amount))}`
-                              : ""}
-                          </span>
-                          {num(s.debt_amount) > 0 ? (
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="number"
-                                min={0}
-                                className="kpi-cell-input w-24"
-                                placeholder="Доплата"
-                                value={payDraft[s.id] ?? ""}
-                                onChange={(e) => setPayDraft((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                              />
-                              <button
-                                type="button"
-                                className="kpi-action kpi-action--ok"
-                                disabled={!(Number(payDraft[s.id] || 0) > 0)}
-                                onClick={() =>
-                                  payMutation.mutate({
-                                    id: s.id,
-                                    add: Number(payDraft[s.id] || 0),
-                                  })
-                                }
-                              >
-                                OK
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-[11px] text-[var(--mo-text-muted)]">оплачено полностью</span>
-                          )}
+                        <div className="flex items-center gap-1.5">
+                          <span className="tabular-nums">{formatMoney(num(s.paid_amount))}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            className="kpi-cell-input w-24"
+                            placeholder="Доплата"
+                            aria-label="Доплата"
+                            value={payDraft[s.id] ?? ""}
+                            onChange={(e) => setPayDraft((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                          />
+                          <button
+                            type="button"
+                            className="kpi-action kpi-action--ok"
+                            disabled={!(Number(payDraft[s.id] || 0) > 0)}
+                            onClick={() =>
+                              payMutation.mutate({
+                                id: s.id,
+                                add: Number(payDraft[s.id] || 0),
+                              })
+                            }
+                          >
+                            OK
+                          </button>
                         </div>
                       )}
                     </td>
