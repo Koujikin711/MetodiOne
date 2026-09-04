@@ -3015,8 +3015,17 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  max-width: 100%;
   overflow: visible;
+}
+
+/* Пикер не растягивается и не выталкивает шестерёнку за край (mo-fill-page: overflow hidden) */
+.extra-services-head-actions .extra-services-month-picker {
+  width: 10.75rem;
+  min-width: 0;
+  max-width: 10.75rem;
+  flex: 0 0 auto;
 }
 
 .extra-services-settings-btn {
@@ -4123,7 +4132,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 /* ── KPI ── */
 .kpi-toolbar .kpi-toolbar__control,
 .kpi-toolbar .kpi-toolbar__control .mo-month-picker-trigger,
-.kpi-toolbar select.kpi-toolbar__control {
+.kpi-toolbar select.kpi-toolbar__control,
+.kpi-toolbar input.kpi-toolbar__control {
   min-height: 2rem !important;
   height: 2rem;
   padding-top: 0.2rem;
@@ -4196,7 +4206,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 @media (min-width: 640px) {
   .kpi-toolbar .kpi-toolbar__control,
   .kpi-toolbar .kpi-toolbar__control .mo-month-picker-trigger,
-  .kpi-toolbar select.kpi-toolbar__control {
+  .kpi-toolbar select.kpi-toolbar__control,
+  .kpi-toolbar input.kpi-toolbar__control {
     min-height: 2.15rem !important;
     height: 2.15rem;
     font-size: 0.8125rem !important;

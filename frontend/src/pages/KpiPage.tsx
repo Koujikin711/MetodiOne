@@ -200,6 +200,27 @@ function streamLabel(n: number | null | undefined): string {
   return `Этап ${Number(n)}`;
 }
 
+/** Поиск по ФИО, телефону, потоку/этапу, менеджеру (и др. полям строки). */
+function matchesKpiListQuery(query: string, parts: Array<string | number | null | undefined>): boolean {
+  const raw = query.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!raw) return true;
+  const hay = parts
+    .filter((x) => x != null && String(x).trim() !== "" && String(x) !== "—")
+    .map((x) => String(x).toLowerCase())
+    .join(" ");
+  const tokens = raw.split(" ").filter(Boolean);
+  if (tokens.every((t) => hay.includes(t))) return true;
+  const digQ = raw.replace(/\D/g, "");
+  if (digQ.length >= 2) {
+    const digHay = parts
+      .map((x) => String(x ?? "").replace(/\D/g, ""))
+      .filter(Boolean)
+      .join(" ");
+    if (digHay.includes(digQ)) return true;
+  }
+  return false;
+}
+
 function formatSaleDt(iso: string): string {
   try {
     return new Date(iso).toLocaleString("ru-RU", {
@@ -227,6 +248,7 @@ export function KpiPage() {
 
   const [yearMonth, setYearMonth] = useState(defaultYearMonth);
   const [pipelineId, setPipelineId] = useState<number | null>(null);
+  const [listQuery, setListQuery] = useState("");
   const [tab, setTab] = useState<TabId>(
     isCurator ? "debtors" : isAccountant ? "company" : isOwner ? "plan" : "sales",
   );
@@ -522,6 +544,38 @@ export function KpiPage() {
 
   const manualPlanItems = (planQuery.data?.items ?? []).filter((x) => x.source_type === "manual");
   const managers = planQuery.data?.managers ?? [];
+
+  const filteredManualSales = useMemo(() => {
+    const rows = manualQuery.data ?? [];
+    if (!listQuery.trim()) return rows;
+    return rows.filter((s) =>
+      matchesKpiListQuery(listQuery, [
+        s.client_name,
+        s.client_phone,
+        s.manager_name,
+        s.plan_item_name,
+        groupLabel(s.group_no),
+        streamLabel(s.stream_no),
+        s.group_no,
+        s.stream_no,
+        s.note,
+      ]),
+    );
+  }, [manualQuery.data, listQuery]);
+
+  const filteredDebtors = useMemo(() => {
+    const rows = debtorsQuery.data?.rows ?? [];
+    if (!listQuery.trim()) return rows;
+    return rows.filter((r) =>
+      matchesKpiListQuery(listQuery, [
+        r.client_name,
+        r.client_phone,
+        r.manager_name,
+        r.indicator_name,
+        r.source === "booking" ? "запись" : "курс",
+      ]),
+    );
+  }, [debtorsQuery.data?.rows, listQuery]);
   const visibleTabs = tabs.filter((t) => t.show);
 
   return (
@@ -543,12 +597,23 @@ export function KpiPage() {
         />
       </header>
 
-      <section className="kpi-toolbar grid grid-cols-2 gap-1.5 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-2 py-1.5 sm:gap-2 sm:rounded-2xl sm:px-2.5 sm:py-2">
-        <label className="flex min-w-0 flex-col gap-0.5 text-[10px] font-medium leading-tight mo-muted sm:text-[11px]">
+      <section className="kpi-toolbar grid grid-cols-2 gap-1.5 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-2 py-1.5 sm:grid-cols-[minmax(0,10.5rem)_minmax(0,1fr)_minmax(0,12rem)] sm:gap-2 sm:rounded-2xl sm:px-2.5 sm:py-2">
+        <label className="order-1 flex min-w-0 flex-col gap-0.5 text-[10px] font-medium leading-tight mo-muted sm:text-[11px]">
           Месяц
           <MonthYearPicker compact value={yearMonth} onChange={setYearMonth} className="kpi-toolbar__control" />
         </label>
-        <label className="flex min-w-0 flex-col gap-0.5 text-[10px] font-medium leading-tight mo-muted sm:text-[11px]">
+        <label className="order-3 col-span-2 flex min-w-0 flex-col gap-0.5 text-[10px] font-medium leading-tight mo-muted sm:order-2 sm:col-span-1 sm:text-[11px]">
+          Поиск
+          <input
+            type="search"
+            value={listQuery}
+            onChange={(e) => setListQuery(e.target.value)}
+            placeholder="ФИО, телефон, поток, менеджер"
+            className="mo-input kpi-toolbar__control min-w-0"
+            autoComplete="off"
+          />
+        </label>
+        <label className="order-2 flex min-w-0 flex-col gap-0.5 text-[10px] font-medium leading-tight mo-muted sm:order-3 sm:text-[11px]">
           Воронка
           <select
             value={pipelineId ?? ""}
@@ -982,7 +1047,12 @@ export function KpiPage() {
       ) : null}
 
       {tab === "sales" ? (
-        <SalesReportSection data={salesQuery.data} loading={salesQuery.isLoading} error={salesQuery.error as Error | null} />
+        <SalesReportSection
+          data={salesQuery.data}
+          loading={salesQuery.isLoading}
+          error={salesQuery.error as Error | null}
+          listQuery={listQuery}
+        />
       ) : null}
 
       {tab === "company" && (isOwner || isAccountant) ? (
@@ -1137,7 +1207,7 @@ export function KpiPage() {
           </button>
 
           <ul className="space-y-2 pt-1 sm:hidden">
-            {(manualQuery.data ?? []).map((s) => (
+            {filteredManualSales.map((s) => (
               <li key={s.id} className="kpi-sale-card">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -1224,6 +1294,9 @@ export function KpiPage() {
                 ) : null}
               </li>
             ))}
+            {!manualQuery.isLoading && listQuery.trim() && filteredManualSales.length === 0 ? (
+              <p className="text-sm lux-caption">Ничего не найдено по запросу «{listQuery.trim()}».</p>
+            ) : null}
             {manualQuery.isLoading ? <p className="text-sm lux-caption">Загрузка…</p> : null}
           </ul>
 
@@ -1246,7 +1319,7 @@ export function KpiPage() {
                 </tr>
               </thead>
               <tbody>
-                {(manualQuery.data ?? []).map((s) => (
+                {filteredManualSales.map((s) => (
                   <tr key={s.id}>
                     <td className="whitespace-nowrap tabular-nums">
                       {s.sold_at ? formatSaleDt(s.sold_at) : "—"}
@@ -1341,6 +1414,9 @@ export function KpiPage() {
                 ))}
               </tbody>
             </table>
+            {!manualQuery.isLoading && listQuery.trim() && filteredManualSales.length === 0 ? (
+              <p className="mt-2 text-sm lux-caption">Ничего не найдено по запросу «{listQuery.trim()}».</p>
+            ) : null}
             {manualQuery.isLoading ? <p className="mt-2 text-sm lux-caption">Загрузка…</p> : null}
           </div>
         </section>
@@ -1357,15 +1433,20 @@ export function KpiPage() {
               </p>
             </div>
             <p className="text-xs mo-muted sm:text-sm">
-              Итого:{" "}
+              Итого
+              {listQuery.trim() ? " (поиск)" : ""}:{" "}
               <span className="font-semibold text-[var(--mo-text)]">
-                {formatMoney(num(debtorsQuery.data?.total_debt))}
+                {formatMoney(
+                  listQuery.trim()
+                    ? filteredDebtors.reduce((sum, r) => sum + num(r.debt_amount), 0)
+                    : num(debtorsQuery.data?.total_debt),
+                )}
               </span>
             </p>
           </div>
 
           <ul className="space-y-2 sm:hidden">
-            {(debtorsQuery.data?.rows ?? []).map((r) => (
+            {filteredDebtors.map((r) => (
               <li
                 key={`${r.source}-${r.source_id}`}
                 className="rounded-xl border border-[var(--mo-border)] px-3 py-2.5"
@@ -1407,7 +1488,7 @@ export function KpiPage() {
                 </tr>
               </thead>
               <tbody>
-                {(debtorsQuery.data?.rows ?? []).map((r) => (
+                {filteredDebtors.map((r) => (
                   <tr key={`${r.source}-${r.source_id}`}>
                     <td className="py-2 pr-3">{r.source === "booking" ? "Запись" : "Курс/протокол"}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">
@@ -1425,6 +1506,9 @@ export function KpiPage() {
               </tbody>
             </table>
           </div>
+          {!debtorsQuery.isLoading && listQuery.trim() && filteredDebtors.length === 0 ? (
+            <p className="text-sm lux-caption">Ничего не найдено по запросу «{listQuery.trim()}».</p>
+          ) : null}
           {debtorsQuery.isLoading ? <p className="text-sm lux-caption">Загрузка…</p> : null}
           {debtorsQuery.isError ? (
             <p className="text-sm text-red-300">{(debtorsQuery.error as Error).message}</p>
@@ -1446,10 +1530,12 @@ function SalesReportSection({
   data,
   loading,
   error,
+  listQuery = "",
 }: {
   data: SalesKpiSalesReport | undefined;
   loading: boolean;
   error: Error | null;
+  listQuery?: string;
 }) {
   if (loading) return <p className="text-sm lux-caption">Загрузка отчёта «Продажи»…</p>;
   if (error) return <p className="text-sm text-red-300">{error.message}</p>;
@@ -1475,6 +1561,24 @@ function SalesReportSection({
     );
   }
 
+  const managers = listQuery.trim()
+    ? data.managers.filter((m) =>
+        matchesKpiListQuery(listQuery, [
+          m.manager_name,
+          ...m.lines.map((line) => line.name),
+        ]),
+      )
+    : data.managers;
+
+  if (!managers.length) {
+    return (
+      <section className="mo-section p-4">
+        <h2 className="lux-subheading">Продажи</h2>
+        <p className="mt-2 text-sm lux-caption">Ничего не найдено по запросу «{listQuery.trim()}».</p>
+      </section>
+    );
+  }
+
   return (
     <div className="space-y-3 sm:space-y-6">
       <section className="mo-section px-3 py-2.5 sm:p-4">
@@ -1484,7 +1588,7 @@ function SalesReportSection({
         </p>
       </section>
 
-      {data.managers.map((m) => (
+      {managers.map((m) => (
         <section key={m.manager_id} className="mo-section p-2.5 sm:p-4">
           <h3 className="mb-1.5 text-[15px] font-semibold text-[var(--mo-text)] sm:mb-3 sm:text-lg">
             {m.manager_name}

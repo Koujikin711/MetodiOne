@@ -302,7 +302,6 @@ export function ExtraServicesPage() {
           </p>
         </div>
         <div className="extra-services-head-actions">
-          <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
           <button
             type="button"
             className={["extra-services-settings-btn", tab === "settings" ? "is-active" : ""].join(" ")}
@@ -313,17 +312,29 @@ export function ExtraServicesPage() {
           >
             <Settings className="h-[1.05rem] w-[1.05rem]" aria-hidden />
           </button>
+          <MonthYearPicker className="extra-services-month-picker" value={yearMonth} onChange={setYearMonth} />
         </div>
       </div>
 
       <div className="mo-fill-page-scroll space-y-4 pt-3 sm:space-y-5 sm:pt-4">
       {tab !== "settings" ? (
-        <div className="crm-view-switch flex flex-wrap gap-2" role="tablist" aria-label="Доп услуги">
-          {TABS.map((t) => (
-            <button key={t.id} type="button" data-active={tab === t.id} onClick={() => setTab(t.id)}>
-              {t.label}
-            </button>
-          ))}
+        <div className="kpi-tabs" role="tablist" aria-label="Доп услуги">
+          {TABS.map((t) => {
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={active ? "kpi-tabs__btn is-active" : "kpi-tabs__btn"}
+                onClick={() => setTab(t.id)}
+              >
+                <span className="kpi-tabs__label kpi-tabs__label--full">{t.label}</span>
+                <span className="kpi-tabs__label kpi-tabs__label--short">{t.shortLabel}</span>
+              </button>
+            );
+          })}
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
