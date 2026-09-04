@@ -60,10 +60,10 @@ type ExtraServiceReport = {
   }>;
 };
 
-const TABS: { id: Exclude<TabId, "settings">; label: string }[] = [
-  { id: "new", label: "Новая запись" },
-  { id: "report", label: "Отчёты" },
-  { id: "journal", label: "Журнал" },
+const TABS: { id: Exclude<TabId, "settings">; label: string; shortLabel: string }[] = [
+  { id: "new", label: "Новая запись", shortLabel: "Новая" },
+  { id: "report", label: "Отчёты", shortLabel: "Отчёт" },
+  { id: "journal", label: "Журнал", shortLabel: "Журнал" },
 ];
 
 function defaultYearMonth() {
