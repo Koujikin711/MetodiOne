@@ -197,7 +197,7 @@ function groupLabel(n: number | null | undefined): string {
 
 function streamLabel(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(Number(n)) || Number(n) < 1) return "—";
-  return `Поток ${Number(n)}`;
+  return `Этап ${Number(n)}`;
 }
 
 function formatSaleDt(iso: string): string {
@@ -378,7 +378,7 @@ export function KpiPage() {
   const createSaleMutation = useMutation({
     mutationFn: async () => {
       if (!pipelineId) throw new Error("Выберите воронку");
-      if (!saleForm.stream_no) throw new Error("Укажите поток");
+      if (!saleForm.stream_no) throw new Error("Укажите этап");
       if (!saleForm.group_no) throw new Error("Укажите группу");
       await apiFetch<SalesKpiManualSale>("/api/sales-kpi/manual-sales", {
         method: "POST",
@@ -1061,17 +1061,17 @@ export function KpiPage() {
                 <span className="text-[10px] leading-snug text-[var(--mo-text-muted)]">время образования</span>
               </label>
               <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
-                Поток
+                Этап
                 <select
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.stream_no}
                   onChange={(e) => setSaleForm((s) => ({ ...s, stream_no: e.target.value }))}
-                  title="Поток — номер платежа"
+                  title="Этап — номер платежа"
                 >
                   <option value="">—</option>
                   {KPI_STREAM_OPTIONS.map((n) => (
                     <option key={n} value={n}>
-                      Поток {n}
+                      Этап {n}
                     </option>
                   ))}
                 </select>
@@ -1234,7 +1234,7 @@ export function KpiPage() {
                   <th>Дата</th>
                   <th>Продукт</th>
                   <th>Группа</th>
-                  <th>Поток</th>
+                  <th>Этап</th>
                   <th>Менеджер</th>
                   <th>Клиент</th>
                   <th>Телефон</th>
