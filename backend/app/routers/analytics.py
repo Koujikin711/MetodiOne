@@ -874,9 +874,10 @@ async def analytics_overview(
     if team_reply_rate is not None and team_messaged > 0 and team_reply_rate < 50:
         alerts_list.append("Команда отвечает меньше чем на 50% входящих диалогов")
 
+    tz = _biz_tz()
     return AnalyticsOverviewRead(
-        period_start=start.date().isoformat(),
-        period_end=(end - timedelta(days=1)).date().isoformat(),
+        period_start=start.astimezone(tz).date().isoformat(),
+        period_end=(end.astimezone(tz) - timedelta(days=1)).date().isoformat(),
         executive=ExecutiveKpiRead(
             leads_total=total_leads,
             won_leads=won_leads,
