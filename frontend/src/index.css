@@ -2405,14 +2405,19 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   min-height: 16rem;
   height: 100%;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  /* Видимая полоса — иначе «Архив» справа не найти */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--mo-accent) 55%, transparent) transparent;
+  padding-bottom: 0.35rem;
 }
 
 @media (min-width: 640px) {
   .crm-board-scroller {
     position: absolute;
     inset: 0;
+    bottom: 1.5rem; /* место под подсказку */
     flex: none;
     min-height: 0;
     height: auto;
@@ -2420,13 +2425,68 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-board-scroller::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
+  width: 8px;
+  height: 10px;
+  display: block;
+}
+
+.crm-board-scroller::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--mo-accent) 50%, #64748b);
+  border-radius: 999px;
+}
+
+.crm-board-scroller::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--mo-border) 50%, transparent);
+  border-radius: 999px;
+}
+
+.crm-board-scroll-btn {
+  position: absolute;
+  top: 50%;
+  z-index: 20;
+  transform: translateY(-50%);
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--mo-border);
+  background: color-mix(in srgb, var(--mo-surface) 92%, var(--mo-accent));
+  color: var(--mo-text);
+  font-size: 1.5rem;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+  cursor: pointer;
+}
+
+.crm-board-scroll-btn:hover {
+  background: var(--mo-surface);
+  border-color: var(--mo-accent);
+}
+
+.crm-board-scroll-btn--left {
+  left: 0.35rem;
+}
+
+.crm-board-scroll-btn--right {
+  right: 0.35rem;
 }
 
 .crm-board-footnote {
-  display: none; /* не занимает место снизу; счётчики и так на колонках */
+  @apply text-[10px] mo-muted;
+  display: block;
+  padding: 0.2rem 0.15rem 0;
+  flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+  .crm-board-footnote {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
 }
 
 .crm-toolbar {
