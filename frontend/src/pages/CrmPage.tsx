@@ -1487,10 +1487,70 @@ export function CrmPage() {
     }
   }, []);
 
+  const [boardCanScrollLeft, setBoardCanScrollLeft] = useState(false);
+  const [boardCanScrollRight, setBoardCanScrollRight] = useState(false);
+
+  const refreshBoardScrollHints = useCallback(() => {
+    const boardEl = boardContainerRef.current;
+    if (!boardEl) {
+      setBoardCanScrollLeft(false);
+      setBoardCanScrollRight(false);
+      return;
+    }
+    const maxScroll = boardEl.scrollWidth - boardEl.clientWidth;
+    const left = boardEl.scrollLeft;
+    setBoardCanScrollLeft(left > 2);
+    setBoardCanScrollRight(maxScroll - left > 2);
+  }, []);
+
+  useEffect(() => {
+    const boardEl = boardContainerRef.current;
+    if (!boardEl || crmView !== "board") return;
+    const onScroll = () => refreshBoardScrollHints();
+    boardEl.addEventListener("scroll", onScroll, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onScroll) : null;
+    ro?.observe(boardEl);
+    window.addEventListener("resize", onScroll);
+    // После раскладки колонок (Архив справа) кнопки › должны появиться сразу.
+    refreshBoardScrollHints();
+    const raf1 = requestAnimationFrame(() => {
+      refreshBoardScrollHints();
+      requestAnimationFrame(refreshBoardScrollHints);
+    });
+    const t = window.setTimeout(refreshBoardScrollHints, 250);
+    return () => {
+      boardEl.removeEventListener("scroll", onScroll);
+      ro?.disconnect();
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(raf1);
+      window.clearTimeout(t);
+    };
+  }, [crmView, sortedStages.length, refreshBoardScrollHints]);
+
+  const scrollBoardBy = useCallback((dx: number) => {
+    const boardEl = boardContainerRef.current;
+    if (!boardEl) return;
+    boardEl.scrollBy({ left: dx, behavior: "smooth" });
+  }, []);
+
   const onBoardWheelCapture = useCallback((event: WheelEvent<HTMLDivElement>) => {
     if (event.deltaY === 0 && event.deltaX === 0) return;
     const boardEl = boardContainerRef.current;
     if (!boardEl) return;
+
+    const absX = Math.abs(event.deltaX);
+    const absY = Math.abs(event.deltaY);
+    // Shift+колесо или горизонтальный жест тачпада — листаем доску вправо/влево (до Архива).
+    const wantHorizontal = event.shiftKey || absX > absY + 1;
+    if (wantHorizontal) {
+      const dx = event.shiftKey && absX <= absY ? event.deltaY : event.deltaX || event.deltaY;
+      if (dx !== 0) {
+        boardEl.scrollLeft += dx;
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
 
     const pointEl = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
     let scroller = pointEl?.closest?.("[data-kanban-scroll='true']") as HTMLDivElement | null;
@@ -1520,11 +1580,7 @@ export function CrmPage() {
     }
     if (!scroller) return;
 
-    // На тачпадах вертикальный жест может приходить как deltaX, поэтому берём доминирующую ось
-    // и всегда направляем её в вертикальный скролл колонки.
-    const dominantDelta =
-      Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-    scroller.scrollTop += dominantDelta;
+    scroller.scrollTop += event.deltaY;
     event.preventDefault();
     event.stopPropagation();
   }, []);
@@ -2643,10 +2699,32 @@ export function CrmPage() {
             onDragCancel={onDragCancel}
           >
             <div className="crm-board-wrap">
+              {boardCanScrollLeft ? (
+                <button
+                  type="button"
+                  className="crm-board-scroll-btn crm-board-scroll-btn--left"
+                  aria-label="Прокрутить доску влево"
+                  onClick={() => scrollBoardBy(-320)}
+                >
+                  ‹
+                </button>
+              ) : null}
+              {boardCanScrollRight ? (
+                <button
+                  type="button"
+                  className="crm-board-scroll-btn crm-board-scroll-btn--right"
+                  aria-label="Прокрутить доску вправо к Архиву"
+                  onClick={() => scrollBoardBy(320)}
+                >
+                  ›
+                </button>
+              ) : null}
               <div
                 ref={boardContainerRef}
                 onWheelCapture={onBoardWheelCapture}
                 className="crm-board-scroller"
+                data-can-scroll-left={boardCanScrollLeft ? "1" : "0"}
+                data-can-scroll-right={boardCanScrollRight ? "1" : "0"}
               >
                 {sortedStages.map((stage) => (
                   <KanbanColumn
@@ -2670,7 +2748,8 @@ export function CrmPage() {
                         : ""
                     }). `
                   : null}
-                Карточки догружаются при скролле колонки; поиск по всему складу — вкладка «Список».
+                Листайте доску вправо до «Архива» (кнопки ‹ ›, shift+колёсико или полоса снизу). Карточки
+                колонки — вертикальный скролл; поиск по складу — «Список».
               </p>
             </div>
             <DragOverlay dropAnimation={null}>
