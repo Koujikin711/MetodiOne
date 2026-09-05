@@ -177,6 +177,7 @@ def classify_lead_stage_name(
     «Удачно» и ручные стадии без активности >45 дней → Архив.
     Активность: чат + дата записи/явка + created_at.
     После дневной реактивации из Архива — grace по reactivated_at.
+    «В ожидании» — только вручную; исходящий/ответ клиента → «В обработке».
     """
     cur = (current_name or "").strip()
     statuses = {str(s).strip().lower() for s in appointment_statuses}
@@ -205,11 +206,13 @@ def classify_lead_stage_name(
 
     if cur == ARCHIVE_STAGE_NAME:
         if has_outbound:
-            if (last_direction or "").strip().lower() == "in":
-                return "В ожидании"
+            # Ответ клиента / менеджера после склада — снова в работу.
+            # «В ожидании» только вручную (не авто из чата).
             if activity is not None and _is_recent(activity, now=clock):
-                if (last_direction or "").strip().lower() == "out":
-                    return "Новый лид"
+                return "В обработке"
+            if (last_direction or "").strip().lower() == "in":
+                if activity is None or _is_recent(activity, now=clock):
+                    return "В обработке"
             return ARCHIVE_STAGE_NAME
         if has_any_chat and (last_direction or "").strip().lower() == "in":
             if activity is None or _is_recent(activity, now=clock):
@@ -237,15 +240,16 @@ def classify_lead_stage_name(
                 return ARCHIVE_STAGE_NAME
             return ARCHIVE_STAGE_NAME
 
-    # Ручные стадии: без активности >45 дней → Архив (в т.ч. «Удачно»).
+    # Ручные стадии (в т.ч. «В ожидании»): без активности >45 дней → Архив.
+    # Не перетираем автоматом «В работе» → «В ожидании» по входящему.
     if cur in MANAGER_SETTABLE_STAGE_NAMES:
         if activity is not None and not _is_recent(activity, now=clock):
             return ARCHIVE_STAGE_NAME
         return cur
 
     if has_outbound:
-        if (last_direction or "").strip().lower() == "in":
-            return "В ожидании"
+        # Был исходящий (менеджер / автоприветствие) → «В обработке».
+        # «В ожидании» менеджер ставит сам.
         return "В обработке"
 
     if has_any_chat and (last_direction or "").strip().lower() == "in":
@@ -532,9 +536,25 @@ async def redistribute_pipeline_leads_by_activity(
         last_msg_sq = (
             select(
                 ChatThread.lead_id.label("lead_id"),
+                func.max(ChatMessage.created_at).label("max_created"),
+            )
+            .join(ChatMessage, ChatMessage.thread_id == ChatThread.id)
+            .where(ChatThread.company_id == company_id, ChatThread.lead_id.in_(lead_ids))
+            .group_by(ChatThread.lead_id)
+            .subquery()
+        )
+        # При одинаковом created_at берём сообщение с большим id.
+        last_id_sq = (
+            select(
+                ChatThread.lead_id.label("lead_id"),
                 func.max(ChatMessage.id).label("max_msg_id"),
             )
             .join(ChatMessage, ChatMessage.thread_id == ChatThread.id)
+            .join(
+                last_msg_sq,
+                (ChatThread.lead_id == last_msg_sq.c.lead_id)
+                & (ChatMessage.created_at == last_msg_sq.c.max_created),
+            )
             .where(ChatThread.company_id == company_id, ChatThread.lead_id.in_(lead_ids))
             .group_by(ChatThread.lead_id)
             .subquery()
@@ -542,12 +562,12 @@ async def redistribute_pipeline_leads_by_activity(
         last_dir_rows = (
             await db.execute(
                 select(
-                    last_msg_sq.c.lead_id,
+                    last_id_sq.c.lead_id,
                     ChatMessage.direction,
                     ChatMessage.created_at,
                 ).join(
                     ChatMessage,
-                    ChatMessage.id == last_msg_sq.c.max_msg_id,
+                    ChatMessage.id == last_id_sq.c.max_msg_id,
                 ),
             )
         ).all()
@@ -695,7 +715,7 @@ async def reclassify_lead_by_activity(
                 ChatThread.company_id == company_id,
                 ChatThread.lead_id == lid,
             )
-            .order_by(ChatMessage.id.desc())
+            .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
             .limit(1),
         )
     ).one_or_none()

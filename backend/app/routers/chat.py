@@ -1411,19 +1411,19 @@ async def list_messages(
     if thread is None or thread.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
     await _assert_thread_access(db, thread, current_user)
-    # Последние `limit` сообщений (offset от самых новых), в ответе — по возрастанию id для UI.
-    # Фильтр только по thread_id: доступ к компании уже проверен через тред (индекс thread_id,id).
+    # Последние `limit` сообщений (offset от самых новых), в ответе — по возрастанию времени для UI.
+    # Сортировка по created_at, не по id: иначе догрузка/бэкофил истории выглядит «задним числом».
     rows = (
         await db.execute(
             select(ChatMessage)
             .where(ChatMessage.thread_id == thread_id)
-            .order_by(ChatMessage.id.desc())
+            .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
             .offset(offset)
             .limit(limit)
         )
     ).scalars().all()
     rows_chronological = list(reversed(rows))
-    # offset=0 → первый ряд (desc) = max(id); без второго MAX()-запроса.
+    # offset=0 → первый ряд (desc) = самое новое; без второго MAX()-запроса.
     if offset == 0:
         last_id = int(rows[0].id) if rows else 0
         await _mark_thread_read_up_to(db, user_id=current_user.id, thread_id=thread_id, last_id=last_id)

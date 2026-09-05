@@ -1507,7 +1507,8 @@ export function ChatPage() {
               {statusOpen && salesChatMode && activeThread?.lead_id ? (
                 <div className="shrink-0 border-b border-[var(--mo-border)] py-2">
                   <p className="mb-1.5 text-[11px] mo-muted">
-                    Вручную: В работе / В ожидании / Удачно / Отказ. «Новый лид» — автоматически
+                    Вручную: В работе / В ожидании / Удачно / Отказ. «В ожидании» только вручную —
+                    чат сам не переводит сюда. «Новый лид» — автоматически.
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {(statusStagesQuery.data ?? [])
@@ -1582,7 +1583,15 @@ export function ChatPage() {
                     </button>
                   </div>
                 )}
-                {(messagesQuery.data ?? []).map((m, idx, arr) => {
+                {(messagesQuery.data ?? [])
+                  .slice()
+                  .sort((a, b) => {
+                    const ta = new Date(a.created_at).getTime();
+                    const tb = new Date(b.created_at).getTime();
+                    if (ta !== tb) return ta - tb;
+                    return a.id - b.id;
+                  })
+                  .map((m, idx, arr) => {
                   const isOut = m.direction === "out";
                   const time = formatChatTime(m.created_at);
                   const meta = isOut ? deliveryMeta(m.delivery_status) : null;

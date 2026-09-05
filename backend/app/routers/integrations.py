@@ -1102,6 +1102,14 @@ async def integration_webhook(
         text, mtype, murl, mmime, mfn = parse_green_message_data(message_data)
         green_msg_id = str(payload.get("idMessage") or "").strip() or None
         ext_chat = chat_id or None
+        msg_created_at = None
+        raw_ts = payload.get("timestamp")
+        try:
+            ts_i = int(raw_ts) if raw_ts is not None else 0
+            if ts_i > 1_000_000_000:
+                msg_created_at = datetime.fromtimestamp(ts_i, tz=UTC)
+        except (TypeError, ValueError, OSError, OverflowError):
+            msg_created_at = None
         lead = await _create_lead_from_integration(
             db,
             integ=integ,
@@ -1137,6 +1145,7 @@ async def integration_webhook(
             media_mime=mmime,
             file_name=mfn,
             provider_message_id=green_msg_id,
+            created_at=msg_created_at,
         )
         if incoming_msg is None and green_msg_id:
             incoming_msg = await _find_incoming_message_by_provider_id(db, company_id, green_msg_id)
@@ -1165,6 +1174,15 @@ async def integration_webhook(
             thread=thread,
             integration=integ,
         )
+        # После автоприветствия — «В обработке», не оставляем «Новый лид» до следующего входа.
+        if lead.id is not None:
+            from app.services.lead_sales_stages import reclassify_lead_by_activity
+
+            await reclassify_lead_by_activity(
+                db,
+                company_id=company_id,
+                lead_id=int(lead.id),
+            )
         logger.info("integration webhook: ok lead_id=%s thread_id=%s", lead.id, thread.id)
         return _lead_read(lead)
 
