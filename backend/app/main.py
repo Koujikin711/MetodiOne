@@ -36,6 +36,7 @@ from app.database_migrate import (
     ensure_pipeline_stage_automation,
     ensure_lead_waiting_callbacks,
     ensure_lead_reactivated_at,
+    ensure_user_accepts_new_leads,
     ensure_lead_archived_from_stage,
     ensure_settle_completed_booking_debts,
     ensure_fix_kurs_direction_and_session_pay,
@@ -148,6 +149,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_pipeline_stage_automation(conn, db_url)
                 await ensure_lead_waiting_callbacks(conn, db_url)
                 await ensure_lead_reactivated_at(conn, db_url)
+                await ensure_user_accepts_new_leads(conn, db_url)
                 await ensure_lead_archived_from_stage(conn, db_url)
                 await ensure_settle_completed_booking_debts(conn, db_url)
                 await ensure_fix_kurs_direction_and_session_pay(conn, db_url)
@@ -205,14 +207,17 @@ async def ensure_canonical_pipeline_stages() -> None:
                 backfill_archived_from_stage,
                 ensure_all_pipelines_chat_stages,
             )
+            from app.services.manager_new_leads_block import apply_blocked_managers_new_leads_policy
 
             n = await ensure_all_pipelines_chat_stages(session)
             backfilled = await backfill_archived_from_stage(session)
+            blocked = await apply_blocked_managers_new_leads_policy(session)
             await session.commit()
             logger.info(
-                "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s",
+                "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s; new_leads_block=%s",
                 n,
                 backfilled,
+                blocked,
             )
     except Exception:
         logger.exception("ensure_canonical_pipeline_stages failed; continuing startup")

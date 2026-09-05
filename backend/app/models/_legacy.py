@@ -137,6 +137,8 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole, name="user_role"), default=UserRole.manager)
     is_active: Mapped[bool] = mapped_column(default=True)
     must_change_password: Mapped[bool] = mapped_column(default=False)
+    # False — не участвует в round-robin / least_loaded / дневной раздаче из Архива.
+    accepts_new_leads: Mapped[bool] = mapped_column(default=True)
 
     leads: Mapped[list["Lead"]] = relationship(
         back_populates="manager",

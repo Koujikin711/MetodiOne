@@ -16,7 +16,7 @@ async def list_pipeline_manager_ids(
     company_id: int,
     exclude_user_id: int | None = None,
 ) -> list[int]:
-    """Активные менеджеры воронки (только role=manager)."""
+    """Активные менеджеры воронки (только role=manager), которые принимают новые лиды."""
     exclude_ids = {int(exclude_user_id)} if exclude_user_id is not None else set()
     res = await db.execute(
         select(UserPipelineAssignment.user_id)
@@ -26,6 +26,7 @@ async def list_pipeline_manager_ids(
             UserPipelineAssignment.company_id == company_id,
             User.role == UserRole.manager,
             User.is_active.is_(True),
+            User.accepts_new_leads.is_(True),
             User.company_id == company_id,
         ),
     )
@@ -38,13 +39,14 @@ async def list_company_manager_ids(
     company_id: int,
     exclude_user_id: int | None = None,
 ) -> list[int]:
-    """Все активные менеджеры компании (fallback, если у воронки никого нет)."""
+    """Все активные менеджеры компании, которые принимают новые лиды."""
     exclude_ids = {int(exclude_user_id)} if exclude_user_id is not None else set()
     res = await db.execute(
         select(User.id).where(
             User.company_id == company_id,
             User.role == UserRole.manager,
             User.is_active.is_(True),
+            User.accepts_new_leads.is_(True),
         ),
     )
     return sorted({int(r[0]) for r in res.all() if int(r[0]) not in exclude_ids})

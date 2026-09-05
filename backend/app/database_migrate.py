@@ -2523,6 +2523,25 @@ async def ensure_lead_reactivated_at(conn: AsyncConnection, database_url: str) -
     )
 
 
+async def ensure_user_accepts_new_leads(conn: AsyncConnection, database_url: str) -> None:
+    """Колонка users.accepts_new_leads — участие в автораздаче новых лидов."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        r = await conn.execute(text("PRAGMA table_info(users)"))
+        cols = {row[1] for row in r.fetchall()}
+        if "accepts_new_leads" not in cols:
+            await conn.execute(
+                text("ALTER TABLE users ADD COLUMN accepts_new_leads INTEGER NOT NULL DEFAULT 1"),
+            )
+    else:
+        await conn.execute(
+            text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS accepts_new_leads BOOLEAN NOT NULL DEFAULT TRUE"
+            ),
+        )
+
+
 async def ensure_lead_archived_from_stage(conn: AsyncConnection, database_url: str) -> None:
     """Колонка leads.archived_from_stage — двойная метка (напр. Удачно + Архив)."""
     low = database_url.lower()
