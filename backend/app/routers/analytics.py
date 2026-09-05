@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
-from app.models import BookingAppointment, ChatMessage, ChatThread, Lead, LeadAuditEvent, Pipeline, PipelineStage, SalesKpiPlan, User, UserRole
+from app.models import BookingAppointment, ChatMessage, ChatThread, Lead, LeadAuditEvent, Pipeline, PipelineStage, SalesKpiPlan, User, UserPipelineAssignment, UserRole
 from app.schemas.analytics import (
     AnalyticsAlertsRead,
     AnalyticsOverviewRead,
@@ -333,19 +333,47 @@ async def analytics_detailed(
         total_q = total_q.where(PipelineStage.pipeline_id == pipeline_id)
     total_leads = int(await db.scalar(total_q) or 0)
 
-    rows = (
+    # Все активные менеджеры (и админы на воронке) — даже с 0 лидов за период.
+    managers_q = (
+        select(User.id, User.full_name, User.email)
+        .where(
+            User.company_id == company_id,
+            User.is_active.is_(True),
+            User.role.in_((UserRole.manager, UserRole.admin)),
+        )
+        .order_by(User.full_name.asc().nulls_last(), User.email.asc().nulls_last())
+    )
+    if pipeline_id is not None:
+        managers_q = (
+            select(User.id, User.full_name, User.email)
+            .join(
+                UserPipelineAssignment,
+                (UserPipelineAssignment.user_id == User.id)
+                & (UserPipelineAssignment.pipeline_id == pipeline_id)
+                & (UserPipelineAssignment.company_id == company_id),
+            )
+            .where(
+                User.company_id == company_id,
+                User.is_active.is_(True),
+                User.role.in_((UserRole.manager, UserRole.admin)),
+            )
+            .order_by(User.full_name.asc().nulls_last(), User.email.asc().nulls_last())
+        )
+    roster_rows = (await db.execute(managers_q)).all()
+    roster: dict[int, tuple[str | None, str | None]] = {
+        int(uid): (full_name, email) for uid, full_name, email in roster_rows if uid is not None
+    }
+
+    stats_rows = (
         await db.execute(
             select(
-                User.id,
-                User.full_name,
-                User.email,
+                Lead.manager_id,
                 func.count(func.distinct(Lead.id)),
                 func.coalesce(func.sum(BookingAppointment.service_amount), 0),
                 func.coalesce(func.sum(BookingAppointment.service_amount - BookingAppointment.paid_amount), 0),
             )
             .select_from(Lead)
             .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
-            .join(User, User.id == Lead.manager_id, isouter=True)
             .join(
                 BookingAppointment,
                 (BookingAppointment.lead_id == Lead.id) & (BookingAppointment.company_id == company_id),
@@ -357,10 +385,16 @@ async def analytics_detailed(
                 Lead.created_at < end,
                 PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
-            .group_by(User.id, User.full_name, User.email)
-            .order_by(User.full_name.asc().nulls_last(), User.email.asc().nulls_last()),
+            .group_by(Lead.manager_id),
         )
     ).all()
+    stats_by_mgr: dict[int | None, tuple[int, Decimal, Decimal]] = {}
+    for mid, leads_count, sold, unpaid in stats_rows:
+        stats_by_mgr[int(mid) if mid is not None else None] = (
+            int(leads_count or 0),
+            Decimal(str(sold or 0)),
+            Decimal(str(unpaid or 0)),
+        )
 
     messaged_map, replied_map = await _manager_message_reply_counts(
         db, company_id=company_id, start=start, end=end, pipeline_id=pipeline_id
@@ -372,25 +406,52 @@ async def analytics_detailed(
         db, company_id=company_id, start=start, end=end, pipeline_id=pipeline_id
     )
 
+    # Имена для менеджеров, у которых есть лиды, но их уже нет в активном ростере.
+    extra_ids = {
+        mid
+        for mid in stats_by_mgr
+        if mid is not None and mid not in roster
+    }
+    if extra_ids:
+        extra_rows = (
+            await db.execute(select(User.id, User.full_name, User.email).where(User.id.in_(extra_ids)))
+        ).all()
+        for uid, full_name, email in extra_rows:
+            roster[int(uid)] = (full_name, email)
+
     by_manager: list[ManagerDetailedAnalyticsItem] = []
     total_sold = Decimal("0")
     total_unpaid = Decimal("0")
-    for uid, full_name, email, leads_count, sold, unpaid in rows:
-        sold_dec = Decimal(str(sold or 0))
-        unpaid_dec = Decimal(str(unpaid or 0))
+
+    ordered_ids: list[int | None] = sorted(
+        roster.keys(),
+        key=lambda uid: (
+            (roster[uid][0] or roster[uid][1] or "").casefold(),
+            uid,
+        ),
+    )
+    if None in stats_by_mgr:
+        ordered_ids.append(None)
+
+    for uid in ordered_ids:
+        leads_n, sold_dec, unpaid_dec = stats_by_mgr.get(uid, (0, Decimal("0"), Decimal("0")))
         total_sold += sold_dec
         total_unpaid += unpaid_dec
-        leads_n = int(leads_count or 0)
         messaged = messaged_map.get(uid, 0)
         replied = replied_map.get(uid, 0)
         reply_pct = _safe_pct(float(replied), float(messaged))
         won_n = won_map.get(uid, 0)
-        win_pct = _safe_pct(float(won_n), float(leads_n))
+        win_pct = _safe_pct(float(won_n), float(leads_n)) if leads_n else 0.0
         outbound = outbound_map.get(uid, 0) if uid is not None else 0
+        if uid is None:
+            name = "Без менеджера"
+        else:
+            full_name, email = roster.get(uid, (None, None))
+            name = full_name or email or f"Менеджер #{uid}"
         by_manager.append(
             ManagerDetailedAnalyticsItem(
                 manager_id=uid,
-                manager_name=(full_name or email or "Без менеджера"),
+                manager_name=name,
                 leads_count=leads_n,
                 sold_amount=sold_dec,
                 unpaid_amount=unpaid_dec,
