@@ -169,8 +169,6 @@ export function AnalyticsPage() {
               <option value="day">За день (18:00→17:00)</option>
               <option value="month">За месяц</option>
               <option value="custom">Свой период</option>
-              <option value="month">За месяц</option>
-              <option value="custom">За период</option>
             </select>
           </label>
           <label className="analytics-toolbar-field">
