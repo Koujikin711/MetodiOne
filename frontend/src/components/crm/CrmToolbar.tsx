@@ -60,14 +60,18 @@ export function CrmToolbar({
         <div className="crm-toolbar__actions">
           {isCompanyAdmin ? (
             <button type="button" onClick={onTogglePipelineSettings} className="crm-pill-btn">
-              {pipelineSettingsOpen ? "Скрыть настройки" : "Настройки воронки"}
+              <span className="hidden sm:inline">
+                {pipelineSettingsOpen ? "Скрыть настройки" : "Настройки воронки"}
+              </span>
+              <span className="sm:hidden">{pipelineSettingsOpen ? "Скрыть" : "Воронка"}</span>
             </button>
           ) : null}
           <button type="button" onClick={onCreateLead} className="crm-pill-btn crm-pill-btn--primary">
             + Лид
           </button>
           <button type="button" onClick={onImport} className="crm-pill-btn">
-            Импорт CSV
+            <span className="hidden sm:inline">Импорт CSV</span>
+            <span className="sm:hidden">CSV</span>
           </button>
         </div>
       </div>

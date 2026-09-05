@@ -2366,6 +2366,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   min-height: 0;
   flex: 1 1 auto;
   overflow: hidden;
+  overflow-x: clip;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   gap: 0.35rem;
   padding-bottom: 0;
   /* Мобилка: явная высота — иначе доска схлопывается и карточек не видно */
@@ -2392,8 +2396,77 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 @media (min-width: 640px) {
   .crm-board-wrap {
     min-height: 0;
-    display: block;
   }
+}
+
+.crm-board-pan-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  z-index: 5;
+  margin-bottom: 0.35rem;
+  padding: 0 0.1rem;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.crm-board-pan-btn {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.55rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+  color: var(--mo-text);
+  font-size: 1.25rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.crm-board-pan-btn:hover:not(:disabled) {
+  border-color: var(--mo-accent);
+  color: var(--mo-accent-hover);
+}
+
+.crm-board-pan-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.crm-board-pan-track {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.55rem;
+  border: 1px dashed var(--mo-border);
+  background: color-mix(in srgb, var(--mo-surface-elevated) 88%, var(--mo-accent-soft));
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.crm-board-pan-track:active {
+  cursor: grabbing;
+}
+
+.crm-board-pan-hint {
+  font-size: 0.7rem;
+  letter-spacing: 0.01em;
+  color: var(--mo-muted, var(--mo-text-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 0.65rem;
+  pointer-events: none;
+  max-width: 100%;
 }
 
 .crm-board-scroller {
@@ -2407,7 +2480,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   touch-action: pan-x pan-y;
-  /* Видимая полоса — иначе «Архив» справа не найти */
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--mo-accent) 55%, transparent) transparent;
   padding-bottom: 0.35rem;
@@ -2415,62 +2487,23 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 @media (min-width: 640px) {
   .crm-board-scroller {
-    position: absolute;
-    inset: 0;
-    bottom: 1.5rem; /* место под подсказку */
-    flex: none;
     min-height: 0;
     height: auto;
   }
 }
 
 .crm-board-scroller::-webkit-scrollbar {
-  width: 8px;
   height: 10px;
-  display: block;
 }
 
 .crm-board-scroller::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--mo-accent) 50%, #64748b);
+  background: color-mix(in srgb, var(--mo-accent) 50%, var(--mo-border));
   border-radius: 999px;
 }
 
 .crm-board-scroller::-webkit-scrollbar-track {
   background: color-mix(in srgb, var(--mo-border) 50%, transparent);
   border-radius: 999px;
-}
-
-.crm-board-scroll-btn {
-  position: absolute;
-  top: 50%;
-  z-index: 20;
-  transform: translateY(-50%);
-  display: flex;
-  height: 2.5rem;
-  width: 2.5rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  border: 1px solid var(--mo-border);
-  background: color-mix(in srgb, var(--mo-surface) 92%, var(--mo-accent));
-  color: var(--mo-text);
-  font-size: 1.5rem;
-  line-height: 1;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
-  cursor: pointer;
-}
-
-.crm-board-scroll-btn:hover {
-  background: var(--mo-surface);
-  border-color: var(--mo-accent);
-}
-
-.crm-board-scroll-btn--left {
-  left: 0.35rem;
-}
-
-.crm-board-scroll-btn--right {
-  right: 0.35rem;
 }
 
 .crm-board-footnote {
@@ -2493,6 +2526,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   @apply w-full min-w-0 shrink-0 space-y-2;
   position: relative;
   z-index: 30;
+  box-sizing: border-box;
+  max-width: 100%;
   padding: 0 0 0.4rem;
   background: transparent;
   box-shadow: none;
@@ -2504,24 +2539,34 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-toolbar__head {
-  @apply flex w-full min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2;
+  @apply flex w-full min-w-0 max-w-full flex-wrap items-center justify-between gap-x-3 gap-y-2;
 }
 
 .crm-toolbar__brand {
   @apply flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-0.5;
+  /* Не выталкивает кнопки за край: бренд уступает место actions */
+  flex-basis: min(100%, 16rem);
 }
 
 .crm-toolbar__subtitle {
-  @apply m-0 text-sm font-medium leading-snug;
+  @apply m-0 min-w-0 truncate text-sm font-medium leading-snug;
   color: var(--mo-text-muted);
 }
 
 .crm-toolbar__actions {
-  @apply flex shrink-0 flex-wrap items-center justify-end gap-1.5;
+  @apply flex max-w-full flex-wrap items-center justify-end gap-1.5;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.crm-toolbar__actions > .crm-pill-btn {
+  flex: 0 1 auto;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .crm-toolbar__bar {
-  @apply flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 px-0 py-0;
+  @apply flex w-full min-w-0 max-w-full flex-wrap items-center gap-x-3 gap-y-2 px-0 py-0;
   border: none;
   background: transparent;
   box-shadow: none;
@@ -2649,9 +2694,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-list-panel {
-  @apply flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain rounded-xl border p-3 sm:p-4;
+  @apply flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-y-auto overscroll-contain rounded-xl border p-3 sm:p-4;
   border-color: var(--mo-border);
   background: var(--mo-surface-elevated);
+  box-sizing: border-box;
 }
 
 .crm-list-table-wrap {
@@ -2686,6 +2732,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border-color: var(--mo-border);
   background-color: var(--mo-surface-elevated);
   color: var(--mo-text);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.crm-kanban-col-header:active {
+  cursor: grabbing;
 }
 
 .crm-stage-gem {

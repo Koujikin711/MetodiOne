@@ -12,7 +12,16 @@ import {
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent,
+} from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -539,6 +548,9 @@ function KanbanColumn({
   onRefresh,
   onLoadMore,
   registerScrollContainer,
+  onBoardPanPointerDown,
+  onBoardPanPointerMove,
+  onBoardPanPointerUp,
 }: {
   stage: PipelineStage;
   leads: Lead[];
@@ -548,6 +560,9 @@ function KanbanColumn({
   onRefresh: () => void;
   onLoadMore: (stageId: number) => void;
   registerScrollContainer: (stageId: number, el: HTMLDivElement | null) => void;
+  onBoardPanPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+  onBoardPanPointerMove: (event: ReactPointerEvent<HTMLElement>) => void;
+  onBoardPanPointerUp: (event: ReactPointerEvent<HTMLElement>) => void;
 }) {
   const INITIAL = 8;
   const LOAD_MORE = 12;
@@ -620,7 +635,14 @@ function KanbanColumn({
       data-stage-id={stage.id}
       className={["crm-kanban-col", isOver ? "is-drop-target" : ""].join(" ")}
     >
-      <div className="crm-kanban-col-header">
+      <div
+        className="crm-kanban-col-header"
+        title="Перетащите здесь влево/вправо, чтобы прокрутить доску"
+        onPointerDown={onBoardPanPointerDown}
+        onPointerMove={onBoardPanPointerMove}
+        onPointerUp={onBoardPanPointerUp}
+        onPointerCancel={onBoardPanPointerUp}
+      >
         <span className="crm-stage-gem shrink-0" style={{ backgroundColor: stage.color }} />
         <h3 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-wide text-[var(--mo-text)]">
           {stageLabel}
@@ -1237,6 +1259,71 @@ export function CrmPage() {
   const stageScrollRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const columnLoadingRef = useRef<Set<number>>(new Set());
   const [columnLoadingIds, setColumnLoadingIds] = useState<number[]>([]);
+  const boardPanDragRef = useRef<{ pointerId: number; startX: number; startScroll: number } | null>(
+    null,
+  );
+  const [boardCanPanLeft, setBoardCanPanLeft] = useState(false);
+  const [boardCanPanRight, setBoardCanPanRight] = useState(false);
+
+  const syncBoardPanEdges = useCallback(() => {
+    const el = boardContainerRef.current;
+    if (!el) {
+      setBoardCanPanLeft(false);
+      setBoardCanPanRight(false);
+      return;
+    }
+    const max = Math.max(0, el.scrollWidth - el.clientWidth);
+    setBoardCanPanLeft(el.scrollLeft > 2);
+    setBoardCanPanRight(el.scrollLeft < max - 2);
+  }, []);
+
+  const scrollBoardBy = useCallback(
+    (delta: number) => {
+      const el = boardContainerRef.current;
+      if (!el) return;
+      el.scrollBy({ left: delta, behavior: "smooth" });
+      window.setTimeout(syncBoardPanEdges, 280);
+    },
+    [syncBoardPanEdges],
+  );
+
+  const onBoardPanPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      if (event.button !== 0) return;
+      const el = boardContainerRef.current;
+      if (!el) return;
+      boardPanDragRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startScroll: el.scrollLeft,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    },
+    [],
+  );
+
+  const onBoardPanPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      const drag = boardPanDragRef.current;
+      const el = boardContainerRef.current;
+      if (!drag || !el || drag.pointerId !== event.pointerId) return;
+      el.scrollLeft = drag.startScroll - (event.clientX - drag.startX);
+      syncBoardPanEdges();
+    },
+    [syncBoardPanEdges],
+  );
+
+  const onBoardPanPointerUp = useCallback((event: ReactPointerEvent<HTMLElement>) => {
+    const drag = boardPanDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    boardPanDragRef.current = null;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* already released */
+    }
+  }, []);
 
   const leadsQuery = useQuery({
     queryKey: ["leads", pipelineId, "kanban", kanbanInitialPerStage],
@@ -1290,6 +1377,29 @@ export function CrmPage() {
     if (!stagesQuery.data) return [];
     return [...stagesQuery.data].sort((a, b) => a.order - b.order || a.id - b.id);
   }, [stagesQuery.data]);
+
+  useEffect(() => {
+    const el = boardContainerRef.current;
+    if (!el || crmView !== "board") return;
+    const onScroll = () => syncBoardPanEdges();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onScroll) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", onScroll);
+    syncBoardPanEdges();
+    const raf1 = requestAnimationFrame(() => {
+      syncBoardPanEdges();
+      requestAnimationFrame(syncBoardPanEdges);
+    });
+    const t = window.setTimeout(syncBoardPanEdges, 250);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      ro?.disconnect();
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(raf1);
+      window.clearTimeout(t);
+    };
+  }, [crmView, sortedStages.length, syncBoardPanEdges]);
 
   function moveStage(stageId: number, direction: -1 | 1) {
     if (!pipelineId) return;
@@ -1487,103 +1597,67 @@ export function CrmPage() {
     }
   }, []);
 
-  const [boardCanScrollLeft, setBoardCanScrollLeft] = useState(false);
-  const [boardCanScrollRight, setBoardCanScrollRight] = useState(false);
+  const onBoardWheelCapture = useCallback(
+    (event: WheelEvent<HTMLDivElement>) => {
+      if (event.deltaY === 0 && event.deltaX === 0) return;
+      const boardEl = boardContainerRef.current;
+      if (!boardEl) return;
 
-  const refreshBoardScrollHints = useCallback(() => {
-    const boardEl = boardContainerRef.current;
-    if (!boardEl) {
-      setBoardCanScrollLeft(false);
-      setBoardCanScrollRight(false);
-      return;
-    }
-    const maxScroll = boardEl.scrollWidth - boardEl.clientWidth;
-    const left = boardEl.scrollLeft;
-    setBoardCanScrollLeft(left > 2);
-    setBoardCanScrollRight(maxScroll - left > 2);
-  }, []);
+      const pointEl = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+      const overHeader = Boolean(pointEl?.closest?.(".crm-kanban-col-header"));
+      const overCard = Boolean(pointEl?.closest?.("[data-kanban-card='true'], .crm-lead-card"));
+      const absX = Math.abs(event.deltaX);
+      const absY = Math.abs(event.deltaY);
+      const wantBoardPan =
+        event.shiftKey ||
+        overHeader ||
+        absX > absY + 1 ||
+        (!overCard && absX > absY) ||
+        (absX > absY * 1.35 && absX > 2);
 
-  useEffect(() => {
-    const boardEl = boardContainerRef.current;
-    if (!boardEl || crmView !== "board") return;
-    const onScroll = () => refreshBoardScrollHints();
-    boardEl.addEventListener("scroll", onScroll, { passive: true });
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onScroll) : null;
-    ro?.observe(boardEl);
-    window.addEventListener("resize", onScroll);
-    // После раскладки колонок (Архив справа) кнопки › должны появиться сразу.
-    refreshBoardScrollHints();
-    const raf1 = requestAnimationFrame(() => {
-      refreshBoardScrollHints();
-      requestAnimationFrame(refreshBoardScrollHints);
-    });
-    const t = window.setTimeout(refreshBoardScrollHints, 250);
-    return () => {
-      boardEl.removeEventListener("scroll", onScroll);
-      ro?.disconnect();
-      window.removeEventListener("resize", onScroll);
-      cancelAnimationFrame(raf1);
-      window.clearTimeout(t);
-    };
-  }, [crmView, sortedStages.length, refreshBoardScrollHints]);
-
-  const scrollBoardBy = useCallback((dx: number) => {
-    const boardEl = boardContainerRef.current;
-    if (!boardEl) return;
-    boardEl.scrollBy({ left: dx, behavior: "smooth" });
-  }, []);
-
-  const onBoardWheelCapture = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    if (event.deltaY === 0 && event.deltaX === 0) return;
-    const boardEl = boardContainerRef.current;
-    if (!boardEl) return;
-
-    const absX = Math.abs(event.deltaX);
-    const absY = Math.abs(event.deltaY);
-    // Shift+колесо или горизонтальный жест тачпада — листаем доску вправо/влево (до Архива).
-    const wantHorizontal = event.shiftKey || absX > absY + 1;
-    if (wantHorizontal) {
-      const dx = event.shiftKey && absX <= absY ? event.deltaY : event.deltaX || event.deltaY;
-      if (dx !== 0) {
-        boardEl.scrollLeft += dx;
-        event.preventDefault();
-        event.stopPropagation();
+      if (wantBoardPan) {
+        const dx = event.shiftKey && absX <= absY ? event.deltaY : event.deltaX || event.deltaY;
+        if (dx !== 0) {
+          boardEl.scrollLeft += dx;
+          syncBoardPanEdges();
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
       }
-      return;
-    }
 
-    const pointEl = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
-    let scroller = pointEl?.closest?.("[data-kanban-scroll='true']") as HTMLDivElement | null;
-    if ((!scroller || !boardEl.contains(scroller)) && pointEl) {
-      const columnEl = pointEl.closest("[data-kanban-column='true']") as HTMLElement | null;
-      const stageIdRaw = columnEl?.getAttribute("data-stage-id");
-      const stageId = stageIdRaw ? Number(stageIdRaw) : Number.NaN;
-      if (!Number.isNaN(stageId)) {
-        scroller = stageScrollRefs.current.get(stageId) ?? null;
-      }
-    }
-    if (!scroller || !boardEl.contains(scroller)) {
-      // Если курсор в зазоре между колонками — берём ближайшую колонку по X.
-      let nearest: HTMLDivElement | null = null;
-      let nearestDx = Number.POSITIVE_INFINITY;
-      for (const el of stageScrollRefs.current.values()) {
-        const rect = el.getBoundingClientRect();
-        if (event.clientY < rect.top || event.clientY > rect.bottom) continue;
-        const cx = rect.left + rect.width / 2;
-        const dx = Math.abs(event.clientX - cx);
-        if (dx < nearestDx) {
-          nearestDx = dx;
-          nearest = el;
+      let scroller = pointEl?.closest?.("[data-kanban-scroll='true']") as HTMLDivElement | null;
+      if ((!scroller || !boardEl.contains(scroller)) && pointEl) {
+        const columnEl = pointEl.closest("[data-kanban-column='true']") as HTMLElement | null;
+        const stageIdRaw = columnEl?.getAttribute("data-stage-id");
+        const stageId = stageIdRaw ? Number(stageIdRaw) : Number.NaN;
+        if (!Number.isNaN(stageId)) {
+          scroller = stageScrollRefs.current.get(stageId) ?? null;
         }
       }
-      scroller = nearest;
-    }
-    if (!scroller) return;
+      if (!scroller || !boardEl.contains(scroller)) {
+        let nearest: HTMLDivElement | null = null;
+        let nearestDx = Number.POSITIVE_INFINITY;
+        for (const el of stageScrollRefs.current.values()) {
+          const rect = el.getBoundingClientRect();
+          if (event.clientY < rect.top || event.clientY > rect.bottom) continue;
+          const cx = rect.left + rect.width / 2;
+          const dx = Math.abs(event.clientX - cx);
+          if (dx < nearestDx) {
+            nearestDx = dx;
+            nearest = el;
+          }
+        }
+        scroller = nearest;
+      }
+      if (!scroller) return;
 
-    scroller.scrollTop += event.deltaY;
-    event.preventDefault();
-    event.stopPropagation();
-  }, []);
+      scroller.scrollTop += event.deltaY;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [syncBoardPanEdges],
+  );
 
   const activeLeadStageColor = useMemo(() => {
     if (!activeLead) return undefined;
@@ -2565,17 +2639,17 @@ export function CrmPage() {
 
       {crmView === "list" && pipelineId != null && (
         <section className="crm-list-panel">
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="min-w-[200px] flex-1 text-sm lux-caption">
+          <div className="flex min-w-0 max-w-full flex-wrap items-end gap-3">
+            <label className="min-w-0 flex-1 basis-[12rem] text-sm lux-caption">
               Поиск
               <input
                 value={listSearchInput}
                 onChange={(e) => setListSearchInput(e.target.value)}
                 placeholder="Имя, телефон, email…"
-                className={`${theme.input} mt-1`}
+                className={`${theme.input} mt-1 w-full min-w-0`}
               />
             </label>
-            <label className="text-sm lux-caption">
+            <label className="min-w-0 shrink-0 text-sm lux-caption">
               Стадия
               <select
                 value={listStatusFilter === "" ? "" : String(listStatusFilter)}
@@ -2583,7 +2657,7 @@ export function CrmPage() {
                   const v = e.target.value;
                   setListStatusFilter(v === "" ? "" : Number(v));
                 }}
-                className={`${theme.input} mt-1 min-w-[180px]`}
+                className={`${theme.input} mt-1 w-full min-w-[10rem] max-w-full sm:min-w-[180px]`}
               >
                 <option value="">Все стадии</option>
                 {sortedStages.map((s) => (
@@ -2699,32 +2773,42 @@ export function CrmPage() {
             onDragCancel={onDragCancel}
           >
             <div className="crm-board-wrap">
-              {boardCanScrollLeft ? (
+              <div className="crm-board-pan-bar" aria-label="Прокрутка колонок воронки">
                 <button
                   type="button"
-                  className="crm-board-scroll-btn crm-board-scroll-btn--left"
-                  aria-label="Прокрутить доску влево"
+                  className="crm-board-pan-btn"
+                  disabled={!boardCanPanLeft}
+                  aria-label="Прокрутить влево"
                   onClick={() => scrollBoardBy(-320)}
                 >
                   ‹
                 </button>
-              ) : null}
-              {boardCanScrollRight ? (
+                <div
+                  className="crm-board-pan-track"
+                  title="Перетащите влево или вправо, чтобы увидеть все колонки (в т.ч. Архив)"
+                  onPointerDown={onBoardPanPointerDown}
+                  onPointerMove={onBoardPanPointerMove}
+                  onPointerUp={onBoardPanPointerUp}
+                  onPointerCancel={onBoardPanPointerUp}
+                >
+                  <span className="crm-board-pan-hint">
+                    ← перетащите, чтобы увидеть Архив →
+                  </span>
+                </div>
                 <button
                   type="button"
-                  className="crm-board-scroll-btn crm-board-scroll-btn--right"
-                  aria-label="Прокрутить доску вправо к Архиву"
+                  className="crm-board-pan-btn"
+                  disabled={!boardCanPanRight}
+                  aria-label="Прокрутить вправо"
                   onClick={() => scrollBoardBy(320)}
                 >
                   ›
                 </button>
-              ) : null}
+              </div>
               <div
                 ref={boardContainerRef}
                 onWheelCapture={onBoardWheelCapture}
                 className="crm-board-scroller"
-                data-can-scroll-left={boardCanScrollLeft ? "1" : "0"}
-                data-can-scroll-right={boardCanScrollRight ? "1" : "0"}
               >
                 {sortedStages.map((stage) => (
                   <KanbanColumn
@@ -2737,6 +2821,9 @@ export function CrmPage() {
                     onRefresh={refreshAll}
                     onLoadMore={loadMoreForStage}
                     registerScrollContainer={registerScrollContainer}
+                    onBoardPanPointerDown={onBoardPanPointerDown}
+                    onBoardPanPointerMove={onBoardPanPointerMove}
+                    onBoardPanPointerUp={onBoardPanPointerUp}
                   />
                 ))}
               </div>
@@ -2748,7 +2835,7 @@ export function CrmPage() {
                         : ""
                     }). `
                   : null}
-                Листайте доску вправо до «Архива» (кнопки ‹ ›, shift+колёсико или полоса снизу). Карточки
+                Листайте доску вправо до «Архива» (полоса сверху, ‹ ›, shift+колёсико). Карточки
                 колонки — вертикальный скролл; поиск по складу — «Список».
               </p>
             </div>
