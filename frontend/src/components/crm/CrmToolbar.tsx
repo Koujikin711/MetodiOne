@@ -67,7 +67,7 @@ export function CrmToolbar({
             </button>
           ) : null}
           <button type="button" onClick={onCreateLead} className="crm-pill-btn crm-pill-btn--primary">
-            + Лид
+            Новый лид
           </button>
           <button type="button" onClick={onImport} className="crm-pill-btn">
             <span className="hidden sm:inline">Импорт CSV</span>

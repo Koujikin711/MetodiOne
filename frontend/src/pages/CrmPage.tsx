@@ -23,7 +23,7 @@ import {
   type WheelEvent,
 } from "react";
 import toast from "react-hot-toast";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { CrmToolbar } from "@/components/crm/CrmToolbar";
 import { PatientPhone } from "@/components/PatientPhone";
@@ -729,6 +729,7 @@ export function CrmPage() {
     queryFn: () => apiFetch<LeadSource[]>("/api/sources"),
   });
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
   const [leadName, setLeadName] = useState("");
   const [leadPhone, setLeadPhone] = useState("");
@@ -736,6 +737,16 @@ export function CrmPage() {
   const [leadSource, setLeadSource] = useState("");
   const [leadPipelineId, setLeadPipelineId] = useState<number | null>(null);
   const [leadStageId, setLeadStageId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const open = searchParams.get("new") === "1" || searchParams.get("create") === "1";
+    if (!open) return;
+    setCreateLeadOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("new");
+    next.delete("create");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (leadPipelineId != null) return;
