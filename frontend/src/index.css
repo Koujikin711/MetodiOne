@@ -4926,7 +4926,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .analytics-toolbar-field > span {
   @apply mb-1 block text-[11px] font-semibold uppercase tracking-wide;
-  color: #334155;
+  color: var(--mo-text-muted);
 }
 
 .analytics-toolbar-field.is-needed .mo-input {
@@ -4953,7 +4953,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .analytics-kpi .mo-kpi-label {
-  color: #334155;
+  color: var(--mo-text-muted);
 }
 
 .analytics-kpi-hint {
@@ -5060,8 +5060,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .analytics-table thead th {
   @apply border-b pb-2 text-xs font-semibold uppercase tracking-wide;
-  border-color: #e8eaee;
-  color: #334155;
+  border-color: var(--mo-border);
+  color: var(--mo-text-muted);
+}
+
+.analytics-table tbody td {
+  color: var(--mo-text);
 }
 
 .analytics-table tbody tr {
@@ -5091,6 +5095,16 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   background: var(--mo-accent-soft);
   color: var(--mo-text);
   box-shadow: none;
+}
+
+:root[data-theme="dark"] .analytics-toolbar-field > span,
+:root[data-theme="dark"] .analytics-kpi .mo-kpi-label,
+:root[data-theme="dark"] .analytics-table thead th {
+  color: #c5d0e2;
+}
+
+:root[data-theme="dark"] .analytics-table thead th {
+  border-color: color-mix(in srgb, var(--mo-border) 85%, #94a3b8);
 }
 
 :root[data-theme="dark"] .analytics-error {
