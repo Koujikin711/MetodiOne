@@ -414,6 +414,23 @@ async def _lead_to_read_with_manager(db: AsyncSession, lead: Lead, user: User) -
     return await _apply_phone_visibility_to_read(db, user, base)
 
 
+def _intake_should_redistribute_manual_create(
+    *,
+    role: UserRole,
+    intake_manager_user_id: int | None,
+    current_user_id: int,
+    lead_assignment_mode: str | None,
+) -> bool:
+    """Менеджер приёма создаёт лид → при round_robin/least_loaded уходит другим менеджерам."""
+    mode = (lead_assignment_mode or "none").strip().lower()
+    return (
+        role == UserRole.manager
+        and intake_manager_user_id is not None
+        and int(intake_manager_user_id) == int(current_user_id)
+        and mode in ("round_robin", "least_loaded")
+    )
+
+
 async def _manager_id_for_manual_lead_create(
     db: AsyncSession,
     *,
@@ -434,15 +451,26 @@ async def _manager_id_for_manual_lead_create(
     if pipe is None or pipe.company_id != company_id:
         return current_user.id
 
-    mode = (pipe.lead_assignment_mode or "none").strip().lower()
-    intake_id = pipe.intake_manager_user_id
-    if (
-        current_user.role == UserRole.manager
-        and intake_id is not None
-        and int(intake_id) == int(current_user.id)
-        and mode in ("round_robin", "least_loaded")
+    if _intake_should_redistribute_manual_create(
+        role=current_user.role,
+        intake_manager_user_id=pipe.intake_manager_user_id,
+        current_user_id=int(current_user.id),
+        lead_assignment_mode=pipe.lead_assignment_mode,
     ):
-        mid = await assign_manager_for_new_lead(db, pipeline_id=int(pipeline_id))
+        # Явно исключаем менеджера приёма из пула (на случай гонки настроек).
+        mid = await assign_manager_for_new_lead(
+            db,
+            pipeline_id=int(pipeline_id),
+            exclude_user_id=int(current_user.id),
+        )
+        if mid is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Нет менеджеров для автораспределения. Включите «принимает новые лиды» "
+                    "у коллег по этой воронке (менеджер приёма в очередь не входит)."
+                ),
+            )
         return mid
 
     return current_user.id
@@ -1014,14 +1042,26 @@ async def import_leads_csv(
                 mode = (pipe.lead_assignment_mode or "none").strip().lower()
                 intake_id = pipe.intake_manager_user_id
                 if import_as_self:
-                    if (
-                        intake_id is not None
-                        and int(intake_id) == int(current_user.id)
-                        and mode in ("round_robin", "least_loaded")
+                    if _intake_should_redistribute_manual_create(
+                        role=current_user.role,
+                        intake_manager_user_id=intake_id,
+                        current_user_id=int(current_user.id),
+                        lead_assignment_mode=mode,
                     ):
-                        return await assign_manager_for_new_lead(
-                            db, pipeline_id=int(stage.pipeline_id)
+                        mid = await assign_manager_for_new_lead(
+                            db,
+                            pipeline_id=int(stage.pipeline_id),
+                            exclude_user_id=int(current_user.id),
                         )
+                        if mid is None:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=(
+                                    "Нет менеджеров для автораспределения импорта. "
+                                    "Включите «принимает новые лиды» у коллег по воронке."
+                                ),
+                            )
+                        return mid
                     return current_user.id
                 # owner/admin: только автораздача на менеджеров, иначе без ответственного
                 if mode in ("round_robin", "least_loaded"):
