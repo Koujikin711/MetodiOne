@@ -232,6 +232,20 @@ def test_classify_lead_stage_name():
         )
         == "В обработке"
     )
+    # Архив после «Удачно» + входящий без исходящего → «В обработке», не «Новый лид».
+    assert (
+        classify_lead_stage_name(
+            current_name="Архив",
+            appointment_statuses=set(),
+            has_outbound=False,
+            last_direction="in",
+            has_any_chat=True,
+            last_message_at=fresh,
+            archived_from_stage="Удачно",
+            now=now,
+        )
+        == "В обработке"
+    )
     # Архив + автоответ на свежий вход (последнее out) → «В обработке».
     assert (
         classify_lead_stage_name(

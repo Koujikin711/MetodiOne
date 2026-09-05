@@ -14,7 +14,7 @@ from app.services.lead_assignment import list_company_manager_ids
 
 logger = logging.getLogger(__name__)
 
-AUDIT_ACTION = "manager_blocked_from_new_leads_v1"
+AUDIT_ACTION = "manager_blocked_from_new_leads_v2"
 
 
 def _norm_name(value: str | None) -> str:

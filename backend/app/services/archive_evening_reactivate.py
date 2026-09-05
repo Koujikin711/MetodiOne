@@ -180,6 +180,11 @@ async def _pick_archive_pool(
             first_contact.is_not(None),
             first_contact <= cutoff,
             or_(Lead.reactivated_at.is_(None), Lead.reactivated_at < cooldown),
+            # Не раздаём закрытые сделки/отказы снова как «Новый лид».
+            or_(
+                Lead.archived_from_stage.is_(None),
+                ~Lead.archived_from_stage.in_(("Удачно", "Отказ")),
+            ),
         )
         .order_by(first_contact.asc(), Lead.id.asc())
         .limit(need)

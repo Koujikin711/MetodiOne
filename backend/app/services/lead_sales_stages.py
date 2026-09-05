@@ -53,6 +53,8 @@ AUTO_ONLY_STAGE_NAMES: frozenset[str] = frozenset(
     {"Новый лид", "Архив"},
 )
 ARCHIVE_STAGE_NAME = "Архив"
+# Закрытые исходы: из Архива не возвращаем в «Новый лид» (ни раздачей, ни входящим).
+CLOSED_OUTCOME_STAGE_NAMES: frozenset[str] = frozenset({"Удачно", "Отказ"})
 
 # Склад (Bitrix / старый WhatsApp / GREEN API): без свежей активности → Архив.
 # Не держим десятки тысяч «Новый лид» только из‑за старого входящего в истории.
@@ -168,6 +170,7 @@ def classify_lead_stage_name(
     lead_created_at: datetime | None = None,
     reactivated_at: datetime | None = None,
     appointment_activity_at: datetime | None = None,
+    archived_from_stage: str | None = None,
     now: datetime | None = None,
 ) -> str:
     """
@@ -178,11 +181,13 @@ def classify_lead_stage_name(
     Активность: чат + дата записи/явка + created_at.
     После дневной реактивации из Архива — grace по reactivated_at.
     «В ожидании» — только вручную; исходящий/ответ клиента → «В обработке».
+    Бывшие «Удачно»/«Отказ» из Архива при новом сообщении → «В обработке», не «Новый лид».
     """
     cur = (current_name or "").strip()
     statuses = {str(s).strip().lower() for s in appointment_statuses}
     clock = _as_utc(now) or datetime.now(UTC)
     activity = _latest_activity(last_message_at, appointment_activity_at, lead_created_at)
+    closed_from = (archived_from_stage or "").strip() in CLOSED_OUTCOME_STAGE_NAMES
 
     # Активная запись держит «Удачно».
     if "booked" in statuses:
@@ -207,7 +212,6 @@ def classify_lead_stage_name(
     if cur == ARCHIVE_STAGE_NAME:
         if has_outbound:
             # Ответ клиента / менеджера после склада — снова в работу.
-            # «В ожидании» только вручную (не авто из чата).
             if activity is not None and _is_recent(activity, now=clock):
                 return "В обработке"
             if (last_direction or "").strip().lower() == "in":
@@ -216,6 +220,9 @@ def classify_lead_stage_name(
             return ARCHIVE_STAGE_NAME
         if has_any_chat and (last_direction or "").strip().lower() == "in":
             if activity is None or _is_recent(activity, now=clock):
+                # Уже закрывали сделку/отказ — не кидаем снова в «Новый лид».
+                if closed_from:
+                    return "В обработке"
                 return "Новый лид"
         return ARCHIVE_STAGE_NAME
 
@@ -459,7 +466,14 @@ async def redistribute_pipeline_leads_by_activity(
     while True:
         leads = (
             await db.execute(
-                select(Lead.id, Lead.status_id, Lead.source, Lead.created_at, Lead.reactivated_at)
+                select(
+                    Lead.id,
+                    Lead.status_id,
+                    Lead.source,
+                    Lead.created_at,
+                    Lead.reactivated_at,
+                    Lead.archived_from_stage,
+                )
                 .where(
                     Lead.company_id == company_id,
                     Lead.status_id.in_(stage_id_set),
@@ -478,6 +492,7 @@ async def redistribute_pipeline_leads_by_activity(
         id_to_source = {int(r[0]): (r[2] if r[2] is None else str(r[2])) for r in leads}
         id_to_created = {int(r[0]): r[3] for r in leads}
         id_to_reactivated = {int(r[0]): r[4] for r in leads}
+        id_to_archived_from = {int(r[0]): (r[5] if r[5] is None else str(r[5])) for r in leads}
 
         appt_rows = (
             await db.execute(
@@ -591,6 +606,7 @@ async def redistribute_pipeline_leads_by_activity(
                 lead_created_at=id_to_created.get(lid),
                 reactivated_at=id_to_reactivated.get(lid),
                 appointment_activity_at=appt_activity.get(lid),
+                archived_from_stage=id_to_archived_from.get(lid),
                 now=clock,
             )
             target_sid = ids.get(target_name)
@@ -734,6 +750,7 @@ async def reclassify_lead_by_activity(
         lead_created_at=lead.created_at,
         reactivated_at=lead.reactivated_at,
         appointment_activity_at=appt_activity,
+        archived_from_stage=getattr(lead, "archived_from_stage", None),
         now=clock,
     )
     target_sid = ids.get(target_name)
