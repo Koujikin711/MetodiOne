@@ -1,11 +1,13 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import BookingAppointment, ChatMessage, ChatThread, Lead, LeadAuditEvent, Pipeline, PipelineStage, SalesKpiPlan, User, UserPipelineAssignment, UserRole
@@ -28,6 +30,13 @@ from app.schemas.analytics import (
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 WON_STAGE_NAMES = frozenset({"Удачно"})
+
+
+def _biz_tz() -> ZoneInfo:
+    try:
+        return ZoneInfo(settings.booking_timezone or "Asia/Dushanbe")
+    except Exception:
+        return ZoneInfo("Asia/Dushanbe")
 
 
 def _sla_score(minutes: float | None) -> float:
@@ -60,17 +69,20 @@ def _activity_score(*, reply_pct: float, outbound: int, messaged: int) -> float:
 
 
 def _period_bounds(period: str, date_from: str | None, date_to: str | None) -> tuple[datetime, datetime]:
-    now = datetime.now(UTC)
+    """Границы периода в UTC, но календарный день/месяц — по timezone компании (Душанбе)."""
+    tz = _biz_tz()
+    now_local = datetime.now(tz)
     if period == "day":
-        start = datetime(now.year, now.month, now.day, tzinfo=UTC)
-        return start, start + timedelta(days=1)
+        start_local = datetime(now_local.year, now_local.month, now_local.day, tzinfo=tz)
+        end_local = start_local + timedelta(days=1)
+        return start_local.astimezone(UTC), end_local.astimezone(UTC)
     if period == "month":
-        start = datetime(now.year, now.month, 1, tzinfo=UTC)
-        if now.month == 12:
-            end = datetime(now.year + 1, 1, 1, tzinfo=UTC)
+        start_local = datetime(now_local.year, now_local.month, 1, tzinfo=tz)
+        if now_local.month == 12:
+            end_local = datetime(now_local.year + 1, 1, 1, tzinfo=tz)
         else:
-            end = datetime(now.year, now.month + 1, 1, tzinfo=UTC)
-        return start, end
+            end_local = datetime(now_local.year, now_local.month + 1, 1, tzinfo=tz)
+        return start_local.astimezone(UTC), end_local.astimezone(UTC)
     if period == "custom":
         if not date_from or not date_to:
             raise HTTPException(
@@ -82,12 +94,24 @@ def _period_bounds(period: str, date_from: str | None, date_to: str | None) -> t
             d_to = datetime.strptime(date_to, "%Y-%m-%d")
         except ValueError:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный формат дат")
-        start = d_from.replace(tzinfo=UTC)
-        end = (d_to + timedelta(days=1)).replace(tzinfo=UTC)
-        if end <= start:
+        start_local = d_from.replace(tzinfo=tz)
+        end_local = (d_to + timedelta(days=1)).replace(tzinfo=tz)
+        if end_local <= start_local:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Период задан неверно")
-        return start, end
+        return start_local.astimezone(UTC), end_local.astimezone(UTC)
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="period: day | month | custom")
+
+
+def _lead_in_period(start: datetime, end: datetime):
+    """Лид «за период»: создан или реактивирован (раздача / возврат из Архива)."""
+    return or_(
+        and_(Lead.created_at >= start, Lead.created_at < end),
+        and_(
+            Lead.reactivated_at.is_not(None),
+            Lead.reactivated_at >= start,
+            Lead.reactivated_at < end,
+        ),
+    )
 
 
 def _assert_owner(current_user: CurrentUser) -> None:
@@ -112,8 +136,7 @@ async def _manager_message_reply_counts(
     """По менеджерам: сколько лидов написали (in) и скольким менеджер ответил (out) за период."""
     lead_filters = [
         Lead.company_id == company_id,
-        Lead.created_at >= start,
-        Lead.created_at < end,
+        _lead_in_period(start, end),
     ]
     if pipeline_id is not None:
         lead_filters.append(PipelineStage.pipeline_id == pipeline_id)
@@ -175,8 +198,7 @@ async def _won_counts_by_manager(
         .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
         .where(
             Lead.company_id == company_id,
-            Lead.created_at >= start,
-            Lead.created_at < end,
+            _lead_in_period(start, end),
             PipelineStage.name.in_(WON_STAGE_NAMES),
         )
         .group_by(Lead.manager_id)
@@ -247,8 +269,7 @@ async def analytics_full(
 
     total_q = select(func.count(Lead.id)).select_from(Lead).join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True).where(
         Lead.company_id == company_id,
-        Lead.created_at >= start,
-        Lead.created_at < end,
+        _lead_in_period(start, end),
     )
     if pipeline_id is not None:
         total_q = total_q.where(PipelineStage.pipeline_id == pipeline_id)
@@ -275,8 +296,7 @@ async def analytics_full(
             )
             .where(
                 Lead.company_id == company_id,
-                Lead.created_at >= start,
-                Lead.created_at < end,
+                _lead_in_period(start, end),
                 PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
             .group_by(Pipeline.id, Pipeline.name)
@@ -326,8 +346,7 @@ async def analytics_detailed(
 
     total_q = select(func.count(Lead.id)).select_from(Lead).join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True).where(
         Lead.company_id == company_id,
-        Lead.created_at >= start,
-        Lead.created_at < end,
+        _lead_in_period(start, end),
     )
     if pipeline_id is not None:
         total_q = total_q.where(PipelineStage.pipeline_id == pipeline_id)
@@ -381,8 +400,7 @@ async def analytics_detailed(
             )
             .where(
                 Lead.company_id == company_id,
-                Lead.created_at >= start,
-                Lead.created_at < end,
+                _lead_in_period(start, end),
                 PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
             .group_by(Lead.manager_id),
@@ -499,8 +517,7 @@ async def analytics_overview(
         .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
         .where(
             Lead.company_id == company_id,
-            Lead.created_at >= start,
-            Lead.created_at < end,
+            _lead_in_period(start, end),
         )
     )
     if pipeline_id is not None:
@@ -548,8 +565,7 @@ async def analytics_overview(
             .where(
                 BookingAppointment.company_id == company_id,
                 Lead.company_id == company_id,
-                Lead.created_at >= start,
-                Lead.created_at < end,
+                _lead_in_period(start, end),
                 PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
         )
@@ -580,8 +596,7 @@ async def analytics_overview(
                 LeadAuditEvent.company_id == company_id,
                 LeadAuditEvent.action == "status_changed",
                 Lead.company_id == company_id,
-                Lead.created_at >= start,
-                Lead.created_at < end,
+                _lead_in_period(start, end),
                 PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
             .order_by(LeadAuditEvent.created_at.asc())
@@ -684,8 +699,7 @@ async def analytics_overview(
             .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
             .where(
                 Lead.company_id == company_id,
-                Lead.created_at >= start,
-                Lead.created_at < end,
+                _lead_in_period(start, end),
                 PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
             .group_by(Lead.manager_id)
@@ -718,8 +732,7 @@ async def analytics_overview(
             .where(
                 LeadAuditEvent.company_id == company_id,
                 Lead.company_id == company_id,
-                Lead.created_at >= start,
-                Lead.created_at < end,
+                _lead_in_period(start, end),
                 PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
             )
             .order_by(LeadAuditEvent.created_at.asc())
