@@ -56,16 +56,24 @@ export function MyLeadsPage() {
 
   return (
     <div className="box-border w-full max-w-none overflow-x-hidden pb-8 sm:mx-auto sm:max-w-[720px] sm:space-y-4">
-      <header className="flex items-baseline justify-between gap-2 px-3 pt-1 sm:px-0">
-        <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight text-[var(--mo-text)] sm:text-3xl">
-          Мои лиды
-        </h1>
-        {!leadsQuery.isLoading ? (
-          <p className="shrink-0 text-[11px] tabular-nums mo-muted sm:text-sm">
-            {leads.length}
-            {q.trim() ? ` / ${(leadsQuery.data ?? []).length}` : ""}
-          </p>
-        ) : null}
+      <header className="flex flex-wrap items-center justify-between gap-2 px-3 pt-1 sm:px-0">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight text-[var(--mo-text)] sm:text-3xl">
+            Мои лиды
+          </h1>
+          {!leadsQuery.isLoading ? (
+            <p className="shrink-0 text-[11px] tabular-nums mo-muted sm:text-sm">
+              {leads.length}
+              {q.trim() ? ` / ${(leadsQuery.data ?? []).length}` : ""}
+            </p>
+          ) : null}
+        </div>
+        <Link
+          to="/crm?new=1"
+          className="mo-btn-primary shrink-0 rounded-xl px-3 py-1.5 text-sm font-semibold"
+        >
+          Новый лид
+        </Link>
       </header>
 
       <label className="mt-2 block px-3 sm:mt-0 sm:px-0">
@@ -87,9 +95,14 @@ export function MyLeadsPage() {
       )}
 
       {!leadsQuery.isLoading && leads.length === 0 ? (
-        <p className="mx-3 mt-3 rounded-2xl border border-dashed border-[var(--mo-border)] px-4 py-8 text-center text-sm mo-muted sm:mx-0">
-          {q.trim() ? "Никого не нашли" : "Пока нет лидов"}
-        </p>
+        <div className="mx-3 mt-3 space-y-3 rounded-2xl border border-dashed border-[var(--mo-border)] px-4 py-8 text-center sm:mx-0">
+          <p className="text-sm mo-muted">{q.trim() ? "Никого не нашли" : "Пока нет лидов"}</p>
+          {!q.trim() ? (
+            <Link to="/crm?new=1" className="mo-btn-primary inline-flex rounded-xl px-4 py-2 text-sm font-semibold">
+              Создать новый лид
+            </Link>
+          ) : null}
+        </div>
       ) : null}
 
       {/* Мобилка: на всю ширину экрана, имя слева целиком видно */}
