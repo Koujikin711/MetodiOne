@@ -76,19 +76,27 @@ function cloneDefaultStages(sales = false) {
   return src.map((s) => ({ name: s.name, color: s.color }));
 }
 
-/** Возраст лида в днях (для подписи на карточке). */
-function leadAgeLabel(createdAt?: string | null): string {
+/** Возраст на карточке: при раздаче из архива — с даты выдачи, не с created_at. */
+function leadAgeLabel(createdAt?: string | null, reactivatedAt?: string | null): string {
+  const fmt = (iso: string): string | null => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
+    if (days === 0) return "сегодня";
+    const mod10 = days % 10;
+    const mod100 = days % 100;
+    let word = "дней";
+    if (mod10 === 1 && mod100 !== 11) word = "день";
+    else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) word = "дня";
+    return `${days} ${word}`;
+  };
+  if (reactivatedAt) {
+    const fresh = fmt(reactivatedAt);
+    if (!fresh) return "—";
+    return fresh === "сегодня" ? "выдан сегодня" : `выдан ${fresh}`;
+  }
   if (!createdAt) return "—";
-  const d = new Date(createdAt);
-  if (Number.isNaN(d.getTime())) return "—";
-  const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
-  if (days === 0) return "сегодня";
-  const mod10 = days % 10;
-  const mod100 = days % 100;
-  let word = "дней";
-  if (mod10 === 1 && mod100 !== 11) word = "день";
-  else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) word = "дня";
-  return `${days} ${word}`;
+  return fmt(createdAt) ?? "—";
 }
 
 function resolveTargetStageId(
@@ -141,7 +149,9 @@ function LeadCardBody({ lead, stageColor }: { lead: Lead; stageColor?: string })
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--mo-border)] pt-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <span className="crm-stage-gem shrink-0" style={{ backgroundColor: dotColor }} />
-          <span className="truncate text-xs font-semibold text-[var(--mo-text-muted)]">{leadAgeLabel(lead.created_at)}</span>
+          <span className="truncate text-xs font-semibold text-[var(--mo-text-muted)]">
+            {leadAgeLabel(lead.created_at, lead.reactivated_at)}
+          </span>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {lead.protocol_file_attached && <span className="crm-lead-badge" title="Протокол">📄</span>}

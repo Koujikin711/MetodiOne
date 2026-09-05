@@ -69,20 +69,40 @@ def _activity_score(*, reply_pct: float, outbound: int, messaged: int) -> float:
 
 
 def _period_bounds(period: str, date_from: str | None, date_to: str | None) -> tuple[datetime, datetime]:
-    """Границы периода в UTC, но календарный день/месяц — по timezone компании (Душанбе)."""
+    """
+    Рабочие сутки компании: с 18:00 до 17:00 следующего дня (Asia/Dushanbe).
+    «За день» — текущее такое окно относительно сейчас.
+    """
     tz = _biz_tz()
     now_local = datetime.now(tz)
+
+    def _as_utc(start_local: datetime, end_local: datetime) -> tuple[datetime, datetime]:
+        if end_local <= start_local:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Период задан неверно")
+        return start_local.astimezone(UTC), end_local.astimezone(UTC)
+
     if period == "day":
-        start_local = datetime(now_local.year, now_local.month, now_local.day, tzinfo=tz)
-        end_local = start_local + timedelta(days=1)
-        return start_local.astimezone(UTC), end_local.astimezone(UTC)
-    if period == "month":
-        start_local = datetime(now_local.year, now_local.month, 1, tzinfo=tz)
-        if now_local.month == 12:
-            end_local = datetime(now_local.year + 1, 1, 1, tzinfo=tz)
+        # До 18:00 — окно вчера 18:00 → сегодня 17:00; с 18:00 — сегодня 18:00 → завтра 17:00.
+        today0 = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        if now_local.hour >= 18:
+            start_local = today0.replace(hour=18)
+            end_local = (today0 + timedelta(days=1)).replace(hour=17)
         else:
-            end_local = datetime(now_local.year, now_local.month + 1, 1, tzinfo=tz)
-        return start_local.astimezone(UTC), end_local.astimezone(UTC)
+            start_local = (today0 - timedelta(days=1)).replace(hour=18)
+            end_local = today0.replace(hour=17)
+        return _as_utc(start_local, end_local)
+
+    if period == "month":
+        first = datetime(now_local.year, now_local.month, 1, tzinfo=tz)
+        start_local = (first - timedelta(days=1)).replace(hour=18, minute=0, second=0, microsecond=0)
+        if now_local.month == 12:
+            next_month = datetime(now_local.year + 1, 1, 1, tzinfo=tz)
+        else:
+            next_month = datetime(now_local.year, now_local.month + 1, 1, tzinfo=tz)
+        last_day = next_month - timedelta(days=1)
+        end_local = last_day.replace(hour=17, minute=0, second=0, microsecond=0)
+        return _as_utc(start_local, end_local)
+
     if period == "custom":
         if not date_from or not date_to:
             raise HTTPException(
@@ -94,24 +114,19 @@ def _period_bounds(period: str, date_from: str | None, date_to: str | None) -> t
             d_to = datetime.strptime(date_to, "%Y-%m-%d")
         except ValueError:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный формат дат")
-        start_local = d_from.replace(tzinfo=tz)
-        end_local = (d_to + timedelta(days=1)).replace(tzinfo=tz)
-        if end_local <= start_local:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Период задан неверно")
-        return start_local.astimezone(UTC), end_local.astimezone(UTC)
+        # Календарная дата = день окончания окна (…→ эта дата 17:00); старт = вчера 18:00 от date_from.
+        start_day = d_from.replace(tzinfo=tz)
+        end_day = d_to.replace(tzinfo=tz)
+        start_local = (start_day - timedelta(days=1)).replace(hour=18, minute=0, second=0, microsecond=0)
+        end_local = end_day.replace(hour=17, minute=0, second=0, microsecond=0)
+        return _as_utc(start_local, end_local)
+
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="period: day | month | custom")
 
 
 def _lead_in_period(start: datetime, end: datetime):
-    """Лид «за период»: создан или реактивирован (раздача / возврат из Архива)."""
-    return or_(
-        and_(Lead.created_at >= start, Lead.created_at < end),
-        and_(
-            Lead.reactivated_at.is_not(None),
-            Lead.reactivated_at >= start,
-            Lead.reactivated_at < end,
-        ),
-    )
+    """Только лиды, созданные в окне (не реактивация из архива)."""
+    return and_(Lead.created_at >= start, Lead.created_at < end)
 
 
 def _assert_owner(current_user: CurrentUser) -> None:
@@ -876,8 +891,8 @@ async def analytics_overview(
 
     tz = _biz_tz()
     return AnalyticsOverviewRead(
-        period_start=start.astimezone(tz).date().isoformat(),
-        period_end=(end.astimezone(tz) - timedelta(days=1)).date().isoformat(),
+        period_start=start.astimezone(tz).strftime("%Y-%m-%d %H:%M"),
+        period_end=end.astimezone(tz).strftime("%Y-%m-%d %H:%M"),
         executive=ExecutiveKpiRead(
             leads_total=total_leads,
             won_leads=won_leads,

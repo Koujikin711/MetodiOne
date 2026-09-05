@@ -166,7 +166,9 @@ export function AnalyticsPage() {
               onChange={(e) => setPeriod(e.target.value as "day" | "month" | "custom")}
               className="mo-input"
             >
-              <option value="day">За день</option>
+              <option value="day">За день (18:00→17:00)</option>
+              <option value="month">За месяц</option>
+              <option value="custom">Свой период</option>
               <option value="month">За месяц</option>
               <option value="custom">За период</option>
             </select>
