@@ -768,12 +768,7 @@ export function ExtraServicesPage() {
                     <td className="whitespace-nowrap text-xs tabular-nums">{formatDtShort(s.sold_at)}</td>
                     <td className="font-medium">{s.client_name}</td>
                     <td>{s.client_phone || "—"}</td>
-                    <td>
-                      {s.service_name}
-                      <div className="text-[11px] mo-muted">
-                        {n(s.keep_percent)}% / {n(s.payout_percent)}%
-                      </div>
-                    </td>
+                    <td className="font-medium">{s.service_name}</td>
                     <td className="tabular-nums">{formatMoney(s.amount)}</td>
                     <td className="tabular-nums kpi-actual-value">{formatMoney(s.keep_amount)}</td>
                     <td className="tabular-nums">{formatMoney(s.payout_amount)}</td>
