@@ -13,7 +13,9 @@ _FULL_PHONE_ROLES = frozenset(
         UserRole.super_owner,
         UserRole.owner,
         UserRole.admin,
+        UserRole.administrator,
         UserRole.manager,
+        UserRole.curator,
     },
 )
 

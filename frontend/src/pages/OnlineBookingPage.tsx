@@ -117,11 +117,21 @@ function formatDt(iso: string) {
 }
 
 function phoneFromPatientSuggest(item: BookingPatientSuggestItem): string {
-  if (item.patient_phone_can_view_full) {
-    const p = (item.patient_phone || "").trim();
-    return p && p !== "—" ? p : "";
-  }
+  const raw = (item.patient_phone || item.patient_phone_display || "").trim();
+  if (!raw || raw === "—" || raw.includes("*")) return "";
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 3) return "";
+  // Менеджер/админ видят полный номер — подставляем как есть.
+  if (item.patient_phone_can_view_full) return raw;
+  // На всякий случай: если в ответе уже полный номер без маски.
+  if (digits.length >= 9) return raw;
   return "";
+}
+
+function usableLeadPhone(lead: Lead): string {
+  const raw = (lead.phone || lead.phone_display || "").trim();
+  if (!raw || raw === "—" || raw.includes("*")) return "";
+  return raw.replace(/\D/g, "").length >= 3 ? raw : "";
 }
 
 function phonesMatchSuggest(termDigits: string, itemPhone: string): boolean {
@@ -442,10 +452,23 @@ export function OnlineBookingPage() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [patientSuggestOpen]);
 
-  /** Явный выбор из списка — подставляет имя из CRM/WhatsApp. */
+  /** Явный выбор из списка — подставляет имя и телефон из CRM/WhatsApp. */
   function applyPatientSuggestion(item: BookingPatientSuggestItem, opts?: { silent?: boolean }) {
     setPatientName(item.patient_name);
-    setPatientPhone(phoneFromPatientSuggest(item) || patientPhone);
+    const phone = phoneFromPatientSuggest(item);
+    if (phone) {
+      setPatientPhone(phone);
+    } else if (item.lead_id != null) {
+      void (async () => {
+        try {
+          const lead = await apiFetch<Lead>(`/api/leads/${item.lead_id}`);
+          const fromLead = usableLeadPhone(lead);
+          if (fromLead) setPatientPhone(fromLead);
+        } catch {
+          /* телефон подтянется на бэкенде из лида при сохранении */
+        }
+      })();
+    }
     if (item.lead_id != null) {
       setLeadId(item.lead_id);
       setNewLeadPipelineId(null);
@@ -462,7 +485,19 @@ export function OnlineBookingPage() {
   /** Автопривязка по телефону: CRM остаётся, имя не перезаписываем, если уже введено. */
   function autoLinkPatientFromSuggestion(item: BookingPatientSuggestItem) {
     const phone = phoneFromPatientSuggest(item);
-    if (phone) setPatientPhone(phone);
+    if (phone) {
+      setPatientPhone(phone);
+    } else if (item.lead_id != null && !patientPhone.trim()) {
+      void (async () => {
+        try {
+          const lead = await apiFetch<Lead>(`/api/leads/${item.lead_id}`);
+          const fromLead = usableLeadPhone(lead);
+          if (fromLead) setPatientPhone(fromLead);
+        } catch {
+          /* ignore */
+        }
+      })();
+    }
     if (item.lead_id != null) {
       setLeadId(item.lead_id);
       setNewLeadPipelineId(null);
@@ -977,6 +1012,10 @@ export function OnlineBookingPage() {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    void submitNewAppointment();
+  }
+
+  async function submitNewAppointment() {
     if (!canEditBooking) {
       toast.error("Эксперт может только просматривать свои записи");
       return;
@@ -985,13 +1024,25 @@ export function OnlineBookingPage() {
       toast.error("Укажите услугу, специалиста, дату и время.");
       return;
     }
-    const phoneDigits = patientPhone.replace(/\D/g, "");
-    if (!leadId && phoneDigits.length < 3) {
-      toast.error("Укажите телефон пациента");
-      return;
-    }
     if (!patientName.trim()) {
       toast.error("Укажите ФИО пациента");
+      return;
+    }
+    let resolvedPhone = patientPhone.trim();
+    if (leadId && resolvedPhone.replace(/\D/g, "").length < 3) {
+      try {
+        const lead = await apiFetch<Lead>(`/api/leads/${leadId}`);
+        const fromLead = usableLeadPhone(lead);
+        if (fromLead) {
+          resolvedPhone = fromLead;
+          setPatientPhone(fromLead);
+        }
+      } catch {
+        /* ниже покажем ошибку, если номера так и нет */
+      }
+    }
+    if (resolvedPhone.replace(/\D/g, "").length < 3) {
+      toast.error("Укажите телефон пациента");
       return;
     }
     if (!specialistsActive.length) {
@@ -1040,7 +1091,7 @@ export function OnlineBookingPage() {
     }
     const payload: Record<string, unknown> = {
       patient_name: patientName.trim(),
-      patient_phone: patientPhone.trim(),
+      patient_phone: resolvedPhone,
       extra_phones: extraPhones.map((p) => p.trim()).filter(Boolean),
       specialist_id: specialistId,
       service_title: serviceTitle.trim(),
