@@ -2945,6 +2945,20 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 /* Расходы — на всю ширину shell, удобно на телефоне */
+.expenses-page.mo-fill-page {
+  /* Не режем контент: форма + список «За месяц» должны скроллиться целиком */
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  flex: 1 1 auto;
+}
+
+.expenses-page .mo-fill-page-scroll {
+  flex: none;
+  overflow: visible;
+  min-height: 0;
+}
+
 .expenses-page__head {
   display: flex;
   flex-wrap: wrap;
