@@ -3068,29 +3068,67 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .expenses-form {
   width: 100%;
-  border-radius: 1rem;
+  border-radius: 1.15rem;
   border: 1px solid var(--mo-border);
-  background: color-mix(in srgb, var(--mo-surface) 60%, transparent);
-  padding: 0.75rem;
+  background: var(--mo-surface-elevated);
+  padding: 0.85rem 0.85rem 0.75rem;
+  box-shadow: var(--mo-shadow-luxury);
 }
 
 @media (min-width: 640px) {
   .expenses-form {
-    padding: 1rem 1.25rem;
+    padding: 1.1rem 1.25rem 1rem;
   }
+}
+
+.expenses-page__scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-top: 0.65rem;
+}
+
+@media (min-width: 640px) {
+  .expenses-page__scroll {
+    gap: 1rem;
+    padding-top: 0.85rem;
+  }
+}
+
+.expenses-form__section {
+  min-width: 0;
+}
+
+.expenses-form__section + .expenses-form__section {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid color-mix(in srgb, var(--mo-border) 80%, transparent);
+}
+
+.expenses-form__section-title {
+  margin: 0 0 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
 }
 
 .expenses-form__grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.55rem 0.65rem;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
   width: 100%;
+}
+
+.expenses-form__grid--2 {
+  grid-template-columns: 1fr 1fr;
 }
 
 @media (min-width: 640px) {
   .expenses-form__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem 1rem;
+    gap: 0.75rem 0.9rem;
   }
 }
 
@@ -3100,55 +3138,196 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   }
 }
 
-@media (min-width: 1280px) {
-  .expenses-form__grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
 .expenses-field {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
   min-width: 0;
 }
 
 .expenses-field__label {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: 0.72rem;
+  font-weight: 600;
   color: var(--mo-text-muted);
+}
+
+.expenses-field__control {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.55rem;
+}
+
+.expenses-field__custom {
+  margin-top: 0.15rem;
 }
 
 .expenses-field--span {
   grid-column: 1 / -1;
 }
 
+@media (min-width: 640px) {
+  .expenses-field--span-sm {
+    grid-column: span 1;
+  }
+}
+
 .expenses-form__actions {
-  margin-top: 0.75rem;
-  padding-top: 0.65rem;
+  margin-top: 0.95rem;
+  padding-top: 0.85rem;
   border-top: 1px solid color-mix(in srgb, var(--mo-border) 80%, transparent);
-  position: sticky;
-  bottom: 0.35rem;
-  z-index: 2;
-  background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--mo-surface) 92%, transparent) 55%,
-    transparent
-  );
-  padding-bottom: 0.15rem;
+}
+
+.expenses-form__submit {
+  width: 100%;
+  min-height: 2.75rem;
+}
+
+@media (min-width: 640px) {
+  .expenses-form__submit {
+    width: auto;
+    min-width: 11rem;
+  }
 }
 
 .expenses-month {
   width: 100%;
+  overflow: hidden;
+  border-radius: 1.15rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+  box-shadow: var(--mo-shadow-luxury);
+}
+
+.expenses-month__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--mo-border);
+}
+
+.expenses-month__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--mo-text);
+}
+
+.expenses-month__total {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mo-text);
+}
+
+.expenses-month__empty {
+  margin: 0;
+  padding: 1.25rem 0.9rem;
+  font-size: 0.875rem;
+  color: var(--mo-text-muted);
+}
+
+.expenses-month__cards {
+  list-style: none;
+  margin: 0;
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.expenses-month__card {
+  border-radius: 0.85rem;
+  border: 1px solid var(--mo-border);
+  background: color-mix(in srgb, var(--mo-surface) 70%, transparent);
+  padding: 0.7rem 0.8rem;
+}
+
+.expenses-month__card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.expenses-month__card-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--mo-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expenses-month__card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.45rem;
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+  color: var(--mo-text-muted);
+}
+
+.expenses-month__card-meta > span:not(:last-child)::after {
+  content: "·";
+  margin-left: 0.45rem;
+  opacity: 0.7;
+}
+
+.expenses-month__card-sum {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--mo-text);
+}
+
+.expenses-month__card-extra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed color-mix(in srgb, var(--mo-border) 75%, transparent);
+  font-size: 0.7rem;
+  color: var(--mo-text-muted);
+}
+
+.expenses-month__table-wrap {
+  overflow-x: auto;
+}
+
+.expenses-month__table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.8125rem;
+}
+
+.expenses-month__table th {
+  padding: 0.55rem 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
+  background: color-mix(in srgb, var(--mo-surface) 80%, transparent);
+  border-bottom: 1px solid var(--mo-border);
+  white-space: nowrap;
+}
+
+.expenses-month__table td {
+  padding: 0.6rem 0.75rem;
+  color: var(--mo-text);
+  border-top: 1px solid color-mix(in srgb, var(--mo-border) 70%, transparent);
+  vertical-align: middle;
 }
 
 @media (max-width: 639px) {
   .expenses-page__head {
     gap: 0.5rem 0.65rem;
     align-items: center;
-  }
-
-  .expenses-page__head > .min-w-0 > p {
-    display: none;
   }
 
   .expenses-page .mo-month-picker,
@@ -3158,26 +3337,14 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     max-width: 11rem;
   }
 
-  .expenses-page .mo-input {
-    font-size: 16px; /* без автозума iOS */
+  .expenses-page .mo-input,
+  .expenses-page .expenses-field__control {
+    font-size: 16px;
     min-height: 2.55rem;
-    padding-top: 0.45rem;
-    padding-bottom: 0.45rem;
   }
 
-  .expenses-page .mo-fill-page-scroll {
-    gap: 0.65rem;
-    padding-top: 0.5rem;
-  }
-
-  .expenses-form__actions .mo-btn-primary {
-    min-height: 2.75rem;
-    font-weight: 600;
-  }
-
-  .expenses-month__cards {
-    gap: 0.5rem;
-    padding: 0.65rem;
+  .expenses-form__grid--2 {
+    gap: 0.55rem;
   }
 }
 
