@@ -293,24 +293,17 @@ export function MainLayout() {
             </>
           ) : isCurator ? (
             <>
-              <NavIf show={bookingEnabled && showNavForFeature("booking")}>
-                <NavLink preventScrollReset to="/booking" className={mobileBottomNavLinkClass} title="Онлайн-записи">
-                  <GradientIconBox variant="online" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Calendar className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Онлайн</span>
-                </NavLink>
-              </NavIf>
-              {showKpi ? (
-                <NavIf show={showNavForFeature("kpi")}>
-                  <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title="Дебиторка">
-                    <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                      <Target className="h-4 w-4" />
-                    </GradientIconBox>
-                    <span className="text-[9px]">Долги</span>
-                  </NavLink>
-                </NavIf>
-              ) : null}
+              <NavLink
+                preventScrollReset
+                to="/curator-journal"
+                className={mobileBottomNavLinkClass}
+                title="Дневник куратора"
+              >
+                <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <ClipboardList className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Дневник</span>
+              </NavLink>
               <button type="button" onClick={logout} className={mobileBottomLogoutClass} title="Выход">
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <LogOut className="h-4 w-4" />

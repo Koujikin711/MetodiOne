@@ -3492,3 +3492,56 @@ async def _fix_kurs15_price_2000_to_1300_body(conn: AsyncConnection, database_ur
             text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
             {"n": patch_name},
         )
+
+
+async def ensure_curator_daily_entries_tables(conn: AsyncConnection, database_url: str) -> None:
+    """Дневной журнал куратора: дата, ФИО, дневник питания, фото, жалоба."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_daily_entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    entry_date DATE NOT NULL,
+                    full_name VARCHAR(255) NOT NULL,
+                    food_diary TEXT,
+                    photo_path VARCHAR(512),
+                    photo_mime VARCHAR(128),
+                    complaint TEXT,
+                    created_by_user_id INTEGER,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_daily_entries (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    entry_date DATE NOT NULL,
+                    full_name VARCHAR(255) NOT NULL,
+                    food_diary TEXT,
+                    photo_path VARCHAR(512),
+                    photo_mime VARCHAR(128),
+                    complaint TEXT,
+                    created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )"""
+            ),
+        )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_curator_daily_entries_company_id ON curator_daily_entries (company_id)"),
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_curator_daily_entries_entry_date ON curator_daily_entries (entry_date)"),
+    )
+    await conn.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS ix_curator_daily_entries_created_by ON curator_daily_entries (created_by_user_id)"
+        ),
+    )

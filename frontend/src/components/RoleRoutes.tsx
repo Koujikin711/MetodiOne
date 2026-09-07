@@ -57,7 +57,7 @@ export function HomeEntry() {
     return <Navigate to="/finance" replace />;
   }
   if (role === "curator") {
-    return <Navigate to="/booking" replace />;
+    return <Navigate to="/curator-journal" replace />;
   }
   if (role === "administrator") {
     return <Navigate to="/chat" replace />;

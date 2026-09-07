@@ -46,6 +46,7 @@ from app.database_migrate import (
     ensure_fix_kurs15_price_2000_to_1300,
     ensure_clinic_staff_roles,
     ensure_extra_services_tables,
+    ensure_curator_daily_entries_tables,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -79,6 +80,7 @@ from app.routers import (
     users,
     waiting_callbacks,
     extra_services,
+    curator_journal,
 )
 from app.services.background_events import record_background_event
 from app.services.google_sheets_finance_sync import run_finance_sheets_sync_tick
@@ -158,6 +160,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_fix_massage_osv_prepaid_aug2026(conn, db_url)
                 await ensure_fix_kurs15_price_2000_to_1300(conn, db_url)
                 await ensure_extra_services_tables(conn, db_url)
+                await ensure_curator_daily_entries_tables(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
@@ -916,6 +919,7 @@ app.include_router(finance.router, prefix="/api")
 app.include_router(team_chat.router, prefix="/api")
 app.include_router(waiting_callbacks.router, prefix="/api")
 app.include_router(extra_services.router, prefix="/api")
+app.include_router(curator_journal.router, prefix="/api")
 
 
 @app.get("/health")

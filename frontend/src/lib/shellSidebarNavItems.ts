@@ -118,33 +118,19 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     ];
   }
 
-  // Куратор: только онлайн-запись + дебиторка (KPI вкладка)
+  // Куратор: отдельное окно — дневник (питание / фото / жалобы)
   if (isCurator) {
-    const items: ShellSidebarNavItem[] = [];
-    if (showBooking) {
-      items.push({
-        id: "booking",
-        to: "/booking",
-        title: "Онлайн-записи",
-        labelShort: "Онлайн",
-        labelFull: "Онлайн-запись",
-        variant: "online",
-        iconKey: "calendar",
-      });
-      if (showExtraServices) items.push(extraServicesNavItem());
-    }
-    if (showKpi && showNavForFeature("kpi")) {
-      items.push({
-        id: "kpi",
-        to: "/kpi",
-        title: "Дебиторка",
-        labelShort: "Долги",
-        labelFull: "Дебиторка курсов",
+    return [
+      {
+        id: "curator-journal",
+        to: "/curator-journal",
+        title: "Дневник куратора",
+        labelShort: "Дневник",
+        labelFull: "Дневник куратора",
         variant: "indigo",
-        iconKey: "target",
-      });
-    }
-    return items;
+        iconKey: "clipboard-list",
+      },
+    ];
   }
 
   // Администратор клиники: чаты, канбан, онлайн-запись, KPI
@@ -195,6 +181,15 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "target",
       });
     }
+    items.push({
+      id: "curator-journal",
+      to: "/curator-journal",
+      title: "Дневник куратора",
+      labelShort: "Дневник",
+      labelFull: "Дневник куратора",
+      variant: "indigo",
+      iconKey: "clipboard-list",
+    });
     return items;
   }
 
@@ -531,6 +526,18 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       iconKey: "calendar",
     });
     if (showExtraServices) items.push(extraServicesNavItem());
+  }
+  // Владелец/админ тоже видят дневник куратора
+  if (!isManagerNav && !isExpert) {
+    items.push({
+      id: "curator-journal",
+      to: "/curator-journal",
+      title: "Дневник куратора",
+      labelShort: "Дневник",
+      labelFull: "Дневник куратора",
+      variant: "indigo",
+      iconKey: "clipboard-list",
+    });
   }
   if (showDeskSales) {
     items.push(

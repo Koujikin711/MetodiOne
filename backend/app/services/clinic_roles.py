@@ -8,7 +8,7 @@ from app.services.booking_directions import is_course_like_direction_name
 # Чаты + канбан + онлайн-запись + KPI
 ADMINISTRATOR_ROLES = frozenset({UserRole.administrator})
 
-# Онлайн-запись + дебиторка только курсы/протоколы
+# Онлайн-запись снята с куратора: отдельное окно — дневник питания/жалоб
 CURATOR_ROLES = frozenset({UserRole.curator})
 
 # Финансы (отчёт компании) + расходы
@@ -95,6 +95,17 @@ def can_access_all_chats(role: UserRole) -> bool:
 def debtors_course_protocol_only(role: UserRole) -> bool:
     """Куратор видит только долги по курсам и протоколам."""
     return role == UserRole.curator
+
+
+def can_access_curator_journal(role: UserRole) -> bool:
+    """Отдельное окно дневника куратора (питание / фото / жалобы)."""
+    return role in (
+        UserRole.curator,
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.admin,
+        UserRole.administrator,
+    )
 
 
 def is_course_or_protocol_indicator(name: str | None) -> bool:
