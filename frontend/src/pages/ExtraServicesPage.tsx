@@ -297,7 +297,7 @@ export function ExtraServicesPage() {
             Доп услуги
           </h1>
           <p className="mt-0.5 hidden text-xs mo-muted sm:mt-1 sm:block sm:text-sm">
-            Под онлайн-записью: ФИО, телефон, сумма — система считает долю Клиники и ЕвроЛаб.{" "}
+            Под онлайн-записью: ФИО, телефон, сумма — система считает долю Клиники и Партнёр.{" "}
             <Link to="/booking" className="text-[var(--mo-accent-hover)] hover:underline">
               ← К онлайн-записи
             </Link>
@@ -443,7 +443,7 @@ export function ExtraServicesPage() {
                   <span className="extra-services-split__pct">{n(selectedType.keep_percent)}%</span>
                 </div>
                 <div>
-                  <span className="extra-services-split__label">ЕвроЛаб</span>
+                  <span className="extra-services-split__label">Партнёр</span>
                   <span className="extra-services-split__value">{formatMoney(previewPayout)}</span>
                   <span className="extra-services-split__pct">{n(selectedType.payout_percent)}%</span>
                 </div>
@@ -476,7 +476,7 @@ export function ExtraServicesPage() {
                     <div className="extra-services-recent__split">
                       <span className="kpi-actual-value">Клиника {formatMoney(s.keep_amount)}</span>
                       <span className="extra-services-recent__sep">·</span>
-                      <span>ЕвроЛаб {formatMoney(s.payout_amount)}</span>
+                      <span>Партнёр {formatMoney(s.payout_amount)}</span>
                     </div>
                   </div>
                 </li>
@@ -533,7 +533,7 @@ export function ExtraServicesPage() {
                 />
               </label>
               <label className="block text-sm text-[var(--mo-text)]">
-                % ЕвроЛаб
+                % Партнёр
                 <input
                   className={fieldClass}
                   inputMode="decimal"
@@ -557,7 +557,7 @@ export function ExtraServicesPage() {
                 <tr>
                   <th>Услуга</th>
                   <th>% Клиника</th>
-                  <th>% ЕвроЛаб</th>
+                  <th>% Партнёр</th>
                   <th>Статус</th>
                   <th />
                 </tr>
@@ -593,7 +593,14 @@ export function ExtraServicesPage() {
                       </td>
                       <td>{t.is_active ? "Активна" : "Выкл."}</td>
                       <td className="space-x-2 whitespace-nowrap">
-                        <button type="button" className="btn-primary btn-table" onClick={() => updateType.mutate()}>
+                        <button
+                          type="button"
+                          className="btn-primary btn-table"
+                          onClick={() => {
+                            if (!window.confirm(`Сохранить изменения для «${editName.trim() || t.name}»?`)) return;
+                            updateType.mutate();
+                          }}
+                        >
                           OK
                         </button>
                         <button type="button" className="btn-secondary btn-table" onClick={() => setEditId(null)}>
@@ -613,6 +620,7 @@ export function ExtraServicesPage() {
                             type="button"
                             className="btn-secondary btn-table"
                             onClick={() => {
+                              if (!window.confirm(`Изменить услугу «${t.name}»?`)) return;
                               setEditId(t.id);
                               setEditName(t.name);
                               setEditKeep(String(n(t.keep_percent)));
@@ -625,7 +633,10 @@ export function ExtraServicesPage() {
                             <button
                               type="button"
                               className="btn-danger btn-table"
-                              onClick={() => deactivateType.mutate(t.id)}
+                              onClick={() => {
+                                if (!window.confirm(`Отключить услугу «${t.name}»?`)) return;
+                                deactivateType.mutate(t.id);
+                              }}
                             >
                               Отключить
                             </button>
@@ -665,7 +676,7 @@ export function ExtraServicesPage() {
                   </div>
                 </div>
                 <div className="extra-services-kpi extra-services-kpi--eurolab">
-                  <div className="extra-services-kpi__label">ЕвроЛаб</div>
+                  <div className="extra-services-kpi__label">Партнёр</div>
                   <div className="extra-services-kpi__value">{formatMoney(reportQuery.data.payout_total)}</div>
                 </div>
               </div>
@@ -680,7 +691,7 @@ export function ExtraServicesPage() {
                         <th>Кол-во</th>
                         <th>Сумма</th>
                         <th>Клиника</th>
-                        <th>ЕвроЛаб</th>
+                        <th>Партнёр</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -711,7 +722,7 @@ export function ExtraServicesPage() {
                         <th>Кол-во</th>
                         <th>Оплатил</th>
                         <th>Клиника</th>
-                        <th>ЕвроЛаб</th>
+                        <th>Партнёр</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -748,16 +759,16 @@ export function ExtraServicesPage() {
             onChange={(e) => setJournalQ(e.target.value)}
           />
           <div className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:p-3">
-            <table className="mo-table min-w-[900px]">
+            <table className="mo-table min-w-[1080px]">
               <thead>
                 <tr>
                   <th>Когда</th>
                   <th>Клиент</th>
                   <th>Телефон</th>
                   <th>Услуга</th>
-                  <th>Оплатил</th>
-                  <th>Клиника</th>
-                  <th>ЕвроЛаб</th>
+                  <th className="extra-services-col-money">Оплатил</th>
+                  <th className="extra-services-col-money">Клиника</th>
+                  <th className="extra-services-col-money">Партнёр</th>
                   <th>Кто внёс</th>
                   <th />
                 </tr>
@@ -766,14 +777,14 @@ export function ExtraServicesPage() {
                 {(salesQuery.data ?? []).map((s) => (
                   <tr key={s.id}>
                     <td className="whitespace-nowrap text-xs tabular-nums">{formatDtShort(s.sold_at)}</td>
-                    <td className="font-medium">{s.client_name}</td>
-                    <td>{s.client_phone || "—"}</td>
-                    <td className="font-medium">{s.service_name}</td>
-                    <td className="tabular-nums">{formatMoney(s.amount)}</td>
-                    <td className="tabular-nums kpi-actual-value">{formatMoney(s.keep_amount)}</td>
-                    <td className="tabular-nums">{formatMoney(s.payout_amount)}</td>
-                    <td className="text-xs mo-muted">{s.created_by_name || "—"}</td>
-                    <td>
+                    <td className="extra-services-col-name font-medium">{s.client_name}</td>
+                    <td className="extra-services-col-phone">{s.client_phone || "—"}</td>
+                    <td className="whitespace-nowrap font-medium">{s.service_name}</td>
+                    <td className="extra-services-col-money">{formatMoney(s.amount)}</td>
+                    <td className="extra-services-col-money kpi-actual-value">{formatMoney(s.keep_amount)}</td>
+                    <td className="extra-services-col-money">{formatMoney(s.payout_amount)}</td>
+                    <td className="extra-services-col-name text-xs mo-muted">{s.created_by_name || "—"}</td>
+                    <td className="whitespace-nowrap">
                       <button
                         type="button"
                         className="btn-danger btn-table"

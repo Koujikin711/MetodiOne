@@ -198,7 +198,8 @@ class BookingAppointmentRead(BaseModel):
 
 class BookingAppointmentCreate(BaseModel):
     patient_name: str = Field(..., min_length=1, max_length=255)
-    patient_phone: str = Field(..., min_length=3, max_length=64)
+    # При lead_id телефон можно взять из карточки CRM (менеджер может не видеть полный номер).
+    patient_phone: str = Field(default="", max_length=64)
     lead_id: int | None = Field(None, ge=1)
     lead_pipeline_id: int | None = Field(None, ge=1)
     lead_stage_id: int | None = Field(None, ge=1)
@@ -251,6 +252,15 @@ class BookingAppointmentCreate(BaseModel):
             raise ValueError("Укажите способ оплаты: наличные, Алиф или DC")
         if float(self.paid_amount or 0) <= 0:
             self.payment_method = None
+        return self
+
+    @model_validator(mode="after")
+    def validate_patient_phone(self) -> "BookingAppointmentCreate":
+        digits = re.sub(r"\D+", "", self.patient_phone or "")
+        if self.lead_id is not None:
+            return self
+        if len(digits) < 3:
+            raise ValueError("Укажите телефон пациента")
         return self
 
 

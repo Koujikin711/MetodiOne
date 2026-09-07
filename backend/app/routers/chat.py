@@ -51,7 +51,7 @@ from app.services.patient_phone_visibility import (
     mask_patient_phone,
     resolve_phone_fields,
 )
-from app.services.phone_match import parse_allowed_phones_json, phone_digits
+from app.services.phone_match import parse_allowed_phones_json, phone_digits, whatsapp_e164_digits
 from app.services.lead_extra_phones import norm_phone
 from app.services.integration_inbound import upsert_thread
 from app.services.lead_sales_stages import (
@@ -461,9 +461,9 @@ async def _resolve_green_outbound(
             detail="Нет WhatsApp chat id / номера телефона у лида",
         )
 
-    # Нормализуем и сохраняем, чтобы следующие сообщения и список чатов работали одинаково.
-    digits_only = phone_digits(str(chat_id).split("@", 1)[0])
-    if len(digits_only) >= 9:
+    # Нормализуем (в т.ч. 918… → 992918…) и сохраняем для следующих сообщений.
+    digits_only = whatsapp_e164_digits(str(chat_id).split("@", 1)[0])
+    if len(digits_only) >= 11:
         chat_id = f"{digits_only}@c.us"
     if (thread.external_chat_id or "").strip() != chat_id:
         thread.external_chat_id = chat_id
@@ -1242,14 +1242,14 @@ async def list_threads(
 
 
 def _lead_whatsapp_digits(lead: Lead) -> str:
-    digits = norm_phone(lead.phone) or phone_digits(lead.phone)
-    if len(digits) >= 9:
+    digits = whatsapp_e164_digits(norm_phone(lead.phone) or lead.phone)
+    if len(digits) >= 11:
         return digits
     for ep in getattr(lead, "extra_phones", None) or []:
-        d = norm_phone(getattr(ep, "phone", None)) or phone_digits(getattr(ep, "phone", None))
-        if len(d) >= 9:
+        d = whatsapp_e164_digits(norm_phone(getattr(ep, "phone", None)) or getattr(ep, "phone", None))
+        if len(d) >= 11:
             return d
-    return ""
+    return digits if len(digits) >= 11 else ""
 
 
 async def _ensure_whatsapp_thread_for_lead(
@@ -1333,9 +1333,12 @@ async def _resolve_whatsapp_thread_for_lead(
     want_chat = f"{digits}@c.us" if len(digits) >= 9 else None
 
     if green is not None:
-        if want_chat and not (green.external_chat_id or "").strip():
-            green.external_chat_id = want_chat
-            await db.flush()
+        if want_chat:
+            current = (green.external_chat_id or "").strip()
+            if current != want_chat:
+                # Пустой или без кода страны (918…@c.us) → полный 992…
+                green.external_chat_id = want_chat
+                await db.flush()
         return green
 
     if want_chat:

@@ -2089,6 +2089,12 @@ async def create_appointment(
         lead_for_phone = await db.get(Lead, lead_id)
         if lead_for_phone is not None and (lead_for_phone.phone or "").strip():
             stored_phone = (lead_for_phone.phone or "").strip()
+    phone_digits = _norm_phone(stored_phone) or ""
+    if len(phone_digits) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Укажите телефон пациента (или выберите клиента из CRM с номером)",
+        )
 
     created_appts: list[BookingAppointment] = []
     wa_sent = False

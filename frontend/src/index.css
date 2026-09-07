@@ -3719,6 +3719,53 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   font-size: 0.8125rem;
 }
 
+/* Журнал / настройки: иначе ячейки без padding и колонки слипаются */
+.extra-services-page .mo-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+
+.extra-services-page .mo-table th,
+.extra-services-page .mo-table td {
+  padding: 0.6rem 0.85rem;
+  vertical-align: middle;
+}
+
+.extra-services-page .mo-table th {
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--mo-text-muted);
+}
+
+.extra-services-page .mo-table td {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.extra-services-page .mo-table td.extra-services-col-name {
+  min-width: 8.5rem;
+  max-width: 12rem;
+}
+
+.extra-services-page .mo-table td.extra-services-col-phone {
+  white-space: nowrap;
+  min-width: 9.5rem;
+}
+
+.extra-services-page .mo-table td.extra-services-col-money {
+  white-space: nowrap;
+  min-width: 5.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.extra-services-page .mo-table th.extra-services-col-money {
+  text-align: right;
+}
+
 .mo-page-header {
   @apply flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
 }

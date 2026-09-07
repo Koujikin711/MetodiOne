@@ -1,5 +1,5 @@
 from app.services.chat_outbound_policy import outbound_message_allowed
-from app.services.phone_match import phones_equivalent
+from app.services.phone_match import phones_equivalent, whatsapp_e164_digits
 from app.models import User, UserRole
 
 
@@ -7,6 +7,13 @@ def test_phones_equivalent_tj_variants():
     assert phones_equivalent("+992901234567", "901234567")
     assert phones_equivalent("992901234567", "+992 90 123 45 67")
     assert not phones_equivalent("+992901234567", "+992907654321")
+
+
+def test_whatsapp_e164_digits_adds_tj_cc():
+    assert whatsapp_e164_digits("918353491") == "992918353491"
+    assert whatsapp_e164_digits("+992918353491") == "992918353491"
+    assert whatsapp_e164_digits("992918353491") == "992918353491"
+    assert whatsapp_e164_digits("0918353491") == "992918353491"
 
 
 def test_manager_can_send_whitelisted_phone_only():

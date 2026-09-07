@@ -14,6 +14,23 @@ def phone_digits(value: str | None) -> str:
     return "".join(_PHONE_DIGITS_RE.findall(str(value)))
 
 
+def whatsapp_e164_digits(value: str | None, *, default_cc: str = "992") -> str:
+    """Цифры для WhatsApp chatId (Green API): локальный 918… → 992918…."""
+    digits = phone_digits(value)
+    if not digits:
+        return ""
+    cc = phone_digits(default_cc) or "992"
+    if digits.startswith(cc) and len(digits) >= len(cc) + 9:
+        return digits
+    # 09xxxxxxxx → 9xxxxxxxx
+    if len(digits) == 10 and digits.startswith("0"):
+        digits = digits[1:]
+    # Локальный мобильный TJ: 9 цифр (часто начинают с 9)
+    if len(digits) == 9:
+        return f"{cc}{digits}"
+    return digits
+
+
 def phones_equivalent(a: str, b: str) -> bool:
     """Считает эквивалентными +992901234567, 992901234567, 901234567 и т.п."""
     da = phone_digits(a)

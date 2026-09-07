@@ -10,16 +10,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models import ChatMessage, ChatThread, Lead
 from app.services.lead_extra_phones import get_first_extra_phone, norm_phone
+from app.services.phone_match import whatsapp_e164_digits
 
 
 def _to_green_chat_id(phone: str) -> str:
-    digits = norm_phone(phone) or phone
-    return f"{digits}@c.us"
+    digits = whatsapp_e164_digits(norm_phone(phone) or phone)
+    return f"{digits}@c.us" if digits else ""
 
 
 async def _primary_chat_id(thread: ChatThread, lead: Lead | None) -> str:
     ext = (thread.external_chat_id or "").strip()
     if ext:
+        local = ext.split("@", 1)[0]
+        digits = whatsapp_e164_digits(local)
+        if digits:
+            return f"{digits}@c.us"
         return ext
     if lead and lead.phone:
         return _to_green_chat_id(lead.phone)

@@ -50,6 +50,7 @@ from app.services.patient_phone_visibility import resolve_phone_fields
 from app.services.automation import process_lead_automation
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.lead_extra_phones import find_lead_by_any_phone, norm_phone
+from app.services.phone_match import whatsapp_e164_digits
 from app.services.lead_redistribution_undo import (
     REDISTRIBUTE_ACTIONS,
     collect_restorable_by_from_manager,
@@ -463,7 +464,7 @@ async def create_lead(
         if stage.pipeline_id not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Stage is outside manager directions")
     manager_id = await _manager_id_for_manual_lead_create(db, stage=stage, current_user=current_user, company_id=company_id)
-    phone_norm = norm_phone(body.phone)
+    phone_norm = whatsapp_e164_digits(norm_phone(body.phone) or body.phone) or None
     if phone_norm and len(phone_norm) >= 9:
         existing = await find_lead_by_any_phone(
             db,
@@ -491,8 +492,8 @@ async def create_lead(
     db.add(lead)
     await db.flush()
     # Stub WhatsApp-тред сразу — появится в «Ждут ответа» без входящей переписки.
-    digits = phone_norm or "".join(ch for ch in (body.phone or "") if ch.isdigit())
-    if len(digits) >= 9:
+    digits = phone_norm or whatsapp_e164_digits(body.phone)
+    if len(digits) >= 11:
         from app.models import IntegrationProvider
         from app.services.integration_inbound import upsert_thread
 

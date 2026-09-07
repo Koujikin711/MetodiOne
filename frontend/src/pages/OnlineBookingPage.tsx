@@ -985,6 +985,15 @@ export function OnlineBookingPage() {
       toast.error("Укажите услугу, специалиста, дату и время.");
       return;
     }
+    const phoneDigits = patientPhone.replace(/\D/g, "");
+    if (!leadId && phoneDigits.length < 3) {
+      toast.error("Укажите телефон пациента");
+      return;
+    }
+    if (!patientName.trim()) {
+      toast.error("Укажите ФИО пациента");
+      return;
+    }
     if (!specialistsActive.length) {
       toast.error("Нет специалистов в сетке — пригласите эксперта в «Сотрудники».");
       return;
