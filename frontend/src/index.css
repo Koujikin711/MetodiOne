@@ -2507,7 +2507,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-board-footnote {
-  @apply text-[10px] mo-muted;
+  font-size: 10px;
+  color: var(--mo-text-muted);
   display: block;
   padding: 0.2rem 0.15rem 0;
   flex-shrink: 0;
