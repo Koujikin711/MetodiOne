@@ -99,6 +99,22 @@ function formatDt(iso: string): string {
   }
 }
 
+/** Компактно: 07.09.26, 17:00 */
+function formatDtShort(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yy = String(d.getFullYear()).slice(-2);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mi = String(d.getMinutes()).padStart(2, "0");
+    return `${dd}.${mm}.${yy}, ${hh}:${mi}`;
+  } catch {
+    return iso;
+  }
+}
+
 function n(v: number | string | null | undefined): number {
   return Number(v || 0);
 }
@@ -465,8 +481,7 @@ export function ExtraServicesPage() {
                   <div className="extra-services-recent__main">
                     <div className="extra-services-recent__name">{s.client_name}</div>
                     <div className="extra-services-recent__meta">
-                      <span>{s.service_name}</span>
-                      <span>{formatDt(s.sold_at)}</span>
+                      <span>{formatDtShort(s.sold_at)}</span>
                       {s.client_phone ? <span>{s.client_phone}</span> : null}
                     </div>
                   </div>
