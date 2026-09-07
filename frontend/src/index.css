@@ -3068,80 +3068,58 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .expenses-form {
   width: 100%;
-  border-radius: 1.15rem;
+  border-radius: 1rem;
   border: 1px solid var(--mo-border);
   background: var(--mo-surface-elevated);
-  padding: 0.85rem 0.85rem 0.75rem;
-  box-shadow: var(--mo-shadow-luxury);
+  padding: 0.75rem;
 }
 
 @media (min-width: 640px) {
   .expenses-form {
-    padding: 1.1rem 1.25rem 1rem;
+    padding: 1rem 1.15rem;
   }
 }
 
-.expenses-page__scroll {
+.expenses-page__body {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
   padding-top: 0.65rem;
+  padding-bottom: 2rem;
 }
 
 @media (min-width: 640px) {
-  .expenses-page__scroll {
+  .expenses-page__body {
     gap: 1rem;
     padding-top: 0.85rem;
   }
 }
 
-.expenses-form__section {
-  min-width: 0;
-}
-
-.expenses-form__section + .expenses-form__section {
-  margin-top: 0.85rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid color-mix(in srgb, var(--mo-border) 80%, transparent);
-}
-
-.expenses-form__section-title {
-  margin: 0 0 0.55rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--mo-text-muted);
-}
-
 .expenses-form__grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.65rem;
   width: 100%;
-}
-
-.expenses-form__grid--2 {
-  grid-template-columns: 1fr 1fr;
-}
-
-@media (min-width: 640px) {
-  .expenses-form__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem 0.9rem;
-  }
+  align-items: start;
 }
 
 @media (min-width: 1024px) {
   .expenses-form__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.7rem 0.85rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .expenses-form__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 .expenses-field {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.25rem;
   min-width: 0;
 }
 
@@ -3154,48 +3132,41 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .expenses-field__control {
   width: 100%;
   min-width: 0;
-  min-height: 2.55rem;
+  min-height: 2.4rem;
 }
 
 .expenses-field__custom {
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
 }
 
 .expenses-field--span {
   grid-column: 1 / -1;
 }
 
-@media (min-width: 640px) {
-  .expenses-field--span-sm {
-    grid-column: span 1;
-  }
-}
-
 .expenses-form__actions {
-  margin-top: 0.95rem;
-  padding-top: 0.85rem;
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
   border-top: 1px solid color-mix(in srgb, var(--mo-border) 80%, transparent);
 }
 
 .expenses-form__submit {
   width: 100%;
-  min-height: 2.75rem;
+  min-height: 2.6rem;
 }
 
 @media (min-width: 640px) {
   .expenses-form__submit {
     width: auto;
-    min-width: 11rem;
+    min-width: 10.5rem;
   }
 }
 
 .expenses-month {
   width: 100%;
   overflow: hidden;
-  border-radius: 1.15rem;
+  border-radius: 1rem;
   border: 1px solid var(--mo-border);
   background: var(--mo-surface-elevated);
-  box-shadow: var(--mo-shadow-luxury);
 }
 
 .expenses-month__head {
@@ -3204,7 +3175,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.75rem 0.9rem;
+  padding: 0.7rem 0.85rem;
   border-bottom: 1px solid var(--mo-border);
 }
 
@@ -3223,7 +3194,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .expenses-month__empty {
   margin: 0;
-  padding: 1.25rem 0.9rem;
+  padding: 1.1rem 0.85rem;
   font-size: 0.875rem;
   color: var(--mo-text-muted);
 }
@@ -3241,7 +3212,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border-radius: 0.85rem;
   border: 1px solid var(--mo-border);
   background: color-mix(in srgb, var(--mo-surface) 70%, transparent);
-  padding: 0.7rem 0.8rem;
+  padding: 0.65rem 0.75rem;
 }
 
 .expenses-month__card-top {
@@ -3286,8 +3257,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 0.5rem;
-  margin-top: 0.45rem;
-  padding-top: 0.45rem;
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
   border-top: 1px dashed color-mix(in srgb, var(--mo-border) 75%, transparent);
   font-size: 0.7rem;
   color: var(--mo-text-muted);
@@ -3306,7 +3277,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .expenses-month__table th {
-  padding: 0.55rem 0.75rem;
+  padding: 0.5rem 0.7rem;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -3318,7 +3289,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .expenses-month__table td {
-  padding: 0.6rem 0.75rem;
+  padding: 0.55rem 0.7rem;
   color: var(--mo-text);
   border-top: 1px solid color-mix(in srgb, var(--mo-border) 70%, transparent);
   vertical-align: middle;
@@ -3340,11 +3311,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   .expenses-page .mo-input,
   .expenses-page .expenses-field__control {
     font-size: 16px;
-    min-height: 2.55rem;
-  }
-
-  .expenses-form__grid--2 {
-    gap: 0.55rem;
+    min-height: 2.45rem;
   }
 }
 

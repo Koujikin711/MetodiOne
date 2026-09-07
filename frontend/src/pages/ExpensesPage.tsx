@@ -119,9 +119,8 @@ export function ExpensesPage() {
     label: string,
   ) {
     const known = options.includes(value);
-    const isCustom = !known;
     return (
-      <label className={["expenses-field", isCustom ? "expenses-field--span" : ""].join(" ")}>
+      <label className="expenses-field">
         <span className="expenses-field__label">{label}</span>
         <select
           className="mo-input expenses-field__control"
@@ -139,13 +138,12 @@ export function ExpensesPage() {
           ))}
           <option value="__custom__">Другое…</option>
         </select>
-        {isCustom ? (
+        {!known ? (
           <input
             className="mo-input expenses-field__control expenses-field__custom"
             value={value}
             onChange={(ev) => onChange(ev.target.value)}
             placeholder="Своё значение"
-            autoFocus
           />
         ) : null}
       </label>
@@ -158,97 +156,78 @@ export function ExpensesPage() {
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-2xl">Расходы</h1>
           <p className="mt-1 hidden text-xs mo-muted sm:block sm:text-sm">
-            Быстрый ввод по статьям ОСВ: дата, сумма, банк и категория.
+            Ввод расходов по статьям ОСВ клиники (банк, статья, подробно, товар/услуга).
           </p>
         </div>
         <MonthYearPicker className="expenses-month-picker" value={yearMonth} onChange={setYearMonth} />
       </div>
 
-      <div className="mo-fill-page-scroll expenses-page__scroll">
+      <div className="mo-fill-page-scroll expenses-page__body">
         <form onSubmit={onSubmit} className="expenses-form">
-          <section className="expenses-form__section">
-            <h2 className="expenses-form__section-title">Основное</h2>
-            <div className="expenses-form__grid expenses-form__grid--2">
-              <label className="expenses-field">
-                <span className="expenses-field__label">Дата</span>
-                <DateField
-                  className="expenses-field__control"
-                  value={txnDate}
-                  onChange={setTxnDate}
-                  required
-                  aria-label="Дата расхода"
-                />
-              </label>
-              <label className="expenses-field">
-                <span className="expenses-field__label">Сумма ({APP_CURRENCY})</span>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step="0.01"
-                  className="mo-input expenses-field__control tabular-nums"
-                  value={expense}
-                  onChange={(e) => setExpense(e.target.value)}
-                  placeholder="0"
-                  required
-                />
-              </label>
-            </div>
-          </section>
-
-          <section className="expenses-form__section">
-            <h2 className="expenses-form__section-title">Классификация</h2>
-            <div className="expenses-form__grid">
-              {selectOrCustom(bank, [...catalog.banks], setBank, "Банк")}
-              {selectOrCustom(article, [...catalog.articles], setArticle, "Статья")}
-              {selectOrCustom(brief, [...catalog.brief_categories], setBrief, "Кратко")}
-              {selectOrCustom(detail, [...catalog.detail_categories], setDetail, "Подробно")}
-              {selectOrCustom(product, [...catalog.products], setProduct, "Товар / услуга")}
-            </div>
-          </section>
-
-          <section className="expenses-form__section">
-            <h2 className="expenses-form__section-title">Детали</h2>
-            <div className="expenses-form__grid">
-              <label className="expenses-field expenses-field--span">
-                <span className="expenses-field__label">Основание</span>
-                <input
-                  className="mo-input expenses-field__control"
-                  value={basis}
-                  onChange={(e) => setBasis(e.target.value)}
-                  placeholder="Кратко, за что оплата"
-                />
-              </label>
-              <label className="expenses-field">
-                <span className="expenses-field__label">Контрагент</span>
-                <input
-                  className="mo-input expenses-field__control"
-                  value={counterparty}
-                  onChange={(e) => setCounterparty(e.target.value)}
-                />
-              </label>
-              <label className="expenses-field">
-                <span className="expenses-field__label">Телефон</span>
-                <input
-                  type="tel"
-                  inputMode="tel"
-                  className="mo-input expenses-field__control"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+992…"
-                />
-              </label>
-              <label className="expenses-field expenses-field--span-sm">
-                <span className="expenses-field__label">Через кого</span>
-                <input
-                  className="mo-input expenses-field__control"
-                  value={viaPerson}
-                  onChange={(e) => setViaPerson(e.target.value)}
-                />
-              </label>
-            </div>
-          </section>
-
+          <div className="expenses-form__grid">
+            <label className="expenses-field">
+              <span className="expenses-field__label">Дата</span>
+              <DateField
+                className="expenses-field__control"
+                value={txnDate}
+                onChange={setTxnDate}
+                required
+                aria-label="Дата расхода"
+              />
+            </label>
+            <label className="expenses-field">
+              <span className="expenses-field__label">Сумма ({APP_CURRENCY})</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                className="mo-input expenses-field__control tabular-nums"
+                value={expense}
+                onChange={(e) => setExpense(e.target.value)}
+                required
+              />
+            </label>
+            {selectOrCustom(bank, [...catalog.banks], setBank, "Банк")}
+            {selectOrCustom(article, [...catalog.articles], setArticle, "Статья")}
+            {selectOrCustom(brief, [...catalog.brief_categories], setBrief, "Кратко")}
+            {selectOrCustom(detail, [...catalog.detail_categories], setDetail, "Подробно")}
+            {selectOrCustom(product, [...catalog.products], setProduct, "Товар / услуга")}
+            <label className="expenses-field expenses-field--span">
+              <span className="expenses-field__label">Основание</span>
+              <input
+                className="mo-input expenses-field__control"
+                value={basis}
+                onChange={(e) => setBasis(e.target.value)}
+              />
+            </label>
+            <label className="expenses-field">
+              <span className="expenses-field__label">Контрагент</span>
+              <input
+                className="mo-input expenses-field__control"
+                value={counterparty}
+                onChange={(e) => setCounterparty(e.target.value)}
+              />
+            </label>
+            <label className="expenses-field">
+              <span className="expenses-field__label">Телефон</span>
+              <input
+                type="tel"
+                inputMode="tel"
+                className="mo-input expenses-field__control"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </label>
+            <label className="expenses-field">
+              <span className="expenses-field__label">Через кого</span>
+              <input
+                className="mo-input expenses-field__control"
+                value={viaPerson}
+                onChange={(e) => setViaPerson(e.target.value)}
+              />
+            </label>
+          </div>
           <div className="expenses-form__actions">
             <button
               type="submit"
