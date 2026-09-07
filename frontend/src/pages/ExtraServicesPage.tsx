@@ -607,10 +607,10 @@ export function ExtraServicesPage() {
                       </td>
                       <td>{t.is_active ? "Активна" : "Выкл."}</td>
                       <td className="space-x-2 whitespace-nowrap">
-                        <button type="button" className="btn-primary px-2 py-1 text-xs" onClick={() => updateType.mutate()}>
+                        <button type="button" className="btn-primary btn-table" onClick={() => updateType.mutate()}>
                           OK
                         </button>
-                        <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => setEditId(null)}>
+                        <button type="button" className="btn-secondary btn-table" onClick={() => setEditId(null)}>
                           Отмена
                         </button>
                       </td>
@@ -625,7 +625,7 @@ export function ExtraServicesPage() {
                         <div className="flex flex-wrap items-center gap-1.5">
                           <button
                             type="button"
-                            className="btn-secondary px-2.5 py-1 text-xs"
+                            className="btn-secondary btn-table"
                             onClick={() => {
                               setEditId(t.id);
                               setEditName(t.name);
@@ -638,7 +638,7 @@ export function ExtraServicesPage() {
                           {t.is_active ? (
                             <button
                               type="button"
-                              className="rounded-xl border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-300 transition hover:bg-red-500/20"
+                              className="btn-danger btn-table"
                               onClick={() => deactivateType.mutate(t.id)}
                             >
                               Отключить
@@ -775,7 +775,7 @@ export function ExtraServicesPage() {
               <tbody>
                 {(salesQuery.data ?? []).map((s) => (
                   <tr key={s.id}>
-                    <td className="whitespace-nowrap text-xs">{formatDt(s.sold_at)}</td>
+                    <td className="whitespace-nowrap text-xs tabular-nums">{formatDtShort(s.sold_at)}</td>
                     <td className="font-medium">{s.client_name}</td>
                     <td>{s.client_phone || "—"}</td>
                     <td>
@@ -791,7 +791,7 @@ export function ExtraServicesPage() {
                     <td>
                       <button
                         type="button"
-                        className="text-xs text-red-400 underline"
+                        className="btn-danger btn-table"
                         onClick={() => {
                           if (window.confirm("Отменить эту запись?")) cancelSale.mutate(s.id);
                         }}
