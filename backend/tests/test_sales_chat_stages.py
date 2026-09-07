@@ -43,14 +43,15 @@ def test_bitrix_and_booking_aliases():
 
 
 def test_classify_lead_stage_name():
+    # Запись / явка НЕ ставят «Удачно» автоматически — только вручную.
     assert (
         classify_lead_stage_name(
             current_name="Новый лид",
             appointment_statuses={"completed"},
             has_outbound=False,
-            last_direction=None,
+            last_direction="in",
         )
-        == "Удачно"
+        == "Новый лид"
     )
     assert (
         classify_lead_stage_name(
@@ -68,7 +69,7 @@ def test_classify_lead_stage_name():
             has_outbound=True,
             last_direction="out",
         )
-        == "Удачно"
+        == "В обработке"
     )
     assert (
         classify_lead_stage_name(
@@ -311,7 +312,7 @@ def test_classify_lead_stage_name():
         )
         == "Архив"
     )
-    # Явка completed, но активность старая → Архив.
+    # Явка completed, но активность старая → Архив (запись больше не держит «Удачно»).
     assert (
         classify_lead_stage_name(
             current_name="Удачно",
@@ -324,7 +325,7 @@ def test_classify_lead_stage_name():
         )
         == "Архив"
     )
-    # Активная запись booked держит Удачно даже при старых сообщениях.
+    # booked сам по себе не удерживает «Удачно» при старом чате → Архив.
     assert (
         classify_lead_stage_name(
             current_name="Удачно",
@@ -334,9 +335,9 @@ def test_classify_lead_stage_name():
             last_message_at=old,
             now=now,
         )
-        == "Удачно"
+        == "Архив"
     )
-    # Свежая дата записи (appointment_activity_at) удерживает Удачно при старом чате.
+    # Свежая дата записи (appointment_activity_at) удерживает ручное «Удачно» при старом чате.
     assert (
         classify_lead_stage_name(
             current_name="Удачно",

@@ -79,7 +79,7 @@ async def _reject_sales_space_booking(
     db: Annotated[AsyncSession, Depends(get_db)],
     company_id: CurrentCompanyId,
 ) -> None:
-    """Раньше sales полностью блокировал booking; теперь запись нужна для стадии «Удачно»."""
+    """Раньше sales полностью блокировал booking; запись больше не двигает стадию в «Удачно»."""
     return
 
 
@@ -716,9 +716,10 @@ async def _sync_lead_after_booking_event(
     lead_id: int,
     event: Literal["booked", "completed", "lost"],
 ) -> None:
-    """Запись / явка → Удачно; отмена / неявка → Отказ. Успешные не уходят в Архив."""
-    name = {"booked": "Удачно", "completed": "Удачно", "lost": "Отказ"}[event]
-    await _sync_lead_to_stage_name(db, lead_id, name)
+    """Отмена / неявка → Отказ. «Удачно» только вручную (Статус в чате/CRM), не от записи."""
+    if event != "lost":
+        return
+    await _sync_lead_to_stage_name(db, lead_id, "Отказ")
 
 
 @router.get("/queue", response_model=list[LeadRead])

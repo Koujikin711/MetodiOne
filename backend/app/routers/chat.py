@@ -284,15 +284,21 @@ async def _assert_thread_access(db: AsyncSession, thread: ChatThread, current_us
     if current_user.role not in (UserRole.manager, UserRole.admin, UserRole.administrator):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managers only")
     allowed = await _manager_pipeline_ids(db, current_user.id)
-    if thread.pipeline_id not in allowed:
+    lead = await db.get(Lead, thread.lead_id) if thread.lead_id else None
+    lead_pipeline_id = None
+    if lead is not None:
+        await db.refresh(lead, ["stage"])
+        if lead.stage is not None:
+            lead_pipeline_id = int(lead.stage.pipeline_id)
+    thread_ok = thread.pipeline_id is not None and int(thread.pipeline_id) in allowed
+    lead_ok = lead_pipeline_id is not None and lead_pipeline_id in allowed
+    if not thread_ok and not lead_ok:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Thread is outside manager directions")
-    if thread.lead_id:
-        lead = await db.get(Lead, thread.lead_id)
-        if lead and lead.manager_id is not None and lead.manager_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Клиент закреплён за другим менеджером",
-            )
+    if lead and lead.manager_id is not None and lead.manager_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Клиент закреплён за другим менеджером",
+        )
 
 
 async def _ensure_thread_read_baseline(db: AsyncSession, *, user_id: int, thread_id: int) -> ChatThreadUserRead:
@@ -677,6 +683,15 @@ async def _send_green_file_message(
     return _msg_read(msg)
 
 
+def _thread_pipeline_allowed(allowed: set[int] | list[int]):
+    """Тред виден, если его pipeline ИЛИ воронка лида в allowed (stub/webhook часто мимо)."""
+    ids = {int(x) for x in allowed}
+    return or_(
+        ChatThread.pipeline_id.in_(ids),
+        PipelineStage.pipeline_id.in_(ids),
+    )
+
+
 def _apply_thread_search(query, *, term: str):
     like = f"%{term}%"
     conds = [
@@ -738,7 +753,9 @@ def _apply_manager_thread_bucket(
         empty_new_lead = and_(
             no_messages,
             or_(
-                PipelineStage.name.in_(("Новый лид", "Новый")),
+                PipelineStage.name.in_(
+                    ("Новый лид", "Новый", "В обработке", "В работе", "В ожидании"),
+                ),
                 PipelineStage.name.is_(None),
             ),
         )
@@ -758,7 +775,7 @@ async def _ensure_whatsapp_stubs_for_new_leads(
     current_user,
     pipeline_ids: set[int] | list[int],
 ) -> int:
-    """Stub GREEN API-треды для «Новый лид» с телефоном без чата — чтобы попали в «Ждут ответа»."""
+    """Stub GREEN API-треды для лидов с телефоном без чата — чтобы были в списке Чатов."""
     allowed = {int(x) for x in pipeline_ids}
     if not allowed:
         return 0
@@ -775,7 +792,9 @@ async def _ensure_whatsapp_stubs_for_new_leads(
         .where(
             Lead.company_id == company_id,
             PipelineStage.pipeline_id.in_(allowed),
-            PipelineStage.name.in_(("Новый лид", "Новый")),
+            PipelineStage.name.in_(
+                ("Новый лид", "Новый", "В обработке", "В работе", "В ожидании"),
+            ),
             Lead.phone.is_not(None),
             Lead.phone != "",
             ~has_thread,
@@ -996,7 +1015,7 @@ async def thread_bucket_counts(
         .where(
             ChatThread.company_id == company_id,
             ChatThread.provider != "internal",
-            ChatThread.pipeline_id.in_(allowed),
+            _thread_pipeline_allowed(allowed),
         )
     )
     if current_user.role != UserRole.owner:
@@ -1123,7 +1142,7 @@ async def list_threads(
                 pipeline_ids=allowed,
             )
         query = query.where(
-            ChatThread.pipeline_id.in_(allowed),
+            _thread_pipeline_allowed(allowed),
             manager_lead_visibility(current_user.id),
         )
         query = _apply_manager_thread_bucket(

@@ -294,12 +294,18 @@ export function ExtraServicesPage() {
           <h1 className="text-xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-2xl">
             Доп услуги
           </h1>
-          <p className="mt-1 text-xs mo-muted sm:text-sm">
+          <p className="mt-0.5 hidden text-xs mo-muted sm:mt-1 sm:block sm:text-sm">
             Под онлайн-записью: ФИО, телефон, сумма — система считает, сколько нам и сколько отдаём.{" "}
             <Link to="/booking" className="text-[var(--mo-accent-hover)] hover:underline">
               ← К онлайн-записи
             </Link>
           </p>
+          <Link
+            to="/booking"
+            className="mt-1 inline-block text-xs text-[var(--mo-accent-hover)] hover:underline sm:hidden"
+          >
+            ← К онлайн-записи
+          </Link>
         </div>
         <div className="extra-services-head-actions">
           <button
@@ -350,14 +356,11 @@ export function ExtraServicesPage() {
       )}
 
       {tab === "new" ? (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-          <form
-            onSubmit={onSubmitSale}
-            className="space-y-3 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4"
-          >
-            <h2 className="text-sm font-semibold text-[var(--mo-text)]">Новая доп. услуга</h2>
-            <label className="block text-sm text-[var(--mo-text)]">
-              Услуга
+        <div className="extra-services-new-layout">
+          <form onSubmit={onSubmitSale} className="extra-services-form">
+            <h2 className="extra-services-form__title">Новая доп. услуга</h2>
+            <label className="extra-services-field">
+              <span className="extra-services-field__label">Услуга</span>
               <select
                 className={fieldClass}
                 value={serviceTypeId}
@@ -385,8 +388,8 @@ export function ExtraServicesPage() {
                 .
               </p>
             ) : null}
-            <label className="block text-sm text-[var(--mo-text)]">
-              ФИО клиента
+            <label className="extra-services-field">
+              <span className="extra-services-field__label">ФИО клиента</span>
               <input
                 className={fieldClass}
                 value={clientName}
@@ -395,8 +398,8 @@ export function ExtraServicesPage() {
                 required
               />
             </label>
-            <label className="block text-sm text-[var(--mo-text)]">
-              Телефон
+            <label className="extra-services-field">
+              <span className="extra-services-field__label">Телефон</span>
               <input
                 className={fieldClass}
                 inputMode="tel"
@@ -405,9 +408,9 @@ export function ExtraServicesPage() {
                 placeholder="+992…"
               />
             </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block text-sm text-[var(--mo-text)]">
-                Сумма
+            <div className="extra-services-form__row2">
+              <label className="extra-services-field">
+                <span className="extra-services-field__label">Сумма</span>
                 <input
                   className={fieldClass}
                   inputMode="decimal"
@@ -417,15 +420,15 @@ export function ExtraServicesPage() {
                   required
                 />
               </label>
-              <label className="block text-sm text-[var(--mo-text)]">
-                Дата
+              <label className="extra-services-field">
+                <span className="extra-services-field__label">Дата</span>
                 <div className="mt-1.5">
                   <DateField value={soldDate} onChange={setSoldDate} />
                 </div>
               </label>
             </div>
-            <label className="block text-sm text-[var(--mo-text)]">
-              Комментарий
+            <label className="extra-services-field">
+              <span className="extra-services-field__label">Комментарий</span>
               <input className={fieldClass} value={note} onChange={(e) => setNote(e.target.value)} />
             </label>
             {selectedType && amountNum > 0 ? (
@@ -444,42 +447,44 @@ export function ExtraServicesPage() {
                 </div>
               </div>
             ) : null}
-            <button type="submit" className="btn-primary" disabled={createSale.isPending}>
+            <button
+              type="submit"
+              className="btn-primary extra-services-form__submit"
+              disabled={createSale.isPending}
+            >
               {createSale.isPending ? "Сохранение…" : "Сохранить"}
             </button>
           </form>
 
-          <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4">
-            <h2 className="mb-3 text-sm font-semibold text-[var(--mo-text)]">
-              Недавние записи ({yearMonth})
-            </h2>
+          <section className="extra-services-recent">
+            <h2 className="extra-services-recent__title">Недавние записи ({yearMonth})</h2>
             {salesQuery.isLoading ? <p className="text-sm mo-muted">Загрузка…</p> : null}
-            {(salesQuery.data ?? []).slice(0, 12).map((s) => (
-              <div
-                key={s.id}
-                className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[var(--mo-border)] py-2 text-sm"
-              >
-                <div className="min-w-0">
-                  <div className="font-medium text-[var(--mo-text)]">{s.client_name}</div>
-                  <div className="text-xs mo-muted">
-                    {s.service_name} · {formatDt(s.sold_at)}
-                    {s.client_phone ? ` · ${s.client_phone}` : ""}
+            <ul className="extra-services-recent__list">
+              {(salesQuery.data ?? []).slice(0, 12).map((s) => (
+                <li key={s.id} className="extra-services-recent__item">
+                  <div className="extra-services-recent__main">
+                    <div className="extra-services-recent__name">{s.client_name}</div>
+                    <div className="extra-services-recent__meta">
+                      <span>{s.service_name}</span>
+                      <span>{formatDt(s.sold_at)}</span>
+                      {s.client_phone ? <span>{s.client_phone}</span> : null}
+                    </div>
                   </div>
-                </div>
-                <div className="shrink-0 text-right tabular-nums">
-                  <div className="text-[var(--mo-text)]">{formatMoney(s.amount)}</div>
-                  <div className="text-xs mo-muted">
-                    <span className="kpi-actual-value">нам {formatMoney(s.keep_amount)}</span>
-                    {" / "}
-                    отдали {formatMoney(s.payout_amount)}
+                  <div className="extra-services-recent__money">
+                    <div className="extra-services-recent__amount">{formatMoney(s.amount)}</div>
+                    <div className="extra-services-recent__split">
+                      <span className="kpi-actual-value">нам {formatMoney(s.keep_amount)}</span>
+                      <span className="extra-services-recent__sep">·</span>
+                      <span>отдали {formatMoney(s.payout_amount)}</span>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                </li>
+              ))}
+            </ul>
             {!salesQuery.data?.length && !salesQuery.isLoading ? (
               <p className="text-sm mo-muted">Пока нет записей за этот месяц.</p>
             ) : null}
-          </div>
+          </section>
         </div>
       ) : null}
 

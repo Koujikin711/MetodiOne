@@ -208,7 +208,22 @@ async def upsert_thread(
             by_chat.updated_at = datetime.now(UTC)
             if by_chat.lead_id is None:
                 by_chat.lead_id = lead.id
-            if title and not by_chat.title:
+            elif int(by_chat.lead_id) != int(lead.id):
+                # CRM-лид в другой воронке, чем старый тред — перепривязываем чат к активному лиду.
+                # Иначе менеджерский лид на канбане остаётся без диалога после переписки.
+                old_pipe = int(by_chat.pipeline_id) if by_chat.pipeline_id is not None else None
+                new_pipe = int(resolved_pipeline_id) if resolved_pipeline_id is not None else None
+                if new_pipe is not None and old_pipe != new_pipe:
+                    by_chat.lead_id = lead.id
+                    by_chat.pipeline_id = new_pipe
+                    if title:
+                        by_chat.title = title
+            if int(by_chat.lead_id or 0) == int(lead.id):
+                if title and not by_chat.title:
+                    by_chat.title = title
+                if resolved_pipeline_id:
+                    by_chat.pipeline_id = int(resolved_pipeline_id)
+            elif title and not by_chat.title:
                 by_chat.title = title
             if resolved_pipeline_id and not by_chat.pipeline_id:
                 by_chat.pipeline_id = resolved_pipeline_id
@@ -229,8 +244,8 @@ async def upsert_thread(
             found.title = title
         if ext and not found.external_chat_id:
             found.external_chat_id = ext
-        if resolved_pipeline_id and not found.pipeline_id:
-            found.pipeline_id = resolved_pipeline_id
+        if resolved_pipeline_id:
+            found.pipeline_id = int(resolved_pipeline_id)
         await db.flush()
         return found
     t = ChatThread(

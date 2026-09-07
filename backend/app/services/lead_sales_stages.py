@@ -174,13 +174,16 @@ def classify_lead_stage_name(
     now: datetime | None = None,
 ) -> str:
     """
-    Жёсткие сигналы (запись) перекрывают ручные стадии.
+    «Удачно» / «Отказ» / «В ожидании» / «В работе» — только вручную (менеджер).
+    Запись (booked/completed) НЕ двигает в «Удачно» — иначе тестовые и живые чаты
+    сразу уезжают в успех при создании слота.
+    Отмена / неявка → «Отказ».
     Склад Bitrix/WhatsApp/GREEN API без свежей активности → Архив (не удалять).
     «Новый лид» только при свежем входящем (или только что созданном без чата).
-    «Удачно» и ручные стадии без активности >45 дней → Архив.
+    Ручные стадии без активности >45 дней → Архив.
     Активность: чат + дата записи/явка + created_at.
     После дневной реактивации из Архива — grace по reactivated_at.
-    «В ожидании» — только вручную; исходящий/ответ клиента → «В обработке».
+    Исходящий/ответ клиента → «В обработке» (не «В ожидании»).
     Бывшие «Удачно»/«Отказ» из Архива при новом сообщении → «В обработке», не «Новый лид».
     """
     cur = (current_name or "").strip()
@@ -189,9 +192,7 @@ def classify_lead_stage_name(
     activity = _latest_activity(last_message_at, appointment_activity_at, lead_created_at)
     closed_from = (archived_from_stage or "").strip() in CLOSED_OUTCOME_STAGE_NAMES
 
-    # Активная запись держит «Удачно».
-    if "booked" in statuses:
-        return "Удачно"
+    # Отмена / неявка → Отказ (пока лид ещё в «живой» воронке).
     if statuses.intersection({"cancelled", "no_show", "lost"}) and cur in (
         "",
         "Новый лид",
@@ -203,11 +204,7 @@ def classify_lead_stage_name(
     ):
         return "Отказ"
 
-    # Явка: «Удачно» пока свежая активность, иначе Архив.
-    if "completed" in statuses:
-        if activity is None or _is_recent(activity, now=clock):
-            return "Удачно"
-        return ARCHIVE_STAGE_NAME
+    # booked / completed больше не форсят «Удачно» — исход только кнопкой «Статус».
 
     if cur == ARCHIVE_STAGE_NAME:
         if has_outbound:

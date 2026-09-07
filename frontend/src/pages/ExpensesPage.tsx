@@ -148,11 +148,11 @@ export function ExpensesPage() {
       <div className="mo-admin-page-head expenses-page__head">
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-2xl">Расходы</h1>
-          <p className="mt-1 text-xs mo-muted sm:text-sm">
+          <p className="mt-1 hidden text-xs mo-muted sm:block sm:text-sm">
             Ввод расходов по статьям ОСВ клиники (банк, статья, подробно, товар/услуга).
           </p>
         </div>
-        <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
+        <MonthYearPicker className="expenses-month-picker" value={yearMonth} onChange={setYearMonth} />
       </div>
 
       <div className="mo-fill-page-scroll space-y-4 pt-3 sm:space-y-5 sm:pt-4">
