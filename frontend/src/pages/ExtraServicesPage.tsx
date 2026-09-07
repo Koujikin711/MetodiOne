@@ -297,7 +297,7 @@ export function ExtraServicesPage() {
             Доп услуги
           </h1>
           <p className="mt-0.5 hidden text-xs mo-muted sm:mt-1 sm:block sm:text-sm">
-            Под онлайн-записью: ФИО, телефон, сумма — система считает, сколько нам и сколько отдаём.{" "}
+            Под онлайн-записью: ФИО, телефон, сумма — система считает долю Клиники и ЕвроЛаб.{" "}
             <Link to="/booking" className="text-[var(--mo-accent-hover)] hover:underline">
               ← К онлайн-записи
             </Link>
@@ -436,14 +436,14 @@ export function ExtraServicesPage() {
             {selectedType && amountNum > 0 ? (
               <div className="extra-services-split">
                 <div>
-                  <span className="extra-services-split__label">Нам</span>
+                  <span className="extra-services-split__label">Клиника</span>
                   <span className="extra-services-split__value kpi-actual-value">
                     {formatMoney(previewKeep)}
                   </span>
                   <span className="extra-services-split__pct">{n(selectedType.keep_percent)}%</span>
                 </div>
                 <div>
-                  <span className="extra-services-split__label">Отдаём</span>
+                  <span className="extra-services-split__label">ЕвроЛаб</span>
                   <span className="extra-services-split__value">{formatMoney(previewPayout)}</span>
                   <span className="extra-services-split__pct">{n(selectedType.payout_percent)}%</span>
                 </div>
@@ -474,9 +474,9 @@ export function ExtraServicesPage() {
                   <div className="extra-services-recent__money">
                     <div className="extra-services-recent__amount">{formatMoney(s.amount)}</div>
                     <div className="extra-services-recent__split">
-                      <span className="kpi-actual-value">нам {formatMoney(s.keep_amount)}</span>
+                      <span className="kpi-actual-value">Клиника {formatMoney(s.keep_amount)}</span>
                       <span className="extra-services-recent__sep">·</span>
-                      <span>отдали {formatMoney(s.payout_amount)}</span>
+                      <span>ЕвроЛаб {formatMoney(s.payout_amount)}</span>
                     </div>
                   </div>
                 </li>
@@ -520,7 +520,7 @@ export function ExtraServicesPage() {
                 />
               </label>
               <label className="block text-sm text-[var(--mo-text)]">
-                % нам
+                % Клиника
                 <input
                   className={fieldClass}
                   inputMode="decimal"
@@ -533,7 +533,7 @@ export function ExtraServicesPage() {
                 />
               </label>
               <label className="block text-sm text-[var(--mo-text)]">
-                % отдаём
+                % ЕвроЛаб
                 <input
                   className={fieldClass}
                   inputMode="decimal"
@@ -556,8 +556,8 @@ export function ExtraServicesPage() {
               <thead>
                 <tr>
                   <th>Услуга</th>
-                  <th>% нам</th>
-                  <th>% отдаём</th>
+                  <th>% Клиника</th>
+                  <th>% ЕвроЛаб</th>
                   <th>Статус</th>
                   <th />
                 </tr>
@@ -645,7 +645,7 @@ export function ExtraServicesPage() {
       ) : null}
 
       {tab === "report" ? (
-        <div className="space-y-5">
+        <div className="extra-services-report space-y-4 sm:space-y-5">
           {reportQuery.isLoading ? <p className="text-sm mo-muted">Загрузка отчёта…</p> : null}
           {reportQuery.data ? (
             <>
@@ -658,69 +658,73 @@ export function ExtraServicesPage() {
                   <div className="extra-services-kpi__label">Сумма оплат</div>
                   <div className="extra-services-kpi__value">{formatMoney(reportQuery.data.amount_total)}</div>
                 </div>
-                <div className="extra-services-kpi">
-                  <div className="extra-services-kpi__label">Заработали (нам)</div>
+                <div className="extra-services-kpi extra-services-kpi--clinic">
+                  <div className="extra-services-kpi__label">Клиника</div>
                   <div className="extra-services-kpi__value kpi-actual-value">
                     {formatMoney(reportQuery.data.keep_total)}
                   </div>
                 </div>
-                <div className="extra-services-kpi">
-                  <div className="extra-services-kpi__label">Отдали</div>
+                <div className="extra-services-kpi extra-services-kpi--eurolab">
+                  <div className="extra-services-kpi__label">ЕвроЛаб</div>
                   <div className="extra-services-kpi__value">{formatMoney(reportQuery.data.payout_total)}</div>
                 </div>
               </div>
 
-              <div>
-                <h2 className="mb-2 text-sm font-semibold text-[var(--mo-text)]">По услугам</h2>
-                <div className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:p-3">
-                  <table className="mo-table min-w-[560px]">
+              <section className="extra-services-report-block">
+                <h2 className="extra-services-report-block__title">По услугам</h2>
+                <div className="extra-services-report-table-wrap">
+                  <table className="mo-table extra-services-report-table min-w-[520px]">
                     <thead>
                       <tr>
                         <th>Услуга</th>
                         <th>Кол-во</th>
                         <th>Сумма</th>
-                        <th>Нам</th>
-                        <th>Отдали</th>
+                        <th>Клиника</th>
+                        <th>ЕвроЛаб</th>
                       </tr>
                     </thead>
                     <tbody>
                       {reportQuery.data.by_type.map((r) => (
                         <tr key={r.service_type_id}>
-                          <td>{r.service_name}</td>
+                          <td className="font-medium">{r.service_name}</td>
                           <td className="tabular-nums">{r.count}</td>
-                          <td className="tabular-nums">{formatMoney(r.amount_total)}</td>
-                          <td className="tabular-nums kpi-actual-value">{formatMoney(r.keep_total)}</td>
-                          <td className="tabular-nums">{formatMoney(r.payout_total)}</td>
+                          <td className="tabular-nums whitespace-nowrap">{formatMoney(r.amount_total)}</td>
+                          <td className="tabular-nums whitespace-nowrap kpi-actual-value">
+                            {formatMoney(r.keep_total)}
+                          </td>
+                          <td className="tabular-nums whitespace-nowrap">{formatMoney(r.payout_total)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </section>
 
-              <div>
-                <h2 className="mb-2 text-sm font-semibold text-[var(--mo-text)]">По клиентам</h2>
-                <div className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:p-3">
-                  <table className="mo-table min-w-[640px]">
+              <section className="extra-services-report-block">
+                <h2 className="extra-services-report-block__title">По клиентам</h2>
+                <div className="extra-services-report-table-wrap">
+                  <table className="mo-table extra-services-report-table min-w-[640px]">
                     <thead>
                       <tr>
                         <th>Клиент</th>
                         <th>Телефон</th>
                         <th>Кол-во</th>
                         <th>Оплатил</th>
-                        <th>Нам</th>
-                        <th>Отдали</th>
+                        <th>Клиника</th>
+                        <th>ЕвроЛаб</th>
                       </tr>
                     </thead>
                     <tbody>
                       {reportQuery.data.by_client.map((r, i) => (
                         <tr key={`${r.client_name}-${r.client_phone}-${i}`}>
                           <td className="font-medium">{r.client_name}</td>
-                          <td>{r.client_phone || "—"}</td>
+                          <td className="whitespace-nowrap">{r.client_phone || "—"}</td>
                           <td className="tabular-nums">{r.count}</td>
-                          <td className="tabular-nums">{formatMoney(r.amount_total)}</td>
-                          <td className="tabular-nums kpi-actual-value">{formatMoney(r.keep_total)}</td>
-                          <td className="tabular-nums">{formatMoney(r.payout_total)}</td>
+                          <td className="tabular-nums whitespace-nowrap">{formatMoney(r.amount_total)}</td>
+                          <td className="tabular-nums whitespace-nowrap kpi-actual-value">
+                            {formatMoney(r.keep_total)}
+                          </td>
+                          <td className="tabular-nums whitespace-nowrap">{formatMoney(r.payout_total)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -729,7 +733,7 @@ export function ExtraServicesPage() {
                     <p className="mt-2 px-1 text-sm mo-muted">Нет данных за выбранный месяц.</p>
                   ) : null}
                 </div>
-              </div>
+              </section>
             </>
           ) : null}
         </div>
@@ -752,8 +756,8 @@ export function ExtraServicesPage() {
                   <th>Телефон</th>
                   <th>Услуга</th>
                   <th>Оплатил</th>
-                  <th>Нам</th>
-                  <th>Отдали</th>
+                  <th>Клиника</th>
+                  <th>ЕвроЛаб</th>
                   <th>Кто внёс</th>
                   <th />
                 </tr>
