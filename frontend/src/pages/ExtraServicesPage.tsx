@@ -33,6 +33,7 @@ type ExtraServiceSale = {
   keep_amount: number | string;
   payout_amount: number | string;
   sold_at: string;
+  payment_method: string | null;
   note: string | null;
   created_by_name: string | null;
 };
@@ -105,6 +106,12 @@ function n(v: number | string | null | undefined): number {
   return Number(v || 0);
 }
 
+function firstNameOnly(full: string | null | undefined): string {
+  const t = (full || "").trim();
+  if (!t) return "—";
+  return t.split(/\s+/)[0] || "—";
+}
+
 function canAccessExtraServices(role: string | null): boolean {
   return role === "owner" || role === "admin" || role === "administrator";
 }
@@ -138,6 +145,7 @@ export function ExtraServicesPage() {
   const [soldDate, setSoldDate] = useState(todayYmd);
   const [paymentPreset, setPaymentPreset] = useState<string>("");
   const [paymentCustom, setPaymentCustom] = useState("");
+  const [note, setNote] = useState("");
   const paymentMethod =
     paymentPreset === "other" ? paymentCustom.trim() : paymentPreset.trim();
 
@@ -160,7 +168,8 @@ export function ExtraServicesPage() {
           client_phone: clientPhone.trim(),
           amount: amountNum,
           sold_at: soldDate ? `${soldDate}T12:00:00+00:00` : null,
-          note: paymentMethod || null,
+          payment_method: paymentMethod,
+          note: note.trim() || null,
         }),
       }),
     onSuccess: () => {
@@ -170,6 +179,7 @@ export function ExtraServicesPage() {
       setAmount("");
       setPaymentPreset("");
       setPaymentCustom("");
+      setNote("");
       void qc.invalidateQueries({ queryKey: ["extra-service-sales"] });
       void qc.invalidateQueries({ queryKey: ["extra-service-report"] });
     },
@@ -420,7 +430,7 @@ export function ExtraServicesPage() {
                 placeholder="+992…"
               />
             </label>
-            <div className="extra-services-form__row2">
+            <div className="extra-services-form__row3">
               <label className="extra-services-field">
                 <span className="extra-services-field__label">Сумма</span>
                 <input
@@ -433,49 +443,53 @@ export function ExtraServicesPage() {
                 />
               </label>
               <label className="extra-services-field">
+                <span className="extra-services-field__label">Банк / касса</span>
+                <select
+                  className={fieldClass}
+                  value={paymentPreset}
+                  onChange={(e) => {
+                    setPaymentPreset(e.target.value);
+                    if (e.target.value !== "other") setPaymentCustom("");
+                  }}
+                  required
+                >
+                  <option value="">Выберите…</option>
+                  {PAYMENT_PRESETS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                  <option value="other">Другое…</option>
+                </select>
+              </label>
+              <label className="extra-services-field">
                 <span className="extra-services-field__label">Дата</span>
                 <div className="mt-1.5">
                   <DateField value={soldDate} onChange={setSoldDate} />
                 </div>
               </label>
             </div>
-            <fieldset className="extra-services-field">
-              <legend className="extra-services-field__label">Способ оплаты</legend>
-              <div className="extra-services-pay">
-                {PAYMENT_PRESETS.map((opt) => {
-                  const active = paymentPreset === opt;
-                  return (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => {
-                        setPaymentPreset(opt);
-                        setPaymentCustom("");
-                      }}
-                      className={["extra-services-pay__btn", active ? "is-active" : ""].join(" ")}
-                    >
-                      {opt}
-                    </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={() => setPaymentPreset("other")}
-                  className={["extra-services-pay__btn", paymentPreset === "other" ? "is-active" : ""].join(" ")}
-                >
-                  Другое
-                </button>
-              </div>
-              {paymentPreset === "other" ? (
+            {paymentPreset === "other" ? (
+              <label className="extra-services-field">
+                <span className="extra-services-field__label">Название банка</span>
                 <input
                   className={fieldClass}
                   value={paymentCustom}
                   onChange={(e) => setPaymentCustom(e.target.value)}
-                  placeholder="Название банка или кассы"
-                  autoFocus
+                  placeholder="Например: ИБТ, Спитамен…"
+                  required
                 />
-              ) : null}
-            </fieldset>
+              </label>
+            ) : null}
+            <label className="extra-services-field">
+              <span className="extra-services-field__label">Комментарий</span>
+              <input
+                className={fieldClass}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Необязательно"
+              />
+            </label>
             {selectedType && amountNum > 0 ? (
               <div className="extra-services-split">
                 <div>
@@ -512,7 +526,7 @@ export function ExtraServicesPage() {
                     <div className="extra-services-recent__meta">
                       <span>{formatDtShort(s.sold_at)}</span>
                       {s.client_phone ? <span>{s.client_phone}</span> : null}
-                      {s.note ? <span>{s.note}</span> : null}
+                      {s.payment_method ? <span>{s.payment_method}</span> : null}
                     </div>
                   </div>
                   <div className="extra-services-recent__money">
@@ -811,6 +825,7 @@ export function ExtraServicesPage() {
                   <th>Телефон</th>
                   <th>Услуга</th>
                   <th>Оплата</th>
+                  <th>Комментарий</th>
                   <th className="extra-services-col-money">Оплатил</th>
                   <th className="extra-services-col-money">Клиника</th>
                   <th className="extra-services-col-money">Партнёр</th>
@@ -825,11 +840,12 @@ export function ExtraServicesPage() {
                     <td className="extra-services-col-name font-medium">{s.client_name}</td>
                     <td className="extra-services-col-phone">{s.client_phone || "—"}</td>
                     <td className="whitespace-nowrap font-medium">{s.service_name}</td>
-                    <td className="whitespace-nowrap">{s.note || "—"}</td>
+                    <td className="whitespace-nowrap">{s.payment_method || s.note || "—"}</td>
+                    <td className="extra-services-col-name">{s.payment_method ? s.note || "—" : "—"}</td>
                     <td className="extra-services-col-money">{formatMoney(s.amount)}</td>
                     <td className="extra-services-col-money kpi-actual-value">{formatMoney(s.keep_amount)}</td>
                     <td className="extra-services-col-money">{formatMoney(s.payout_amount)}</td>
-                    <td className="extra-services-col-name text-xs mo-muted">{s.created_by_name || "—"}</td>
+                    <td className="whitespace-nowrap text-xs mo-muted">{firstNameOnly(s.created_by_name)}</td>
                     <td className="whitespace-nowrap">
                       <button
                         type="button"

@@ -99,6 +99,7 @@ def _sale_out(
         keep_amount=_money(row.keep_amount),
         payout_amount=_money(row.payout_amount),
         sold_at=row.sold_at,
+        payment_method=getattr(row, "payment_method", None),
         note=row.note,
         status=row.status,
         created_by_user_id=int(row.created_by_user_id) if row.created_by_user_id is not None else None,
@@ -266,6 +267,7 @@ async def list_sales(
                 ExtraServiceSale.client_phone.ilike(like),
                 ExtraServiceType.name.ilike(like),
                 ExtraServiceSale.note.ilike(like),
+                ExtraServiceSale.payment_method.ilike(like),
             ),
         )
     stmt = stmt.order_by(ExtraServiceSale.sold_at.desc(), ExtraServiceSale.id.desc()).limit(limit)
@@ -301,7 +303,7 @@ async def create_sale(
     if sold_at.tzinfo is None:
         sold_at = sold_at.replace(tzinfo=UTC)
     phone = "".join(ch for ch in (body.client_phone or "") if ch.isdigit() or ch == "+") or (body.client_phone or "").strip()
-    payment = (body.note or "").strip()
+    payment = (body.payment_method or "").strip()
     if not payment:
         raise HTTPException(status_code=400, detail="Укажите способ оплаты")
     row = ExtraServiceSale(
@@ -315,7 +317,8 @@ async def create_sale(
         keep_amount=keep_amt,
         payout_amount=payout_amt,
         sold_at=sold_at,
-        note=payment,
+        payment_method=payment,
+        note=(body.note or "").strip() or None,
         status="active",
         created_by_user_id=int(current_user.id),
         created_at=datetime.now(UTC),

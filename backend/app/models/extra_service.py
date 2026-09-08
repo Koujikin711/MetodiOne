@@ -66,6 +66,7 @@ class ExtraServiceSale(Base):
         index=True,
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payment_method: Mapped[str | None] = mapped_column(String(80), nullable=True)
     # active | cancelled
     status: Mapped[str] = mapped_column(String(24), default="active", index=True)
     created_by_user_id: Mapped[int | None] = mapped_column(

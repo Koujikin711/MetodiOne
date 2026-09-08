@@ -3424,6 +3424,23 @@ async def ensure_extra_services_tables(conn: AsyncConnection, database_url: str)
     await conn.execute(
         text("CREATE INDEX IF NOT EXISTS ix_extra_service_sales_status ON extra_service_sales (status)"),
     )
+    if sqlite:
+        r = await conn.execute(text("PRAGMA table_info(extra_service_sales)"))
+        sale_cols = {row[1] for row in r.fetchall()}
+        if sale_cols and "payment_method" not in sale_cols:
+            await conn.execute(text("ALTER TABLE extra_service_sales ADD COLUMN payment_method VARCHAR(80)"))
+    else:
+        await conn.execute(
+            text("ALTER TABLE extra_service_sales ADD COLUMN IF NOT EXISTS payment_method VARCHAR(80)"),
+        )
+    await conn.execute(
+        text(
+            """UPDATE extra_service_sales
+               SET payment_method = note, note = NULL
+               WHERE payment_method IS NULL
+                 AND note IN ('Касса', 'ДС', 'Алиф', 'Эсхата')"""
+        ),
+    )
 
 
 async def ensure_fix_kurs15_price_2000_to_1300(conn: AsyncConnection, database_url: str) -> None:

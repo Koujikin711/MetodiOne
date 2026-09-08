@@ -40,6 +40,7 @@ class ExtraServiceSaleCreate(BaseModel):
     client_phone: str = Field("", max_length=64)
     amount: Decimal = Field(..., gt=0)
     sold_at: datetime | None = None
+    payment_method: str = Field(..., min_length=1, max_length=80)
     note: str | None = Field(None, max_length=2000)
 
 
@@ -56,6 +57,7 @@ class ExtraServiceSaleOut(BaseModel):
     keep_amount: Decimal
     payout_amount: Decimal
     sold_at: datetime
+    payment_method: str | None = None
     note: str | None = None
     status: str
     created_by_user_id: int | None = None
