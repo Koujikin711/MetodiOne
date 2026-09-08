@@ -91,7 +91,12 @@ export function MainLayout() {
     role === "finance_analyst" ||
     role === "accountant" ||
     isChiefExpert;
-  const showExpenses = role === "owner" || role === "super_owner" || role === "accountant" || role === "admin";
+  const showExpenses =
+    role === "owner" ||
+    role === "super_owner" ||
+    role === "accountant" ||
+    role === "admin" ||
+    role === "administrator";
   const showIntegrationsHub = role === "owner" || isChiefExpert;
   const showKpi =
     role === "owner" ||

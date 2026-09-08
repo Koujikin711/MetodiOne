@@ -146,8 +146,16 @@ export function RequireFinance({ children }: { children: ReactNode }) {
 
 export function RequireExpenses({ children }: { children: ReactNode }) {
   const r = decodeRoleFromToken(getStoredToken());
-  if (r !== "owner" && r !== "super_owner" && r !== "accountant" && r !== "admin") {
-    return <AccessDenied message="Раздел «Расходы» доступен бухгалтеру и владельцу." />;
+  if (
+    r !== "owner" &&
+    r !== "super_owner" &&
+    r !== "accountant" &&
+    r !== "admin" &&
+    r !== "administrator"
+  ) {
+    return (
+      <AccessDenied message="Раздел «Расходы» доступен бухгалтеру, администратору и владельцу." />
+    );
   }
   return <>{children}</>;
 }

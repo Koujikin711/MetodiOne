@@ -69,6 +69,7 @@ def can_access_expenses(role: UserRole) -> bool:
         UserRole.super_owner,
         UserRole.accountant,
         UserRole.admin,
+        UserRole.administrator,
     )
 
 
