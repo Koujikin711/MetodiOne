@@ -111,6 +111,8 @@ function canAccessExtraServices(role: string | null): boolean {
 
 const fieldClass = "mo-input mt-1.5 w-full min-w-0";
 
+const PAYMENT_PRESETS = ["Касса", "ДС", "Алиф", "Эсхата"] as const;
+
 export function ExtraServicesPage() {
   const qc = useQueryClient();
   const role = decodeRoleFromToken(getStoredToken());
@@ -134,7 +136,10 @@ export function ExtraServicesPage() {
   const [clientPhone, setClientPhone] = useState("");
   const [amount, setAmount] = useState("");
   const [soldDate, setSoldDate] = useState(todayYmd);
-  const [note, setNote] = useState("");
+  const [paymentPreset, setPaymentPreset] = useState<string>("");
+  const [paymentCustom, setPaymentCustom] = useState("");
+  const paymentMethod =
+    paymentPreset === "other" ? paymentCustom.trim() : paymentPreset.trim();
 
   const selectedType = activeTypes.find((t) => t.id === serviceTypeId) ?? null;
   const amountNum = Number(String(amount).replace(",", ".")) || 0;
@@ -155,7 +160,7 @@ export function ExtraServicesPage() {
           client_phone: clientPhone.trim(),
           amount: amountNum,
           sold_at: soldDate ? `${soldDate}T12:00:00+00:00` : null,
-          note: note.trim() || null,
+          note: paymentMethod || null,
         }),
       }),
     onSuccess: () => {
@@ -163,7 +168,8 @@ export function ExtraServicesPage() {
       setClientName("");
       setClientPhone("");
       setAmount("");
-      setNote("");
+      setPaymentPreset("");
+      setPaymentCustom("");
       void qc.invalidateQueries({ queryKey: ["extra-service-sales"] });
       void qc.invalidateQueries({ queryKey: ["extra-service-report"] });
     },
@@ -182,6 +188,10 @@ export function ExtraServicesPage() {
     }
     if (!(amountNum > 0)) {
       toast.error("Укажите сумму");
+      return;
+    }
+    if (!paymentMethod) {
+      toast.error("Укажите способ оплаты");
       return;
     }
     createSale.mutate();
@@ -429,10 +439,43 @@ export function ExtraServicesPage() {
                 </div>
               </label>
             </div>
-            <label className="extra-services-field">
-              <span className="extra-services-field__label">Комментарий</span>
-              <input className={fieldClass} value={note} onChange={(e) => setNote(e.target.value)} />
-            </label>
+            <fieldset className="extra-services-field">
+              <legend className="extra-services-field__label">Способ оплаты</legend>
+              <div className="extra-services-pay">
+                {PAYMENT_PRESETS.map((opt) => {
+                  const active = paymentPreset === opt;
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => {
+                        setPaymentPreset(opt);
+                        setPaymentCustom("");
+                      }}
+                      className={["extra-services-pay__btn", active ? "is-active" : ""].join(" ")}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setPaymentPreset("other")}
+                  className={["extra-services-pay__btn", paymentPreset === "other" ? "is-active" : ""].join(" ")}
+                >
+                  Другое
+                </button>
+              </div>
+              {paymentPreset === "other" ? (
+                <input
+                  className={fieldClass}
+                  value={paymentCustom}
+                  onChange={(e) => setPaymentCustom(e.target.value)}
+                  placeholder="Название банка или кассы"
+                  autoFocus
+                />
+              ) : null}
+            </fieldset>
             {selectedType && amountNum > 0 ? (
               <div className="extra-services-split">
                 <div>
@@ -469,6 +512,7 @@ export function ExtraServicesPage() {
                     <div className="extra-services-recent__meta">
                       <span>{formatDtShort(s.sold_at)}</span>
                       {s.client_phone ? <span>{s.client_phone}</span> : null}
+                      {s.note ? <span>{s.note}</span> : null}
                     </div>
                   </div>
                   <div className="extra-services-recent__money">
@@ -754,18 +798,19 @@ export function ExtraServicesPage() {
         <div className="space-y-3">
           <input
             className="mo-input w-full max-w-md"
-            placeholder="Поиск: ФИО, телефон, услуга…"
+            placeholder="Поиск: ФИО, телефон, услуга, банк…"
             value={journalQ}
             onChange={(e) => setJournalQ(e.target.value)}
           />
           <div className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:p-3">
-            <table className="mo-table min-w-[1080px]">
+            <table className="mo-table min-w-[1180px]">
               <thead>
                 <tr>
                   <th>Когда</th>
                   <th>Клиент</th>
                   <th>Телефон</th>
                   <th>Услуга</th>
+                  <th>Оплата</th>
                   <th className="extra-services-col-money">Оплатил</th>
                   <th className="extra-services-col-money">Клиника</th>
                   <th className="extra-services-col-money">Партнёр</th>
@@ -780,6 +825,7 @@ export function ExtraServicesPage() {
                     <td className="extra-services-col-name font-medium">{s.client_name}</td>
                     <td className="extra-services-col-phone">{s.client_phone || "—"}</td>
                     <td className="whitespace-nowrap font-medium">{s.service_name}</td>
+                    <td className="whitespace-nowrap">{s.note || "—"}</td>
                     <td className="extra-services-col-money">{formatMoney(s.amount)}</td>
                     <td className="extra-services-col-money kpi-actual-value">{formatMoney(s.keep_amount)}</td>
                     <td className="extra-services-col-money">{formatMoney(s.payout_amount)}</td>
