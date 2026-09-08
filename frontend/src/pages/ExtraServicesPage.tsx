@@ -812,18 +812,17 @@ export function ExtraServicesPage() {
         <div className="space-y-3">
           <input
             className="mo-input w-full max-w-md"
-            placeholder="Поиск: ФИО, телефон, услуга, банк…"
+            placeholder="Поиск: ФИО, телефон, банк…"
             value={journalQ}
             onChange={(e) => setJournalQ(e.target.value)}
           />
           <div className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:p-3">
-            <table className="mo-table min-w-[1180px]">
+            <table className="mo-table min-w-[1080px]">
               <thead>
                 <tr>
                   <th>Когда</th>
                   <th>Клиент</th>
                   <th>Телефон</th>
-                  <th>Услуга</th>
                   <th>Оплата</th>
                   <th>Комментарий</th>
                   <th className="extra-services-col-money">Оплатил</th>
@@ -839,7 +838,6 @@ export function ExtraServicesPage() {
                     <td className="whitespace-nowrap text-xs tabular-nums">{formatDtShort(s.sold_at)}</td>
                     <td className="extra-services-col-name font-medium">{s.client_name}</td>
                     <td className="extra-services-col-phone">{s.client_phone || "—"}</td>
-                    <td className="whitespace-nowrap font-medium">{s.service_name}</td>
                     <td className="whitespace-nowrap">{s.payment_method || s.note || "—"}</td>
                     <td className="extra-services-col-name">{s.payment_method ? s.note || "—" : "—"}</td>
                     <td className="extra-services-col-money">{formatMoney(s.amount)}</td>
