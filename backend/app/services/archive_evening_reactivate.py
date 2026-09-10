@@ -23,6 +23,8 @@ from app.models import (
     Pipeline,
     PipelineStage,
     SystemAuditEvent,
+    User,
+    UserRole,
 )
 from app.services.lead_assignment import list_company_manager_ids
 from app.services.lead_sales_stages import ARCHIVE_STAGE_NAME, stage_id_by_name_in_pipeline
@@ -193,6 +195,32 @@ async def _pick_archive_pool(
     return [(int(r[0]), int(r[1])) for r in rows]
 
 
+async def list_company_manager_quotas(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    default_quota: int = LEADS_PER_MANAGER,
+) -> list[tuple[int, int]]:
+    """[(manager_id, daily_quota), ...] — персональная квота или дефолт."""
+    rows = (
+        await db.execute(
+            select(User.id, User.daily_archive_leads_quota).where(
+                User.company_id == company_id,
+                User.role == UserRole.manager,
+                User.is_active.is_(True),
+                User.accepts_new_leads.is_(True),
+            ).order_by(User.id.asc()),
+        )
+    ).all()
+    out: list[tuple[int, int]] = []
+    for uid, quota in rows:
+        q = int(quota) if quota is not None else int(default_quota)
+        if q <= 0:
+            continue
+        out.append((int(uid), q))
+    return out
+
+
 async def reactivate_company_archive_leads(
     db: AsyncSession,
     *,
@@ -205,7 +233,11 @@ async def reactivate_company_archive_leads(
     if clock.tzinfo is None:
         clock = clock.replace(tzinfo=UTC)
 
-    managers = await list_company_manager_ids(db, company_id=company_id)
+    managers = await list_company_manager_quotas(
+        db,
+        company_id=company_id,
+        default_quota=leads_per_manager,
+    )
     if not managers:
         return 0
 
@@ -217,7 +249,7 @@ async def reactivate_company_archive_leads(
     if not new_by_pipe:
         return 0
 
-    need = int(leads_per_manager) * len(managers)
+    need = sum(q for _, q in managers)
     pool = await _pick_archive_pool(
         db,
         company_id=company_id,
@@ -239,9 +271,9 @@ async def reactivate_company_archive_leads(
     batch_id = uuid.uuid4().hex[:12]
     assigned = 0
     cursor = 0
-    for mid in managers:
-        chunk = pool[cursor : cursor + leads_per_manager]
-        cursor += leads_per_manager
+    for mid, quota in managers:
+        chunk = pool[cursor : cursor + quota]
+        cursor += quota
         if not chunk:
             break
         for lead_id, status_id in chunk:
@@ -264,7 +296,7 @@ async def reactivate_company_archive_leads(
                     entity_type="lead",
                     entity_id=lead_id,
                     action="manager_reassigned",
-                    details=f"batch_id={batch_id};source=archive_evening;manager_id={mid}",
+                    details=f"batch_id={batch_id};source=archive_evening;manager_id={mid};quota={quota}",
                     user_id=None,
                 ),
             )
