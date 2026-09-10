@@ -3509,3 +3509,144 @@ async def _fix_kurs15_price_2000_to_1300_body(conn: AsyncConnection, database_ur
             text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
             {"n": patch_name},
         )
+
+
+async def ensure_chat_thread_unique_external(conn: AsyncConnection, database_url: str) -> None:
+    """Сливает exact-дубли chat_threads и ставит UNIQUE (company, provider, chatId)."""
+    low = database_url.lower()
+    if "postgresql" in low or "asyncpg" in low:
+        # 1) Сообщения с loser → keeper (min id)
+        await conn.execute(
+            text(
+                """
+                WITH dups AS (
+                  SELECT company_id, provider, external_chat_id, MIN(id) AS keeper_id
+                  FROM chat_threads
+                  WHERE external_chat_id IS NOT NULL
+                    AND btrim(external_chat_id) <> ''
+                    AND company_id IS NOT NULL
+                  GROUP BY company_id, provider, external_chat_id
+                  HAVING COUNT(*) > 1
+                ),
+                losers AS (
+                  SELECT t.id AS loser_id, d.keeper_id
+                  FROM chat_threads t
+                  INNER JOIN dups d
+                    ON t.company_id = d.company_id
+                   AND t.provider = d.provider
+                   AND t.external_chat_id = d.external_chat_id
+                  WHERE t.id <> d.keeper_id
+                )
+                UPDATE chat_messages AS m
+                SET thread_id = l.keeper_id
+                FROM losers l
+                WHERE m.thread_id = l.loser_id
+                """
+            ),
+        )
+        # 2) Read-markers без конфликта на keeper
+        await conn.execute(
+            text(
+                """
+                WITH dups AS (
+                  SELECT company_id, provider, external_chat_id, MIN(id) AS keeper_id
+                  FROM chat_threads
+                  WHERE external_chat_id IS NOT NULL
+                    AND btrim(external_chat_id) <> ''
+                    AND company_id IS NOT NULL
+                  GROUP BY company_id, provider, external_chat_id
+                  HAVING COUNT(*) > 1
+                ),
+                losers AS (
+                  SELECT t.id AS loser_id, d.keeper_id
+                  FROM chat_threads t
+                  INNER JOIN dups d
+                    ON t.company_id = d.company_id
+                   AND t.provider = d.provider
+                   AND t.external_chat_id = d.external_chat_id
+                  WHERE t.id <> d.keeper_id
+                )
+                UPDATE chat_thread_user_reads AS r
+                SET thread_id = l.keeper_id
+                FROM losers l
+                WHERE r.thread_id = l.loser_id
+                  AND NOT EXISTS (
+                    SELECT 1 FROM chat_thread_user_reads r2
+                    WHERE r2.user_id = r.user_id AND r2.thread_id = l.keeper_id
+                  )
+                """
+            ),
+        )
+        await conn.execute(
+            text(
+                """
+                WITH dups AS (
+                  SELECT company_id, provider, external_chat_id, MIN(id) AS keeper_id
+                  FROM chat_threads
+                  WHERE external_chat_id IS NOT NULL
+                    AND btrim(external_chat_id) <> ''
+                    AND company_id IS NOT NULL
+                  GROUP BY company_id, provider, external_chat_id
+                  HAVING COUNT(*) > 1
+                ),
+                losers AS (
+                  SELECT t.id AS loser_id
+                  FROM chat_threads t
+                  INNER JOIN dups d
+                    ON t.company_id = d.company_id
+                   AND t.provider = d.provider
+                   AND t.external_chat_id = d.external_chat_id
+                  WHERE t.id <> d.keeper_id
+                )
+                DELETE FROM chat_thread_user_reads r
+                USING losers l
+                WHERE r.thread_id = l.loser_id
+                """
+            ),
+        )
+        await conn.execute(
+            text(
+                """
+                WITH dups AS (
+                  SELECT company_id, provider, external_chat_id, MIN(id) AS keeper_id
+                  FROM chat_threads
+                  WHERE external_chat_id IS NOT NULL
+                    AND btrim(external_chat_id) <> ''
+                    AND company_id IS NOT NULL
+                  GROUP BY company_id, provider, external_chat_id
+                  HAVING COUNT(*) > 1
+                ),
+                losers AS (
+                  SELECT t.id AS loser_id
+                  FROM chat_threads t
+                  INNER JOIN dups d
+                    ON t.company_id = d.company_id
+                   AND t.provider = d.provider
+                   AND t.external_chat_id = d.external_chat_id
+                  WHERE t.id <> d.keeper_id
+                )
+                DELETE FROM chat_threads t
+                USING losers l
+                WHERE t.id = l.loser_id
+                """
+            ),
+        )
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_threads_company_provider_ext "
+                "ON chat_threads (company_id, provider, external_chat_id) "
+                "WHERE external_chat_id IS NOT NULL AND btrim(external_chat_id) <> '' "
+                "AND company_id IS NOT NULL"
+            ),
+        )
+        return
+
+    if "sqlite" in low:
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_threads_company_provider_ext "
+                "ON chat_threads (company_id, provider, external_chat_id) "
+                "WHERE external_chat_id IS NOT NULL AND company_id IS NOT NULL"
+            ),
+        )
+

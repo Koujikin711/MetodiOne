@@ -28,3 +28,5 @@ def test_upsert_thread_dedupes_by_external_chat_id():
 
     src = inspect.getsource(m.upsert_thread)
     assert "ChatThread.external_chat_id == ext" in src
+    assert "ChatThread.lead_id == lead.id" in src
+    assert "normalize_whatsapp_chat_id" in src

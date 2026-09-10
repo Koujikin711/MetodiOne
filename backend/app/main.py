@@ -46,6 +46,7 @@ from app.database_migrate import (
     ensure_fix_kurs15_price_2000_to_1300,
     ensure_clinic_staff_roles,
     ensure_extra_services_tables,
+    ensure_chat_thread_unique_external,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -158,6 +159,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_fix_massage_osv_prepaid_aug2026(conn, db_url)
                 await ensure_fix_kurs15_price_2000_to_1300(conn, db_url)
                 await ensure_extra_services_tables(conn, db_url)
+                await ensure_chat_thread_unique_external(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts
@@ -227,14 +229,17 @@ async def ensure_canonical_pipeline_heavy_jobs() -> None:
     """Тяжёлое: дедуп телефонов + раскладка — в фоне после старта API."""
     try:
         async with AsyncSessionLocal() as session:
+            from app.services.chat_thread_dedup import merge_duplicate_chat_threads
             from app.services.lead_phone_dedup import merge_duplicate_phone_leads
             from app.services.lead_sales_stages import redistribute_all_pipelines_leads
 
+            chat_dedup = await merge_duplicate_chat_threads(session)
             dedup = await merge_duplicate_phone_leads(session)
             moved = await redistribute_all_pipelines_leads(session)
             await session.commit()
             logger.info(
-                "Canonical heavy jobs: phone_dedup groups=%s removed=%s threads=%s; redistributed %s lead(s)",
+                "Canonical heavy jobs: chat_thread_dedup=%s; phone_dedup groups=%s removed=%s threads=%s; redistributed %s lead(s)",
+                chat_dedup.get("merged_total"),
                 dedup.get("merged_groups"),
                 dedup.get("removed_leads"),
                 dedup.get("moved_threads"),

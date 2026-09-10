@@ -5,7 +5,8 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime
 
-from sqlalchemy import and_, case, select
+from sqlalchemy import and_, case, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -13,15 +14,16 @@ from app.models import (
     ChatThread,
     Integration,
     Lead,
-    LeadExtraPhone,
     LeadSource,
     Pipeline,
     PipelineStage,
 )
+from app.services.chat_thread_dedup import normalize_whatsapp_chat_id
 from app.services.chat_thread_state import touch_thread_on_message
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.lead_extra_phones import find_lead_by_any_phone
 from app.services.lead_sales_stages import resolve_new_lead_stage_id
+from app.services.phone_match import phones_equivalent, whatsapp_e164_digits
 
 
 def norm_phone(raw: str | None) -> str | None:
@@ -176,6 +178,81 @@ async def create_lead_from_integration(
     return lead, True
 
 
+def _apply_thread_meta(
+    thread: ChatThread,
+    *,
+    lead: Lead,
+    title: str | None,
+    resolved_pipeline_id: int | None,
+    ext: str | None,
+) -> None:
+    thread.updated_at = datetime.now(UTC)
+    if thread.lead_id is None:
+        thread.lead_id = lead.id
+    elif int(thread.lead_id) != int(lead.id):
+        old_pipe = int(thread.pipeline_id) if thread.pipeline_id is not None else None
+        new_pipe = int(resolved_pipeline_id) if resolved_pipeline_id is not None else None
+        if new_pipe is not None and old_pipe != new_pipe:
+            thread.lead_id = lead.id
+            thread.pipeline_id = new_pipe
+            if title:
+                thread.title = title
+    if int(thread.lead_id or 0) == int(lead.id):
+        if title and not thread.title:
+            thread.title = title
+        if resolved_pipeline_id:
+            thread.pipeline_id = int(resolved_pipeline_id)
+    elif title and not thread.title:
+        thread.title = title
+    if resolved_pipeline_id and not thread.pipeline_id:
+        thread.pipeline_id = resolved_pipeline_id
+    if ext:
+        cur = (thread.external_chat_id or "").strip()
+        if not cur:
+            thread.external_chat_id = ext
+        elif cur != ext and phones_equivalent(cur.split("@", 1)[0], ext.split("@", 1)[0]):
+            # Канонический 992…@c.us вместо короткого/старого формата.
+            if len(ext) >= len(cur):
+                thread.external_chat_id = ext
+
+
+async def _find_thread_by_equivalent_chat(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    provider: str,
+    ext: str,
+) -> ChatThread | None:
+    """Ищет green_api-тред с тем же номером в другом написании chatId."""
+    if provider != "green_api" or "@c.us" not in ext.lower():
+        return None
+    want = whatsapp_e164_digits(ext.split("@", 1)[0])
+    if len(want) < 9:
+        return None
+    tail = want[-9:]
+    # Короткий локальный и полный E.164 варианты.
+    candidates = (
+        await db.execute(
+            select(ChatThread)
+            .where(
+                ChatThread.company_id == company_id,
+                ChatThread.provider == provider,
+                ChatThread.external_chat_id.is_not(None),
+                ChatThread.external_chat_id.like(f"%{tail}@c.us"),
+            )
+            .order_by(ChatThread.id.asc())
+            .limit(20),
+        )
+    ).scalars().all()
+    for th in candidates:
+        cur = (th.external_chat_id or "").strip()
+        if not cur:
+            continue
+        if phones_equivalent(cur.split("@", 1)[0], want):
+            return th
+    return None
+
+
 async def upsert_thread(
     db: AsyncSession,
     *,
@@ -186,11 +263,48 @@ async def upsert_thread(
     title: str | None = None,
     pipeline_id: int | None = None,
 ) -> ChatThread:
-    """Один external_chat_id (напр. 992…@c.us) → один тред в компании, не два диалога."""
+    """Один WhatsApp chatId / один lead+provider → один тред (без дублей в «Диалогах»)."""
     resolved_pipeline_id = pipeline_id or (lead.stage.pipeline_id if lead.stage else None)
-    ext = (external_chat_id or "").strip() or None
+    raw_ext = (external_chat_id or "").strip() or None
+    ext = normalize_whatsapp_chat_id(raw_ext) if provider == "green_api" else raw_ext
 
-    # Глобально по chatId: не плодим второй диалог на тот же WhatsApp.
+    # Сериализуем создание по chatId внутри транзакции (Postgres), чтобы гонка не плодила 2 строки.
+    if ext:
+        try:
+            conn = await db.connection()
+            if conn.dialect.name == "postgresql":
+                await db.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+                    {"k": f"chat_thread:{company_id}:{provider}:{ext}"},
+                )
+        except Exception:
+            pass
+
+    # 1) Уже есть WhatsApp/тред у этого лида — не создаём второй диалог.
+    by_lead = (
+        await db.execute(
+            select(ChatThread)
+            .where(
+                ChatThread.company_id == company_id,
+                ChatThread.lead_id == lead.id,
+                ChatThread.provider == provider,
+            )
+            .order_by(ChatThread.id.asc())
+            .limit(1),
+        )
+    ).scalars().first()
+    if by_lead is not None:
+        _apply_thread_meta(
+            by_lead,
+            lead=lead,
+            title=title,
+            resolved_pipeline_id=resolved_pipeline_id,
+            ext=ext,
+        )
+        await db.flush()
+        return by_lead
+
+    # 2) Глобально по точному chatId.
     if ext:
         by_chat = (
             await db.execute(
@@ -204,50 +318,34 @@ async def upsert_thread(
                 .limit(1),
             )
         ).scalars().first()
+        if by_chat is None and raw_ext and raw_ext != ext:
+            by_chat = (
+                await db.execute(
+                    select(ChatThread)
+                    .where(
+                        ChatThread.company_id == company_id,
+                        ChatThread.provider == provider,
+                        ChatThread.external_chat_id == raw_ext,
+                    )
+                    .order_by(ChatThread.id.asc())
+                    .limit(1),
+                )
+            ).scalars().first()
+        if by_chat is None:
+            by_chat = await _find_thread_by_equivalent_chat(
+                db, company_id=company_id, provider=provider, ext=ext,
+            )
         if by_chat is not None:
-            by_chat.updated_at = datetime.now(UTC)
-            if by_chat.lead_id is None:
-                by_chat.lead_id = lead.id
-            elif int(by_chat.lead_id) != int(lead.id):
-                # CRM-лид в другой воронке, чем старый тред — перепривязываем чат к активному лиду.
-                # Иначе менеджерский лид на канбане остаётся без диалога после переписки.
-                old_pipe = int(by_chat.pipeline_id) if by_chat.pipeline_id is not None else None
-                new_pipe = int(resolved_pipeline_id) if resolved_pipeline_id is not None else None
-                if new_pipe is not None and old_pipe != new_pipe:
-                    by_chat.lead_id = lead.id
-                    by_chat.pipeline_id = new_pipe
-                    if title:
-                        by_chat.title = title
-            if int(by_chat.lead_id or 0) == int(lead.id):
-                if title and not by_chat.title:
-                    by_chat.title = title
-                if resolved_pipeline_id:
-                    by_chat.pipeline_id = int(resolved_pipeline_id)
-            elif title and not by_chat.title:
-                by_chat.title = title
-            if resolved_pipeline_id and not by_chat.pipeline_id:
-                by_chat.pipeline_id = resolved_pipeline_id
+            _apply_thread_meta(
+                by_chat,
+                lead=lead,
+                title=title,
+                resolved_pipeline_id=resolved_pipeline_id,
+                ext=ext,
+            )
             await db.flush()
             return by_chat
 
-    q = select(ChatThread).where(
-        ChatThread.company_id == company_id,
-        ChatThread.lead_id == lead.id,
-        ChatThread.provider == provider,
-    )
-    if ext:
-        q = q.where(ChatThread.external_chat_id == ext)
-    found = (await db.execute(q.limit(1))).scalars().first()
-    if found is not None:
-        found.updated_at = datetime.now(UTC)
-        if title and not found.title:
-            found.title = title
-        if ext and not found.external_chat_id:
-            found.external_chat_id = ext
-        if resolved_pipeline_id:
-            found.pipeline_id = int(resolved_pipeline_id)
-        await db.flush()
-        return found
     t = ChatThread(
         company_id=company_id,
         lead_id=lead.id,
@@ -258,8 +356,49 @@ async def upsert_thread(
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
     )
-    db.add(t)
-    await db.flush()
+    try:
+        async with db.begin_nested():
+            db.add(t)
+            await db.flush()
+    except IntegrityError:
+        existing = None
+        if ext:
+            existing = (
+                await db.execute(
+                    select(ChatThread)
+                    .where(
+                        ChatThread.company_id == company_id,
+                        ChatThread.provider == provider,
+                        ChatThread.external_chat_id == ext,
+                    )
+                    .order_by(ChatThread.id.asc())
+                    .limit(1),
+                )
+            ).scalars().first()
+        if existing is None:
+            existing = (
+                await db.execute(
+                    select(ChatThread)
+                    .where(
+                        ChatThread.company_id == company_id,
+                        ChatThread.lead_id == lead.id,
+                        ChatThread.provider == provider,
+                    )
+                    .order_by(ChatThread.id.asc())
+                    .limit(1),
+                )
+            ).scalars().first()
+        if existing is not None:
+            _apply_thread_meta(
+                existing,
+                lead=lead,
+                title=title,
+                resolved_pipeline_id=resolved_pipeline_id,
+                ext=ext,
+            )
+            await db.flush()
+            return existing
+        raise
     return t
 
 
