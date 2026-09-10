@@ -1,4 +1,4 @@
-"""Персональные квоты дневной раздачи архива (Мавлуда Алибекзода → 2 лида/день)."""
+"""Персональные квоты дневной раздачи архива (Мавлуда Алибекзода → 3 лида/день)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from app.models import User, UserRole
 
 logger = logging.getLogger(__name__)
 
-MAVLUDA_DAILY_QUOTA = 2
+MAVLUDA_DAILY_QUOTA = 3
 
 
 def _norm_name(value: str | None) -> str:
@@ -33,7 +33,7 @@ def is_mavluda_alibek(full_name: str | None) -> bool:
 
 
 async def apply_mavluda_daily_archive_quota(db: AsyncSession) -> dict[str, int]:
-    """Ставит Мавлуде daily_archive_leads_quota=2 и включает accepts_new_leads.
+    """Ставит Мавлуде daily_archive_leads_quota=3 и включает accepts_new_leads.
 
     Идемпотентно: можно вызывать на каждом старте.
     """

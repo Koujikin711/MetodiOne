@@ -17,7 +17,7 @@ def test_mavluda_name_match():
 
 
 def test_mavluda_quota_constant():
-    assert MAVLUDA_DAILY_QUOTA == 2
+    assert MAVLUDA_DAILY_QUOTA == 3
     assert LEADS_PER_MANAGER == 5
 
 
