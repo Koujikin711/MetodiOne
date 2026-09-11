@@ -3,9 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
 import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
+import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { leadStageChips } from "@/lib/leadStageChips";
 import { apiFetch } from "@/lib/api";
-import type { Lead } from "@/lib/types";
+import type { Lead, Pipeline } from "@/lib/types";
 
 function leadDateBadge(createdAt?: string | null): string {
   if (!createdAt) return "—";
@@ -35,10 +36,23 @@ function stageShort(name: string | null | undefined): string | null {
 
 export function MyLeadsPage() {
   const [q, setQ] = useState("");
+  const meQuery = useCurrentUserMe();
+  const pipelinesQuery = useQuery({
+    queryKey: ["pipelines"],
+    queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
+  });
   const leadsQuery = useQuery({
     queryKey: ["leads"],
     queryFn: () => apiFetch<Lead[]>("/api/leads"),
   });
+
+  const isIntakeManager = useMemo(() => {
+    const meId = meQuery.data?.id;
+    if (meId == null) return false;
+    return (pipelinesQuery.data ?? []).some(
+      (p) => p.intake_manager_user_id != null && Number(p.intake_manager_user_id) === Number(meId),
+    );
+  }, [meQuery.data?.id, pipelinesQuery.data]);
 
   const leads = useMemo(() => {
     const list = leadsQuery.data ?? [];
@@ -75,6 +89,11 @@ export function MyLeadsPage() {
           Новый лид
         </Link>
       </header>
+      {isIntakeManager ? (
+        <p className="px-3 text-xs mo-muted sm:px-0">
+          Вы менеджер приёма: новые лиды через «Новый лид» автоматически распределяются другим менеджерам воронки.
+        </p>
+      ) : null}
 
       <label className="mt-2 block px-3 sm:mt-0 sm:px-0">
         <span className="sr-only">Поиск</span>

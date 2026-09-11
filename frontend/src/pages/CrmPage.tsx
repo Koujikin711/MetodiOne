@@ -790,8 +790,13 @@ export function CrmPage() {
         }),
       });
     },
-    onSuccess: () => {
-      toast.success("Лид создан");
+    onSuccess: (lead) => {
+      const meId = meQuery.data?.id;
+      if (lead.manager_name && lead.manager_id != null && meId != null && lead.manager_id !== meId) {
+        toast.success(`Лид создан и распределён → ${lead.manager_name}`);
+      } else {
+        toast.success("Лид создан");
+      }
       setCreateLeadOpen(false);
       setLeadName("");
       setLeadPhone("");
@@ -804,6 +809,13 @@ export function CrmPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const isIntakeForCreatePipeline = useMemo(() => {
+    const meId = meQuery.data?.id;
+    if (meId == null || leadPipelineId == null) return false;
+    const pipe = (pipelinesQuery.data ?? []).find((p) => p.id === leadPipelineId);
+    return pipe?.intake_manager_user_id != null && Number(pipe.intake_manager_user_id) === Number(meId);
+  }, [meQuery.data?.id, leadPipelineId, pipelinesQuery.data]);
 
   function submitCreateLead() {
     createLeadMutation.mutate();
@@ -1732,31 +1744,37 @@ export function CrmPage() {
               </div>
             )}
             {pipelineId != null && selectedPipelineForSettings && (
-              <div className="mt-2 flex flex-wrap flex-col gap-2 sm:flex-row sm:items-center">
-                <span className="text-sm mo-muted">Менеджер приёма:</span>
-                <select
-                  id="crm-pipeline-intake-manager"
-                  name="intake_manager_user_id"
-                  value={selectedPipelineForSettings.intake_manager_user_id ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    patchPipelineMutation.mutate({
-                      id: pipelineId,
-                      patch: { intake_manager_user_id: v ? Number(v) : null },
-                    });
-                  }}
-                  disabled={patchPipelineMutation.isPending}
-                  className="mo-input min-w-[240px] py-1.5 text-sm"
-                >
-                  <option value="">— не назначен —</option>
-                  {(employeesQuery.data ?? [])
-                    .filter((u) => u.role === "manager")
-                    .map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {(u.full_name || u.email).trim()}
-                      </option>
-                    ))}
-                </select>
+              <div className="mt-2 flex flex-wrap flex-col gap-2">
+                <div className="flex flex-wrap flex-col gap-2 sm:flex-row sm:items-center">
+                  <span className="text-sm mo-muted">Менеджер приёма:</span>
+                  <select
+                    id="crm-pipeline-intake-manager"
+                    name="intake_manager_user_id"
+                    value={selectedPipelineForSettings.intake_manager_user_id ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      patchPipelineMutation.mutate({
+                        id: pipelineId,
+                        patch: { intake_manager_user_id: v ? Number(v) : null },
+                      });
+                    }}
+                    disabled={patchPipelineMutation.isPending}
+                    className="mo-input min-w-[240px] py-1.5 text-sm"
+                  >
+                    <option value="">— не назначен —</option>
+                    {(employeesQuery.data ?? [])
+                      .filter((u) => u.role === "manager")
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {(u.full_name || u.email).trim()}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <p className="max-w-xl text-xs mo-muted">
+                  Этот менеджер добавляет лиды вручную (кнопка «Новый лид»). Если включено распределение по очереди /
+                  загрузке, созданные им лиды сразу уходят другим менеджерам воронки — сам приём в очередь не попадает.
+                </p>
               </div>
             )}
             {pipelineId != null && selectedPipelineForSettings && (
@@ -2452,6 +2470,12 @@ export function CrmPage() {
                 Закрыть
               </button>
             </div>
+            {isIntakeForCreatePipeline ? (
+              <p className="mt-2 text-xs mo-muted">
+                Вы менеджер приёма этой воронки: лид автоматически распределится другому менеджеру (вы в очередь не
+                попадёте).
+              </p>
+            ) : null}
 
             <div className="mt-4 grid gap-3">
               <label className="text-sm mo-muted">
