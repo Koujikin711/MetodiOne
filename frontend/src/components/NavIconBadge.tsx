@@ -1,24 +1,23 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
-/** Корпоративные цвета микро-бейджей сайдбара (ivory & gold). */
+/** Уникальный цвет на каждый вариант — в тёмной теме не схлопывать в один красный. */
 const variants = {
   crm: "bg-[#4A1521]",
-  tariff: "bg-[#0F4C3A]",
-  online: "bg-[#1E3A8A]",
-  tasks: "bg-[#2A6F85]",
-  trainer: "bg-[#8C6D31]",
+  indigo: "bg-[#3730A3]",
+  purple: "bg-[#6D28D9]",
   finance: "bg-[#0F4C3A]",
-  chat: "bg-[#2A6F85]",
-  analytics: "bg-[#1E3A8A]",
-  platform: "bg-[#3D3428]",
-  integrations: "bg-[#4A3550]",
+  tariff: "bg-[#047857]",
+  online: "bg-[#1E3A8A]",
+  blue: "bg-[#2563EB]",
+  analytics: "bg-[#1D4ED8]",
+  tasks: "bg-[#0E7490]",
+  chat: "bg-[#0891B2]",
+  teal: "bg-[#0F766E]",
+  trainer: "bg-[#B45309]",
+  integrations: "bg-[#7C3AED]",
+  platform: "bg-[#78716C]",
   logout: "bg-[#5C4A42]",
-  /** Обратная совместимость со старыми именами */
-  indigo: "bg-[#4A1521]",
-  purple: "bg-[#0F4C3A]",
-  teal: "bg-[#2A6F85]",
-  blue: "bg-[#1E3A8A]",
-  pink: "bg-[#5C4A42]",
+  pink: "bg-[#DB2777]",
 } as const;
 
 export type NavIconVariant = keyof typeof variants;
@@ -46,4 +45,3 @@ export function NavIconBadge({ children, variant = "crm", className = "", ...res
     </div>
   );
 }
-

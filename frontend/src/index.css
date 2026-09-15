@@ -708,60 +708,77 @@ html {
   transform: translateY(-1px);
 }
 
-.shell-sidebar [data-nav-variant="crm"],
-.shell-sidebar [data-nav-variant="indigo"] {
+.shell-sidebar [data-nav-variant="crm"] {
   box-shadow:
     0 2px 10px -2px rgba(74, 21, 33, 0.35),
     0 0 12px rgba(255, 45, 149, 0.18);
 }
-
-.shell-sidebar [data-nav-variant="tasks"],
-.shell-sidebar [data-nav-variant="teal"],
+.shell-sidebar [data-nav-variant="indigo"] {
+  box-shadow:
+    0 2px 10px -2px rgba(55, 48, 163, 0.35),
+    0 0 12px rgba(129, 140, 248, 0.22);
+}
+.shell-sidebar [data-nav-variant="purple"] {
+  box-shadow:
+    0 2px 10px -2px rgba(109, 40, 217, 0.35),
+    0 0 12px rgba(167, 139, 250, 0.22);
+}
+.shell-sidebar [data-nav-variant="tasks"] {
+  box-shadow:
+    0 2px 10px -2px rgba(14, 116, 144, 0.35),
+    0 0 12px rgba(34, 211, 238, 0.2);
+}
+.shell-sidebar [data-nav-variant="teal"] {
+  box-shadow:
+    0 2px 10px -2px rgba(15, 118, 110, 0.35),
+    0 0 12px rgba(45, 212, 191, 0.2);
+}
 .shell-sidebar [data-nav-variant="chat"] {
   box-shadow:
-    0 2px 10px -2px rgba(42, 111, 133, 0.35),
-    0 0 12px rgba(0, 200, 255, 0.2);
+    0 2px 10px -2px rgba(8, 145, 178, 0.35),
+    0 0 12px rgba(0, 200, 255, 0.22);
 }
-
 .shell-sidebar [data-nav-variant="analytics"],
-.shell-sidebar [data-nav-variant="online"],
-.shell-sidebar [data-nav-variant="blue"] {
+.shell-sidebar [data-nav-variant="online"] {
   box-shadow:
     0 2px 10px -2px rgba(30, 58, 138, 0.3),
     0 0 12px rgba(59, 130, 246, 0.22);
 }
-
-.shell-sidebar [data-nav-variant="finance"],
-.shell-sidebar [data-nav-variant="tariff"],
-.shell-sidebar [data-nav-variant="purple"] {
+.shell-sidebar [data-nav-variant="blue"] {
+  box-shadow:
+    0 2px 10px -2px rgba(37, 99, 235, 0.3),
+    0 0 12px rgba(96, 165, 250, 0.22);
+}
+.shell-sidebar [data-nav-variant="finance"] {
   box-shadow:
     0 2px 10px -2px rgba(15, 76, 58, 0.3),
-    0 0 12px rgba(16, 185, 129, 0.18);
+    0 0 12px rgba(16, 185, 129, 0.2);
 }
-
+.shell-sidebar [data-nav-variant="tariff"] {
+  box-shadow:
+    0 2px 10px -2px rgba(4, 120, 87, 0.3),
+    0 0 12px rgba(52, 211, 153, 0.2);
+}
 .shell-sidebar [data-nav-variant="trainer"] {
   box-shadow:
-    0 2px 10px -2px rgba(140, 109, 49, 0.3),
-    0 0 12px rgba(245, 158, 11, 0.2);
+    0 2px 10px -2px rgba(180, 83, 9, 0.3),
+    0 0 12px rgba(251, 191, 36, 0.22);
 }
-
 .shell-sidebar [data-nav-variant="integrations"] {
   box-shadow:
-    0 2px 10px -2px rgba(74, 53, 80, 0.3),
-    0 0 12px rgba(168, 85, 247, 0.2);
+    0 2px 10px -2px rgba(124, 58, 237, 0.3),
+    0 0 12px rgba(168, 85, 247, 0.22);
 }
-
 .shell-sidebar [data-nav-variant="platform"] {
   box-shadow:
     0 2px 10px -2px rgba(61, 52, 40, 0.3),
     0 0 12px rgba(251, 146, 60, 0.18);
 }
-
 .shell-sidebar [data-nav-variant="logout"],
 .shell-sidebar [data-nav-variant="pink"] {
   box-shadow:
-    0 2px 10px -2px rgba(92, 74, 66, 0.3),
-    0 0 12px rgba(248, 113, 113, 0.18);
+    0 2px 10px -2px rgba(219, 39, 119, 0.3),
+    0 0 12px rgba(244, 114, 182, 0.2);
 }
 
 .shell-sidebar .shell-nav-link.is-active [data-nav-variant] {
@@ -779,8 +796,7 @@ html {
   border-radius: 0.75rem;
 }
 
-:root[data-theme="dark"] .shell-sidebar [data-nav-variant="crm"],
-:root[data-theme="dark"] .shell-sidebar [data-nav-variant="indigo"] {
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="crm"] {
   background: #4a1521 !important;
   border-color: rgba(255, 45, 149, 0.55) !important;
   color: #fff;
@@ -788,21 +804,48 @@ html {
     0 0 10px rgba(255, 45, 149, 0.45),
     0 0 20px rgba(255, 45, 149, 0.2);
 }
-
-:root[data-theme="dark"] .shell-sidebar [data-nav-variant="tasks"],
-:root[data-theme="dark"] .shell-sidebar [data-nav-variant="teal"],
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="indigo"] {
+  background: #3730a3 !important;
+  border-color: rgba(129, 140, 248, 0.65) !important;
+  color: #fff;
+  box-shadow:
+    0 0 10px rgba(99, 102, 241, 0.5),
+    0 0 20px rgba(99, 102, 241, 0.22);
+}
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="purple"] {
+  background: #6d28d9 !important;
+  border-color: rgba(196, 181, 253, 0.6) !important;
+  color: #fff;
+  box-shadow:
+    0 0 10px rgba(167, 139, 250, 0.45),
+    0 0 20px rgba(139, 92, 246, 0.22);
+}
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="tasks"] {
+  background: #0e7490 !important;
+  border-color: rgba(34, 211, 238, 0.55) !important;
+  color: #fff;
+  box-shadow:
+    0 0 10px rgba(34, 211, 238, 0.4),
+    0 0 18px rgba(6, 182, 212, 0.2);
+}
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="teal"] {
+  background: #0f766e !important;
+  border-color: rgba(45, 212, 191, 0.55) !important;
+  color: #fff;
+  box-shadow:
+    0 0 10px rgba(45, 212, 191, 0.4),
+    0 0 18px rgba(20, 184, 166, 0.2);
+}
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="chat"] {
-  background: #2a6f85 !important;
+  background: #0891b2 !important;
   border-color: rgba(0, 229, 255, 0.55) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(0, 229, 255, 0.4),
+    0 0 10px rgba(0, 229, 255, 0.42),
     0 0 20px rgba(0, 229, 255, 0.18);
 }
-
-:root[data-theme="dark"] .shell-sidebar [data-nav-variant="analytics"],
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="online"],
-:root[data-theme="dark"] .shell-sidebar [data-nav-variant="blue"] {
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="analytics"] {
   background: #1e3a8a !important;
   border-color: rgba(77, 124, 255, 0.6) !important;
   color: #fff;
@@ -810,10 +853,15 @@ html {
     0 0 10px rgba(77, 124, 255, 0.42),
     0 0 20px rgba(77, 124, 255, 0.2);
 }
-
-:root[data-theme="dark"] .shell-sidebar [data-nav-variant="finance"],
-:root[data-theme="dark"] .shell-sidebar [data-nav-variant="tariff"],
-:root[data-theme="dark"] .shell-sidebar [data-nav-variant="purple"] {
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="blue"] {
+  background: #2563eb !important;
+  border-color: rgba(147, 197, 253, 0.6) !important;
+  color: #fff;
+  box-shadow:
+    0 0 10px rgba(96, 165, 250, 0.45),
+    0 0 20px rgba(59, 130, 246, 0.22);
+}
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="finance"] {
   background: #0f4c3a !important;
   border-color: rgba(57, 255, 120, 0.5) !important;
   color: #fff;
@@ -821,25 +869,30 @@ html {
     0 0 10px rgba(57, 255, 120, 0.35),
     0 0 18px rgba(57, 255, 120, 0.16);
 }
-
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="tariff"] {
+  background: #047857 !important;
+  border-color: rgba(52, 211, 153, 0.55) !important;
+  color: #fff;
+  box-shadow:
+    0 0 10px rgba(52, 211, 153, 0.38),
+    0 0 18px rgba(16, 185, 129, 0.18);
+}
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="trainer"] {
-  background: #8c6d31 !important;
-  border-color: rgba(255, 214, 10, 0.55) !important;
+  background: #b45309 !important;
+  border-color: rgba(251, 191, 36, 0.6) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(255, 214, 10, 0.38),
-    0 0 18px rgba(255, 214, 10, 0.16);
+    0 0 10px rgba(251, 191, 36, 0.42),
+    0 0 18px rgba(245, 158, 11, 0.2);
 }
-
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="integrations"] {
-  background: #4a3550 !important;
-  border-color: rgba(168, 85, 247, 0.6) !important;
+  background: #7c3aed !important;
+  border-color: rgba(196, 181, 253, 0.6) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(168, 85, 247, 0.42),
-    0 0 20px rgba(168, 85, 247, 0.18);
+    0 0 10px rgba(167, 139, 250, 0.45),
+    0 0 20px rgba(139, 92, 246, 0.22);
 }
-
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="platform"] {
   background: #3d3428 !important;
   border-color: rgba(255, 179, 71, 0.55) !important;
@@ -848,15 +901,14 @@ html {
     0 0 10px rgba(255, 179, 71, 0.35),
     0 0 18px rgba(255, 179, 71, 0.16);
 }
-
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="logout"],
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="pink"] {
-  background: #5c4a42 !important;
-  border-color: rgba(255, 71, 87, 0.55) !important;
+  background: #9d174d !important;
+  border-color: rgba(244, 114, 182, 0.55) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(255, 71, 87, 0.4),
-    0 0 18px rgba(255, 71, 87, 0.18);
+    0 0 10px rgba(244, 114, 182, 0.4),
+    0 0 18px rgba(236, 72, 153, 0.2);
 }
 
 :root[data-theme="dark"] .shell-sidebar .shell-nav-link.is-active [data-nav-variant] {

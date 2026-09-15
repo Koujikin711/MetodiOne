@@ -71,7 +71,7 @@ function extraServicesNavItem(): ShellSidebarNavItem {
     title: "Доп услуги",
     labelShort: "Доп",
     labelFull: "Доп услуги",
-    variant: "indigo",
+    variant: "trainer",
     iconKey: "clipboard-list",
   };
 }
@@ -84,7 +84,7 @@ function curatorJournalNavItem(): ShellSidebarNavItem {
     labelShort: "Журнал",
     labelFull: "Журнал куратора",
     variant: "purple",
-    iconKey: "clipboard-list",
+    iconKey: "check-square",
   };
 }
 
