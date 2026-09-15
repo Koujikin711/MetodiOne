@@ -14,6 +14,7 @@ import { Navigate } from "react-router-dom";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { canAccessCuratorJournal } from "@/lib/clinicRoles";
+import { DateField } from "@/components/DateField";
 import { Pencil, Search, Trash2 } from "@/components/icons";
 
 type DiaryStatus = "pending" | "done" | "missed";
@@ -391,10 +392,10 @@ export function CuratorJournalPage() {
     <div className="curator-journal-page mx-auto flex w-full max-w-[1600px] flex-col gap-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--mo-muted)]">
+          <h1 className="text-2xl font-semibold text-[var(--mo-text)]">Журнал куратора</h1>
+          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--mo-muted)]">
             Успеваемость потока
           </p>
-          <h1 className="text-2xl font-semibold text-[var(--mo-text)]">Журнал куратора</h1>
         </div>
         <div className="flex flex-wrap gap-2">
           {canManageFlows ? (
@@ -404,11 +405,6 @@ export function CuratorJournalPage() {
           ) : null}
           {selectedFlowId ? (
             <>
-              {canManageFlows ? (
-                <button type="button" className="btn-secondary text-sm" onClick={() => setShowEdit(true)}>
-                  Изменить поток
-                </button>
-              ) : null}
               <button type="button" className="btn-secondary text-sm" onClick={() => setShowImport(true)}>
                 Импорт
               </button>
@@ -454,8 +450,10 @@ export function CuratorJournalPage() {
                 <span className="cj-meta-value">{flow.course_name}</span>
               </div>
               <div>
-                <span className="cj-meta-label">Поток</span>
-                <span className="cj-meta-value is-flow-no">{flowTitle(flow)}</span>
+                <span className="cj-meta-label">Номер</span>
+                <span className="cj-meta-value is-flow-no">
+                  {flow.title?.trim() || `№${flow.flow_number}`}
+                </span>
               </div>
               <div>
                 <span className="cj-meta-label">Куратор</span>
@@ -510,18 +508,18 @@ export function CuratorJournalPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="cj-toolbar mt-3">
             <div className="cj-search-wrap">
               <Search className="cj-search-icon" />
               <input
                 className="mo-input w-full text-sm"
-                placeholder="Поиск пациента по ФИО…"
+                placeholder="Поиск по ФИО…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
             <select
-              className="mo-input max-w-full text-sm sm:w-56"
+              className="mo-input cj-filter-select text-sm"
               value={filter}
               onChange={(e) => setFilter(e.target.value as RowFilter)}
             >
@@ -537,16 +535,6 @@ export function CuratorJournalPage() {
               ))}
             </select>
           </div>
-          {canManageFlows ? (
-            <p className="mt-2 text-[11px] text-[var(--mo-muted)]">
-              Номер потока, период и куратора меняет администратор — кнопка «Настройки». Архив скрывает поток из
-              списка. Куратор заполняет только табель.
-            </p>
-          ) : (
-            <p className="mt-2 text-[11px] text-[var(--mo-muted)]">
-              Куратор заполняет дневник, фото и жалобы. Изменить номер потока может только администратор.
-            </p>
-          )}
         </div>
       ) : null}
 
@@ -565,8 +553,8 @@ export function CuratorJournalPage() {
             body={`${summaryQuery.data.photo_done} / ${summaryQuery.data.participants_total} (${summaryQuery.data.photo_percent}%)`}
           />
           <SummaryCard
-            title="Жалобы / пусто"
-            body={`С жалобами: ${summaryQuery.data.with_complaints} · Не заполнено: ${summaryQuery.data.not_filled}`}
+            title="Жалобы"
+            body={`${summaryQuery.data.with_complaints} · пусто ${summaryQuery.data.not_filled}`}
           />
         </div>
       ) : null}
@@ -1114,11 +1102,11 @@ function FlowFormModal({
         <div className="grid grid-cols-2 gap-2">
           <label className="block">
             <span className="mo-field-label">С</span>
-            <input className="mo-input w-full" type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} />
+            <DateField className="w-full" value={startsOn} onChange={setStartsOn} allowClear={false} />
           </label>
           <label className="block">
             <span className="mo-field-label">По</span>
-            <input className="mo-input w-full" type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
+            <DateField className="w-full" value={endsOn} onChange={setEndsOn} allowClear={false} />
           </label>
         </div>
 
@@ -1668,7 +1656,7 @@ function ReportModal({
 
   return (
     <Modal title="Отчёт по жалобам" onClose={onClose} wide>
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => preset("today")}>
           Сегодня
         </button>
@@ -1681,8 +1669,10 @@ function ReportModal({
         <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => preset("flow")}>
           Весь поток
         </button>
-        <input className="mo-input text-xs" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        <input className="mo-input text-xs" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:max-w-md">
+          <DateField className="min-w-[8.5rem] flex-1" value={dateFrom} onChange={setDateFrom} allowClear={false} />
+          <DateField className="min-w-[8.5rem] flex-1" value={dateTo} onChange={setDateTo} allowClear={false} />
+        </div>
       </div>
       {r ? (
         <div className="space-y-3 text-sm">

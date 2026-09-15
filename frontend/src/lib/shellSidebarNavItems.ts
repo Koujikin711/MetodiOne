@@ -80,7 +80,7 @@ function curatorJournalNavItem(): ShellSidebarNavItem {
   return {
     id: "curator-journal",
     to: "/curator-journal",
-    title: "Журнал куратора",
+    title: "Журнал куратора — успеваемость",
     labelShort: "Журнал",
     labelFull: "Журнал куратора",
     variant: "purple",
