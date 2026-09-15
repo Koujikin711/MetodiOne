@@ -3677,7 +3677,7 @@ fieldset.extra-services-field {
 .extra-services-recent__list {
   list-style: none;
   margin: 0.65rem 0 0;
-  padding: 0;
+  padding: 0 0.25rem 0 0;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -3686,6 +3686,8 @@ fieldset.extra-services-field {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
 }
 
 .extra-services-recent__item {
