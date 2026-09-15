@@ -873,12 +873,12 @@ html {
 }
 
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="crm"] {
-  background: #be185d !important;
-  border-color: rgba(251, 113, 133, 0.75) !important;
+  background: #e11d48 !important;
+  border-color: rgba(251, 113, 133, 0.8) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(251, 113, 133, 0.5),
-    0 0 20px rgba(244, 63, 94, 0.25);
+    0 0 10px rgba(244, 63, 94, 0.55),
+    0 0 20px rgba(225, 29, 72, 0.28);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="indigo"] {
   background: #4f46e5 !important;
@@ -889,12 +889,12 @@ html {
     0 0 20px rgba(99, 102, 241, 0.28);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="purple"] {
-  background: #9333ea !important;
-  border-color: rgba(216, 180, 254, 0.7) !important;
+  background: #a855f7 !important;
+  border-color: rgba(216, 180, 254, 0.8) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(192, 132, 252, 0.5),
-    0 0 20px rgba(168, 85, 247, 0.25);
+    0 0 10px rgba(192, 132, 252, 0.55),
+    0 0 20px rgba(168, 85, 247, 0.28);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="tasks"] {
   background: #0e7490 !important;
@@ -913,20 +913,20 @@ html {
     0 0 18px rgba(20, 184, 166, 0.22);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="chat"] {
-  background: #06b6d4 !important;
-  border-color: rgba(103, 232, 249, 0.7) !important;
-  color: #fff;
+  background: #22d3ee !important;
+  border-color: rgba(165, 243, 252, 0.8) !important;
+  color: #083344;
   box-shadow:
-    0 0 10px rgba(34, 211, 238, 0.5),
-    0 0 20px rgba(6, 182, 212, 0.22);
+    0 0 10px rgba(34, 211, 238, 0.55),
+    0 0 20px rgba(6, 182, 212, 0.25);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="online"] {
-  background: #1d4ed8 !important;
-  border-color: rgba(147, 197, 253, 0.7) !important;
+  background: #2563eb !important;
+  border-color: rgba(147, 197, 253, 0.8) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(96, 165, 250, 0.5),
-    0 0 20px rgba(59, 130, 246, 0.25);
+    0 0 10px rgba(96, 165, 250, 0.55),
+    0 0 20px rgba(37, 99, 235, 0.28);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="analytics"] {
   background: #0284c7 !important;
@@ -945,12 +945,12 @@ html {
     0 0 20px rgba(59, 130, 246, 0.22);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="finance"] {
-  background: #059669 !important;
-  border-color: rgba(110, 231, 183, 0.7) !important;
+  background: #16a34a !important;
+  border-color: rgba(134, 239, 172, 0.75) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(52, 211, 153, 0.45),
-    0 0 18px rgba(16, 185, 129, 0.22);
+    0 0 10px rgba(74, 222, 128, 0.5),
+    0 0 18px rgba(22, 163, 74, 0.25);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="tariff"] {
   background: #10b981 !important;
@@ -961,12 +961,12 @@ html {
     0 0 18px rgba(16, 185, 129, 0.2);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="trainer"] {
-  background: #ea580c !important;
-  border-color: rgba(253, 186, 116, 0.75) !important;
+  background: #f97316 !important;
+  border-color: rgba(253, 186, 116, 0.85) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(251, 146, 60, 0.5),
-    0 0 18px rgba(249, 115, 22, 0.25);
+    0 0 10px rgba(251, 146, 60, 0.55),
+    0 0 18px rgba(249, 115, 22, 0.28);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="integrations"] {
   background: #7c3aed !important;
@@ -977,12 +977,12 @@ html {
     0 0 18px rgba(139, 92, 246, 0.22);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="platform"] {
-  background: #a16207 !important;
-  border-color: rgba(253, 224, 71, 0.65) !important;
-  color: #fff;
+  background: #eab308 !important;
+  border-color: rgba(253, 224, 71, 0.85) !important;
+  color: #422006;
   box-shadow:
-    0 0 10px rgba(250, 204, 21, 0.4),
-    0 0 18px rgba(234, 179, 8, 0.2);
+    0 0 10px rgba(250, 204, 21, 0.55),
+    0 0 18px rgba(234, 179, 8, 0.28);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="logout"],
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="pink"] {

@@ -156,7 +156,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: "Дебиторка",
         labelShort: "Долги",
         labelFull: "Дебиторка курсов",
-        variant: "indigo",
+        variant: "platform",
         iconKey: "target",
       });
     }
@@ -208,7 +208,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: navLex.navKpiTitle,
         labelShort: navLex.navKpi,
         labelFull: navLex.navKpiTitle,
-        variant: "indigo",
+        variant: "platform",
         iconKey: "target",
       });
     }
@@ -348,7 +348,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
           title: navLex.navKpiTitle,
           labelShort: navLex.navKpi,
           labelFull: navLex.navKpiTitle,
-          variant: "indigo",
+          variant: "platform",
           iconKey: "target",
         });
       }
@@ -414,7 +414,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: navLex.navKpiTitle,
         labelShort: navLex.navKpi,
         labelFull: navLex.navKpiTitle,
-        variant: "indigo",
+        variant: "platform",
         iconKey: "target",
       });
     }
@@ -598,7 +598,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: navLex.navKpiTitle,
         labelShort: navLex.navKpi,
         labelFull: navLex.navKpiTitle,
-        variant: "indigo",
+        variant: "platform",
         iconKey: "target",
       });
     }
@@ -630,7 +630,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       title: navLex.navKpiTitle,
       labelShort: navLex.navKpi,
       labelFull: navLex.navKpiTitle,
-      variant: "indigo",
+      variant: "platform",
       iconKey: "target",
     });
   }
