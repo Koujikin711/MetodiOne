@@ -2901,16 +2901,186 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-list-panel {
-  @apply flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-y-auto overscroll-contain rounded-xl border p-3 sm:p-4;
+  @apply flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-y-auto overscroll-contain rounded-2xl border p-3 sm:gap-3.5 sm:p-4;
   border-color: var(--mo-border);
   background: var(--mo-surface-elevated);
   box-sizing: border-box;
+  box-shadow: var(--mo-shadow-luxury);
+}
+
+.crm-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 0.85rem;
+}
+
+.crm-list-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.crm-list-field--search {
+  flex: 1 1 14rem;
+  max-width: 22rem;
+}
+
+.crm-list-field--stage {
+  flex: 0 1 11rem;
+}
+
+.crm-list-field__label {
+  font-size: var(--mo-text-sm);
+  font-weight: 500;
+  color: var(--mo-text-muted);
+}
+
+.crm-list-field__control {
+  width: 100%;
+  min-width: 0;
+}
+
+.crm-list-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.crm-list-meta {
+  margin: 0;
+  font-size: var(--mo-text-sm);
+  color: var(--mo-text-muted);
+  line-height: 1.4;
+}
+
+.crm-list-meta__strong {
+  font-weight: 600;
+  color: var(--mo-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .crm-list-table-wrap {
-  @apply overflow-x-auto rounded-lg border;
+  @apply overflow-x-auto rounded-xl border;
   border-color: var(--mo-border);
   background: var(--mo-surface);
+}
+
+.crm-list-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.crm-list-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.65rem 0.85rem;
+  font-size: var(--mo-text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
+  background: color-mix(in srgb, var(--mo-surface-elevated) 92%, var(--mo-accent-soft));
+  border-bottom: 1px solid var(--mo-border);
+  white-space: nowrap;
+}
+
+.crm-list-table tbody td {
+  padding: 0.7rem 0.85rem;
+  font-size: var(--mo-text-base);
+  border-bottom: 1px solid color-mix(in srgb, var(--mo-border) 80%, transparent);
+  vertical-align: middle;
+}
+
+.crm-list-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.crm-list-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--mo-accent-soft) 55%, transparent);
+}
+
+.crm-list-id {
+  font-size: var(--mo-text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--mo-text-muted);
+}
+
+.crm-list-name {
+  font-weight: 600;
+  color: var(--mo-text);
+  max-width: 16rem;
+}
+
+.crm-list-email {
+  color: var(--mo-text-muted);
+  font-size: var(--mo-text-sm);
+}
+
+.crm-list-stage {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: var(--mo-text-sm);
+  font-weight: 500;
+  color: var(--mo-accent-hover);
+  background: var(--mo-accent-soft);
+  white-space: nowrap;
+}
+
+.crm-list-action {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.crm-list-open {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.55rem;
+  font-size: var(--mo-text-sm);
+  font-weight: 600;
+  color: var(--mo-text);
+  background: color-mix(in srgb, var(--mo-accent-soft) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mo-accent) 28%, var(--mo-border));
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.crm-list-open:hover {
+  background: var(--mo-accent-soft);
+  border-color: var(--mo-accent);
+  color: var(--mo-accent-hover);
+}
+
+.crm-list-empty {
+  padding: 2rem 1rem !important;
+  text-align: center;
+  color: var(--mo-text-muted);
+  font-size: var(--mo-text-sm);
+}
+
+.crm-list-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  padding-top: 0.15rem;
+}
+
+.crm-list-pager__page {
+  font-size: var(--mo-text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--mo-text-muted);
+  min-width: 4rem;
+  text-align: center;
 }
 
 .crm-kanban-col {
