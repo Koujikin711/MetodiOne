@@ -3759,7 +3759,7 @@ fieldset.extra-services-field {
 }
 
 .extra-services-recent__amount {
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: var(--mo-text);
   white-space: nowrap;
@@ -3771,7 +3771,7 @@ fieldset.extra-services-field {
   justify-content: flex-end;
   gap: 0.15rem 0.25rem;
   margin-top: 0.15rem;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   line-height: 1.3;
   color: var(--mo-text-muted);
 }
