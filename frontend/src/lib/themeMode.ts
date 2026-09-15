@@ -24,39 +24,18 @@ function withThemeTransition(apply: () => void) {
   }
   const root = document.documentElement;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const doc = document as Document & {
-    startViewTransition?: (cb: () => void) => { finished: Promise<void> };
-  };
 
   if (reduced) {
     apply();
     return;
   }
 
-  /** Длительность должна совпадать с CSS --mo-duration-theme. */
-  const DURATION_MS = 820;
+  /** Только CSS-токены: View Transition даёт мигание и «прыжок» снимков. */
+  const DURATION_MS = 320;
 
   root.classList.add("theme-transitioning");
-
-  const finish = () => {
-    window.setTimeout(() => root.classList.remove("theme-transitioning"), DURATION_MS);
-  };
-
-  if (typeof doc.startViewTransition === "function") {
-    try {
-      const vt = doc.startViewTransition(() => {
-        apply();
-      });
-      void vt.finished.finally(finish);
-      return;
-    } catch {
-      // fallback ниже
-    }
-  }
-
-  // Без View Transition: плавно через CSS-токены (без мигания).
   apply();
-  finish();
+  window.setTimeout(() => root.classList.remove("theme-transitioning"), DURATION_MS);
 }
 
 export function toggleTheme(): ThemeMode {

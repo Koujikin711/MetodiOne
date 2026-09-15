@@ -271,6 +271,7 @@ export function CuratorJournalPage() {
   const monthQuery = useQuery({
     queryKey: ["curator-journal", "month", selectedFlowId, year, month, search],
     enabled: allowed && selectedFlowId != null,
+    placeholderData: (prev) => prev,
     queryFn: () => {
       const q = search.trim() ? `&q=${encodeURIComponent(search.trim())}` : "";
       return apiFetch<MonthJournal>(
@@ -284,6 +285,7 @@ export function CuratorJournalPage() {
   const summaryQuery = useQuery({
     queryKey: ["curator-journal", "day-summary", selectedFlowId, dayForSummary],
     enabled: allowed && selectedFlowId != null && !!dayForSummary,
+    placeholderData: (prev) => prev,
     queryFn: () =>
       apiFetch<DaySummary>(
         `/api/curator-journal/flows/${selectedFlowId}/day-summary?date=${dayForSummary}`,

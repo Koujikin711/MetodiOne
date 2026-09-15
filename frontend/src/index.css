@@ -93,7 +93,7 @@
   --mo-duration-fast: 180ms;
   --mo-duration: 280ms;
   --mo-duration-panel: 440ms;
-  --mo-duration-theme: 820ms;
+  --mo-duration-theme: 320ms;
   --mo-sidebar-duration: var(--mo-duration-panel);
   --mo-sidebar-ease: var(--mo-ease);
 }
@@ -296,27 +296,14 @@ html {
       border-color var(--mo-duration-theme) var(--mo-ease-soft),
       box-shadow var(--mo-duration-theme) var(--mo-ease-soft),
       fill var(--mo-duration-theme) var(--mo-ease-soft),
-      stroke var(--mo-duration-theme) var(--mo-ease-soft),
-      filter var(--mo-duration-theme) var(--mo-ease-soft),
-      opacity var(--mo-duration-theme) var(--mo-ease-soft);
+      stroke var(--mo-duration-theme) var(--mo-ease-soft);
   }
 
+  /* View Transition отключён в themeMode — правила оставлены no-op на случай старых снимков */
   ::view-transition-old(root),
   ::view-transition-new(root) {
-    animation-duration: var(--mo-duration-theme);
-    animation-timing-function: var(--mo-ease-soft);
-  }
-
-  /* Без полного fade-out в 0 — иначе мигает белый фон браузера */
-  ::view-transition-old(root) {
-    animation: none;
-    opacity: 1;
-    z-index: 1;
-  }
-
-  ::view-transition-new(root) {
-    animation-name: mo-theme-fade-in;
-    z-index: 2;
+    animation: none !important;
+    mix-blend-mode: normal;
   }
 
   /* Смена экрана (Outlet) — мягкий fade без сдвига (сдвиг только у панелей чата) */
