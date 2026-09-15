@@ -1605,9 +1605,18 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-page-title {
-  font-family: var(--font-sans);
-  @apply text-xl font-semibold leading-tight tracking-tight sm:text-2xl;
-  color: var(--mo-accent-hover);
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-xl);
+  font-weight: 600;
+  line-height: var(--mo-leading-tight);
+  letter-spacing: -0.02em;
+  color: var(--mo-text);
+}
+
+@media (min-width: 640px) {
+  .booking-page-title {
+    font-size: var(--mo-text-2xl);
+  }
 }
 
 .booking-page-title-row {
@@ -3029,7 +3038,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: var(--mo-leading-tight);
-  color: var(--mo-accent-hover);
+  color: var(--mo-text);
 }
 
 @media (min-width: 640px) {
@@ -3052,7 +3061,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: var(--mo-leading-tight);
-  color: var(--mo-accent-hover);
+  color: var(--mo-text);
 }
 
 .lux-body {
@@ -3067,6 +3076,33 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   font-size: var(--mo-text-xs);
   line-height: 1.4;
   color: var(--mo-text-muted);
+}
+
+/* Единый блок заголовка страницы */
+.mo-page-title {
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: var(--mo-leading-tight);
+  color: var(--mo-text);
+}
+
+@media (min-width: 640px) {
+  .mo-page-title {
+    font-size: var(--mo-text-2xl);
+  }
+}
+
+.mo-page-sub {
+  margin-top: 0.25rem;
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-sm);
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--mo-text-muted);
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .integ-channel-tile {

@@ -394,10 +394,8 @@ export function CuratorJournalPage() {
     <div className="curator-journal-page mx-auto flex w-full max-w-[1600px] flex-col gap-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-[var(--mo-text)]">Журнал куратора</h1>
-          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--mo-muted)]">
-            Успеваемость потока
-          </p>
+          <h1 className="mo-page-title">Журнал куратора</h1>
+          <p className="mo-page-sub">Успеваемость потока</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {canManageFlows ? (

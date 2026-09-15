@@ -313,12 +313,10 @@ export function ExtraServicesPage() {
     <div className="extra-services-page mo-fill-page relative w-full min-w-0">
       <div className="mo-admin-page-head expenses-page__head">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-2xl">
-            Доп услуги
-          </h1>
+          <h1 className="mo-page-title">Доп услуги</h1>
           <Link
             to="/booking"
-            className="mt-0.5 inline-block text-xs text-[var(--mo-accent-hover)] hover:underline"
+            className="mo-page-sub mt-0.5 inline-block text-[var(--mo-accent-hover)] hover:underline"
           >
             ← К онлайн-записи
           </Link>

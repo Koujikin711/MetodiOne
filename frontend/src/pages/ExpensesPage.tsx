@@ -154,8 +154,8 @@ export function ExpensesPage() {
     <div className="expenses-page mo-fill-page relative w-full min-w-0">
       <div className="mo-admin-page-head expenses-page__head">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-2xl">Расходы</h1>
-          <p className="mt-1 hidden text-xs mo-muted sm:block sm:text-sm">
+          <h1 className="mo-page-title">Расходы</h1>
+          <p className="mo-page-sub hidden sm:block">
             Ввод расходов по статьям ОСВ клиники (банк, статья, подробно, товар/услуга).
           </p>
         </div>
