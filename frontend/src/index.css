@@ -1168,7 +1168,7 @@ html {
 
 .shell-settings-root {
   @apply shrink-0 px-0 pt-0.5;
-  margin-top: auto;
+  margin-top: 0.25rem;
 }
 
 .shell-settings-toggle {
