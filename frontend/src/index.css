@@ -556,7 +556,7 @@ html {
   display: flex;
   flex-direction: column;
   gap: 0;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
 }
 
