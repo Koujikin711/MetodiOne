@@ -526,12 +526,12 @@ export function ExtraServicesPage() {
                     </div>
                   </div>
                   <div className="extra-services-recent__money">
-                    <span className="extra-services-recent__amount">{formatMoney(s.amount)}</span>
-                    <span className="extra-services-recent__split">
-                      <span className="kpi-actual-value">Кл. {formatMoney(s.keep_amount)}</span>
+                    <div className="extra-services-recent__amount">{formatMoney(s.amount)}</div>
+                    <div className="extra-services-recent__split">
+                      <span className="kpi-actual-value">Клиника {formatMoney(s.keep_amount)}</span>
                       <span className="extra-services-recent__sep">·</span>
-                      <span>Парт. {formatMoney(s.payout_amount)}</span>
-                    </span>
+                      <span>Партнёр {formatMoney(s.payout_amount)}</span>
+                    </div>
                   </div>
                 </li>
               ))}
