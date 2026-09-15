@@ -469,7 +469,7 @@ html {
 }
 
 .shell-sidebar.is-collapsed {
-  width: 5rem;
+  width: 4.5rem;
 }
 
 .shell-main {
@@ -491,7 +491,7 @@ html {
 
 .shell-nav-sortable {
   position: relative;
-  margin-bottom: 1px;
+  margin-bottom: 0;
 }
 
 .shell-nav-sortable.is-dragging {
@@ -549,8 +549,8 @@ html {
 }
 
 .shell-sidebar.is-collapsed .shell-sidebar-brand-mark {
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 1.75rem;
+  height: 1.75rem;
 }
 
 .shell-sidebar-brand-text {
@@ -606,13 +606,14 @@ html {
 }
 
 .shell-sidebar.is-expanded .shell-nav-link {
-  @apply mx-1.5 flex w-[calc(100%-0.75rem)] flex-row items-center gap-1.5 px-2 py-1 text-left;
+  @apply mx-1.5 flex w-[calc(100%-0.75rem)] flex-row items-center gap-1.5 px-2 py-0.5 text-left;
   padding-right: 1.75rem;
 }
 
 .shell-sidebar.is-collapsed .shell-nav-link {
-  @apply flex w-full flex-col items-center justify-start gap-0 px-0 py-0.5 text-center;
+  @apply flex w-full flex-col items-center justify-start gap-0 px-0 py-0 text-center;
   line-height: 1;
+  min-height: 0;
 }
 
 .shell-sidebar .shell-nav-link:hover {
@@ -655,7 +656,7 @@ html {
 }
 
 .shell-sidebar .shell-nav-icon-box {
-  @apply h-10 w-10 shrink-0 rounded-xl;
+  @apply h-9 w-9 shrink-0 rounded-xl;
   transition:
     width var(--mo-sidebar-duration) var(--mo-sidebar-ease),
     height var(--mo-sidebar-duration) var(--mo-sidebar-ease),
@@ -663,7 +664,7 @@ html {
 }
 
 .shell-sidebar .shell-nav-icon-glyph {
-  @apply h-[1.35rem] w-[1.35rem];
+  @apply h-[1.15rem] w-[1.15rem];
   stroke-width: 1.65;
   transition:
     width var(--mo-sidebar-duration) var(--mo-sidebar-ease),
@@ -671,7 +672,7 @@ html {
 }
 
 .shell-sidebar.is-collapsed .shell-nav-icon-box {
-  @apply h-10 w-10 rounded-xl;
+  @apply h-7 w-7 rounded-lg;
   cursor: grab;
   touch-action: none;
 }
@@ -681,11 +682,11 @@ html {
 }
 
 .shell-sidebar.is-collapsed .shell-nav-icon-glyph {
-  @apply h-[1.35rem] w-[1.35rem];
+  @apply h-3.5 w-3.5;
 }
 
 .shell-sidebar.is-collapsed .shell-nav-link.is-active .shell-nav-icon-box {
-  transform: scale(1.04);
+  transform: scale(1.03);
 }
 
 .shell-sidebar .shell-nav-icon {
@@ -1012,9 +1013,12 @@ html {
 
 .shell-sidebar.is-collapsed .shell-nav-label {
   opacity: 1;
-  max-width: 4.75rem;
+  max-width: 4.25rem;
   margin-top: 0;
-  padding-top: 1px;
+  padding-top: 0;
+  font-size: 8px;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
   pointer-events: none;
 }
 
@@ -1039,7 +1043,7 @@ html {
 }
 
 .shell-sidebar.is-collapsed .shell-sidebar-logout {
-  @apply flex-col items-center px-0.5 py-0.5 text-center;
+  @apply flex-col items-center px-0 py-0 text-center;
 }
 
 .shell-sidebar-logout:hover {
@@ -1057,14 +1061,14 @@ html {
 }
 
 .shell-settings-root {
-  @apply shrink-0 px-0.5 pt-1;
+  @apply shrink-0 px-0 pt-0.5;
 }
 
 .shell-settings-toggle {
   @apply flex w-full items-center gap-1 rounded-lg border-0 bg-transparent text-left transition;
   color: var(--mo-sidebar-fg-muted);
   cursor: pointer;
-  padding: 0.25rem 0.35rem;
+  padding: 0.15rem 0.25rem;
 }
 
 .shell-settings-toggle:hover {
@@ -1087,12 +1091,12 @@ html {
 }
 
 .shell-sidebar.is-collapsed .shell-settings-toggle {
-  @apply flex-col justify-center gap-0 px-0 py-0.5 text-center;
+  @apply flex-col justify-center gap-0 px-0 py-0 text-center;
 }
 
 .shell-sidebar.is-collapsed .shell-settings-toggle-text {
-  @apply max-w-[4.75rem] text-[9px];
-  margin-top: 1px;
+  @apply max-w-[4.25rem] text-[8px] leading-none;
+  margin-top: 0;
 }
 
 .shell-sidebar.is-expanded .shell-settings-toggle {
