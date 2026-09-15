@@ -1022,6 +1022,30 @@ html {
   pointer-events: none;
 }
 
+/* Низкий экран: ещё плотнее, подписи только в title */
+@media (max-height: 820px) {
+  .shell-sidebar.is-collapsed .shell-nav-icon-box {
+    width: 1.55rem;
+    height: 1.55rem;
+    border-radius: 0.4rem;
+  }
+  .shell-sidebar.is-collapsed .shell-nav-icon-glyph {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+  .shell-sidebar.is-collapsed .shell-nav-label,
+  .shell-sidebar.is-collapsed .shell-settings-toggle-text {
+    display: none;
+  }
+  .shell-sidebar.is-collapsed .shell-sidebar-brand-mark {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  .shell-sidebar.is-collapsed {
+    width: 3.75rem;
+  }
+}
+
 .shell-sidebar-footer {
   border-top: 1px solid var(--mo-sidebar-border);
   box-shadow: none;
