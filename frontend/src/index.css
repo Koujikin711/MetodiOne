@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: Inter, system-ui, sans-serif;
-  --font-display: "Playfair Display", Georgia, serif;
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --color-lux-ivory: #f8fafc;
   --color-lux-ivory-deep: #eef2f9;
   --color-lux-sidebar: #e8edf7;
@@ -27,6 +27,18 @@
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
+  /* Единая типографика MetodiOne */
+  --mo-font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mo-text-2xs: 0.6875rem; /* 11px — минимум для подписей */
+  --mo-text-xs: 0.75rem; /* 12px */
+  --mo-text-sm: 0.8125rem; /* 13px */
+  --mo-text-base: 0.875rem; /* 14px — основной UI */
+  --mo-text-md: 0.9375rem; /* 15px */
+  --mo-text-lg: 1.0625rem; /* 17px */
+  --mo-text-xl: 1.25rem; /* 20px */
+  --mo-text-2xl: 1.5rem; /* 24px */
+  --mo-leading: 1.45;
+  --mo-leading-tight: 1.25;
   --mo-canvas: #eef2f9;
   --mo-bg: #eef2f9;
   --mo-bg-top: #e8edf7;
@@ -100,6 +112,17 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --mo-font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mo-text-2xs: 0.6875rem;
+  --mo-text-xs: 0.75rem;
+  --mo-text-sm: 0.8125rem;
+  --mo-text-base: 0.875rem;
+  --mo-text-md: 0.9375rem;
+  --mo-text-lg: 1.0625rem;
+  --mo-text-xl: 1.25rem;
+  --mo-text-2xl: 1.5rem;
+  --mo-leading: 1.45;
+  --mo-leading-tight: 1.25;
   /* Тот же indigo-luxury, что в светлой теме — без «чужих» белых карточек */
   --mo-canvas: #0c1222;
   --mo-bg: #0c1222;
@@ -246,13 +269,66 @@ html[data-chat-composing="1"] .shell-main {
 
 body {
   @apply min-h-screen antialiased font-sans;
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-base);
+  line-height: var(--mo-leading);
   color: var(--mo-text);
   background-color: var(--mo-canvas);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 html {
   background-color: var(--mo-canvas);
   color-scheme: light dark;
+  font-family: var(--mo-font);
+}
+
+/* Единый стиль текста в приложении (CRM / оболочка) */
+.shell-main,
+.shell-sidebar,
+.app-shell-bg {
+  font-family: var(--mo-font);
+}
+
+.shell-main {
+  font-size: var(--mo-text-base);
+  line-height: var(--mo-leading);
+}
+
+.shell-main h1 {
+  font-size: var(--mo-text-2xl);
+  font-weight: 600;
+  line-height: var(--mo-leading-tight);
+  letter-spacing: -0.02em;
+}
+
+.shell-main h2 {
+  font-size: var(--mo-text-xl);
+  font-weight: 600;
+  line-height: var(--mo-leading-tight);
+}
+
+.shell-main h3 {
+  font-size: var(--mo-text-lg);
+  font-weight: 600;
+  line-height: var(--mo-leading-tight);
+}
+
+.shell-main .text-xs,
+.shell-sidebar .text-xs {
+  font-size: var(--mo-text-xs) !important;
+  line-height: 1.35;
+}
+
+.shell-main .text-\[10px\],
+.shell-main .text-\[9px\],
+.shell-main .text-\[8px\],
+.shell-sidebar .text-\[10px\],
+.shell-sidebar .text-\[9px\],
+.shell-sidebar .text-\[8px\] {
+  font-size: var(--mo-text-2xs) !important;
+  line-height: 1.3;
 }
 
 /* Плавный переход светлая ↔ тёмная — те же токены motion */
@@ -925,7 +1001,9 @@ html {
 }
 
 .shell-sidebar .shell-nav-text {
-  @apply min-w-0 flex-1 text-sm font-medium leading-snug;
+  @apply min-w-0 flex-1 font-medium leading-snug;
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-base);
   color: #1d4ed8;
   overflow: hidden;
   white-space: nowrap;
@@ -942,7 +1020,8 @@ html {
 
 .shell-sidebar .shell-nav-label {
   @apply max-w-[4.75rem] font-medium leading-none tracking-normal;
-  font-size: 10px;
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-2xs);
   color: #2563eb;
   overflow: hidden;
   white-space: nowrap;
@@ -1011,7 +1090,7 @@ html {
   max-width: 4.25rem;
   margin-top: 0;
   padding-top: 0;
-  font-size: 10px;
+  font-size: var(--mo-text-2xs);
   line-height: 1.15;
   letter-spacing: 0;
   pointer-events: none;
@@ -2376,6 +2455,9 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   border-color: var(--mo-border-strong);
   background-color: var(--mo-surface-elevated);
   color: var(--mo-text);
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-base);
+  line-height: var(--mo-leading);
   box-shadow: inset 0 2px 6px rgba(44, 37, 32, 0.04);
 }
 
@@ -2445,7 +2527,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .mo-table {
-  @apply w-full min-w-[480px] text-left text-sm;
+  @apply w-full min-w-[480px] text-left;
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-base);
   color: var(--mo-text);
 }
 .mo-table thead { color: var(--mo-text-muted); }
@@ -2940,29 +3024,48 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .lux-heading {
-  font-family: var(--font-sans);
-  @apply text-lg font-semibold tracking-tight sm:text-xl;
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-lg);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: var(--mo-leading-tight);
   color: var(--mo-accent-hover);
 }
 
+@media (min-width: 640px) {
+  .lux-heading {
+    font-size: var(--mo-text-xl);
+  }
+}
+
 .lux-subheading {
-  @apply text-sm font-semibold;
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-base);
+  font-weight: 600;
+  line-height: var(--mo-leading-tight);
   color: var(--mo-text);
 }
 
 .lux-heading-page {
-  font-family: var(--font-sans);
-  @apply text-2xl font-semibold tracking-tight sm:text-[2rem];
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-2xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: var(--mo-leading-tight);
   color: var(--mo-accent-hover);
 }
 
 .lux-body {
-  @apply text-sm leading-relaxed;
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-base);
+  line-height: var(--mo-leading);
   color: var(--mo-text-muted);
 }
 
 .lux-caption {
-  @apply text-xs leading-relaxed;
+  font-family: var(--mo-font);
+  font-size: var(--mo-text-xs);
+  line-height: 1.4;
   color: var(--mo-text-muted);
 }
 
@@ -3630,15 +3733,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   gap: 0.65rem;
 }
 
-.extra-services-form__title,
-.extra-services-recent__title {
-  margin: 0;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--mo-text);
-  flex-shrink: 0;
-}
-
 .extra-services-field {
   display: block;
   min-width: 0;
@@ -3653,9 +3747,18 @@ fieldset.extra-services-field {
 .extra-services-field__label {
   display: block;
   margin-bottom: 0.25rem;
-  font-size: 0.8125rem;
+  font-size: var(--mo-text-sm);
   font-weight: 500;
   color: var(--mo-text-muted);
+}
+
+.extra-services-form__title,
+.extra-services-recent__title {
+  margin: 0;
+  font-size: var(--mo-text-md);
+  font-weight: 600;
+  color: var(--mo-text);
+  flex-shrink: 0;
 }
 
 .extra-services-form__row2 {
@@ -3726,7 +3829,7 @@ fieldset.extra-services-field {
 }
 
 .extra-services-recent__name {
-  font-size: 0.9375rem;
+  font-size: var(--mo-text-md);
   font-weight: 600;
   color: var(--mo-text);
   line-height: 1.25;
@@ -3740,7 +3843,7 @@ fieldset.extra-services-field {
   flex-wrap: wrap;
   gap: 0.15rem 0.45rem;
   margin-top: 0.2rem;
-  font-size: 0.75rem;
+  font-size: var(--mo-text-xs);
   line-height: 1.35;
   color: var(--mo-text-muted);
 }
@@ -3759,7 +3862,7 @@ fieldset.extra-services-field {
 }
 
 .extra-services-recent__amount {
-  font-size: 0.9375rem;
+  font-size: var(--mo-text-md);
   font-weight: 600;
   color: var(--mo-text);
   white-space: nowrap;
@@ -3771,7 +3874,7 @@ fieldset.extra-services-field {
   justify-content: flex-end;
   gap: 0.15rem 0.25rem;
   margin-top: 0.15rem;
-  font-size: 0.7rem;
+  font-size: var(--mo-text-2xs);
   line-height: 1.3;
   color: var(--mo-text-muted);
 }
@@ -6023,8 +6126,8 @@ fieldset.extra-services-field {
   --studio-accent-2: #0a6f61;
   --studio-glow: rgba(61, 222, 188, 0.28);
   --studio-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --studio-font: "Source Serif 4", Georgia, serif;
-  --studio-display: Syne, system-ui, sans-serif;
+  --studio-font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --studio-display: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --studio-header-offset: 5.25rem;
   --studio-mx: 72%;
   --studio-my: 18%;
