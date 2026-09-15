@@ -250,6 +250,11 @@ body {
   background-color: var(--mo-canvas);
 }
 
+html {
+  background-color: var(--mo-canvas);
+  color-scheme: light dark;
+}
+
 /* Плавный переход светлая ↔ тёмная — те же токены motion */
 @media (prefers-reduced-motion: no-preference) {
   html.theme-transitioning,
@@ -279,7 +284,11 @@ body {
   html.theme-transitioning .shell-nav-link,
   html.theme-transitioning .shell-nav-icon,
   html.theme-transitioning .shell-nav-text,
-  html.theme-transitioning .shell-nav-label {
+  html.theme-transitioning .shell-nav-label,
+  html.theme-transitioning .btn-primary,
+  html.theme-transitioning .btn-secondary,
+  html.theme-transitioning .curator-journal-page,
+  html.theme-transitioning .mo-modal-panel {
     transition:
       background-color var(--mo-duration-theme) var(--mo-ease-soft),
       background var(--mo-duration-theme) var(--mo-ease-soft),
@@ -298,12 +307,16 @@ body {
     animation-timing-function: var(--mo-ease-soft);
   }
 
+  /* Без полного fade-out в 0 — иначе мигает белый фон браузера */
   ::view-transition-old(root) {
-    animation-name: mo-theme-fade-out;
+    animation: none;
+    opacity: 1;
+    z-index: 1;
   }
 
   ::view-transition-new(root) {
     animation-name: mo-theme-fade-in;
+    z-index: 2;
   }
 
   /* Смена экрана (Outlet) — мягкий fade без сдвига (сдвиг только у панелей чата) */
@@ -358,22 +371,20 @@ body {
   @keyframes mo-theme-fade-out {
     from {
       opacity: 1;
-      filter: brightness(1) saturate(1);
     }
     to {
-      opacity: 0;
-      filter: brightness(1.04) saturate(0.92);
+      opacity: 1;
     }
   }
 
   @keyframes mo-theme-fade-in {
     from {
-      opacity: 0;
-      filter: brightness(0.96) saturate(0.95);
+      opacity: 0.72;
+      filter: brightness(0.98);
     }
     to {
       opacity: 1;
-      filter: brightness(1) saturate(1);
+      filter: brightness(1);
     }
   }
 }
@@ -8478,4 +8489,73 @@ html:has(.studio-root) {
 }
 .curator-journal-table tbody tr:hover .cj-sticky-name {
   background: var(--mo-surface-elevated);
+}
+
+/* Журнал куратора: поиск и форма потока */
+.curator-journal-page .cj-search-wrap {
+  position: relative;
+  flex: 1 1 14rem;
+  min-width: 12rem;
+}
+.curator-journal-page .cj-search-wrap .mo-input {
+  padding-left: 2.5rem;
+}
+.curator-journal-page .cj-search-icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
+  color: var(--mo-text-muted);
+  pointer-events: none;
+}
+.curator-journal-page .cj-flow-number-field {
+  border: 2px solid color-mix(in srgb, var(--mo-accent) 55%, var(--mo-border)) !important;
+  background: color-mix(in srgb, var(--mo-accent) 12%, var(--mo-surface-elevated)) !important;
+  font-size: 1.35rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em;
+  text-align: center;
+  padding-top: 0.7rem !important;
+  padding-bottom: 0.7rem !important;
+}
+.curator-journal-page .cj-flow-number-field:focus {
+  border-color: var(--mo-accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mo-accent) 28%, transparent) !important;
+}
+.curator-journal-page .cj-flow-meta-card {
+  display: grid;
+  gap: 0.35rem 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+.curator-journal-page .cj-flow-meta-card .cj-meta-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
+}
+.curator-journal-page .cj-flow-meta-card .cj-meta-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--mo-text);
+}
+.curator-journal-page .cj-flow-meta-card .cj-meta-value.is-flow-no {
+  font-size: 1.15rem;
+  color: var(--mo-accent);
+}
+.mo-modal-panel {
+  background: var(--mo-surface);
+  border: 1px solid var(--mo-border);
+}
+.mo-field-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
 }

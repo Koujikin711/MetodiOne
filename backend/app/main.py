@@ -216,18 +216,22 @@ async def ensure_canonical_pipeline_stages() -> None:
             )
             from app.services.manager_new_leads_block import apply_blocked_managers_new_leads_policy
             from app.services.manager_daily_lead_quotas import apply_mavluda_daily_archive_quota
+            from app.services.manager_mulkiya_leads import apply_mulkiya_receives_new_leads
 
             n = await ensure_all_pipelines_chat_stages(session)
             backfilled = await backfill_archived_from_stage(session)
             blocked = await apply_blocked_managers_new_leads_policy(session)
             mavluda = await apply_mavluda_daily_archive_quota(session)
+            mulkiya = await apply_mulkiya_receives_new_leads(session)
             await session.commit()
             logger.info(
-                "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s; new_leads_block=%s; mavluda_quota=%s",
+                "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s; "
+                "new_leads_block=%s; mavluda_quota=%s; mulkiya_leads=%s",
                 n,
                 backfilled,
                 blocked,
                 mavluda,
+                mulkiya,
             )
     except Exception:
         logger.exception("ensure_canonical_pipeline_stages failed; continuing startup")

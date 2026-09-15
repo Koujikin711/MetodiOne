@@ -36,23 +36,27 @@ function withThemeTransition(apply: () => void) {
   /** Длительность должна совпадать с CSS --mo-duration-theme. */
   const DURATION_MS = 820;
 
+  root.classList.add("theme-transitioning");
+
+  const finish = () => {
+    window.setTimeout(() => root.classList.remove("theme-transitioning"), DURATION_MS);
+  };
+
   if (typeof doc.startViewTransition === "function") {
-    root.classList.add("theme-transitioning");
-    const vt = doc.startViewTransition(apply);
-    void vt.finished.finally(() => {
-      root.classList.remove("theme-transitioning");
-    });
-    return;
+    try {
+      const vt = doc.startViewTransition(() => {
+        apply();
+      });
+      void vt.finished.finally(finish);
+      return;
+    } catch {
+      // fallback ниже
+    }
   }
 
-  root.classList.add("theme-transitioning");
-  // Двойной rAF — браузер успевает зафиксировать «до», потом меняем тему.
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      apply();
-      window.setTimeout(() => root.classList.remove("theme-transitioning"), DURATION_MS);
-    });
-  });
+  // Без View Transition: плавно через CSS-токены (без мигания).
+  apply();
+  finish();
 }
 
 export function toggleTheme(): ThemeMode {

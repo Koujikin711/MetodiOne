@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from "react";
 import toast from "react-hot-toast";
@@ -15,6 +14,7 @@ import { Navigate } from "react-router-dom";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { canAccessCuratorJournal } from "@/lib/clinicRoles";
+import { Pencil, Search, Trash2 } from "@/components/icons";
 
 type DiaryStatus = "pending" | "done" | "missed";
 type PhotoStatus = "pending" | "done" | "missed";
@@ -241,6 +241,7 @@ export function CuratorJournalPage() {
   const [filter, setFilter] = useState<RowFilter>("all");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [complaintEdit, setComplaintEdit] = useState<{
     membershipId: number;
@@ -387,7 +388,7 @@ export function CuratorJournalPage() {
   const flow = monthQuery.data?.flow || flowsQuery.data?.find((f) => f.id === selectedFlowId);
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
+    <div className="curator-journal-page mx-auto flex w-full max-w-[1600px] flex-col gap-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--mo-muted)]">
@@ -403,6 +404,11 @@ export function CuratorJournalPage() {
           ) : null}
           {selectedFlowId ? (
             <>
+              {canManageFlows ? (
+                <button type="button" className="btn-secondary text-sm" onClick={() => setShowEdit(true)}>
+                  Изменить поток
+                </button>
+              ) : null}
               <button type="button" className="btn-secondary text-sm" onClick={() => setShowImport(true)}>
                 Импорт
               </button>
@@ -422,14 +428,14 @@ export function CuratorJournalPage() {
             type="button"
             onClick={() => setSelectedFlowId(f.id)}
             className={[
-              "rounded-xl border px-3 py-2 text-left text-sm transition",
+              "rounded-xl border px-3.5 py-2.5 text-left text-sm transition",
               selectedFlowId === f.id
-                ? "border-[var(--mo-accent)] bg-[var(--mo-accent)]/10"
-                : "border-[var(--mo-border)] bg-[var(--mo-surface)]",
+                ? "border-[var(--mo-accent)] bg-[var(--mo-accent)]/15 shadow-[0_0_0_1px_color-mix(in_srgb,var(--mo-accent)_35%,transparent)]"
+                : "border-[var(--mo-border)] bg-[var(--mo-surface)] hover:border-[var(--mo-accent)]/40",
             ].join(" ")}
           >
-            <div className="font-medium">{flowTitle(f)}</div>
-            <div className="text-[11px] text-[var(--mo-muted)]">
+            <div className="text-base font-semibold tracking-wide">{flowTitle(f)}</div>
+            <div className="mt-0.5 text-[11px] text-[var(--mo-muted)]">
               {f.course_name} · {f.participants_count} уч.
             </div>
           </button>
@@ -440,27 +446,44 @@ export function CuratorJournalPage() {
       </div>
 
       {flow ? (
-        <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-4">
+        <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-4 shadow-[var(--mo-shadow-luxury)]">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1 text-sm">
+            <div className="cj-flow-meta-card min-w-[16rem] flex-1">
               <div>
-                <span className="text-[var(--mo-muted)]">Курс:</span> {flow.course_name}
+                <span className="cj-meta-label">Курс</span>
+                <span className="cj-meta-value">{flow.course_name}</span>
               </div>
               <div>
-                <span className="text-[var(--mo-muted)]">Поток:</span> {flowTitle(flow)}
+                <span className="cj-meta-label">Поток</span>
+                <span className="cj-meta-value is-flow-no">{flowTitle(flow)}</span>
               </div>
               <div>
-                <span className="text-[var(--mo-muted)]">Куратор:</span> {flow.curator_name || "—"}
+                <span className="cj-meta-label">Куратор</span>
+                <span className="cj-meta-value">{flow.curator_name || "—"}</span>
               </div>
               <div>
-                <span className="text-[var(--mo-muted)]">Период:</span>{" "}
-                {formatRuDate(flow.starts_on)} – {formatRuDate(flow.ends_on)}
+                <span className="cj-meta-label">Период</span>
+                <span className="cj-meta-value">
+                  {formatRuDate(flow.starts_on)} – {formatRuDate(flow.ends_on)}
+                </span>
               </div>
               <div>
-                <span className="text-[var(--mo-muted)]">Участников:</span> {flow.participants_count}
+                <span className="cj-meta-label">Участников</span>
+                <span className="cj-meta-value">{flow.participants_count}</span>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {canManageFlows ? (
+                <button
+                  type="button"
+                  className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"
+                  onClick={() => setShowEdit(true)}
+                  title="Изменить номер, период, куратора"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Настройки
+                </button>
+              ) : null}
               <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={() => shiftMonth(-1)}>
                 ←
               </button>
@@ -487,15 +510,18 @@ export function CuratorJournalPage() {
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <input
-              className="input min-w-[12rem] flex-1 text-sm"
-              placeholder="Поиск пациента…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="cj-search-wrap">
+              <Search className="cj-search-icon" />
+              <input
+                className="mo-input w-full text-sm"
+                placeholder="Поиск пациента по ФИО…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
             <select
-              className="input text-sm"
+              className="mo-input max-w-full text-sm sm:w-56"
               value={filter}
               onChange={(e) => setFilter(e.target.value as RowFilter)}
             >
@@ -511,6 +537,16 @@ export function CuratorJournalPage() {
               ))}
             </select>
           </div>
+          {canManageFlows ? (
+            <p className="mt-2 text-[11px] text-[var(--mo-muted)]">
+              Номер потока, период и куратора меняет администратор — кнопка «Настройки». Архив скрывает поток из
+              списка. Куратор заполняет только табель.
+            </p>
+          ) : (
+            <p className="mt-2 text-[11px] text-[var(--mo-muted)]">
+              Куратор заполняет дневник, фото и жалобы. Изменить номер потока может только администратор.
+            </p>
+          )}
         </div>
       ) : null}
 
@@ -671,7 +707,7 @@ export function CuratorJournalPage() {
                 ←
               </button>
               <select
-                className="input flex-1 text-sm"
+                className="mo-input flex-1 text-sm"
                 value={mobileDay}
                 onChange={(e) => {
                   setMobileDay(e.target.value);
@@ -763,11 +799,29 @@ export function CuratorJournalPage() {
       ) : null}
 
       {showCreate ? (
-        <CreateFlowModal
+        <FlowFormModal
+          mode="create"
           onClose={() => setShowCreate(false)}
-          onCreated={(id) => {
+          onSaved={(id) => {
             setShowCreate(false);
             setSelectedFlowId(id);
+            void qc.invalidateQueries({ queryKey: ["curator-journal", "flows"] });
+          }}
+        />
+      ) : null}
+
+      {showEdit && flow ? (
+        <FlowFormModal
+          mode="edit"
+          initial={flow}
+          onClose={() => setShowEdit(false)}
+          onSaved={() => {
+            setShowEdit(false);
+            void qc.invalidateQueries({ queryKey: ["curator-journal"] });
+          }}
+          onArchived={() => {
+            setShowEdit(false);
+            setSelectedFlowId(null);
             void qc.invalidateQueries({ queryKey: ["curator-journal", "flows"] });
           }}
         />
@@ -951,91 +1005,131 @@ function MobileStatus({
   );
 }
 
-function CreateFlowModal({
+function FlowFormModal({
+  mode,
+  initial,
   onClose,
-  onCreated,
+  onSaved,
+  onArchived,
 }: {
+  mode: "create" | "edit";
+  initial?: Flow;
   onClose: () => void;
-  onCreated: (id: number) => void;
+  onSaved: (id: number) => void;
+  onArchived?: () => void;
 }) {
   const today = todayIso();
-  const [courseName, setCourseName] = useState("Основной курс");
-  const [flowNumber, setFlowNumber] = useState(1);
-  const [title, setTitle] = useState("");
-  const [startsOn, setStartsOn] = useState(today);
+  const [courseName, setCourseName] = useState(initial?.course_name || "Основной курс");
+  const [flowNumber, setFlowNumber] = useState(initial?.flow_number || 1);
+  const [title, setTitle] = useState(initial?.title || "");
+  const [startsOn, setStartsOn] = useState(initial?.starts_on || today);
   const [endsOn, setEndsOn] = useState(() => {
+    if (initial?.ends_on) return initial.ends_on;
     const d = new Date();
     d.setMonth(d.getMonth() + 3);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
-  const [curatorId, setCuratorId] = useState<number | "">("");
-  const [kpiGroup, setKpiGroup] = useState<number | "">("");
+  const [curatorId, setCuratorId] = useState<number | "">(initial?.curator_user_id ?? "");
+  const [kpiGroup, setKpiGroup] = useState<number | "">(initial?.kpi_group_no ?? "");
 
   const curatorsQuery = useQuery({
     queryKey: ["curator-journal", "curators"],
     queryFn: () => apiFetch<CuratorUser[]>("/api/curator-journal/curators"),
   });
 
-  const createMut = useMutation({
-    mutationFn: () =>
-      apiFetch<Flow>("/api/curator-journal/flows", {
-        method: "POST",
-        body: JSON.stringify({
-          course_name: courseName,
-          flow_number: flowNumber,
-          title: title || null,
-          starts_on: startsOn,
-          ends_on: endsOn,
-          curator_user_id: curatorId === "" ? null : curatorId,
-          kpi_group_no: kpiGroup === "" ? null : kpiGroup,
-        }),
-      }),
+  const saveMut = useMutation({
+    mutationFn: () => {
+      const body = {
+        course_name: courseName,
+        flow_number: flowNumber,
+        title: title || null,
+        starts_on: startsOn,
+        ends_on: endsOn,
+        curator_user_id: curatorId === "" ? null : curatorId,
+        kpi_group_no: kpiGroup === "" ? null : kpiGroup,
+      };
+      if (mode === "create") {
+        return apiFetch<Flow>("/api/curator-journal/flows", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      }
+      return apiFetch<Flow>(`/api/curator-journal/flows/${initial!.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+    },
     onSuccess: (f) => {
-      toast.success("Поток создан");
-      onCreated(f.id);
+      toast.success(mode === "create" ? "Поток создан" : "Поток сохранён");
+      onSaved(f.id);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const archiveMut = useMutation({
+    mutationFn: () =>
+      apiFetch<Flow>(`/api/curator-journal/flows/${initial!.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "archived" }),
+      }),
+    onSuccess: () => {
+      toast.success("Поток в архиве");
+      onArchived?.();
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   return (
-    <Modal title="Новый поток" onClose={onClose}>
-      <div className="flex flex-col gap-2 text-sm">
-        <label>
-          Курс
-          <input className="input mt-1 w-full" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
+    <Modal title={mode === "create" ? "Новый поток" : "Настройки потока"} onClose={onClose}>
+      <div className="flex flex-col gap-3 text-sm">
+        <label className="block">
+          <span className="mo-field-label">Курс</span>
+          <input className="mo-input w-full" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
         </label>
-        <label>
-          Номер потока
+
+        <label className="block">
+          <span className="mo-field-label">Номер потока</span>
           <input
-            className="input mt-1 w-full"
+            className="mo-input cj-flow-number-field w-full"
             type="number"
             min={1}
             value={flowNumber}
             onChange={(e) => setFlowNumber(Number(e.target.value) || 1)}
           />
+          <span className="mt-1 block text-[11px] text-[var(--mo-muted)]">
+            В журнале: «Поток №{flowNumber}»
+          </span>
         </label>
-        <label>
-          Название (опц.)
-          <input className="input mt-1 w-full" value={title} onChange={(e) => setTitle(e.target.value)} />
+
+        <label className="block">
+          <span className="mo-field-label">Название (опционально)</span>
+          <input
+            className="mo-input w-full"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Например: Здоровый ребёнок"
+          />
         </label>
+
         <div className="grid grid-cols-2 gap-2">
-          <label>
-            С
-            <input className="input mt-1 w-full" type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} />
+          <label className="block">
+            <span className="mo-field-label">С</span>
+            <input className="mo-input w-full" type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} />
           </label>
-          <label>
-            По
-            <input className="input mt-1 w-full" type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
+          <label className="block">
+            <span className="mo-field-label">По</span>
+            <input className="mo-input w-full" type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
           </label>
         </div>
-        <label>
-          Куратор
+
+        <label className="block">
+          <span className="mo-field-label">Куратор</span>
           <select
-            className="input mt-1 w-full"
+            className="mo-input w-full"
             value={curatorId}
             onChange={(e) => setCuratorId(e.target.value ? Number(e.target.value) : "")}
           >
-            <option value="">—</option>
+            <option value="">— не назначен —</option>
             {(curatorsQuery.data || []).map((u) => (
               <option key={u.id} value={u.id}>
                 {u.full_name}
@@ -1043,29 +1137,51 @@ function CreateFlowModal({
             ))}
           </select>
         </label>
-        <label>
-          KPI group_no для импорта (опц.)
+
+        <label className="block">
+          <span className="mo-field-label">KPI «Поток» для импорта (опц.)</span>
           <input
-            className="input mt-1 w-full"
+            className="mo-input w-full"
             type="number"
             min={1}
             max={20}
             value={kpiGroup}
             onChange={(e) => setKpiGroup(e.target.value ? Number(e.target.value) : "")}
+            placeholder="group_no 1…20"
           />
         </label>
-        <div className="mt-2 flex justify-end gap-2">
-          <button type="button" className="btn-secondary" onClick={onClose}>
-            Отмена
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={createMut.isPending}
-            onClick={() => createMut.mutate()}
-          >
-            Создать
-          </button>
+
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+          {mode === "edit" ? (
+            <button
+              type="button"
+              className="btn-secondary inline-flex items-center gap-1.5 text-rose-600"
+              disabled={archiveMut.isPending}
+              onClick={() => {
+                if (window.confirm("Скрыть поток в архив? История журнала сохранится.")) {
+                  archiveMut.mutate();
+                }
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              В архив
+            </button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              Отмена
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={saveMut.isPending || !courseName.trim()}
+              onClick={() => saveMut.mutate()}
+            >
+              {mode === "create" ? "Создать" : "Сохранить"}
+            </button>
+          </div>
         </div>
       </div>
     </Modal>
@@ -1152,10 +1268,10 @@ function ImportModal({
       </div>
       {tab === "kpi" ? (
         <div className="space-y-2 text-sm">
-          <label>
-            Поток KPI (group_no)
+          <label className="block">
+            <span className="mo-field-label">Поток KPI (group_no)</span>
             <input
-              className="input mt-1 w-full"
+              className="mo-input cj-flow-number-field w-full"
               type="number"
               min={1}
               max={20}
@@ -1173,13 +1289,13 @@ function ImportModal({
       ) : null}
       {tab === "manual" ? (
         <div className="space-y-2 text-sm">
-          <label>
-            ФИО
-            <input className="input mt-1 w-full" value={name} onChange={(e) => setName(e.target.value)} />
+          <label className="block">
+            <span className="mo-field-label">ФИО</span>
+            <input className="mo-input w-full" value={name} onChange={(e) => setName(e.target.value)} />
           </label>
-          <label>
-            Телефон
-            <input className="input mt-1 w-full" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <label className="block">
+            <span className="mo-field-label">Телефон</span>
+            <input className="mo-input w-full" value={phone} onChange={(e) => setPhone(e.target.value)} />
           </label>
           <button
             type="button"
@@ -1193,10 +1309,10 @@ function ImportModal({
       ) : null}
       {tab === "leads" ? (
         <div className="space-y-2 text-sm">
-          <label>
-            ID лидов через запятую
+          <label className="block">
+            <span className="mo-field-label">ID лидов через запятую</span>
             <input
-              className="input mt-1 w-full"
+              className="mo-input w-full"
               value={leadIds}
               onChange={(e) => setLeadIds(e.target.value)}
               placeholder="12, 45, 78"
@@ -1339,7 +1455,7 @@ function ComplaintModal({
                       <label className="block">
                         Температура °C
                         <input
-                          className="input mt-1 w-full"
+                          className="mo-input mt-1 w-full"
                           value={f.numeric}
                           onChange={(e) =>
                             setFields((s) => ({ ...s, [cat]: { ...f, numeric: e.target.value } }))
@@ -1351,7 +1467,7 @@ function ComplaintModal({
                       <label className="block">
                         Количество эпизодов
                         <input
-                          className="input mt-1 w-full"
+                          className="mo-input mt-1 w-full"
                           value={f.count}
                           onChange={(e) =>
                             setFields((s) => ({ ...s, [cat]: { ...f, count: e.target.value } }))
@@ -1363,7 +1479,7 @@ function ComplaintModal({
                       <label className="block">
                         Вес кг
                         <input
-                          className="input mt-1 w-full"
+                          className="mo-input mt-1 w-full"
                           value={f.numeric}
                           onChange={(e) =>
                             setFields((s) => ({ ...s, [cat]: { ...f, numeric: e.target.value } }))
@@ -1374,7 +1490,7 @@ function ComplaintModal({
                     <label className="block">
                       Комментарий{cat === "other" ? " *" : ""}
                       <input
-                        className="input mt-1 w-full"
+                        className="mo-input mt-1 w-full"
                         value={f.comment}
                         onChange={(e) =>
                           setFields((s) => ({ ...s, [cat]: { ...f, comment: e.target.value } }))
@@ -1389,7 +1505,7 @@ function ComplaintModal({
           <label className="block">
             Общий комментарий
             <textarea
-              className="input mt-1 w-full"
+              className="mo-input mt-1 w-full"
               rows={2}
               value={general}
               onChange={(e) => setGeneral(e.target.value)}
@@ -1565,8 +1681,8 @@ function ReportModal({
         <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => preset("flow")}>
           Весь поток
         </button>
-        <input className="input text-xs" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        <input className="input text-xs" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        <input className="mo-input text-xs" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        <input className="mo-input text-xs" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
       </div>
       {r ? (
         <div className="space-y-3 text-sm">
@@ -1616,14 +1732,13 @@ function Modal({
   wide?: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 p-3 sm:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-3 backdrop-blur-[2px] sm:items-center" onClick={onClose}>
       <div
         className={[
-          "max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-4 shadow-xl",
+          "mo-modal-panel max-h-[90vh] w-full overflow-y-auto rounded-2xl p-4 shadow-xl",
           wide ? "max-w-2xl" : "max-w-md",
         ].join(" ")}
         onClick={(e) => e.stopPropagation()}
-        style={{ "--cj": 1 } as CSSProperties}
       >
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">{title}</h2>
