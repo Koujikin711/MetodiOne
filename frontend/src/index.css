@@ -476,6 +476,14 @@ html {
   padding-top: 2px;
 }
 
+.shell-sidebar-nav-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .shell-nav-sortable {
   position: relative;
   margin-bottom: 0;
@@ -1037,6 +1045,8 @@ html {
   border-top: 1px solid var(--mo-sidebar-border);
   box-shadow: none;
   transition: padding var(--mo-sidebar-duration) var(--mo-sidebar-ease);
+  padding: 0.35rem 0 0.25rem;
+  margin-top: auto;
 }
 
 .shell-sidebar-logout {
@@ -1050,16 +1060,22 @@ html {
 }
 
 .shell-sidebar.is-expanded .shell-sidebar-logout {
-  @apply mx-1.5 flex-row gap-1.5 px-2 py-1;
+  @apply mx-1.5 flex-row gap-1.5 px-2 py-1.5;
 }
 
 .shell-sidebar.is-collapsed .shell-sidebar-logout {
-  @apply flex-col items-center px-0 py-0 text-center;
+  @apply flex-col items-center gap-0.5 px-0 py-0.5 text-center;
 }
 
 .shell-sidebar-logout:hover {
   background: var(--mo-sidebar-item-hover);
   color: var(--mo-sidebar-fg);
+}
+
+.shell-sidebar-logout .shell-nav-label {
+  @apply max-w-[4.75rem] font-medium leading-none tracking-normal;
+  font-size: 9px;
+  color: inherit;
 }
 
 .shell-nav-sortable:hover .shell-nav-drag-handle,
@@ -1073,6 +1089,7 @@ html {
 
 .shell-settings-root {
   @apply shrink-0 px-0 pt-0.5;
+  margin-top: auto;
 }
 
 .shell-settings-toggle {

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import { GradientIconBox } from "@/components/GradientIconBox";
-import { ChevronDown, LogOut, Moon, Sun } from "@/components/icons";
+import { ChevronDown, Moon, Sun } from "@/components/icons";
 import { ShellNavIcon } from "@/components/ShellNavLink";
 import type { ShellSidebarNavItem } from "@/lib/shellSidebarNavItems";
 import { getStoredTheme, toggleTheme, type ThemeMode } from "@/lib/themeMode";
@@ -10,7 +10,6 @@ import { getStoredTheme, toggleTheme, type ThemeMode } from "@/lib/themeMode";
 type Props = {
   items: ShellSidebarNavItem[];
   expanded: boolean;
-  onLogout: () => void;
 };
 
 function SettingsSubLink({
@@ -54,7 +53,7 @@ function SettingsSubLink({
   );
 }
 
-export function ShellSidebarSettingsMenu({ items, expanded, onLogout }: Props) {
+export function ShellSidebarSettingsMenu({ items, expanded }: Props) {
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
   const location = useLocation();
 
@@ -84,14 +83,14 @@ export function ShellSidebarSettingsMenu({ items, expanded, onLogout }: Props) {
   const isDark = theme === "dark";
   const themeLabel = isDark ? "Светлая тема" : "Тёмная тема";
   const themeShort = isDark ? "Светлая" : "Тёмная";
-  const toggleLabel = open ? "Скрыть" : "Настройки";
-  const toggleShort = open ? "Скрыть" : "Настр.";
+  const toggleLabel = open ? "Скрыть" : "Доп";
+  const toggleShort = open ? "Скрыть" : "Доп";
 
   return (
     <div className={["shell-settings-root", open ? "is-open" : "", routeActive ? "has-active" : ""].filter(Boolean).join(" ")}>
       <button
         type="button"
-        title={open ? "Скрыть настройки" : "Настройки"}
+        title={open ? "Скрыть" : "Дополнительно"}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="shell-settings-toggle"
@@ -106,43 +105,16 @@ export function ShellSidebarSettingsMenu({ items, expanded, onLogout }: Props) {
             <SettingsSubLink key={item.id} item={item} expanded={expanded} />
           ))}
           {!expanded ? (
-            <>
-              <button type="button" role="menuitem" className="shell-nav-link shell-settings-sub-link" onClick={() => setTheme(toggleTheme())}>
-                <span className="shell-nav-icon-box inline-flex items-center justify-center rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] text-[var(--mo-text)]">
-                  {isDark ? <Sun className="shell-nav-icon-glyph" /> : <Moon className="shell-nav-icon-glyph" />}
-                </span>
-                <span className="shell-nav-label">{themeShort}</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="shell-nav-link shell-settings-sub-link shell-settings-sub-link--logout"
-                onClick={() => {
-                  onLogout();
-                }}
-              >
-                <GradientIconBox variant="pink" className="shell-nav-icon-box">
-                  <LogOut className="shell-nav-icon-glyph" />
-                </GradientIconBox>
-                <span className="shell-nav-label">Выход</span>
-              </button>
-            </>
+            <button type="button" role="menuitem" className="shell-nav-link shell-settings-sub-link" onClick={() => setTheme(toggleTheme())}>
+              <span className="shell-nav-icon-box inline-flex items-center justify-center rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] text-[var(--mo-text)]">
+                {isDark ? <Sun className="shell-nav-icon-glyph" /> : <Moon className="shell-nav-icon-glyph" />}
+              </span>
+              <span className="shell-nav-label">{themeShort}</span>
+            </button>
           ) : (
-            <>
-              <button type="button" role="menuitem" className="shell-settings-text-link" onClick={() => setTheme(toggleTheme())}>
-                {themeLabel}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="shell-settings-text-link shell-settings-text-link--logout"
-                onClick={() => {
-                  onLogout();
-                }}
-              >
-                Выход
-              </button>
-            </>
+            <button type="button" role="menuitem" className="shell-settings-text-link" onClick={() => setTheme(toggleTheme())}>
+              {themeLabel}
+            </button>
           )}
         </div>
       ) : null}

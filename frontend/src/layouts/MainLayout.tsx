@@ -146,7 +146,7 @@ export function MainLayout() {
             sidebarExpanded ? "is-expanded" : "is-collapsed",
           ].join(" ")}
         >
-          <div className="shell-sidebar-header">
+          <div className="shell-sidebar-header shrink-0">
             <button
               type="button"
               onClick={toggleSidebar}
@@ -179,9 +179,25 @@ export function MainLayout() {
               showExtraServices={showExtraServices}
               showCuratorJournal={role === "admin"}
               showNavForFeature={showNavForFeature}
-              onLogout={logout}
             />
           </nav>
+          <div className="shell-sidebar-footer shrink-0">
+            <button
+              type="button"
+              className="shell-sidebar-logout"
+              title="Выход"
+              onClick={logout}
+            >
+              <GradientIconBox variant="pink" className="shell-nav-icon-box">
+                <LogOut className="shell-nav-icon-glyph" />
+              </GradientIconBox>
+              {sidebarExpanded ? (
+                <span className="shell-nav-text">Выход</span>
+              ) : (
+                <span className="shell-nav-label">Выход</span>
+              )}
+            </button>
+          </div>
         </aside>
 
         <main
