@@ -1,17 +1,26 @@
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { appLexicon } from "@/lib/appLexicon";
 import { formatMoney } from "@/lib/money";
 import { DateField } from "@/components/DateField";
+import { MonthYearPicker } from "@/components/MonthYearPicker";
 import type {
   AnalyticsOverviewRead,
   DetailedAnalyticsRead,
   FullAnalyticsRead,
   ManagerPerformanceItem,
   Pipeline,
+  SalesKpiCompanyReport,
 } from "@/lib/types";
+
+type AnalyticsDimension = "managers" | "services";
+
+function defaultYearMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 const moneyFmt = { format: (n: number) => formatMoney(n, { digits: 0 }) };
 
@@ -95,13 +104,17 @@ function analyticsErrorText(message: string): string {
 
 export function AnalyticsPage() {
   const lex = appLexicon;
+  const [dimension, setDimension] = useState<AnalyticsDimension>("managers");
   const [mode, setMode] = useState<"overview" | "full" | "detailed">("overview");
   const [period, setPeriod] = useState<"day" | "month" | "custom">("day");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [pipelineId, setPipelineId] = useState<number | "all">("all");
+  const [yearMonth, setYearMonth] = useState(defaultYearMonth);
 
   const periodReady = period !== "custom" || Boolean(dateFrom && dateTo);
+  const managersMode = dimension === "managers";
+  const servicesMode = dimension === "services";
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -119,22 +132,49 @@ export function AnalyticsPage() {
     queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
   });
 
+  const pipelines = pipelinesQuery.data ?? [];
+  const servicesPipelineId = typeof pipelineId === "number" ? pipelineId : pipelines[0]?.id ?? null;
+
+  useEffect(() => {
+    if (!servicesMode) return;
+    if (typeof pipelineId === "number") return;
+    const first = pipelines[0]?.id;
+    if (first != null) setPipelineId(first);
+  }, [servicesMode, pipelineId, pipelines]);
+
+  const companyQs = useMemo(() => {
+    if (servicesPipelineId == null) return "";
+    const p = new URLSearchParams();
+    p.set("pipeline_id", String(servicesPipelineId));
+    p.set("year_month", yearMonth);
+    return p.toString();
+  }, [servicesPipelineId, yearMonth]);
+
   const fullQuery = useQuery({
     queryKey: ["analytics-full", qs],
     queryFn: () => apiFetch<FullAnalyticsRead>(`/api/analytics/full?${qs}`),
-    enabled: periodReady,
+    enabled: managersMode && periodReady,
   });
 
   const detailedQuery = useQuery({
     queryKey: ["analytics-detailed", qs],
     queryFn: () => apiFetch<DetailedAnalyticsRead>(`/api/analytics/detailed?${qs}`),
-    enabled: periodReady,
+    enabled: managersMode && periodReady,
   });
 
   const overviewQuery = useQuery({
     queryKey: ["analytics-overview", qs],
     queryFn: () => apiFetch<AnalyticsOverviewRead>(`/api/analytics/overview?${qs}`),
-    enabled: periodReady,
+    enabled: managersMode && periodReady,
+  });
+
+  const servicesQuery = useQuery({
+    queryKey: ["analytics-services-report", companyQs],
+    queryFn: () =>
+      apiFetch<SalesKpiCompanyReport>(`/api/sales-kpi/company-report?${companyQs}`, {
+        timeoutMs: 60_000,
+      }),
+    enabled: servicesMode && Boolean(companyQs),
   });
 
   return (
@@ -142,11 +182,33 @@ export function AnalyticsPage() {
       <header className="mo-admin-page-head analytics-page-header">
         <h1 className="lux-heading-page">{lex.analyticsTitle}</h1>
         <p className="lux-body mt-1.5 max-w-2xl">{lex.analyticsIntro}</p>
+        <div className="crm-view-switch mt-3 inline-flex" role="tablist" aria-label="Раздел аналитики">
+          <button
+            type="button"
+            role="tab"
+            data-active={managersMode ? "true" : "false"}
+            aria-selected={managersMode}
+            onClick={() => setDimension("managers")}
+          >
+            Менеджеры
+          </button>
+          <button
+            type="button"
+            role="tab"
+            data-active={servicesMode ? "true" : "false"}
+            aria-selected={servicesMode}
+            onClick={() => setDimension("services")}
+          >
+            Услуги
+          </button>
+        </div>
       </header>
 
       <div className="mo-fill-page-scroll space-y-5 pt-4">
       <section className="mo-section analytics-toolbar-section p-4 sm:p-5">
         <div className="analytics-toolbar">
+          {managersMode ? (
+            <>
           <label className="analytics-toolbar-field">
             <span>Режим</span>
             <select
@@ -179,7 +241,7 @@ export function AnalyticsPage() {
               className="mo-input"
             >
               <option value="all">{lex.pipelineAll}</option>
-              {(pipelinesQuery.data ?? []).map((p) => (
+              {pipelines.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
@@ -204,9 +266,61 @@ export function AnalyticsPage() {
               aria-label="Дата по"
             />
           </label>
+            </>
+          ) : (
+            <>
+          <label className="analytics-toolbar-field">
+            <span>Месяц</span>
+            <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
+          </label>
+          <label className="analytics-toolbar-field">
+            <span>Воронка</span>
+            <select
+              value={servicesPipelineId != null ? String(servicesPipelineId) : ""}
+              onChange={(e) => setPipelineId(Number(e.target.value))}
+              className="mo-input"
+            >
+              {pipelines.length === 0 ? <option value="">Нет воронок</option> : null}
+              {pipelines.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+            </>
+          )}
           <button
             type="button"
             onClick={() => {
+              if (servicesMode && servicesQuery.data) {
+                downloadCsv(
+                  `analytics_services_${yearMonth}.csv`,
+                  [
+                    "Услуга",
+                    "Записей",
+                    "Явились",
+                    "Не явились",
+                    "Ещё booked",
+                    "Оплачено полностью",
+                    "Оплачено при неявке",
+                    "Всего оплат",
+                    "Дебиторка",
+                  ],
+                  (servicesQuery.data.service_stats ?? []).map((s) => [
+                    s.direction_name,
+                    s.appointments_total,
+                    s.appeared_count,
+                    s.no_show_count,
+                    s.booked_count ?? 0,
+                    Number(s.paid_full_amount ?? 0),
+                    Number(s.paid_no_show_amount ?? 0),
+                    Number(s.revenue_paid),
+                    Number(s.debtor_amount ?? 0),
+                  ]),
+                );
+                return;
+              }
               if (mode === "overview" && overviewQuery.data) {
                 downloadCsv(
                   "analytics_overview_managers.csv",
@@ -280,7 +394,147 @@ export function AnalyticsPage() {
         </div>
       </section>
 
-      {mode === "overview" && (
+      {servicesMode && (
+        <section className="space-y-4">
+          {servicesPipelineId == null ? (
+            <p className="analytics-hint">Сначала создайте воронку — без неё сводка по услугам недоступна.</p>
+          ) : null}
+          {servicesPipelineId != null && servicesQuery.isError ? (
+            <p className="analytics-error">{analyticsErrorText((servicesQuery.error as Error).message)}</p>
+          ) : null}
+          {servicesQuery.isLoading ? <p className="lux-caption px-1">Загрузка…</p> : null}
+          {servicesQuery.data ? (
+            <>
+              <div className="analytics-kpi-grid sm:grid-cols-2 lg:grid-cols-4">
+                <MetricCard
+                  label="Выручка"
+                  value={moneyFmt.format(Number(servicesQuery.data.revenue_total))}
+                  tone="success"
+                />
+                <MetricCard
+                  label="Дебиторка"
+                  value={moneyFmt.format(Number(servicesQuery.data.debtor_total))}
+                  tone="warning"
+                />
+                <MetricCard
+                  label="Услуг в сводке"
+                  value={(servicesQuery.data.service_stats ?? []).length}
+                  tone="accent"
+                />
+                <MetricCard
+                  label="Воронка"
+                  value={servicesQuery.data.pipeline_name}
+                  tone="neutral"
+                  hint={servicesQuery.data.year_month}
+                />
+              </div>
+
+              <AnalyticsPanel title="По услугам">
+                <p className="analytics-panel-note">
+                  Отдельно: Курс, Курс 15, Протокол, Массаж и т.д. — итог по клинике за месяц.
+                </p>
+                <AnalyticsTable minWidth={1100}>
+                  <thead>
+                    <tr>
+                      <th className="py-2 pr-3">Услуга</th>
+                      <th className="py-2 pr-3">Записей</th>
+                      <th className="py-2 pr-3">Явились</th>
+                      <th className="py-2 pr-3">Не явились</th>
+                      <th className="py-2 pr-3">Ещё booked</th>
+                      <th className="py-2 pr-3">Оплачено полностью</th>
+                      <th className="py-2 pr-3">Оплачено при неявке</th>
+                      <th className="py-2 pr-3">Всего оплат</th>
+                      <th className="py-2 pr-3">Дебиторка</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(servicesQuery.data.service_stats ?? []).length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="analytics-empty-cell">
+                          Нет записей за месяц
+                        </td>
+                      </tr>
+                    ) : (
+                      (servicesQuery.data.service_stats ?? []).map((s) => (
+                        <tr key={s.direction_id ?? s.direction_name}>
+                          <td className="py-2.5 pr-3 font-medium">{s.direction_name}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{s.appointments_total}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{s.appeared_count}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{s.no_show_count}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{s.booked_count ?? 0}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {moneyFmt.format(Number(s.paid_full_amount ?? 0))}
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {moneyFmt.format(Number(s.paid_no_show_amount ?? 0))}
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(s.revenue_paid))}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {moneyFmt.format(Number(s.debtor_amount ?? 0))}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </AnalyticsTable>
+              </AnalyticsPanel>
+
+              <AnalyticsPanel title="По экспертам">
+                <p className="analytics-panel-note">
+                  Сводка по специалисту. Детализация по услугам — в таблице выше.
+                </p>
+                <AnalyticsTable minWidth={1000}>
+                  <thead>
+                    <tr>
+                      <th className="py-2 pr-3">Эксперт</th>
+                      <th className="py-2 pr-3">Записей</th>
+                      <th className="py-2 pr-3">Явились</th>
+                      <th className="py-2 pr-3">Не явились</th>
+                      <th className="py-2 pr-3">Оплачено полностью</th>
+                      <th className="py-2 pr-3">Оплачено при неявке</th>
+                      <th className="py-2 pr-3">Всего оплат</th>
+                      <th className="py-2 pr-3">Дебиторка</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(servicesQuery.data.expert_stats ?? []).length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="analytics-empty-cell">
+                          Нет данных за месяц
+                        </td>
+                      </tr>
+                    ) : (
+                      (servicesQuery.data.expert_stats ?? []).map((e) => (
+                        <tr key={e.specialist_id}>
+                          <td className="py-2.5 pr-3 font-medium">
+                            <div>{e.specialist_name}</div>
+                            {e.kpi_service_name ? (
+                              <div className="text-[10px] mo-muted">KPI: {e.kpi_service_name}</div>
+                            ) : null}
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">{e.appointments_total}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{e.appeared_count}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{e.no_show_count}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {moneyFmt.format(Number(e.paid_full_amount ?? 0))}
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {moneyFmt.format(Number(e.paid_no_show_amount ?? 0))}
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(e.revenue_paid))}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(e.debtor_amount))}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </AnalyticsTable>
+              </AnalyticsPanel>
+            </>
+          ) : null}
+        </section>
+      )}
+
+      {managersMode && mode === "overview" && (
         <section className="space-y-4">
           {!periodReady ? (
             <p className="analytics-hint">Выберите даты «С» и «По» — тогда покажем аналитику за этот период.</p>
@@ -531,7 +785,7 @@ export function AnalyticsPage() {
         </section>
       )}
 
-      {mode === "full" && (
+      {managersMode && mode === "full" && (
         <section className="space-y-4">
           {!periodReady ? (
             <p className="analytics-hint">Выберите даты «С» и «По» — тогда покажем аналитику за этот период.</p>
@@ -584,7 +838,7 @@ export function AnalyticsPage() {
         </section>
       )}
 
-      {mode === "detailed" && (
+      {managersMode && mode === "detailed" && (
         <section className="space-y-4">
           {!periodReady ? (
             <p className="analytics-hint">Выберите даты «С» и «По» — тогда покажем аналитику за этот период.</p>
