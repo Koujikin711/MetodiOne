@@ -2,21 +2,21 @@ import type { HTMLAttributes, ReactNode } from "react";
 
 /** Уникальный цвет на каждый вариант — в тёмной теме не схлопывать в один красный. */
 const variants = {
-  crm: "bg-[#4A1521]",
-  indigo: "bg-[#3730A3]",
-  purple: "bg-[#6D28D9]",
-  finance: "bg-[#0F4C3A]",
-  tariff: "bg-[#047857]",
-  online: "bg-[#1E3A8A]",
+  crm: "bg-[#BE185D]",
+  indigo: "bg-[#4F46E5]",
+  purple: "bg-[#9333EA]",
+  finance: "bg-[#059669]",
+  tariff: "bg-[#10B981]",
+  online: "bg-[#1D4ED8]",
   blue: "bg-[#2563EB]",
-  analytics: "bg-[#1D4ED8]",
+  analytics: "bg-[#0284C7]",
   tasks: "bg-[#0E7490]",
-  chat: "bg-[#0891B2]",
-  teal: "bg-[#0F766E]",
-  trainer: "bg-[#B45309]",
+  chat: "bg-[#06B6D4]",
+  teal: "bg-[#0D9488]",
+  trainer: "bg-[#EA580C]",
   integrations: "bg-[#7C3AED]",
-  platform: "bg-[#78716C]",
-  logout: "bg-[#5C4A42]",
+  platform: "bg-[#A16207]",
+  logout: "bg-[#DB2777]",
   pink: "bg-[#DB2777]",
 } as const;
 

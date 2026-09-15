@@ -810,7 +810,11 @@ html {
     0 2px 10px -2px rgba(8, 145, 178, 0.35),
     0 0 12px rgba(0, 200, 255, 0.22);
 }
-.shell-sidebar [data-nav-variant="analytics"],
+.shell-sidebar [data-nav-variant="analytics"] {
+  box-shadow:
+    0 2px 10px -2px rgba(14, 165, 233, 0.35),
+    0 0 12px rgba(56, 189, 248, 0.25);
+}
 .shell-sidebar [data-nav-variant="online"] {
   box-shadow:
     0 2px 10px -2px rgba(30, 58, 138, 0.3),
