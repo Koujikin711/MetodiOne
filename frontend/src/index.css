@@ -3476,8 +3476,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   .extra-services-new-layout {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
     gap: 1rem;
-    align-items: start;
+    /* stretch: колонка списка ограничена высотой окна → иначе обрезается без скролла */
+    align-items: stretch;
     height: 100%;
+    min-height: 0;
   }
 }
 
@@ -3525,10 +3527,11 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   }
 
   .extra-services-new-layout .extra-services-recent {
+    min-height: 0;
     height: 100%;
     max-height: 100%;
-    min-height: 0;
     align-self: stretch;
+    overflow: hidden;
   }
 }
 
