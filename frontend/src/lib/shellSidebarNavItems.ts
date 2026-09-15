@@ -195,6 +195,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "target",
       });
     }
+    if (showExpenses) {
+      items.push({
+        id: "expenses",
+        to: "/expenses",
+        title: "Расходы",
+        labelShort: "Расходы",
+        labelFull: "Расходы",
+        variant: "indigo",
+        iconKey: "clipboard-list",
+      });
+    }
     return items;
   }
 

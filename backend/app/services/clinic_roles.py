@@ -5,7 +5,7 @@ from __future__ import annotations
 from app.models import UserRole
 from app.services.booking_directions import is_course_like_direction_name
 
-# Чаты + канбан + онлайн-запись + KPI
+# Чаты + канбан + онлайн-запись + KPI + расходы
 ADMINISTRATOR_ROLES = frozenset({UserRole.administrator})
 
 # Онлайн-запись + дебиторка только курсы/протоколы

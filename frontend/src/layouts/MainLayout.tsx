@@ -359,6 +359,14 @@ export function MainLayout() {
                   </NavLink>
                 </NavIf>
               ) : null}
+              {showExpenses ? (
+                <NavLink preventScrollReset to="/expenses" className={mobileBottomNavLinkClass} title="Расходы">
+                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <ClipboardList className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Расходы</span>
+                </NavLink>
+              ) : null}
               <button type="button" onClick={logout} className={mobileBottomLogoutClass} title="Выход">
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <LogOut className="h-4 w-4" />
