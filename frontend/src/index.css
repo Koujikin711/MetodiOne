@@ -2901,11 +2901,29 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-list-panel {
-  @apply flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-3 overflow-y-auto overscroll-contain rounded-2xl border p-3 sm:gap-3.5 sm:p-4;
-  border-color: var(--mo-border);
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  gap: 0.65rem;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  border-radius: 1rem;
+  border: 1px solid var(--mo-border);
   background: var(--mo-surface-elevated);
   box-sizing: border-box;
   box-shadow: var(--mo-shadow-luxury);
+  padding: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .crm-list-panel {
+    gap: 0.75rem;
+    padding: 1rem;
+    border-radius: 1.15rem;
+  }
 }
 
 .crm-list-toolbar {
@@ -2913,6 +2931,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 0.65rem 0.85rem;
+  flex-shrink: 0;
 }
 
 .crm-list-field {
@@ -2948,6 +2967,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .crm-list-meta {
@@ -2964,8 +2984,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .crm-list-table-wrap {
-  @apply overflow-x-auto rounded-xl border;
-  border-color: var(--mo-border);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 0.75rem;
+  border: 1px solid var(--mo-border);
   background: var(--mo-surface);
 }
 
@@ -2978,15 +3003,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .crm-list-table thead th {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
   padding: 0.65rem 0.85rem;
   font-size: var(--mo-text-2xs);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--mo-text-muted);
-  background: color-mix(in srgb, var(--mo-surface-elevated) 92%, var(--mo-accent-soft));
-  border-bottom: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+  box-shadow: 0 1px 0 var(--mo-border);
   white-space: nowrap;
 }
 
@@ -3072,6 +3097,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.55rem;
+  flex-shrink: 0;
   padding-top: 0.15rem;
 }
 
