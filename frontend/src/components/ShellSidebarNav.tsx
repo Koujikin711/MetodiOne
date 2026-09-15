@@ -38,6 +38,7 @@ type Props = {
   deskSalesEnabled?: boolean;
   chatStagesEnabled?: boolean;
   showExtraServices?: boolean;
+  showCuratorJournal?: boolean;
   showNavForFeature: (feature: string) => boolean;
   onLogout: () => void;
 };
@@ -60,6 +61,7 @@ export function ShellSidebarNav({
   deskSalesEnabled = false,
   chatStagesEnabled = true,
   showExtraServices = false,
+  showCuratorJournal = false,
   showNavForFeature,
   onLogout,
 }: Props) {
@@ -81,6 +83,7 @@ export function ShellSidebarNav({
         deskSalesEnabled,
         chatStagesEnabled,
         showExtraServices,
+        showCuratorJournal,
         showNavForFeature,
         navLex: appLexicon,
       }),
@@ -100,6 +103,7 @@ export function ShellSidebarNav({
       deskSalesEnabled,
       chatStagesEnabled,
       showExtraServices,
+      showCuratorJournal,
       showNavForFeature,
     ],
   );

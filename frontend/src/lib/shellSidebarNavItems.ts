@@ -44,6 +44,8 @@ type BuildParams = {
   chatStagesEnabled?: boolean;
   /** Доп услуги — только owner / admin / administrator */
   showExtraServices?: boolean;
+  /** Журнал куратора для admin (в manager-like nav) */
+  showCuratorJournal?: boolean;
   showNavForFeature: (feature: string) => boolean;
   navLex: {
     navKanban: string;
@@ -74,6 +76,18 @@ function extraServicesNavItem(): ShellSidebarNavItem {
   };
 }
 
+function curatorJournalNavItem(): ShellSidebarNavItem {
+  return {
+    id: "curator-journal",
+    to: "/curator-journal",
+    title: "Журнал куратора",
+    labelShort: "Журнал",
+    labelFull: "Журнал куратора",
+    variant: "purple",
+    iconKey: "clipboard-list",
+  };
+}
+
 export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavItem[] {
   const {
     isSuperOwner,
@@ -91,6 +105,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     deskSalesEnabled = false,
     chatStagesEnabled: _chatStagesEnabled = true,
     showExtraServices = false,
+    showCuratorJournal = false,
     showNavForFeature,
     navLex,
   } = params;
@@ -118,7 +133,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     ];
   }
 
-  // Куратор: только онлайн-запись + дебиторка (KPI вкладка)
+  // Куратор: онлайн-запись + журнал куратора + дебиторка
   if (isCurator) {
     const items: ShellSidebarNavItem[] = [];
     if (showBooking) {
@@ -133,6 +148,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       });
       if (showExtraServices) items.push(extraServicesNavItem());
     }
+    items.push(curatorJournalNavItem());
     if (showKpi && showNavForFeature("kpi")) {
       items.push({
         id: "kpi",
@@ -184,6 +200,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       });
       if (showExtraServices) items.push(extraServicesNavItem());
     }
+    items.push(curatorJournalNavItem());
     if (showKpi && showNavForFeature("kpi")) {
       items.push({
         id: "kpi",
@@ -202,8 +219,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: "Расходы",
         labelShort: "Расходы",
         labelFull: "Расходы",
-        variant: "indigo",
-        iconKey: "clipboard-list",
+        variant: "finance",
+        iconKey: "wallet",
       });
     }
     return items;
@@ -230,8 +247,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: "Расходы",
         labelShort: "Расходы",
         labelFull: "Расходы",
-        variant: "indigo",
-        iconKey: "clipboard-list",
+        variant: "finance",
+        iconKey: "wallet",
       });
     }
     return items;
@@ -419,8 +436,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: "Расходы",
         labelShort: "Расходы",
         labelFull: "Расходы",
-        variant: "indigo",
-        iconKey: "clipboard-list",
+        variant: "finance",
+        iconKey: "wallet",
       });
     }
     if (isChiefExpert && bookingEnabled && showNavForFeature("reports")) {
@@ -456,6 +473,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "plug",
       });
     }
+    if (showCuratorJournal) items.push(curatorJournalNavItem());
     return items;
   }
 
@@ -551,8 +569,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: "Калькуляция",
         labelShort: "Калькул.",
         labelFull: "Калькуляция",
-        variant: "indigo",
-        iconKey: "clipboard-list",
+        variant: "finance",
+        iconKey: "wallet",
       },
       {
         id: "tracker",
@@ -616,6 +634,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       iconKey: "target",
     });
   }
+  items.push(curatorJournalNavItem());
   if (showNavForFeature("analytics")) {
     items.push({
       id: "analytics",

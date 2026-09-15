@@ -38,3 +38,13 @@ export function isCurator(role: UserRole | null): boolean {
 export function isAccountant(role: UserRole | null): boolean {
   return role === "accountant";
 }
+
+export function canAccessCuratorJournal(role: UserRole | null): boolean {
+  return (
+    role === "owner" ||
+    role === "super_owner" ||
+    role === "admin" ||
+    role === "administrator" ||
+    role === "curator"
+  );
+}

@@ -177,6 +177,7 @@ export function MainLayout() {
               deskSalesEnabled={deskSalesEnabled}
               chatStagesEnabled={chatStagesEnabled}
               showExtraServices={showExtraServices}
+              showCuratorJournal={role === "admin"}
               showNavForFeature={showNavForFeature}
               onLogout={logout}
             />
@@ -306,6 +307,17 @@ export function MainLayout() {
                   <span className="text-[9px]">Онлайн</span>
                 </NavLink>
               </NavIf>
+              <NavLink
+                preventScrollReset
+                to="/curator-journal"
+                className={mobileBottomNavLinkClass}
+                title="Журнал куратора"
+              >
+                <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <ClipboardList className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Журнал</span>
+              </NavLink>
               {showKpi ? (
                 <NavIf show={showNavForFeature("kpi")}>
                   <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title="Дебиторка">
@@ -361,8 +373,8 @@ export function MainLayout() {
               ) : null}
               {showExpenses ? (
                 <NavLink preventScrollReset to="/expenses" className={mobileBottomNavLinkClass} title="Расходы">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <ClipboardList className="h-4 w-4" />
+                  <GradientIconBox variant="finance" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Wallet className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Расходы</span>
                 </NavLink>
@@ -386,8 +398,8 @@ export function MainLayout() {
               </NavIf>
               {showExpenses ? (
                 <NavLink preventScrollReset to="/expenses" className={mobileBottomNavLinkClass} title="Расходы">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <ClipboardList className="h-4 w-4" />
+                  <GradientIconBox variant="finance" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Wallet className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Расходы</span>
                 </NavLink>

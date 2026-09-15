@@ -98,5 +98,16 @@ def debtors_course_protocol_only(role: UserRole) -> bool:
     return role == UserRole.curator
 
 
+def can_access_curator_journal(role: UserRole) -> bool:
+    """Журнал куратора / табель потока: админы + куратор."""
+    return role in (
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.admin,
+        UserRole.administrator,
+        UserRole.curator,
+    )
+
+
 def is_course_or_protocol_indicator(name: str | None) -> bool:
     return is_course_like_direction_name(name)

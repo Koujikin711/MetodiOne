@@ -3669,3 +3669,175 @@ async def ensure_chat_thread_unique_external(conn: AsyncConnection, database_url
             ),
         )
 
+
+
+async def ensure_curator_journal_tables(conn: AsyncConnection, database_url: str) -> None:
+    """Журнал куратора: потоки, membership, entries, complaints."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_course_flows (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    pipeline_id INTEGER,
+                    course_name VARCHAR(255) NOT NULL DEFAULT 'Основной курс',
+                    flow_number INTEGER NOT NULL DEFAULT 1,
+                    title VARCHAR(255),
+                    starts_on DATE NOT NULL,
+                    ends_on DATE NOT NULL,
+                    curator_user_id INTEGER,
+                    kpi_group_no INTEGER,
+                    status VARCHAR(24) NOT NULL DEFAULT 'active',
+                    created_by_user_id INTEGER,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_flow_memberships (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    flow_id INTEGER NOT NULL,
+                    lead_id INTEGER,
+                    display_name VARCHAR(255) NOT NULL,
+                    phone VARCHAR(64),
+                    joined_on DATE NOT NULL,
+                    left_on DATE,
+                    source VARCHAR(32) NOT NULL DEFAULT 'manual',
+                    kpi_sale_id INTEGER,
+                    created_at DATETIME
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_journal_entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    flow_id INTEGER NOT NULL,
+                    membership_id INTEGER NOT NULL,
+                    entry_date DATE NOT NULL,
+                    diary_status VARCHAR(16) NOT NULL DEFAULT 'pending',
+                    photo_status VARCHAR(16) NOT NULL DEFAULT 'pending',
+                    complaint_status VARCHAR(16) NOT NULL DEFAULT 'pending',
+                    complaint_general_comment TEXT,
+                    created_by_user_id INTEGER,
+                    updated_by_user_id INTEGER,
+                    created_at DATETIME,
+                    updated_at DATETIME,
+                    UNIQUE(flow_id, membership_id, entry_date)
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_journal_complaints (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    journal_entry_id INTEGER NOT NULL,
+                    category VARCHAR(32) NOT NULL,
+                    comment TEXT,
+                    numeric_value NUMERIC(8, 2),
+                    unit VARCHAR(16),
+                    count_value INTEGER,
+                    created_at DATETIME,
+                    updated_at DATETIME,
+                    UNIQUE(journal_entry_id, category)
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_course_flows (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    pipeline_id INTEGER REFERENCES pipelines(id) ON DELETE SET NULL,
+                    course_name VARCHAR(255) NOT NULL DEFAULT 'Основной курс',
+                    flow_number INTEGER NOT NULL DEFAULT 1,
+                    title VARCHAR(255),
+                    starts_on DATE NOT NULL,
+                    ends_on DATE NOT NULL,
+                    curator_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    kpi_group_no INTEGER,
+                    status VARCHAR(24) NOT NULL DEFAULT 'active',
+                    created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_flow_memberships (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    flow_id INTEGER NOT NULL REFERENCES curator_course_flows(id) ON DELETE CASCADE,
+                    lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+                    display_name VARCHAR(255) NOT NULL,
+                    phone VARCHAR(64),
+                    joined_on DATE NOT NULL,
+                    left_on DATE,
+                    source VARCHAR(32) NOT NULL DEFAULT 'manual',
+                    kpi_sale_id INTEGER REFERENCES sales_kpi_manual_sales(id) ON DELETE SET NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_journal_entries (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    flow_id INTEGER NOT NULL REFERENCES curator_course_flows(id) ON DELETE CASCADE,
+                    membership_id INTEGER NOT NULL REFERENCES curator_flow_memberships(id) ON DELETE CASCADE,
+                    entry_date DATE NOT NULL,
+                    diary_status VARCHAR(16) NOT NULL DEFAULT 'pending',
+                    photo_status VARCHAR(16) NOT NULL DEFAULT 'pending',
+                    complaint_status VARCHAR(16) NOT NULL DEFAULT 'pending',
+                    complaint_general_comment TEXT,
+                    created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    updated_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW(),
+                    CONSTRAINT uq_curator_journal_entry UNIQUE (flow_id, membership_id, entry_date)
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_journal_complaints (
+                    id SERIAL PRIMARY KEY,
+                    journal_entry_id INTEGER NOT NULL REFERENCES curator_journal_entries(id) ON DELETE CASCADE,
+                    category VARCHAR(32) NOT NULL,
+                    comment TEXT,
+                    numeric_value NUMERIC(8, 2),
+                    unit VARCHAR(16),
+                    count_value INTEGER,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW(),
+                    CONSTRAINT uq_curator_journal_complaint_cat UNIQUE (journal_entry_id, category)
+                )"""
+            ),
+        )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS idx_curator_flows_company ON curator_course_flows(company_id, status)")
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS idx_curator_memberships_flow ON curator_flow_memberships(flow_id, left_on)")
+    )
+    await conn.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS idx_curator_entries_flow_date "
+            "ON curator_journal_entries(flow_id, entry_date)"
+        )
+    )
+    await conn.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS idx_curator_complaints_entry "
+            "ON curator_journal_complaints(journal_entry_id)"
+        )
+    )
