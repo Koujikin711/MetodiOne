@@ -873,118 +873,125 @@ html {
 }
 
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="crm"] {
-  background: #4a1521 !important;
-  border-color: rgba(255, 45, 149, 0.55) !important;
+  background: #be185d !important;
+  border-color: rgba(251, 113, 133, 0.75) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(255, 45, 149, 0.45),
-    0 0 20px rgba(255, 45, 149, 0.2);
+    0 0 10px rgba(251, 113, 133, 0.5),
+    0 0 20px rgba(244, 63, 94, 0.25);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="indigo"] {
-  background: #3730a3 !important;
-  border-color: rgba(129, 140, 248, 0.65) !important;
+  background: #4f46e5 !important;
+  border-color: rgba(165, 180, 252, 0.75) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(99, 102, 241, 0.5),
-    0 0 20px rgba(99, 102, 241, 0.22);
+    0 0 10px rgba(129, 140, 248, 0.55),
+    0 0 20px rgba(99, 102, 241, 0.28);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="purple"] {
-  background: #6d28d9 !important;
-  border-color: rgba(196, 181, 253, 0.6) !important;
+  background: #9333ea !important;
+  border-color: rgba(216, 180, 254, 0.7) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(167, 139, 250, 0.45),
-    0 0 20px rgba(139, 92, 246, 0.22);
+    0 0 10px rgba(192, 132, 252, 0.5),
+    0 0 20px rgba(168, 85, 247, 0.25);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="tasks"] {
   background: #0e7490 !important;
-  border-color: rgba(34, 211, 238, 0.55) !important;
+  border-color: rgba(34, 211, 238, 0.65) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(34, 211, 238, 0.4),
-    0 0 18px rgba(6, 182, 212, 0.2);
+    0 0 10px rgba(34, 211, 238, 0.45),
+    0 0 18px rgba(6, 182, 212, 0.22);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="teal"] {
-  background: #0f766e !important;
-  border-color: rgba(45, 212, 191, 0.55) !important;
+  background: #0d9488 !important;
+  border-color: rgba(94, 234, 212, 0.65) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(45, 212, 191, 0.4),
-    0 0 18px rgba(20, 184, 166, 0.2);
+    0 0 10px rgba(45, 212, 191, 0.45),
+    0 0 18px rgba(20, 184, 166, 0.22);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="chat"] {
-  background: #0891b2 !important;
-  border-color: rgba(0, 229, 255, 0.55) !important;
+  background: #06b6d4 !important;
+  border-color: rgba(103, 232, 249, 0.7) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(0, 229, 255, 0.42),
-    0 0 20px rgba(0, 229, 255, 0.18);
+    0 0 10px rgba(34, 211, 238, 0.5),
+    0 0 20px rgba(6, 182, 212, 0.22);
 }
-:root[data-theme="dark"] .shell-sidebar [data-nav-variant="online"],
-:root[data-theme="dark"] .shell-sidebar [data-nav-variant="analytics"] {
-  background: #1e3a8a !important;
-  border-color: rgba(77, 124, 255, 0.6) !important;
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="online"] {
+  background: #1d4ed8 !important;
+  border-color: rgba(147, 197, 253, 0.7) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(77, 124, 255, 0.42),
-    0 0 20px rgba(77, 124, 255, 0.2);
+    0 0 10px rgba(96, 165, 250, 0.5),
+    0 0 20px rgba(59, 130, 246, 0.25);
+}
+:root[data-theme="dark"] .shell-sidebar [data-nav-variant="analytics"] {
+  background: #0284c7 !important;
+  border-color: rgba(125, 211, 252, 0.7) !important;
+  color: #fff;
+  box-shadow:
+    0 0 10px rgba(56, 189, 248, 0.5),
+    0 0 20px rgba(14, 165, 233, 0.25);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="blue"] {
   background: #2563eb !important;
-  border-color: rgba(147, 197, 253, 0.6) !important;
+  border-color: rgba(147, 197, 253, 0.65) !important;
   color: #fff;
   box-shadow:
     0 0 10px rgba(96, 165, 250, 0.45),
     0 0 20px rgba(59, 130, 246, 0.22);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="finance"] {
-  background: #0f4c3a !important;
-  border-color: rgba(57, 255, 120, 0.5) !important;
+  background: #059669 !important;
+  border-color: rgba(110, 231, 183, 0.7) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(57, 255, 120, 0.35),
-    0 0 18px rgba(57, 255, 120, 0.16);
+    0 0 10px rgba(52, 211, 153, 0.45),
+    0 0 18px rgba(16, 185, 129, 0.22);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="tariff"] {
-  background: #047857 !important;
-  border-color: rgba(52, 211, 153, 0.55) !important;
-  color: #fff;
+  background: #10b981 !important;
+  border-color: rgba(167, 243, 208, 0.7) !important;
+  color: #052e1c;
   box-shadow:
-    0 0 10px rgba(52, 211, 153, 0.38),
-    0 0 18px rgba(16, 185, 129, 0.18);
+    0 0 10px rgba(52, 211, 153, 0.4),
+    0 0 18px rgba(16, 185, 129, 0.2);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="trainer"] {
-  background: #b45309 !important;
-  border-color: rgba(251, 191, 36, 0.6) !important;
+  background: #ea580c !important;
+  border-color: rgba(253, 186, 116, 0.75) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(251, 191, 36, 0.42),
-    0 0 18px rgba(245, 158, 11, 0.2);
+    0 0 10px rgba(251, 146, 60, 0.5),
+    0 0 18px rgba(249, 115, 22, 0.25);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="integrations"] {
   background: #7c3aed !important;
-  border-color: rgba(196, 181, 253, 0.6) !important;
+  border-color: rgba(196, 181, 253, 0.7) !important;
   color: #fff;
   box-shadow:
     0 0 10px rgba(167, 139, 250, 0.45),
-    0 0 20px rgba(139, 92, 246, 0.22);
+    0 0 18px rgba(139, 92, 246, 0.22);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="platform"] {
-  background: #3d3428 !important;
-  border-color: rgba(255, 179, 71, 0.55) !important;
+  background: #a16207 !important;
+  border-color: rgba(253, 224, 71, 0.65) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(255, 179, 71, 0.35),
-    0 0 18px rgba(255, 179, 71, 0.16);
+    0 0 10px rgba(250, 204, 21, 0.4),
+    0 0 18px rgba(234, 179, 8, 0.2);
 }
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="logout"],
 :root[data-theme="dark"] .shell-sidebar [data-nav-variant="pink"] {
-  background: #9d174d !important;
-  border-color: rgba(244, 114, 182, 0.55) !important;
+  background: #db2777 !important;
+  border-color: rgba(251, 113, 133, 0.7) !important;
   color: #fff;
   box-shadow:
-    0 0 10px rgba(244, 114, 182, 0.4),
-    0 0 18px rgba(236, 72, 153, 0.2);
+    0 0 10px rgba(244, 114, 182, 0.45),
+    0 0 18px rgba(236, 72, 153, 0.22);
 }
 
 :root[data-theme="dark"] .shell-sidebar .shell-nav-link.is-active [data-nav-variant] {
