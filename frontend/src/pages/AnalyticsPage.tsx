@@ -176,10 +176,59 @@ export function AnalyticsPage() {
 
   const servicesQuery = useQuery({
     queryKey: ["analytics-services", servicesQs],
-    queryFn: () =>
-      apiFetch<ServicesAnalyticsRead>(`/api/analytics/services?${servicesQs}`, {
-        timeoutMs: 60_000,
-      }),
+    queryFn: async () => {
+      try {
+        return await apiFetch<ServicesAnalyticsRead>(`/api/analytics/services?${servicesQs}`, {
+          timeoutMs: 60_000,
+        });
+      } catch (err) {
+        // Fallback пока бэкенд Amvera без /analytics/services: отчёт компании за месяц.
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!/404|Not Found|Failed to fetch|Network/i.test(msg) && !/не найден/i.test(msg)) {
+          // Если это 403/401 — пробрасываем
+          if (/403|401|доступ|Unauthorized|Forbidden/i.test(msg)) throw err;
+        }
+        const ym =
+          period === "custom" && dateFrom
+            ? dateFrom.slice(0, 7)
+            : (() => {
+                const d = new Date();
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+              })();
+        if (servicesPipelineId == null) throw err;
+        const cr = await apiFetch<{
+          pipeline_id: number;
+          pipeline_name: string;
+          year_month: string;
+          revenue_total: string | number;
+          debtor_total: string | number;
+          creditor_total?: string | number;
+          service_stats?: ServicesAnalyticsServiceStat[];
+          expert_stats?: ServicesAnalyticsExpertStat[];
+        }>(`/api/sales-kpi/company-report?pipeline_id=${servicesPipelineId}&year_month=${ym}`, {
+          timeoutMs: 60_000,
+        });
+        const [y, m] = ym.split("-").map(Number);
+        const last = new Date(y, m, 0).getDate();
+        return {
+          pipeline_id: cr.pipeline_id,
+          pipeline_name: cr.pipeline_name,
+          period: "month",
+          period_start: `${ym}-01`,
+          period_end: `${ym}-${String(last).padStart(2, "0")}`,
+          date_from: `${ym}-01`,
+          date_to: `${ym}-${String(last).padStart(2, "0")}`,
+          revenue_total: cr.revenue_total,
+          debtor_total: cr.debtor_total,
+          creditor_total: cr.creditor_total ?? 0,
+          service_stats: cr.service_stats ?? [],
+          expert_stats: (cr.expert_stats ?? []).map((e) => ({
+            ...e,
+            booked_count: 0,
+          })),
+        } satisfies ServicesAnalyticsRead;
+      }
+    },
     enabled: servicesMode && Boolean(servicesQs) && periodReady,
   });
 

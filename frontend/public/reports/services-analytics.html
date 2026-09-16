@@ -382,7 +382,30 @@
         params.set("date_from", dateFromEl.value);
         params.set("date_to", dateToEl.value);
       }
-      const report = await api(`/analytics/services?${params}`);
+
+      let report = null;
+      let source = "Live API";
+      try {
+        report = await api(`/analytics/services?${params}`);
+      } catch (e) {
+        // Пока Amvera без нового эндпоинта — берём company-report за месяц.
+        const ym = (() => {
+          if (period === "custom" && dateFromEl.value) return dateFromEl.value.slice(0, 7);
+          const n = new Date();
+          return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+        })();
+        const cr = await api(`/sales-kpi/company-report?pipeline_id=${pid}&year_month=${ym}`);
+        const [y, m] = ym.split("-");
+        const last = new Date(Number(y), Number(m), 0).getDate();
+        report = {
+          ...cr,
+          period: "month",
+          date_from: `${ym}-01`,
+          date_to: `${ym}-${String(last).padStart(2, "0")}`,
+        };
+        source = "Live API (company-report, месяц)";
+      }
+
       const empty = !(report.service_stats || []).length && Number(report.revenue_total) === 0;
       if (empty && qs.get("force") !== "1") {
         statusEl.className = "status";
@@ -390,7 +413,7 @@
         await loadSnapshot();
         return;
       }
-      render(report, "Live API");
+      render(report, source);
     }
 
     periodEl.addEventListener("change", syncCustomEnabled);
