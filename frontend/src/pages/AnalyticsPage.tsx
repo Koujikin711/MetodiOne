@@ -6,24 +6,18 @@ import { appLexicon } from "@/lib/appLexicon";
 import { formatMoney } from "@/lib/money";
 import { AnalyticsServicesCharts } from "@/components/analytics/AnalyticsServicesCharts";
 import { DateField } from "@/components/DateField";
-import { MonthYearPicker } from "@/components/MonthYearPicker";
 import type {
   AnalyticsOverviewRead,
   DetailedAnalyticsRead,
   FullAnalyticsRead,
   ManagerPerformanceItem,
   Pipeline,
-  SalesKpiCompanyExpertStat,
-  SalesKpiCompanyReport,
-  SalesKpiCompanyServiceStat,
+  ServicesAnalyticsExpertStat,
+  ServicesAnalyticsRead,
+  ServicesAnalyticsServiceStat,
 } from "@/lib/types";
 
 type AnalyticsDimension = "managers" | "services";
-
-function defaultYearMonth(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 
 const moneyFmt = { format: (n: number) => formatMoney(n, { digits: 0 }) };
 
@@ -113,11 +107,16 @@ export function AnalyticsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [pipelineId, setPipelineId] = useState<number | "all">("all");
-  const [yearMonth, setYearMonth] = useState(defaultYearMonth);
 
   const periodReady = period !== "custom" || Boolean(dateFrom && dateTo);
   const managersMode = dimension === "managers";
   const servicesMode = dimension === "services";
+
+  useEffect(() => {
+    if (!servicesMode) return;
+    // Для услуг удобнее сразу «за месяц» — живые данные клиники.
+    setPeriod((p) => (p === "day" ? "month" : p));
+  }, [servicesMode]);
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -145,13 +144,17 @@ export function AnalyticsPage() {
     if (first != null) setPipelineId(first);
   }, [servicesMode, pipelineId, pipelines]);
 
-  const companyQs = useMemo(() => {
+  const servicesQs = useMemo(() => {
     if (servicesPipelineId == null) return "";
     const p = new URLSearchParams();
     p.set("pipeline_id", String(servicesPipelineId));
-    p.set("year_month", yearMonth);
+    p.set("period", period);
+    if (period === "custom") {
+      if (dateFrom) p.set("date_from", dateFrom);
+      if (dateTo) p.set("date_to", dateTo);
+    }
     return p.toString();
-  }, [servicesPipelineId, yearMonth]);
+  }, [servicesPipelineId, period, dateFrom, dateTo]);
 
   const fullQuery = useQuery({
     queryKey: ["analytics-full", qs],
@@ -172,12 +175,12 @@ export function AnalyticsPage() {
   });
 
   const servicesQuery = useQuery({
-    queryKey: ["analytics-services-report", companyQs],
+    queryKey: ["analytics-services", servicesQs],
     queryFn: () =>
-      apiFetch<SalesKpiCompanyReport>(`/api/sales-kpi/company-report?${companyQs}`, {
+      apiFetch<ServicesAnalyticsRead>(`/api/analytics/services?${servicesQs}`, {
         timeoutMs: 60_000,
       }),
-    enabled: servicesMode && Boolean(companyQs),
+    enabled: servicesMode && Boolean(servicesQs) && periodReady,
   });
 
   const servicesLiveEmpty =
@@ -192,11 +195,13 @@ export function AnalyticsPage() {
       if (!res.ok) throw new Error("Снимок отчёта не найден");
       return (await res.json()) as {
         pipeline_name: string;
-        year_month: string;
+        year_month?: string;
+        period_start?: string;
+        period_end?: string;
         revenue_total: number | string;
         debtor_total: number | string;
-        service_stats: SalesKpiCompanyServiceStat[];
-        expert_stats: SalesKpiCompanyExpertStat[];
+        service_stats: ServicesAnalyticsServiceStat[];
+        expert_stats: ServicesAnalyticsExpertStat[];
       };
     },
     enabled: servicesMode && servicesLiveEmpty,
@@ -214,12 +219,16 @@ export function AnalyticsPage() {
 
   const htmlReportHref = useMemo(() => {
     const p = new URLSearchParams();
-    if (yearMonth) p.set("year_month", yearMonth);
+    p.set("period", period);
+    if (period === "custom") {
+      if (dateFrom) p.set("date_from", dateFrom);
+      if (dateTo) p.set("date_to", dateTo);
+    }
     if (servicesPipelineId != null) p.set("pipeline_id", String(servicesPipelineId));
     if (servicesLiveEmpty) p.set("snapshot", "1");
     const q = p.toString();
     return `/reports/services-analytics.html${q ? `?${q}` : ""}`;
-  }, [yearMonth, servicesPipelineId, servicesLiveEmpty]);
+  }, [period, dateFrom, dateTo, servicesPipelineId, servicesLiveEmpty]);
 
   return (
     <div className="analytics-page mo-fill-page">
@@ -252,19 +261,19 @@ export function AnalyticsPage() {
       <section className="mo-section analytics-toolbar-section p-4 sm:p-5">
         <div className="analytics-toolbar">
           {managersMode ? (
-            <>
-          <label className="analytics-toolbar-field">
-            <span>Режим</span>
-            <select
-              value={mode}
-              onChange={(e) => setMode(e.target.value as "overview" | "full" | "detailed")}
-              className="mo-input"
-            >
-              <option value="overview">Обзор 360</option>
-              <option value="full">Полная</option>
-              <option value="detailed">Детальная</option>
-            </select>
-          </label>
+            <label className="analytics-toolbar-field">
+              <span>Режим</span>
+              <select
+                value={mode}
+                onChange={(e) => setMode(e.target.value as "overview" | "full" | "detailed")}
+                className="mo-input"
+              >
+                <option value="overview">Обзор 360</option>
+                <option value="full">Полная</option>
+                <option value="detailed">Детальная</option>
+              </select>
+            </label>
+          ) : null}
           <label className="analytics-toolbar-field">
             <span>Период</span>
             <select
@@ -272,7 +281,7 @@ export function AnalyticsPage() {
               onChange={(e) => setPeriod(e.target.value as "day" | "month" | "custom")}
               className="mo-input"
             >
-              <option value="day">За день (18:00→17:00)</option>
+              <option value="day">{managersMode ? "За день (18:00→17:00)" : "За день"}</option>
               <option value="month">За месяц</option>
               <option value="custom">Свой период</option>
             </select>
@@ -280,11 +289,26 @@ export function AnalyticsPage() {
           <label className="analytics-toolbar-field">
             <span>Воронка</span>
             <select
-              value={pipelineId === "all" ? "all" : String(pipelineId)}
-              onChange={(e) => setPipelineId(e.target.value === "all" ? "all" : Number(e.target.value))}
+              value={
+                servicesMode
+                  ? servicesPipelineId != null
+                    ? String(servicesPipelineId)
+                    : ""
+                  : pipelineId === "all"
+                    ? "all"
+                    : String(pipelineId)
+              }
+              onChange={(e) => {
+                if (servicesMode) {
+                  setPipelineId(Number(e.target.value));
+                  return;
+                }
+                setPipelineId(e.target.value === "all" ? "all" : Number(e.target.value));
+              }}
               className="mo-input"
             >
-              <option value="all">{lex.pipelineAll}</option>
+              {!servicesMode ? <option value="all">{lex.pipelineAll}</option> : null}
+              {pipelines.length === 0 && servicesMode ? <option value="">Нет воронок</option> : null}
               {pipelines.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -292,7 +316,11 @@ export function AnalyticsPage() {
               ))}
             </select>
           </label>
-          <label className={["analytics-toolbar-field", period === "custom" && !dateFrom ? "is-needed" : ""].filter(Boolean).join(" ")}>
+          <label
+            className={["analytics-toolbar-field", period === "custom" && !dateFrom ? "is-needed" : ""]
+              .filter(Boolean)
+              .join(" ")}
+          >
             <span>С</span>
             <DateField
               value={dateFrom}
@@ -301,7 +329,11 @@ export function AnalyticsPage() {
               aria-label="Дата с"
             />
           </label>
-          <label className={["analytics-toolbar-field", period === "custom" && !dateTo ? "is-needed" : ""].filter(Boolean).join(" ")}>
+          <label
+            className={["analytics-toolbar-field", period === "custom" && !dateTo ? "is-needed" : ""]
+              .filter(Boolean)
+              .join(" ")}
+          >
             <span>По</span>
             <DateField
               value={dateTo}
@@ -310,30 +342,6 @@ export function AnalyticsPage() {
               aria-label="Дата по"
             />
           </label>
-            </>
-          ) : (
-            <>
-          <label className="analytics-toolbar-field">
-            <span>Месяц</span>
-            <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
-          </label>
-          <label className="analytics-toolbar-field">
-            <span>Воронка</span>
-            <select
-              value={servicesPipelineId != null ? String(servicesPipelineId) : ""}
-              onChange={(e) => setPipelineId(Number(e.target.value))}
-              className="mo-input"
-            >
-              {pipelines.length === 0 ? <option value="">Нет воронок</option> : null}
-              {pipelines.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-            </>
-          )}
           {servicesMode ? (
             <a
               className="btn-secondary analytics-export-btn analytics-html-link"
@@ -347,9 +355,13 @@ export function AnalyticsPage() {
           <button
             type="button"
             onClick={() => {
-              if (servicesMode && servicesQuery.data) {
+              if (servicesMode && chartServices.length) {
+                const stamp =
+                  servicesQuery.data?.date_from && servicesQuery.data?.date_to
+                    ? `${servicesQuery.data.date_from}_${servicesQuery.data.date_to}`
+                    : period;
                 downloadCsv(
-                  `analytics_services_${yearMonth}.csv`,
+                  `analytics_services_${stamp}.csv`,
                   [
                     "Услуга",
                     "Записей",
@@ -361,7 +373,7 @@ export function AnalyticsPage() {
                     "Всего оплат",
                     "Дебиторка",
                   ],
-                  (servicesQuery.data.service_stats ?? []).map((s) => [
+                  chartServices.map((s) => [
                     s.direction_name,
                     s.appointments_total,
                     s.appeared_count,
@@ -497,8 +509,10 @@ export function AnalyticsPage() {
                   tone="neutral"
                   hint={
                     servicesLiveEmpty
-                      ? (snapshotQuery.data?.year_month ?? servicesQuery.data.year_month)
-                      : servicesQuery.data.year_month
+                      ? (snapshotQuery.data?.year_month ??
+                          snapshotQuery.data?.period_start ??
+                          "снимок")
+                      : `${servicesQuery.data.date_from ?? ""} → ${servicesQuery.data.date_to ?? ""}`
                   }
                 />
               </div>

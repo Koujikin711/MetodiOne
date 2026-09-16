@@ -543,6 +543,52 @@ export interface AnalyticsOverviewRead {
   alerts: AnalyticsAlertsRead;
 }
 
+export interface ServicesAnalyticsServiceStat {
+  direction_id: number | null;
+  direction_name: string;
+  appointments_total: number;
+  appeared_count: number;
+  no_show_count: number;
+  booked_count?: number;
+  cancelled_count?: number;
+  revenue_paid: string | number;
+  paid_full_amount?: string | number;
+  paid_no_show_amount?: string | number;
+  debtor_amount?: string | number;
+  creditor_amount?: string | number;
+}
+
+export interface ServicesAnalyticsExpertStat {
+  specialist_id: number;
+  specialist_name: string;
+  kpi_service_name?: string | null;
+  appointments_total: number;
+  appeared_count: number;
+  no_show_count: number;
+  booked_count?: number;
+  cancelled_count?: number;
+  revenue_paid: string | number;
+  paid_full_amount?: string | number;
+  paid_no_show_amount?: string | number;
+  debtor_amount?: string | number;
+  creditor_amount?: string | number;
+}
+
+export interface ServicesAnalyticsRead {
+  pipeline_id: number;
+  pipeline_name: string;
+  period: string;
+  period_start: string;
+  period_end: string;
+  date_from?: string | null;
+  date_to?: string | null;
+  revenue_total: string | number;
+  debtor_total: string | number;
+  creditor_total: string | number;
+  service_stats: ServicesAnalyticsServiceStat[];
+  expert_stats: ServicesAnalyticsExpertStat[];
+}
+
 export interface BookingDirection {
   id: number;
   name: string;

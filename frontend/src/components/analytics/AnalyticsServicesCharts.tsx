@@ -13,7 +13,7 @@ import {
 } from "recharts";
 
 import { formatMoney } from "@/lib/money";
-import type { SalesKpiCompanyExpertStat, SalesKpiCompanyServiceStat } from "@/lib/types";
+import type { ServicesAnalyticsExpertStat, ServicesAnalyticsServiceStat } from "@/lib/types";
 
 const COLORS = [
   "#38bdf8",
@@ -47,8 +47,8 @@ function shortMoney(v: number) {
 }
 
 type Props = {
-  services: SalesKpiCompanyServiceStat[];
-  experts: SalesKpiCompanyExpertStat[];
+  services: ServicesAnalyticsServiceStat[];
+  experts: ServicesAnalyticsExpertStat[];
 };
 
 export function AnalyticsServicesCharts({ services, experts }: Props) {

@@ -53,9 +53,7 @@
     }
     .kpi .l { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
     .kpi .v { margin-top: 6px; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
-    .grid {
-      display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 14px;
-    }
+    .grid { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 14px; }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
     .panel {
       background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
@@ -78,12 +76,22 @@
   <div class="wrap">
     <header>
       <h1>Аналитика по услугам</h1>
-      <p>Выручка, явки и оплаты по направлениям записи. HTML-отчёт с графиками.</p>
+      <p>Выручка, явки и оплаты по направлениям записи. Выберите период — данные с live API.</p>
     </header>
 
     <div class="toolbar">
-      <label>Месяц
-        <input id="yearMonth" type="month" />
+      <label>Период
+        <select id="period">
+          <option value="day">За день</option>
+          <option value="month" selected>За месяц</option>
+          <option value="custom">Свой период</option>
+        </select>
+      </label>
+      <label>С
+        <input id="dateFrom" type="date" disabled />
+      </label>
+      <label>По
+        <input id="dateTo" type="date" disabled />
       </label>
       <label>Воронка
         <select id="pipeline"></select>
@@ -93,13 +101,12 @@
     </div>
 
     <p id="status" class="status">Загрузка…</p>
-
     <div class="kpis" id="kpis"></div>
 
     <div class="grid">
       <section class="panel">
         <h2>Оплаты по услугам</h2>
-        <p class="note">Сумма оплат за выбранный месяц (TJS)</p>
+        <p class="note">Сумма оплат за выбранный период (TJS)</p>
         <div class="chart-box"><canvas id="chartRevenue"></canvas></div>
       </section>
       <section class="panel">
@@ -146,11 +153,12 @@
     const money = (n) =>
       new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(Number(n) || 0) + " TJS";
     const qs = new URLSearchParams(location.search);
-    const yearMonthEl = document.getElementById("yearMonth");
+    const periodEl = document.getElementById("period");
+    const dateFromEl = document.getElementById("dateFrom");
+    const dateToEl = document.getElementById("dateTo");
     const pipelineEl = document.getElementById("pipeline");
     const statusEl = document.getElementById("status");
     const charts = {};
-
     const palette = [
       "#38bdf8", "#34d399", "#a78bfa", "#fbbf24", "#f472b6",
       "#2dd4bf", "#fb923c", "#60a5fa", "#c084fc", "#4ade80",
@@ -159,11 +167,7 @@
     function token() {
       try { return localStorage.getItem("crm_access_token") || ""; } catch { return ""; }
     }
-
-    function apiBase() {
-      // Prefer same-origin /api (Vite proxy or production). Fallback to absolute.
-      return "/api";
-    }
+    function apiBase() { return "/api"; }
 
     async function api(path) {
       const t = token();
@@ -172,6 +176,12 @@
       });
       if (!res.ok) throw new Error(await res.text() || res.statusText);
       return res.json();
+    }
+
+    function syncCustomEnabled() {
+      const custom = periodEl.value === "custom";
+      dateFromEl.disabled = !custom;
+      dateToEl.disabled = !custom;
     }
 
     function destroyChart(key) {
@@ -185,6 +195,10 @@
       const experts = (report.expert_stats || []).slice()
         .sort((a, b) => Number(b.revenue_paid) - Number(a.revenue_paid))
         .slice(0, 10);
+
+      const rangeHint = report.date_from && report.date_to
+        ? `${report.date_from} → ${report.date_to}`
+        : (report.year_month || report.period || "");
 
       document.getElementById("kpis").innerHTML = [
         ["Выручка", money(report.revenue_total)],
@@ -220,8 +234,11 @@
             tooltip: { callbacks: { label: (c) => money(c.raw) } },
           },
           scales: {
-            x: { ticks: { color: "#94a3b8", maxRotation: 45, minRotation: 0 }, grid: { color: "transparent" } },
-            y: { ticks: { color: "#94a3b8", callback: (v) => (v >= 1000 ? Math.round(v / 1000) + "k" : v) }, grid: { color: "rgba(148,163,184,0.12)" } },
+            x: { ticks: { color: "#94a3b8", maxRotation: 45 }, grid: { color: "transparent" } },
+            y: {
+              ticks: { color: "#94a3b8", callback: (v) => (v >= 1000 ? Math.round(v / 1000) + "k" : v) },
+              grid: { color: "rgba(148,163,184,0.12)" },
+            },
           },
         },
       });
@@ -297,7 +314,10 @@
             tooltip: { callbacks: { label: (c) => money(c.raw) } },
           },
           scales: {
-            x: { ticks: { color: "#94a3b8", callback: (v) => (v >= 1000 ? Math.round(v / 1000) + "k" : v) }, grid: { color: "rgba(148,163,184,0.12)" } },
+            x: {
+              ticks: { color: "#94a3b8", callback: (v) => (v >= 1000 ? Math.round(v / 1000) + "k" : v) },
+              grid: { color: "rgba(148,163,184,0.12)" },
+            },
             y: { ticks: { color: "#94a3b8" }, grid: { display: false } },
           },
         },
@@ -313,30 +333,39 @@
             <td class="num">${money(s.revenue_paid)}</td>
             <td class="num">${money(s.debtor_amount)}</td>
           </tr>`).join("")
-        : `<tr><td colspan="7">Нет записей за месяц</td></tr>`;
+        : `<tr><td colspan="7">Нет записей за период</td></tr>`;
 
       statusEl.className = "status ok";
-      statusEl.textContent = `${sourceLabel} · ${report.year_month} · ${report.pipeline_name}`;
+      statusEl.textContent = `${sourceLabel} · ${rangeHint} · ${report.pipeline_name || ""}`;
     }
 
     async function loadSnapshot() {
       const res = await fetch("./services-analytics-snapshot.json");
       if (!res.ok) throw new Error("Снимок не найден");
       const data = await res.json();
-      yearMonthEl.value = data.year_month;
-      pipelineEl.innerHTML = `<option value="${data.pipeline_id}">${data.pipeline_name}</option>`;
+      periodEl.value = "custom";
+      syncCustomEnabled();
+      if (data.year_month) {
+        const [y, m] = data.year_month.split("-");
+        dateFromEl.value = `${y}-${m}-01`;
+        const last = new Date(Number(y), Number(m), 0).getDate();
+        dateToEl.value = `${y}-${m}-${String(last).padStart(2, "0")}`;
+      }
+      pipelineEl.innerHTML = `<option value="${data.pipeline_id || ""}">${data.pipeline_name || "Снимок"}</option>`;
       render(data, "Снимок (авг 2026, live CRM)");
     }
 
     async function loadLive() {
-      const ym = yearMonthEl.value || new Date().toISOString().slice(0, 7);
-      yearMonthEl.value = ym;
+      const period = periodEl.value || "month";
+      if (period === "custom" && (!dateFromEl.value || !dateToEl.value)) {
+        throw new Error("Укажите даты «С» и «По»");
+      }
       let pipes = [];
       try {
         pipes = await api("/pipelines");
       } catch (e) {
         statusEl.className = "status err";
-        statusEl.textContent = "Нет доступа к API — открываю снимок с графиками. " + (e.message || "");
+        statusEl.textContent = "Нет доступа к API — открываю снимок. " + (e.message || "");
         await loadSnapshot();
         return;
       }
@@ -348,17 +377,23 @@
       ).join("");
       pipelineEl.value = want || current || String(pipes[0].id);
       const pid = pipelineEl.value;
-      const report = await api(`/sales-kpi/company-report?pipeline_id=${pid}&year_month=${ym}`);
+      const params = new URLSearchParams({ pipeline_id: pid, period });
+      if (period === "custom") {
+        params.set("date_from", dateFromEl.value);
+        params.set("date_to", dateToEl.value);
+      }
+      const report = await api(`/analytics/services?${params}`);
       const empty = !(report.service_stats || []).length && Number(report.revenue_total) === 0;
       if (empty && qs.get("force") !== "1") {
         statusEl.className = "status";
-        statusEl.textContent = "В этой базе за месяц пусто — показываю снимок августа 2026 с графиками.";
+        statusEl.textContent = "За период пусто — показываю снимок августа 2026.";
         await loadSnapshot();
         return;
       }
       render(report, "Live API");
     }
 
+    periodEl.addEventListener("change", syncCustomEnabled);
     document.getElementById("reload").onclick = () => loadLive().catch((e) => {
       statusEl.className = "status err";
       statusEl.textContent = String(e.message || e);
@@ -369,8 +404,10 @@
     });
 
     (async function init() {
-      const now = new Date();
-      yearMonthEl.value = qs.get("year_month") || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      periodEl.value = qs.get("period") || "month";
+      if (qs.get("date_from")) dateFromEl.value = qs.get("date_from");
+      if (qs.get("date_to")) dateToEl.value = qs.get("date_to");
+      syncCustomEnabled();
       if (qs.get("snapshot") === "1" || qs.get("demo") === "1") {
         await loadSnapshot();
         return;
