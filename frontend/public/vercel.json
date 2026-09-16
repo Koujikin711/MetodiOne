@@ -5,7 +5,7 @@
       "destination": "https://metodi-one-koujikin.amvera.io/api/:path*"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/((?!api/|reports/|assets/|landing/).*)",
       "destination": "/index.html"
     }
   ]
