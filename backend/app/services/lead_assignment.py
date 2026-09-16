@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rbac import is_lead_assignee_role
 from app.models import Lead, Pipeline, PipelineStage, User, UserPipelineAssignment, UserRole
+from app.services.manager_daily_lead_quotas import filter_managers_by_new_leads_quota
 
 
 async def list_pipeline_manager_ids(
@@ -95,6 +96,16 @@ async def assign_manager_for_new_lead(
         )
     if not user_ids:
         return None
+
+    # Персональные дневные квоты новых лидов (Мавлуда → 3/день).
+    if not force:
+        user_ids = await filter_managers_by_new_leads_quota(
+            db,
+            company_id=company_id,
+            manager_ids=user_ids,
+        )
+        if not user_ids:
+            return None
 
     effective_mode = mode if mode in ("round_robin", "least_loaded") else "round_robin"
 

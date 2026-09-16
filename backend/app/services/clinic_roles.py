@@ -5,7 +5,7 @@ from __future__ import annotations
 from app.models import UserRole
 from app.services.booking_directions import is_course_like_direction_name
 
-# Чаты + канбан + онлайн-запись + KPI
+# Чаты + канбан + онлайн-запись + KPI + расходы
 ADMINISTRATOR_ROLES = frozenset({UserRole.administrator})
 
 # Онлайн-запись + дебиторка только курсы/протоколы
@@ -96,6 +96,17 @@ def can_access_all_chats(role: UserRole) -> bool:
 def debtors_course_protocol_only(role: UserRole) -> bool:
     """Куратор видит только долги по курсам и протоколам."""
     return role == UserRole.curator
+
+
+def can_access_curator_journal(role: UserRole) -> bool:
+    """Журнал куратора / табель потока: админы + куратор."""
+    return role in (
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.admin,
+        UserRole.administrator,
+        UserRole.curator,
+    )
 
 
 def is_course_or_protocol_indicator(name: str | None) -> bool:

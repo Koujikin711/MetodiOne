@@ -44,6 +44,8 @@ type BuildParams = {
   chatStagesEnabled?: boolean;
   /** Доп услуги — только owner / admin / administrator */
   showExtraServices?: boolean;
+  /** Журнал куратора для admin (в manager-like nav) */
+  showCuratorJournal?: boolean;
   showNavForFeature: (feature: string) => boolean;
   navLex: {
     navKanban: string;
@@ -69,8 +71,20 @@ function extraServicesNavItem(): ShellSidebarNavItem {
     title: "Доп услуги",
     labelShort: "Доп",
     labelFull: "Доп услуги",
-    variant: "indigo",
+    variant: "trainer",
     iconKey: "clipboard-list",
+  };
+}
+
+function curatorJournalNavItem(): ShellSidebarNavItem {
+  return {
+    id: "curator-journal",
+    to: "/curator-journal",
+    title: "Журнал куратора — успеваемость",
+    labelShort: "Журнал",
+    labelFull: "Журнал куратора",
+    variant: "purple",
+    iconKey: "check-square",
   };
 }
 
@@ -91,6 +105,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     deskSalesEnabled = false,
     chatStagesEnabled: _chatStagesEnabled = true,
     showExtraServices = false,
+    showCuratorJournal = false,
     showNavForFeature,
     navLex,
   } = params;
@@ -118,7 +133,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     ];
   }
 
-  // Куратор: только онлайн-запись + дебиторка (KPI вкладка)
+  // Куратор: онлайн-запись + журнал куратора + дебиторка
   if (isCurator) {
     const items: ShellSidebarNavItem[] = [];
     if (showBooking) {
@@ -133,6 +148,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       });
       if (showExtraServices) items.push(extraServicesNavItem());
     }
+    items.push(curatorJournalNavItem());
     if (showKpi && showNavForFeature("kpi")) {
       items.push({
         id: "kpi",
@@ -140,7 +156,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: "Дебиторка",
         labelShort: "Долги",
         labelFull: "Дебиторка курсов",
-        variant: "indigo",
+        variant: "platform",
         iconKey: "target",
       });
     }
@@ -184,6 +200,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       });
       if (showExtraServices) items.push(extraServicesNavItem());
     }
+    items.push(curatorJournalNavItem());
     if (showKpi && showNavForFeature("kpi")) {
       items.push({
         id: "kpi",
@@ -191,8 +208,19 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: navLex.navKpiTitle,
         labelShort: navLex.navKpi,
         labelFull: navLex.navKpiTitle,
-        variant: "indigo",
+        variant: "platform",
         iconKey: "target",
+      });
+    }
+    if (showExpenses) {
+      items.push({
+        id: "expenses",
+        to: "/expenses",
+        title: "Расходы",
+        labelShort: "Расходы",
+        labelFull: "Расходы",
+        variant: "finance",
+        iconKey: "wallet",
       });
     }
     return items;
@@ -219,8 +247,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: "Расходы",
         labelShort: "Расходы",
         labelFull: "Расходы",
-        variant: "indigo",
-        iconKey: "clipboard-list",
+        variant: "finance",
+        iconKey: "wallet",
       });
     }
     return items;
@@ -320,7 +348,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
           title: navLex.navKpiTitle,
           labelShort: navLex.navKpi,
           labelFull: navLex.navKpiTitle,
-          variant: "indigo",
+          variant: "platform",
           iconKey: "target",
         });
       }
@@ -376,7 +404,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       title: "Мессенджер",
       labelShort: "Мессендж.",
       labelFull: "Мессенджер",
-      variant: "tasks",
+      variant: "teal",
       iconKey: "users",
     });
     if (showKpi && showNavForFeature("kpi") && !showDeskSales) {
@@ -386,7 +414,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: navLex.navKpiTitle,
         labelShort: navLex.navKpi,
         labelFull: navLex.navKpiTitle,
-        variant: "indigo",
+        variant: "platform",
         iconKey: "target",
       });
     }
@@ -408,8 +436,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: "Расходы",
         labelShort: "Расходы",
         labelFull: "Расходы",
-        variant: "indigo",
-        iconKey: "clipboard-list",
+        variant: "finance",
+        iconKey: "wallet",
       });
     }
     if (isChiefExpert && bookingEnabled && showNavForFeature("reports")) {
@@ -419,7 +447,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: "Отчёты",
         labelShort: "Отчёты",
         labelFull: "Отчёты",
-        variant: "blue",
+        variant: "analytics",
         iconKey: "bar-chart",
       });
     }
@@ -430,7 +458,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: "Сотрудники",
         labelShort: "Сотр.",
         labelFull: "Сотрудники",
-        variant: "purple",
+        variant: "tariff",
         iconKey: "id-card",
       });
     }
@@ -445,6 +473,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "plug",
       });
     }
+    if (showCuratorJournal) items.push(curatorJournalNavItem());
     return items;
   }
 
@@ -516,7 +545,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       title: navLex.navOwnerHomeTitle,
       labelShort: navLex.navOwnerHomeShort,
       labelFull: navLex.navOwnerHomeTitle,
-      variant: "indigo",
+      variant: "crm",
       iconKey: "funnel",
     });
   }
@@ -527,7 +556,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       title: "Онлайн-записи",
       labelShort: "Онлайн",
       labelFull: "Онлайн-запись",
-      variant: "tasks",
+      variant: "online",
       iconKey: "calendar",
     });
     if (showExtraServices) items.push(extraServicesNavItem());
@@ -540,8 +569,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: "Калькуляция",
         labelShort: "Калькул.",
         labelFull: "Калькуляция",
-        variant: "indigo",
-        iconKey: "clipboard-list",
+        variant: "finance",
+        iconKey: "wallet",
       },
       {
         id: "tracker",
@@ -569,7 +598,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         title: navLex.navKpiTitle,
         labelShort: navLex.navKpi,
         labelFull: navLex.navKpiTitle,
-        variant: "indigo",
+        variant: "platform",
         iconKey: "target",
       });
     }
@@ -581,7 +610,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       title: "Задачи",
       labelShort: "Задачи",
       labelFull: "Задачи",
-      variant: "purple",
+      variant: "tasks",
       iconKey: "check-square",
     });
   }
@@ -591,7 +620,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     title: "Мессенджер",
     labelShort: "Мессендж.",
     labelFull: "Мессенджер",
-    variant: "tasks",
+    variant: "teal",
     iconKey: "users",
   });
   if (showKpi && showNavForFeature("kpi") && !showDeskSales) {
@@ -601,10 +630,11 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       title: navLex.navKpiTitle,
       labelShort: navLex.navKpi,
       labelFull: navLex.navKpiTitle,
-      variant: "indigo",
+      variant: "platform",
       iconKey: "target",
     });
   }
+  items.push(curatorJournalNavItem());
   if (showNavForFeature("analytics")) {
     items.push({
       id: "analytics",
@@ -612,7 +642,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       title: navLex.navAnalyticsTitle,
       labelShort: navLex.navAnalytics,
       labelFull: navLex.navAnalyticsTitle,
-      variant: "blue",
+      variant: "analytics",
       iconKey: "bar-chart",
     });
   }
@@ -634,8 +664,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       title: "Расходы",
       labelShort: "Расходы",
       labelFull: "Расходы",
-      variant: "indigo",
-      iconKey: "clipboard-list",
+      variant: "finance",
+      iconKey: "wallet",
     });
   }
   if (showNavForFeature("employees")) {
@@ -645,7 +675,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       title: "Сотрудники",
       labelShort: "Сотр.",
       labelFull: "Сотрудники",
-      variant: "purple",
+      variant: "tariff",
       iconKey: "id-card",
     });
   }
@@ -656,7 +686,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       title: "Чаты",
       labelShort: "Чаты",
       labelFull: "Чаты",
-      variant: "tasks",
+      variant: "chat",
       iconKey: "message-circle",
     });
   }
@@ -667,7 +697,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       title: "Аудит",
       labelShort: "Аудит",
       labelFull: "Аудит",
-      variant: "blue",
+      variant: "platform",
       iconKey: "bar-chart",
     });
   }

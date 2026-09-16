@@ -48,6 +48,7 @@ from app.database_migrate import (
     ensure_clinic_staff_roles,
     ensure_extra_services_tables,
     ensure_chat_thread_unique_external,
+    ensure_curator_journal_tables,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -81,6 +82,7 @@ from app.routers import (
     users,
     waiting_callbacks,
     extra_services,
+    curator_journal,
 )
 from app.services.background_events import record_background_event
 from app.services.google_sheets_finance_sync import run_finance_sheets_sync_tick
@@ -161,6 +163,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_fix_massage_osv_prepaid_aug2026(conn, db_url)
                 await ensure_fix_kurs15_price_2000_to_1300(conn, db_url)
                 await ensure_extra_services_tables(conn, db_url)
+                await ensure_curator_journal_tables(conn, db_url)
                 await ensure_chat_thread_unique_external(conn, db_url)
             return
         except Exception as exc:
@@ -213,18 +216,22 @@ async def ensure_canonical_pipeline_stages() -> None:
             )
             from app.services.manager_new_leads_block import apply_blocked_managers_new_leads_policy
             from app.services.manager_daily_lead_quotas import apply_mavluda_daily_archive_quota
+            from app.services.manager_mulkiya_leads import apply_mulkiya_receives_new_leads
 
             n = await ensure_all_pipelines_chat_stages(session)
             backfilled = await backfill_archived_from_stage(session)
             blocked = await apply_blocked_managers_new_leads_policy(session)
             mavluda = await apply_mavluda_daily_archive_quota(session)
+            mulkiya = await apply_mulkiya_receives_new_leads(session)
             await session.commit()
             logger.info(
-                "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s; new_leads_block=%s; mavluda_quota=%s",
+                "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s; "
+                "new_leads_block=%s; mavluda_quota=%s; mulkiya_leads=%s",
                 n,
                 backfilled,
                 blocked,
                 mavluda,
+                mulkiya,
             )
     except Exception:
         logger.exception("ensure_canonical_pipeline_stages failed; continuing startup")
@@ -926,6 +933,7 @@ app.include_router(finance.router, prefix="/api")
 app.include_router(team_chat.router, prefix="/api")
 app.include_router(waiting_callbacks.router, prefix="/api")
 app.include_router(extra_services.router, prefix="/api")
+app.include_router(curator_journal.router, prefix="/api")
 
 
 @app.get("/health")

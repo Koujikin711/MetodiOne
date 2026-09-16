@@ -2650,25 +2650,25 @@ export function CrmPage() {
 
       {crmView === "list" && pipelineId != null && (
         <section className="crm-list-panel">
-          <div className="flex min-w-0 max-w-full flex-wrap items-end gap-3">
-            <label className="min-w-0 flex-1 basis-[12rem] text-sm lux-caption">
-              Поиск
+          <div className="crm-list-toolbar">
+            <label className="crm-list-field crm-list-field--search">
+              <span className="crm-list-field__label">Поиск</span>
               <input
                 value={listSearchInput}
                 onChange={(e) => setListSearchInput(e.target.value)}
                 placeholder="Имя, телефон, email…"
-                className={`${theme.input} mt-1 w-full min-w-0`}
+                className={`${theme.input} crm-list-field__control`}
               />
             </label>
-            <label className="min-w-0 shrink-0 text-sm lux-caption">
-              Стадия
+            <label className="crm-list-field crm-list-field--stage">
+              <span className="crm-list-field__label">Стадия</span>
               <select
                 value={listStatusFilter === "" ? "" : String(listStatusFilter)}
                 onChange={(e) => {
                   const v = e.target.value;
                   setListStatusFilter(v === "" ? "" : Number(v));
                 }}
-                className={`${theme.input} mt-1 w-full min-w-[10rem] max-w-full sm:min-w-[180px]`}
+                className={`${theme.input} crm-list-field__control`}
               >
                 <option value="">Все стадии</option>
                 {sortedStages.map((s) => (
@@ -2682,46 +2682,50 @@ export function CrmPage() {
           {leadsTableQuery.isError && (
             <p className="text-sm text-[var(--mo-danger)]">{(leadsTableQuery.error as Error).message}</p>
           )}
-          {leadsTableQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
+          {leadsTableQuery.isLoading && <p className="crm-list-meta">Загрузка…</p>}
           {leadsTableQuery.data && !leadsTableQuery.isLoading && (
             <>
-              <p className="text-sm lux-caption">
-                Найдено: {leadsTableQuery.data.total} · страница {leadsTableQuery.data.page} из {listTotalPages}
-              </p>
+              <div className="crm-list-meta-row">
+                <p className="crm-list-meta">
+                  <span className="crm-list-meta__strong">
+                    {leadsTableQuery.data.total.toLocaleString("ru-RU")}
+                  </span>{" "}
+                  лидов · стр. {leadsTableQuery.data.page} / {listTotalPages}
+                </p>
+              </div>
               <div className="crm-list-table-wrap">
-                <table className="mo-table min-w-[720px]">
+                <table className="mo-table crm-list-table min-w-[720px]">
                   <thead>
-                    <tr className="text-xs uppercase tracking-wide">
-                      <th className="px-3 py-2">ID</th>
-                      <th className="px-3 py-2">Имя</th>
-                      <th className="px-3 py-2">Телефон</th>
-                      <th className="px-3 py-2">Email</th>
-                      <th className="px-3 py-2">Стадия</th>
-                      <th className="px-3 py-2" />
+                    <tr>
+                      <th>ID</th>
+                      <th>Имя</th>
+                      <th>Телефон</th>
+                      <th>Email</th>
+                      <th>Стадия</th>
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
                     {leadsTableQuery.data.items.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-3 py-8 text-center lux-caption">
+                        <td colSpan={6} className="crm-list-empty">
                           Нет лидов по условиям
                         </td>
                       </tr>
                     ) : (
                       leadsTableQuery.data.items.map((lead) => (
-                        <tr key={lead.id} className="hover:bg-[var(--mo-nav-hover)]">
-                          <td className="px-3 py-2 lux-caption">{lead.id}</td>
-                          <td className="px-3 py-2 font-medium text-[var(--mo-text)]">{lead.name}</td>
-                          <td className="px-3 py-2">
+                        <tr key={lead.id}>
+                          <td className="crm-list-id">{lead.id}</td>
+                          <td className="crm-list-name">{lead.name}</td>
+                          <td>
                             <PatientPhone value={lead} />
                           </td>
-                          <td className="px-3 py-2 text-[var(--mo-text-muted)]">{lead.email ?? "—"}</td>
-                          <td className="px-3 py-2 text-[var(--mo-accent)]">{lead.stage_name ?? "—"}</td>
-                          <td className="px-3 py-2">
-                            <Link
-                              to={`/leads/${lead.id}`}
-                              className="mo-link font-medium"
-                            >
+                          <td className="crm-list-email">{lead.email ?? "—"}</td>
+                          <td>
+                            <span className="crm-list-stage">{lead.stage_name ?? "—"}</span>
+                          </td>
+                          <td className="crm-list-action">
+                            <Link to={`/leads/${lead.id}`} className="crm-list-open">
                               Открыть
                             </Link>
                           </td>
@@ -2732,7 +2736,7 @@ export function CrmPage() {
                 </table>
               </div>
               {listTotalPages > 1 && (
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="crm-list-pager">
                   <button
                     type="button"
                     disabled={listPage <= 1 || leadsTableQuery.isFetching}
@@ -2741,7 +2745,7 @@ export function CrmPage() {
                   >
                     Назад
                   </button>
-                  <span className="text-sm mo-muted">
+                  <span className="crm-list-pager__page">
                     {listPage} / {listTotalPages}
                   </span>
                   <button

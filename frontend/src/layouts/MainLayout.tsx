@@ -142,11 +142,11 @@ export function MainLayout() {
       <div className="relative z-10 flex h-screen min-h-0 flex-col sm:flex-row">
         <aside
           className={[
-            "shell-sidebar print:hidden hidden min-h-0 shrink-0 py-2 sm:sticky sm:top-0 sm:flex sm:h-dvh sm:max-h-dvh sm:flex-col",
+            "shell-sidebar print:hidden hidden min-h-0 shrink-0 py-1 sm:sticky sm:top-0 sm:flex sm:h-dvh sm:max-h-dvh sm:flex-col",
             sidebarExpanded ? "is-expanded" : "is-collapsed",
           ].join(" ")}
         >
-          <div className="shell-sidebar-header">
+          <div className="shell-sidebar-header shrink-0">
             <button
               type="button"
               onClick={toggleSidebar}
@@ -177,10 +177,27 @@ export function MainLayout() {
               deskSalesEnabled={deskSalesEnabled}
               chatStagesEnabled={chatStagesEnabled}
               showExtraServices={showExtraServices}
+              showCuratorJournal={role === "admin"}
               showNavForFeature={showNavForFeature}
-              onLogout={logout}
             />
           </nav>
+          <div className="shell-sidebar-footer shrink-0">
+            <button
+              type="button"
+              className="shell-sidebar-logout"
+              title="Выход"
+              onClick={logout}
+            >
+              <GradientIconBox variant="pink" className="shell-nav-icon-box">
+                <LogOut className="shell-nav-icon-glyph" />
+              </GradientIconBox>
+              {sidebarExpanded ? (
+                <span className="shell-nav-text">Выход</span>
+              ) : (
+                <span className="shell-nav-label">Выход</span>
+              )}
+            </button>
+          </div>
         </aside>
 
         <main
@@ -306,6 +323,17 @@ export function MainLayout() {
                   <span className="text-[9px]">Онлайн</span>
                 </NavLink>
               </NavIf>
+              <NavLink
+                preventScrollReset
+                to="/curator-journal"
+                className={mobileBottomNavLinkClass}
+                title="Журнал куратора"
+              >
+                <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <ClipboardList className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Журнал</span>
+              </NavLink>
               {showKpi ? (
                 <NavIf show={showNavForFeature("kpi")}>
                   <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title="Дебиторка">
@@ -359,6 +387,14 @@ export function MainLayout() {
                   </NavLink>
                 </NavIf>
               ) : null}
+              {showExpenses ? (
+                <NavLink preventScrollReset to="/expenses" className={mobileBottomNavLinkClass} title="Расходы">
+                  <GradientIconBox variant="finance" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Wallet className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Расходы</span>
+                </NavLink>
+              ) : null}
               <button type="button" onClick={logout} className={mobileBottomLogoutClass} title="Выход">
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <LogOut className="h-4 w-4" />
@@ -378,8 +414,8 @@ export function MainLayout() {
               </NavIf>
               {showExpenses ? (
                 <NavLink preventScrollReset to="/expenses" className={mobileBottomNavLinkClass} title="Расходы">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <ClipboardList className="h-4 w-4" />
+                  <GradientIconBox variant="finance" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Wallet className="h-4 w-4" />
                   </GradientIconBox>
                   <span className="text-[9px]">Расходы</span>
                 </NavLink>

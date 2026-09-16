@@ -38,8 +38,8 @@ type Props = {
   deskSalesEnabled?: boolean;
   chatStagesEnabled?: boolean;
   showExtraServices?: boolean;
+  showCuratorJournal?: boolean;
   showNavForFeature: (feature: string) => boolean;
-  onLogout: () => void;
 };
 
 export function ShellSidebarNav({
@@ -60,8 +60,8 @@ export function ShellSidebarNav({
   deskSalesEnabled = false,
   chatStagesEnabled = true,
   showExtraServices = false,
+  showCuratorJournal = false,
   showNavForFeature,
-  onLogout,
 }: Props) {
   const allItems = useMemo(
     () =>
@@ -81,6 +81,7 @@ export function ShellSidebarNav({
         deskSalesEnabled,
         chatStagesEnabled,
         showExtraServices,
+        showCuratorJournal,
         showNavForFeature,
         navLex: appLexicon,
       }),
@@ -100,6 +101,7 @@ export function ShellSidebarNav({
       deskSalesEnabled,
       chatStagesEnabled,
       showExtraServices,
+      showCuratorJournal,
       showNavForFeature,
     ],
   );
@@ -123,25 +125,27 @@ export function ShellSidebarNav({
 
   return (
     <>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={order} strategy={verticalListSortingStrategy}>
-          {orderedItems.map((item) => (
-            <SortableShellNavLink
-              key={item.id}
-              id={item.id}
-              to={item.to}
-              end={item.end}
-              title={item.title}
-              labelShort={item.labelShort}
-              labelFull={item.labelFull}
-              variant={item.variant}
-              iconKey={item.iconKey}
-              expanded={expanded}
-            />
-          ))}
-        </SortableContext>
-      </DndContext>
-      <ShellSidebarSettingsMenu items={settings} expanded={expanded} onLogout={onLogout} />
+      <div className="shell-sidebar-nav-main">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={order} strategy={verticalListSortingStrategy}>
+            {orderedItems.map((item) => (
+              <SortableShellNavLink
+                key={item.id}
+                id={item.id}
+                to={item.to}
+                end={item.end}
+                title={item.title}
+                labelShort={item.labelShort}
+                labelFull={item.labelFull}
+                variant={item.variant}
+                iconKey={item.iconKey}
+                expanded={expanded}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      </div>
+      <ShellSidebarSettingsMenu items={settings} expanded={expanded} />
     </>
   );
 }

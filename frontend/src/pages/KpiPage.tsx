@@ -269,6 +269,7 @@ export function KpiPage() {
     note: "",
   });
   const [payDraft, setPayDraft] = useState<Record<number, string>>({});
+  const [expandedDebtorKey, setExpandedDebtorKey] = useState<string | null>(null);
 
   const pipelinesQuery = useQuery({
     queryKey: ["sales-kpi-pipelines"],
@@ -1435,30 +1436,88 @@ export function KpiPage() {
           </div>
 
           <ul className="space-y-2 sm:hidden">
-            {filteredDebtors.map((r) => (
-              <li
-                key={`${r.source}-${r.source_id}`}
-                className="rounded-xl border border-[var(--mo-border)] px-3 py-2.5"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
-                    <p className="truncate text-[11px] mo-muted">
-                      {r.source === "booking" ? "Запись" : "Курс"} · {r.indicator_name}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums kpi-actual-value">
-                    {formatMoney(num(r.debt_amount))}
-                  </span>
-                </div>
-                <div className="mt-1 flex justify-between gap-2 text-[11px] mo-muted">
-                  <span className="truncate">{r.manager_name ?? "—"}</span>
-                  <span className="tabular-nums">
-                    {formatMoney(num(r.paid_amount))} / {formatMoney(num(r.service_amount))}
-                  </span>
-                </div>
-              </li>
-            ))}
+            {filteredDebtors.map((r) => {
+              const key = `${r.source}-${r.source_id}`;
+              const open = expandedDebtorKey === key;
+              return (
+                <li key={key} className="overflow-hidden rounded-xl border border-[var(--mo-border)]">
+                  <button
+                    type="button"
+                    className="flex w-full items-start justify-between gap-2 px-3 py-2.5 text-left"
+                    aria-expanded={open}
+                    onClick={() => setExpandedDebtorKey(open ? null : key)}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
+                      <p className="truncate text-[11px] mo-muted">
+                        {r.source === "booking" ? "Запись" : "Курс"} · {r.indicator_name}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="block text-sm font-semibold tabular-nums kpi-actual-value">
+                        {formatMoney(num(r.debt_amount))}
+                      </span>
+                      <span className="mt-0.5 block text-[10px] mo-muted">{open ? "Скрыть ▲" : "Подробнее ▼"}</span>
+                    </div>
+                  </button>
+                  {open ? (
+                    <div className="space-y-1.5 border-t border-[var(--mo-border)] bg-[var(--mo-surface)]/40 px-3 py-2.5 text-[12px]">
+                      <div className="flex justify-between gap-2">
+                        <span className="mo-muted">Источник</span>
+                        <span className="text-[var(--mo-text)]">
+                          {r.source === "booking" ? "Запись" : "Курс/протокол"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="mo-muted">Дата</span>
+                        <span className="tabular-nums text-[var(--mo-text)]">
+                          {r.sold_at ? formatSaleDt(r.sold_at) : "—"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="mo-muted">Телефон</span>
+                        <span className="tabular-nums text-[var(--mo-text)]">{r.client_phone || "—"}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="mo-muted">Услуга</span>
+                        <span className="max-w-[65%] text-right text-[var(--mo-text)]">{r.indicator_name}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="mo-muted">Менеджер</span>
+                        <span className="max-w-[65%] text-right text-[var(--mo-text)]">
+                          {r.manager_name ?? "—"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="mo-muted">Сумма</span>
+                        <span className="tabular-nums text-[var(--mo-text)]">
+                          {formatMoney(num(r.service_amount))}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="mo-muted">Оплачено</span>
+                        <span className="tabular-nums text-[var(--mo-text)]">
+                          {formatMoney(num(r.paid_amount))}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2 border-t border-[var(--mo-border)] pt-1.5 font-semibold">
+                        <span className="text-[var(--mo-text)]">Долг</span>
+                        <span className="tabular-nums kpi-actual-value">
+                          {formatMoney(num(r.debt_amount))}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between gap-2 border-t border-[var(--mo-border)]/60 px-3 py-1.5 text-[11px] mo-muted">
+                      <span className="truncate">{r.manager_name ?? "—"}</span>
+                      <span className="tabular-nums">
+                        {formatMoney(num(r.paid_amount))} / {formatMoney(num(r.service_amount))}
+                      </span>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
 
           <div className="hidden overflow-x-auto sm:block">

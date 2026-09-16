@@ -1,7 +1,8 @@
-"""Тесты персональных квот дневной раздачи архива."""
+"""Тесты персональных квот дневной раздачи."""
 
 from app.services.archive_evening_reactivate import LEADS_PER_MANAGER, list_company_manager_quotas
 from app.services.manager_daily_lead_quotas import (
+    MAVLUDA_DAILY_NEW_QUOTA,
     MAVLUDA_DAILY_QUOTA,
     is_mavluda_alibek,
 )
@@ -16,8 +17,9 @@ def test_mavluda_name_match():
     assert is_mavluda_alibek(None) is False
 
 
-def test_mavluda_quota_constant():
+def test_mavluda_quota_constants():
     assert MAVLUDA_DAILY_QUOTA == 3
+    assert MAVLUDA_DAILY_NEW_QUOTA == 3
     assert LEADS_PER_MANAGER == 5
 
 

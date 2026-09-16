@@ -11,6 +11,9 @@ const FILL_ROUTE_PREFIXES = [
   "/audit",
   "/integrations",
   "/finance",
+  "/curator-journal",
+  "/extra-services",
+  "/booking",
 ] as const;
 
 function isFillRoute(pathname: string) {

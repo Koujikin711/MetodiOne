@@ -313,18 +313,10 @@ export function ExtraServicesPage() {
     <div className="extra-services-page mo-fill-page relative w-full min-w-0">
       <div className="mo-admin-page-head expenses-page__head">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--mo-text)] sm:text-2xl">
-            Доп услуги
-          </h1>
-          <p className="mt-0.5 hidden text-xs mo-muted sm:mt-1 sm:block sm:text-sm">
-            Под онлайн-записью: ФИО, телефон, сумма — система считает долю Клиники и Партнёр.{" "}
-            <Link to="/booking" className="text-[var(--mo-accent-hover)] hover:underline">
-              ← К онлайн-записи
-            </Link>
-          </p>
+          <h1 className="mo-page-title">Доп услуги</h1>
           <Link
             to="/booking"
-            className="mt-1 inline-block text-xs text-[var(--mo-accent-hover)] hover:underline sm:hidden"
+            className="mo-page-sub mt-0.5 inline-block text-[var(--mo-accent-hover)] hover:underline"
           >
             ← К онлайн-записи
           </Link>
@@ -344,9 +336,9 @@ export function ExtraServicesPage() {
         </div>
       </div>
 
-      <div className="mo-fill-page-scroll space-y-4 pt-3 sm:space-y-5 sm:pt-4">
+      <div className="extra-services-body">
       {tab !== "settings" ? (
-        <div className="kpi-tabs" role="tablist" aria-label="Доп услуги">
+        <div className="kpi-tabs shrink-0" role="tablist" aria-label="Доп услуги">
           {TABS.map((t) => {
             const active = tab === t.id;
             return (
@@ -365,7 +357,7 @@ export function ExtraServicesPage() {
           })}
         </div>
       ) : (
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pt-3">
           <h2 className="text-sm font-semibold text-[var(--mo-text)]">Настройки %</h2>
           <button
             type="button"
@@ -376,6 +368,8 @@ export function ExtraServicesPage() {
           </button>
         </div>
       )}
+
+      <div className="extra-services-panel">
 
       {tab === "new" ? (
         <div className="extra-services-new-layout">
@@ -519,7 +513,7 @@ export function ExtraServicesPage() {
             <h2 className="extra-services-recent__title">Недавние записи ({yearMonth})</h2>
             {salesQuery.isLoading ? <p className="text-sm mo-muted">Загрузка…</p> : null}
             <ul className="extra-services-recent__list">
-              {(salesQuery.data ?? []).slice(0, 12).map((s) => (
+              {(salesQuery.data ?? []).slice(0, 40).map((s) => (
                 <li key={s.id} className="extra-services-recent__item">
                   <div className="extra-services-recent__main">
                     <div className="extra-services-recent__name">{s.client_name}</div>
@@ -809,15 +803,17 @@ export function ExtraServicesPage() {
       ) : null}
 
       {tab === "journal" ? (
-        <div className="space-y-3">
-          <input
-            className="mo-input w-full max-w-md"
-            placeholder="Поиск: ФИО, телефон, банк…"
-            value={journalQ}
-            onChange={(e) => setJournalQ(e.target.value)}
-          />
-          <div className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 sm:p-3">
-            <table className="mo-table min-w-[1080px]">
+        <div className="extra-services-journal">
+          <div className="extra-services-journal__toolbar">
+            <input
+              className="mo-input extra-services-journal__search"
+              placeholder="Поиск: ФИО, телефон…"
+              value={journalQ}
+              onChange={(e) => setJournalQ(e.target.value)}
+            />
+          </div>
+          <div className="extra-services-journal__table-wrap">
+            <table className="mo-table min-w-[980px]">
               <thead>
                 <tr>
                   <th>Когда</th>
@@ -836,13 +832,15 @@ export function ExtraServicesPage() {
                 {(salesQuery.data ?? []).map((s) => (
                   <tr key={s.id}>
                     <td className="whitespace-nowrap text-xs tabular-nums">{formatDtShort(s.sold_at)}</td>
-                    <td className="extra-services-col-name font-medium">{s.client_name}</td>
-                    <td className="extra-services-col-phone">{s.client_phone || "—"}</td>
+                    <td className="extra-services-col-name whitespace-nowrap font-medium">{s.client_name}</td>
+                    <td className="extra-services-col-phone whitespace-nowrap">{s.client_phone || "—"}</td>
                     <td className="whitespace-nowrap">{s.payment_method || s.note || "—"}</td>
                     <td className="extra-services-col-name">{s.payment_method ? s.note || "—" : "—"}</td>
-                    <td className="extra-services-col-money">{formatMoney(s.amount)}</td>
-                    <td className="extra-services-col-money kpi-actual-value">{formatMoney(s.keep_amount)}</td>
-                    <td className="extra-services-col-money">{formatMoney(s.payout_amount)}</td>
+                    <td className="extra-services-col-money whitespace-nowrap">{formatMoney(s.amount)}</td>
+                    <td className="extra-services-col-money whitespace-nowrap kpi-actual-value">
+                      {formatMoney(s.keep_amount)}
+                    </td>
+                    <td className="extra-services-col-money whitespace-nowrap">{formatMoney(s.payout_amount)}</td>
                     <td className="whitespace-nowrap text-xs mo-muted">{firstNameOnly(s.created_by_name)}</td>
                     <td className="whitespace-nowrap">
                       <button
@@ -852,7 +850,7 @@ export function ExtraServicesPage() {
                           if (window.confirm("Отменить эту запись?")) cancelSale.mutate(s.id);
                         }}
                       >
-                        Отмена
+                        Отм
                       </button>
                     </td>
                   </tr>
@@ -866,6 +864,7 @@ export function ExtraServicesPage() {
           </div>
         </div>
       ) : null}
+      </div>
       </div>
     </div>
   );
