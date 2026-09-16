@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { appLexicon } from "@/lib/appLexicon";
 import { formatMoney } from "@/lib/money";
+import { AnalyticsServicesCharts } from "@/components/analytics/AnalyticsServicesCharts";
 import { DateField } from "@/components/DateField";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 import type {
@@ -12,7 +13,9 @@ import type {
   FullAnalyticsRead,
   ManagerPerformanceItem,
   Pipeline,
+  SalesKpiCompanyExpertStat,
   SalesKpiCompanyReport,
+  SalesKpiCompanyServiceStat,
 } from "@/lib/types";
 
 type AnalyticsDimension = "managers" | "services";
@@ -177,6 +180,47 @@ export function AnalyticsPage() {
     enabled: servicesMode && Boolean(companyQs),
   });
 
+  const servicesLiveEmpty =
+    Boolean(servicesQuery.data) &&
+    (servicesQuery.data?.service_stats ?? []).length === 0 &&
+    Number(servicesQuery.data?.revenue_total ?? 0) === 0;
+
+  const snapshotQuery = useQuery({
+    queryKey: ["analytics-services-snapshot"],
+    queryFn: async () => {
+      const res = await fetch("/reports/services-analytics-snapshot.json");
+      if (!res.ok) throw new Error("Снимок отчёта не найден");
+      return (await res.json()) as {
+        pipeline_name: string;
+        year_month: string;
+        revenue_total: number | string;
+        debtor_total: number | string;
+        service_stats: SalesKpiCompanyServiceStat[];
+        expert_stats: SalesKpiCompanyExpertStat[];
+      };
+    },
+    enabled: servicesMode && servicesLiveEmpty,
+    staleTime: Infinity,
+  });
+
+  const chartServices =
+    !servicesLiveEmpty && servicesQuery.data
+      ? (servicesQuery.data.service_stats ?? [])
+      : (snapshotQuery.data?.service_stats ?? []);
+  const chartExperts =
+    !servicesLiveEmpty && servicesQuery.data
+      ? (servicesQuery.data.expert_stats ?? [])
+      : (snapshotQuery.data?.expert_stats ?? []);
+
+  const htmlReportHref = useMemo(() => {
+    const p = new URLSearchParams();
+    if (yearMonth) p.set("year_month", yearMonth);
+    if (servicesPipelineId != null) p.set("pipeline_id", String(servicesPipelineId));
+    if (servicesLiveEmpty) p.set("snapshot", "1");
+    const q = p.toString();
+    return `/reports/services-analytics.html${q ? `?${q}` : ""}`;
+  }, [yearMonth, servicesPipelineId, servicesLiveEmpty]);
+
   return (
     <div className="analytics-page mo-fill-page">
       <header className="mo-admin-page-head analytics-page-header">
@@ -290,6 +334,16 @@ export function AnalyticsPage() {
           </label>
             </>
           )}
+          {servicesMode ? (
+            <a
+              className="btn-secondary analytics-export-btn analytics-html-link"
+              href={htmlReportHref}
+              target="_blank"
+              rel="noreferrer"
+            >
+              HTML-отчёт с графиками
+            </a>
+          ) : null}
           <button
             type="button"
             onClick={() => {
@@ -408,26 +462,58 @@ export function AnalyticsPage() {
               <div className="analytics-kpi-grid sm:grid-cols-2 lg:grid-cols-4">
                 <MetricCard
                   label="Выручка"
-                  value={moneyFmt.format(Number(servicesQuery.data.revenue_total))}
+                  value={moneyFmt.format(
+                    Number(
+                      servicesLiveEmpty
+                        ? (snapshotQuery.data?.revenue_total ?? 0)
+                        : servicesQuery.data.revenue_total,
+                    ),
+                  )}
                   tone="success"
                 />
                 <MetricCard
                   label="Дебиторка"
-                  value={moneyFmt.format(Number(servicesQuery.data.debtor_total))}
+                  value={moneyFmt.format(
+                    Number(
+                      servicesLiveEmpty
+                        ? (snapshotQuery.data?.debtor_total ?? 0)
+                        : servicesQuery.data.debtor_total,
+                    ),
+                  )}
                   tone="warning"
                 />
                 <MetricCard
                   label="Услуг в сводке"
-                  value={(servicesQuery.data.service_stats ?? []).length}
+                  value={chartServices.length}
                   tone="accent"
                 />
                 <MetricCard
                   label="Воронка"
-                  value={servicesQuery.data.pipeline_name}
+                  value={
+                    servicesLiveEmpty
+                      ? (snapshotQuery.data?.pipeline_name ?? servicesQuery.data.pipeline_name)
+                      : servicesQuery.data.pipeline_name
+                  }
                   tone="neutral"
-                  hint={servicesQuery.data.year_month}
+                  hint={
+                    servicesLiveEmpty
+                      ? (snapshotQuery.data?.year_month ?? servicesQuery.data.year_month)
+                      : servicesQuery.data.year_month
+                  }
                 />
               </div>
+
+              {servicesLiveEmpty ? (
+                <p className="analytics-hint">
+                  В этой базе за месяц пусто — ниже графики из снимка августа 2026 (live CRM). Полный
+                  HTML-отчёт:{" "}
+                  <a href={htmlReportHref} target="_blank" rel="noreferrer">
+                    /reports/services-analytics.html
+                  </a>
+                </p>
+              ) : null}
+
+              <AnalyticsServicesCharts services={chartServices} experts={chartExperts} />
 
               <AnalyticsPanel title="По услугам">
                 <p className="analytics-panel-note">
@@ -448,14 +534,14 @@ export function AnalyticsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(servicesQuery.data.service_stats ?? []).length === 0 ? (
+                    {chartServices.length === 0 ? (
                       <tr>
                         <td colSpan={9} className="analytics-empty-cell">
                           Нет записей за месяц
                         </td>
                       </tr>
                     ) : (
-                      (servicesQuery.data.service_stats ?? []).map((s) => (
+                      chartServices.map((s) => (
                         <tr key={s.direction_id ?? s.direction_name}>
                           <td className="py-2.5 pr-3 font-medium">{s.direction_name}</td>
                           <td className="py-2.5 pr-3 tabular-nums">{s.appointments_total}</td>
@@ -497,14 +583,14 @@ export function AnalyticsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(servicesQuery.data.expert_stats ?? []).length === 0 ? (
+                    {chartExperts.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="analytics-empty-cell">
                           Нет данных за месяц
                         </td>
                       </tr>
                     ) : (
-                      (servicesQuery.data.expert_stats ?? []).map((e) => (
+                      chartExperts.map((e) => (
                         <tr key={e.specialist_id}>
                           <td className="py-2.5 pr-3 font-medium">
                             <div>{e.specialist_name}</div>
