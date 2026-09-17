@@ -72,6 +72,7 @@ from app.services.sales_kpi_weighted import (
     load_specialist_facts_company_full_paid,
     load_specialist_facts_full_paid,
     month_bounds,
+    paid_at_from_input,
     parse_year_month,
     shift_year_month,
     sum_specialist_facts_company,
@@ -239,6 +240,10 @@ def _manual_counts_in_kpi(service_amount: Decimal, first_paid_amount: Decimal, s
     if service_amount <= 0:
         return False
     return first_paid_amount >= (service_amount * MANUAL_SALE_MIN_PAID_RATIO)
+
+
+def _paid_at_from_input(raw: date | datetime | None, *, fallback: datetime | None = None) -> datetime:
+    return paid_at_from_input(raw, fallback=fallback)
 
 
 def _payment_out(row: SalesKpiManualSalePayment) -> SalesKpiManualSalePaymentOut:
@@ -704,11 +709,15 @@ async def create_manual_sale(
     if body.paid_amount > body.service_amount:
         raise HTTPException(status_code=400, detail="Оплата не может быть больше стоимости")
 
-    sold_at = body.sold_at or datetime.now(UTC)
-    if sold_at.tzinfo is None:
-        sold_at = sold_at.replace(tzinfo=UTC)
-
     first_paid = Decimal(str(body.paid_amount or 0))
+    second_paid = Decimal(str(getattr(body, "second_paid_amount", None) or 0))
+    total_paid = first_paid + second_paid
+    if total_paid > body.service_amount:
+        raise HTTPException(status_code=400, detail="Сумма платежей не может быть больше стоимости")
+
+    first_at = _paid_at_from_input(body.first_paid_at if body.first_paid_at is not None else body.sold_at)
+    second_at = _paid_at_from_input(body.second_paid_at)
+
     sale = SalesKpiManualSale(
         company_id=company_id,
         pipeline_id=body.pipeline_id,
@@ -719,9 +728,9 @@ async def create_manual_sale(
         stream_no=int(body.stream_no),
         group_no=int(body.group_no),
         service_amount=body.service_amount,
-        paid_amount=first_paid,
+        paid_amount=total_paid,
         first_paid_amount=first_paid,
-        sold_at=sold_at,
+        sold_at=first_at,
         status="active",
         note=body.note,
         created_by_user_id=current_user.id,
@@ -736,11 +745,23 @@ async def create_manual_sale(
             amount=first_paid,
             is_first=True,
             note="Первый платёж",
-            paid_at=sold_at,
+            paid_at=first_at,
             created_by_user_id=current_user.id,
         )
         db.add(pay)
         payments.append(pay)
+    if second_paid > 0:
+        pay2 = SalesKpiManualSalePayment(
+            company_id=company_id,
+            sale_id=int(sale.id),
+            amount=second_paid,
+            is_first=False,
+            note="Второй платёж",
+            paid_at=second_at,
+            created_by_user_id=current_user.id,
+        )
+        db.add(pay2)
+        payments.append(pay2)
     await db.commit()
     await db.refresh(sale)
     for p in payments:
@@ -790,13 +811,14 @@ async def patch_manual_sale_payment(
     if body.note is not None and body.note.strip():
         sale.note = body.note.strip()
 
+    pay_at = _paid_at_from_input(body.paid_at)
     pay = SalesKpiManualSalePayment(
         company_id=company_id,
         sale_id=int(sale.id),
         amount=add_amount,
         is_first=False,
         note=(body.note.strip() if body.note else None) or "Доплата",
-        paid_at=datetime.now(UTC),
+        paid_at=pay_at,
         created_by_user_id=current_user.id,
     )
     db.add(pay)
@@ -1382,10 +1404,8 @@ async def company_report(
             pa = Decimal(str(pa_raw or 0))
             debtor_booking += max(sa - pa, Decimal("0"))
 
-    # Курсы/протоколы (окно KPI): платежи с paid_at в этом месяце — для плана/бонусов
-    # и дебиторки. В клинике в ИТОГО выручку НЕ плюсуем: те же деньги уже сидят в
-    # paid_amount визитов (Курс / Курс 15 / Протокол) — иначе отчёт задваивает кассу.
-    # В sales-mode визитов нет — там курсы входят в выручку (см. revenue_total ниже).
+    # Курсы/протоколы: платежи с paid_at в этом месяце → выручка месяца.
+    # KPI менеджера считается отдельно (только первый платёж / sold_at).
     revenue_manual_paid = (
         await db.execute(
             select(func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0)).where(
@@ -1552,15 +1572,10 @@ async def company_report(
     ]
 
     plan_pct = float((total_contrib * Decimal("100")).quantize(Decimal("0.01")))
-    # Клиника: выручка = оплаты визитов (касса CRM). Курсы KPI не плюсуем — двойной счёт.
-    # Sales-mode: визитов нет, выручка = продажи стола + курсы.
-    if sales_mode:
-        revenue_total = revenue_booking + revenue_manual
-    else:
-        # Выручка клиники = только касса визитов (курсы KPI уже сидят в paid визитов).
-        revenue_total = revenue_booking
+    # Выручка месяца = касса визитов + платежи курсов/протоколов KPI с paid_at в этом месяце
+    # (первый платёж → август, доплата → сентябрь). KPI менеджера — только по первому платежу.
+    revenue_total = revenue_booking + revenue_manual
     # Дебиторка всегда = остаток визитов + открытые пакеты курсов/протоколов KPI.
-    # Выручку курсов не плюсуем (двойной счёт), долг пакетов в карточке показываем.
     debtor_total = debtor_booking + debtor_manual
 
     # Дни месяца для прогноза (линейный run-rate)

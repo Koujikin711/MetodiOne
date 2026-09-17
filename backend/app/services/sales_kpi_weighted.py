@@ -50,6 +50,21 @@ def month_bounds(ym: date) -> tuple[datetime, datetime]:
     return start, end
 
 
+def paid_at_from_input(raw: date | datetime | None, *, fallback: datetime | None = None) -> datetime:
+    """Дата платежа → UTC (полдень booking_timezone). Пусто = fallback или сейчас."""
+    if isinstance(raw, datetime):
+        dt = raw
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC)
+    if isinstance(raw, date):
+        tz = ZoneInfo(settings.booking_timezone or "Asia/Dushanbe")
+        return datetime(raw.year, raw.month, raw.day, 12, 0, tzinfo=tz).astimezone(UTC)
+    if fallback is not None:
+        return fallback if fallback.tzinfo else fallback.replace(tzinfo=UTC)
+    return datetime.now(UTC)
+
+
 def kpi_booking_created_cutoff(ym: date) -> datetime | None:
     """Нижняя граница created_at для факта KPI, или None если фильтр не нужен."""
     if ym < KPI_EXCLUDE_PRE_JULY_BOOKINGS_FROM:

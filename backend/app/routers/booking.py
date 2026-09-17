@@ -52,6 +52,7 @@ from app.schemas.booking import (
 from app.schemas.lead import LeadRead
 from app.services.automation import process_lead_automation
 from app.services.audit import write_audit_event
+from app.services.booking_responsible import can_be_booking_responsible
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.lead_sales_stages import resolve_new_lead_stage_id
 from app.services.lead_extra_phones import find_lead_by_any_phone, sync_lead_extra_phones
@@ -1379,6 +1380,10 @@ def _norm_patient_name(name: str) -> str:
     return " ".join((name or "").strip().lower().split())
 
 
+def _can_be_booking_responsible(role: UserRole | None) -> bool:
+    return can_be_booking_responsible(role)
+
+
 async def _find_lead_by_phone_for_booking(
     db: AsyncSession,
     *,
@@ -1467,8 +1472,12 @@ async def _upsert_lead_for_appointment(
     manager_id = responsible_manager_id
     if manager_id is not None:
         resp_user = await db.get(User, int(manager_id))
-        if resp_user is None or resp_user.company_id != company_id or resp_user.role != UserRole.manager:
-            # Владелец/админ воронки не могут быть ответственными за лид.
+        if (
+            resp_user is None
+            or resp_user.company_id != company_id
+            or not _can_be_booking_responsible(resp_user.role)
+        ):
+            # Владелец / прочие роли не становятся ответственными; admin и manager — да.
             manager_id = None
     if manager_id is None and pipeline_id is not None:
         pipe = await db.get(Pipeline, int(pipeline_id))
@@ -1984,10 +1993,16 @@ async def create_appointment(
 
     lead_id = body.lead_id
     appointment_pipeline_id: int | None = None
-    resolved_manager_id = body.responsible_manager_id
+    # Админ не выбирает ответственного: только авто (CRM-менеджер или сам админ).
+    admin_auto = current_user.role == UserRole.admin
+    resolved_manager_id = None if admin_auto else body.responsible_manager_id
     if resolved_manager_id is not None:
         resp_user = await db.get(User, int(resolved_manager_id))
-        if resp_user is None or resp_user.company_id != company_id or resp_user.role != UserRole.manager:
+        if (
+            resp_user is None
+            or resp_user.company_id != company_id
+            or not _can_be_booking_responsible(resp_user.role)
+        ):
             resolved_manager_id = None
             if current_user.role == UserRole.manager and float(body.paid_amount or 0) > 0:
                 raise HTTPException(
@@ -2002,20 +2017,19 @@ async def create_appointment(
         appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
         if lead.manager_id is not None:
             resolved_manager_id = lead.manager_id
-        elif (
-            resolved_manager_id is None
-            and current_user.role == UserRole.manager
-        ):
+        elif resolved_manager_id is None and current_user.role in (UserRole.manager, UserRole.admin):
             resolved_manager_id = current_user.id
-            if lead.manager_id is None:
-                lead.manager_id = current_user.id
+            lead.manager_id = current_user.id
     else:
+        upsert_responsible = (
+            int(current_user.id) if admin_auto else body.responsible_manager_id
+        )
         lead_id = await _upsert_lead_for_appointment(
             db,
             company_id=company_id,
             patient_name=body.patient_name,
             patient_phone=body.patient_phone,
-            responsible_manager_id=body.responsible_manager_id,
+            responsible_manager_id=upsert_responsible,
             lead_pipeline_id=body.lead_pipeline_id,
             lead_stage_id=body.lead_stage_id,
         )
@@ -2028,6 +2042,9 @@ async def create_appointment(
                     appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
                 if lead.manager_id is not None:
                     resolved_manager_id = lead.manager_id
+                elif admin_auto:
+                    resolved_manager_id = int(current_user.id)
+                    lead.manager_id = int(current_user.id)
 
     service_amount_value = float(body.service_amount)
     paid_amount_value = float(body.paid_amount or 0)
@@ -2416,9 +2433,13 @@ async def patch_appointment_status(
                     lead = await db.get(Lead, int(bill_target.lead_id))
                     if lead is not None and lead.manager_id is not None:
                         mgr = await db.get(User, int(lead.manager_id))
-                        if mgr is not None and mgr.role == UserRole.manager and mgr.company_id == company_id:
+                        if (
+                            mgr is not None
+                            and mgr.company_id == company_id
+                            and _can_be_booking_responsible(mgr.role)
+                        ):
                             mid = int(lead.manager_id)
-                if mid is None and current_user.role == UserRole.manager:
+                if mid is None and current_user.role in (UserRole.manager, UserRole.admin):
                     mid = int(current_user.id)
                 if mid is not None:
                     bill_target.responsible_manager_id = mid
@@ -2574,7 +2595,7 @@ async def patch_appointment_payment(
     elif new_paid <= 0:
         target.payment_method = None
     target.updated_at = datetime.now(UTC)
-    # Чтобы полная оплата попала в KPI менеджера — нужен responsible_manager_id.
+    # Чтобы полная оплата попала в KPI — нужен responsible_manager_id.
     if target.responsible_manager_id is None:
         mid: int | None = None
         lead = None
@@ -2582,9 +2603,13 @@ async def patch_appointment_payment(
             lead = await db.get(Lead, int(target.lead_id))
             if lead is not None and lead.manager_id is not None:
                 mgr = await db.get(User, int(lead.manager_id))
-                if mgr is not None and mgr.role == UserRole.manager and mgr.company_id == company_id:
+                if (
+                    mgr is not None
+                    and mgr.company_id == company_id
+                    and _can_be_booking_responsible(mgr.role)
+                ):
                     mid = int(lead.manager_id)
-        if mid is None and current_user.role == UserRole.manager:
+        if mid is None and current_user.role in (UserRole.manager, UserRole.admin):
             mid = int(current_user.id)
             if lead is not None and lead.manager_id is None:
                 lead.manager_id = mid

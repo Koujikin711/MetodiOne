@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -180,7 +180,20 @@ class SalesKpiManualSaleCreate(BaseModel):
     stream_no: int = Field(..., ge=1, le=10, description="Номер потока (Поток 1…10)")
     group_no: int = Field(..., ge=1, le=20, description="Номер группы (Группа 1…20)")
     service_amount: Decimal = Field(..., gt=0)
-    paid_amount: Decimal = Field(default=Decimal("0"), ge=0)
+    paid_amount: Decimal = Field(default=Decimal("0"), ge=0, description="Сумма первого платежа")
+    second_paid_amount: Decimal = Field(
+        default=Decimal("0"),
+        ge=0,
+        description="Сумма второго платежа (0 если только первый)",
+    )
+    first_paid_at: date | datetime | None = Field(
+        default=None,
+        description="Дата первого платежа (YYYY-MM-DD); пусто = сегодня",
+    )
+    second_paid_at: date | datetime | None = Field(
+        default=None,
+        description="Дата второго платежа (YYYY-MM-DD); пусто = сегодня",
+    )
     sold_at: datetime | None = None
     note: str | None = None
 
@@ -189,6 +202,10 @@ class SalesKpiManualSalePaymentPatch(BaseModel):
     """Доплата по курсу/протоколу (не перезапись итога)."""
 
     add_amount: Decimal = Field(..., gt=0, description="Сумма доплаты")
+    paid_at: date | datetime | None = Field(
+        default=None,
+        description="Дата доплаты (YYYY-MM-DD); пусто = сегодня — месяц выручки",
+    )
     note: str | None = None
 
 

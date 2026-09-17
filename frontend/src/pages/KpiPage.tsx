@@ -21,6 +21,14 @@ import type {
 
 type TabId = "plan" | "sales" | "company" | "manual" | "debtors";
 
+function todayYmd(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 type PlanDraftItem = {
   key: string;
   name: string;
@@ -266,9 +274,13 @@ export function KpiPage() {
     client_phone: "",
     service_amount: "",
     paid_amount: "",
+    second_paid_amount: "",
+    first_paid_at: todayYmd(),
+    second_paid_at: todayYmd(),
     note: "",
   });
   const [payDraft, setPayDraft] = useState<Record<number, string>>({});
+  const [payDateDraft, setPayDateDraft] = useState<Record<number, string>>({});
   const [expandedDebtorKey, setExpandedDebtorKey] = useState<string | null>(null);
 
   const pipelinesQuery = useQuery({
@@ -415,6 +427,9 @@ export function KpiPage() {
           client_phone: saleForm.client_phone.trim(),
           service_amount: Number(saleForm.service_amount),
           paid_amount: Number(saleForm.paid_amount || 0),
+          second_paid_amount: Number(saleForm.second_paid_amount || 0),
+          first_paid_at: saleForm.first_paid_at || todayYmd(),
+          second_paid_at: saleForm.second_paid_at || todayYmd(),
           note: saleForm.note.trim() || null,
         }),
       });
@@ -430,28 +445,34 @@ export function KpiPage() {
         client_phone: "",
         service_amount: "",
         paid_amount: "",
+        second_paid_amount: "",
+        first_paid_at: todayYmd(),
+        second_paid_at: todayYmd(),
         note: "",
       });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const payMutation = useMutation({
-    mutationFn: async ({ id, add }: { id: number; add: number }) => {
+    mutationFn: async ({ id, add, paid_at }: { id: number; add: number; paid_at: string }) => {
       await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${id}/payment`, {
         method: "PATCH",
-        body: JSON.stringify({ add_amount: add }),
+        body: JSON.stringify({ add_amount: add, paid_at: paid_at || todayYmd() }),
       });
     },
     onSuccess: () => {
       toast.success("Доплата записана в журнал");
       setPayDraft({});
+      setPayDateDraft({});
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1187,6 +1208,45 @@ export function KpiPage() {
                   onChange={(e) => setSaleForm((s) => ({ ...s, paid_amount: e.target.value }))}
                 />
               </label>
+              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                Дата 1-го платежа
+                <input
+                  type="date"
+                  required
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                  value={saleForm.first_paid_at}
+                  onChange={(e) =>
+                    setSaleForm((s) => ({ ...s, first_paid_at: e.target.value || todayYmd() }))
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                Второй платёж
+                <input
+                  type="number"
+                  min={0}
+                  inputMode="decimal"
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                  value={saleForm.second_paid_amount}
+                  onChange={(e) => setSaleForm((s) => ({ ...s, second_paid_amount: e.target.value }))}
+                  placeholder="0"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                Дата 2-го платежа
+                <input
+                  type="date"
+                  required
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                  value={saleForm.second_paid_at}
+                  onChange={(e) =>
+                    setSaleForm((s) => ({ ...s, second_paid_at: e.target.value || todayYmd() }))
+                  }
+                />
+                <span className="text-[10px] leading-snug text-[var(--mo-text-muted)]">
+                  пусто → сегодня; выручка по месяцу даты, KPI менеджера — только 1-й платёж
+                </span>
+              </label>
               <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:text-sm lg:col-span-4">
                 Комментарий
                 <input
@@ -1254,6 +1314,18 @@ export function KpiPage() {
                       value={payDraft[s.id] ?? ""}
                       onChange={(e) => setPayDraft((prev) => ({ ...prev, [s.id]: e.target.value }))}
                     />
+                    <input
+                      type="date"
+                      className="kpi-cell-input !min-h-10 w-[9.5rem] text-sm"
+                      aria-label="Дата доплаты"
+                      value={payDateDraft[s.id] ?? todayYmd()}
+                      onChange={(e) =>
+                        setPayDateDraft((prev) => ({
+                          ...prev,
+                          [s.id]: e.target.value || todayYmd(),
+                        }))
+                      }
+                    />
                     <button
                       type="button"
                       className="kpi-action kpi-action--ok shrink-0"
@@ -1262,6 +1334,7 @@ export function KpiPage() {
                         payMutation.mutate({
                           id: s.id,
                           add: Number(payDraft[s.id] || 0),
+                          paid_at: payDateDraft[s.id] || todayYmd(),
                         })
                       }
                     >
@@ -1335,7 +1408,7 @@ export function KpiPage() {
                       {s.status === "returned" || num(s.debt_amount) <= 0 ? (
                         formatMoney(num(s.paid_amount))
                       ) : (
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span className="tabular-nums">{formatMoney(num(s.paid_amount))}</span>
                           <input
                             type="number"
@@ -1346,6 +1419,18 @@ export function KpiPage() {
                             value={payDraft[s.id] ?? ""}
                             onChange={(e) => setPayDraft((prev) => ({ ...prev, [s.id]: e.target.value }))}
                           />
+                          <input
+                            type="date"
+                            className="kpi-cell-input w-[9.5rem]"
+                            aria-label="Дата доплаты"
+                            value={payDateDraft[s.id] ?? todayYmd()}
+                            onChange={(e) =>
+                              setPayDateDraft((prev) => ({
+                                ...prev,
+                                [s.id]: e.target.value || todayYmd(),
+                              }))
+                            }
+                          />
                           <button
                             type="button"
                             className="kpi-action kpi-action--ok"
@@ -1354,6 +1439,7 @@ export function KpiPage() {
                               payMutation.mutate({
                                 id: s.id,
                                 add: Number(payDraft[s.id] || 0),
+                                paid_at: payDateDraft[s.id] || todayYmd(),
                               })
                             }
                           >
@@ -1746,7 +1832,7 @@ function CompanyReportSection({
         <p className="mt-1 hidden text-sm lux-caption sm:block">
           {hideBookingExperts
             ? "Сводка за выбранный месяц (не сумма с прошлых). Выручка = продажи стола + платежи по курсам с датой в этом месяце. Дебиторка — остаток на конец месяца с переносом."
-            : "Сводка за месяц. Выручка = оплаты по визитам (касса CRM, включая оплаченные неявки). Курсы KPI в выручку не входят — иначе двойной счёт. Дебиторка = остаток по визитам + долги пакетов курсов/протоколов на конец месяца."}
+            : "Сводка за месяц. Выручка = оплаты визитов + платежи курсов/протоколов KPI по дате платежа (1-й в августе, доплата в сентябре — в разные месяцы). KPI менеджера — только первый платёж. Дебиторка = остаток визитов + долги пакетов."}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-4">
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
@@ -1771,7 +1857,7 @@ function CompanyReportSection({
                 ? `стол ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}`
                 : `визиты ${formatMoney(data.revenue_booking)}${
                     Number(data.revenue_manual) > 0
-                      ? ` · курсы KPI ${formatMoney(data.revenue_manual)} (не в сумме)`
+                      ? ` · курсы KPI ${formatMoney(data.revenue_manual)}`
                       : ""
                   }`}
             </div>
