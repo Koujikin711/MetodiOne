@@ -1504,8 +1504,8 @@ export function KpiPage() {
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Дебиторка</h2>
               <p className="mt-1 hidden text-sm lux-caption sm:block">
-                Открытые долги на конец выбранного месяца: тянутся из прошлых месяцев, пока клиент не
-                закроет долг (или курс/протокол не закрыт статусом отказ/завершён).
+                Долг по записям — только прошедшие визиты со статусом «Пришёл» (неявка и будущие записи не
+                считаются). Курсы/протоколы тянутся, пока клиент не закроет долг или статус отказ/завершён.
               </p>
             </div>
             <p className="text-xs mo-muted sm:text-sm">

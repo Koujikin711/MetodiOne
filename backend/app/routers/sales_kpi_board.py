@@ -73,6 +73,7 @@ from app.services.sales_kpi_weighted import (
     load_specialist_facts_full_paid,
     month_bounds,
     paid_at_from_input,
+    booking_debt_cutoff,
     parse_year_month,
     shift_year_month,
     sum_specialist_facts_company,
@@ -244,6 +245,10 @@ def _manual_counts_in_kpi(service_amount: Decimal, first_paid_amount: Decimal, s
 
 def _paid_at_from_input(raw: date | datetime | None, *, fallback: datetime | None = None) -> datetime:
     return paid_at_from_input(raw, fallback=fallback)
+
+
+def _booking_debt_cutoff(month_end: datetime, *, now: datetime | None = None) -> datetime:
+    return booking_debt_cutoff(month_end, now=now)
 
 
 def _payment_out(row: SalesKpiManualSalePayment) -> SalesKpiManualSalePaymentOut:
@@ -958,7 +963,9 @@ async def debtors_report(
             )
         ).scalars().all()
     else:
-        # Дебиторка записи тоже переносится: клиент всё ещё должен, даже если визит был в прошлом месяце.
+        # Дебиторка записи: только прошедшие визиты со статусом «Пришёл».
+        # Неявка / отмена / будущие «Запись» — не долг.
+        debt_cutoff = _booking_debt_cutoff(end)
         booking_q = (
             await db.execute(
                 select(BookingAppointment, BookingDirection.name, Lead.manager_id)
@@ -967,10 +974,9 @@ async def debtors_report(
                 .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
                 .where(
                     BookingAppointment.company_id == company_id,
-                    BookingAppointment.start_at < end,
+                    BookingAppointment.start_at < debt_cutoff,
                     BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                    # Неявки и отмены — не долг (услугу не оказали).
-                    BookingAppointment.status.notin_(("no_show", "cancelled")),
+                    BookingAppointment.status == "completed",
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,
@@ -1361,10 +1367,11 @@ async def company_report(
                 else:
                     bucket["revenue_paid"] += pa
                     revenue_booking += pa
-                    debt = max(sa - pa, Decimal("0"))
-                    if debt > 0:
-                        bucket["debtor_amount"] += debt
+                    # Долг только по явке (completed); «Запись»/будущее/неявка — не дебиторка.
                     if st == "completed":
+                        debt = max(sa - pa, Decimal("0"))
+                        if debt > 0:
+                            bucket["debtor_amount"] += debt
                         bucket["appeared_count"] += 1
                         if sa <= 0 or pa + Decimal("0.01") >= sa:
                             bucket["paid_full_amount"] += pa
@@ -1378,7 +1385,8 @@ async def company_report(
                             creditor_total += cred
                             bucket["booked_future_count"] += 1
 
-        # Дебиторка записи на конец месяца — с переносом прошлых визитов.
+        # Дебиторка записи: прошедшие явки с остатком (неявка/будущее не входят).
+        debt_cutoff = _booking_debt_cutoff(end, now=now)
         open_booking_debt = (
             await db.execute(
                 select(BookingAppointment.service_amount, BookingAppointment.paid_amount)
@@ -1387,9 +1395,9 @@ async def company_report(
                 .outerjoin(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
                 .where(
                     BookingAppointment.company_id == company_id,
-                    BookingAppointment.start_at < end,
+                    BookingAppointment.start_at < debt_cutoff,
                     BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                    BookingAppointment.status.notin_(("no_show", "cancelled")),
+                    BookingAppointment.status == "completed",
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,

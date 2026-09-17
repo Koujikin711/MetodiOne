@@ -65,6 +65,15 @@ def paid_at_from_input(raw: date | datetime | None, *, fallback: datetime | None
     return datetime.now(UTC)
 
 
+def booking_debt_cutoff(month_end: datetime, *, now: datetime | None = None) -> datetime:
+    """Дебиторка записи: только прошедшее время (не будущее внутри выбранного месяца)."""
+    n = now or datetime.now(UTC)
+    if n.tzinfo is None:
+        n = n.replace(tzinfo=UTC)
+    end = month_end if month_end.tzinfo else month_end.replace(tzinfo=UTC)
+    return n if n < end else end
+
+
 def kpi_booking_created_cutoff(ym: date) -> datetime | None:
     """Нижняя граница created_at для факта KPI, или None если фильтр не нужен."""
     if ym < KPI_EXCLUDE_PRE_JULY_BOOKINGS_FROM:
