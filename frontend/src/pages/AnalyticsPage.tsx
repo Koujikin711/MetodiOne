@@ -1,19 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { appLexicon } from "@/lib/appLexicon";
 import { formatMoney } from "@/lib/money";
+import { AnalyticsServicesCharts } from "@/components/analytics/AnalyticsServicesCharts";
 import { DateField } from "@/components/DateField";
-import { ServiceRevenueCharts } from "@/components/ServiceRevenueCharts";
 import type {
   AnalyticsOverviewRead,
   DetailedAnalyticsRead,
   FullAnalyticsRead,
   ManagerPerformanceItem,
   Pipeline,
-  SalesKpiCompanyReport,
+  ServicesAnalyticsExpertStat,
+  ServicesAnalyticsRead,
+  ServicesAnalyticsServiceStat,
 } from "@/lib/types";
+
+type AnalyticsDimension = "managers" | "services";
 
 const moneyFmt = { format: (n: number) => formatMoney(n, { digits: 0 }) };
 
@@ -88,40 +92,6 @@ function AnalyticsTable({ children, minWidth = 480 }: { children: ReactNode; min
   );
 }
 
-function yearMonthFor(period: "day" | "month" | "custom", dateFrom: string): string {
-  if (period === "custom" && /^\d{4}-\d{2}/.test(dateFrom)) return dateFrom.slice(0, 7);
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function ServicesBoard({ pipelineId, yearMonth }: { pipelineId: number; yearMonth: string }) {
-  const qs = useMemo(() => {
-    const p = new URLSearchParams();
-    p.set("pipeline_id", String(pipelineId));
-    p.set("year_month", yearMonth);
-    return p.toString();
-  }, [pipelineId, yearMonth]);
-  const query = useQuery({
-    queryKey: ["analytics-services", qs],
-    queryFn: () =>
-      apiFetch<SalesKpiCompanyReport>(`/api/sales-kpi/company-report?${qs}`, { timeoutMs: 60_000 }),
-  });
-  if (query.isLoading) return <p className="lux-caption px-1">Загрузка услуг…</p>;
-  if (query.isError) return <p className="analytics-error">{(query.error as Error).message}</p>;
-  if (!query.data) return null;
-  const data = query.data;
-  return (
-    <section className="space-y-3">
-      <div className="analytics-kpi-grid sm:grid-cols-3">
-        <MetricCard label="Выручка" value={moneyFmt.format(Number(data.revenue_total))} tone="success" />
-        <MetricCard label="Дебиторка" value={moneyFmt.format(Number(data.debtor_total))} tone="warning" />
-        <MetricCard label="Услуг в сводке" value={(data.service_stats ?? []).length} tone="accent" />
-      </div>
-      <ServiceRevenueCharts services={data.service_stats ?? []} experts={data.expert_stats ?? []} />
-    </section>
-  );
-}
-
 function analyticsErrorText(message: string): string {
   if (/date_from|date_to/i.test(message) || /дат/i.test(message)) {
     return "Выберите даты «С» и «По» — без них период не считается.";
@@ -131,13 +101,22 @@ function analyticsErrorText(message: string): string {
 
 export function AnalyticsPage() {
   const lex = appLexicon;
-  const [mode, setMode] = useState<"overview" | "full" | "detailed" | "services">("overview");
+  const [dimension, setDimension] = useState<AnalyticsDimension>("managers");
+  const [mode, setMode] = useState<"overview" | "full" | "detailed">("overview");
   const [period, setPeriod] = useState<"day" | "month" | "custom">("day");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [pipelineId, setPipelineId] = useState<number | "all">("all");
 
   const periodReady = period !== "custom" || Boolean(dateFrom && dateTo);
+  const managersMode = dimension === "managers";
+  const servicesMode = dimension === "services";
+
+  useEffect(() => {
+    if (!servicesMode) return;
+    // Для услуг удобнее сразу «за месяц» — живые данные клиники.
+    setPeriod((p) => (p === "day" ? "month" : p));
+  }, [servicesMode]);
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -154,49 +133,196 @@ export function AnalyticsPage() {
     queryKey: ["pipelines-for-analytics"],
     queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
   });
-  const servicesPipelineId = pipelineId === "all" ? (pipelinesQuery.data ?? [])[0]?.id : pipelineId;
+
+  const pipelines = pipelinesQuery.data ?? [];
+  const servicesPipelineId = typeof pipelineId === "number" ? pipelineId : pipelines[0]?.id ?? null;
+
+  useEffect(() => {
+    if (!servicesMode) return;
+    if (typeof pipelineId === "number") return;
+    const first = pipelines[0]?.id;
+    if (first != null) setPipelineId(first);
+  }, [servicesMode, pipelineId, pipelines]);
+
+  const servicesQs = useMemo(() => {
+    if (servicesPipelineId == null) return "";
+    const p = new URLSearchParams();
+    p.set("pipeline_id", String(servicesPipelineId));
+    p.set("period", period);
+    if (period === "custom") {
+      if (dateFrom) p.set("date_from", dateFrom);
+      if (dateTo) p.set("date_to", dateTo);
+    }
+    return p.toString();
+  }, [servicesPipelineId, period, dateFrom, dateTo]);
 
   const fullQuery = useQuery({
     queryKey: ["analytics-full", qs],
     queryFn: () => apiFetch<FullAnalyticsRead>(`/api/analytics/full?${qs}`),
-    enabled: periodReady,
+    enabled: managersMode && periodReady,
   });
 
   const detailedQuery = useQuery({
     queryKey: ["analytics-detailed", qs],
     queryFn: () => apiFetch<DetailedAnalyticsRead>(`/api/analytics/detailed?${qs}`),
-    enabled: periodReady,
+    enabled: managersMode && periodReady,
   });
 
   const overviewQuery = useQuery({
     queryKey: ["analytics-overview", qs],
     queryFn: () => apiFetch<AnalyticsOverviewRead>(`/api/analytics/overview?${qs}`),
-    enabled: periodReady,
+    enabled: managersMode && periodReady,
   });
+
+  const servicesQuery = useQuery({
+    queryKey: ["analytics-services", servicesQs],
+    queryFn: async () => {
+      try {
+        return await apiFetch<ServicesAnalyticsRead>(`/api/analytics/services?${servicesQs}`, {
+          timeoutMs: 60_000,
+        });
+      } catch (err) {
+        // Fallback пока бэкенд Amvera без /analytics/services: отчёт компании за месяц.
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!/404|Not Found|Failed to fetch|Network/i.test(msg) && !/не найден/i.test(msg)) {
+          // Если это 403/401 — пробрасываем
+          if (/403|401|доступ|Unauthorized|Forbidden/i.test(msg)) throw err;
+        }
+        const ym =
+          period === "custom" && dateFrom
+            ? dateFrom.slice(0, 7)
+            : (() => {
+                const d = new Date();
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+              })();
+        if (servicesPipelineId == null) throw err;
+        const cr = await apiFetch<{
+          pipeline_id: number;
+          pipeline_name: string;
+          year_month: string;
+          revenue_total: string | number;
+          debtor_total: string | number;
+          creditor_total?: string | number;
+          service_stats?: ServicesAnalyticsServiceStat[];
+          expert_stats?: ServicesAnalyticsExpertStat[];
+        }>(`/api/sales-kpi/company-report?pipeline_id=${servicesPipelineId}&year_month=${ym}`, {
+          timeoutMs: 60_000,
+        });
+        const [y, m] = ym.split("-").map(Number);
+        const last = new Date(y, m, 0).getDate();
+        return {
+          pipeline_id: cr.pipeline_id,
+          pipeline_name: cr.pipeline_name,
+          period: "month",
+          period_start: `${ym}-01`,
+          period_end: `${ym}-${String(last).padStart(2, "0")}`,
+          date_from: `${ym}-01`,
+          date_to: `${ym}-${String(last).padStart(2, "0")}`,
+          revenue_total: cr.revenue_total,
+          debtor_total: cr.debtor_total,
+          creditor_total: cr.creditor_total ?? 0,
+          service_stats: cr.service_stats ?? [],
+          expert_stats: (cr.expert_stats ?? []).map((e) => ({
+            ...e,
+            booked_count: 0,
+          })),
+        } satisfies ServicesAnalyticsRead;
+      }
+    },
+    enabled: servicesMode && Boolean(servicesQs) && periodReady,
+  });
+
+  const servicesLiveEmpty =
+    Boolean(servicesQuery.data) &&
+    (servicesQuery.data?.service_stats ?? []).length === 0 &&
+    Number(servicesQuery.data?.revenue_total ?? 0) === 0;
+
+  const snapshotQuery = useQuery({
+    queryKey: ["analytics-services-snapshot"],
+    queryFn: async () => {
+      const res = await fetch("/reports/services-analytics-snapshot.json");
+      if (!res.ok) throw new Error("Снимок отчёта не найден");
+      return (await res.json()) as {
+        pipeline_name: string;
+        year_month?: string;
+        period_start?: string;
+        period_end?: string;
+        revenue_total: number | string;
+        debtor_total: number | string;
+        service_stats: ServicesAnalyticsServiceStat[];
+        expert_stats: ServicesAnalyticsExpertStat[];
+      };
+    },
+    enabled: servicesMode && servicesLiveEmpty,
+    staleTime: Infinity,
+  });
+
+  const chartServices =
+    !servicesLiveEmpty && servicesQuery.data
+      ? (servicesQuery.data.service_stats ?? [])
+      : (snapshotQuery.data?.service_stats ?? []);
+  const chartExperts =
+    !servicesLiveEmpty && servicesQuery.data
+      ? (servicesQuery.data.expert_stats ?? [])
+      : (snapshotQuery.data?.expert_stats ?? []);
+
+  const htmlReportHref = useMemo(() => {
+    const p = new URLSearchParams();
+    p.set("period", period);
+    if (period === "custom") {
+      if (dateFrom) p.set("date_from", dateFrom);
+      if (dateTo) p.set("date_to", dateTo);
+    }
+    if (servicesPipelineId != null) p.set("pipeline_id", String(servicesPipelineId));
+    if (servicesLiveEmpty) p.set("snapshot", "1");
+    const q = p.toString();
+    return `/reports/services-analytics.html${q ? `?${q}` : ""}`;
+  }, [period, dateFrom, dateTo, servicesPipelineId, servicesLiveEmpty]);
 
   return (
     <div className="analytics-page mo-fill-page">
       <header className="mo-admin-page-head analytics-page-header">
         <h1 className="lux-heading-page">{lex.analyticsTitle}</h1>
         <p className="lux-body mt-1.5 max-w-2xl">{lex.analyticsIntro}</p>
+        <div className="crm-view-switch mt-3 inline-flex" role="tablist" aria-label="Раздел аналитики">
+          <button
+            type="button"
+            role="tab"
+            data-active={managersMode ? "true" : "false"}
+            aria-selected={managersMode}
+            onClick={() => setDimension("managers")}
+          >
+            Менеджеры
+          </button>
+          <button
+            type="button"
+            role="tab"
+            data-active={servicesMode ? "true" : "false"}
+            aria-selected={servicesMode}
+            onClick={() => setDimension("services")}
+          >
+            Услуги
+          </button>
+        </div>
       </header>
 
       <div className="mo-fill-page-scroll space-y-5 pt-4">
       <section className="mo-section analytics-toolbar-section p-4 sm:p-5">
         <div className="analytics-toolbar">
-          <label className="analytics-toolbar-field">
-            <span>Режим</span>
-            <select
-              value={mode}
-              onChange={(e) => setMode(e.target.value as "overview" | "full" | "detailed" | "services")}
-              className="mo-input"
-            >
-              <option value="overview">Обзор 360</option>
-              <option value="full">Полная</option>
-              <option value="detailed">Детальная</option>
-              <option value="services">Услуги</option>
-            </select>
-          </label>
+          {managersMode ? (
+            <label className="analytics-toolbar-field">
+              <span>Режим</span>
+              <select
+                value={mode}
+                onChange={(e) => setMode(e.target.value as "overview" | "full" | "detailed")}
+                className="mo-input"
+              >
+                <option value="overview">Обзор 360</option>
+                <option value="full">Полная</option>
+                <option value="detailed">Детальная</option>
+              </select>
+            </label>
+          ) : null}
           <label className="analytics-toolbar-field">
             <span>Период</span>
             <select
@@ -204,7 +330,7 @@ export function AnalyticsPage() {
               onChange={(e) => setPeriod(e.target.value as "day" | "month" | "custom")}
               className="mo-input"
             >
-              <option value="day">За день (18:00→17:00)</option>
+              <option value="day">{managersMode ? "За день (18:00→17:00)" : "За день"}</option>
               <option value="month">За месяц</option>
               <option value="custom">Свой период</option>
             </select>
@@ -212,19 +338,38 @@ export function AnalyticsPage() {
           <label className="analytics-toolbar-field">
             <span>Воронка</span>
             <select
-              value={pipelineId === "all" ? "all" : String(pipelineId)}
-              onChange={(e) => setPipelineId(e.target.value === "all" ? "all" : Number(e.target.value))}
+              value={
+                servicesMode
+                  ? servicesPipelineId != null
+                    ? String(servicesPipelineId)
+                    : ""
+                  : pipelineId === "all"
+                    ? "all"
+                    : String(pipelineId)
+              }
+              onChange={(e) => {
+                if (servicesMode) {
+                  setPipelineId(Number(e.target.value));
+                  return;
+                }
+                setPipelineId(e.target.value === "all" ? "all" : Number(e.target.value));
+              }}
               className="mo-input"
             >
-              <option value="all">{lex.pipelineAll}</option>
-              {(pipelinesQuery.data ?? []).map((p) => (
+              {!servicesMode ? <option value="all">{lex.pipelineAll}</option> : null}
+              {pipelines.length === 0 && servicesMode ? <option value="">Нет воронок</option> : null}
+              {pipelines.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
               ))}
             </select>
           </label>
-          <label className={["analytics-toolbar-field", period === "custom" && !dateFrom ? "is-needed" : ""].filter(Boolean).join(" ")}>
+          <label
+            className={["analytics-toolbar-field", period === "custom" && !dateFrom ? "is-needed" : ""]
+              .filter(Boolean)
+              .join(" ")}
+          >
             <span>С</span>
             <DateField
               value={dateFrom}
@@ -233,7 +378,11 @@ export function AnalyticsPage() {
               aria-label="Дата с"
             />
           </label>
-          <label className={["analytics-toolbar-field", period === "custom" && !dateTo ? "is-needed" : ""].filter(Boolean).join(" ")}>
+          <label
+            className={["analytics-toolbar-field", period === "custom" && !dateTo ? "is-needed" : ""]
+              .filter(Boolean)
+              .join(" ")}
+          >
             <span>По</span>
             <DateField
               value={dateTo}
@@ -242,9 +391,51 @@ export function AnalyticsPage() {
               aria-label="Дата по"
             />
           </label>
+          {servicesMode ? (
+            <a
+              className="btn-secondary analytics-export-btn analytics-html-link"
+              href={htmlReportHref}
+              target="_blank"
+              rel="noreferrer"
+            >
+              HTML-отчёт с графиками
+            </a>
+          ) : null}
           <button
             type="button"
             onClick={() => {
+              if (servicesMode && chartServices.length) {
+                const stamp =
+                  servicesQuery.data?.date_from && servicesQuery.data?.date_to
+                    ? `${servicesQuery.data.date_from}_${servicesQuery.data.date_to}`
+                    : period;
+                downloadCsv(
+                  `analytics_services_${stamp}.csv`,
+                  [
+                    "Услуга",
+                    "Записей",
+                    "Явились",
+                    "Не явились",
+                    "Ещё booked",
+                    "Оплачено полностью",
+                    "Оплачено при неявке",
+                    "Всего оплат",
+                    "Дебиторка",
+                  ],
+                  chartServices.map((s) => [
+                    s.direction_name,
+                    s.appointments_total,
+                    s.appeared_count,
+                    s.no_show_count,
+                    s.booked_count ?? 0,
+                    Number(s.paid_full_amount ?? 0),
+                    Number(s.paid_no_show_amount ?? 0),
+                    Number(s.revenue_paid),
+                    Number(s.debtor_amount ?? 0),
+                  ]),
+                );
+                return;
+              }
               if (mode === "overview" && overviewQuery.data) {
                 downloadCsv(
                   "analytics_overview_managers.csv",
@@ -318,15 +509,181 @@ export function AnalyticsPage() {
         </div>
       </section>
 
-      {mode === "services" ? (
-        servicesPipelineId ? (
-          <ServicesBoard pipelineId={servicesPipelineId} yearMonth={yearMonthFor(period, dateFrom)} />
-        ) : (
-          <p className="analytics-hint">Выберите воронку — сводка услуг считается по одной воронке.</p>
-        )
-      ) : null}
+      {servicesMode && (
+        <section className="space-y-4">
+          {servicesPipelineId == null ? (
+            <p className="analytics-hint">Сначала создайте воронку — без неё сводка по услугам недоступна.</p>
+          ) : null}
+          {servicesPipelineId != null && servicesQuery.isError ? (
+            <p className="analytics-error">{analyticsErrorText((servicesQuery.error as Error).message)}</p>
+          ) : null}
+          {servicesQuery.isLoading ? <p className="lux-caption px-1">Загрузка…</p> : null}
+          {servicesQuery.data ? (
+            <>
+              <div className="analytics-kpi-grid sm:grid-cols-2 lg:grid-cols-4">
+                <MetricCard
+                  label="Выручка"
+                  value={moneyFmt.format(
+                    Number(
+                      servicesLiveEmpty
+                        ? (snapshotQuery.data?.revenue_total ?? 0)
+                        : servicesQuery.data.revenue_total,
+                    ),
+                  )}
+                  tone="success"
+                />
+                <MetricCard
+                  label="Дебиторка"
+                  value={moneyFmt.format(
+                    Number(
+                      servicesLiveEmpty
+                        ? (snapshotQuery.data?.debtor_total ?? 0)
+                        : servicesQuery.data.debtor_total,
+                    ),
+                  )}
+                  tone="warning"
+                />
+                <MetricCard
+                  label="Услуг в сводке"
+                  value={chartServices.length}
+                  tone="accent"
+                />
+                <MetricCard
+                  label="Воронка"
+                  value={
+                    servicesLiveEmpty
+                      ? (snapshotQuery.data?.pipeline_name ?? servicesQuery.data.pipeline_name)
+                      : servicesQuery.data.pipeline_name
+                  }
+                  tone="neutral"
+                  hint={
+                    servicesLiveEmpty
+                      ? (snapshotQuery.data?.year_month ??
+                          snapshotQuery.data?.period_start ??
+                          "снимок")
+                      : `${servicesQuery.data.date_from ?? ""} → ${servicesQuery.data.date_to ?? ""}`
+                  }
+                />
+              </div>
 
-      {mode === "overview" && (
+              {servicesLiveEmpty ? (
+                <p className="analytics-hint">
+                  В этой базе за месяц пусто — ниже графики из снимка августа 2026 (live CRM). Полный
+                  HTML-отчёт:{" "}
+                  <a href={htmlReportHref} target="_blank" rel="noreferrer">
+                    /reports/services-analytics.html
+                  </a>
+                </p>
+              ) : null}
+
+              <AnalyticsServicesCharts services={chartServices} experts={chartExperts} />
+
+              <AnalyticsPanel title="По услугам">
+                <p className="analytics-panel-note">
+                  Отдельно: Курс, Курс 15, Протокол, Массаж и т.д. — итог по клинике за месяц.
+                </p>
+                <AnalyticsTable minWidth={1100}>
+                  <thead>
+                    <tr>
+                      <th className="py-2 pr-3">Услуга</th>
+                      <th className="py-2 pr-3">Записей</th>
+                      <th className="py-2 pr-3">Явились</th>
+                      <th className="py-2 pr-3">Не явились</th>
+                      <th className="py-2 pr-3">Ещё booked</th>
+                      <th className="py-2 pr-3">Оплачено полностью</th>
+                      <th className="py-2 pr-3">Оплачено при неявке</th>
+                      <th className="py-2 pr-3">Всего оплат</th>
+                      <th className="py-2 pr-3">Дебиторка</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chartServices.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="analytics-empty-cell">
+                          Нет записей за месяц
+                        </td>
+                      </tr>
+                    ) : (
+                      chartServices.map((s) => (
+                        <tr key={s.direction_id ?? s.direction_name}>
+                          <td className="py-2.5 pr-3 font-medium">{s.direction_name}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{s.appointments_total}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{s.appeared_count}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{s.no_show_count}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{s.booked_count ?? 0}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {moneyFmt.format(Number(s.paid_full_amount ?? 0))}
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {moneyFmt.format(Number(s.paid_no_show_amount ?? 0))}
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(s.revenue_paid))}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {moneyFmt.format(Number(s.debtor_amount ?? 0))}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </AnalyticsTable>
+              </AnalyticsPanel>
+
+              <AnalyticsPanel title="По экспертам">
+                <p className="analytics-panel-note">
+                  Сводка по специалисту. Детализация по услугам — в таблице выше.
+                </p>
+                <AnalyticsTable minWidth={1000}>
+                  <thead>
+                    <tr>
+                      <th className="py-2 pr-3">Эксперт</th>
+                      <th className="py-2 pr-3">Записей</th>
+                      <th className="py-2 pr-3">Явились</th>
+                      <th className="py-2 pr-3">Не явились</th>
+                      <th className="py-2 pr-3">Оплачено полностью</th>
+                      <th className="py-2 pr-3">Оплачено при неявке</th>
+                      <th className="py-2 pr-3">Всего оплат</th>
+                      <th className="py-2 pr-3">Дебиторка</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chartExperts.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="analytics-empty-cell">
+                          Нет данных за месяц
+                        </td>
+                      </tr>
+                    ) : (
+                      chartExperts.map((e) => (
+                        <tr key={e.specialist_id}>
+                          <td className="py-2.5 pr-3 font-medium">
+                            <div>{e.specialist_name}</div>
+                            {e.kpi_service_name ? (
+                              <div className="text-[10px] mo-muted">KPI: {e.kpi_service_name}</div>
+                            ) : null}
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">{e.appointments_total}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{e.appeared_count}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{e.no_show_count}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {moneyFmt.format(Number(e.paid_full_amount ?? 0))}
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">
+                            {moneyFmt.format(Number(e.paid_no_show_amount ?? 0))}
+                          </td>
+                          <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(e.revenue_paid))}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(e.debtor_amount))}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </AnalyticsTable>
+              </AnalyticsPanel>
+            </>
+          ) : null}
+        </section>
+      )}
+
+      {managersMode && mode === "overview" && (
         <section className="space-y-4">
           {!periodReady ? (
             <p className="analytics-hint">Выберите даты «С» и «По» — тогда покажем аналитику за этот период.</p>
@@ -586,7 +943,7 @@ export function AnalyticsPage() {
         </section>
       )}
 
-      {mode === "full" && (
+      {managersMode && mode === "full" && (
         <section className="space-y-4">
           {!periodReady ? (
             <p className="analytics-hint">Выберите даты «С» и «По» — тогда покажем аналитику за этот период.</p>
@@ -639,7 +996,7 @@ export function AnalyticsPage() {
         </section>
       )}
 
-      {mode === "detailed" && (
+      {managersMode && mode === "detailed" && (
         <section className="space-y-4">
           {!periodReady ? (
             <p className="analytics-hint">Выберите даты «С» и «По» — тогда покажем аналитику за этот период.</p>

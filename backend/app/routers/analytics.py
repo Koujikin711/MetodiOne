@@ -11,7 +11,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
-from app.models import BookingAppointment, ChatMessage, ChatThread, Lead, LeadAuditEvent, Pipeline, PipelineStage, SalesKpiPlan, User, UserPipelineAssignment, UserRole
+from app.models import (
+    BookingAppointment,
+    BookingDirection,
+    BookingSpecialist,
+    ChatMessage,
+    ChatThread,
+    Lead,
+    LeadAuditEvent,
+    Pipeline,
+    PipelineStage,
+    SalesKpiPlan,
+    User,
+    UserPipelineAssignment,
+    UserRole,
+)
 from app.schemas.analytics import (
     AnalyticsAlertsRead,
     AnalyticsOverviewRead,
@@ -24,6 +38,9 @@ from app.schemas.analytics import (
     ManagerPerformanceItem,
     ManagerPlanFactItem,
     PipelineFullAnalyticsItem,
+    ServicesAnalyticsExpertRow,
+    ServicesAnalyticsRead,
+    ServicesAnalyticsServiceRow,
     SourceAnalyticsItem,
     StageConversionItem,
 )
@@ -993,3 +1010,293 @@ async def analytics_customer_value(
     )
     total = total if total is not None else Decimal("0")
     return CustomerValueRead(customer_id=customer_id, value=Decimal(str(total)))
+
+
+def _services_calendar_bounds(
+    period: str,
+    date_from: str | None,
+    date_to: str | None,
+) -> tuple[datetime, datetime, str | None, str | None]:
+    """Календарные сутки в TZ клиники — для фильтра start_at записей."""
+    tz = _biz_tz()
+    now_local = datetime.now(tz)
+
+    if period == "day":
+        start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_local = start_local + timedelta(days=1)
+        d0 = start_local.date().isoformat()
+        return start_local.astimezone(UTC), end_local.astimezone(UTC), d0, d0
+
+    if period == "month":
+        start_local = datetime(now_local.year, now_local.month, 1, tzinfo=tz)
+        if now_local.month == 12:
+            end_local = datetime(now_local.year + 1, 1, 1, tzinfo=tz)
+        else:
+            end_local = datetime(now_local.year, now_local.month + 1, 1, tzinfo=tz)
+        last = (end_local - timedelta(days=1)).date().isoformat()
+        return (
+            start_local.astimezone(UTC),
+            end_local.astimezone(UTC),
+            start_local.date().isoformat(),
+            last,
+        )
+
+    if period == "custom":
+        if not date_from or not date_to:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Укажите даты начала и окончания периода",
+            )
+        try:
+            d_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+            d_to = datetime.strptime(date_to, "%Y-%m-%d").date()
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный формат дат") from e
+        if d_to < d_from:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Период задан неверно")
+        start_local = datetime(d_from.year, d_from.month, d_from.day, tzinfo=tz)
+        end_local = datetime(d_to.year, d_to.month, d_to.day, tzinfo=tz) + timedelta(days=1)
+        return (
+            start_local.astimezone(UTC),
+            end_local.astimezone(UTC),
+            d_from.isoformat(),
+            d_to.isoformat(),
+        )
+
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="period: day | month | custom")
+
+
+@router.get("/services", response_model=ServicesAnalyticsRead)
+async def analytics_services(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    period: str = Query("month"),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    pipeline_id: int = Query(..., ge=1),
+) -> ServicesAnalyticsRead:
+    """Аналитика по услугам за период: оплаты, явки, дебиторка по направлениям записи."""
+    _assert_owner(current_user)
+    pipe = await db.get(Pipeline, pipeline_id)
+    if pipe is None or pipe.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown pipeline_id")
+
+    start, end, df, dt = _services_calendar_bounds(period, date_from, date_to)
+    now = datetime.now(UTC)
+
+    appt_rows = (
+        await db.execute(
+            select(
+                BookingAppointment.specialist_id,
+                BookingAppointment.service_amount,
+                BookingAppointment.paid_amount,
+                BookingAppointment.status,
+                BookingAppointment.start_at,
+                BookingSpecialist.full_name,
+                BookingDirection.id,
+                BookingDirection.name,
+            )
+            .join(BookingSpecialist, BookingSpecialist.id == BookingAppointment.specialist_id)
+            .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+            .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
+            .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.start_at >= start,
+                BookingAppointment.start_at < end,
+                or_(
+                    BookingAppointment.pipeline_id == pipeline_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                    BookingDirection.pipeline_id == pipeline_id,
+                ),
+            ),
+        )
+    ).all()
+
+    expert_acc: dict[tuple[int, int], dict] = {}
+    revenue_total = Decimal("0")
+    creditor_total = Decimal("0")
+
+    for sid_raw, sa_raw, pa_raw, status_raw, start_at, spec_name, dir_id, dir_name in appt_rows:
+        sid = int(sid_raw)
+        did = int(dir_id) if dir_id is not None else 0
+        sa = Decimal(str(sa_raw or 0))
+        pa = Decimal(str(pa_raw or 0))
+        st = (status_raw or "").strip()
+        key = (sid, did)
+        if key not in expert_acc:
+            expert_acc[key] = {
+                "specialist_id": sid,
+                "specialist_name": str(spec_name or f"#{sid}"),
+                "direction_id": did if did else None,
+                "direction_name": str(dir_name) if dir_name else "—",
+                "appointments_total": 0,
+                "appeared_count": 0,
+                "booked_count": 0,
+                "no_show_count": 0,
+                "cancelled_count": 0,
+                "revenue_paid": Decimal("0"),
+                "paid_full_amount": Decimal("0"),
+                "paid_no_show_amount": Decimal("0"),
+                "debtor_amount": Decimal("0"),
+                "creditor_amount": Decimal("0"),
+            }
+        bucket = expert_acc[key]
+        if st == "cancelled":
+            bucket["cancelled_count"] += 1
+            continue
+        bucket["appointments_total"] += 1
+        if st == "no_show":
+            bucket["no_show_count"] += 1
+            if pa > 0:
+                bucket["paid_no_show_amount"] += pa
+                bucket["revenue_paid"] += pa
+                revenue_total += pa
+        else:
+            bucket["revenue_paid"] += pa
+            revenue_total += pa
+            debt = max(sa - pa, Decimal("0"))
+            if debt > 0:
+                bucket["debtor_amount"] += debt
+            if st == "completed":
+                bucket["appeared_count"] += 1
+                if sa <= 0 or pa + Decimal("0.01") >= sa:
+                    bucket["paid_full_amount"] += pa
+            elif st == "booked":
+                bucket["booked_count"] += 1
+                if start_at is not None and start_at.tzinfo is None:
+                    start_at = start_at.replace(tzinfo=UTC)
+                if start_at is not None and start_at > now and pa > 0:
+                    bucket["creditor_amount"] += pa
+                    creditor_total += pa
+
+    # Дебиторка на конец периода: открытые визиты с start_at < end
+    open_debt_rows = (
+        await db.execute(
+            select(BookingAppointment.service_amount, BookingAppointment.paid_amount)
+            .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
+            .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
+            .outerjoin(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.start_at < end,
+                BookingAppointment.service_amount > BookingAppointment.paid_amount,
+                BookingAppointment.status.notin_(("no_show", "cancelled")),
+                or_(
+                    BookingAppointment.pipeline_id == pipeline_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                    BookingDirection.pipeline_id == pipeline_id,
+                ),
+            ),
+        )
+    ).all()
+    debtor_total = Decimal("0")
+    for sa_raw, pa_raw in open_debt_rows:
+        debtor_total += max(Decimal(str(sa_raw or 0)) - Decimal(str(pa_raw or 0)), Decimal("0"))
+
+    service_acc: dict[int, dict] = {}
+    for row in expert_acc.values():
+        did = int(row["direction_id"] or 0)
+        if did not in service_acc:
+            service_acc[did] = {
+                "direction_id": row["direction_id"],
+                "direction_name": str(row.get("direction_name") or "—"),
+                "appointments_total": 0,
+                "appeared_count": 0,
+                "no_show_count": 0,
+                "booked_count": 0,
+                "cancelled_count": 0,
+                "revenue_paid": Decimal("0"),
+                "paid_full_amount": Decimal("0"),
+                "paid_no_show_amount": Decimal("0"),
+                "debtor_amount": Decimal("0"),
+                "creditor_amount": Decimal("0"),
+            }
+        s = service_acc[did]
+        for k in (
+            "appointments_total",
+            "appeared_count",
+            "no_show_count",
+            "booked_count",
+            "cancelled_count",
+        ):
+            s[k] += int(row[k])
+        for k in (
+            "revenue_paid",
+            "paid_full_amount",
+            "paid_no_show_amount",
+            "debtor_amount",
+            "creditor_amount",
+        ):
+            s[k] += Decimal(str(row[k]))
+
+    service_stats = [
+        ServicesAnalyticsServiceRow(**row)
+        for row in sorted(
+            service_acc.values(),
+            key=lambda x: (-int(x["appointments_total"]), str(x["direction_name"])),
+        )
+        if int(row["appointments_total"]) > 0 or int(row["cancelled_count"]) > 0
+    ]
+
+    expert_roll: dict[int, dict] = {}
+    for row in expert_acc.values():
+        sid = int(row["specialist_id"])
+        if sid not in expert_roll:
+            expert_roll[sid] = {
+                "specialist_id": sid,
+                "specialist_name": row["specialist_name"],
+                "kpi_service_name": None,
+                "appointments_total": 0,
+                "appeared_count": 0,
+                "no_show_count": 0,
+                "booked_count": 0,
+                "cancelled_count": 0,
+                "revenue_paid": Decimal("0"),
+                "paid_full_amount": Decimal("0"),
+                "paid_no_show_amount": Decimal("0"),
+                "debtor_amount": Decimal("0"),
+                "creditor_amount": Decimal("0"),
+            }
+        e = expert_roll[sid]
+        for k in (
+            "appointments_total",
+            "appeared_count",
+            "no_show_count",
+            "booked_count",
+            "cancelled_count",
+        ):
+            e[k] += int(row[k])
+        for k in (
+            "revenue_paid",
+            "paid_full_amount",
+            "paid_no_show_amount",
+            "debtor_amount",
+            "creditor_amount",
+        ):
+            e[k] += Decimal(str(row[k]))
+
+    expert_stats = [
+        ServicesAnalyticsExpertRow(**row)
+        for row in sorted(
+            expert_roll.values(),
+            key=lambda x: (-int(x["appointments_total"]), str(x["specialist_name"])),
+        )
+    ]
+
+    tz = _biz_tz()
+    return ServicesAnalyticsRead(
+        pipeline_id=pipe.id,
+        pipeline_name=pipe.name,
+        period=period,
+        period_start=start.astimezone(tz).strftime("%Y-%m-%d %H:%M"),
+        period_end=end.astimezone(tz).strftime("%Y-%m-%d %H:%M"),
+        date_from=df,
+        date_to=dt,
+        revenue_total=revenue_total,
+        debtor_total=debtor_total,
+        creditor_total=creditor_total,
+        service_stats=service_stats,
+        expert_stats=expert_stats,
+    )

@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Аналитика по услугам — MetodiOne</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #171d25;
+      --line: rgba(148, 163, 184, 0.18);
+      --text: #e8eef6;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --bad: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif;
+      background:
+        radial-gradient(900px 420px at 12% -10%, rgba(56, 189, 248, 0.14), transparent 55%),
+        radial-gradient(700px 380px at 90% 0%, rgba(52, 211, 153, 0.1), transparent 50%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 48px; }
+    header h1 { margin: 0; font-size: 1.75rem; letter-spacing: -0.02em; }
+    header p { margin: 8px 0 0; color: var(--muted); font-size: 0.95rem; }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: end;
+      margin: 22px 0 18px; padding: 14px 16px; background: var(--panel);
+      border: 1px solid var(--line); border-radius: 14px;
+    }
+    label { display: grid; gap: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    select, input, button {
+      font: inherit; color: var(--text); background: #0c1117;
+      border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+    }
+    button { cursor: pointer; background: #1d4ed8; border-color: #1d4ed8; }
+    button.secondary { background: transparent; border-color: var(--line); }
+    .kpis {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px; margin-bottom: 18px;
+    }
+    .kpi {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+      padding: 14px 16px;
+    }
+    .kpi .l { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .kpi .v { margin-top: 6px; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+    .grid { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 14px; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .panel {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+      padding: 16px 16px 10px; margin-bottom: 14px;
+    }
+    .panel h2 { margin: 0 0 4px; font-size: 1rem; font-weight: 600; }
+    .panel .note { margin: 0 0 12px; color: var(--muted); font-size: 0.82rem; }
+    .chart-box { position: relative; height: 320px; }
+    .chart-box.sm { height: 280px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+    td.num { font-variant-numeric: tabular-nums; }
+    .status { color: var(--muted); font-size: 0.85rem; margin: 8px 0 0; }
+    .status.err { color: var(--bad); }
+    .status.ok { color: var(--ok); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Аналитика по услугам</h1>
+      <p>Выручка, явки и оплаты по направлениям записи. Выберите период — данные с live API.</p>
+    </header>
+
+    <div class="toolbar">
+      <label>Период
+        <select id="period">
+          <option value="day">За день</option>
+          <option value="month" selected>За месяц</option>
+          <option value="custom">Свой период</option>
+        </select>
+      </label>
+      <label>С
+        <input id="dateFrom" type="date" disabled />
+      </label>
+      <label>По
+        <input id="dateTo" type="date" disabled />
+      </label>
+      <label>Воронка
+        <select id="pipeline"></select>
+      </label>
+      <button type="button" id="reload">Обновить</button>
+      <button type="button" class="secondary" id="useSnapshot">Снимок авг 2026</button>
+    </div>
+
+    <p id="status" class="status">Загрузка…</p>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>Оплаты по услугам</h2>
+        <p class="note">Сумма оплат за выбранный период (TJS)</p>
+        <div class="chart-box"><canvas id="chartRevenue"></canvas></div>
+      </section>
+      <section class="panel">
+        <h2>Доля выручки</h2>
+        <p class="note">Только услуги с оплатами &gt; 0</p>
+        <div class="chart-box sm"><canvas id="chartShare"></canvas></div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <h2>Явки / неявки / ещё booked</h2>
+      <p class="note">Количество записей по статусу</p>
+      <div class="chart-box"><canvas id="chartAttendance"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <h2>Оплаты по экспертам</h2>
+      <p class="note">Топ специалистов по сумме оплат</p>
+      <div class="chart-box"><canvas id="chartExperts"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <h2>Таблица по услугам</h2>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Услуга</th>
+              <th>Записей</th>
+              <th>Явились</th>
+              <th>Не явились</th>
+              <th>Booked</th>
+              <th>Оплаты</th>
+              <th>Дебиторка</th>
+            </tr>
+          </thead>
+          <tbody id="svcTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const money = (n) =>
+      new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(Number(n) || 0) + " TJS";
+    const qs = new URLSearchParams(location.search);
+    const periodEl = document.getElementById("period");
+    const dateFromEl = document.getElementById("dateFrom");
+    const dateToEl = document.getElementById("dateTo");
+    const pipelineEl = document.getElementById("pipeline");
+    const statusEl = document.getElementById("status");
+    const charts = {};
+    const palette = [
+      "#38bdf8", "#34d399", "#a78bfa", "#fbbf24", "#f472b6",
+      "#2dd4bf", "#fb923c", "#60a5fa", "#c084fc", "#4ade80",
+    ];
+
+    function token() {
+      try { return localStorage.getItem("crm_access_token") || ""; } catch { return ""; }
+    }
+    function apiBase() { return "/api"; }
+
+    async function api(path) {
+      const t = token();
+      const res = await fetch(apiBase() + path, {
+        headers: t ? { Authorization: "Bearer " + t } : {},
+      });
+      if (!res.ok) throw new Error(await res.text() || res.statusText);
+      return res.json();
+    }
+
+    function syncCustomEnabled() {
+      const custom = periodEl.value === "custom";
+      dateFromEl.disabled = !custom;
+      dateToEl.disabled = !custom;
+    }
+
+    function destroyChart(key) {
+      if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+    }
+
+    function render(report, sourceLabel) {
+      const services = (report.service_stats || []).slice().sort(
+        (a, b) => Number(b.revenue_paid) - Number(a.revenue_paid)
+      );
+      const experts = (report.expert_stats || []).slice()
+        .sort((a, b) => Number(b.revenue_paid) - Number(a.revenue_paid))
+        .slice(0, 10);
+
+      const rangeHint = report.date_from && report.date_to
+        ? `${report.date_from} → ${report.date_to}`
+        : (report.year_month || report.period || "");
+
+      document.getElementById("kpis").innerHTML = [
+        ["Выручка", money(report.revenue_total)],
+        ["Дебиторка", money(report.debtor_total)],
+        ["Услуг", String(services.length)],
+        ["Воронка", report.pipeline_name || "—"],
+      ].map(([l, v]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+
+      const labels = services.map((s) => s.direction_name);
+      const revenue = services.map((s) => Number(s.revenue_paid) || 0);
+      const appeared = services.map((s) => Number(s.appeared_count) || 0);
+      const noshow = services.map((s) => Number(s.no_show_count) || 0);
+      const booked = services.map((s) => Number(s.booked_count) || 0);
+
+      destroyChart("rev");
+      charts.rev = new Chart(document.getElementById("chartRevenue"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Оплаты",
+            data: revenue,
+            backgroundColor: palette.map((c) => c + "cc"),
+            borderRadius: 6,
+            maxBarThickness: 42,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (c) => money(c.raw) } },
+          },
+          scales: {
+            x: { ticks: { color: "#94a3b8", maxRotation: 45 }, grid: { color: "transparent" } },
+            y: {
+              ticks: { color: "#94a3b8", callback: (v) => (v >= 1000 ? Math.round(v / 1000) + "k" : v) },
+              grid: { color: "rgba(148,163,184,0.12)" },
+            },
+          },
+        },
+      });
+
+      const shareLabels = [];
+      const shareData = [];
+      services.forEach((s) => {
+        const v = Number(s.revenue_paid) || 0;
+        if (v > 0) { shareLabels.push(s.direction_name); shareData.push(v); }
+      });
+      destroyChart("share");
+      charts.share = new Chart(document.getElementById("chartShare"), {
+        type: "doughnut",
+        data: {
+          labels: shareLabels.length ? shareLabels : ["Нет оплат"],
+          datasets: [{
+            data: shareData.length ? shareData : [1],
+            backgroundColor: shareData.length ? palette : ["#334155"],
+            borderWidth: 0,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "bottom", labels: { color: "#cbd5e1", boxWidth: 12 } },
+            tooltip: { callbacks: { label: (c) => ` ${c.label}: ${money(c.raw)}` } },
+          },
+        },
+      });
+
+      destroyChart("att");
+      charts.att = new Chart(document.getElementById("chartAttendance"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            { label: "Явились", data: appeared, backgroundColor: "#34d399cc", stack: "a", borderRadius: 4 },
+            { label: "Не явились", data: noshow, backgroundColor: "#f87171cc", stack: "a", borderRadius: 4 },
+            { label: "Ещё booked", data: booked, backgroundColor: "#38bdf8cc", stack: "a", borderRadius: 4 },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: "#cbd5e1" } } },
+          scales: {
+            x: { stacked: true, ticks: { color: "#94a3b8", maxRotation: 45 }, grid: { display: false } },
+            y: { stacked: true, ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
+          },
+        },
+      });
+
+      destroyChart("exp");
+      charts.exp = new Chart(document.getElementById("chartExperts"), {
+        type: "bar",
+        data: {
+          labels: experts.map((e) => e.specialist_name),
+          datasets: [{
+            label: "Оплаты",
+            data: experts.map((e) => Number(e.revenue_paid) || 0),
+            backgroundColor: "#a78bfacc",
+            borderRadius: 6,
+            maxBarThickness: 28,
+          }],
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (c) => money(c.raw) } },
+          },
+          scales: {
+            x: {
+              ticks: { color: "#94a3b8", callback: (v) => (v >= 1000 ? Math.round(v / 1000) + "k" : v) },
+              grid: { color: "rgba(148,163,184,0.12)" },
+            },
+            y: { ticks: { color: "#94a3b8" }, grid: { display: false } },
+          },
+        },
+      });
+
+      document.getElementById("svcTable").innerHTML = services.length
+        ? services.map((s) => `<tr>
+            <td>${s.direction_name}</td>
+            <td class="num">${s.appointments_total}</td>
+            <td class="num">${s.appeared_count}</td>
+            <td class="num">${s.no_show_count}</td>
+            <td class="num">${s.booked_count ?? 0}</td>
+            <td class="num">${money(s.revenue_paid)}</td>
+            <td class="num">${money(s.debtor_amount)}</td>
+          </tr>`).join("")
+        : `<tr><td colspan="7">Нет записей за период</td></tr>`;
+
+      statusEl.className = "status ok";
+      statusEl.textContent = `${sourceLabel} · ${rangeHint} · ${report.pipeline_name || ""}`;
+    }
+
+    async function loadSnapshot() {
+      const res = await fetch("./services-analytics-snapshot.json");
+      if (!res.ok) throw new Error("Снимок не найден");
+      const data = await res.json();
+      periodEl.value = "custom";
+      syncCustomEnabled();
+      if (data.year_month) {
+        const [y, m] = data.year_month.split("-");
+        dateFromEl.value = `${y}-${m}-01`;
+        const last = new Date(Number(y), Number(m), 0).getDate();
+        dateToEl.value = `${y}-${m}-${String(last).padStart(2, "0")}`;
+      }
+      pipelineEl.innerHTML = `<option value="${data.pipeline_id || ""}">${data.pipeline_name || "Снимок"}</option>`;
+      render(data, "Снимок (авг 2026, live CRM)");
+    }
+
+    async function loadLive() {
+      const period = periodEl.value || "month";
+      if (period === "custom" && (!dateFromEl.value || !dateToEl.value)) {
+        throw new Error("Укажите даты «С» и «По»");
+      }
+      let pipes = [];
+      try {
+        pipes = await api("/pipelines");
+      } catch (e) {
+        statusEl.className = "status err";
+        statusEl.textContent = "Нет доступа к API — открываю снимок. " + (e.message || "");
+        await loadSnapshot();
+        return;
+      }
+      if (!pipes.length) throw new Error("Нет воронок");
+      const want = qs.get("pipeline_id");
+      const current = pipelineEl.value;
+      pipelineEl.innerHTML = pipes.map((p) =>
+        `<option value="${p.id}">${p.name}</option>`
+      ).join("");
+      pipelineEl.value = want || current || String(pipes[0].id);
+      const pid = pipelineEl.value;
+      const params = new URLSearchParams({ pipeline_id: pid, period });
+      if (period === "custom") {
+        params.set("date_from", dateFromEl.value);
+        params.set("date_to", dateToEl.value);
+      }
+
+      let report = null;
+      let source = "Live API";
+      try {
+        report = await api(`/analytics/services?${params}`);
+      } catch (e) {
+        // Пока Amvera без нового эндпоинта — берём company-report за месяц.
+        const ym = (() => {
+          if (period === "custom" && dateFromEl.value) return dateFromEl.value.slice(0, 7);
+          const n = new Date();
+          return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+        })();
+        const cr = await api(`/sales-kpi/company-report?pipeline_id=${pid}&year_month=${ym}`);
+        const [y, m] = ym.split("-");
+        const last = new Date(Number(y), Number(m), 0).getDate();
+        report = {
+          ...cr,
+          period: "month",
+          date_from: `${ym}-01`,
+          date_to: `${ym}-${String(last).padStart(2, "0")}`,
+        };
+        source = "Live API (company-report, месяц)";
+      }
+
+      const empty = !(report.service_stats || []).length && Number(report.revenue_total) === 0;
+      if (empty && qs.get("force") !== "1") {
+        statusEl.className = "status";
+        statusEl.textContent = "За период пусто — показываю снимок августа 2026.";
+        await loadSnapshot();
+        return;
+      }
+      render(report, source);
+    }
+
+    periodEl.addEventListener("change", syncCustomEnabled);
+    document.getElementById("reload").onclick = () => loadLive().catch((e) => {
+      statusEl.className = "status err";
+      statusEl.textContent = String(e.message || e);
+    });
+    document.getElementById("useSnapshot").onclick = () => loadSnapshot().catch((e) => {
+      statusEl.className = "status err";
+      statusEl.textContent = String(e.message || e);
+    });
+
+    (async function init() {
+      periodEl.value = qs.get("period") || "month";
+      if (qs.get("date_from")) dateFromEl.value = qs.get("date_from");
+      if (qs.get("date_to")) dateToEl.value = qs.get("date_to");
+      syncCustomEnabled();
+      if (qs.get("snapshot") === "1" || qs.get("demo") === "1") {
+        await loadSnapshot();
+        return;
+      }
+      try {
+        await loadLive();
+      } catch (e) {
+        statusEl.className = "status err";
+        statusEl.textContent = "Live не удалось — открываю снимок. " + (e.message || e);
+        await loadSnapshot();
+      }
+    })();
+  </script>
+</body>
+</html>

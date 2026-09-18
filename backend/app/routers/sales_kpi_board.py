@@ -72,6 +72,8 @@ from app.services.sales_kpi_weighted import (
     load_specialist_facts_company_full_paid,
     load_specialist_facts_full_paid,
     month_bounds,
+    paid_at_from_input,
+    booking_debt_cutoff,
     parse_year_month,
     shift_year_month,
     sum_specialist_facts_company,
@@ -252,6 +254,14 @@ def _manual_counts_in_kpi(service_amount: Decimal, first_paid_amount: Decimal, s
     if service_amount <= 0:
         return False
     return first_paid_amount >= (service_amount * MANUAL_SALE_MIN_PAID_RATIO)
+
+
+def _paid_at_from_input(raw: date | datetime | None, *, fallback: datetime | None = None) -> datetime:
+    return paid_at_from_input(raw, fallback=fallback)
+
+
+def _booking_debt_cutoff(month_end: datetime, *, now: datetime | None = None) -> datetime:
+    return booking_debt_cutoff(month_end, now=now)
 
 
 def _payment_out(row: SalesKpiManualSalePayment) -> SalesKpiManualSalePaymentOut:
@@ -721,10 +731,9 @@ async def create_manual_sale(
     if first_paid + second_paid > body.service_amount:
         raise HTTPException(status_code=400, detail="Сумма платежей не может быть больше стоимости")
 
-    sold_at = _date_noon(body.first_paid_on) or body.sold_at or datetime.now(UTC)
-    if sold_at.tzinfo is None:
-        sold_at = sold_at.replace(tzinfo=UTC)
-    second_at = _date_noon(body.second_paid_on) or sold_at
+    total_paid = first_paid + second_paid
+    first_at = _paid_at_from_input(body.first_paid_at if body.first_paid_at is not None else body.sold_at)
+    second_at = _paid_at_from_input(body.second_paid_at)
 
     sale = SalesKpiManualSale(
         company_id=company_id,
@@ -736,9 +745,9 @@ async def create_manual_sale(
         stream_no=int(body.stream_no),
         group_no=int(body.group_no),
         service_amount=body.service_amount,
-        paid_amount=first_paid + second_paid,
+        paid_amount=total_paid,
         first_paid_amount=first_paid,
-        sold_at=sold_at,
+        sold_at=first_at,
         status="active",
         note=body.note,
         created_by_user_id=current_user.id,
@@ -753,7 +762,7 @@ async def create_manual_sale(
             amount=first_paid,
             is_first=True,
             note="Первый платёж",
-            paid_at=sold_at,
+            paid_at=first_at,
             created_by_user_id=current_user.id,
         )
         db.add(pay)
@@ -819,13 +828,14 @@ async def patch_manual_sale_payment(
     if body.note is not None and body.note.strip():
         sale.note = body.note.strip()
 
+    pay_at = _paid_at_from_input(body.paid_at)
     pay = SalesKpiManualSalePayment(
         company_id=company_id,
         sale_id=int(sale.id),
         amount=add_amount,
         is_first=False,
         note=(body.note.strip() if body.note else None) or "Доплата",
-        paid_at=_payment_paid_at(body.paid_at),
+        paid_at=pay_at,
         created_by_user_id=current_user.id,
     )
     db.add(pay)
@@ -965,7 +975,9 @@ async def debtors_report(
             )
         ).scalars().all()
     else:
-        # Дебиторка записи тоже переносится: клиент всё ещё должен, даже если визит был в прошлом месяце.
+        # Дебиторка записи: только прошедшие визиты со статусом «Пришёл».
+        # Неявка / отмена / будущие «Запись» — не долг.
+        debt_cutoff = _booking_debt_cutoff(end)
         booking_q = (
             await db.execute(
                 select(BookingAppointment, BookingDirection.name, Lead.manager_id)
@@ -974,10 +986,9 @@ async def debtors_report(
                 .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
                 .where(
                     BookingAppointment.company_id == company_id,
-                    BookingAppointment.start_at < end,
+                    BookingAppointment.start_at < debt_cutoff,
                     BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                    # Неявки и отмены — не долг (услугу не оказали).
-                    BookingAppointment.status.notin_(("no_show", "cancelled")),
+                    BookingAppointment.status == "completed",
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,
@@ -1368,10 +1379,11 @@ async def company_report(
                 else:
                     bucket["revenue_paid"] += pa
                     revenue_booking += pa
-                    debt = max(sa - pa, Decimal("0"))
-                    if debt > 0:
-                        bucket["debtor_amount"] += debt
+                    # Долг только по явке (completed); «Запись»/будущее/неявка — не дебиторка.
                     if st == "completed":
+                        debt = max(sa - pa, Decimal("0"))
+                        if debt > 0:
+                            bucket["debtor_amount"] += debt
                         bucket["appeared_count"] += 1
                         if sa <= 0 or pa + Decimal("0.01") >= sa:
                             bucket["paid_full_amount"] += pa
@@ -1385,7 +1397,8 @@ async def company_report(
                             creditor_total += cred
                             bucket["booked_future_count"] += 1
 
-        # Дебиторка записи на конец месяца — с переносом прошлых визитов.
+        # Дебиторка записи: прошедшие явки с остатком (неявка/будущее не входят).
+        debt_cutoff = _booking_debt_cutoff(end, now=now)
         open_booking_debt = (
             await db.execute(
                 select(BookingAppointment.service_amount, BookingAppointment.paid_amount)
@@ -1394,9 +1407,9 @@ async def company_report(
                 .outerjoin(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
                 .where(
                     BookingAppointment.company_id == company_id,
-                    BookingAppointment.start_at < end,
+                    BookingAppointment.start_at < debt_cutoff,
                     BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                    BookingAppointment.status.notin_(("no_show", "cancelled")),
+                    BookingAppointment.status == "completed",
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,
@@ -1411,10 +1424,8 @@ async def company_report(
             pa = Decimal(str(pa_raw or 0))
             debtor_booking += max(sa - pa, Decimal("0"))
 
-    # Курсы/протоколы (окно KPI): платежи с paid_at в этом месяце — для плана/бонусов
-    # и дебиторки. В клинике в ИТОГО выручку НЕ плюсуем: те же деньги уже сидят в
-    # paid_amount визитов (Курс / Курс 15 / Протокол) — иначе отчёт задваивает кассу.
-    # В sales-mode визитов нет — там курсы входят в выручку (см. revenue_total ниже).
+    # Курсы/протоколы: платежи с paid_at в этом месяце → выручка месяца.
+    # KPI менеджера считается отдельно (только первый платёж / sold_at).
     revenue_manual_paid = (
         await db.execute(
             select(func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0)).where(
@@ -1581,15 +1592,10 @@ async def company_report(
     ]
 
     plan_pct = float((total_contrib * Decimal("100")).quantize(Decimal("0.01")))
-    # Клиника: выручка = оплаты визитов (касса CRM). Курсы KPI не плюсуем — двойной счёт.
-    # Sales-mode: визитов нет, выручка = продажи стола + курсы.
-    if sales_mode:
-        revenue_total = revenue_booking + revenue_manual
-    else:
-        # Выручка клиники = только касса визитов (курсы KPI уже сидят в paid визитов).
-        revenue_total = revenue_booking
+    # Выручка месяца = касса визитов + платежи курсов/протоколов KPI с paid_at в этом месяце
+    # (первый платёж → август, доплата → сентябрь). KPI менеджера — только по первому платежу.
+    revenue_total = revenue_booking + revenue_manual
     # Дебиторка всегда = остаток визитов + открытые пакеты курсов/протоколов KPI.
-    # Выручку курсов не плюсуем (двойной счёт), долг пакетов в карточке показываем.
     debtor_total = debtor_booking + debtor_manual
 
     # Дни месяца для прогноза (линейный run-rate)

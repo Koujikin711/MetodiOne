@@ -6572,6 +6572,46 @@ fieldset.extra-services-field {
   background: var(--mo-accent-soft);
 }
 
+.analytics-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.analytics-charts-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 14px;
+}
+
+@media (max-width: 960px) {
+  .analytics-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.analytics-chart-panel {
+  min-width: 0;
+}
+
+.analytics-chart-box {
+  height: 300px;
+  width: 100%;
+  min-width: 0;
+}
+
+.analytics-chart-box--sm {
+  height: 280px;
+}
+
+.analytics-html-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+
 .analytics-empty-cell {
   @apply py-6 text-center text-sm;
   color: var(--mo-text-muted);

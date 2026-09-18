@@ -210,7 +210,6 @@ export function OnlineBookingPage() {
   const currentUserId = decodeUserIdFromToken(token);
   const currentUserName = decodeDisplayNameFromToken(token) || "Текущий пользователь";
   const isExpert = currentRole === "expert";
-  const isManagerOrAdmin = currentRole === "manager" || currentRole === "admin";
   const canBookCourses = canBookCourseLike(currentRole);
   const bookingViewerQuery = useQuery({
     queryKey: ["booking-viewer-context"],
@@ -1533,7 +1532,7 @@ export function OnlineBookingPage() {
                     </div>
                   </fieldset>
                 ) : null}
-                {isManagerOrAdmin ? (
+                {currentRole === "manager" ? (
                   <label className="block text-sm mo-muted">
                     Ответственный менеджер
                     <input

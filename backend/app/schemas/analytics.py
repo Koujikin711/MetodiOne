@@ -130,3 +130,51 @@ class AnalyticsOverviewRead(BaseModel):
     manager_plan_fact: list[ManagerPlanFactItem] = Field(default_factory=list)
     manager_performance: list[ManagerPerformanceItem] = Field(default_factory=list)
     alerts: AnalyticsAlertsRead
+
+
+class ServicesAnalyticsServiceRow(BaseModel):
+    direction_id: int | None = None
+    direction_name: str
+    appointments_total: int = 0
+    appeared_count: int = 0
+    no_show_count: int = 0
+    booked_count: int = 0
+    cancelled_count: int = 0
+    revenue_paid: Decimal = Field(default=Decimal("0"))
+    paid_full_amount: Decimal = Field(default=Decimal("0"))
+    paid_no_show_amount: Decimal = Field(default=Decimal("0"))
+    debtor_amount: Decimal = Field(default=Decimal("0"))
+    creditor_amount: Decimal = Field(default=Decimal("0"))
+
+
+class ServicesAnalyticsExpertRow(BaseModel):
+    specialist_id: int
+    specialist_name: str
+    kpi_service_name: str | None = None
+    appointments_total: int = 0
+    appeared_count: int = 0
+    no_show_count: int = 0
+    booked_count: int = 0
+    cancelled_count: int = 0
+    revenue_paid: Decimal = Field(default=Decimal("0"))
+    paid_full_amount: Decimal = Field(default=Decimal("0"))
+    paid_no_show_amount: Decimal = Field(default=Decimal("0"))
+    debtor_amount: Decimal = Field(default=Decimal("0"))
+    creditor_amount: Decimal = Field(default=Decimal("0"))
+
+
+class ServicesAnalyticsRead(BaseModel):
+    """Сводка по услугам/экспертам за произвольный период (записи онлайн-записи)."""
+
+    pipeline_id: int
+    pipeline_name: str
+    period: str
+    period_start: str
+    period_end: str
+    date_from: str | None = None
+    date_to: str | None = None
+    revenue_total: Decimal = Field(default=Decimal("0"))
+    debtor_total: Decimal = Field(default=Decimal("0"))
+    creditor_total: Decimal = Field(default=Decimal("0"))
+    service_stats: list[ServicesAnalyticsServiceRow] = Field(default_factory=list)
+    expert_stats: list[ServicesAnalyticsExpertRow] = Field(default_factory=list)

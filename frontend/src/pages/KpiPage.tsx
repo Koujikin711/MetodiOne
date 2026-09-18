@@ -317,8 +317,8 @@ export function KpiPage() {
     service_amount: "",
     paid_amount: "",
     second_paid_amount: "",
-    first_paid_on: "",
-    second_paid_on: "",
+    first_paid_at: "",
+    second_paid_at: "",
     note: "",
   });
   const [payDraft, setPayDraft] = useState<Record<number, string>>({});
@@ -470,8 +470,8 @@ export function KpiPage() {
           service_amount: Number(saleForm.service_amount),
           paid_amount: Number(saleForm.paid_amount || 0),
           second_paid_amount: Number(saleForm.second_paid_amount || 0),
-          first_paid_on: saleForm.first_paid_on || null,
-          second_paid_on: saleForm.second_paid_on || null,
+          first_paid_at: saleForm.first_paid_at || null,
+          second_paid_at: saleForm.second_paid_at || null,
           note: saleForm.note.trim() || null,
         }),
       });
@@ -488,25 +488,23 @@ export function KpiPage() {
         service_amount: "",
         paid_amount: "",
         second_paid_amount: "",
-        first_paid_on: "",
-        second_paid_on: "",
+        first_paid_at: "",
+        second_paid_at: "",
         note: "",
       });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const payMutation = useMutation({
-    mutationFn: async ({ id, add, paidOn }: { id: number; add: number; paidOn?: string }) => {
+    mutationFn: async ({ id, add, paid_at }: { id: number; add: number; paid_at: string }) => {
       await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${id}/payment`, {
         method: "PATCH",
-        body: JSON.stringify({
-          add_amount: add,
-          ...(paidOn ? { paid_at: `${paidOn}T12:00:00` } : {}),
-        }),
+        body: JSON.stringify({ add_amount: add, paid_at: paid_at || todayYmd() }),
       });
     },
     onSuccess: () => {
@@ -516,6 +514,7 @@ export function KpiPage() {
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1255,8 +1254,8 @@ export function KpiPage() {
                 <label className="kpi-sale-pays__date flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                   Дата 1-го
                   <DateField
-                    value={saleForm.first_paid_on}
-                    onChange={(v) => setSaleForm((s) => ({ ...s, first_paid_on: v }))}
+                    value={saleForm.first_paid_at}
+                    onChange={(v) => setSaleForm((s) => ({ ...s, first_paid_at: v }))}
                     aria-label="Дата первого платежа"
                   />
                 </label>
@@ -1274,8 +1273,8 @@ export function KpiPage() {
                 <label className="kpi-sale-pays__date flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                   Дата 2-го
                   <DateField
-                    value={saleForm.second_paid_on}
-                    onChange={(v) => setSaleForm((s) => ({ ...s, second_paid_on: v }))}
+                    value={saleForm.second_paid_at}
+                    onChange={(v) => setSaleForm((s) => ({ ...s, second_paid_at: v }))}
                     aria-label="Дата второго платежа"
                   />
                 </label>
@@ -1352,7 +1351,7 @@ export function KpiPage() {
                         payMutation.mutate({
                           id: s.id,
                           add: Number(payDraft[s.id] || 0),
-                          paidOn: payDates[s.id] || todayYmd(),
+                          paid_at: payDates[s.id] || todayYmd(),
                         })
                       }
                     />
@@ -1435,7 +1434,7 @@ export function KpiPage() {
                             payMutation.mutate({
                               id: s.id,
                               add: Number(payDraft[s.id] || 0),
-                              paidOn: payDates[s.id] || todayYmd(),
+                              paid_at: payDates[s.id] || todayYmd(),
                             })
                           }
                         />
@@ -1497,8 +1496,8 @@ export function KpiPage() {
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Дебиторка</h2>
               <p className="mt-1 hidden text-sm lux-caption sm:block">
-                Открытые долги на конец выбранного месяца: тянутся из прошлых месяцев, пока клиент не
-                закроет долг (или курс/протокол не закрыт статусом отказ/завершён).
+                Долг по записям — только прошедшие визиты со статусом «Пришёл» (неявка и будущие записи не
+                считаются). Курсы/протоколы тянутся, пока клиент не закроет долг или статус отказ/завершён.
               </p>
             </div>
             <p className="text-xs mo-muted sm:text-sm">
@@ -1825,7 +1824,7 @@ function CompanyReportSection({
         <p className="mt-1 hidden text-sm lux-caption sm:block">
           {hideBookingExperts
             ? "Сводка за выбранный месяц (не сумма с прошлых). Выручка = продажи стола + платежи по курсам с датой в этом месяце. Дебиторка — остаток на конец месяца с переносом."
-            : "Сводка за месяц. Выручка = оплаты по визитам (касса CRM, включая оплаченные неявки). Курсы KPI в выручку не входят — иначе двойной счёт. Дебиторка = остаток по визитам + долги пакетов курсов/протоколов на конец месяца."}
+            : "Сводка за месяц. Выручка = оплаты визитов + платежи курсов/протоколов KPI по дате платежа (1-й в августе, доплата в сентябре — в разные месяцы). KPI менеджера — только первый платёж. Дебиторка = остаток визитов + долги пакетов."}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-4">
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
@@ -1850,7 +1849,7 @@ function CompanyReportSection({
                 ? `стол ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}`
                 : `визиты ${formatMoney(data.revenue_booking)}${
                     Number(data.revenue_manual) > 0
-                      ? ` · курсы KPI ${formatMoney(data.revenue_manual)} (не в сумме)`
+                      ? ` · курсы KPI ${formatMoney(data.revenue_manual)}`
                       : ""
                   }`}
             </div>
