@@ -5,12 +5,14 @@ import { apiFetch } from "@/lib/api";
 import { appLexicon } from "@/lib/appLexicon";
 import { formatMoney } from "@/lib/money";
 import { DateField } from "@/components/DateField";
+import { ServiceRevenueCharts } from "@/components/ServiceRevenueCharts";
 import type {
   AnalyticsOverviewRead,
   DetailedAnalyticsRead,
   FullAnalyticsRead,
   ManagerPerformanceItem,
   Pipeline,
+  SalesKpiCompanyReport,
 } from "@/lib/types";
 
 const moneyFmt = { format: (n: number) => formatMoney(n, { digits: 0 }) };
@@ -86,6 +88,40 @@ function AnalyticsTable({ children, minWidth = 480 }: { children: ReactNode; min
   );
 }
 
+function yearMonthFor(period: "day" | "month" | "custom", dateFrom: string): string {
+  if (period === "custom" && /^\d{4}-\d{2}/.test(dateFrom)) return dateFrom.slice(0, 7);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function ServicesBoard({ pipelineId, yearMonth }: { pipelineId: number; yearMonth: string }) {
+  const qs = useMemo(() => {
+    const p = new URLSearchParams();
+    p.set("pipeline_id", String(pipelineId));
+    p.set("year_month", yearMonth);
+    return p.toString();
+  }, [pipelineId, yearMonth]);
+  const query = useQuery({
+    queryKey: ["analytics-services", qs],
+    queryFn: () =>
+      apiFetch<SalesKpiCompanyReport>(`/api/sales-kpi/company-report?${qs}`, { timeoutMs: 60_000 }),
+  });
+  if (query.isLoading) return <p className="lux-caption px-1">Загрузка услуг…</p>;
+  if (query.isError) return <p className="analytics-error">{(query.error as Error).message}</p>;
+  if (!query.data) return null;
+  const data = query.data;
+  return (
+    <section className="space-y-3">
+      <div className="analytics-kpi-grid sm:grid-cols-3">
+        <MetricCard label="Выручка" value={moneyFmt.format(Number(data.revenue_total))} tone="success" />
+        <MetricCard label="Дебиторка" value={moneyFmt.format(Number(data.debtor_total))} tone="warning" />
+        <MetricCard label="Услуг в сводке" value={(data.service_stats ?? []).length} tone="accent" />
+      </div>
+      <ServiceRevenueCharts services={data.service_stats ?? []} experts={data.expert_stats ?? []} />
+    </section>
+  );
+}
+
 function analyticsErrorText(message: string): string {
   if (/date_from|date_to/i.test(message) || /дат/i.test(message)) {
     return "Выберите даты «С» и «По» — без них период не считается.";
@@ -95,7 +131,7 @@ function analyticsErrorText(message: string): string {
 
 export function AnalyticsPage() {
   const lex = appLexicon;
-  const [mode, setMode] = useState<"overview" | "full" | "detailed">("overview");
+  const [mode, setMode] = useState<"overview" | "full" | "detailed" | "services">("overview");
   const [period, setPeriod] = useState<"day" | "month" | "custom">("day");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -118,6 +154,7 @@ export function AnalyticsPage() {
     queryKey: ["pipelines-for-analytics"],
     queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
   });
+  const servicesPipelineId = pipelineId === "all" ? (pipelinesQuery.data ?? [])[0]?.id : pipelineId;
 
   const fullQuery = useQuery({
     queryKey: ["analytics-full", qs],
@@ -151,12 +188,13 @@ export function AnalyticsPage() {
             <span>Режим</span>
             <select
               value={mode}
-              onChange={(e) => setMode(e.target.value as "overview" | "full" | "detailed")}
+              onChange={(e) => setMode(e.target.value as "overview" | "full" | "detailed" | "services")}
               className="mo-input"
             >
               <option value="overview">Обзор 360</option>
               <option value="full">Полная</option>
               <option value="detailed">Детальная</option>
+              <option value="services">Услуги</option>
             </select>
           </label>
           <label className="analytics-toolbar-field">
@@ -280,6 +318,14 @@ export function AnalyticsPage() {
         </div>
       </section>
 
+      {mode === "services" ? (
+        servicesPipelineId ? (
+          <ServicesBoard pipelineId={servicesPipelineId} yearMonth={yearMonthFor(period, dateFrom)} />
+        ) : (
+          <p className="analytics-hint">Выберите воронку — сводка услуг считается по одной воронке.</p>
+        )
+      ) : null}
+
       {mode === "overview" && (
         <section className="space-y-4">
           {!periodReady ? (
@@ -293,7 +339,12 @@ export function AnalyticsPage() {
             <>
               <div className="analytics-kpi-grid">
                 <MetricCard label={lex.guestsMetricLabel} value={overviewQuery.data.executive.leads_total} tone="accent" />
-                <MetricCard label="Win Rate" value={`${overviewQuery.data.executive.win_rate_pct}%`} tone="neutral" />
+                <MetricCard
+                  label="Удачно"
+                  value={`${overviewQuery.data.executive.win_rate_pct}%`}
+                  tone="neutral"
+                  hint="Доля лидов периода на стадии «Удачно»"
+                />
                 <MetricCard
                   label="Оплачено"
                   value={moneyFmt.format(Number(overviewQuery.data.executive.paid_amount))}
@@ -305,13 +356,14 @@ export function AnalyticsPage() {
                   tone="warning"
                 />
                 <MetricCard
-                  label="Первый ответ"
+                  label="Ответ в чате"
                   value={
                     overviewQuery.data.executive.avg_first_response_minutes == null
                       ? "—"
                       : `${overviewQuery.data.executive.avg_first_response_minutes} мин`
                   }
                   tone="default"
+                  hint="От входящего сообщения до ответа менеджера"
                 />
                 <MetricCard
                   label={lex.leadCycle}
@@ -330,7 +382,7 @@ export function AnalyticsPage() {
                       : overviewQuery.data.executive.performance_score_avg
                   }
                   tone="accent"
-                  hint="Средний балл менеджеров · 0–100"
+                  hint="План, ответы в чате и доля «Удачно»"
                 />
                 <MetricCard
                   label="Активность"
@@ -361,12 +413,15 @@ export function AnalyticsPage() {
 
               <div className="grid gap-4 lg:grid-cols-2">
                 <AnalyticsPanel title={lex.sectionStageFlow}>
+                  <p className="analytics-panel-note">
+                    «Дошли дальше» — сколько из дошедших до стадии уже на следующих. Не больше 100%. Время — только по реальным сменам стадии.
+                  </p>
                   <AnalyticsTable minWidth={520}>
                     <thead>
                       <tr>
                         <th className="py-2 pr-3">Стадия</th>
                         <th className="py-2 pr-3">{lex.leadCol}</th>
-                        <th className="py-2 pr-3">В след. стадию</th>
+                        <th className="py-2 pr-3">Дошли дальше</th>
                         <th className="py-2 pr-3">Ср. время</th>
                       </tr>
                     </thead>

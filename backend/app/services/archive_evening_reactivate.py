@@ -1,8 +1,9 @@
 """Дневная раздача архивных лидов менеджерам как «Новый лид».
 
 Правило: из «Архив», первое обращение ≥ 2 месяцев назад → каждому активному
-менеджеру компании в «Новый лид» (раз в календарный день).
-Квота: users.daily_archive_leads_quota или дефолт LEADS_PER_MANAGER (=5).
+менеджеру компании в «Новый лид» (раз в календарный день, 10:00–14:59).
+Квота: users.daily_archive_leads_quota или дефолт LEADS_PER_MANAGER (=6).
+Манижа Холикова не участвует.
 """
 
 from __future__ import annotations
@@ -29,10 +30,11 @@ from app.models import (
 )
 from app.services.lead_assignment import list_company_manager_ids
 from app.services.lead_sales_stages import ARCHIVE_STAGE_NAME, stage_id_by_name_in_pipeline
+from app.services.manager_new_leads_block import is_kholikova_manizha
 
 logger = logging.getLogger(__name__)
 
-LEADS_PER_MANAGER = 5
+LEADS_PER_MANAGER = 6
 FIRST_CONTACT_MIN_DAYS = 60
 # Не брать снова лиды, реактивированные недавно (цикл «игнор → Архив → снова»).
 REACTIVATION_COOLDOWN_DAYS = 14
@@ -205,7 +207,7 @@ async def list_company_manager_quotas(
     """[(manager_id, daily_quota), ...] — персональная квота или дефолт."""
     rows = (
         await db.execute(
-            select(User.id, User.daily_archive_leads_quota).where(
+            select(User.id, User.daily_archive_leads_quota, User.full_name).where(
                 User.company_id == company_id,
                 User.role == UserRole.manager,
                 User.is_active.is_(True),
@@ -214,7 +216,9 @@ async def list_company_manager_quotas(
         )
     ).all()
     out: list[tuple[int, int]] = []
-    for uid, quota in rows:
+    for uid, quota, full_name in rows:
+        if is_kholikova_manizha(full_name):
+            continue
         q = int(quota) if quota is not None else int(default_quota)
         if q <= 0:
             continue

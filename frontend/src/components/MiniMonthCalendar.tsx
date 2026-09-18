@@ -67,67 +67,38 @@ export function MiniMonthCalendar({ value, onChange, compact = false }: Props) {
   }
 
   return (
-    <div
-      className={[
-        "w-full rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]",
-        compact ? "p-1.5 mini-month-calendar--compact" : "p-2.5",
-      ].join(" ")}
-    >
-      <div className={["mb-2 flex items-center justify-between gap-1.5", compact ? "mb-1" : ""].join(" ")}>
-        <button
-          type="button"
-          onClick={() => shiftMonth(-1)}
-          className={[
-            "rounded-md lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]",
-            compact ? "px-1 py-0.5 text-xs" : "px-1.5 py-0.5",
-          ].join(" ")}
-          aria-label="Предыдущий месяц"
-        >
+    <div className={["mini-cal", compact ? "mini-cal--compact mini-month-calendar--compact" : ""].filter(Boolean).join(" ")}>
+      <div className="mini-cal__head">
+        <button type="button" className="mini-cal__nav" onClick={() => shiftMonth(-1)} aria-label="Предыдущий месяц">
           ‹
         </button>
-        <span className={compact ? "text-[10px] font-semibold text-[var(--mo-text)]" : "text-xs font-semibold text-[var(--mo-text)]"}>
-          {label}
-        </span>
-        <button
-          type="button"
-          onClick={() => shiftMonth(1)}
-          className={[
-            "rounded-md lux-caption hover:bg-white/5 hover:text-[var(--mo-text)]",
-            compact ? "px-1 py-0.5 text-xs" : "px-1.5 py-0.5",
-          ].join(" ")}
-          aria-label="Следующий месяц"
-        >
+        <span className="mini-cal__title">{label}</span>
+        <button type="button" className="mini-cal__nav" onClick={() => shiftMonth(1)} aria-label="Следующий месяц">
           ›
         </button>
       </div>
-      <div
-        className={[
-          "grid grid-cols-7 gap-0.5 text-center font-medium uppercase mo-muted",
-          compact ? "text-[8px]" : "text-[9px]",
-        ].join(" ")}
-      >
+      <div className="mini-cal__grid">
         {weekDays.map((w) => (
-          <div key={w} className="py-0.5">
+          <div key={w} className="mini-cal__wd">
             {w}
           </div>
         ))}
         {cells.map((c, i) => {
           const iso = c.iso ?? null;
-          if (c.day == null || iso == null) return <div key={`e-${i}`} />;
+          if (c.day == null || iso == null) return <div key={`e-${i}`} className="mini-cal__empty" />;
+          const selected = iso === value;
           return (
             <button
               key={iso}
               type="button"
               onClick={() => onChange(iso)}
               className={[
-                "rounded-md font-medium transition-colors",
-                compact ? "py-0.5 text-[10px]" : "py-1 text-[11px]",
-                iso === value
-                  ? "border border-[#8c6d31] bg-[#A38A53] font-semibold text-white shadow-[var(--mo-shadow-luxury)]"
-                  : c.isToday
-                    ? "border border-[#d4af37] bg-[#f7f2e8] text-[var(--mo-text)]"
-                    : "mo-muted hover:bg-[var(--mo-accent-soft)] hover:text-[var(--mo-text)]",
-              ].join(" ")}
+                "mini-cal__day",
+                selected ? "is-selected" : "",
+                c.isToday && !selected ? "is-today" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
             >
               {c.day}
             </button>

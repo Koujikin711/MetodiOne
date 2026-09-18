@@ -14,7 +14,7 @@ from app.services.archive_evening_reactivate import (
 
 
 def test_reactivate_constants():
-    assert LEADS_PER_MANAGER == 5
+    assert LEADS_PER_MANAGER == 6
     assert FIRST_CONTACT_MIN_DAYS == 60
     assert REACTIVATE_HOUR_START == 10
     assert REACTIVATE_HOUR_END == 14

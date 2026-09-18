@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -181,7 +181,10 @@ class SalesKpiManualSaleCreate(BaseModel):
     group_no: int = Field(..., ge=1, le=20, description="Номер группы (Группа 1…20)")
     service_amount: Decimal = Field(..., gt=0)
     paid_amount: Decimal = Field(default=Decimal("0"), ge=0)
+    second_paid_amount: Decimal = Field(default=Decimal("0"), ge=0)
     sold_at: datetime | None = None
+    first_paid_on: date | None = None
+    second_paid_on: date | None = None
     note: str | None = None
 
 
@@ -190,6 +193,7 @@ class SalesKpiManualSalePaymentPatch(BaseModel):
 
     add_amount: Decimal = Field(..., gt=0, description="Сумма доплаты")
     note: str | None = None
+    paid_at: datetime | None = None
 
 
 class SalesKpiManualSalePaymentOut(BaseModel):

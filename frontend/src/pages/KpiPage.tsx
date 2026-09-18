@@ -4,7 +4,9 @@ import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 
 import { AccessDenied } from "@/components/AccessDenied";
+import { DateField } from "@/components/DateField";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
+import { ServiceRevenueCharts } from "@/components/ServiceRevenueCharts";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { apiFetch, getStoredToken } from "@/lib/api";
@@ -20,6 +22,54 @@ import type {
 } from "@/lib/types";
 
 type TabId = "plan" | "sales" | "company" | "manual" | "debtors";
+
+function todayYmd(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+}
+
+function ManualPayPack({
+  paid,
+  draft,
+  date,
+  pending,
+  onDraft,
+  onDate,
+  onOk,
+}: {
+  paid: number;
+  draft: string;
+  date: string;
+  pending: boolean;
+  onDraft: (value: string) => void;
+  onDate: (value: string) => void;
+  onOk: () => void;
+}) {
+  return (
+    <div className="kpi-pay-pack">
+      <span className="kpi-pay-pack__sum">{formatMoney(paid)}</span>
+      <input
+        type="number"
+        min={0}
+        inputMode="decimal"
+        className="mo-input kpi-pay-pack__input"
+        placeholder="Доплата"
+        aria-label="Доплата"
+        value={draft}
+        onChange={(e) => onDraft(e.target.value)}
+      />
+      <DateField value={date} onChange={onDate} allowClear={false} aria-label="Дата доплаты" />
+      <button
+        type="button"
+        className="kpi-action kpi-action--ok"
+        disabled={pending || !(Number(draft || 0) > 0)}
+        onClick={onOk}
+      >
+        OK
+      </button>
+    </div>
+  );
+}
 
 type PlanDraftItem = {
   key: string;
@@ -266,9 +316,13 @@ export function KpiPage() {
     client_phone: "",
     service_amount: "",
     paid_amount: "",
+    second_paid_amount: "",
+    first_paid_on: "",
+    second_paid_on: "",
     note: "",
   });
   const [payDraft, setPayDraft] = useState<Record<number, string>>({});
+  const [payDates, setPayDates] = useState<Record<number, string>>({});
   const [expandedDebtorKey, setExpandedDebtorKey] = useState<string | null>(null);
 
   const pipelinesQuery = useQuery({
@@ -415,6 +469,9 @@ export function KpiPage() {
           client_phone: saleForm.client_phone.trim(),
           service_amount: Number(saleForm.service_amount),
           paid_amount: Number(saleForm.paid_amount || 0),
+          second_paid_amount: Number(saleForm.second_paid_amount || 0),
+          first_paid_on: saleForm.first_paid_on || null,
+          second_paid_on: saleForm.second_paid_on || null,
           note: saleForm.note.trim() || null,
         }),
       });
@@ -430,6 +487,9 @@ export function KpiPage() {
         client_phone: "",
         service_amount: "",
         paid_amount: "",
+        second_paid_amount: "",
+        first_paid_on: "",
+        second_paid_on: "",
         note: "",
       });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
@@ -440,15 +500,19 @@ export function KpiPage() {
   });
 
   const payMutation = useMutation({
-    mutationFn: async ({ id, add }: { id: number; add: number }) => {
+    mutationFn: async ({ id, add, paidOn }: { id: number; add: number; paidOn?: string }) => {
       await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${id}/payment`, {
         method: "PATCH",
-        body: JSON.stringify({ add_amount: add }),
+        body: JSON.stringify({
+          add_amount: add,
+          ...(paidOn ? { paid_at: `${paidOn}T12:00:00` } : {}),
+        }),
       });
     },
     onSuccess: () => {
       toast.success("Доплата записана в журнал");
       setPayDraft({});
+      setPayDates({});
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
@@ -1165,7 +1229,7 @@ export function KpiPage() {
                   onChange={(e) => setSaleForm((s) => ({ ...s, client_phone: e.target.value }))}
                 />
               </label>
-              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
                 Стоимость
                 <input
                   type="number"
@@ -1176,17 +1240,49 @@ export function KpiPage() {
                   onChange={(e) => setSaleForm((s) => ({ ...s, service_amount: e.target.value }))}
                 />
               </label>
-              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
-                Первый платёж
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="decimal"
-                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                  value={saleForm.paid_amount}
-                  onChange={(e) => setSaleForm((s) => ({ ...s, paid_amount: e.target.value }))}
-                />
-              </label>
+              <div className="kpi-sale-pays col-span-2 lg:col-span-4">
+                <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                  Первый платёж
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="decimal"
+                    className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                    value={saleForm.paid_amount}
+                    onChange={(e) => setSaleForm((s) => ({ ...s, paid_amount: e.target.value }))}
+                  />
+                </label>
+                <label className="kpi-sale-pays__date flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                  Дата 1-го
+                  <DateField
+                    value={saleForm.first_paid_on}
+                    onChange={(v) => setSaleForm((s) => ({ ...s, first_paid_on: v }))}
+                    aria-label="Дата первого платежа"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                  Второй платёж
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="decimal"
+                    className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                    value={saleForm.second_paid_amount}
+                    onChange={(e) => setSaleForm((s) => ({ ...s, second_paid_amount: e.target.value }))}
+                  />
+                </label>
+                <label className="kpi-sale-pays__date flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                  Дата 2-го
+                  <DateField
+                    value={saleForm.second_paid_on}
+                    onChange={(v) => setSaleForm((s) => ({ ...s, second_paid_on: v }))}
+                    aria-label="Дата второго платежа"
+                  />
+                </label>
+                <p className="kpi-sale-pays__hint">
+                  пусто → сегодня; выручка по месяцу даты, KPI менеджера — только 1-й платёж
+                </p>
+              </div>
               <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:text-sm lg:col-span-4">
                 Комментарий
                 <input
@@ -1244,29 +1340,22 @@ export function KpiPage() {
                   )}
                 </div>
                 {s.status === "active" && num(s.debt_amount) > 0 ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <input
-                      type="number"
-                      min={0}
-                      inputMode="decimal"
-                      className="kpi-cell-input !min-h-10 flex-1 text-base"
-                      placeholder="Доплата"
-                      value={payDraft[s.id] ?? ""}
-                      onChange={(e) => setPayDraft((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                    />
-                    <button
-                      type="button"
-                      className="kpi-action kpi-action--ok shrink-0"
-                      disabled={!(Number(payDraft[s.id] || 0) > 0)}
-                      onClick={() =>
+                  <div className="mt-2 flex flex-col gap-2">
+                    <ManualPayPack
+                      paid={num(s.paid_amount)}
+                      draft={payDraft[s.id] ?? ""}
+                      date={payDates[s.id] || todayYmd()}
+                      pending={payMutation.isPending}
+                      onDraft={(value) => setPayDraft((prev) => ({ ...prev, [s.id]: value }))}
+                      onDate={(value) => setPayDates((prev) => ({ ...prev, [s.id]: value }))}
+                      onOk={() =>
                         payMutation.mutate({
                           id: s.id,
                           add: Number(payDraft[s.id] || 0),
+                          paidOn: payDates[s.id] || todayYmd(),
                         })
                       }
-                    >
-                      OK
-                    </button>
+                    />
                     <SaleRowActionsMenu
                       onReturn={() => {
                         if (window.confirm("Отметить возврат и снять с KPI?")) {
@@ -1335,31 +1424,21 @@ export function KpiPage() {
                       {s.status === "returned" || num(s.debt_amount) <= 0 ? (
                         formatMoney(num(s.paid_amount))
                       ) : (
-                        <div className="flex items-center gap-1.5">
-                          <span className="tabular-nums">{formatMoney(num(s.paid_amount))}</span>
-                          <input
-                            type="number"
-                            min={0}
-                            className="kpi-cell-input w-24"
-                            placeholder="Доплата"
-                            aria-label="Доплата"
-                            value={payDraft[s.id] ?? ""}
-                            onChange={(e) => setPayDraft((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                          />
-                          <button
-                            type="button"
-                            className="kpi-action kpi-action--ok"
-                            disabled={!(Number(payDraft[s.id] || 0) > 0)}
-                            onClick={() =>
-                              payMutation.mutate({
-                                id: s.id,
-                                add: Number(payDraft[s.id] || 0),
-                              })
-                            }
-                          >
-                            OK
-                          </button>
-                        </div>
+                        <ManualPayPack
+                          paid={num(s.paid_amount)}
+                          draft={payDraft[s.id] ?? ""}
+                          date={payDates[s.id] || todayYmd()}
+                          pending={payMutation.isPending}
+                          onDraft={(value) => setPayDraft((prev) => ({ ...prev, [s.id]: value }))}
+                          onDate={(value) => setPayDates((prev) => ({ ...prev, [s.id]: value }))}
+                          onOk={() =>
+                            payMutation.mutate({
+                              id: s.id,
+                              add: Number(payDraft[s.id] || 0),
+                              paidOn: payDates[s.id] || todayYmd(),
+                            })
+                          }
+                        />
                       )}
                     </td>
                     <td>
@@ -1913,6 +1992,7 @@ function CompanyReportSection({
 
       {!hideBookingExperts ? (
       <>
+      <ServiceRevenueCharts services={data.service_stats ?? []} experts={data.expert_stats} />
       <section className="mo-section p-4">
         <h3 className="mb-3 text-lg font-semibold text-[var(--mo-text)]">По услугам</h3>
         <p className="mb-3 text-sm lux-caption">

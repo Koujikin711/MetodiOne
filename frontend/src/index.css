@@ -1865,8 +1865,109 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   border-radius: 1rem;
   border: 1px solid var(--mo-border);
   background: var(--mo-surface-elevated);
-  padding: 0.5rem;
+  padding: 0.55rem 0.55rem 0.4rem;
   box-shadow: var(--mo-shadow-luxury);
+}
+
+.mini-cal {
+  width: 100%;
+  color: var(--mo-text);
+}
+
+.mini-cal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+}
+
+.mini-cal__title {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--mo-text);
+}
+
+.mini-cal--compact .mini-cal__title {
+  font-size: 0.75rem;
+}
+
+.mini-cal__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.55rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface);
+  color: var(--mo-text);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mini-cal__nav:hover {
+  background: var(--mo-accent-soft);
+  border-color: var(--mo-border-strong);
+}
+
+.mini-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.15rem;
+}
+
+.mini-cal__wd {
+  text-align: center;
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
+  padding: 0.15rem 0 0.25rem;
+}
+
+.mini-cal__day {
+  height: 1.85rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--mo-text);
+  font-size: 0.75rem;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.mini-cal--compact .mini-cal__day {
+  height: 1.7rem;
+  font-size: 0.7rem;
+}
+
+.mini-cal__day:hover {
+  background: var(--mo-accent-soft);
+}
+
+.mini-cal__day.is-today {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mo-accent) 70%, transparent);
+  color: var(--mo-accent-hover);
+  font-weight: 700;
+}
+
+.mini-cal__day.is-selected,
+.mini-cal__day.is-selected:hover {
+  background: var(--mo-accent);
+  color: #fff;
+  box-shadow: none;
+  font-weight: 700;
+}
+
+:root[data-theme="dark"] .mini-cal__day.is-selected,
+:root[data-theme="dark"] .mini-cal__day.is-selected:hover {
+  background: #6366f1;
+  color: #fff;
 }
 
 .date-field__panel .mini-month-calendar--compact,
@@ -1882,9 +1983,9 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.35rem 0.5rem 0.2rem;
-  margin-top: 0.25rem;
-  border-top: 1px solid color-mix(in srgb, var(--mo-border) 85%, transparent);
+  padding: 0.4rem 0.15rem 0.1rem;
+  margin-top: 0.35rem;
+  border-top: 1px solid var(--mo-border);
 }
 
 .date-field__link {
@@ -1893,12 +1994,14 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   color: var(--mo-accent-hover);
   background: transparent;
   border: 0;
-  padding: 0.2rem 0.15rem;
+  border-radius: 0.45rem;
+  padding: 0.28rem 0.4rem;
   cursor: pointer;
 }
 
 .date-field__link:hover {
-  text-decoration: underline;
+  background: var(--mo-accent-soft);
+  text-decoration: none;
 }
 
 .date-time-field__body {
@@ -5601,19 +5704,196 @@ fieldset.extra-services-field {
 }
 
 .kpi-debt {
+  display: inline-flex;
+  align-items: center;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
-  color: #9a6700;
+  white-space: nowrap;
+  padding: 0.12rem 0.4rem;
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, #d97706 12%, transparent);
+  color: #9a3412;
 }
 .kpi-debt.is-zero {
   font-weight: 500;
+  padding: 0;
+  background: transparent;
   color: var(--mo-text-muted);
 }
 :root[data-theme="dark"] .kpi-debt {
-  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  color: #fde68a;
 }
 :root[data-theme="dark"] .kpi-debt.is-zero {
+  background: transparent;
   color: var(--mo-text-muted);
+}
+
+.kpi-pay-pack {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: max-content;
+  max-width: 100%;
+}
+
+.kpi-pay-pack__sum {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--mo-text);
+}
+
+.kpi-pay-pack__input {
+  width: 5.4rem;
+  height: 2rem;
+  min-height: 0 !important;
+  padding: 0 0.45rem !important;
+  font-size: 0.75rem !important;
+  border-radius: 0.55rem !important;
+}
+
+.kpi-pay-pack .date-field {
+  width: 8.1rem;
+  flex: 0 0 auto;
+}
+
+.kpi-pay-pack .date-field .mo-input {
+  height: 2rem;
+  min-height: 0;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+  border-radius: 0.55rem;
+}
+
+.kpi-sale-pays {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.6rem;
+  gap: 0.5rem 0.65rem;
+  align-items: end;
+}
+
+@media (min-width: 720px) {
+  .kpi-sale-pays {
+    grid-template-columns: minmax(0, 1.3fr) 7.6rem minmax(0, 1.3fr) 7.6rem;
+  }
+}
+
+.kpi-sale-pays__date .date-field,
+.kpi-sale-pays__date .mo-input {
+  width: 7.6rem;
+  max-width: 100%;
+}
+
+.kpi-sale-pays__hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--mo-text-muted);
+}
+
+.kpi-pay-pack .kpi-action--ok {
+  height: 2rem;
+  padding: 0 0.6rem;
+  border-radius: 0.55rem;
+}
+
+.mo-chart-card {
+  border: 1px solid var(--mo-border);
+  border-radius: 1rem;
+  background: var(--mo-surface-elevated);
+  padding: 0.85rem 0.9rem 0.7rem;
+  min-width: 0;
+}
+
+.mo-chart-card__head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--mo-text);
+}
+
+.mo-chart-card__head p {
+  margin: 0.15rem 0 0.55rem;
+  font-size: 0.75rem;
+  color: var(--mo-text-muted);
+}
+
+.mo-chart-empty {
+  padding: 1.5rem 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--mo-text-muted);
+}
+
+.mo-chart-tip {
+  min-width: 9rem;
+  max-width: 16rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+  color: var(--mo-text);
+  box-shadow: var(--mo-shadow-luxury);
+  padding: 0.45rem 0.55rem;
+  font-size: 0.75rem;
+}
+
+.mo-chart-tip__title {
+  font-weight: 650;
+  margin-bottom: 0.25rem;
+}
+
+.mo-chart-tip__row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mo-chart-tip__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.mo-chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--mo-text);
+}
+
+.mo-chart-legend li {
+  display: grid;
+  grid-template-columns: 0.5rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mo-chart-status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 0.9rem;
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  color: var(--mo-text-muted);
+}
+
+.mo-chart-status-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mo-chart-status-legend i {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 0.15rem;
+  display: inline-block;
 }
 
 .kpi-actions {

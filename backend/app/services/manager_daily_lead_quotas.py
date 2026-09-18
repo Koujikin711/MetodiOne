@@ -1,4 +1,7 @@
-"""Персональные квоты: Мавлуда Алибекзода — 3 архивных и 3 новых лида в день."""
+"""Персональные квоты: Мавлуда Алибекзода — 3 новых лида в день.
+
+Архив ей идёт как остальным (LEADS_PER_MANAGER), без отдельного лимита 3.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +19,6 @@ from app.models import Lead, User, UserRole
 
 logger = logging.getLogger(__name__)
 
-MAVLUDA_DAILY_QUOTA = 3
 MAVLUDA_DAILY_NEW_QUOTA = 3
 
 
@@ -54,9 +56,9 @@ def local_day_start_utc(now: datetime | None = None) -> datetime:
 
 
 async def apply_mavluda_daily_archive_quota(db: AsyncSession) -> dict[str, int]:
-    """Ставит Мавлуде daily_archive_leads_quota=3 и включает accepts_new_leads.
+    """Включает Мавлуде новые лиды и снимает старый архивный лимит 3.
 
-    Идемпотентно: можно вызывать на каждом старте.
+    Архив — общая дневная квота. Идемпотентно на каждом старте.
     """
     managers = (
         await db.execute(
@@ -73,8 +75,8 @@ async def apply_mavluda_daily_archive_quota(db: AsyncSession) -> dict[str, int]:
         return {"found": 0, "updated": 0}
 
     changed = 0
-    if int(target.daily_archive_leads_quota or 0) != MAVLUDA_DAILY_QUOTA:
-        target.daily_archive_leads_quota = MAVLUDA_DAILY_QUOTA
+    if target.daily_archive_leads_quota is not None:
+        target.daily_archive_leads_quota = None
         changed = 1
     if not bool(target.accepts_new_leads):
         target.accepts_new_leads = True

@@ -23,7 +23,8 @@ def _norm_name(value: str | None) -> str:
     return re.sub(r"\s+", " ", raw).strip()
 
 
-def _name_matches(full_name: str | None) -> bool:
+def is_kholikova_manizha(full_name: str | None) -> bool:
+    """Манижа Холикова / Холикова Манижа — не получает автораздачу."""
     n = _norm_name(full_name)
     if not n:
         return False
@@ -32,17 +33,15 @@ def _name_matches(full_name: str | None) -> bool:
     return "манижа холикова" in n
 
 
+def _name_matches(full_name: str | None) -> bool:
+    return is_kholikova_manizha(full_name)
+
+
 async def apply_blocked_managers_new_leads_policy(db: AsyncSession) -> dict[str, int]:
     """
     Idempotent: один раз помечает Манижу Холикову accepts_new_leads=False
     и раздаёт её лиды со стадии «Новый лид» остальным менеджерам.
     """
-    already = (
-        await db.execute(select(SystemAuditEvent.id).where(SystemAuditEvent.action == AUDIT_ACTION).limit(1))
-    ).scalar_one_or_none()
-    if already is not None:
-        return {"skipped": 1, "blocked": 0, "reassigned": 0}
-
     managers = (
         await db.execute(
             select(User).where(
@@ -53,6 +52,21 @@ async def apply_blocked_managers_new_leads_policy(db: AsyncSession) -> dict[str,
     ).scalars().all()
 
     targets_user = next((u for u in managers if _name_matches(u.full_name)), None)
+    if targets_user is not None and bool(targets_user.accepts_new_leads):
+        targets_user.accepts_new_leads = False
+        await db.flush()
+        logger.info(
+            "manager_new_leads_block: %s (#%s) accepts_new_leads=False",
+            targets_user.full_name,
+            targets_user.id,
+        )
+
+    already = (
+        await db.execute(select(SystemAuditEvent.id).where(SystemAuditEvent.action == AUDIT_ACTION).limit(1))
+    ).scalar_one_or_none()
+    if already is not None:
+        return {"skipped": 1, "blocked": 1 if targets_user is not None else 0, "reassigned": 0}
+
     if targets_user is None:
         logger.warning("manager_new_leads_block: Манижа Холикова не найдена — пропуск")
         return {"skipped": 0, "blocked": 0, "reassigned": 0}

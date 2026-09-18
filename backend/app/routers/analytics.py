@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+import re
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -30,6 +31,9 @@ from app.schemas.analytics import (
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 WON_STAGE_NAMES = frozenset({"Удачно"})
+FUNNEL_PATH = ("Новый лид", "В обработке", "В ожидании", "Удачно")
+SIDE_STAGE_NAMES = ("Отказ", "Архив")
+_STAGE_CHANGE_RE = re.compile(r"Смена стадии:\s*(.*?)\s*->\s*([^;]+)")
 
 
 def _biz_tz() -> ZoneInfo:
@@ -37,16 +41,6 @@ def _biz_tz() -> ZoneInfo:
         return ZoneInfo(settings.booking_timezone or "Asia/Dushanbe")
     except Exception:
         return ZoneInfo("Asia/Dushanbe")
-
-
-def _sla_score(minutes: float | None) -> float:
-    if minutes is None:
-        return 50.0
-    if minutes <= 5:
-        return 100.0
-    if minutes >= 60:
-        return 0.0
-    return round(max(0.0, 100.0 - (minutes - 5.0) * (100.0 / 55.0)), 1)
 
 
 def _performance_score(
@@ -57,10 +51,11 @@ def _performance_score(
     sla_minutes: float | None,
     has_plan: bool,
 ) -> float:
-    sla = _sla_score(sla_minutes)
+    # Балл из реальных долей: план, ответы в чате, доля «Удачно». SLA не тянем — он был от открытия карточки.
+    del sla_minutes
     if has_plan:
-        return round(0.35 * min(plan_pct, 100.0) + 0.30 * win_pct + 0.25 * reply_pct + 0.10 * sla, 1)
-    return round(0.45 * win_pct + 0.40 * reply_pct + 0.15 * sla, 1)
+        return round(0.50 * min(plan_pct, 100.0) + 0.30 * reply_pct + 0.20 * win_pct, 1)
+    return round(0.60 * reply_pct + 0.40 * win_pct, 1)
 
 
 def _activity_score(*, reply_pct: float, outbound: int, messaged: int) -> float:
@@ -137,7 +132,56 @@ def _assert_owner(current_user: CurrentUser) -> None:
 def _safe_pct(num: float, den: float) -> float:
     if den <= 0:
         return 0.0
-    return round((num / den) * 100, 2)
+    return round(min((num / den) * 100, 100.0), 2)
+
+
+def build_funnel_rows(counts_by_name: dict[str, int]) -> list[tuple[str, int, float | None]]:
+    """Снимок воронки: «дошли дальше» = кто уже на следующих стадиях / кто дошёл сюда.
+
+    Не делит соседние колонки друг на друга (это давало 4991%).
+    «Удачно», «Отказ», «Архив» — исходы, без процента «в следующую».
+    """
+    rows: list[tuple[str, int, float | None]] = []
+    for idx, name in enumerate(FUNNEL_PATH):
+        cur = int(counts_by_name.get(name, 0))
+        if cur <= 0:
+            continue
+        later = sum(int(counts_by_name.get(n, 0)) for n in FUNNEL_PATH[idx + 1 :])
+        reached = cur + later
+        conv = _safe_pct(float(later), float(reached)) if idx + 1 < len(FUNNEL_PATH) and reached > 0 else None
+        if name == "Удачно":
+            conv = None
+        rows.append((name, cur, conv))
+    known = set(FUNNEL_PATH) | set(SIDE_STAGE_NAMES)
+    for name in SIDE_STAGE_NAMES:
+        cur = int(counts_by_name.get(name, 0))
+        if cur > 0:
+            rows.append((name, cur, None))
+    for name, cur in counts_by_name.items():
+        if name in known or int(cur) <= 0:
+            continue
+        rows.append((name, int(cur), None))
+    return rows
+
+
+def average_hours_in_stage(events_by_lead: dict[int, list[tuple[datetime, str]]]) -> dict[str, float]:
+    """Среднее время на стадии по закрытым интервалам «A -> B» до следующего перехода."""
+    buckets: dict[str, list[float]] = {}
+    for events in events_by_lead.values():
+        parsed: list[tuple[datetime, str]] = []
+        for ts, details in events:
+            match = _STAGE_CHANGE_RE.search(details or "")
+            if match is None:
+                continue
+            parsed.append((ts, match.group(2).strip()))
+        parsed.sort(key=lambda x: x[0])
+        for i in range(len(parsed) - 1):
+            ts, stage_name = parsed[i]
+            nxt = parsed[i + 1][0]
+            if nxt < ts or not stage_name:
+                continue
+            buckets.setdefault(stage_name, []).append((nxt - ts).total_seconds() / 3600.0)
+    return {name: round(sum(vals) / len(vals), 2) for name, vals in buckets.items() if vals}
 
 
 async def _manager_message_reply_counts(
@@ -568,6 +612,8 @@ async def analytics_overview(
         if refusal_reason and refusal_reason.strip():
             key = refusal_reason.strip()
             loss_reasons[key] = loss_reasons.get(key, 0) + 1
+        elif sid in stage_map and stage_map[sid][0] == "Отказ":
+            loss_reasons["Причина не указана"] = loss_reasons.get("Причина не указана", 0) + 1
         if manager_id is not None:
             manager_ids.add(int(manager_id))
 
@@ -593,17 +639,26 @@ async def analytics_overview(
         sold_dec = Decimal(str(sold or 0))
         paid_dec = Decimal(str(paid or 0))
         unpaid_dec = sold_dec - paid_dec
+        if unpaid_dec < 0:
+            unpaid_dec = Decimal("0")
         paid_total += paid_dec
         unpaid_total += unpaid_dec
         prev_sold, prev_paid = lead_money.get(lid, (Decimal("0"), Decimal("0")))
         lead_money[lid] = (prev_sold + sold_dec, prev_paid + paid_dec)
 
-    # stage conversion and time-in-stage
-    stage_items: list[StageConversionItem] = []
-    ordered_stage_ids = [int(sid) for sid, _, _ in stage_rows]
+    # Конверсия — снимок воронки по имени стадии (не «следующая колонка / эта»).
+    counts_by_name: dict[str, int] = {}
+    name_to_stage_id: dict[str, int] = {}
+    for sid, (sname, _order) in stage_map.items():
+        cnt = stage_counts.get(sid, 0)
+        if cnt <= 0:
+            continue
+        counts_by_name[sname] = counts_by_name.get(sname, 0) + cnt
+        name_to_stage_id.setdefault(sname, sid)
+
     status_events = (
         await db.execute(
-            select(LeadAuditEvent.lead_id, LeadAuditEvent.created_at)
+            select(LeadAuditEvent.lead_id, LeadAuditEvent.created_at, LeadAuditEvent.details)
             .select_from(LeadAuditEvent)
             .join(Lead, Lead.id == LeadAuditEvent.lead_id)
             .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
@@ -617,40 +672,23 @@ async def analytics_overview(
             .order_by(LeadAuditEvent.created_at.asc())
         )
     ).all()
-    event_buckets: dict[int, list[datetime]] = {}
-    for lead_id, ts in status_events:
+    events_by_lead: dict[int, list[tuple[datetime, str]]] = {}
+    for lead_id, ts, details in status_events:
         lid = int(lead_id)
         if lid in lead_ids_set:
-            event_buckets.setdefault(lid, []).append(ts)
+            events_by_lead.setdefault(lid, []).append((ts, str(details or "")))
+    hours_by_name = average_hours_in_stage(events_by_lead)
 
-    avg_stage_hours = None
-    if event_buckets:
-        durations: list[float] = []
-        for lid, timestamps in event_buckets.items():
-            created_at = next((row[5] for row in leads if int(row[0]) == lid), None)
-            if created_at is None:
-                continue
-            prev = created_at
-            for ts in timestamps:
-                if ts > prev:
-                    durations.append((ts - prev).total_seconds() / 3600.0)
-                    prev = ts
-        if durations:
-            avg_stage_hours = round(sum(durations) / len(durations), 2)
-
-    for idx, sid in enumerate(ordered_stage_ids):
-        sname, sorder = stage_map.get(sid, ("Стадия", idx))
-        cur_count = stage_counts.get(sid, 0)
-        next_count = stage_counts.get(ordered_stage_ids[idx + 1], 0) if idx + 1 < len(ordered_stage_ids) else 0
-        conv = _safe_pct(float(next_count), float(cur_count)) if idx + 1 < len(ordered_stage_ids) and cur_count else None
+    stage_items: list[StageConversionItem] = []
+    for idx, (sname, cur_count, conv) in enumerate(build_funnel_rows(counts_by_name)):
         stage_items.append(
             StageConversionItem(
-                stage_id=sid,
+                stage_id=name_to_stage_id.get(sname, idx + 1),
                 stage_name=sname,
-                order=sorder,
+                order=idx,
                 leads_count=cur_count,
                 conversion_to_next_pct=conv,
-                avg_time_in_stage_hours=avg_stage_hours,
+                avg_time_in_stage_hours=hours_by_name.get(sname),
             )
         )
 
@@ -738,23 +776,6 @@ async def analytics_overview(
         )
 
     # response SLA & cycle time from audits
-    audit_rows = (
-        await db.execute(
-            select(LeadAuditEvent.lead_id, LeadAuditEvent.action, LeadAuditEvent.created_at)
-            .select_from(LeadAuditEvent)
-            .join(Lead, Lead.id == LeadAuditEvent.lead_id)
-            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
-            .where(
-                LeadAuditEvent.company_id == company_id,
-                Lead.company_id == company_id,
-                _lead_in_period(start, end),
-                PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
-            )
-            .order_by(LeadAuditEvent.created_at.asc())
-        )
-    ).all()
-    first_resp_min: list[float] = []
-    first_resp_by_mgr: dict[int | None, list[float]] = {}
     cycle_hours: list[float] = []
     lead_created_map = {int(row[0]): row[5] for row in leads}
     lead_manager_map = {int(row[0]): (int(row[4]) if row[4] is not None else None) for row in leads}
@@ -762,32 +783,70 @@ async def analytics_overview(
     for row in leads:
         mid = int(row[4]) if row[4] is not None else None
         leads_by_mgr[mid] = leads_by_mgr.get(mid, 0) + 1
-    first_opened: dict[int, datetime] = {}
-    first_closed: dict[int, datetime] = {}
-    closed_actions = {"integration_deal_closed", "protocol_finished", "lead_rejected", "service_rejected"}
-    for lead_id, action, created_at in audit_rows:
-        lid = int(lead_id)
-        if lid not in lead_created_map:
+    for lid, events in events_by_lead.items():
+        created_at = lead_created_map.get(lid)
+        if created_at is None:
             continue
-        if action == "card_opened" and lid not in first_opened:
-            first_opened[lid] = created_at
-        if action in closed_actions and lid not in first_closed:
-            first_closed[lid] = created_at
-    for lid, opened_at in first_opened.items():
-        created_at = lead_created_map.get(lid)
-        if created_at and opened_at >= created_at:
-            minutes = (opened_at - created_at).total_seconds() / 60.0
-            first_resp_min.append(minutes)
-            first_resp_by_mgr.setdefault(lead_manager_map.get(lid), []).append(minutes)
-    for lid, closed_at in first_closed.items():
-        created_at = lead_created_map.get(lid)
-        if created_at and closed_at >= created_at:
-            cycle_hours.append((closed_at - created_at).total_seconds() / 3600.0)
+        for ts, details in sorted(events, key=lambda x: x[0]):
+            match = _STAGE_CHANGE_RE.search(details or "")
+            if match is None:
+                continue
+            to_name = match.group(2).strip()
+            if to_name in {"Удачно", "Отказ"} and ts >= created_at:
+                cycle_hours.append((ts - created_at).total_seconds() / 3600.0)
+                break
+
+    reply_filters = [
+        Lead.company_id == company_id,
+        _lead_in_period(start, end),
+        ChatMessage.created_at >= start,
+        ChatMessage.created_at < end,
+    ]
+    if pipeline_id is not None:
+        reply_filters.append(PipelineStage.pipeline_id == pipeline_id)
+    inbound_first = (
+        await db.execute(
+            select(Lead.id, Lead.manager_id, func.min(ChatMessage.created_at))
+            .select_from(ChatMessage)
+            .join(ChatThread, ChatThread.id == ChatMessage.thread_id)
+            .join(Lead, Lead.id == ChatThread.lead_id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .where(*reply_filters, ChatMessage.direction == "in")
+            .group_by(Lead.id, Lead.manager_id)
+        )
+    ).all()
+    outbound_first = (
+        await db.execute(
+            select(Lead.id, func.min(ChatMessage.created_at))
+            .select_from(ChatMessage)
+            .join(ChatThread, ChatThread.id == ChatMessage.thread_id)
+            .join(Lead, Lead.id == ChatThread.lead_id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .where(
+                *reply_filters,
+                ChatMessage.direction == "out",
+                Lead.manager_id.is_not(None),
+                ChatMessage.author_user_id == Lead.manager_id,
+            )
+            .group_by(Lead.id)
+        )
+    ).all()
+    out_at = {int(lid): ts for lid, ts in outbound_first}
+    first_resp_min: list[float] = []
+    first_resp_by_mgr: dict[int | None, list[float]] = {}
+    for lid, manager_id, in_at in inbound_first:
+        out_ts = out_at.get(int(lid))
+        if out_ts is None or in_at is None or out_ts < in_at:
+            continue
+        minutes = (out_ts - in_at).total_seconds() / 60.0
+        first_resp_min.append(minutes)
+        mid = int(manager_id) if manager_id is not None else None
+        first_resp_by_mgr.setdefault(mid, []).append(minutes)
 
     avg_first_response = round(sum(first_resp_min) / len(first_resp_min), 2) if first_resp_min else None
     avg_cycle = round(sum(cycle_hours) / len(cycle_hours), 2) if cycle_hours else None
-    won_leads = len([1 for _lid, action, _ts in audit_rows if action in {"integration_deal_closed", "protocol_finished"}])
-    win_rate = _safe_pct(float(won_leads), float(total_leads))
+    won_leads = int(counts_by_name.get("Удачно", 0))
+    win_rate = _safe_pct(float(won_leads), float(total_leads)) if total_leads else 0.0
 
     messaged_map, replied_map = await _manager_message_reply_counts(
         db, company_id=company_id, start=start, end=end, pipeline_id=pipeline_id
@@ -879,7 +938,7 @@ async def analytics_overview(
     high_unpaid_share = unpaid_share > 35
     low_stage_conversion = avg_stage_conv > 0 and avg_stage_conv < 20
     if low_first_response:
-        alerts_list.append("Среднее время первого ответа выше 30 минут")
+        alerts_list.append("Среднее время ответа в чате выше 30 минут")
     if high_unpaid_share:
         alerts_list.append("Доля неоплаченного объема выше 35%")
     if low_stage_conversion:

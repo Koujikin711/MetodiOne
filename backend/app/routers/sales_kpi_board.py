@@ -232,6 +232,19 @@ async def _replace_item_specialists(
         db.add(SalesKpiPlanItemSpecialist(plan_item_id=plan_item_id, specialist_id=sid))
 
 
+def _date_noon(value: date | None) -> datetime | None:
+    if value is None:
+        return None
+    return datetime(value.year, value.month, value.day, 12, 0, tzinfo=UTC)
+
+
+def _payment_paid_at(value: datetime | None) -> datetime:
+    when = value or datetime.now(UTC)
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=UTC)
+    return when
+
+
 def _manual_counts_in_kpi(service_amount: Decimal, first_paid_amount: Decimal, status: str) -> bool:
     """В KPI/бонус идёт только первый платёж (≥25% стоимости). Доплаты — только дебиторка."""
     if status != "active":
@@ -703,12 +716,16 @@ async def create_manual_sale(
 
     if body.paid_amount > body.service_amount:
         raise HTTPException(status_code=400, detail="Оплата не может быть больше стоимости")
+    second_paid = Decimal(str(body.second_paid_amount or 0))
+    first_paid = Decimal(str(body.paid_amount or 0))
+    if first_paid + second_paid > body.service_amount:
+        raise HTTPException(status_code=400, detail="Сумма платежей не может быть больше стоимости")
 
-    sold_at = body.sold_at or datetime.now(UTC)
+    sold_at = _date_noon(body.first_paid_on) or body.sold_at or datetime.now(UTC)
     if sold_at.tzinfo is None:
         sold_at = sold_at.replace(tzinfo=UTC)
+    second_at = _date_noon(body.second_paid_on) or sold_at
 
-    first_paid = Decimal(str(body.paid_amount or 0))
     sale = SalesKpiManualSale(
         company_id=company_id,
         pipeline_id=body.pipeline_id,
@@ -719,7 +736,7 @@ async def create_manual_sale(
         stream_no=int(body.stream_no),
         group_no=int(body.group_no),
         service_amount=body.service_amount,
-        paid_amount=first_paid,
+        paid_amount=first_paid + second_paid,
         first_paid_amount=first_paid,
         sold_at=sold_at,
         status="active",
@@ -741,6 +758,18 @@ async def create_manual_sale(
         )
         db.add(pay)
         payments.append(pay)
+    if second_paid > 0:
+        pay2 = SalesKpiManualSalePayment(
+            company_id=company_id,
+            sale_id=int(sale.id),
+            amount=second_paid,
+            is_first=False,
+            note="Второй платёж",
+            paid_at=second_at,
+            created_by_user_id=current_user.id,
+        )
+        db.add(pay2)
+        payments.append(pay2)
     await db.commit()
     await db.refresh(sale)
     for p in payments:
@@ -796,7 +825,7 @@ async def patch_manual_sale_payment(
         amount=add_amount,
         is_first=False,
         note=(body.note.strip() if body.note else None) or "Доплата",
-        paid_at=datetime.now(UTC),
+        paid_at=_payment_paid_at(body.paid_at),
         created_by_user_id=current_user.id,
     )
     db.add(pay)
