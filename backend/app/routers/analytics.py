@@ -21,6 +21,8 @@ from app.models import (
     LeadAuditEvent,
     Pipeline,
     PipelineStage,
+    SalesKpiManualSale,
+    SalesKpiManualSalePayment,
     SalesKpiPlan,
     User,
     UserPipelineAssignment,
@@ -706,6 +708,49 @@ async def analytics_overview(
         prev_sold, prev_paid = lead_money.get(lid, (Decimal("0"), Decimal("0")))
         lead_money[lid] = (prev_sold + sold_dec, prev_paid + paid_dec)
 
+    # Карточки руководства: деньги визитов этого срока и платежи курсов, не только новые лиды.
+    visit_filters = [
+        BookingAppointment.company_id == company_id,
+        BookingAppointment.start_at >= start,
+        BookingAppointment.start_at < end,
+    ]
+    if pipeline_id is not None:
+        visit_filters.append(BookingAppointment.pipeline_id == pipeline_id)
+    visit_paid, visit_debt = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                BookingAppointment.service_amount > BookingAppointment.paid_amount,
+                                BookingAppointment.service_amount - BookingAppointment.paid_amount,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ),
+            ).where(*visit_filters)
+        )
+    ).one()
+    course_filters = [
+        SalesKpiManualSalePayment.company_id == company_id,
+        SalesKpiManualSalePayment.paid_at >= start,
+        SalesKpiManualSalePayment.paid_at < end,
+    ]
+    course_q = select(func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0)).where(*course_filters)
+    if pipeline_id is not None:
+        course_q = (
+            select(func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0))
+            .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
+            .where(*course_filters, SalesKpiManualSale.pipeline_id == pipeline_id)
+        )
+    course_paid = (await db.execute(course_q)).scalar_one()
+    paid_total = Decimal(str(visit_paid or 0)) + Decimal(str(course_paid or 0))
+    unpaid_total = Decimal(str(visit_debt or 0))
+
     # Конверсия — снимок воронки по имени стадии (не «следующая колонка / эта»).
     counts_by_name: dict[str, int] = {}
     name_to_stage_id: dict[str, int] = {}
@@ -807,20 +852,39 @@ async def analytics_overview(
     ).all()
     plan_map: dict[int, Decimal] = {int(mid): Decimal(str(amount or 0)) for mid, amount in plan_rows if mid is not None}
 
+    visit_mgr = func.coalesce(BookingAppointment.responsible_manager_id, Lead.manager_id)
+    fact_filters = [
+        BookingAppointment.company_id == company_id,
+        BookingAppointment.start_at >= start,
+        BookingAppointment.start_at < end,
+    ]
+    if pipeline_id is not None:
+        fact_filters.append(BookingAppointment.pipeline_id == pipeline_id)
     fact_rows = (
         await db.execute(
-            select(Lead.manager_id, func.coalesce(func.sum(BookingAppointment.paid_amount), 0))
-            .join(BookingAppointment, BookingAppointment.lead_id == Lead.id)
-            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
-            .where(
-                Lead.company_id == company_id,
-                _lead_in_period(start, end),
-                PipelineStage.pipeline_id == pipeline_id if pipeline_id is not None else True,
-            )
-            .group_by(Lead.manager_id)
+            select(visit_mgr, func.coalesce(func.sum(BookingAppointment.paid_amount), 0))
+            .select_from(BookingAppointment)
+            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+            .where(*fact_filters)
+            .group_by(visit_mgr)
         )
     ).all()
     fact_map: dict[int, Decimal] = {int(mid): Decimal(str(amount or 0)) for mid, amount in fact_rows if mid is not None}
+    course_fact_q = (
+        select(SalesKpiManualSale.manager_user_id, func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0))
+        .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
+        .where(
+            SalesKpiManualSalePayment.company_id == company_id,
+            SalesKpiManualSalePayment.paid_at >= start,
+            SalesKpiManualSalePayment.paid_at < end,
+            SalesKpiManualSale.pipeline_id == pipeline_id if pipeline_id is not None else True,
+        )
+        .group_by(SalesKpiManualSale.manager_user_id)
+    )
+    for mid, amount in (await db.execute(course_fact_q)).all():
+        if mid is None:
+            continue
+        fact_map[int(mid)] = fact_map.get(int(mid), Decimal("0")) + Decimal(str(amount or 0))
 
     manager_ids_all = sorted(set(plan_map.keys()) | set(fact_map.keys()))
     manager_plan_fact: list[ManagerPlanFactItem] = []
@@ -984,7 +1048,11 @@ async def analytics_overview(
         )
     manager_performance.sort(key=lambda x: (-x.performance_score, x.manager_name))
 
-    scored = [x.performance_score for x in manager_performance if x.manager_id is not None]
+    scored = [
+        x.performance_score
+        for x in manager_performance
+        if x.manager_id is not None and (x.leads_count > 0 or x.clients_messaged_count > 0)
+    ]
     performance_avg = round(sum(scored) / len(scored), 1) if scored else None
     team_messaged = sum(x.clients_messaged_count for x in manager_performance)
     team_replied = sum(x.manager_replied_count for x in manager_performance)

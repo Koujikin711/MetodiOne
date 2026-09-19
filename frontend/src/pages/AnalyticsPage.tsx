@@ -19,6 +19,16 @@ import type {
 
 type AnalyticsDimension = "managers" | "services";
 
+function formatReplyMinutes(minutes: number | null | undefined): string {
+  if (minutes == null || Number.isNaN(minutes)) return "—";
+  if (minutes >= 60) {
+    const h = Math.floor(minutes / 60);
+    const m = Math.round(minutes % 60);
+    return m ? `${h} ч ${m} мин` : `${h} ч`;
+  }
+  return `${Math.round(minutes)} мин`;
+}
+
 const moneyFmt = { format: (n: number) => formatMoney(n, { digits: 0 }) };
 
 function downloadCsv(filename: string, headers: string[], rows: Array<Array<string | number>>) {
@@ -698,27 +708,25 @@ export function AnalyticsPage() {
                 <MetricCard label={lex.guestsMetricLabel} value={overviewQuery.data.executive.leads_total} tone="accent" />
                 <MetricCard
                   label="Удачно"
-                  value={`${overviewQuery.data.executive.win_rate_pct}%`}
+                  value={`${overviewQuery.data.executive.won_leads} из ${overviewQuery.data.executive.leads_total}`}
                   tone="neutral"
-                  hint="Доля лидов периода на стадии «Удачно»"
+                  hint={`${overviewQuery.data.executive.win_rate_pct}% лидов периода сейчас на стадии «Удачно»`}
                 />
                 <MetricCard
                   label="Оплачено"
                   value={moneyFmt.format(Number(overviewQuery.data.executive.paid_amount))}
                   tone="success"
+                  hint="Визиты этого срока и платежи курсов"
                 />
                 <MetricCard
                   label="Не оплачено"
                   value={moneyFmt.format(Number(overviewQuery.data.executive.unpaid_amount))}
                   tone="warning"
+                  hint="Долг по визитам этого срока"
                 />
                 <MetricCard
                   label="Ответ в чате"
-                  value={
-                    overviewQuery.data.executive.avg_first_response_minutes == null
-                      ? "—"
-                      : `${overviewQuery.data.executive.avg_first_response_minutes} мин`
-                  }
+                  value={formatReplyMinutes(overviewQuery.data.executive.avg_first_response_minutes)}
                   tone="default"
                   hint="От входящего сообщения до ответа менеджера"
                 />
@@ -730,16 +738,19 @@ export function AnalyticsPage() {
                       : `${overviewQuery.data.executive.avg_lead_cycle_hours} ч`
                   }
                   tone="neutral"
+                  hint="До «Удачно» или «Отказ». Прочерк — таких закрытий нет"
                 />
                 <MetricCard
-                  label="Успеваемость"
-                  value={
-                    overviewQuery.data.executive.performance_score_avg == null
-                      ? "—"
-                      : overviewQuery.data.executive.performance_score_avg
-                  }
+                  label="План"
+                  value={(() => {
+                    const rows = overviewQuery.data.manager_plan_fact;
+                    const plan = rows.reduce((s, r) => s + Number(r.plan_amount || 0), 0);
+                    const fact = rows.reduce((s, r) => s + Number(r.fact_paid_amount || 0), 0);
+                    if (plan <= 0) return "—";
+                    return `${Math.min(100, Math.round((fact / plan) * 100))}%`;
+                  })()}
                   tone="accent"
-                  hint="План, ответы в чате и доля «Удачно»"
+                  hint="Факт оплат записи к плану менеджеров"
                 />
                 <MetricCard
                   label="Активность"
@@ -749,7 +760,7 @@ export function AnalyticsPage() {
                       : `${overviewQuery.data.executive.activity_reply_rate_pct}%`
                   }
                   tone="default"
-                  hint="Доля диалогов с ответом менеджера"
+                  hint="Доля диалогов, где менеджер ответил"
                 />
               </div>
 
