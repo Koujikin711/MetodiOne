@@ -28,15 +28,40 @@ const COLORS = [
   "#4ade80",
 ];
 
-const tipStyle = {
-  backgroundColor: "rgba(15, 23, 42, 0.96)",
-  border: "1px solid rgba(148, 163, 184, 0.25)",
-  borderRadius: 12,
-  color: "#f1f5f9",
-  fontSize: 12,
-};
+const tick = { fill: "var(--mo-text-muted, #64748b)", fontSize: 11 };
 
-const tick = { fill: "var(--mo-muted, #64748b)", fontSize: 11 };
+function ChartTip({
+  active,
+  payload,
+  label,
+  money,
+}: {
+  active?: boolean;
+  payload?: Array<{ name?: string; value?: number | string; color?: string; dataKey?: string; payload?: { name?: string } }>;
+  label?: string;
+  money?: boolean;
+}) {
+  if (!active || !payload?.length) return null;
+  const title = String(payload[0]?.payload?.name || label || "");
+  return (
+    <div className="mo-chart-tip">
+      {title ? <div className="mo-chart-tip__title">{title}</div> : null}
+      {payload.map((row, i) => {
+        const raw = Number(row.value ?? 0);
+        const asMoney = money || row.dataKey === "paid" || row.dataKey === "value";
+        return (
+          <div key={`${row.dataKey || row.name || i}`} className="mo-chart-tip__row">
+            <span className="mo-chart-tip__dot" style={{ background: row.color || "var(--mo-accent)" }} />
+            <span className="min-w-0 truncate">{row.name || "Оплаты"}</span>
+            <span className="tabular-nums font-semibold">
+              {asMoney && Number.isFinite(raw) ? formatMoney(raw, { digits: 0 }) : String(row.value ?? "—")}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function shortMoney(v: number) {
   if (!Number.isFinite(v)) return "—";
@@ -94,10 +119,7 @@ export function AnalyticsServicesCharts({ services, experts }: Props) {
                 <CartesianGrid stroke="rgba(148,163,184,0.15)" vertical={false} />
                 <XAxis dataKey="name" tick={tick} interval={0} angle={-25} textAnchor="end" height={64} />
                 <YAxis tickFormatter={shortMoney} tick={tick} width={44} />
-                <Tooltip
-                  contentStyle={tipStyle}
-                  formatter={(v: number) => [formatMoney(v, { digits: 0 }), "Оплаты"]}
-                />
+                <Tooltip cursor={false} content={<ChartTip money />} />
                 <Bar dataKey="paid" name="Оплаты" radius={[4, 4, 0, 0]} maxBarSize={36}>
                   {revenueRows.map((_, i) => (
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
@@ -129,10 +151,7 @@ export function AnalyticsServicesCharts({ services, experts }: Props) {
                       <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />
                     ))}
                   </Pie>
-                  <Tooltip
-                    contentStyle={tipStyle}
-                    formatter={(v: number) => [formatMoney(v, { digits: 0 }), ""]}
-                  />
+                  <Tooltip cursor={false} content={<ChartTip money />} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                 </PieChart>
               </ResponsiveContainer>
@@ -150,7 +169,7 @@ export function AnalyticsServicesCharts({ services, experts }: Props) {
               <CartesianGrid stroke="rgba(148,163,184,0.15)" vertical={false} />
               <XAxis dataKey="name" tick={tick} interval={0} angle={-25} textAnchor="end" height={64} />
               <YAxis tick={tick} width={36} />
-              <Tooltip contentStyle={tipStyle} />
+              <Tooltip cursor={false} content={<ChartTip />} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="appeared" name="Явились" stackId="a" fill="#34d399" maxBarSize={36} />
               <Bar dataKey="noshow" name="Не явились" stackId="a" fill="#f87171" maxBarSize={36} />
@@ -174,10 +193,7 @@ export function AnalyticsServicesCharts({ services, experts }: Props) {
                 <CartesianGrid stroke="rgba(148,163,184,0.15)" horizontal={false} />
                 <XAxis type="number" tickFormatter={shortMoney} tick={tick} />
                 <YAxis type="category" dataKey="name" width={120} tick={tick} />
-                <Tooltip
-                  contentStyle={tipStyle}
-                  formatter={(v: number) => [formatMoney(v, { digits: 0 }), "Оплаты"]}
-                />
+                <Tooltip cursor={false} content={<ChartTip money />} />
                 <Bar dataKey="paid" name="Оплаты" fill="#a78bfa" radius={[0, 4, 4, 0]} maxBarSize={22} />
               </BarChart>
             </ResponsiveContainer>

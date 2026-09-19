@@ -5906,6 +5906,22 @@ fieldset.extra-services-field {
   font-size: 0.75rem;
 }
 
+.mo-chart-tip,
+.mo-chart-tip__title,
+.mo-chart-tip__row,
+.mo-chart-tip__row span {
+  color: var(--mo-text);
+}
+
+.analytics-charts .recharts-tooltip-cursor,
+.mo-chart-card .recharts-tooltip-cursor {
+  display: none;
+}
+
+.analytics-charts .recharts-legend-item-text {
+  color: var(--mo-text) !important;
+}
+
 .mo-chart-tip__title {
   font-weight: 650;
   margin-bottom: 0.25rem;

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -342,20 +343,28 @@ export function CuratorJournalPage() {
     didScrollToday.current = false;
   }, [selectedFlowId, year, month]);
 
-  useEffect(() => {
+  function scrollJournalToToday() {
+    const today = todayIso();
+    const parent = scrollRef.current;
+    if (!parent || parent.offsetWidth === 0) return false;
+    const el = parent.querySelector<HTMLElement>(`[data-day="${today}"]`);
+    if (!el) return false;
+    const nameW = parent.querySelector<HTMLElement>(".cj-sticky-corner")?.getBoundingClientRect().width ?? 0;
+    const left =
+      parent.scrollLeft + (el.getBoundingClientRect().left - parent.getBoundingClientRect().left) - nameW;
+    parent.scrollLeft = Math.max(0, left);
+    return true;
+  }
+
+  useLayoutEffect(() => {
     if (!monthQuery.data || didScrollToday.current) return;
     const today = todayIso();
     if (!monthQuery.data.days.includes(today)) return;
-    const el = scrollRef.current?.querySelector(`[data-day="${today}"]`);
-    if (el && scrollRef.current) {
-      const parent = scrollRef.current;
-      const left = (el as HTMLElement).offsetLeft - 120;
-      parent.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
-      didScrollToday.current = true;
-      setSelectedDay(today);
-      setMobileDay(today);
-    }
-  }, [monthQuery.data]);
+    if (!scrollJournalToToday()) return;
+    didScrollToday.current = true;
+    setSelectedDay(today);
+    setMobileDay(today);
+  }, [monthQuery.data, year, month, selectedFlowId]);
 
   const upsertMut = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -501,6 +510,9 @@ export function CuratorJournalPage() {
                   setSelectedDay(todayIso());
                   setMobileDay(todayIso());
                   didScrollToday.current = false;
+                  requestAnimationFrame(() => {
+                    if (scrollJournalToToday()) didScrollToday.current = true;
+                  });
                 }}
               >
                 Сегодня

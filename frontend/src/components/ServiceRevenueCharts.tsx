@@ -200,10 +200,7 @@ export function ServiceRevenueCharts({
                 <CartesianGrid stroke={theme.grid} horizontal={false} />
                 <XAxis type="number" tick={axis} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="short" width={108} tick={axis} axisLine={false} tickLine={false} />
-                <Tooltip
-                  cursor={{ fill: theme.cursor }}
-                  content={<ChartTip moneyKeys={PAID_KEYS} />}
-                />
+                <Tooltip cursor={false} content={<ChartTip moneyKeys={PAID_KEYS} />} />
                 <Bar dataKey="paid" name="Оплаты" radius={[0, 6, 6, 0]} maxBarSize={16}>
                   {payRows.map((r) => (
                     <Cell key={r.name} fill={r.fill} />
@@ -274,7 +271,7 @@ export function ServiceRevenueCharts({
                   <CartesianGrid stroke={theme.grid} horizontal={false} />
                   <XAxis type="number" tick={axis} axisLine={false} tickLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="short" width={108} tick={axis} axisLine={false} tickLine={false} />
-                  <Tooltip cursor={{ fill: theme.cursor }} content={<ChartTip />} />
+                  <Tooltip cursor={false} content={<ChartTip />} />
                   <Bar dataKey="appeared" name="Явились" stackId="s" fill={STATUS.appeared} maxBarSize={16} />
                   <Bar dataKey="noShow" name="Не явились" stackId="s" fill={STATUS.noShow} maxBarSize={16} />
                   <Bar dataKey="booked" name="Ещё в записи" stackId="s" fill={STATUS.booked} radius={[0, 6, 6, 0]} maxBarSize={16} />
@@ -295,7 +292,7 @@ export function ServiceRevenueCharts({
                 <CartesianGrid stroke={theme.grid} horizontal={false} />
                 <XAxis type="number" tick={axis} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="short" width={128} tick={axis} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: theme.cursor }} content={<ChartTip moneyKeys={PAID_KEYS} />} />
+                <Tooltip cursor={false} content={<ChartTip moneyKeys={PAID_KEYS} />} />
                 <Bar dataKey="paid" name="Оплаты" radius={[0, 6, 6, 0]} maxBarSize={14}>
                   {expertRows.map((r) => (
                     <Cell key={r.name} fill={r.fill} />
