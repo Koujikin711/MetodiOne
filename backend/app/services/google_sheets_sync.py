@@ -229,6 +229,20 @@ def _is_probably_test_row(*values: str) -> bool:
     return any(marker in merged for marker in _TEST_ROW_MARKERS)
 
 
+def _sheet_source_name(cell: str) -> str:
+    raw = (cell or "").strip()
+    if not raw:
+        return _SOURCE_NAME
+    low = raw.lower()
+    if "insta" in low or "инста" in low:
+        return "INSTAGRAM"
+    if "telegram" in low or "телег" in low:
+        return "TELEGRAM"
+    if "whats" in low or "green" in low or "ватс" in low or "вотс" in low:
+        return "GREEN API"
+    return raw[:120]
+
+
 def _is_valid_phone_for_lead(phone: str | None) -> bool:
     if not phone:
         return False
@@ -263,14 +277,15 @@ async def _upsert_sheet_lead(
     name: str,
     phone: str | None,
     email: str | None,
+    source_name: str,
 ) -> None:
-    await _ensure_source_exists(db, company_id, _SOURCE_NAME)
+    await _ensure_source_exists(db, company_id, source_name)
     norm_phone = _norm_phone(phone)
     existing = await _find_existing_lead(
         db,
         company_id=company_id,
         phone=norm_phone,
-        source_name=_SOURCE_NAME,
+        source_name=source_name,
         pipeline_id=integ.pipeline_id,
     )
     if existing is not None:
@@ -279,6 +294,9 @@ async def _upsert_sheet_lead(
             existing.name = name.strip()
         if not existing.email and (email or "").strip():
             existing.email = (email or "").strip()
+        current = (existing.source or "").strip()
+        if source_name != _SOURCE_NAME and current in {"", _SOURCE_NAME}:
+            existing.source = source_name
         await db.flush()
         return
 
@@ -287,7 +305,7 @@ async def _upsert_sheet_lead(
         name=name.strip() or "Лид из таблицы",
         phone=norm_phone,
         email=(email or "").strip() or None,
-        source=_SOURCE_NAME,
+        source=source_name,
         status_id=integ.stage_id,
         manager_id=None,
     )
@@ -338,6 +356,9 @@ async def sync_google_sheet_integration(
     name_col = _resolve_col_index(cfg.get("full_name_column") or "full_name", headers)
     phone_col = _resolve_col_index(cfg.get("phone_column") or "phone_number", headers)
     email_col = _resolve_col_index(cfg.get("email_column") or "email", headers)
+    source_col = _resolve_col_index(cfg.get("source_column") or "source", headers)
+    if source_col is None:
+        source_col = _resolve_col_index("источник", headers)
     if (name_col is None or phone_col is None) and cfg.get("sheet_name"):
         # Если явно указали не тот лист, пробуем автоматически найти корректный по заголовкам.
         for candidate in await _all_sheet_titles(token, spreadsheet_id):
@@ -351,6 +372,9 @@ async def sync_google_sheet_integration(
                 name_col = cand_name
                 phone_col = cand_phone
                 email_col = _resolve_col_index(cfg.get("email_column") or "email", headers)
+                source_col = _resolve_col_index(cfg.get("source_column") or "source", headers)
+                if source_col is None:
+                    source_col = _resolve_col_index("источник", headers)
                 break
     if name_col is None and phone_col is None:
         raise RuntimeError(
@@ -371,6 +395,7 @@ async def sync_google_sheet_integration(
         full_name = _cell(row, name_col)
         phone = _cell(row, phone_col)
         email = _cell(row, email_col)
+        source_name = _sheet_source_name(_cell(row, source_col))
         norm_phone = _norm_phone(phone)
         if _is_probably_test_row(full_name, phone, email):
             skipped += 1
@@ -385,6 +410,7 @@ async def sync_google_sheet_integration(
             name=full_name or "Лид из таблицы",
             phone=norm_phone,
             email=email or None,
+            source_name=source_name,
         )
         processed += 1
         created += 1

@@ -53,6 +53,23 @@ SIDE_STAGE_NAMES = ("Отказ", "Архив")
 _STAGE_CHANGE_RE = re.compile(r"Смена стадии:\s*(.*?)\s*->\s*([^;]+)")
 
 
+def _source_label(raw: str | None) -> str:
+    s = (raw or "").strip().lower()
+    if not s or s in {"не указан", "none", "null"}:
+        return ""
+    if "instagram" in s or "инстаграм" in s or "инста" in s or s in {"ig", "insta"}:
+        return "Инстаграм"
+    if "telegram" in s or "телеграм" in s:
+        return "Telegram"
+    if "green" in s or "whatsapp" in s or "ватсап" in s or "вотсап" in s or s in {"wa", "green_api"}:
+        return "WhatsApp"
+    if "google" in s or "sheet" in s or "таблиц" in s:
+        return "Google Таблица"
+    if "онлайн" in s or s == "booking":
+        return "Онлайн-запись"
+    return (raw or "").strip()
+
+
 def _biz_tz() -> ZoneInfo:
     try:
         return ZoneInfo(settings.booking_timezone or "Asia/Dushanbe")
@@ -620,12 +637,38 @@ async def analytics_overview(
     loss_reasons: dict[str, int] = {}
     manager_ids: set[int] = set()
 
+    thread_providers: dict[int, set[str]] = {}
+    if lead_ids:
+        thread_rows = (
+            await db.execute(
+                select(ChatThread.lead_id, ChatThread.provider).where(
+                    ChatThread.company_id == company_id,
+                    ChatThread.lead_id.in_(lead_ids),
+                )
+            )
+        ).all()
+        for lid, provider in thread_rows:
+            thread_providers.setdefault(int(lid), set()).add(str(provider or "").strip().lower())
+
     for lead_id, status_id, source, refusal_reason, manager_id, _created_at in leads:
         sid = int(status_id) if status_id is not None else -1
         stage_counts[sid] = stage_counts.get(sid, 0) + 1
-        src = (source or "Не указан").strip() or "Не указан"
-        source_counts[src] = source_counts.get(src, 0) + 1
-        source_lead_ids.setdefault(src, []).append(int(lead_id))
+        label = _source_label(source)
+        provs = thread_providers.get(int(lead_id), set())
+        # Карточка могла остаться «WhatsApp», хотя единственный чат — Инстаграм.
+        if provs and provs <= {"instagram"} and label in {"", "WhatsApp", "Google Таблица"}:
+            label = "Инстаграм"
+        elif not label:
+            if "instagram" in provs:
+                label = "Инстаграм"
+            elif "telegram" in provs:
+                label = "Telegram"
+            elif "green_api" in provs:
+                label = "WhatsApp"
+            else:
+                label = "Не указан"
+        source_counts[label] = source_counts.get(label, 0) + 1
+        source_lead_ids.setdefault(label, []).append(int(lead_id))
         if refusal_reason and refusal_reason.strip():
             key = refusal_reason.strip()
             loss_reasons[key] = loss_reasons.get(key, 0) + 1
@@ -711,7 +754,9 @@ async def analytics_overview(
 
     # source analytics
     source_items: list[SourceAnalyticsItem] = []
-    for src, cnt in sorted(source_counts.items(), key=lambda x: x[1], reverse=True):
+    for src, cnt in sorted(source_counts.items(), key=lambda x: (-x[1], x[0])):
+        if cnt <= 0:
+            continue
         sold = Decimal("0")
         paid = Decimal("0")
         for lid in source_lead_ids.get(src, []):

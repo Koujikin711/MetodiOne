@@ -3968,7 +3968,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .extra-services-panel > .extra-services-new-layout,
-.extra-services-panel > .extra-services-journal,
 .extra-services-panel > .extra-services-report,
 .extra-services-panel > .space-y-4 {
   flex: 1 1 auto;
@@ -3977,6 +3976,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-bottom: 0.75rem;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+.extra-services-panel > .extra-services-journal {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0;
 }
 
 @media (min-width: 1024px) {
@@ -4006,8 +4014,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   flex-direction: column;
   gap: 0.55rem;
   min-height: 0;
-  height: 100%;
-  overflow: hidden !important;
+  flex: 1 1 auto;
+  height: auto;
+  overflow: hidden;
 }
 
 .extra-services-journal__toolbar {
@@ -4028,6 +4037,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   border-radius: 1rem;
   border: 1px solid var(--mo-border);
   background: var(--mo-surface-elevated);
@@ -5625,6 +5636,63 @@ fieldset.extra-services-field {
 
 .kpi-data-table tbody tr:hover td {
   background: color-mix(in srgb, var(--mo-accent-soft) 55%, transparent);
+}
+
+.kpi-sales-board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.kpi-sales-grid {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.kpi-sales-card {
+  padding: 0.45rem 0.55rem;
+  min-width: 0;
+}
+
+.kpi-sales-card__name {
+  margin-bottom: 0.3rem;
+  font-size: 0.92rem;
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--mo-text);
+}
+
+.kpi-sales-compact {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--mo-border);
+  border-radius: 0.7rem;
+}
+
+.kpi-sales-compact > li {
+  padding: 0.28rem 0.45rem;
+  border-top: 1px solid var(--mo-border);
+}
+
+.kpi-sales-compact > li:first-child {
+  border-top: 0;
+}
+
+.kpi-sales-compact__total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.65rem;
+  font-size: 12px;
+  font-weight: 650;
+  background: color-mix(in srgb, var(--mo-surface) 70%, transparent);
+}
+
+@media (min-width: 768px) {
+  .kpi-sales-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .kpi-data-table tbody tr:last-child td {

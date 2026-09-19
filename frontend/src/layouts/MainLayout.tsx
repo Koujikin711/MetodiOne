@@ -228,7 +228,8 @@ export function MainLayout() {
             location.pathname.startsWith("/employees") ||
             location.pathname.startsWith("/audit") ||
             location.pathname.startsWith("/integrations") ||
-            location.pathname.startsWith("/finance")
+            location.pathname.startsWith("/finance") ||
+            location.pathname.startsWith("/extra-services")
               ? [
                   "max-lg:overflow-hidden max-lg:flex max-lg:flex-col max-lg:min-h-0 sm:flex sm:flex-col sm:overflow-hidden sm:!py-4 sm:!pb-4 lg:overflow-hidden lg:py-4 lg:pb-4",
                   location.pathname.startsWith("/chat") || location.pathname.startsWith("/messenger")
@@ -266,11 +267,12 @@ export function MainLayout() {
               location.pathname.startsWith("/employees") ||
               location.pathname.startsWith("/audit") ||
               location.pathname.startsWith("/integrations") ||
-              location.pathname.startsWith("/finance")
+              location.pathname.startsWith("/finance") ||
+              location.pathname.startsWith("/extra-services")
                 ? [
                     "flex min-h-0 flex-1 flex-col",
                     location.pathname.startsWith("/chat") ? "max-lg:h-full max-lg:min-h-0" : "",
-                    location.pathname.startsWith("/crm")
+                    location.pathname.startsWith("/crm") || location.pathname.startsWith("/extra-services")
                       ? "min-h-0 flex-1 overflow-hidden [&>*]:min-h-0 [&>*]:flex-1"
                       : "",
                     location.pathname.startsWith("/sales") ? "min-h-0 flex-1 [&>*]:min-h-0 [&>*]:flex-1" : "",

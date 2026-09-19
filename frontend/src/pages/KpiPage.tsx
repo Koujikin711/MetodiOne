@@ -1706,90 +1706,81 @@ function SalesReportSection({
   }
 
   return (
-    <div className="space-y-3 sm:space-y-6">
-      <section className="mo-section px-3 py-2.5 sm:p-4">
-        <h2 className="text-[15px] font-semibold text-[var(--mo-text)] sm:text-lg">Продажи · {data.year_month}</h2>
-        <p className="mt-0.5 text-[11px] lux-caption sm:mt-1 sm:text-sm">
-          Фонд: {formatMoney(num(data.bonus_fund))} на менеджера
-        </p>
+    <div className="kpi-sales-board">
+      <section className="mo-section px-3 py-2">
+        <h2 className="text-[15px] font-semibold text-[var(--mo-text)]">Продажи · {data.year_month}</h2>
+        <p className="mt-0.5 text-[11px] lux-caption">Фонд: {formatMoney(num(data.bonus_fund))} на менеджера</p>
       </section>
 
+      <div className="kpi-sales-grid">
       {managers.map((m) => (
-        <section key={m.manager_id} className="mo-section p-2.5 sm:p-4">
-          <h3 className="mb-1.5 text-[15px] font-semibold text-[var(--mo-text)] sm:mb-3 sm:text-lg">
-            {m.manager_name}
-          </h3>
+        <section key={m.manager_id} className="kpi-sales-card mo-section">
+          <h3 className="kpi-sales-card__name">{m.manager_name}</h3>
 
-          <ul className="divide-y divide-[var(--mo-border)] overflow-hidden rounded-xl border border-[var(--mo-border)] sm:hidden">
+          <ul className="kpi-sales-compact lg:hidden">
             {m.lines.map((line) => (
-              <li key={line.plan_item_id} className="px-2.5 py-2">
+              <li key={line.plan_item_id}>
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="min-w-0 truncate text-[13px] font-semibold leading-tight text-[var(--mo-text)]">
                     {line.name}
                   </p>
                   <span className="shrink-0 text-[12px] font-semibold tabular-nums text-[var(--mo-text)]">
-                    {contribLabel(line.contribution)}
+                    {line.fact_qty}/{line.plan_qty}
                   </span>
                 </div>
-                <p className="mt-0.5 text-[11px] leading-tight tabular-nums mo-muted">
-                  {line.fact_qty}/{line.plan_qty} · {pctLabel(line.completion)} · вес {num(line.weight_percent)}%
+                <p className="text-[11px] leading-tight tabular-nums mo-muted">
+                  вес {num(line.weight_percent)}% · {pctLabel(line.completion)} · {contribLabel(line.contribution)}
                 </p>
               </li>
             ))}
-            <li className="bg-[var(--mo-surface)]/55 px-2.5 py-2">
-              <div className="flex items-center justify-between gap-2 text-[13px] font-semibold text-[var(--mo-text)]">
-                <span>Итого вклад</span>
-                <span className="tabular-nums">{contribLabel(m.total_contribution)}</span>
-              </div>
-              <div className="mt-0.5 flex items-center justify-between gap-2 text-[13px] font-semibold text-[var(--mo-text)]">
-                <span>Бонус</span>
-                <span className="tabular-nums kpi-actual-value">{formatMoney(num(m.bonus))}</span>
-              </div>
+            <li className="kpi-sales-compact__total">
+              <span>Итого</span>
+              <span className="tabular-nums">{contribLabel(m.total_contribution)}</span>
+              <span className="kpi-actual-value">Бонус {formatMoney(num(m.bonus))}</span>
             </li>
           </ul>
 
-          <div className="hidden overflow-x-auto sm:block">
-            <table className="kpi-data-table min-w-[900px] text-sm">
+          <div className="hidden lg:block">
+            <table className="kpi-data-table w-full text-sm">
               <thead>
                 <tr>
-                  <th className="py-2 pr-3">Продукт</th>
-                  <th className="py-2 pr-3">План</th>
-                  <th className="py-2 pr-3">Вес %</th>
-                  <th className="py-2 pr-3">Факт</th>
-                  <th className="py-2 pr-3">Выполн.</th>
-                  <th className="py-2 pr-3">Вклад %</th>
+                  <th>Продукт</th>
+                  <th>План</th>
+                  <th>Вес %</th>
+                  <th>Факт</th>
+                  <th>Выполн.</th>
+                  <th>Вклад %</th>
                 </tr>
               </thead>
               <tbody>
                 {m.lines.map((line) => (
                   <tr key={line.plan_item_id}>
-                    <td className="py-2 pr-3">{line.name}</td>
-                    <td className="py-2 pr-3">{line.plan_qty}</td>
-                    <td className="py-2 pr-3">{num(line.weight_percent)}</td>
-                    <td className="py-2 pr-3">{line.fact_qty}</td>
-                    <td className="py-2 pr-3">{pctLabel(line.completion)}</td>
-                    <td className="py-2 pr-3">{contribLabel(line.contribution)}</td>
+                    <td>{line.name}</td>
+                    <td>{line.plan_qty}</td>
+                    <td>{num(line.weight_percent)}</td>
+                    <td>{line.fact_qty}</td>
+                    <td>{pctLabel(line.completion)}</td>
+                    <td>{contribLabel(line.contribution)}</td>
                   </tr>
                 ))}
                 <tr className="kpi-matrix-row-highlight">
-                  <td className="py-2 pr-3 font-semibold" colSpan={5}>
+                  <td className="font-semibold" colSpan={5}>
                     ИТОГО
                   </td>
-                  <td className="py-2 pr-3 font-semibold">{contribLabel(m.total_contribution)}</td>
+                  <td className="font-semibold">{contribLabel(m.total_contribution)}</td>
                 </tr>
                 <tr>
-                  <td className="py-2 pr-3 font-semibold kpi-actual-value" colSpan={5}>
+                  <td className="font-semibold kpi-actual-value" colSpan={5}>
                     Бонус
                   </td>
-                  <td className="py-2 pr-3 font-semibold kpi-actual-value">
-                    {formatMoney(num(m.bonus))}
-                  </td>
+                  <td className="font-semibold kpi-actual-value">{formatMoney(num(m.bonus))}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </section>
       ))}
+      </div>
     </div>
   );
 }

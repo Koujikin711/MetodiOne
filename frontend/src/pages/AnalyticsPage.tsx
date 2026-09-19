@@ -830,6 +830,9 @@ export function AnalyticsPage() {
               </div>
 
               <AnalyticsPanel title={lex.sourcesTitle}>
+                <p className="analytics-panel-note">
+                  Строка появляется, только если в периоде есть лид с этим источником. Пустой канал не показываем.
+                </p>
                 <AnalyticsTable minWidth={760}>
                   <thead>
                     <tr>
