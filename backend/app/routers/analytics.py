@@ -886,6 +886,16 @@ async def analytics_overview(
             continue
         fact_map[int(mid)] = fact_map.get(int(mid), Decimal("0")) + Decimal(str(amount or 0))
 
+    need_names = (set(plan_map) | set(fact_map)) - set(manager_name_map)
+    if need_names:
+        extra_rows = (
+            await db.execute(select(User.id, User.full_name, User.email).where(User.id.in_(need_names)))
+        ).all()
+        for uid, full_name, email in extra_rows:
+            manager_name_map[int(uid)] = (
+                str(full_name or "").strip() or str(email or "").strip() or f"Менеджер #{uid}"
+            )
+
     manager_ids_all = sorted(set(plan_map.keys()) | set(fact_map.keys()))
     manager_plan_fact: list[ManagerPlanFactItem] = []
     for mid in manager_ids_all:

@@ -6521,6 +6521,16 @@ fieldset.extra-services-field {
   @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-3;
 }
 
+.analytics-kpi-grid.analytics-kpi-grid--4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .analytics-kpi-grid.analytics-kpi-grid--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 /* Синяя полоска слева у KPI — убрана */
 .analytics-kpi::before,
 .analytics-kpi--accent::before,

@@ -834,8 +834,8 @@ export function ExtraServicesPage() {
                     <td className="whitespace-nowrap text-xs tabular-nums">{formatDtShort(s.sold_at)}</td>
                     <td className="extra-services-col-name whitespace-nowrap font-medium">{s.client_name}</td>
                     <td className="extra-services-col-phone whitespace-nowrap">{s.client_phone || "—"}</td>
-                    <td className="whitespace-nowrap">{s.payment_method || s.note || "—"}</td>
-                    <td className="extra-services-col-name">{s.payment_method ? s.note || "—" : "—"}</td>
+                    <td className="whitespace-nowrap">{s.payment_method || "—"}</td>
+                    <td className="extra-services-col-name">{s.note || "—"}</td>
                     <td className="extra-services-col-money whitespace-nowrap">{formatMoney(s.amount)}</td>
                     <td className="extra-services-col-money whitespace-nowrap kpi-actual-value">
                       {formatMoney(s.keep_amount)}

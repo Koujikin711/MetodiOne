@@ -530,7 +530,7 @@ export function AnalyticsPage() {
           {servicesQuery.isLoading ? <p className="lux-caption px-1">Загрузка…</p> : null}
           {servicesQuery.data ? (
             <>
-              <div className="analytics-kpi-grid sm:grid-cols-2 lg:grid-cols-4">
+              <div className="analytics-kpi-grid analytics-kpi-grid--4">
                 <MetricCard
                   label="Выручка"
                   value={moneyFmt.format(
@@ -704,7 +704,7 @@ export function AnalyticsPage() {
           {overviewQuery.isLoading && <p className="lux-caption px-1">Загрузка…</p>}
           {overviewQuery.data && (
             <>
-              <div className="analytics-kpi-grid">
+              <div className="analytics-kpi-grid analytics-kpi-grid--4">
                 <MetricCard label={lex.guestsMetricLabel} value={overviewQuery.data.executive.leads_total} tone="accent" />
                 <MetricCard
                   label="Удачно"
