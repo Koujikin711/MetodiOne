@@ -5646,6 +5646,7 @@ fieldset.extra-services-field {
 
 .kpi-sales-grid {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.45rem;
 }
 
@@ -5670,6 +5671,12 @@ fieldset.extra-services-field {
   border-radius: 0.7rem;
 }
 
+@media (min-width: 1024px) {
+  .kpi-sales-compact {
+    display: none;
+  }
+}
+
 .kpi-sales-compact > li {
   padding: 0.28rem 0.45rem;
   border-top: 1px solid var(--mo-border);
@@ -5687,12 +5694,6 @@ fieldset.extra-services-field {
   font-size: 12px;
   font-weight: 650;
   background: color-mix(in srgb, var(--mo-surface) 70%, transparent);
-}
-
-@media (min-width: 768px) {
-  .kpi-sales-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 .kpi-data-table tbody tr:last-child td {
