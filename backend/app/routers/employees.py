@@ -703,10 +703,20 @@ async def patch_employee_contact(
         if normalized != (target.email or "").strip().lower():
             changed = True
             conflict = (
-                await db.execute(select(User).where(User.email == normalized, User.id != target.id).limit(1))
+                await db.execute(
+                    select(User).where(
+                        User.company_id == company_id,
+                        User.email == normalized,
+                        User.id != target.id,
+                    ).limit(1)
+                )
             ).scalars().first()
             if conflict is not None:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email уже занят")
+                if conflict.is_active:
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email уже занят")
+                # Уволенный не входит в систему — почту можно отдать действующему сотруднику.
+                conflict.email = f"fired-{conflict.id}@inactive.local"
+                await db.flush()
 
             _invite_app_base()
             temp_password = _rand_password()
@@ -741,7 +751,10 @@ async def patch_employee_contact(
             changed = True
             other_phone = await _user_with_phone_except(db, phone, company_id, except_user_id=target.id)
             if other_phone is not None:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Телефон уже занят")
+                if other_phone.is_active:
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Телефон уже занят")
+                other_phone.phone = None
+                await db.flush()
             target.phone = phone
             new_phone = phone
             if target.role == UserRole.expert:
