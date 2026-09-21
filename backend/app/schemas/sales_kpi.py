@@ -198,6 +198,12 @@ class SalesKpiManualSaleCreate(BaseModel):
     note: str | None = None
 
 
+class SalesKpiManualSaleSoldAtPatch(BaseModel):
+    """Перенос даты продажи (месяц выручки первого платежа без журнала)."""
+
+    sold_at: date | datetime
+
+
 class SalesKpiManualSalePaymentPatch(BaseModel):
     """Доплата по курсу/протоколу (не перезапись итога)."""
 

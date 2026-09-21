@@ -2590,6 +2590,12 @@ async def patch_appointment_payment(
         )
 
     target.paid_amount = new_paid
+    if body.paid_at is not None:
+        raw = body.paid_at
+        if isinstance(raw, datetime):
+            target.paid_at = raw if raw.tzinfo else raw.replace(tzinfo=UTC)
+        else:
+            target.paid_at = datetime(raw.year, raw.month, raw.day, 12, 0, tzinfo=UTC)
     if body.payment_method is not None and new_paid > 0:
         target.payment_method = body.payment_method
     elif new_paid <= 0:

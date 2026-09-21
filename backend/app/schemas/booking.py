@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 import re
 
@@ -301,6 +301,10 @@ class BookingAppointmentPaymentUpdate(BaseModel):
     payment_method: Literal["cash", "alif", "dc"] | None = Field(
         default=None,
         description="Способ оплаты при доплате / корректировке: cash / alif / dc",
+    )
+    paid_at: date | datetime | None = Field(
+        default=None,
+        description="Дата сдачи денег (YYYY-MM-DD). Месяц выручки; пусто — дата визита.",
     )
 
     @model_validator(mode="after")

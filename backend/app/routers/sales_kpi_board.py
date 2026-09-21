@@ -47,6 +47,7 @@ from app.schemas.sales_kpi import (
     SalesKpiManualSaleOut,
     SalesKpiManualSalePaymentOut,
     SalesKpiManualSalePaymentPatch,
+    SalesKpiManualSaleSoldAtPatch,
     SalesKpiManualSaleStatusPatch,
     SalesKpiPlanItemOut,
     SalesKpiSalesReport,
@@ -859,6 +860,39 @@ async def patch_manual_sale_payment(
     )
 
 
+@router.patch("/manual-sales/{sale_id}/sold-at", response_model=SalesKpiManualSaleOut)
+async def patch_manual_sale_sold_at(
+    sale_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    body: SalesKpiManualSaleSoldAtPatch,
+) -> SalesKpiManualSaleOut:
+    """Дата продажи. Первый платёж без строк журнала попадает в месяц sold_at."""
+    _assert_kpi_access(current_user)
+    _assert_admin_or_owner(current_user)
+    sale = await db.get(SalesKpiManualSale, sale_id)
+    if sale is None or sale.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Продажа не найдена")
+    sale.sold_at = _paid_at_from_input(body.sold_at)
+    sale.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(sale)
+    payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
+    item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    manager = await db.get(User, sale.manager_user_id)
+    return _manual_sale_out(
+        sale,
+        plan_item_name=item.name if item else "",
+        manager_name=str(
+            (manager.full_name if manager else None)
+            or (manager.email if manager else None)
+            or f"#{sale.manager_user_id}"
+        ),
+        payments=payments,
+    )
+
+
 @router.post("/manual-sales/{sale_id}/return", response_model=SalesKpiManualSaleOut)
 async def return_manual_sale(
     sale_id: int,
@@ -1317,6 +1351,7 @@ async def company_report(
                     BookingAppointment.paid_amount,
                     BookingAppointment.status,
                     BookingAppointment.start_at,
+                    BookingAppointment.paid_at,
                     BookingSpecialist.full_name,
                     BookingDirection.id,
                     BookingDirection.name,
@@ -1327,8 +1362,17 @@ async def company_report(
                 .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
                 .where(
                     BookingAppointment.company_id == company_id,
-                    BookingAppointment.start_at >= start,
-                    BookingAppointment.start_at < end,
+                    or_(
+                        and_(
+                            BookingAppointment.start_at >= start,
+                            BookingAppointment.start_at < end,
+                        ),
+                        and_(
+                            BookingAppointment.paid_at.is_not(None),
+                            BookingAppointment.paid_at >= start,
+                            BookingAppointment.paid_at < end,
+                        ),
+                    ),
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,
@@ -1338,12 +1382,21 @@ async def company_report(
             )
         ).all()
 
-        for sid_raw, sa_raw, pa_raw, status_raw, start_at, spec_name, dir_id, dir_name in appt_rows:
+        def _ts_in(dt: datetime | None) -> bool:
+            if dt is None:
+                return False
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            return start <= dt < end
+
+        for sid_raw, sa_raw, pa_raw, status_raw, start_at, paid_at_raw, spec_name, dir_id, dir_name in appt_rows:
             sid = int(sid_raw)
             did = int(dir_id) if dir_id is not None else 0
             sa = Decimal(str(sa_raw or 0))
             pa = Decimal(str(pa_raw or 0))
             st = (status_raw or "").strip()
+            visit_here = _ts_in(start_at)
+            cash_here = _ts_in(paid_at_raw or start_at)
             key = (sid, did)
             if key not in expert_acc:
                 expert_acc[key] = {
@@ -1367,36 +1420,42 @@ async def company_report(
                 }
             bucket = expert_acc[key]
             if st == "cancelled":
-                bucket["cancelled_count"] += 1
-            else:
+                if visit_here:
+                    bucket["cancelled_count"] += 1
+                continue
+            if visit_here:
                 bucket["appointments_total"] += 1
-                # Неявка: долг не ставим, но оплата уже полученная — в выручку кассы.
-                if st == "no_show":
+            # Неявка: долг не ставим, но оплата уже полученная — в выручку кассы.
+            if st == "no_show":
+                if visit_here:
                     bucket["no_show_count"] += 1
-                    if pa > 0:
-                        bucket["paid_no_show_amount"] += pa
-                        bucket["revenue_paid"] += pa
-                        revenue_booking += pa
-                else:
+                if cash_here and pa > 0:
+                    bucket["paid_no_show_amount"] += pa
                     bucket["revenue_paid"] += pa
                     revenue_booking += pa
-                    # Долг только по явке (completed); «Запись»/будущее/неявка — не дебиторка.
-                    if st == "completed":
-                        debt = max(sa - pa, Decimal("0"))
-                        if debt > 0:
-                            bucket["debtor_amount"] += debt
-                        bucket["appeared_count"] += 1
-                        if sa <= 0 or pa + Decimal("0.01") >= sa:
-                            bucket["paid_full_amount"] += pa
-                    elif st == "booked":
-                        bucket["booked_count"] += 1
-                        if start_at is not None and start_at.tzinfo is None:
-                            start_at = start_at.replace(tzinfo=UTC)
-                        if start_at is not None and start_at > now and pa > 0:
-                            cred = pa
-                            bucket["creditor_amount"] += cred
-                            creditor_total += cred
-                            bucket["booked_future_count"] += 1
+            else:
+                if cash_here:
+                    bucket["revenue_paid"] += pa
+                    revenue_booking += pa
+                if not visit_here:
+                    continue
+                # Долг только по явке (completed); «Запись»/будущее/неявка — не дебиторка.
+                if st == "completed":
+                    debt = max(sa - pa, Decimal("0"))
+                    if debt > 0:
+                        bucket["debtor_amount"] += debt
+                    bucket["appeared_count"] += 1
+                    if cash_here and (sa <= 0 or pa + Decimal("0.01") >= sa):
+                        bucket["paid_full_amount"] += pa
+                elif st == "booked":
+                    bucket["booked_count"] += 1
+                    if start_at is not None and start_at.tzinfo is None:
+                        start_at = start_at.replace(tzinfo=UTC)
+                    if start_at is not None and start_at > now and pa > 0 and cash_here:
+                        cred = pa
+                        bucket["creditor_amount"] += cred
+                        creditor_total += cred
+                        bucket["booked_future_count"] += 1
 
         # Дебиторка записи: прошедшие явки с остатком (неявка/будущее не входят).
         debt_cutoff = _booking_debt_cutoff(end, now=now)

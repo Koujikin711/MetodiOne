@@ -704,6 +704,8 @@ class BookingAppointment(Base):
     paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     # Способ оплаты при внесении суммы: cash | alif | dc
     payment_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Дата сдачи денег. Пусто — выручка месяца считается по дате визита.
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     responsible_manager_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
