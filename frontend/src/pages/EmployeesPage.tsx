@@ -88,6 +88,7 @@ function roleLabel(role: UserRole): string {
   if (role === "curator") return "Куратор";
   if (role === "accountant") return "Бухгалтер";
   if (role === "finance_analyst") return "Фин. аналитик";
+  if (role === "rop") return "РОП";
   return role;
 }
 
@@ -1011,6 +1012,7 @@ export function EmployeesPage() {
                 >
                   <option value="owner">Владелец</option>
                   <option value="manager">Менеджер</option>
+                  <option value="rop">РОП</option>
                   <option value="expert">Эксперт</option>
                   <option value="admin">Админ воронки</option>
                   <option value="administrator">Администратор</option>

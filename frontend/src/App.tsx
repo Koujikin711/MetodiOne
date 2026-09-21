@@ -9,6 +9,7 @@ import {
   RequireFinance,
   RequireNotManager,
   RequireOwner,
+  RequireRop,
   RequireSuperOwner,
 } from "@/components/RoleRoutes";
 import { MainLayout } from "@/layouts/MainLayout";
@@ -43,6 +44,13 @@ import { SalesQuoteCalculatorPage } from "@/pages/SalesQuoteCalculatorPage";
 import { SalesVisitTrackerPage } from "@/pages/SalesVisitTrackerPage";
 import { ExtraServicesPage } from "@/pages/ExtraServicesPage";
 import { CuratorJournalPage } from "@/pages/CuratorJournalPage";
+import { RopLayout } from "@/pages/rop/RopLayout";
+import { RopDashboardPage } from "@/pages/rop/RopDashboardPage";
+import { RopStatsPage } from "@/pages/rop/RopStatsPage";
+import { RopDistributePage } from "@/pages/rop/RopDistributePage";
+import { RopAnalyticsPage } from "@/pages/rop/RopAnalyticsPage";
+import { RopReportPage } from "@/pages/rop/RopReportPage";
+import { RopSearchPage } from "@/pages/rop/RopSearchPage";
 
 export default function App() {
   return (
@@ -82,6 +90,21 @@ export default function App() {
               }
             />
             <Route path="/kpi" element={<KpiPage />} />
+            <Route
+              path="/rop"
+              element={
+                <RequireRop>
+                  <RopLayout />
+                </RequireRop>
+              }
+            >
+              <Route index element={<RopDashboardPage />} />
+              <Route path="stats" element={<RopStatsPage />} />
+              <Route path="distribute" element={<RopDistributePage />} />
+              <Route path="analytics" element={<RopAnalyticsPage />} />
+              <Route path="report" element={<RopReportPage />} />
+              <Route path="search" element={<RopSearchPage />} />
+            </Route>
             <Route
               path="/finance"
               element={

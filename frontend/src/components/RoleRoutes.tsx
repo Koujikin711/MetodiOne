@@ -53,6 +53,9 @@ export function HomeEntry() {
   if (role === "super_owner") {
     return <Navigate to="/companies" replace />;
   }
+  if (role === "rop") {
+    return <Navigate to="/rop" replace />;
+  }
   if (role === "accountant" || role === "finance_analyst") {
     return <Navigate to="/finance" replace />;
   }
@@ -96,10 +99,24 @@ export function BookingOrSalesEntry() {
 
 export function RequireNotManager({ children }: { children: ReactNode }) {
   const role = decodeRoleFromToken(getStoredToken());
-  if (isManagerNavRole(role) || role === "curator" || role === "administrator" || role === "accountant") {
+  if (
+    isManagerNavRole(role) ||
+    role === "curator" ||
+    role === "administrator" ||
+    role === "accountant" ||
+    role === "rop"
+  ) {
     return (
       <AccessDenied message="Этот раздел недоступен для вашей роли. Обратитесь к владельцу компании." />
     );
+  }
+  return <>{children}</>;
+}
+
+export function RequireRop({ children }: { children: ReactNode }) {
+  const role = decodeRoleFromToken(getStoredToken());
+  if (role !== "rop" && role !== "owner" && role !== "super_owner") {
+    return <AccessDenied message="Раздел доступен РОП и владельцу компании." />;
   }
   return <>{children}</>;
 }

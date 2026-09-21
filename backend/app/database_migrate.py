@@ -1767,7 +1767,7 @@ async def ensure_accountant_role(conn: AsyncConnection, database_url: str) -> No
 
 
 async def ensure_clinic_staff_roles(conn: AsyncConnection, database_url: str) -> None:
-    """Куратор и Администратор клиники (+ гарантия accountant в enum)."""
+    """Куратор, Администратор, РОП (+ гарантия accountant в enum)."""
     low = database_url.lower()
     if "postgresql" not in low and "asyncpg" not in low:
         return
@@ -1783,9 +1783,24 @@ async def ensure_clinic_staff_roles(conn: AsyncConnection, database_url: str) ->
         WHERE t.typname = 'user_role' AND e.enumlabel = :val LIMIT 1
         """,
     )
-    for val in ("accountant", "curator", "administrator"):
+    for val in ("accountant", "curator", "administrator", "rop"):
         if await ac.scalar(exists_q, {"val": val}) is None:
             await ac.execute(text(f"ALTER TYPE user_role ADD VALUE '{val}'"))
+
+
+async def ensure_user_last_seen_at(conn: AsyncConnection, database_url: str) -> None:
+    """Колонка users.last_seen_at — онлайн-статус для дашборда РОП."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        r = await conn.execute(text("PRAGMA table_info(users)"))
+        cols = {row[1] for row in r.fetchall()}
+        if "last_seen_at" not in cols:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN last_seen_at TIMESTAMP"))
+    else:
+        await conn.execute(
+            text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ"),
+        )
 
 
 async def ensure_service_catalog_tables(conn: AsyncConnection, database_url: str) -> None:

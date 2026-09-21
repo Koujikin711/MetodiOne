@@ -39,6 +39,7 @@ const ROLE_LABEL: Record<string, string> = {
   manager: "Менеджер",
   expert: "Эксперт",
   finance_analyst: "Финансы",
+  rop: "РОП",
 };
 
 function formatTime(iso: string | null) {

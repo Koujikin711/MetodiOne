@@ -7,7 +7,8 @@ export type UserRole =
   | "expert"
   | "curator"
   | "finance_analyst"
-  | "accountant";
+  | "accountant"
+  | "rop";
 
 export interface User {
   id: number;

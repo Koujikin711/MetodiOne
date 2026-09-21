@@ -25,6 +25,7 @@ import { getStoredToken, setStoredToken } from "@/lib/api";
 import { decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import { useTariffNavAccess } from "@/hooks/useTariffNavAccess";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
+import { usePresenceHeartbeat } from "@/hooks/usePresenceHeartbeat";
 import { useShellSidebarExpanded } from "@/hooks/useShellSidebarExpanded";
 import { appLexicon } from "@/lib/appLexicon";
 
@@ -78,6 +79,7 @@ export function MainLayout() {
   const isAdministrator = role === "administrator";
   const isCurator = role === "curator";
   const isAccountant = role === "accountant";
+  const isRop = role === "rop";
   const isExpert = role === "expert";
   const meQuery = useCurrentUserMe();
   const isChiefExpert = Boolean(meQuery.data?.is_chief_expert);
@@ -117,6 +119,7 @@ export function MainLayout() {
   const { showNavForFeature } = useTariffNavAccess();
   const { expanded: sidebarExpanded, toggle: toggleSidebar } = useShellSidebarExpanded();
   const navLex = appLexicon;
+  usePresenceHeartbeat();
   const sidebarOrderScope = useMemo(
     () => `${role ?? "guest"}:${userId ?? "0"}:${crmMode ?? "pending"}`,
     [role, userId, crmMode],
@@ -169,6 +172,7 @@ export function MainLayout() {
               isAdministrator={isAdministrator}
               isCurator={isCurator}
               isAccountant={isAccountant}
+              isRop={isRop}
               showFinance={showFinance}
               showExpenses={showExpenses}
               showIntegrationsHub={showIntegrationsHub}
@@ -309,6 +313,51 @@ export function MainLayout() {
                 className={mobileBottomLogoutClass}
                 title="Выход"
               >
+                <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <LogOut className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Выход</span>
+              </button>
+            </>
+          ) : isRop ? (
+            <>
+              <NavLink preventScrollReset end to="/rop" className={mobileBottomNavLinkClass} title="Дашборд">
+                <GradientIconBox variant="platform" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <Funnel className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Дашборд</span>
+              </NavLink>
+              <NavLink preventScrollReset to="/rop/stats" className={mobileBottomNavLinkClass} title="Статистика">
+                <GradientIconBox variant="trainer" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <BarChart3 className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Стат</span>
+              </NavLink>
+              <NavLink preventScrollReset to="/rop/distribute" className={mobileBottomNavLinkClass} title="Распределение">
+                <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <Users className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Раздача</span>
+              </NavLink>
+              <NavLink preventScrollReset to="/rop/analytics" className={mobileBottomNavLinkClass} title="Аналитика">
+                <GradientIconBox variant="chat" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <Target className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Анализ</span>
+              </NavLink>
+              <NavLink preventScrollReset to="/rop/report" className={mobileBottomNavLinkClass} title="Отчёт">
+                <GradientIconBox variant="online" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <Wallet className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Отчёт</span>
+              </NavLink>
+              <NavLink preventScrollReset to="/rop/search" className={mobileBottomNavLinkClass} title="Поиск">
+                <GradientIconBox variant="crm" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <UserRound className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">Поиск</span>
+              </NavLink>
+              <button type="button" onClick={logout} className={mobileBottomLogoutClass} title="Выход">
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <LogOut className="h-4 w-4" />
                 </GradientIconBox>

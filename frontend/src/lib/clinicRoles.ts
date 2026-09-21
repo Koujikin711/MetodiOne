@@ -22,6 +22,8 @@ export function roleLabelRu(role: UserRole | string | null | undefined): string 
       return "Фин. аналитик";
     case "super_owner":
       return "Супер-владелец";
+    case "rop":
+      return "РОП";
     default:
       return role || "—";
   }
@@ -37,6 +39,14 @@ export function isCurator(role: UserRole | null): boolean {
 
 export function isAccountant(role: UserRole | null): boolean {
   return role === "accountant";
+}
+
+export function isRop(role: UserRole | null): boolean {
+  return role === "rop";
+}
+
+export function canAccessRop(role: UserRole | null): boolean {
+  return role === "rop" || role === "owner" || role === "super_owner";
 }
 
 export function canAccessCuratorJournal(role: UserRole | null): boolean {

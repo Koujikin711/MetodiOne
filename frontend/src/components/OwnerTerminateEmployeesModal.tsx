@@ -23,6 +23,7 @@ const roleLabel: Record<UserRole, string> = {
   finance_analyst: "Финансы",
   accountant: "Бухгалтер",
   super_owner: "Супер-владелец",
+  rop: "РОП",
 };
 
 type Props = {

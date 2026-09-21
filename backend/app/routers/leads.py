@@ -281,7 +281,7 @@ async def _enrich_leads_close_deal(
 
 
 def _is_lead_redistribution_admin(role: UserRole) -> bool:
-    return role in (UserRole.owner, UserRole.admin)
+    return role in (UserRole.owner, UserRole.admin, UserRole.rop)
 
 
 def _is_redistribution_source_role(role: UserRole) -> bool:

@@ -21,6 +21,7 @@ class UserRole(str, enum.Enum):
     curator = "curator"
     finance_analyst = "finance_analyst"
     accountant = "accountant"
+    rop = "rop"
 
 
 class TaskStatus(str, enum.Enum):
@@ -141,6 +142,8 @@ class User(Base):
     accepts_new_leads: Mapped[bool] = mapped_column(default=True)
     # Сколько архивных лидов в «Новый лид» в день (NULL = дефолт LEADS_PER_MANAGER).
     daily_archive_leads_quota: Mapped[int | None] = mapped_column(nullable=True)
+    # Heartbeat для статуса «в сети» (РОП-дашборд).
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     leads: Mapped[list["Lead"]] = relationship(
         back_populates="manager",

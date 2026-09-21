@@ -109,5 +109,18 @@ def can_access_curator_journal(role: UserRole) -> bool:
     )
 
 
+def can_access_rop(role: UserRole) -> bool:
+    """Кабинет РОП: сам РОП + владелец для контроля."""
+    return role in (
+        UserRole.rop,
+        UserRole.owner,
+        UserRole.super_owner,
+    )
+
+
+def is_rop(role: UserRole) -> bool:
+    return role == UserRole.rop
+
+
 def is_course_or_protocol_indicator(name: str | None) -> bool:
     return is_course_like_direction_name(name)

@@ -46,6 +46,7 @@ from app.database_migrate import (
     ensure_fix_massage_osv_prepaid_aug2026,
     ensure_fix_kurs15_price_2000_to_1300,
     ensure_clinic_staff_roles,
+    ensure_user_last_seen_at,
     ensure_extra_services_tables,
     ensure_chat_thread_unique_external,
     ensure_curator_journal_tables,
@@ -68,6 +69,7 @@ from app.routers import (
     leads,
     pipelines,
     reports,
+    rop,
     sales_kpi,
     sales_kpi_board,
     manager_desk_sales,
@@ -155,6 +157,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_lead_reactivated_at(conn, db_url)
                 await ensure_user_accepts_new_leads(conn, db_url)
                 await ensure_user_daily_archive_leads_quota(conn, db_url)
+                await ensure_user_last_seen_at(conn, db_url)
                 await ensure_lead_archived_from_stage(conn, db_url)
                 await ensure_settle_completed_booking_debts(conn, db_url)
                 await ensure_fix_kurs_direction_and_session_pay(conn, db_url)
@@ -556,6 +559,8 @@ async def lifespan(_: FastAPI):
             await ensure_integration_provider_migration(conn, settings.database_url)
         async with engine.connect() as conn:
             await ensure_clinic_staff_roles(conn, settings.database_url)
+        async with engine.connect() as conn:
+            await ensure_user_last_seen_at(conn, settings.database_url)
         await seed_pipelines_and_stages()
         await seed_test_admin()
         await seed_super_owner()
@@ -922,6 +927,7 @@ app.include_router(users.router, prefix="/api")
 app.include_router(sources.router, prefix="/api")
 app.include_router(integrations.router, prefix="/api")
 app.include_router(employees.router, prefix="/api")
+app.include_router(rop.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 app.include_router(billing.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")

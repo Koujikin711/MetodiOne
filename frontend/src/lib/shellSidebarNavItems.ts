@@ -35,6 +35,7 @@ type BuildParams = {
   isAdministrator?: boolean;
   isCurator?: boolean;
   isAccountant?: boolean;
+  isRop?: boolean;
   showFinance: boolean;
   showExpenses?: boolean;
   showIntegrationsHub: boolean;
@@ -97,6 +98,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     isAdministrator = false,
     isCurator = false,
     isAccountant = false,
+    isRop = false,
     showFinance,
     showExpenses = false,
     showIntegrationsHub,
@@ -129,6 +131,67 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         labelFull: "Компании",
         variant: "purple",
         iconKey: "users",
+      },
+    ];
+  }
+
+  // РОП: только кабинет продаж
+  if (isRop) {
+    return [
+      {
+        id: "rop-dashboard",
+        to: "/rop",
+        end: true,
+        title: "Дашборд РОП",
+        labelShort: "Дашборд",
+        labelFull: "Дашборд",
+        variant: "platform",
+        iconKey: "layout-dashboard",
+      },
+      {
+        id: "rop-stats",
+        to: "/rop/stats",
+        title: "Статистика менеджеров",
+        labelShort: "Стат",
+        labelFull: "Статистика",
+        variant: "trainer",
+        iconKey: "bar-chart",
+      },
+      {
+        id: "rop-distribute",
+        to: "/rop/distribute",
+        title: "Распределение лидов",
+        labelShort: "Раздача",
+        labelFull: "Распределение",
+        variant: "purple",
+        iconKey: "users",
+      },
+      {
+        id: "rop-analytics",
+        to: "/rop/analytics",
+        title: "Аналитика ответа и выручки",
+        labelShort: "Анализ",
+        labelFull: "Аналитика",
+        variant: "chat",
+        iconKey: "target",
+      },
+      {
+        id: "rop-report",
+        to: "/rop/report",
+        title: "Отчёт по выручке",
+        labelShort: "Отчёт",
+        labelFull: "Отчёт",
+        variant: "online",
+        iconKey: "wallet",
+      },
+      {
+        id: "rop-search",
+        to: "/rop/search",
+        title: "Поиск пациента",
+        labelShort: "Поиск",
+        labelFull: "Поиск",
+        variant: "online",
+        iconKey: "user-round",
       },
     ];
   }
@@ -646,6 +709,16 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       iconKey: "bar-chart",
     });
   }
+  // Владелец: быстрый вход в кабинет РОП
+  items.push({
+    id: "rop-cabinet",
+    to: "/rop",
+    title: "Кабинет РОП",
+    labelShort: "РОП",
+    labelFull: "Кабинет РОП",
+    variant: "platform",
+    iconKey: "layout-dashboard",
+  });
   if (showFinance && showNavForFeature("finance")) {
     items.push({
       id: "finance",
