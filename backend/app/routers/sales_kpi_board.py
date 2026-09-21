@@ -93,7 +93,7 @@ def _assert_kpi_access(current_user: CurrentUser) -> None:
 
 
 def _assert_owner(current_user: CurrentUser) -> None:
-    if current_user.role not in (UserRole.owner, UserRole.super_owner):
+    if current_user.role not in (UserRole.owner, UserRole.super_owner, UserRole.rop):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец компании")
 
 
@@ -103,6 +103,7 @@ def _assert_admin_or_owner(current_user: CurrentUser) -> None:
         UserRole.super_owner,
         UserRole.admin,
         UserRole.administrator,
+        UserRole.rop,
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ")
 

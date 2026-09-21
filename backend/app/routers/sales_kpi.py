@@ -237,7 +237,7 @@ async def owner_matrix(
     year_month: str = Query(..., description="YYYY-MM"),
 ) -> SalesKpiOwnerMatrix:
     _assert_kpi_access(current_user)
-    if current_user.role not in (UserRole.owner, UserRole.super_owner):
+    if current_user.role not in (UserRole.owner, UserRole.super_owner, UserRole.rop):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец компании")
     pipe = await _load_pipeline(db, company_id, pipeline_id)
     try:
@@ -380,7 +380,7 @@ async def put_matrix(
     body: SalesKpiMatrixPut,
 ) -> None:
     _assert_kpi_access(current_user)
-    if current_user.role not in (UserRole.owner, UserRole.super_owner):
+    if current_user.role not in (UserRole.owner, UserRole.super_owner, UserRole.rop):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец компании")
     pipe = await _load_pipeline(db, company_id, body.pipeline_id)
     try:

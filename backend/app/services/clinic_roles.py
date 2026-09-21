@@ -42,6 +42,7 @@ def can_access_kpi(role: UserRole) -> bool:
         UserRole.admin,
         UserRole.administrator,
         UserRole.manager,
+        UserRole.rop,
     )
 
 
@@ -52,6 +53,7 @@ def can_access_debtors(role: UserRole) -> bool:
         UserRole.admin,
         UserRole.administrator,
         UserRole.curator,
+        UserRole.rop,
     )
 
 
@@ -60,6 +62,7 @@ def can_access_company_report(role: UserRole) -> bool:
         UserRole.owner,
         UserRole.super_owner,
         UserRole.accountant,
+        UserRole.rop,
     )
 
 

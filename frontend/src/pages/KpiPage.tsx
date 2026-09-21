@@ -287,7 +287,7 @@ function formatSaleDt(iso: string): string {
 export function KpiPage() {
   const queryClient = useQueryClient();
   const role = decodeRoleFromToken(getStoredToken());
-  const isOwner = role === "owner" || role === "super_owner";
+  const isOwner = role === "owner" || role === "super_owner" || role === "rop";
   const isAdminOrOwner = isOwner || role === "admin" || role === "administrator";
   const isManager = role === "manager";
   const isCurator = role === "curator";

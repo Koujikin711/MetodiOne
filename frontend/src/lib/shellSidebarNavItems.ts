@@ -193,6 +193,15 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         variant: "online",
         iconKey: "user-round",
       },
+      {
+        id: "kpi",
+        to: "/kpi",
+        title: navLex.navKpiTitle,
+        labelShort: navLex.navKpi,
+        labelFull: navLex.navKpiTitle,
+        variant: "platform",
+        iconKey: "target",
+      },
     ];
   }
 

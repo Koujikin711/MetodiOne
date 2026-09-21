@@ -357,6 +357,12 @@ export function MainLayout() {
                 </GradientIconBox>
                 <span className="text-[9px]">Поиск</span>
               </NavLink>
+              <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title={navLex.navKpiTitle}>
+                <GradientIconBox variant="platform" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                  <Target className="h-4 w-4" />
+                </GradientIconBox>
+                <span className="text-[9px]">{navLex.navKpi}</span>
+              </NavLink>
               <button type="button" onClick={logout} className={mobileBottomLogoutClass} title="Выход">
                 <GradientIconBox variant="pink" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                   <LogOut className="h-4 w-4" />
