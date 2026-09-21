@@ -147,7 +147,7 @@ export interface ChatThread {
 }
 
 export type ChatThreadBucket = "transferred" | "own" | "awaiting_reply" | "sold" | "no_reply";
-export type SalesStageKey = "new" | "in_progress" | "waiting" | "won" | "lost" | "archive";
+export type SalesStageKey = "new" | "in_progress" | "unanswered" | "waiting" | "won" | "lost" | "archive";
 
 export interface ChatThreadBucketCounts {
   transferred: number;

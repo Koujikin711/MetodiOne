@@ -130,6 +130,11 @@ class RopRevenueShare(BaseModel):
     service_name: str
     amount: Decimal
     percent_of_total: float
+    sold_amount: Decimal = Decimal("0")
+    paid_amount: Decimal = Decimal("0")
+    full_paid_amount: Decimal = Decimal("0")
+    sold_count: int = 0
+    full_paid_count: int = 0
 
 
 class RopAnalyticsReport(BaseModel):
@@ -148,6 +153,11 @@ class RopReportCell(BaseModel):
     manager_name: str
     service_name: str
     amount: Decimal
+    sold_amount: Decimal = Decimal("0")
+    paid_amount: Decimal = Decimal("0")
+    full_paid_amount: Decimal = Decimal("0")
+    sold_count: int = 0
+    full_paid_count: int = 0
 
 
 class RopRevenueReport(BaseModel):
@@ -157,6 +167,16 @@ class RopRevenueReport(BaseModel):
     date_to: date
     rows: list[RopReportCell] = Field(default_factory=list)
     total: Decimal = Decimal("0")
+    sold_total: Decimal = Decimal("0")
+    full_paid_total: Decimal = Decimal("0")
+
+
+class RopLeadMatch(BaseModel):
+    lead_id: int
+    name: str
+    phone: str | None = None
+    manager_id: int | None = None
+    manager_name: str | None = None
 
 
 class RopSearchVisit(BaseModel):

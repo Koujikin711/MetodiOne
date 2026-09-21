@@ -16,12 +16,21 @@ type Manager = {
 
 type ManagersList = { managers: Manager[] };
 
+type LeadMatch = {
+  lead_id: number;
+  name: string;
+  phone: string | null;
+  manager_name: string | null;
+};
+
 export function RopDistributePage() {
   const { pipelineId } = useRopContext();
   const qc = useQueryClient();
   const [fromId, setFromId] = useState<number | "">("");
   const [toId, setToId] = useState<number | "">("");
-  const [leadId, setLeadId] = useState("");
+  const [queryText, setQueryText] = useState("");
+  const [matches, setMatches] = useState<LeadMatch[]>([]);
+  const [pickedId, setPickedId] = useState<number | "">("");
 
   const listQuery = useQuery({
     queryKey: ["rop-managers", pipelineId],
@@ -59,18 +68,33 @@ export function RopDistributePage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const lookupMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<LeadMatch[]>(
+        `/api/rop/leads/lookup?pipeline_id=${pipelineId}&q=${encodeURIComponent(queryText.trim())}`,
+      ),
+    onSuccess: (rows) => {
+      setMatches(rows);
+      setPickedId(rows[0]?.lead_id ?? "");
+      if (!rows.length) toast.error("Лид не найден");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const oneMutation = useMutation({
     mutationFn: () =>
       apiFetch(`/api/rop/leads/transfer`, {
         method: "POST",
         body: JSON.stringify({
-          lead_id: Number(leadId),
+          lead_id: Number(pickedId),
           to_manager_id: Number(toId),
         }),
       }),
     onSuccess: () => {
       toast.success("Лид передан");
-      setLeadId("");
+      setQueryText("");
+      setMatches([]);
+      setPickedId("");
       qc.invalidateQueries({ queryKey: ["rop-managers", pipelineId] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -167,14 +191,42 @@ export function RopDistributePage() {
 
         <div>
           <h3 className="font-medium">Передать один лид</h3>
-          <p className="mt-1 text-xs mo-muted">ID лида → менеджер</p>
+          <p className="mt-1 text-xs mo-muted">ID, ФИО или телефон → менеджер</p>
           <div className="mt-3 flex flex-col gap-2">
-            <input
-              className="mo-input"
-              placeholder="ID лида"
-              value={leadId}
-              onChange={(e) => setLeadId(e.target.value.replace(/\D/g, ""))}
-            />
+            <div className="flex gap-2">
+              <input
+                className="mo-input min-w-0 flex-1"
+                placeholder="ID, ФИО или телефон"
+                value={queryText}
+                onChange={(e) => setQueryText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && queryText.trim().length >= 2) lookupMutation.mutate();
+                }}
+              />
+              <button
+                type="button"
+                className="mo-btn-primary text-sm"
+                disabled={queryText.trim().length < 2 || lookupMutation.isPending}
+                onClick={() => lookupMutation.mutate()}
+              >
+                Найти
+              </button>
+            </div>
+            {matches.length > 0 && (
+              <select
+                className="mo-input"
+                value={pickedId}
+                onChange={(e) => setPickedId(e.target.value ? Number(e.target.value) : "")}
+              >
+                {matches.map((m) => (
+                  <option key={m.lead_id} value={m.lead_id}>
+                    #{m.lead_id} · {m.name}
+                    {m.phone ? ` · ${m.phone}` : ""}
+                    {m.manager_name ? ` · ${m.manager_name}` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
             <select
               className="mo-input"
               value={toId}
@@ -190,7 +242,7 @@ export function RopDistributePage() {
             <button
               type="button"
               className="mo-btn-primary text-sm"
-              disabled={!leadId || !toId || oneMutation.isPending}
+              disabled={!pickedId || !toId || oneMutation.isPending}
               onClick={() => oneMutation.mutate()}
             >
               Передать лид

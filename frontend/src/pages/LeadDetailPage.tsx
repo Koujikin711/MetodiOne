@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { canAccessRop } from "@/lib/clinicRoles";
 import { formatMoney } from "@/lib/money";
 import {
   BOOKING_TIME_ZONE,
@@ -38,6 +39,69 @@ function isWaitingStageName(name: string | null | undefined): boolean {
 function stageButtonLabel(name: string): string {
   const n = name.trim();
   return n === "В обработке" ? "В работе" : n;
+}
+
+function LeadRopTransfer({
+  leadId,
+  pipelineId,
+}: {
+  leadId: number;
+  pipelineId: number | null | undefined;
+}) {
+  const role = decodeRoleFromToken(getStoredToken());
+  const qc = useQueryClient();
+  const [toId, setToId] = useState<number | "">("");
+  const enabled = canAccessRop(role) && pipelineId != null && pipelineId > 0;
+  const managersQuery = useQuery({
+    queryKey: ["rop-managers", pipelineId],
+    enabled,
+    queryFn: () =>
+      apiFetch<{ managers: { user_id: number; full_name: string }[] }>(
+        `/api/rop/managers?pipeline_id=${pipelineId}`,
+      ),
+  });
+  const transfer = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/rop/leads/transfer`, {
+        method: "POST",
+        body: JSON.stringify({ lead_id: leadId, to_manager_id: Number(toId) }),
+      }),
+    onSuccess: () => {
+      toast.success("Лид передан");
+      setToId("");
+      void qc.invalidateQueries({ queryKey: ["lead", leadId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  if (!enabled) return null;
+  const managers = managersQuery.data?.managers ?? [];
+  return (
+    <div className="flex flex-wrap items-end gap-2 border-t border-[var(--mo-border)] pt-4">
+      <label className="text-sm mo-muted">
+        Передать менеджеру
+        <select
+          className="mo-input mt-1 min-w-[14rem]"
+          value={toId}
+          onChange={(e) => setToId(e.target.value ? Number(e.target.value) : "")}
+        >
+          <option value="">Выберите менеджера</option>
+          {managers.map((m) => (
+            <option key={m.user_id} value={m.user_id}>
+              {m.full_name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        className="mo-btn-primary text-sm"
+        disabled={!toId || transfer.isPending}
+        onClick={() => transfer.mutate()}
+      >
+        Передать
+      </button>
+    </div>
+  );
 }
 
 export function LeadDetailPage() {
@@ -596,6 +660,7 @@ export function LeadDetailPage() {
                 </button>
               ) : null}
             </div>
+            <LeadRopTransfer leadId={query.data.id} pipelineId={query.data.pipeline_id} />
           </header>
 
           {canSetLeadStage ? (

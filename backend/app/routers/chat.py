@@ -108,7 +108,7 @@ class ChatThreadRead(BaseModel):
 
 
 ChatThreadBucket = Literal["transferred", "own", "awaiting_reply", "sold", "no_reply"]
-SalesStageKey = Literal["new", "in_progress", "waiting", "won", "lost", "archive"]
+SalesStageKey = Literal["new", "in_progress", "unanswered", "waiting", "won", "lost", "archive"]
 
 
 class ChatThreadBucketCounts(BaseModel):

@@ -1,4 +1,4 @@
-"""Стадии воронки (чат + канбан): 6 канонических колонок и миграция со старых имён."""
+"""Стадии воронки (чат + канбан): канонические колонки и миграция со старых имён."""
 
 from __future__ import annotations
 
@@ -20,10 +20,11 @@ from app.models import (
 )
 from app.services.stage_delete_checks import stage_delete_block_reason
 
-# Порядок колонок: входящие → работа → ожидание → исход → архив.
+# Порядок колонок: входящие → работа → нет ответа → ожидание → исход → архив.
 SALES_CHAT_STAGE_SPECS: tuple[tuple[str, str], ...] = (
     ("Новый лид", "#64748b"),
     ("В обработке", "#0ea5e9"),
+    ("Не ответили", "#94a3b8"),
     ("В ожидании", "#f59e0b"),
     ("Удачно", "#22c55e"),
     ("Отказ", "#ef4444"),
@@ -36,6 +37,7 @@ SALES_STAGE_NAMES: tuple[str, ...] = tuple(name for name, _ in SALES_CHAT_STAGE_
 SALES_STAGE_KEYS: tuple[tuple[str, str], ...] = (
     ("new", "Новый лид"),
     ("in_progress", "В обработке"),
+    ("unanswered", "Не ответили"),
     ("waiting", "В ожидании"),
     ("won", "Удачно"),
     ("lost", "Отказ"),
@@ -47,7 +49,7 @@ MANAGER_CHAT_STAGE_KEYS: tuple[tuple[str, str], ...] = tuple(
 )
 # Менеджер вручную: ожидание / работа / исход. «Новый лид» и «Архив» — авто.
 MANAGER_SETTABLE_STAGE_NAMES: frozenset[str] = frozenset(
-    {"В обработке", "В работе", "В ожидании", "Удачно", "Отказ"},
+    {"В обработке", "В работе", "Не ответили", "В ожидании", "Удачно", "Отказ"},
 )
 AUTO_ONLY_STAGE_NAMES: frozenset[str] = frozenset(
     {"Новый лид", "Архив"},
@@ -199,6 +201,7 @@ def classify_lead_stage_name(
         "Новый",
         "В обработке",
         "В работе",
+        "Не ответили",
         "В ожидании",
         "Удачно",
     ):
@@ -345,7 +348,7 @@ async def ensure_sales_pipeline_chat_stages(
     pipeline_id: int,
 ) -> dict[str, int]:
     """
-    Гарантирует 6 стадий чат-воронки, переносит лиды со старых имён, выставляет порядок.
+    Гарантирует стадии чат-воронки, переносит лиды со старых имён, выставляет порядок.
     Возвращает {имя_стадии: id}.
     """
     rows = (
@@ -764,7 +767,7 @@ async def reclassify_lead_by_activity(
 
 
 async def ensure_all_pipelines_chat_stages(db: AsyncSession) -> int:
-    """Прогоняет 6 канонических стадий по всем воронкам всех компаний. Возвращает число воронок."""
+    """Прогоняет канонические стадии чата по всем воронкам всех компаний. Возвращает число воронок."""
     pipes = (await db.execute(select(Pipeline).order_by(Pipeline.id.asc()))).scalars().all()
     for p in pipes:
         if p.company_id is None:

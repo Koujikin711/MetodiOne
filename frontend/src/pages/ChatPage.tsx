@@ -484,6 +484,7 @@ const REPLY_QUEUE_TABS: { id: ChatThreadBucket; label: string; hint: string }[] 
 /** Без «Новый лид» и «Архив» — они только в списке диалогов / авто. */
 const SALES_STAGE_TABS: { id: SalesStageKey; label: string; hint: string; color: string }[] = [
   { id: "in_progress", label: "В работе", hint: "Ответил менеджер", color: "#0ea5e9" },
+  { id: "unanswered", label: "Не ответили", hint: "Не взяли трубку", color: "#94a3b8" },
   { id: "waiting", label: "Ожидание", hint: "Ждём оплату / клиента", color: "#f59e0b" },
   { id: "won", label: "Удачно", hint: "Продано / записано", color: "#22c55e" },
   { id: "lost", label: "Отказ", hint: "Отказ клиента", color: "#ef4444" },
@@ -492,6 +493,7 @@ const SALES_STAGE_TABS: { id: SalesStageKey; label: string; hint: string; color:
 const SALES_STAGE_COLORS: Record<SalesStageKey, string> = {
   new: "#64748b",
   in_progress: "#0ea5e9",
+  unanswered: "#94a3b8",
   waiting: "#f59e0b",
   won: "#22c55e",
   lost: "#ef4444",
@@ -506,6 +508,7 @@ function isWaitingStageName(name: string | null | undefined): boolean {
 function salesStageKeyFromName(name: string | null | undefined): SalesStageKey | null {
   const n = (name || "").trim().toLowerCase();
   if (!n) return null;
+  if (n.includes("не ответ")) return "unanswered";
   if (n.includes("нов")) return "new";
   if (n.includes("архив")) return "archive";
   if (n.includes("ожид")) return "waiting";
@@ -535,6 +538,7 @@ function stageColorForThread(t: Pick<ChatThread, "lead_stage_key" | "lead_stage_
     return SALES_STAGE_COLORS[t.lead_stage_key];
   }
   const n = (t.lead_stage_name || "").trim().toLowerCase();
+  if (n.includes("не ответ")) return SALES_STAGE_COLORS.unanswered;
   if (n.includes("нов")) return SALES_STAGE_COLORS.new;
   if (n.includes("обработ") || n.includes("работ")) return SALES_STAGE_COLORS.in_progress;
   if (n.includes("ожид")) return SALES_STAGE_COLORS.waiting;
@@ -1175,7 +1179,13 @@ export function ChatPage() {
 
           {showManagerChatBuckets ? (
             <div className="mb-2.5 shrink-0 max-lg:mb-2 sm:mb-3">
-              <div className="chat-stage-tabs grid grid-cols-4 gap-1.5">
+              <div
+                className={
+                  salesChatMode
+                    ? "chat-stage-tabs grid grid-cols-2 gap-1.5 sm:grid-cols-3"
+                    : "chat-stage-tabs grid grid-cols-4 gap-1.5"
+                }
+              >
                 {(salesChatMode ? stageTabs : CHAT_BUCKET_TABS).map((tab) => {
                   const active = salesChatMode
                     ? salesStageKey === tab.id
@@ -1507,8 +1517,8 @@ export function ChatPage() {
               {statusOpen && salesChatMode && activeThread?.lead_id ? (
                 <div className="shrink-0 border-b border-[var(--mo-border)] py-2">
                   <p className="mb-1.5 text-[11px] mo-muted">
-                    Вручную: В работе / В ожидании / Удачно / Отказ. «В ожидании» только вручную —
-                    чат сам не переводит сюда. «Новый лид» — автоматически.
+                    Вручную: В работе / Не ответили / В ожидании / Удачно / Отказ. «Не ответили» и
+                    «В ожидании» только вручную — чат сам туда не переводит. «Новый лид» — автоматически.
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {(statusStagesQuery.data ?? [])
@@ -1518,6 +1528,7 @@ export function ChatPage() {
                         return (
                           n === "В обработке" ||
                           n === "В работе" ||
+                          n === "Не ответили" ||
                           n === "В ожидании" ||
                           n === "Удачно" ||
                           n === "Отказ"

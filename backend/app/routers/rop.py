@@ -9,7 +9,7 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -44,6 +44,7 @@ from app.schemas.rop import (
     RopDayCloseManager,
     RopLeadTransferBody,
     RopLeadTransferResult,
+    RopLeadMatch,
     RopManagerPresence,
     RopManagerRow,
     RopManagersList,
@@ -163,6 +164,45 @@ async def _archive_stage_ids(db: AsyncSession, *, company_id: int, pipeline_id: 
     return {int(x) for x in rows}
 
 
+async def _won_today_by_actor(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    manager_ids: list[int],
+    start: datetime,
+    end: datetime,
+) -> dict[int, int]:
+    """Лиды, которые менеджер сегодня сам перевёл в «Удачно»."""
+    if not manager_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(LeadAuditEvent.user_id, func.count(func.distinct(Lead.id)))
+            .join(Lead, Lead.id == LeadAuditEvent.lead_id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(
+                Lead.company_id == company_id,
+                PipelineStage.pipeline_id == pipeline_id,
+                LeadAuditEvent.user_id.in_(manager_ids),
+                LeadAuditEvent.action == "status_changed",
+                LeadAuditEvent.details.like("%-> Удачно%"),
+                LeadAuditEvent.created_at >= start,
+                LeadAuditEvent.created_at < end,
+            )
+            .group_by(LeadAuditEvent.user_id)
+        )
+    ).all()
+    return {int(uid): int(cnt) for uid, cnt in rows if uid}
+
+
+def _phone_digits_sql(column):
+    expr = column
+    for ch in ("+", " ", "-", "(", ")", ".", "\u00a0"):
+        expr = func.replace(expr, ch, "")
+    return expr
+
+
 @router.post("/presence/heartbeat")
 async def presence_heartbeat(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -228,20 +268,14 @@ async def rop_dashboard(
     ).all() if manager_ids else []
     new_map = {int(mid): int(cnt) for mid, cnt in new_rows if mid}
 
-    book_rows = (
-        await db.execute(
-            select(BookingAppointment.responsible_manager_id, func.count())
-            .where(
-                BookingAppointment.company_id == company_id,
-                BookingAppointment.responsible_manager_id.in_(manager_ids or [0]),
-                BookingAppointment.start_at >= start,
-                BookingAppointment.start_at < end,
-                BookingAppointment.status != "cancelled",
-            )
-            .group_by(BookingAppointment.responsible_manager_id)
-        )
-    ).all() if manager_ids else []
-    book_map = {int(mid): int(cnt) for mid, cnt in book_rows if mid}
+    book_map = await _won_today_by_actor(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        manager_ids=manager_ids,
+        start=start,
+        end=end,
+    )
 
     rev_rows = (
         await db.execute(
@@ -392,24 +426,16 @@ async def rop_day_close(
                 continue
             replied_map[int(mid)] = max(replied_map.get(int(mid), 0), int(cnt))
 
-    book_map: dict[int, int] = {}
+    book_map = await _won_today_by_actor(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        manager_ids=manager_ids,
+        start=start,
+        end=end,
+    )
     rev_map: dict[int, Decimal] = {}
     if manager_ids:
-        for mid, cnt in (
-            await db.execute(
-                select(BookingAppointment.responsible_manager_id, func.count())
-                .where(
-                    BookingAppointment.company_id == company_id,
-                    BookingAppointment.responsible_manager_id.in_(manager_ids),
-                    BookingAppointment.start_at >= start,
-                    BookingAppointment.start_at < end,
-                    BookingAppointment.status != "cancelled",
-                )
-                .group_by(BookingAppointment.responsible_manager_id)
-            )
-        ).all():
-            if mid is not None:
-                book_map[int(mid)] = int(cnt)
         for mid, amt in (
             await db.execute(
                 select(
@@ -578,6 +604,10 @@ async def rop_stats(
             for sid, sname, cnt in stages_raw.get(mid, [])
         ]
         stages.sort(key=lambda s: -s.count)
+        if not any(s.stage_name == "Не ответили" for s in stages):
+            stages.append(
+                RopStatsStage(stage_id=0, stage_name="Не ответили", count=0, percent=0.0)
+            )
         out.append(
             RopStatsManager(
                 user_id=mid,
@@ -689,6 +719,60 @@ async def rop_patch_accepts_leads(
         is_online=_is_online(user.last_seen_at),
         last_seen_at=user.last_seen_at,
     )
+
+
+@router.get("/leads/lookup", response_model=list[RopLeadMatch])
+async def rop_lead_lookup(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    pipeline_id: int = Query(..., ge=1),
+    q: str = Query(..., min_length=2, max_length=120),
+) -> list[RopLeadMatch]:
+    """Поиск лида воронки по ID, ФИО или телефону — для передачи менеджеру."""
+    _assert_rop(current_user)
+    await _load_pipeline(db, company_id, pipeline_id)
+    raw = q.strip()
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    clauses = []
+    if raw.isdigit():
+        try:
+            clauses.append(Lead.id == int(raw))
+        except ValueError:
+            pass
+    if len(digits) >= 4:
+        tail = digits[-9:] if len(digits) >= 9 else digits
+        clauses.append(_phone_digits_sql(Lead.phone).like(f"%{tail}%"))
+    if not raw.isdigit():
+        clauses.append(Lead.name.ilike(f"%{raw}%"))
+    if not clauses:
+        return []
+    rows = (
+        await db.execute(
+            select(Lead, User)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id)
+            .outerjoin(User, User.id == Lead.manager_id)
+            .where(
+                Lead.company_id == company_id,
+                PipelineStage.pipeline_id == pipeline_id,
+                or_(*clauses),
+            )
+            .order_by(Lead.id.desc())
+            .limit(12)
+        )
+    ).all()
+    out: list[RopLeadMatch] = []
+    for lead, manager in rows:
+        out.append(
+            RopLeadMatch(
+                lead_id=int(lead.id),
+                name=str(lead.name or ""),
+                phone=lead.phone,
+                manager_id=int(lead.manager_id) if lead.manager_id is not None else None,
+                manager_name=_display_name(manager) if manager is not None else None,
+            )
+        )
+    return out
 
 
 @router.post("/leads/transfer", response_model=RopLeadTransferResult)
@@ -856,14 +940,25 @@ async def rop_analytics(
         if mid in by_id
     ]
 
-    amounts: list[tuple[int, str, Decimal]] = []
+    amounts: list[tuple[int, str, Decimal, Decimal, Decimal, int, int]] = []
     if manager_ids:
-        for mid, svc, amt in (
+        full_paid = and_(
+            BookingAppointment.service_amount > 0,
+            BookingAppointment.paid_amount >= BookingAppointment.service_amount,
+        )
+        for mid, svc, paid, sold, full_amt, sold_n, full_n in (
             await db.execute(
                 select(
                     func.coalesce(BookingAppointment.responsible_manager_id, Lead.manager_id),
                     BookingDirection.name,
                     func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
+                    func.coalesce(func.sum(BookingAppointment.service_amount), 0),
+                    func.coalesce(
+                        func.sum(case((full_paid, BookingAppointment.paid_amount), else_=0)),
+                        0,
+                    ),
+                    func.count(),
+                    func.coalesce(func.sum(case((full_paid, 1), else_=0)), 0),
                 )
                 .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
                 .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
@@ -872,7 +967,10 @@ async def rop_analytics(
                     BookingAppointment.start_at >= start,
                     BookingAppointment.start_at < end,
                     BookingAppointment.status != "cancelled",
-                    BookingAppointment.paid_amount > 0,
+                    or_(
+                        BookingAppointment.paid_amount > 0,
+                        BookingAppointment.service_amount > 0,
+                    ),
                     or_(
                         BookingAppointment.responsible_manager_id.in_(manager_ids),
                         and_(
@@ -887,8 +985,19 @@ async def rop_analytics(
                 )
             )
         ).all():
-            if mid is not None:
-                amounts.append((int(mid), str(svc or "Услуга"), Decimal(str(amt or 0))))
+            if mid is None:
+                continue
+            amounts.append(
+                (
+                    int(mid),
+                    str(svc or "Услуга"),
+                    Decimal(str(paid or 0)),
+                    Decimal(str(sold or 0)),
+                    Decimal(str(full_amt or 0)),
+                    int(sold_n or 0),
+                    int(full_n or 0),
+                )
+            )
 
         man_rev = (
             await db.execute(
@@ -920,21 +1029,27 @@ async def rop_analytics(
         for mid, pid, amt in man_rev:
             if mid is None:
                 continue
+            money = Decimal(str(amt or 0))
             amounts.append(
-                (int(mid), plan_names.get(int(pid), "Курс/протокол"), Decimal(str(amt or 0)))
+                (int(mid), plan_names.get(int(pid), "Курс/протокол"), money, money, money, 0, 0)
             )
 
-    total = sum((a for _, _, a in amounts), Decimal("0"))
+    total = sum((row[2] for row in amounts), Decimal("0"))
     shares = [
         RopRevenueShare(
             manager_id=mid,
             manager_name=_display_name(by_id[mid]) if mid in by_id else f"#{mid}",
             service_name=svc,
-            amount=amt,
-            percent_of_total=round(float(amt) * 100.0 / float(total), 1) if total else 0.0,
+            amount=paid,
+            percent_of_total=round(float(paid) * 100.0 / float(total), 1) if total else 0.0,
+            sold_amount=sold,
+            paid_amount=paid,
+            full_paid_amount=full_amt,
+            sold_count=sold_n,
+            full_paid_count=full_n,
         )
-        for mid, svc, amt in amounts
-        if amt > 0
+        for mid, svc, paid, sold, full_amt, sold_n, full_n in amounts
+        if paid > 0 or sold > 0
     ]
     shares.sort(key=lambda x: -float(x.amount))
 
@@ -966,6 +1081,11 @@ async def rop_report(
             manager_name=s.manager_name,
             service_name=s.service_name,
             amount=s.amount,
+            sold_amount=s.sold_amount,
+            paid_amount=s.paid_amount,
+            full_paid_amount=s.full_paid_amount,
+            sold_count=s.sold_count,
+            full_paid_count=s.full_paid_count,
         )
         for s in analytics.revenue_shares
     ]
@@ -976,6 +1096,8 @@ async def rop_report(
         date_to=date_to,
         rows=rows,
         total=analytics.revenue_total,
+        sold_total=sum((r.sold_amount for r in rows), Decimal("0")),
+        full_paid_total=sum((r.full_paid_amount for r in rows), Decimal("0")),
     )
 
 

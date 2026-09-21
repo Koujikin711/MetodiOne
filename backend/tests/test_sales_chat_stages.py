@@ -16,13 +16,15 @@ def test_sales_stage_keys():
     assert sales_stage_name_for_key("waiting") == "В ожидании"
     assert sales_stage_name_for_key("won") == "Удачно"
     assert sales_stage_name_for_key("archive") == "Архив"
-    assert len(SALES_STAGE_NAMES) == 6
+    assert sales_stage_name_for_key("unanswered") == "Не ответили"
+    assert len(SALES_STAGE_NAMES) == 7
     assert ARCHIVE_STAGE_NAME not in MANAGER_SETTABLE_STAGE_NAMES
     assert "Новый лид" not in MANAGER_SETTABLE_STAGE_NAMES
     assert "В обработке" in MANAGER_SETTABLE_STAGE_NAMES
     assert "В работе" in MANAGER_SETTABLE_STAGE_NAMES
+    assert "Не ответили" in MANAGER_SETTABLE_STAGE_NAMES
     assert MANAGER_SETTABLE_STAGE_NAMES == frozenset(
-        {"В обработке", "В работе", "В ожидании", "Удачно", "Отказ"}
+        {"В обработке", "В работе", "Не ответили", "В ожидании", "Удачно", "Отказ"}
     )
     assert "Удачно" in MANAGER_SETTABLE_STAGE_NAMES
 

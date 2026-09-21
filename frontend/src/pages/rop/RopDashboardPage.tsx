@@ -100,7 +100,7 @@ export function RopDashboardPage() {
                 <th className="px-3 py-2">Статус</th>
                 <th className="px-3 py-2">Активные</th>
                 <th className="px-3 py-2">Новые</th>
-                <th className="px-3 py-2">Записи</th>
+                <th className="px-3 py-2">Удачно</th>
                 <th className="px-3 py-2">Принёс</th>
               </tr>
             </thead>
@@ -144,7 +144,7 @@ export function RopDashboardPage() {
               <div key={m.user_id} className="rounded-lg bg-[var(--mo-surface)] p-3 text-sm">
                 <div className="font-medium">{m.full_name}</div>
                 <div className="mt-1 mo-muted">
-                  Ответил: {m.replied_leads} · ещё без ответа: {m.unreplied_active} · записи:{" "}
+                  Ответил: {m.replied_leads} · ещё без ответа: {m.unreplied_active} · удачно:{" "}
                   {m.bookings_today} · выручка: {money(m.revenue_today)}
                 </div>
                 {m.stages.length > 0 && (
