@@ -306,6 +306,10 @@ class BookingAppointmentPaymentUpdate(BaseModel):
         default=None,
         description="Дата сдачи денег (YYYY-MM-DD). Месяц выручки; пусто — дата визита.",
     )
+    bill_this_appointment: bool = Field(
+        default=False,
+        description="Писать оплату в эту запись, даже если пакет копится в другой день",
+    )
 
     @model_validator(mode="after")
     def _one_of_payment_fields(self) -> "BookingAppointmentPaymentUpdate":

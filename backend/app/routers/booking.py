@@ -2550,7 +2550,16 @@ async def patch_appointment_payment(
 
     # Доплату можно вносить в любой день: кто уже прошёл journal-check
     # (owner / admin / менеджер воронки / главный эксперт).
-    if session_billing:
+    if body.bill_this_appointment and current_user.role not in (
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.admin,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Оплату в конкретную запись может провести только администратор",
+        )
+    if session_billing or body.bill_this_appointment:
         target = appt
     else:
         target = await _resolve_package_billing_appointment(db, company_id=company_id, appt=appt)

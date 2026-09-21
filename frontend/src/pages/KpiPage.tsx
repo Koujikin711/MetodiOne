@@ -1815,7 +1815,7 @@ function CompanyReportSection({
         <p className="mt-1 hidden text-sm lux-caption sm:block">
           {hideBookingExperts
             ? "Сводка за выбранный месяц (не сумма с прошлых). Выручка = продажи стола + платежи по курсам с датой в этом месяце. Дебиторка — остаток на конец месяца с переносом."
-            : "Сводка за месяц. Выручка = оплаты визитов + платежи курсов/протоколов KPI по дате платежа (1-й в августе, доплата в сентябре — в разные месяцы). KPI менеджера — только первый платёж. Дебиторка = остаток визитов + долги пакетов."}
+            : "Сводка за месяц. Выручка = оплаты визитов по дате сдачи денег. Курсы KPI показаны отдельно и в эту сумму не входят: в сентябре только платежи с датой сентября. Дебиторка = остаток визитов + долги пакетов."}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-4">
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
@@ -1840,7 +1840,7 @@ function CompanyReportSection({
                 ? `стол ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}`
                 : `визиты ${formatMoney(data.revenue_booking)}${
                     Number(data.revenue_manual) > 0
-                      ? ` · курсы KPI ${formatMoney(data.revenue_manual)}`
+                      ? ` · курсы KPI ${formatMoney(data.revenue_manual)} отдельно`
                       : ""
                   }`}
             </div>
