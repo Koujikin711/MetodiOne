@@ -301,6 +301,7 @@ export function KpiPage() {
   const [pipelineId, setPipelineId] = useState<number | null>(null);
   const [listQuery, setListQuery] = useState("");
   const [journalSearch, setJournalSearch] = useState("");
+  const [journalOpen, setJournalOpen] = useState(false);
   const [tab, setTab] = useState<TabId>(
     isCurator ? "debtors" : isAccountant ? "company" : isOwner ? "plan" : "sales",
   );
@@ -373,8 +374,17 @@ export function KpiPage() {
       apiFetch<SalesKpiPaymentJournalRow[]>(
         `/api/sales-kpi/manual-sales/payments?pipeline_id=${pipelineId}`,
       ),
-    enabled: Boolean(pipelineId && isAdminOrOwner && tab === "manual"),
+    enabled: Boolean(pipelineId && isAdminOrOwner && tab === "manual" && journalOpen),
   });
+
+  useEffect(() => {
+    if (!journalOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setJournalOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [journalOpen]);
 
   const debtorsQuery = useQuery({
     queryKey: ["sales-kpi-debtors", qs],
@@ -1321,82 +1331,124 @@ export function KpiPage() {
             </div>
           )}
 
-          <button
-            type="button"
-            className="btn-primary min-h-12 w-full text-base disabled:opacity-50 sm:min-h-0 sm:w-auto sm:text-sm"
-            disabled={createSaleMutation.isPending || manualPlanItems.length === 0}
-            onClick={() => createSaleMutation.mutate()}
-          >
-            Добавить продажу
-          </button>
-
-          <div className="space-y-2 border-t border-[var(--mo-border)] pt-3">
-            <div className="flex flex-wrap items-end justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-semibold text-[var(--mo-text)]">Журнал платежей</h3>
-                <p className="text-[11px] text-[var(--mo-text-muted)]">Когда, кто внёс и сколько.</p>
-              </div>
-              <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-[11px] mo-muted sm:max-w-xs sm:text-sm">
-                Поиск
-                <input
-                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                  value={journalSearch}
-                  placeholder="Имя, телефон, кто внёс, сумма"
-                  onChange={(e) => setJournalSearch(e.target.value)}
-                />
-              </label>
-            </div>
-            <ul className="space-y-2 sm:hidden">
-              {filteredJournal.map((r) => (
-                <li key={`${r.sale_id}-${r.payment_id ?? "first"}-${r.paid_at}`} className="rounded-xl border border-[var(--mo-border)] px-3 py-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
-                    <span className="shrink-0 text-sm font-semibold tabular-nums">{formatMoney(num(r.amount))}</span>
-                  </div>
-                  <p className="text-[11px] text-[var(--mo-text-muted)]">
-                    {formatSaleDt(r.paid_at)} · {r.plan_item_name}
-                    {r.is_first ? " · первый" : " · доплата"}
-                  </p>
-                  <p className="text-[11px] text-[var(--mo-text-muted)]">
-                    Внёс: {r.recorded_by_name || "—"} · менеджер {r.manager_name}
-                  </p>
-                </li>
-              ))}
-            </ul>
-            <div className="hidden overflow-x-auto sm:block">
-              <table className="kpi-data-table min-w-[760px] text-sm">
-                <thead>
-                  <tr>
-                    <th>Дата</th>
-                    <th>Клиент</th>
-                    <th>Услуга</th>
-                    <th>Сумма</th>
-                    <th>Кто внёс</th>
-                    <th>Менеджер</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredJournal.map((r) => (
-                    <tr key={`${r.sale_id}-${r.payment_id ?? "first"}-${r.paid_at}`}>
-                      <td className="whitespace-nowrap tabular-nums">{formatSaleDt(r.paid_at)}</td>
-                      <td className="font-medium">{r.client_name}</td>
-                      <td>
-                        {r.plan_item_name}
-                        <span className="ml-1 text-[11px] text-[var(--mo-text-muted)]">{r.is_first ? "первый" : "доплата"}</span>
-                      </td>
-                      <td className="tabular-nums whitespace-nowrap">{formatMoney(num(r.amount))}</td>
-                      <td>{r.recorded_by_name || "—"}</td>
-                      <td>{r.manager_name}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {paymentJournalQuery.isLoading ? <p className="text-sm lux-caption">Загрузка журнала…</p> : null}
-            {!paymentJournalQuery.isLoading && filteredJournal.length === 0 ? (
-              <p className="text-sm lux-caption">В журнале ничего не найдено.</p>
-            ) : null}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-primary min-h-12 w-full text-base disabled:opacity-50 sm:min-h-0 sm:w-auto sm:text-sm"
+              disabled={createSaleMutation.isPending || manualPlanItems.length === 0}
+              onClick={() => createSaleMutation.mutate()}
+            >
+              Добавить продажу
+            </button>
+            <button
+              type="button"
+              className="btn-secondary min-h-12 w-full text-base sm:min-h-0 sm:w-auto sm:text-sm"
+              onClick={() => setJournalOpen(true)}
+            >
+              Журнал платежей
+            </button>
           </div>
+
+          {journalOpen && typeof document !== "undefined"
+            ? createPortal(
+                <div
+                  className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
+                  onClick={() => setJournalOpen(false)}
+                >
+                  <div
+                    className="flex max-h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] shadow-2xl sm:rounded-2xl"
+                    role="dialog"
+                    aria-modal
+                    aria-label="Журнал платежей"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <header className="flex items-start justify-between gap-3 border-b border-[var(--mo-border)] px-4 py-3">
+                      <div>
+                        <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Журнал платежей</h2>
+                        <p className="mt-0.5 text-xs mo-muted">Когда, кто внёс и сколько.</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-secondary min-h-11 px-3 text-sm"
+                        onClick={() => setJournalOpen(false)}
+                      >
+                        Закрыть
+                      </button>
+                    </header>
+                    <div className="border-b border-[var(--mo-border)] px-4 py-3">
+                      <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                        Поиск
+                        <input
+                          className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                          value={journalSearch}
+                          placeholder="Имя, телефон, кто внёс, сумма"
+                          onChange={(e) => setJournalSearch(e.target.value)}
+                          autoFocus
+                        />
+                      </label>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+                      <ul className="space-y-2 sm:hidden">
+                        {filteredJournal.map((r) => (
+                          <li
+                            key={`${r.sale_id}-${r.payment_id ?? "first"}-${r.paid_at}`}
+                            className="rounded-xl border border-[var(--mo-border)] px-3 py-2"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
+                              <span className="shrink-0 text-sm font-semibold tabular-nums">{formatMoney(num(r.amount))}</span>
+                            </div>
+                            <p className="text-[11px] text-[var(--mo-text-muted)]">
+                              {formatSaleDt(r.paid_at)} · {r.plan_item_name}
+                              {r.is_first ? " · первый" : " · доплата"}
+                            </p>
+                            <p className="text-[11px] text-[var(--mo-text-muted)]">
+                              Внёс: {r.recorded_by_name || "—"} · менеджер {r.manager_name}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="hidden overflow-x-auto sm:block">
+                        <table className="kpi-data-table min-w-[760px] text-sm">
+                          <thead>
+                            <tr>
+                              <th>Дата</th>
+                              <th>Клиент</th>
+                              <th>Услуга</th>
+                              <th>Сумма</th>
+                              <th>Кто внёс</th>
+                              <th>Менеджер</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredJournal.map((r) => (
+                              <tr key={`${r.sale_id}-${r.payment_id ?? "first"}-${r.paid_at}`}>
+                                <td className="whitespace-nowrap tabular-nums">{formatSaleDt(r.paid_at)}</td>
+                                <td className="font-medium">{r.client_name}</td>
+                                <td>
+                                  {r.plan_item_name}
+                                  <span className="ml-1 text-[11px] text-[var(--mo-text-muted)]">
+                                    {r.is_first ? "первый" : "доплата"}
+                                  </span>
+                                </td>
+                                <td className="tabular-nums whitespace-nowrap">{formatMoney(num(r.amount))}</td>
+                                <td>{r.recorded_by_name || "—"}</td>
+                                <td>{r.manager_name}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {paymentJournalQuery.isLoading ? <p className="text-sm lux-caption">Загрузка журнала…</p> : null}
+                      {!paymentJournalQuery.isLoading && filteredJournal.length === 0 ? (
+                        <p className="text-sm lux-caption">В журнале ничего не найдено.</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>,
+                document.body,
+              )
+            : null}
 
           <ul className="space-y-2 pt-1 sm:hidden">
             {filteredManualSales.map((s) => (
