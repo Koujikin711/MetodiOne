@@ -23,3 +23,14 @@ def test_second_month_differs_from_first():
     sep = paid_at_from_input(date(2026, 9, 13))
     assert aug.astimezone(timezone.utc).month == 8
     assert sep.astimezone(timezone.utc).month == 9
+
+
+def test_course_debt_starts_one_month_after_first_payment():
+    from app.services.sales_kpi_weighted import course_debt_is_due, first_course_payment_at
+
+    first = paid_at_from_input(date(2026, 9, 14))
+    before = paid_at_from_input(date(2026, 10, 13))
+    on_day = paid_at_from_input(date(2026, 10, 14))
+    assert course_debt_is_due(first, before) is False
+    assert course_debt_is_due(first, on_day) is True
+    assert first_course_payment_at(first, []).date() == first.date()

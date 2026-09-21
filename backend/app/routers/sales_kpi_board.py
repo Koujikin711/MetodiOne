@@ -47,6 +47,7 @@ from app.schemas.sales_kpi import (
     SalesKpiManualSaleOut,
     SalesKpiManualSalePaymentOut,
     SalesKpiManualSalePaymentPatch,
+    SalesKpiManualPaymentJournalRow,
     SalesKpiManualSaleSoldAtPatch,
     SalesKpiManualSaleStatusPatch,
     SalesKpiPlanItemOut,
@@ -75,6 +76,8 @@ from app.services.sales_kpi_weighted import (
     month_bounds,
     paid_at_from_input,
     booking_debt_cutoff,
+    course_debt_is_due,
+    first_course_payment_at,
     parse_year_month,
     shift_year_month,
     sum_specialist_facts_company,
@@ -266,13 +269,18 @@ def _booking_debt_cutoff(month_end: datetime, *, now: datetime | None = None) ->
     return booking_debt_cutoff(month_end, now=now)
 
 
-def _payment_out(row: SalesKpiManualSalePayment) -> SalesKpiManualSalePaymentOut:
+def _payment_out(
+    row: SalesKpiManualSalePayment,
+    *,
+    recorded_by_name: str | None = None,
+) -> SalesKpiManualSalePaymentOut:
     return SalesKpiManualSalePaymentOut(
         id=int(row.id),
         amount=Decimal(str(row.amount or 0)),
         is_first=bool(row.is_first),
         note=row.note,
         paid_at=row.paid_at,
+        recorded_by_name=recorded_by_name,
     )
 
 
@@ -703,6 +711,109 @@ async def list_manual_sales(
     return out
 
 
+@router.get("/manual-sales/payments", response_model=list[SalesKpiManualPaymentJournalRow])
+async def manual_payment_journal(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    pipeline_id: int = Query(..., ge=1),
+    q: str = Query(default="", max_length=120),
+) -> list[SalesKpiManualPaymentJournalRow]:
+    """Журнал оплат курсов и протоколов: когда, кто внёс, сколько."""
+    _assert_kpi_access(current_user)
+    _assert_admin_or_owner(current_user)
+    await _load_pipeline(db, company_id, pipeline_id)
+    rows = (
+        await db.execute(
+            select(SalesKpiManualSale, SalesKpiPlanItem.name, User.full_name, User.email)
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .join(User, User.id == SalesKpiManualSale.manager_user_id)
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+            )
+            .order_by(SalesKpiManualSale.sold_at.desc(), SalesKpiManualSale.id.desc()),
+        )
+    ).all()
+    sale_ids = [int(sale.id) for sale, *_ in rows]
+    payments_by_sale = await _load_sale_payments(db, sale_ids)
+    actor_ids: set[int] = set()
+    for sale, *_ in rows:
+        if sale.created_by_user_id:
+            actor_ids.add(int(sale.created_by_user_id))
+        for pay in payments_by_sale.get(int(sale.id), []):
+            if pay.created_by_user_id:
+                actor_ids.add(int(pay.created_by_user_id))
+    actors: dict[int, str] = {}
+    if actor_ids:
+        urows = (
+            await db.execute(select(User.id, User.full_name, User.email).where(User.id.in_(list(actor_ids))))
+        ).all()
+        for uid, full_name, email in urows:
+            actors[int(uid)] = str(full_name or email or f"#{uid}")
+
+    journal: list[SalesKpiManualPaymentJournalRow] = []
+    for sale, item_name, mgr_name, mgr_email in rows:
+        manager = str(mgr_name or mgr_email or f"#{sale.manager_user_id}")
+        pays = payments_by_sale.get(int(sale.id), [])
+        covered = Decimal("0")
+        for pay in pays:
+            covered += Decimal(str(pay.amount or 0))
+            who = actors.get(int(pay.created_by_user_id)) if pay.created_by_user_id else None
+            journal.append(
+                SalesKpiManualPaymentJournalRow(
+                    sale_id=int(sale.id),
+                    payment_id=int(pay.id),
+                    paid_at=pay.paid_at,
+                    client_name=sale.client_name,
+                    client_phone=sale.client_phone,
+                    plan_item_name=str(item_name),
+                    amount=Decimal(str(pay.amount or 0)),
+                    is_first=bool(pay.is_first),
+                    note=pay.note,
+                    manager_name=manager,
+                    recorded_by_name=who,
+                ),
+            )
+        gap = Decimal(str(sale.paid_amount or 0)) - covered
+        if gap > 0 and sale.sold_at is not None:
+            who_id = int(sale.created_by_user_id) if sale.created_by_user_id else None
+            journal.append(
+                SalesKpiManualPaymentJournalRow(
+                    sale_id=int(sale.id),
+                    payment_id=None,
+                    paid_at=sale.sold_at,
+                    client_name=sale.client_name,
+                    client_phone=sale.client_phone,
+                    plan_item_name=str(item_name),
+                    amount=gap,
+                    is_first=True,
+                    note="Первый платёж",
+                    manager_name=manager,
+                    recorded_by_name=actors.get(who_id) if who_id else None,
+                ),
+            )
+    journal.sort(key=lambda r: r.paid_at, reverse=True)
+    needle = " ".join((q or "").lower().split())
+    if needle:
+        journal = [
+            row
+            for row in journal
+            if needle in " ".join(
+                [
+                    row.client_name,
+                    row.client_phone,
+                    row.plan_item_name,
+                    row.manager_name,
+                    row.recorded_by_name or "",
+                    row.note or "",
+                    f"{row.amount}",
+                ],
+            ).lower()
+        ]
+    return journal
+
+
 @router.post("/manual-sales", response_model=SalesKpiManualSaleOut, status_code=status.HTTP_201_CREATED)
 async def create_manual_sale(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -1109,7 +1220,20 @@ async def debtors_report(
             ),
         )
 
+    sale_ids_for_debt: list[int] = []
+    manual_pairs: list[tuple] = []
     for sale, item_name in manual_q:
+        payments = []  # filled below
+        sale_ids_for_debt.append(int(sale.id))
+        manual_pairs.append((sale, str(item_name)))
+
+    payments_by_sale = await _load_sale_payments(db, sale_ids_for_debt)
+    debt_cutoff = _booking_debt_cutoff(end)
+    for sale, item_name in manual_pairs:
+        payments = payments_by_sale.get(int(sale.id), [])
+        first_at = first_course_payment_at(sale.sold_at, payments)
+        if not course_debt_is_due(first_at, debt_cutoff):
+            continue
         sa = Decimal(str(sale.service_amount or 0))
         pa = Decimal(str(sale.paid_amount or 0))
         mid = int(sale.manager_user_id)
@@ -1525,22 +1649,25 @@ async def company_report(
     for sale in legacy_manual_rows:
         revenue_manual += Decimal(str(sale.paid_amount or 0))
 
-    manual_debt_q = select(
-        SalesKpiManualSale.service_amount,
-        SalesKpiManualSale.paid_amount,
-    ).where(
-        SalesKpiManualSale.company_id == company_id,
-        SalesKpiManualSale.pipeline_id == pipeline_id,
-        SalesKpiManualSale.sold_at < end,
-        SalesKpiManualSale.status == "active",
-        SalesKpiManualSale.service_amount > SalesKpiManualSale.paid_amount,
-    )
-
-    manual_debt_rows = (await db.execute(manual_debt_q)).all()
+    manual_debt_sales = (
+        await db.execute(
+            select(SalesKpiManualSale).where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.sold_at < end,
+                SalesKpiManualSale.status == "active",
+                SalesKpiManualSale.service_amount > SalesKpiManualSale.paid_amount,
+            ),
+        )
+    ).scalars().all()
+    debt_pay = await _load_sale_payments(db, [int(s.id) for s in manual_debt_sales])
     debtor_manual = Decimal("0")
-    for sa_raw, pa_raw in manual_debt_rows:
-        sa = Decimal(str(sa_raw or 0))
-        pa = Decimal(str(pa_raw or 0))
+    for sale in manual_debt_sales:
+        first_at = first_course_payment_at(sale.sold_at, debt_pay.get(int(sale.id), []))
+        if not course_debt_is_due(first_at, _booking_debt_cutoff(end, now=now)):
+            continue
+        sa = Decimal(str(sale.service_amount or 0))
+        pa = Decimal(str(sale.paid_amount or 0))
         debtor_manual += max(sa - pa, Decimal("0"))
 
     # Эксперты воронки без записей в месяце — тоже покажем 0 (только clinic)

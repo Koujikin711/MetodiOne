@@ -1023,6 +1023,21 @@ export interface SalesKpiManualSalePayment {
   is_first: boolean;
   note: string | null;
   paid_at: string;
+  recorded_by_name?: string | null;
+}
+
+export interface SalesKpiPaymentJournalRow {
+  sale_id: number;
+  payment_id: number | null;
+  paid_at: string;
+  client_name: string;
+  client_phone: string;
+  plan_item_name: string;
+  amount: string | number;
+  is_first: boolean;
+  note: string | null;
+  manager_name: string;
+  recorded_by_name: string | null;
 }
 
 export interface SalesKpiManualSale {

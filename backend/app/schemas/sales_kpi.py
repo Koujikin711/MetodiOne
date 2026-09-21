@@ -221,6 +221,21 @@ class SalesKpiManualSalePaymentOut(BaseModel):
     is_first: bool
     note: str | None = None
     paid_at: datetime
+    recorded_by_name: str | None = None
+
+
+class SalesKpiManualPaymentJournalRow(BaseModel):
+    sale_id: int
+    payment_id: int | None = None
+    paid_at: datetime
+    client_name: str
+    client_phone: str
+    plan_item_name: str
+    amount: Decimal
+    is_first: bool
+    note: str | None = None
+    manager_name: str
+    recorded_by_name: str | None = None
 
 
 class SalesKpiManualSaleStatusPatch(BaseModel):

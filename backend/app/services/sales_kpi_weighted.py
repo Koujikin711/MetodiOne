@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+import calendar
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -72,6 +73,40 @@ def booking_debt_cutoff(month_end: datetime, *, now: datetime | None = None) -> 
         n = n.replace(tzinfo=UTC)
     end = month_end if month_end.tzinfo else month_end.replace(tzinfo=UTC)
     return n if n < end else end
+
+
+def course_debt_is_due(first_paid_at: datetime, cutoff: datetime) -> bool:
+    """Остаток курса — дебиторка через календарный месяц после первой оплаты.
+
+    Первая оплата 14 сентября → в дебиторке с 14 октября. До этого дня остаток не долг.
+    """
+    tz = ZoneInfo(settings.booking_timezone or "Asia/Dushanbe")
+
+    def local_day(dt: datetime) -> date:
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(tz).date()
+
+    start = local_day(first_paid_at)
+    month = start.month + 1
+    year = start.year + (month - 1) // 12
+    month = (month - 1) % 12 + 1
+    day = min(start.day, calendar.monthrange(year, month)[1])
+    return local_day(cutoff) >= date(year, month, day)
+
+
+def first_course_payment_at(sold_at: datetime, payments: list) -> datetime:
+    """Дата первой оплаты: строка журнала с is_first, иначе дата продажи."""
+    firsts = [
+        p.paid_at
+        for p in payments
+        if getattr(p, "is_first", False) and getattr(p, "paid_at", None) is not None
+    ]
+    if firsts:
+        return min(firsts)
+    if sold_at.tzinfo is None:
+        return sold_at.replace(tzinfo=UTC)
+    return sold_at
 
 
 def kpi_booking_created_cutoff(ym: date) -> datetime | None:

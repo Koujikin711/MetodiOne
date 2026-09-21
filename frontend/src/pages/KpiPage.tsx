@@ -16,6 +16,7 @@ import type {
   SalesKpiCompanyReport,
   SalesKpiDebtorsReport,
   SalesKpiManualSale,
+  SalesKpiPaymentJournalRow,
   SalesKpiPipelineMeta,
   SalesKpiSalesReport,
   SalesKpiWeightedPlan,
@@ -299,6 +300,7 @@ export function KpiPage() {
   const [yearMonth, setYearMonth] = useState(defaultYearMonth);
   const [pipelineId, setPipelineId] = useState<number | null>(null);
   const [listQuery, setListQuery] = useState("");
+  const [journalSearch, setJournalSearch] = useState("");
   const [tab, setTab] = useState<TabId>(
     isCurator ? "debtors" : isAccountant ? "company" : isOwner ? "plan" : "sales",
   );
@@ -362,6 +364,15 @@ export function KpiPage() {
   const manualQuery = useQuery({
     queryKey: ["sales-kpi-manual-sales", qs],
     queryFn: () => apiFetch<SalesKpiManualSale[]>(`/api/sales-kpi/manual-sales?${qs}`),
+    enabled: Boolean(pipelineId && isAdminOrOwner && tab === "manual"),
+  });
+
+  const paymentJournalQuery = useQuery({
+    queryKey: ["sales-kpi-payment-journal", pipelineId],
+    queryFn: () =>
+      apiFetch<SalesKpiPaymentJournalRow[]>(
+        `/api/sales-kpi/manual-sales/payments?pipeline_id=${pipelineId}`,
+      ),
     enabled: Boolean(pipelineId && isAdminOrOwner && tab === "manual"),
   });
 
@@ -495,6 +506,7 @@ export function KpiPage() {
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-payment-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -514,6 +526,7 @@ export function KpiPage() {
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-payment-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -531,6 +544,7 @@ export function KpiPage() {
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-payment-journal"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -555,6 +569,7 @@ export function KpiPage() {
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-payment-journal"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -608,6 +623,19 @@ export function KpiPage() {
 
   const manualPlanItems = (planQuery.data?.items ?? []).filter((x) => x.source_type === "manual");
   const managers = planQuery.data?.managers ?? [];
+
+  const filteredJournal = useMemo(() => {
+    const rows = paymentJournalQuery.data ?? [];
+    const q = journalSearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) =>
+      [r.client_name, r.client_phone, r.plan_item_name, r.manager_name, r.recorded_by_name, r.note, String(r.amount)]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [paymentJournalQuery.data, journalSearch]);
 
   const filteredManualSales = useMemo(() => {
     const rows = manualQuery.data ?? [];
@@ -1134,8 +1162,8 @@ export function KpiPage() {
             <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажа курса / протокола</h2>
             <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
               {salesSpace
-                ? "Без онлайн-записи. В бонус/KPI идёт только первый платёж (≥25%). Доплаты уменьшают долг и пишутся в журнал."
-                : "Без онлайн-записи. В бонус/KPI идёт только первый платёж (≥25%). Доплаты уменьшают долг и пишутся в журнал."}
+                ? "Без онлайн-записи. В бонус/KPI идёт только первый платёж (≥25%). Доплаты уменьшают остаток и пишутся в журнал. В дебиторку остаток попадает через месяц после первой оплаты."
+                : "Без онлайн-записи. В бонус/KPI идёт только первый платёж (≥25%). Доплаты уменьшают остаток и пишутся в журнал. В дебиторку остаток попадает через месяц после первой оплаты."}
             </p>
           </div>
 
@@ -1301,6 +1329,74 @@ export function KpiPage() {
           >
             Добавить продажу
           </button>
+
+          <div className="space-y-2 border-t border-[var(--mo-border)] pt-3">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--mo-text)]">Журнал платежей</h3>
+                <p className="text-[11px] text-[var(--mo-text-muted)]">Когда, кто внёс и сколько.</p>
+              </div>
+              <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-[11px] mo-muted sm:max-w-xs sm:text-sm">
+                Поиск
+                <input
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                  value={journalSearch}
+                  placeholder="Имя, телефон, кто внёс, сумма"
+                  onChange={(e) => setJournalSearch(e.target.value)}
+                />
+              </label>
+            </div>
+            <ul className="space-y-2 sm:hidden">
+              {filteredJournal.map((r) => (
+                <li key={`${r.sale_id}-${r.payment_id ?? "first"}-${r.paid_at}`} className="rounded-xl border border-[var(--mo-border)] px-3 py-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums">{formatMoney(num(r.amount))}</span>
+                  </div>
+                  <p className="text-[11px] text-[var(--mo-text-muted)]">
+                    {formatSaleDt(r.paid_at)} · {r.plan_item_name}
+                    {r.is_first ? " · первый" : " · доплата"}
+                  </p>
+                  <p className="text-[11px] text-[var(--mo-text-muted)]">
+                    Внёс: {r.recorded_by_name || "—"} · менеджер {r.manager_name}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="kpi-data-table min-w-[760px] text-sm">
+                <thead>
+                  <tr>
+                    <th>Дата</th>
+                    <th>Клиент</th>
+                    <th>Услуга</th>
+                    <th>Сумма</th>
+                    <th>Кто внёс</th>
+                    <th>Менеджер</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredJournal.map((r) => (
+                    <tr key={`${r.sale_id}-${r.payment_id ?? "first"}-${r.paid_at}`}>
+                      <td className="whitespace-nowrap tabular-nums">{formatSaleDt(r.paid_at)}</td>
+                      <td className="font-medium">{r.client_name}</td>
+                      <td>
+                        {r.plan_item_name}
+                        <span className="ml-1 text-[11px] text-[var(--mo-text-muted)]">{r.is_first ? "первый" : "доплата"}</span>
+                      </td>
+                      <td className="tabular-nums whitespace-nowrap">{formatMoney(num(r.amount))}</td>
+                      <td>{r.recorded_by_name || "—"}</td>
+                      <td>{r.manager_name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {paymentJournalQuery.isLoading ? <p className="text-sm lux-caption">Загрузка журнала…</p> : null}
+            {!paymentJournalQuery.isLoading && filteredJournal.length === 0 ? (
+              <p className="text-sm lux-caption">В журнале ничего не найдено.</p>
+            ) : null}
+          </div>
 
           <ul className="space-y-2 pt-1 sm:hidden">
             {filteredManualSales.map((s) => (
@@ -1497,7 +1593,7 @@ export function KpiPage() {
               <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Дебиторка</h2>
               <p className="mt-1 hidden text-sm lux-caption sm:block">
                 Долг по записям — только прошедшие визиты со статусом «Пришёл» (неявка и будущие записи не
-                считаются). Курсы/протоколы тянутся, пока клиент не закроет долг или статус отказ/завершён.
+                считаются). Курс или протокол попадает в дебиторку через месяц после первой оплаты и тянется, пока клиент не закроет остаток или статус отказ/завершён.
               </p>
             </div>
             <p className="text-xs mo-muted sm:text-sm">
