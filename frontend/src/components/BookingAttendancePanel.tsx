@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, CheckCircle2 } from "@/components/icons";
 import { formatMoney } from "@/lib/money";
 
@@ -47,6 +47,8 @@ function debtOf(serviceAmount?: number, paidAmount?: number): number {
   const service = Number(serviceAmount ?? 0);
   const paid = Number(paidAmount ?? 0);
   if (!(service > 0)) return 0;
+  // Уже 100% (с копейками) — долга нет, доплату не просим.
+  if (paid + 0.009 >= service) return 0;
   return Math.max(0, Math.round((service - paid) * 100) / 100);
 }
 
@@ -57,8 +59,6 @@ export function BookingAttendancePanel({
   paidAmount,
   onStatusChange,
 }: Props) {
-  if (status === "cancelled") return null;
-
   const isCompleted = status === "completed";
   const isNoShow = status === "no_show";
   const debt = debtOf(serviceAmount, paidAmount);
@@ -66,7 +66,16 @@ export function BookingAttendancePanel({
   const [remainder, setRemainder] = useState(String(debt || ""));
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
 
+  useEffect(() => {
+    if (debt <= 0.009 && remainderOpen) {
+      setRemainderOpen(false);
+    }
+  }, [debt, remainderOpen]);
+
+  if (status === "cancelled") return null;
+
   function requestArrived() {
+    if (isCompleted) return;
     if (debt > 0.009) {
       setRemainder(String(debt));
       setPaymentMethod("");
@@ -136,7 +145,7 @@ export function BookingAttendancePanel({
         </button>
       </div>
 
-      {remainderOpen ? (
+      {remainderOpen && debt > 0.009 ? (
         <div className="booking-attendance-remainder">
           <p className="booking-attendance-remainder__title">Остаток к оплате при явке</p>
           <p className="booking-attendance-remainder__hint">

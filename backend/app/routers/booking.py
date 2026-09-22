@@ -2063,7 +2063,17 @@ async def create_appointment(
             service_amount_value = 0.0
             paid_amount_value = 0.0
 
-    if appointment_pipeline_id is not None and service_amount_value > 0:
+    # Менеджеры: цена из KPI (если задана). Админ/владелец: факт = то, что ввели в форме.
+    can_override_kpi_price = current_user.role in (
+        UserRole.admin,
+        UserRole.owner,
+        UserRole.super_owner,
+    )
+    if (
+        not can_override_kpi_price
+        and appointment_pipeline_id is not None
+        and service_amount_value > 0
+    ):
         fixed_price = await get_kpi_service_price(
             db,
             company_id=company_id,
@@ -2122,7 +2132,12 @@ async def create_appointment(
     for idx, slot_start in enumerate(start_times):
         if session_billing:
             slot_service_amount = float(service_amount_value)
-            if appointment_pipeline_id is not None and idx > 0 and service_amount_value > 0:
+            if (
+                not can_override_kpi_price
+                and appointment_pipeline_id is not None
+                and idx > 0
+                and service_amount_value > 0
+            ):
                 fixed_price = await get_kpi_service_price(
                     db,
                     company_id=company_id,
@@ -2392,14 +2407,22 @@ async def patch_appointment_status(
         if specialist is not None:
             await _assert_expert_specialist_access(db, current_user, specialist)
 
-    # «Пришёл»: если по записи есть долг — доплата остатка обязательна.
+    # «Пришёл»: доплата только если есть долг. Если на этой записи уже 100% — не трогаем.
     if body.status == "completed":
-        bill_target = await _resolve_package_billing_appointment(
-            db, company_id=company_id, appt=a,
-        )
-        service = float(bill_target.service_amount or 0)
-        prev_paid = float(bill_target.paid_amount or 0)
-        debt = max(0.0, service - prev_paid)
+        this_service = float(a.service_amount or 0)
+        this_paid = float(a.paid_amount or 0)
+        if this_service > 0 and this_paid + 1e-9 >= this_service:
+            bill_target = a
+            service = this_service
+            prev_paid = this_paid
+            debt = 0.0
+        else:
+            bill_target = await _resolve_package_billing_appointment(
+                db, company_id=company_id, appt=a,
+            )
+            service = float(bill_target.service_amount or 0)
+            prev_paid = float(bill_target.paid_amount or 0)
+            debt = max(0.0, service - prev_paid)
         if service > 0 and debt > 0.009:
             if body.add_payment is None:
                 raise HTTPException(

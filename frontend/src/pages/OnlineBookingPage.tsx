@@ -217,6 +217,9 @@ export function OnlineBookingPage() {
   });
   const canEditBooking = !isExpert || Boolean(bookingViewerQuery.data?.is_chief_expert);
   const canEditDirectionStreams = currentRole === "owner" || currentRole === "admin";
+  /** Админ/владелец: стоимость из формы — факт; KPI только подсказка. */
+  const canOverrideKpiPrice =
+    currentRole === "admin" || currentRole === "owner" || currentRole === "super_owner";
 
   useEffect(() => {
     if (leadFromQuery == null || !canEditBooking) return;
@@ -899,8 +902,13 @@ export function OnlineBookingPage() {
   }, [leadStagesQuery.data, newLeadStageId]);
   useEffect(() => {
     if (fixedServiceAmount == null) return;
+    if (canOverrideKpiPrice) {
+      // Подставляем KPI как стартовую подсказку, ручной ввод не затираем.
+      setServiceAmount((prev) => (prev.trim() === "" ? String(fixedServiceAmount) : prev));
+      return;
+    }
     setServiceAmount(String(fixedServiceAmount));
-  }, [fixedServiceAmount]);
+  }, [fixedServiceAmount, canOverrideKpiPrice]);
 
   function onAppointmentCompleteToggle(a: BookingAppointment, completed: boolean) {
     if (!completed) {
@@ -909,7 +917,8 @@ export function OnlineBookingPage() {
     }
     const service = Number(a.service_amount ?? 0);
     const paid = Number(a.paid_amount ?? 0);
-    const debt = service > 0 ? Math.max(0, service - paid) : 0;
+    // 100% уже оплачено — просто отмечаем явку, без окна доплаты.
+    const debt = service > 0 && paid + 0.009 < service ? Math.max(0, service - paid) : 0;
     if (debt > 0.009) {
       // Нужен ввод остатка — открываем карточку записи с панелью явки.
       setApptDetail(a);
@@ -1057,7 +1066,11 @@ export function OnlineBookingPage() {
     }
     const resolvedServiceAmount = freeConsultEligible
       ? 0
-      : fixedServiceAmount ?? (serviceAmount.trim() === "" ? NaN : Number(serviceAmount));
+      : canOverrideKpiPrice
+        ? serviceAmount.trim() === ""
+          ? NaN
+          : Number(serviceAmount)
+        : fixedServiceAmount ?? (serviceAmount.trim() === "" ? NaN : Number(serviceAmount));
     const resolvedPaidAmount = freeConsultEligible
       ? 0
       : paidAmount.trim() === ""
@@ -1482,14 +1495,21 @@ export function OnlineBookingPage() {
                     value={
                       freeConsultEligible
                         ? "0"
-                        : fixedServiceAmount != null
+                        : !canOverrideKpiPrice && fixedServiceAmount != null
                           ? String(fixedServiceAmount)
                           : serviceAmount
                     }
                     onChange={(e) => setServiceAmount(e.target.value)}
-                    disabled={fixedServiceAmount != null || freeConsultEligible}
+                    disabled={
+                      freeConsultEligible || (!canOverrideKpiPrice && fixedServiceAmount != null)
+                    }
                     className="mt-1 w-full mo-input disabled:opacity-70"
                   />
+                  {canOverrideKpiPrice && fixedServiceAmount != null ? (
+                    <span className="mt-1 block text-[11px] mo-muted">
+                      KPI-подсказка: {fixedServiceAmount} — можно поставить свою сумму
+                    </span>
+                  ) : null}
                 </label>
                 <label className="block text-sm mo-muted">
                   Оплатил клиент (TJS)
@@ -1842,7 +1862,10 @@ export function OnlineBookingPage() {
                             if (next === "completed") {
                               const service = Number(a.service_amount ?? 0);
                               const paid = Number(a.paid_amount ?? 0);
-                              const debt = service > 0 ? Math.max(0, service - paid) : 0;
+                              const debt =
+                                service > 0 && paid + 0.009 < service
+                                  ? Math.max(0, service - paid)
+                                  : 0;
                               if (debt > 0.009) {
                                 setApptDetail(a);
                                 toast("Укажите сумму остатка при явке");
