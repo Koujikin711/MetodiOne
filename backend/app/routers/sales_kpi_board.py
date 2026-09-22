@@ -1779,12 +1779,8 @@ async def company_report(
     ]
 
     plan_pct = float((total_contrib * Decimal("100")).quantize(Decimal("0.01")))
-    # Клиника: итог = касса визитов по дате сдачи (как ОСВ). Курсы KPI не прибавляем:
-    # те же деньги уже в оплате визита. В продажах итог = стол + курсы.
-    if sales_mode:
-        revenue_total = revenue_booking + revenue_manual
-    else:
-        revenue_total = revenue_booking
+    # Вся выручка компании: касса визитов + оплаты курсов/протоколов KPI за месяц.
+    revenue_total = revenue_booking + revenue_manual
     # Дебиторка всегда = остаток визитов + открытые пакеты курсов/протоколов KPI.
     debtor_total = debtor_booking + debtor_manual
 

@@ -1986,11 +1986,7 @@ function CompanyReportSection({
             <div className="mt-1 text-[10px] mo-muted sm:text-xs">
               {hideBookingExperts
                 ? `стол ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}`
-                : `визиты ${formatMoney(data.revenue_booking)}${
-                    Number(data.revenue_manual) > 0
-                      ? ` · курсы KPI ${formatMoney(data.revenue_manual)} отдельно`
-                      : ""
-                  }`}
+                : `визиты ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}`}
             </div>
           </div>
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
