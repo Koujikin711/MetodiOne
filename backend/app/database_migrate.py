@@ -3550,6 +3550,131 @@ async def _fix_kurs15_price_2000_to_1300_body(conn: AsyncConnection, database_ur
         )
 
 
+async def ensure_fix_redistribute_keep_booking_sellers(
+    conn: AsyncConnection, database_url: str
+) -> None:
+    """One-shot: вернуть продавца на записях после массовой раздачи лидов.
+
+    Раньше redistribute копировал responsible_manager_id на нового менеджера лида —
+    продажи KPI уезжали. Откатываем только записи, созданные до момента reassign.
+    """
+    import logging
+    import re
+
+    log = logging.getLogger("crm.migrate")
+    try:
+        await _fix_redistribute_keep_booking_sellers_body(conn, database_url)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("fix_redistribute_keep_booking_sellers failed (skipped): %s", exc)
+
+
+async def _fix_redistribute_keep_booking_sellers_body(
+    conn: AsyncConnection, database_url: str
+) -> None:
+    import re
+
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at DATETIME
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at TIMESTAMPTZ
+                )"""
+            ),
+        )
+
+    patch_name = "fix_redistribute_keep_booking_sellers_v1"
+    existing = await conn.execute(
+        text("SELECT 1 FROM app_data_patches WHERE name = :n LIMIT 1"),
+        {"n": patch_name},
+    )
+    if existing.first() is not None:
+        return
+
+    rows = (
+        await conn.execute(
+            text(
+                """
+                SELECT lead_id, details, created_at
+                FROM lead_audit_events
+                WHERE action = 'manager_reassigned'
+                  AND details LIKE '%batch_id=%'
+                  AND details LIKE '%from_manager_id=%'
+                  AND details LIKE '%to_manager_id=%'
+                  AND details NOT LIKE '%undo redistribution%'
+                ORDER BY id ASC
+                """
+            ),
+        )
+    ).mappings().all()
+
+    from_re = re.compile(r"from_manager_id=(\d+)")
+    to_re = re.compile(r"to_manager_id=(\d+)")
+    restored = 0
+    for row in rows:
+        details = str(row["details"] or "")
+        fm = from_re.search(details)
+        tm = to_re.search(details)
+        if not fm or not tm:
+            continue
+        from_mid = int(fm.group(1))
+        to_mid = int(tm.group(1))
+        if from_mid == to_mid:
+            continue
+        lead_id = int(row["lead_id"])
+        created_at = row["created_at"]
+        result = await conn.execute(
+            text(
+                """
+                UPDATE booking_appointments
+                SET responsible_manager_id = :from_mid,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE lead_id = :lead_id
+                  AND responsible_manager_id = :to_mid
+                  AND (paid_amount > 0 OR service_amount > 0)
+                  AND created_at < :reassigned_at
+                """
+            ),
+            {
+                "from_mid": from_mid,
+                "to_mid": to_mid,
+                "lead_id": lead_id,
+                "reassigned_at": created_at,
+            },
+        )
+        try:
+            restored += int(result.rowcount or 0)
+        except Exception:  # noqa: BLE001
+            pass
+
+    if sqlite:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, CURRENT_TIMESTAMP)"),
+            {"n": patch_name},
+        )
+    else:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
+            {"n": patch_name},
+        )
+    import logging
+
+    logging.getLogger("crm.migrate").info(
+        "fix_redistribute_keep_booking_sellers restored≈%s appointments", restored
+    )
+
+
 async def ensure_chat_thread_unique_external(conn: AsyncConnection, database_url: str) -> None:
     """Сливает exact-дубли chat_threads и ставит UNIQUE (company, provider, chatId)."""
     low = database_url.lower()

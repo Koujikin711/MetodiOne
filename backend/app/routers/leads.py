@@ -284,6 +284,37 @@ def _is_lead_redistribution_admin(role: UserRole) -> bool:
     return role in (UserRole.owner, UserRole.admin, UserRole.rop)
 
 
+async def _freeze_booking_sellers_on_lead_reassign(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    lead_id: int,
+    from_manager_id: int | None,
+) -> None:
+    """При смене менеджера лида продажи (KPI) остаются у прежнего продавца.
+
+    Не переносим responsible_manager_id на нового. Если он пуст — закрепляем
+    from_manager_id, иначе coalesce(Lead.manager_id) утащит выручку к новому.
+    """
+    if from_manager_id is None:
+        return
+    appts = (
+        await db.execute(
+            select(BookingAppointment).where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.lead_id == lead_id,
+                BookingAppointment.responsible_manager_id.is_(None),
+                or_(
+                    BookingAppointment.paid_amount > 0,
+                    BookingAppointment.service_amount > 0,
+                ),
+            ),
+        )
+    ).scalars().all()
+    for appt in appts:
+        appt.responsible_manager_id = int(from_manager_id)
+
+
 def _is_redistribution_source_role(role: UserRole) -> bool:
     """С кого можно забрать лиды: менеджер, админ воронки, владелец."""
     return role in (UserRole.manager, UserRole.admin, UserRole.owner)
@@ -1369,6 +1400,12 @@ async def redistribute_manager_leads(
         lead = await db.get(Lead, lead_id)
         if lead is None:
             continue
+        await _freeze_booking_sellers_on_lead_reassign(
+            db,
+            company_id=company_id,
+            lead_id=lead_id,
+            from_manager_id=from_id,
+        )
         lead.manager_id = new_mid
         await _audit_lead(
             db,
@@ -1380,20 +1417,7 @@ async def redistribute_manager_leads(
                 f"batch_id={batch_id}"
             ),
         )
-
-    for lead_id, new_mid in lead_to_manager.items():
-        appts = (
-            await db.execute(
-                select(BookingAppointment).where(
-                    BookingAppointment.company_id == company_id,
-                    BookingAppointment.lead_id == lead_id,
-                    BookingAppointment.responsible_manager_id == from_id,
-                ),
-            )
-        ).scalars().all()
-        for appt in appts:
-            appt.responsible_manager_id = new_mid
-
+        # Продажи / KPI не трогаем — только открытые задачи чата/CRM.
         await db.execute(
             update(Task)
             .where(
@@ -1493,6 +1517,13 @@ async def redistribute_leads_from_owners_and_admins(
         if lead is None:
             continue
         old_mid = int(from_mid) if from_mid is not None else None
+        if old_mid is not None:
+            await _freeze_booking_sellers_on_lead_reassign(
+                db,
+                company_id=company_id,
+                lead_id=int(lead_id),
+                from_manager_id=old_mid,
+            )
         lead.manager_id = new_mid
         per_manager[new_mid] = per_manager.get(new_mid, 0) + 1
         src_name = name_by_id.get(old_mid or -1, str(old_mid))
@@ -1507,17 +1538,6 @@ async def redistribute_leads_from_owners_and_admins(
             ),
         )
         if old_mid is not None:
-            appts = (
-                await db.execute(
-                    select(BookingAppointment).where(
-                        BookingAppointment.company_id == company_id,
-                        BookingAppointment.lead_id == int(lead_id),
-                        BookingAppointment.responsible_manager_id == old_mid,
-                    ),
-                )
-            ).scalars().all()
-            for appt in appts:
-                appt.responsible_manager_id = new_mid
             await db.execute(
                 update(Task)
                 .where(
@@ -1580,17 +1600,8 @@ async def _apply_restorable_moves(
                 f"(undo redistribution){undo_tag}"
             ),
         )
-        appts = (
-            await db.execute(
-                select(BookingAppointment).where(
-                    BookingAppointment.company_id == company_id,
-                    BookingAppointment.lead_id == lead_id,
-                    BookingAppointment.responsible_manager_id == to_mid,
-                ),
-            )
-        ).scalars().all()
-        for appt in appts:
-            appt.responsible_manager_id = from_mid
+        # Продажи не откатываем через responsible_manager_id — они не должны были
+        # переезжать при раздаче. Только открытые задачи.
         await db.execute(
             update(Task)
             .where(

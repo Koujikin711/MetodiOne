@@ -795,6 +795,15 @@ async def rop_transfer_lead(
     ):
         raise HTTPException(status_code=400, detail="Получатель должен быть активным менеджером")
     from_id = int(lead.manager_id) if lead.manager_id is not None else None
+    # Сначала закрепляем продавца на записях, потом меняем менеджера лида.
+    from app.routers.leads import _freeze_booking_sellers_on_lead_reassign
+
+    await _freeze_booking_sellers_on_lead_reassign(
+        db,
+        company_id=company_id,
+        lead_id=int(lead.id),
+        from_manager_id=from_id,
+    )
     lead.manager_id = int(target.id)
     await write_audit_event(
         db,
@@ -805,17 +814,7 @@ async def rop_transfer_lead(
         details=f"from_manager_id={from_id}, to_manager_id={target.id}, via=rop_transfer",
     )
     if from_id is not None:
-        appts = (
-            await db.execute(
-                select(BookingAppointment).where(
-                    BookingAppointment.company_id == company_id,
-                    BookingAppointment.lead_id == lead.id,
-                    BookingAppointment.responsible_manager_id == from_id,
-                )
-            )
-        ).scalars().all()
-        for appt in appts:
-            appt.responsible_manager_id = int(target.id)
+        # Продажи / KPI не переносим — только открытые задачи.
         await db.execute(
             update(Task)
             .where(
