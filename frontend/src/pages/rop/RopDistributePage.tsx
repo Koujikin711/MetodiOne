@@ -27,7 +27,8 @@ export function RopDistributePage() {
   const { pipelineId } = useRopContext();
   const qc = useQueryClient();
   const [fromId, setFromId] = useState<number | "">("");
-  const [toId, setToId] = useState<number | "">("");
+  const [bulkToIds, setBulkToIds] = useState<number[]>([]);
+  const [oneToId, setOneToId] = useState<number | "">("");
   const [queryText, setQueryText] = useState("");
   const [matches, setMatches] = useState<LeadMatch[]>([]);
   const [pickedId, setPickedId] = useState<number | "">("");
@@ -58,11 +59,12 @@ export function RopDistributePage() {
         method: "POST",
         body: JSON.stringify({
           from_manager_id: Number(fromId),
-          to_manager_ids: [Number(toId)],
+          to_manager_ids: bulkToIds,
         }),
       }),
     onSuccess: (r) => {
       toast.success(`Передано лидов: ${r.reassigned ?? 0}`);
+      setBulkToIds([]);
       qc.invalidateQueries({ queryKey: ["rop-managers", pipelineId] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -87,7 +89,7 @@ export function RopDistributePage() {
         method: "POST",
         body: JSON.stringify({
           lead_id: Number(pickedId),
-          to_manager_id: Number(toId),
+          to_manager_id: Number(oneToId),
         }),
       }),
     onSuccess: () => {
@@ -101,6 +103,11 @@ export function RopDistributePage() {
   });
 
   const managers = listQuery.data?.managers ?? [];
+  const bulkTargets = managers.filter((m) => m.user_id !== fromId);
+
+  function toggleBulkTarget(id: number) {
+    setBulkToIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
 
   if (pipelineId == null) return <p className="text-sm mo-muted">Выберите воронку</p>;
 
@@ -152,12 +159,16 @@ export function RopDistributePage() {
       <div className="grid gap-4 rounded-xl border border-[var(--mo-border)] p-4 sm:grid-cols-2">
         <div>
           <h3 className="font-medium">Передать все лиды</h3>
-          <p className="mt-1 text-xs mo-muted">От одного менеджера другому</p>
+          <p className="mt-1 text-xs mo-muted">От одного менеджера — поровну между отмеченными</p>
           <div className="mt-3 flex flex-col gap-2">
             <select
               className="mo-input"
               value={fromId}
-              onChange={(e) => setFromId(e.target.value ? Number(e.target.value) : "")}
+              onChange={(e) => {
+                const next = e.target.value ? Number(e.target.value) : "";
+                setFromId(next);
+                setBulkToIds((prev) => (next === "" ? [] : prev.filter((id) => id !== next)));
+              }}
             >
               <option value="">От кого</option>
               {managers.map((m) => (
@@ -166,22 +177,35 @@ export function RopDistributePage() {
                 </option>
               ))}
             </select>
-            <select
-              className="mo-input"
-              value={toId}
-              onChange={(e) => setToId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="">Кому</option>
-              {managers.map((m) => (
-                <option key={m.user_id} value={m.user_id}>
-                  {m.full_name}
-                </option>
-              ))}
-            </select>
+            <div>
+              <div className="mb-1 flex items-baseline justify-between gap-2">
+                <span className="text-xs font-medium text-[var(--mo-text)]">Кому</span>
+                <span className="text-[10px] mo-muted">можно несколько</span>
+              </div>
+              <div className="grid max-h-48 gap-1 overflow-y-auto rounded-lg border border-[var(--mo-border)] p-1.5 sm:grid-cols-2">
+                {bulkTargets.map((m) => (
+                  <label
+                    key={m.user_id}
+                    className="flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
+                  >
+                    <input
+                      type="checkbox"
+                      className="scale-90"
+                      checked={bulkToIds.includes(m.user_id)}
+                      onChange={() => toggleBulkTarget(m.user_id)}
+                    />
+                    <span className="truncate">{m.full_name}</span>
+                  </label>
+                ))}
+                {fromId !== "" && bulkTargets.length === 0 ? (
+                  <p className="px-1 py-1 text-xs mo-muted">Нет других менеджеров</p>
+                ) : null}
+              </div>
+            </div>
             <button
               type="button"
               className="mo-btn-primary text-sm"
-              disabled={!fromId || !toId || fromId === toId || bulkMutation.isPending}
+              disabled={!fromId || bulkToIds.length === 0 || bulkMutation.isPending}
               onClick={() => bulkMutation.mutate()}
             >
               Передать все
@@ -229,8 +253,8 @@ export function RopDistributePage() {
             )}
             <select
               className="mo-input"
-              value={toId}
-              onChange={(e) => setToId(e.target.value ? Number(e.target.value) : "")}
+              value={oneToId}
+              onChange={(e) => setOneToId(e.target.value ? Number(e.target.value) : "")}
             >
               <option value="">Кому</option>
               {managers.map((m) => (
@@ -242,7 +266,7 @@ export function RopDistributePage() {
             <button
               type="button"
               className="mo-btn-primary text-sm"
-              disabled={!pickedId || !toId || oneMutation.isPending}
+              disabled={!pickedId || !oneToId || oneMutation.isPending}
               onClick={() => oneMutation.mutate()}
             >
               Передать лид
