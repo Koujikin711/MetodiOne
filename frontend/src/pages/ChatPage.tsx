@@ -39,6 +39,38 @@ function threadPhoneForDisplay(t: ChatThread): string {
   return local || "—";
 }
 
+const MONTH_NAMES_RU = [
+  "январь",
+  "февраль",
+  "март",
+  "апрель",
+  "май",
+  "июнь",
+  "июль",
+  "август",
+  "сентябрь",
+  "октябрь",
+  "ноябрь",
+  "декабрь",
+];
+
+function currentYearMonth(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function shiftYearMonth(ym: string, delta: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatYearMonthRu(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  if (!y || !m || m < 1 || m > 12) return ym;
+  return `${MONTH_NAMES_RU[m - 1]} ${y}`;
+}
+
 /** Не показываем техническое имя интеграции в списке диалогов. */
 function threadProviderLabel(provider: string | null | undefined): string | null {
   const raw = (provider || "").trim();
@@ -627,6 +659,8 @@ export function ChatPage() {
   const [salesStageKey, setSalesStageKey] = useState<SalesStageKey | null>(null);
   /** Ждут ответа / Не ответили — поверх стадий для менеджера. */
   const [replyQueue, setReplyQueue] = useState<ChatThreadBucket>("awaiting_reply");
+  /** Месяц создания лида — по умолчанию текущий. */
+  const [chatMonth, setChatMonth] = useState(currentYearMonth);
   const [statusOpen, setStatusOpen] = useState(false);
   const [waitingModalLeadId, setWaitingModalLeadId] = useState<number | null>(null);
 
@@ -638,10 +672,11 @@ export function ChatPage() {
   }, [threadSearch]);
 
   const bucketCountsQuery = useQuery({
-    queryKey: ["chat-thread-bucket-counts", threadSearchDebounced],
+    queryKey: ["chat-thread-bucket-counts", threadSearchDebounced, chatMonth],
     queryFn: () => {
       const p = new URLSearchParams();
       if (threadSearchDebounced) p.set("q", threadSearchDebounced);
+      if (chatMonth) p.set("year_month", chatMonth);
       return apiFetch<ChatThreadBucketCounts>(`/api/chat/threads/bucket-counts?${p.toString()}`);
     },
     enabled: showManagerChatBuckets,
@@ -653,6 +688,7 @@ export function ChatPage() {
     queryKey: [
       "chat-threads",
       threadSearchDebounced,
+      chatMonth,
       salesChatMode
         ? `stage:${salesStageKey ?? "all"}|reply:${replyQueue}`
         : showManagerChatBuckets
@@ -663,6 +699,7 @@ export function ChatPage() {
     queryFn: ({ pageParam }) => {
       const p = new URLSearchParams();
       if (threadSearchDebounced) p.set("q", threadSearchDebounced);
+      if (showManagerChatBuckets && chatMonth) p.set("year_month", chatMonth);
       if (showManagerChatBuckets) {
         if (salesChatMode) {
           if (salesStageKey) p.set("stage_key", salesStageKey);
@@ -1176,6 +1213,41 @@ export function ChatPage() {
           <div className="mb-2 text-base font-semibold tracking-tight text-[var(--mo-accent-hover)] max-lg:mb-1.5 max-lg:text-sm">
             Диалоги
           </div>
+
+          {showManagerChatBuckets ? (
+            <div className="mb-2 flex shrink-0 items-center gap-1.5 max-lg:mb-1.5">
+              <button
+                type="button"
+                className="mo-input flex h-9 w-9 shrink-0 items-center justify-center px-0 text-base leading-none"
+                aria-label="Предыдущий месяц"
+                onClick={() => setChatMonth((m) => shiftYearMonth(m, -1))}
+              >
+                ‹
+              </button>
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">Месяц лидов</span>
+                <input
+                  type="month"
+                  value={chatMonth}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (/^\d{4}-\d{2}$/.test(v)) setChatMonth(v);
+                  }}
+                  className="mo-input h-9 w-full cursor-pointer py-1 text-center text-sm font-medium capitalize"
+                  aria-label={`Месяц: ${formatYearMonthRu(chatMonth)}`}
+                  title="Показывать лиды, созданные в этом месяце"
+                />
+              </label>
+              <button
+                type="button"
+                className="mo-input flex h-9 w-9 shrink-0 items-center justify-center px-0 text-base leading-none"
+                aria-label="Следующий месяц"
+                onClick={() => setChatMonth((m) => shiftYearMonth(m, 1))}
+              >
+                ›
+              </button>
+            </div>
+          ) : null}
 
           {showManagerChatBuckets ? (
             <div className="mb-2.5 shrink-0 max-lg:mb-2 sm:mb-3">

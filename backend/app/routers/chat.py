@@ -3,6 +3,7 @@ import logging
 import mimetypes
 from datetime import UTC, datetime
 from typing import Annotated, Literal
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import FileResponse
@@ -11,6 +12,7 @@ from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.manager_scope import manager_lead_visibility
 from app.core.security import decode_token
@@ -692,6 +694,43 @@ def _thread_pipeline_allowed(allowed: set[int] | list[int]):
     )
 
 
+def _parse_year_month(year_month: str) -> tuple[datetime, datetime]:
+    """Границы месяца YYYY-MM в UTC по календарю клиники (booking_timezone)."""
+    raw = (year_month or "").strip()
+    try:
+        y_s, m_s = raw.split("-", 1)
+        y, m = int(y_s), int(m_s)
+        if m < 1 or m > 12:
+            raise ValueError
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="year_month: ожидается YYYY-MM",
+        ) from exc
+    try:
+        tz = ZoneInfo(settings.booking_timezone or "Asia/Dushanbe")
+    except Exception:
+        tz = ZoneInfo("Asia/Dushanbe")
+    start_local = datetime(y, m, 1, tzinfo=tz)
+    if m == 12:
+        end_local = datetime(y + 1, 1, 1, tzinfo=tz)
+    else:
+        end_local = datetime(y, m + 1, 1, tzinfo=tz)
+    return start_local.astimezone(UTC), end_local.astimezone(UTC)
+
+
+def _apply_lead_created_month(query, *, year_month: str | None):
+    """Фильтр чатов: лид создан в выбранном месяце (как в статистике РОП)."""
+    if not year_month:
+        return query
+    start, end = _parse_year_month(year_month)
+    return query.where(
+        Lead.id.is_not(None),
+        Lead.created_at >= start,
+        Lead.created_at < end,
+    )
+
+
 def _apply_thread_search(query, *, term: str):
     like = f"%{term}%"
     conds = [
@@ -989,6 +1028,11 @@ async def thread_bucket_counts(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
     q: str | None = Query(default=None, max_length=120),
+    year_month: str | None = Query(
+        default=None,
+        description="YYYY-MM — только лиды, созданные в этом месяце",
+        pattern=r"^\d{4}-\d{2}$",
+    ),
 ) -> ChatThreadBucketCounts:
     """Счётчики для вкладок чат-воронки (менеджер / админ / владелец)."""
     if current_user.role not in (UserRole.manager, UserRole.admin, UserRole.administrator, UserRole.owner):
@@ -1020,6 +1064,7 @@ async def thread_bucket_counts(
     )
     if current_user.role != UserRole.owner:
         base = base.where(manager_lead_visibility(current_user.id))
+    base = _apply_lead_created_month(base, year_month=year_month)
     if term:
         base = _apply_thread_search(base, term=term)
 
@@ -1062,6 +1107,11 @@ async def list_threads(
     stage_key: SalesStageKey | None = Query(
         default=None,
         description="Вкладка стадии для sales: new | in_progress | waiting | won | lost | archive",
+    ),
+    year_month: str | None = Query(
+        default=None,
+        description="YYYY-MM — только лиды, созданные в этом месяце",
+        pattern=r"^\d{4}-\d{2}$",
     ),
     limit: int | None = Query(default=None, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -1180,6 +1230,7 @@ async def list_threads(
         if not allowed:
             return []
         query = query.where(ChatThread.pipeline_id.in_(allowed))
+    query = _apply_lead_created_month(query, year_month=year_month)
     if term:
         query = _apply_thread_search(query, term=term)
     # Сначала ждут ответа (входящий или пустой stub), затем по свежести.
