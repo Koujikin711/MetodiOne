@@ -156,7 +156,7 @@ export function ExpensesPage() {
         <div className="min-w-0 flex-1">
           <h1 className="mo-page-title">Расходы</h1>
           <p className="mo-page-sub hidden sm:block">
-            Ввод расходов по статьям ОСВ клиники (банк, статья, подробно, товар/услуга).
+            Банк, статья, товар. «Кому» — получатель (ЗП), «Через кого» — кто передал; это разные роли.
           </p>
         </div>
         <MonthYearPicker className="expenses-month-picker" value={yearMonth} onChange={setYearMonth} />
@@ -202,12 +202,14 @@ export function ExpensesPage() {
               />
             </label>
             <label className="expenses-field">
-              <span className="expenses-field__label">Контрагент</span>
+              <span className="expenses-field__label">Кому (получатель)</span>
               <input
                 className="mo-input expenses-field__control"
                 value={counterparty}
                 onChange={(e) => setCounterparty(e.target.value)}
+                placeholder="Например: Шакармамадова Мадина"
               />
+              <span className="expenses-field__hint">Кому ушли деньги (ЗП, оплата услуги)</span>
             </label>
             <label className="expenses-field">
               <span className="expenses-field__label">Телефон</span>
@@ -220,12 +222,14 @@ export function ExpensesPage() {
               />
             </label>
             <label className="expenses-field">
-              <span className="expenses-field__label">Через кого</span>
+              <span className="expenses-field__label">Через кого (передал)</span>
               <input
                 className="mo-input expenses-field__control"
                 value={viaPerson}
                 onChange={(e) => setViaPerson(e.target.value)}
+                placeholder="Например: Искандаров"
               />
+              <span className="expenses-field__hint">Кто передал. Даже если это тот же человек — пишите отдельно</span>
             </label>
           </div>
           <div className="expenses-form__actions">
@@ -276,17 +280,49 @@ export function ExpensesPage() {
                         <div className="expenses-month__card-meta">
                           <span>{formatDateShort(r.txn_date)}</span>
                           {r.bank ? <span>{r.bank}</span> : null}
+                          {r.brief_category ? <span>{r.brief_category}</span> : null}
                         </div>
                       </div>
                       <div className="expenses-month__card-sum tabular-nums">{money(r.expense)}</div>
                     </div>
-                    {(r.product_service || r.counterparty || r.detail_category) && (
-                      <div className="expenses-month__card-extra">
-                        {r.detail_category ? <span>{r.detail_category}</span> : null}
-                        {r.product_service ? <span>{r.product_service}</span> : null}
-                        {r.counterparty ? <span>{r.counterparty}</span> : null}
-                      </div>
-                    )}
+                    <div className="expenses-month__card-grid">
+                      {r.basis ? (
+                        <div>
+                          <span className="expenses-month__card-k">Основание</span>
+                          <span>{r.basis}</span>
+                        </div>
+                      ) : null}
+                      {r.counterparty ? (
+                        <div>
+                          <span className="expenses-month__card-k">Контрагент</span>
+                          <span>{r.counterparty}</span>
+                        </div>
+                      ) : null}
+                      {r.phone ? (
+                        <div>
+                          <span className="expenses-month__card-k">Телефон</span>
+                          <span>{r.phone}</span>
+                        </div>
+                      ) : null}
+                      {r.via_person ? (
+                        <div>
+                          <span className="expenses-month__card-k">Через</span>
+                          <span>{r.via_person}</span>
+                        </div>
+                      ) : null}
+                      {r.product_service ? (
+                        <div>
+                          <span className="expenses-month__card-k">Товар/услуга</span>
+                          <span>{r.product_service}</span>
+                        </div>
+                      ) : null}
+                      {r.detail_category ? (
+                        <div>
+                          <span className="expenses-month__card-k">Подробно</span>
+                          <span>{r.detail_category}</span>
+                        </div>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -298,10 +334,14 @@ export function ExpensesPage() {
                       <th>Дата</th>
                       <th>Сумма</th>
                       <th>Банк</th>
+                      <th>Основание</th>
+                      <th>Контрагенты</th>
+                      <th>Телефон</th>
+                      <th>Через</th>
+                      <th>Товар/услуга</th>
                       <th>Статья</th>
                       <th>Подробно</th>
-                      <th>Товар</th>
-                      <th>Контрагент</th>
+                      <th>Кратко</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -310,10 +350,14 @@ export function ExpensesPage() {
                         <td className="tabular-nums whitespace-nowrap">{formatDateShort(r.txn_date)}</td>
                         <td className="tabular-nums whitespace-nowrap font-semibold">{money(r.expense)}</td>
                         <td>{r.bank || "—"}</td>
+                        <td>{r.basis || "—"}</td>
+                        <td>{r.counterparty || "—"}</td>
+                        <td className="tabular-nums whitespace-nowrap">{r.phone || "—"}</td>
+                        <td>{r.via_person || "—"}</td>
+                        <td>{r.product_service || "—"}</td>
                         <td>{r.article || "—"}</td>
                         <td>{r.detail_category || "—"}</td>
-                        <td>{r.product_service || "—"}</td>
-                        <td>{r.counterparty || "—"}</td>
+                        <td>{r.brief_category || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
