@@ -2063,9 +2063,10 @@ async def create_appointment(
             service_amount_value = 0.0
             paid_amount_value = 0.0
 
-    # Менеджеры: цена из KPI (если задана). Админ/владелец: факт = то, что ввели в форме.
+    # Менеджеры: цена из KPI. Админ клиники (admin/administrator) и владелец: факт = форма.
     can_override_kpi_price = current_user.role in (
         UserRole.admin,
+        UserRole.administrator,
         UserRole.owner,
         UserRole.super_owner,
     )
@@ -2333,7 +2334,12 @@ async def patch_appointment_details(
     if body.comment is not None or body.service_title is not None:
         details_bits.append("comment/service_title")
     if body.direction_id is not None:
-        if current_user.role not in (UserRole.owner, UserRole.super_owner, UserRole.admin):
+        if current_user.role not in (
+            UserRole.owner,
+            UserRole.super_owner,
+            UserRole.admin,
+            UserRole.administrator,
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Смену услуги может сделать только владелец/админ",
@@ -2577,6 +2583,7 @@ async def patch_appointment_payment(
         UserRole.owner,
         UserRole.super_owner,
         UserRole.admin,
+        UserRole.administrator,
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -2589,7 +2596,12 @@ async def patch_appointment_payment(
         await _assert_can_manage_appointment_journal(db, target, current_user)
 
     if body.service_amount is not None:
-        if current_user.role not in (UserRole.owner, UserRole.super_owner, UserRole.admin):
+        if current_user.role not in (
+            UserRole.owner,
+            UserRole.super_owner,
+            UserRole.admin,
+            UserRole.administrator,
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Стоимость услуги может менять только администратор / владелец",

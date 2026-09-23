@@ -216,10 +216,14 @@ export function OnlineBookingPage() {
     queryFn: () => apiFetch<BookingViewerContext>("/api/booking/viewer-context"),
   });
   const canEditBooking = !isExpert || Boolean(bookingViewerQuery.data?.is_chief_expert);
-  const canEditDirectionStreams = currentRole === "owner" || currentRole === "admin";
-  /** Админ/владелец: стоимость из формы — факт; KPI только подсказка. */
+  const canEditDirectionStreams =
+    currentRole === "owner" || currentRole === "admin" || currentRole === "administrator";
+  /** Админ клиники / владелец: стоимость из формы — факт; KPI только подсказка. */
   const canOverrideKpiPrice =
-    currentRole === "admin" || currentRole === "owner" || currentRole === "super_owner";
+    currentRole === "admin" ||
+    currentRole === "administrator" ||
+    currentRole === "owner" ||
+    currentRole === "super_owner";
 
   useEffect(() => {
     if (leadFromQuery == null || !canEditBooking) return;
