@@ -61,6 +61,7 @@ from app.schemas.rop import (
 from app.services.audit import write_audit_event
 from app.services.clinic_roles import can_access_rop
 from app.services.lead_sales_stages import ARCHIVE_STAGE_NAME
+from app.services.sales_kpi_weighted import _norm_kpi_label, load_plan_items
 
 router = APIRouter(prefix="/rop", tags=["rop"])
 
@@ -101,6 +102,64 @@ def _today_local() -> date:
 
 def _display_name(u: User) -> str:
     return (u.full_name or "").strip() or u.email
+
+
+def _norm_rop_service(value: str | None) -> str:
+    """Нормализация имени услуги для сопоставления с планом KPI (Остиопат ≈ Остеопат)."""
+    n = _norm_kpi_label(value)
+    return n.replace("остиопат", "остеопат")
+
+
+def _months_in_range(date_from: date, date_to: date) -> list[date]:
+    """Первые числа месяцев, пересекающих [date_from, date_to]."""
+    if date_to < date_from:
+        return []
+    out: list[date] = []
+    y, m = date_from.year, date_from.month
+    end_ym = (date_to.year, date_to.month)
+    while (y, m) <= end_ym:
+        out.append(date(y, m, 1))
+        if m == 12:
+            y, m = y + 1, 1
+        else:
+            m += 1
+    return out
+
+
+async def _kpi_plan_service_allowlist(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    date_from: date,
+    date_to: date,
+) -> tuple[set[str], set[int]]:
+    """Имена услуг и id plan_item из weighted-плана за месяцы периода.
+
+    Берутся имена показателей плана (не direction_id — там бывает устаревшая
+    привязка). «Остиопат» и «Остеопат» считаются одним ключом.
+    """
+    names: set[str] = set()
+    item_ids: set[int] = set()
+    for ym in _months_in_range(date_from, date_to):
+        items = await load_plan_items(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+        for item in items:
+            item_ids.add(int(item.id))
+            key = _norm_rop_service(item.name)
+            if key:
+                names.add(key)
+    if names:
+        # Подтянуть реальные названия направлений клиники с тем же ключом (Остиопат и т.п.).
+        for dname in (
+            await db.execute(
+                select(BookingDirection.name).where(BookingDirection.company_id == company_id)
+            )
+        ).scalars().all():
+            key = _norm_rop_service(str(dname or ""))
+            if key in names:
+                # уже есть; direction name с тем же norm попадёт при фильтре
+                pass
+    return names, item_ids
 
 
 def _is_online(last_seen: datetime | None, *, now: datetime | None = None) -> bool:
@@ -941,97 +1000,110 @@ async def rop_analytics(
 
     amounts: list[tuple[int, str, Decimal, Decimal, Decimal, int, int]] = []
     if manager_ids:
+        allowed_names, allowed_plan_ids = await _kpi_plan_service_allowlist(
+            db,
+            company_id=company_id,
+            pipeline_id=pipeline_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
         full_paid = and_(
             BookingAppointment.service_amount > 0,
             BookingAppointment.paid_amount >= BookingAppointment.service_amount,
         )
-        for mid, svc, paid, sold, full_amt, sold_n, full_n in (
-            await db.execute(
-                select(
-                    func.coalesce(BookingAppointment.responsible_manager_id, Lead.manager_id),
-                    BookingDirection.name,
-                    func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
-                    func.coalesce(func.sum(BookingAppointment.service_amount), 0),
-                    func.coalesce(
-                        func.sum(case((full_paid, BookingAppointment.paid_amount), else_=0)),
-                        0,
-                    ),
-                    func.count(),
-                    func.coalesce(func.sum(case((full_paid, 1), else_=0)), 0),
-                )
-                .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
-                .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
-                .where(
-                    BookingAppointment.company_id == company_id,
-                    BookingAppointment.start_at >= start,
-                    BookingAppointment.start_at < end,
-                    BookingAppointment.status != "cancelled",
-                    or_(
-                        BookingAppointment.paid_amount > 0,
-                        BookingAppointment.service_amount > 0,
-                    ),
-                    or_(
-                        BookingAppointment.responsible_manager_id.in_(manager_ids),
-                        and_(
-                            BookingAppointment.responsible_manager_id.is_(None),
-                            Lead.manager_id.in_(manager_ids),
-                        ),
-                    ),
-                )
-                .group_by(
-                    func.coalesce(BookingAppointment.responsible_manager_id, Lead.manager_id),
-                    BookingDirection.name,
-                )
-            )
-        ).all():
-            if mid is None:
-                continue
-            amounts.append(
-                (
-                    int(mid),
-                    str(svc or "Услуга"),
-                    Decimal(str(paid or 0)),
-                    Decimal(str(sold or 0)),
-                    Decimal(str(full_amt or 0)),
-                    int(sold_n or 0),
-                    int(full_n or 0),
-                )
-            )
-
-        man_rev = (
-            await db.execute(
-                select(
-                    SalesKpiManualSale.manager_user_id,
-                    SalesKpiManualSale.plan_item_id,
-                    func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0),
-                )
-                .join(SalesKpiManualSalePayment, SalesKpiManualSalePayment.sale_id == SalesKpiManualSale.id)
-                .where(
-                    SalesKpiManualSale.company_id == company_id,
-                    SalesKpiManualSale.pipeline_id == pipeline_id,
-                    SalesKpiManualSale.manager_user_id.in_(manager_ids),
-                    SalesKpiManualSalePayment.paid_at >= start,
-                    SalesKpiManualSalePayment.paid_at < end,
-                )
-                .group_by(SalesKpiManualSale.manager_user_id, SalesKpiManualSale.plan_item_id)
-            )
-        ).all()
-        plan_names: dict[int, str] = {}
-        pids = {int(r[1]) for r in man_rev if r[1] is not None}
-        if pids:
-            for pid, pname in (
+        if allowed_names:
+            for mid, svc, paid, sold, full_amt, sold_n, full_n in (
                 await db.execute(
-                    select(SalesKpiPlanItem.id, SalesKpiPlanItem.name).where(SalesKpiPlanItem.id.in_(pids))
+                    select(
+                        func.coalesce(BookingAppointment.responsible_manager_id, Lead.manager_id),
+                        BookingDirection.name,
+                        func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
+                        func.coalesce(func.sum(BookingAppointment.service_amount), 0),
+                        func.coalesce(
+                            func.sum(case((full_paid, BookingAppointment.paid_amount), else_=0)),
+                            0,
+                        ),
+                        func.count(),
+                        func.coalesce(func.sum(case((full_paid, 1), else_=0)), 0),
+                    )
+                    .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
+                    .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+                    .where(
+                        BookingAppointment.company_id == company_id,
+                        BookingAppointment.start_at >= start,
+                        BookingAppointment.start_at < end,
+                        BookingAppointment.status != "cancelled",
+                        or_(
+                            BookingAppointment.paid_amount > 0,
+                            BookingAppointment.service_amount > 0,
+                        ),
+                        or_(
+                            BookingAppointment.responsible_manager_id.in_(manager_ids),
+                            and_(
+                                BookingAppointment.responsible_manager_id.is_(None),
+                                Lead.manager_id.in_(manager_ids),
+                            ),
+                        ),
+                    )
+                    .group_by(
+                        func.coalesce(BookingAppointment.responsible_manager_id, Lead.manager_id),
+                        BookingDirection.name,
+                    )
                 )
             ).all():
-                plan_names[int(pid)] = str(pname)
-        for mid, pid, amt in man_rev:
-            if mid is None:
-                continue
-            money = Decimal(str(amt or 0))
-            amounts.append(
-                (int(mid), plan_names.get(int(pid), "Курс/протокол"), money, money, money, 0, 0)
-            )
+                if mid is None:
+                    continue
+                svc_name = str(svc or "Услуга")
+                if _norm_rop_service(svc_name) not in allowed_names:
+                    continue
+                amounts.append(
+                    (
+                        int(mid),
+                        svc_name,
+                        Decimal(str(paid or 0)),
+                        Decimal(str(sold or 0)),
+                        Decimal(str(full_amt or 0)),
+                        int(sold_n or 0),
+                        int(full_n or 0),
+                    )
+                )
+
+        if allowed_plan_ids:
+            man_rev = (
+                await db.execute(
+                    select(
+                        SalesKpiManualSale.manager_user_id,
+                        SalesKpiManualSale.plan_item_id,
+                        func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0),
+                    )
+                    .join(SalesKpiManualSalePayment, SalesKpiManualSalePayment.sale_id == SalesKpiManualSale.id)
+                    .where(
+                        SalesKpiManualSale.company_id == company_id,
+                        SalesKpiManualSale.pipeline_id == pipeline_id,
+                        SalesKpiManualSale.manager_user_id.in_(manager_ids),
+                        SalesKpiManualSale.plan_item_id.in_(allowed_plan_ids),
+                        SalesKpiManualSalePayment.paid_at >= start,
+                        SalesKpiManualSalePayment.paid_at < end,
+                    )
+                    .group_by(SalesKpiManualSale.manager_user_id, SalesKpiManualSale.plan_item_id)
+                )
+            ).all()
+            plan_names: dict[int, str] = {}
+            pids = {int(r[1]) for r in man_rev if r[1] is not None}
+            if pids:
+                for pid, pname in (
+                    await db.execute(
+                        select(SalesKpiPlanItem.id, SalesKpiPlanItem.name).where(SalesKpiPlanItem.id.in_(pids))
+                    )
+                ).all():
+                    plan_names[int(pid)] = str(pname)
+            for mid, pid, amt in man_rev:
+                if mid is None:
+                    continue
+                money = Decimal(str(amt or 0))
+                amounts.append(
+                    (int(mid), plan_names.get(int(pid), "Курс/протокол"), money, money, money, 0, 0)
+                )
 
     total = sum((row[2] for row in amounts), Decimal("0"))
     shares = [

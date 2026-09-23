@@ -115,8 +115,8 @@ export function RopReportPage() {
       <div className="rounded-xl border border-[var(--mo-border)] p-4">
         <h3 className="font-medium">Выручка отдела продаж</h3>
         <p className="mt-2 text-sm mo-muted">
-          KPI «Факт» — это число визитов, оплаченных на 100%. Здесь суммы: продали (цена услуги)
-          и полностью оплатили. Конверсия = полностью оплачено / продано.
+          Только услуги из плана KPI за месяцы периода. KPI «Факт» — визиты с оплатой 100%. Здесь
+          суммы: продали (цена услуги) и полностью оплатили. Конверсия = полностью / продано.
         </p>
         <div className="mt-3 flex flex-wrap gap-4 text-sm">
           <span>
