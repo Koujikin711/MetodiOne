@@ -5,7 +5,6 @@ import toast from "react-hot-toast";
 
 import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
 import { ChatMediaVideo } from "@/components/ChatMediaVideo";
-import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
@@ -49,6 +48,28 @@ function shiftYearMonth(ym: string, delta: number): string {
   const [y, m] = ym.split("-").map(Number);
   const d = new Date(y, m - 1 + delta, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatChatMonthLabel(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  if (!y || !m || m < 1 || m > 12) return ym;
+  try {
+    return new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(
+      new Date(y, m - 1, 1),
+    );
+  } catch {
+    return ym;
+  }
+}
+
+/** Опции select: текущий месяц ± 18 мес., плюс выбранный если вне диапазона. */
+function chatMonthOptions(aroundYm: string, selectedYm: string): string[] {
+  const set = new Set<string>();
+  for (let i = -18; i <= 6; i += 1) {
+    set.add(shiftYearMonth(aroundYm, i));
+  }
+  if (/^\d{4}-\d{2}$/.test(selectedYm)) set.add(selectedYm);
+  return Array.from(set).sort();
 }
 
 /** Не показываем техническое имя интеграции в списке диалогов. */
@@ -1198,23 +1219,31 @@ export function ChatPage() {
             <div className="mb-2 flex shrink-0 items-center gap-1.5 max-lg:mb-1.5">
               <button
                 type="button"
-                className="mo-input flex h-9 w-9 shrink-0 items-center justify-center px-0 text-lg leading-none"
+                className="mo-input flex h-10 w-10 shrink-0 items-center justify-center px-0 text-xl font-semibold leading-none text-[var(--mo-text)]"
                 aria-label="Предыдущий месяц"
                 onClick={() => setChatMonth((m) => shiftYearMonth(m, -1))}
               >
                 ‹
               </button>
-              <MonthYearPicker
-                compact
+              <select
                 value={chatMonth}
-                onChange={(v) => {
+                onChange={(e) => {
+                  const v = e.target.value;
                   if (/^\d{4}-\d{2}$/.test(v)) setChatMonth(v);
                 }}
-                className="min-w-0 flex-1 [&_.mo-month-picker-trigger]:h-9 [&_.mo-month-picker-trigger]:min-h-9 [&_.mo-month-picker-trigger]:py-1 [&_.mo-month-picker-trigger]:text-sm"
-              />
+                className="mo-input h-10 min-w-0 flex-1 cursor-pointer py-1 text-center text-sm font-semibold capitalize text-[var(--mo-text)]"
+                aria-label={`Месяц: ${formatChatMonthLabel(chatMonth)}`}
+                title="Лиды, созданные в этом месяце"
+              >
+                {chatMonthOptions(currentYearMonth(), chatMonth).map((ym) => (
+                  <option key={ym} value={ym}>
+                    {formatChatMonthLabel(ym)}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
-                className="mo-input flex h-9 w-9 shrink-0 items-center justify-center px-0 text-lg leading-none"
+                className="mo-input flex h-10 w-10 shrink-0 items-center justify-center px-0 text-xl font-semibold leading-none text-[var(--mo-text)]"
                 aria-label="Следующий месяц"
                 onClick={() => setChatMonth((m) => shiftYearMonth(m, 1))}
               >
