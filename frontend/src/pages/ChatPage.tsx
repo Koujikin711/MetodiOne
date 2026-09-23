@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 
 import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
 import { ChatMediaVideo } from "@/components/ChatMediaVideo";
+import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
@@ -39,21 +40,6 @@ function threadPhoneForDisplay(t: ChatThread): string {
   return local || "—";
 }
 
-const MONTH_NAMES_RU = [
-  "январь",
-  "февраль",
-  "март",
-  "апрель",
-  "май",
-  "июнь",
-  "июль",
-  "август",
-  "сентябрь",
-  "октябрь",
-  "ноябрь",
-  "декабрь",
-];
-
 function currentYearMonth(): string {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
@@ -63,12 +49,6 @@ function shiftYearMonth(ym: string, delta: number): string {
   const [y, m] = ym.split("-").map(Number);
   const d = new Date(y, m - 1 + delta, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function formatYearMonthRu(ym: string): string {
-  const [y, m] = ym.split("-").map(Number);
-  if (!y || !m || m < 1 || m > 12) return ym;
-  return `${MONTH_NAMES_RU[m - 1]} ${y}`;
 }
 
 /** Не показываем техническое имя интеграции в списке диалогов. */
@@ -1218,29 +1198,23 @@ export function ChatPage() {
             <div className="mb-2 flex shrink-0 items-center gap-1.5 max-lg:mb-1.5">
               <button
                 type="button"
-                className="mo-input flex h-9 w-9 shrink-0 items-center justify-center px-0 text-base leading-none"
+                className="mo-input flex h-9 w-9 shrink-0 items-center justify-center px-0 text-lg leading-none"
                 aria-label="Предыдущий месяц"
                 onClick={() => setChatMonth((m) => shiftYearMonth(m, -1))}
               >
                 ‹
               </button>
-              <label className="relative min-w-0 flex-1">
-                <span className="sr-only">Месяц лидов</span>
-                <input
-                  type="month"
-                  value={chatMonth}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (/^\d{4}-\d{2}$/.test(v)) setChatMonth(v);
-                  }}
-                  className="mo-input h-9 w-full cursor-pointer py-1 text-center text-sm font-medium capitalize"
-                  aria-label={`Месяц: ${formatYearMonthRu(chatMonth)}`}
-                  title="Показывать лиды, созданные в этом месяце"
-                />
-              </label>
+              <MonthYearPicker
+                compact
+                value={chatMonth}
+                onChange={(v) => {
+                  if (/^\d{4}-\d{2}$/.test(v)) setChatMonth(v);
+                }}
+                className="min-w-0 flex-1 [&_.mo-month-picker-trigger]:h-9 [&_.mo-month-picker-trigger]:min-h-9 [&_.mo-month-picker-trigger]:py-1 [&_.mo-month-picker-trigger]:text-sm"
+              />
               <button
                 type="button"
-                className="mo-input flex h-9 w-9 shrink-0 items-center justify-center px-0 text-base leading-none"
+                className="mo-input flex h-9 w-9 shrink-0 items-center justify-center px-0 text-lg leading-none"
                 aria-label="Следующий месяц"
                 onClick={() => setChatMonth((m) => shiftYearMonth(m, 1))}
               >
