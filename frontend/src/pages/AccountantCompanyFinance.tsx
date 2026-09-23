@@ -88,14 +88,15 @@ export function AccountantCompanyFinance() {
         <div className="grid gap-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-[var(--mo-border)] p-4">
-              <div className="text-xs mo-muted">Выручка компании</div>
+              <div className="text-xs mo-muted">Выручка (визиты)</div>
               <div className="mt-1 text-xl font-semibold tabular-nums">
                 {formatMoney(data.revenue_total, { digits: 0 })}
               </div>
-              <div className="mt-1 text-[11px] mo-muted">
-                визиты {formatMoney(data.revenue_booking, { digits: 0 })} · курсы{" "}
-                {formatMoney(data.revenue_manual, { digits: 0 })}
-              </div>
+              {Number(data.revenue_manual) > 0 ? (
+                <div className="mt-1 text-[11px] mo-muted">
+                  курсы KPI {formatMoney(data.revenue_manual, { digits: 0 })} (не в сумме)
+                </div>
+              ) : null}
             </div>
             <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
               <div className="text-xs mo-muted">Возвраты</div>

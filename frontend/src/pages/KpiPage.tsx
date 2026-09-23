@@ -1963,7 +1963,7 @@ function CompanyReportSection({
         <p className="mt-1 hidden text-sm lux-caption sm:block">
           {hideBookingExperts
             ? "Сводка за выбранный месяц (не сумма с прошлых). Выручка = продажи стола + платежи по курсам с датой в этом месяце. Дебиторка — остаток на конец месяца с переносом."
-            : "Сводка за месяц. Выручка компании = оплаты визитов по дате сдачи денег + оплаты курсов/протоколов KPI за месяц. Дебиторка = остаток визитов + долги пакетов."}
+            : "Сводка за месяц. Выручка = оплаты визитов по дате сдачи денег (как ОСВ). Курсы KPI показаны отдельно и в эту сумму не входят. Дебиторка = остаток визитов + долги пакетов."}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-5">
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
@@ -1986,7 +1986,11 @@ function CompanyReportSection({
             <div className="mt-1 text-[10px] mo-muted sm:text-xs">
               {hideBookingExperts
                 ? `стол ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}`
-                : `визиты ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}`}
+                : `визиты ${formatMoney(data.revenue_booking)}${
+                    Number(data.revenue_manual) > 0
+                      ? ` · курсы KPI ${formatMoney(data.revenue_manual)} отдельно`
+                      : ""
+                  }`}
             </div>
           </div>
           <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-2.5 sm:p-3">

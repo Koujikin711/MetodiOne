@@ -345,11 +345,11 @@ class SalesKpiCompanyReport(BaseModel):
     plan_completion_percent: float
     total_contribution: Decimal
     revenue_total: Decimal = Field(
-        description="Full company revenue: visit cash + course/protocol KPI payments in month.",
+        description="Clinic: visit cash only (OSV). Sales mode: desk + course KPI.",
     )
     revenue_booking: Decimal
     revenue_manual: Decimal = Field(
-        description="Course/protocol KPI payments in month (included in revenue_total).",
+        description="Course/protocol KPI payments in month (shown separately; not in clinic revenue_total).",
     )
     debtor_total: Decimal
     debtor_booking: Decimal
