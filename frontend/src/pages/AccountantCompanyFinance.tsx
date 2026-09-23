@@ -86,7 +86,7 @@ export function AccountantCompanyFinance() {
 
       {data ? (
         <div className="grid gap-4">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-[var(--mo-border)] p-4">
               <div className="text-xs mo-muted">Выручка компании</div>
               <div className="mt-1 text-xl font-semibold tabular-nums">
@@ -95,6 +95,16 @@ export function AccountantCompanyFinance() {
               <div className="mt-1 text-[11px] mo-muted">
                 визиты {formatMoney(data.revenue_booking, { digits: 0 })} · курсы{" "}
                 {formatMoney(data.revenue_manual, { digits: 0 })}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
+              <div className="text-xs mo-muted">Возвраты</div>
+              <div className="mt-1 text-xl font-semibold tabular-nums text-rose-700 dark:text-rose-300">
+                {formatMoney(data.refunds_total ?? 0, { digits: 0 })}
+              </div>
+              <div className="mt-1 text-[11px] mo-muted">
+                визиты {formatMoney(data.refunds_booking ?? 0, { digits: 0 })} · курсы{" "}
+                {formatMoney(data.refunds_manual ?? 0, { digits: 0 })}
               </div>
             </div>
             <div className="rounded-2xl border border-[var(--mo-border)] p-4">

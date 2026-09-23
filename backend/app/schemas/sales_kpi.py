@@ -355,6 +355,10 @@ class SalesKpiCompanyReport(BaseModel):
     debtor_booking: Decimal
     debtor_manual: Decimal
     creditor_total: Decimal  # предоплата за будущие визиты
+    # Возвраты за месяц (онлайн-запись + курсы KPI), положительная сумма.
+    refunds_total: Decimal = Field(default=Decimal("0"))
+    refunds_booking: Decimal = Field(default=Decimal("0"))
+    refunds_manual: Decimal = Field(default=Decimal("0"))
     plan_lines: list[SalesKpiCompanyPlanLine]
     # Сводка по эксперту (все услуги эксперта вместе)
     expert_stats: list[SalesKpiCompanyExpertStat]

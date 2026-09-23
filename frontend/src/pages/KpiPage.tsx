@@ -1965,7 +1965,7 @@ function CompanyReportSection({
             ? "Сводка за выбранный месяц (не сумма с прошлых). Выручка = продажи стола + платежи по курсам с датой в этом месяце. Дебиторка — остаток на конец месяца с переносом."
             : "Сводка за месяц. Выручка компании = оплаты визитов по дате сдачи денег + оплаты курсов/протоколов KPI за месяц. Дебиторка = остаток визитов + долги пакетов."}
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-5">
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
             <div className="text-[11px] mo-muted sm:text-xs">Выполнение плана</div>
             <div className="mt-1 text-xl font-semibold text-[var(--mo-text)] sm:text-2xl">
@@ -1987,6 +1987,17 @@ function CompanyReportSection({
               {hideBookingExperts
                 ? `стол ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}`
                 : `визиты ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}`}
+            </div>
+          </div>
+          <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-2.5 sm:p-3">
+            <div className="text-[11px] mo-muted sm:text-xs">Возвраты (TJS)</div>
+            <div className="mt-1 text-xl font-semibold tabular-nums text-rose-700 sm:text-2xl dark:text-rose-300">
+              {formatMoney(data.refunds_total ?? 0)}
+            </div>
+            <div className="mt-1 text-[10px] mo-muted sm:text-xs">
+              {hideBookingExperts
+                ? `стол ${formatMoney(data.refunds_booking ?? 0)} · курсы ${formatMoney(data.refunds_manual ?? 0)}`
+                : `визиты ${formatMoney(data.refunds_booking ?? 0)} · курсы ${formatMoney(data.refunds_manual ?? 0)}`}
             </div>
           </div>
           <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">

@@ -18,6 +18,7 @@ from app.models import (
     BookingAppointment,
     BookingDirection,
     BookingSpecialist,
+    FinanceOsvRow,
     Lead,
     ManagerDeskSale,
     Pipeline,
@@ -1784,6 +1785,75 @@ async def company_report(
     # Дебиторка всегда = остаток визитов + открытые пакеты курсов/протоколов KPI.
     debtor_total = debtor_booking + debtor_manual
 
+    # Возвраты за месяц: онлайн-запись (ОСВ booking_refund) + курсы KPI (status=returned).
+    ym_day_from = date(ym.year, ym.month, 1)
+    ym_day_to = date(ym.year, ym.month, calendar.monthrange(ym.year, ym.month)[1])
+    refund_osv_rows = (
+        await db.execute(
+            select(FinanceOsvRow.expense, FinanceOsvRow.external_key).where(
+                FinanceOsvRow.company_id == company_id,
+                FinanceOsvRow.source == "booking_refund",
+                FinanceOsvRow.txn_date >= ym_day_from,
+                FinanceOsvRow.txn_date <= ym_day_to,
+            )
+        )
+    ).all()
+    refund_appt_ids: list[int] = []
+    refund_by_key: list[tuple[Decimal, int | None]] = []
+    for exp, ext in refund_osv_rows:
+        amt = abs(Decimal(str(exp or 0)))
+        if amt <= 0:
+            continue
+        appt_id: int | None = None
+        key = (ext or "").strip()
+        if key.startswith("booking_refund:"):
+            parts = key.split(":")
+            if len(parts) >= 2 and parts[1].isdigit():
+                appt_id = int(parts[1])
+                refund_appt_ids.append(appt_id)
+        refund_by_key.append((amt, appt_id))
+    appt_pipeline: dict[int, int | None] = {}
+    if refund_appt_ids:
+        pid_rows = (
+            await db.execute(
+                select(BookingAppointment.id, BookingAppointment.pipeline_id).where(
+                    BookingAppointment.company_id == company_id,
+                    BookingAppointment.id.in_(refund_appt_ids),
+                )
+            )
+        ).all()
+        appt_pipeline = {int(aid): (int(pid) if pid is not None else None) for aid, pid in pid_rows}
+    refunds_booking = Decimal("0")
+    for amt, appt_id in refund_by_key:
+        if appt_id is None:
+            # Без привязки к записи — учитываем в выбранной воронке (обычно одна клиника).
+            refunds_booking += amt
+            continue
+        ap_pipe = appt_pipeline.get(appt_id)
+        if ap_pipe is None or ap_pipe == pipeline_id:
+            refunds_booking += amt
+
+    refunds_manual = Decimal(
+        str(
+            (
+                await db.scalar(
+                    select(func.coalesce(func.sum(SalesKpiManualSale.paid_amount), 0)).where(
+                        SalesKpiManualSale.company_id == company_id,
+                        SalesKpiManualSale.pipeline_id == pipeline_id,
+                        SalesKpiManualSale.status == "returned",
+                        SalesKpiManualSale.returned_at.is_not(None),
+                        SalesKpiManualSale.returned_at >= start,
+                        SalesKpiManualSale.returned_at < end,
+                    )
+                )
+            )
+            or 0
+        )
+    )
+    refunds_total = (refunds_booking + refunds_manual).quantize(Decimal("0.01"))
+    refunds_booking = refunds_booking.quantize(Decimal("0.01"))
+    refunds_manual = refunds_manual.quantize(Decimal("0.01"))
+
     # Дни месяца для прогноза (линейный run-rate)
     days_in_month = calendar.monthrange(ym.year, ym.month)[1]
     today = now.date()
@@ -1840,6 +1910,9 @@ async def company_report(
         debtor_booking=debtor_booking,
         debtor_manual=debtor_manual,
         creditor_total=creditor_total,
+        refunds_total=refunds_total,
+        refunds_booking=refunds_booking,
+        refunds_manual=refunds_manual,
         plan_lines=plan_lines,
         expert_stats=expert_stats,
         service_stats=service_stats,

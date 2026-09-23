@@ -1159,6 +1159,10 @@ export interface SalesKpiCompanyReport {
   debtor_booking: string | number;
   debtor_manual: string | number;
   creditor_total: string | number;
+  /** Возвраты за месяц (онлайн-запись + курсы KPI). */
+  refunds_total?: string | number;
+  refunds_booking?: string | number;
+  refunds_manual?: string | number;
   plan_lines: SalesKpiCompanyPlanLine[];
   expert_stats: SalesKpiCompanyExpertStat[];
   /** Отдельная сводка по услугам (Курс / Курс 15 / Протокол …). */
