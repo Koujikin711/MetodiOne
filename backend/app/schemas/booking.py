@@ -320,6 +320,24 @@ class BookingAppointmentPaymentUpdate(BaseModel):
         return self
 
 
+class BookingAppointmentRefund(BaseModel):
+    """Возврат по онлайн-записи (только admin/owner/administrator).
+
+    Списывает сумму с paid_amount и пишет строку в журнал расходов
+    (статья «Поступления», сумма отрицательная, напр. −800).
+    """
+
+    amount: float | None = Field(
+        default=None,
+        gt=0,
+        description="Сумма возврата; пусто — вся текущая оплата записи",
+    )
+    txn_date: date | None = Field(
+        default=None,
+        description="Дата в журнале расходов; пусто — сегодня (TZ клиники)",
+    )
+
+
 class BookingPatientVisitRead(BaseModel):
     appointment_id: int
     start_at: datetime

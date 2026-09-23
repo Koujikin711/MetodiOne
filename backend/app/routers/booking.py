@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 import re
+import uuid
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
@@ -20,6 +21,7 @@ from app.models import (
     BookingAppointment,
     BookingDirection,
     BookingSpecialist,
+    FinanceOsvRow,
     Lead,
     PatientServiceEnrollment,
     Pipeline,
@@ -35,6 +37,7 @@ from app.schemas.booking import (
     BookingAppointmentPaymentUpdate,
     BookingAppointmentRead,
     BookingAppointmentDetailsUpdate,
+    BookingAppointmentRefund,
     BookingAppointmentStatusUpdate,
     BookingFreeConsultHint,
     BookingPatientHistoryItem,
@@ -2711,6 +2714,116 @@ async def patch_appointment_payment(
         target,
         direction_name=direction.name,
         specialist_name=specialist.full_name,
+        viewer=current_user,
+    )
+
+
+def _refund_bank_from_payment_method(method: str | None) -> str:
+    m = (method or "").strip().lower()
+    if m == "cash":
+        return "КАССА"
+    if m == "alif":
+        return "Алиф"
+    return "ДС"
+
+
+@router.post("/appointments/{appointment_id}/refund", response_model=BookingAppointmentRead)
+async def refund_appointment(
+    appointment_id: int,
+    body: BookingAppointmentRefund,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> BookingAppointmentRead:
+    """Возврат по онлайн-записи: уменьшает оплату и пишет −сумму в журнал «Расходы»
+    (статья «Поступления»).
+    """
+    await _assert_expert_readonly_for_booking(db, current_user)
+    if current_user.role not in (
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.admin,
+        UserRole.administrator,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Возврат может оформить только администратор",
+        )
+
+    appt = await db.get(BookingAppointment, appointment_id)
+    if appt is None or appt.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+
+    paid = Decimal(str(appt.paid_amount or 0))
+    if paid <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="По этой записи нет оплаты для возврата",
+        )
+
+    if body.amount is not None:
+        refund_amt = Decimal(str(body.amount)).quantize(Decimal("0.01"))
+    else:
+        refund_amt = paid.quantize(Decimal("0.01"))
+    if refund_amt <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Сумма возврата должна быть больше 0")
+    if refund_amt > paid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Сумма возврата ({refund_amt}) больше оплаченного ({paid})",
+        )
+
+    tz = ZoneInfo(settings.booking_timezone)
+    txn_date = body.txn_date or datetime.now(tz).date()
+    new_paid = (paid - refund_amt).quantize(Decimal("0.01"))
+    appt.paid_amount = float(new_paid)
+
+    via = (current_user.full_name or current_user.email or "Администратор").strip()
+    service_label = (appt.service_title or "").strip() or "Онлайн-запись"
+    patient = (appt.patient_name or "").strip() or "Пациент"
+    phone = (appt.patient_phone or "").strip() or None
+    basis = f"{patient} — возврат {txn_date.isoformat()}"
+
+    db.add(
+        FinanceOsvRow(
+            company_id=company_id,
+            txn_date=txn_date,
+            revenue=Decimal("0"),
+            expense=(-refund_amt).quantize(Decimal("0.01")),
+            bank=_refund_bank_from_payment_method(getattr(appt, "payment_method", None)),
+            basis=basis[:255],
+            counterparty=patient[:255],
+            phone=(phone[:64] if phone else None),
+            via_person=via[:128],
+            product_service=service_label[:255],
+            article="Поступления",
+            detail_category=None,
+            brief_category="Возврат",
+            source="booking_refund",
+            external_key=f"booking_refund:{appointment_id}:{uuid.uuid4().hex[:12]}",
+        )
+    )
+    await db.flush()
+
+    direction = await db.get(BookingDirection, appt.direction_id)
+    specialist = await db.get(BookingSpecialist, appt.specialist_id)
+    await write_audit_event(
+        db,
+        entity_type="booking_appointment",
+        entity_id=appt.id,
+        action="appointment_refund",
+        current_user=current_user,
+        details=(
+            f"refund={refund_amt}; prev_paid={paid}; new_paid={new_paid}; "
+            f"txn_date={txn_date.isoformat()}; patient={patient}"
+        ),
+    )
+
+    return await _booking_appointment_read(
+        db,
+        appt,
+        direction_name=direction.name if direction else "",
+        specialist_name=specialist.full_name if specialist else "",
         viewer=current_user,
     )
 

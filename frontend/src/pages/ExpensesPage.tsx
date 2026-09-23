@@ -31,7 +31,7 @@ function defaultYearMonth() {
 
 function money(v: number | string | null | undefined) {
   const n = Number(v || 0);
-  return n.toLocaleString("ru-RU", { maximumFractionDigits: 2 });
+  return n.toLocaleString("ru-RU", { maximumFractionDigits: 2, signDisplay: "auto" });
 }
 
 /** 07.09.26 */

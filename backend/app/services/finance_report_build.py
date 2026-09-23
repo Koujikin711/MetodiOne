@@ -197,7 +197,10 @@ async def build_opiu_report(db: AsyncSession, *, company_id: int, year: int) -> 
         cls = classify_osv_row(row)
         mi = _month_idx(row.txn_date)
         if cls.opiu_line == "revenue_clinic" or cls.opiu_line == "revenue_other":
-            bucket[cls.opiu_line][mi] += Decimal(row.revenue or 0)
+            rev = Decimal(row.revenue or 0)
+            exp = Decimal(row.expense or 0)
+            # Возврат в журнале расходов: revenue=0, expense=-N → минус к выручке
+            bucket[cls.opiu_line][mi] += rev + (exp if exp < 0 else Decimal("0"))
         elif cls.opiu_line == "taxes":
             bucket["taxes"][mi] += Decimal(row.expense or 0)
         else:

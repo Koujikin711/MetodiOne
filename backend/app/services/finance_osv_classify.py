@@ -36,6 +36,12 @@ def classify_osv_row(row: FinanceOsvRow) -> OsvClassification:
         opiu = "revenue_other" if "проч" in basis or "проч" in article else "revenue_clinic"
         return OsvClassification("operating", "receipts", line, opiu, 1)
 
+    # Отрицательный расход (−800) = возврат в журнале «Расходы», статья «Поступления».
+    # cash_sign=+1 × отрицательная сумма → минус в ДДС / выручке.
+    if exp < 0:
+        label = (row.basis or "").strip() or counterparty or "Возврат"
+        return OsvClassification("operating", "refunds", label, "revenue_clinic", 1)
+
     # расходы
     if "возврат" in article or "возврат" in brief or "возврат" in basis:
         return OsvClassification("operating", "refunds", row.basis or "Возврат", "revenue_clinic", -1)

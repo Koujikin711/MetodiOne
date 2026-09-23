@@ -13,6 +13,7 @@ EXPENSE_BANKS: list[str] = [
 
 # Статья (col «Статья»)
 EXPENSE_ARTICLES: list[str] = [
+    "Поступления",
     "ФОТ",
     "Административные",
     "Аренда и коммуналка",
@@ -25,6 +26,7 @@ EXPENSE_ARTICLES: list[str] = [
 EXPENSE_BRIEF: list[str] = [
     "Расход",
     "Зарплата",
+    "Возврат",
 ]
 
 # Подробно

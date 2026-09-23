@@ -198,7 +198,7 @@ async def list_expenses(
             select(FinanceOsvRow)
             .where(
                 FinanceOsvRow.company_id == company_id,
-                FinanceOsvRow.expense > 0,
+                FinanceOsvRow.expense != 0,
                 FinanceOsvRow.txn_date >= day_from,
                 FinanceOsvRow.txn_date <= day_to,
             )

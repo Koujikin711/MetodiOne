@@ -218,6 +218,12 @@ export function OnlineBookingPage() {
   const canEditBooking = !isExpert || Boolean(bookingViewerQuery.data?.is_chief_expert);
   const canEditDirectionStreams =
     currentRole === "owner" || currentRole === "admin" || currentRole === "administrator";
+  /** Возврат оплаты: admin / administrator / owner. */
+  const canRefundBooking =
+    currentRole === "owner" ||
+    currentRole === "super_owner" ||
+    currentRole === "admin" ||
+    currentRole === "administrator";
   /** Админ клиники / владелец: стоимость из формы — факт; KPI только подсказка. */
   const canOverrideKpiPrice =
     currentRole === "admin" ||
@@ -678,6 +684,24 @@ export function OnlineBookingPage() {
       toast.success("Запись удалена");
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["analytics-full"] });
+      void queryClient.invalidateQueries({ queryKey: ["analytics-detailed"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const refundAppointmentMutation = useMutation({
+    mutationFn: ({ id, amount }: { id: number; amount: number }) =>
+      apiFetch<BookingAppointment>(`/api/booking/appointments/${id}/refund`, {
+        method: "POST",
+        body: JSON.stringify({ amount }),
+      }),
+    onSuccess: (_row, vars) => {
+      toast.success(`Возврат −${formatMoney(vars.amount)} записан в «Расходы» (Поступления)`);
+      void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-patient-history"] });
+      void queryClient.invalidateQueries({ queryKey: ["finance-expenses"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics-full"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics-detailed"] });
     },
@@ -1762,6 +1786,7 @@ export function OnlineBookingPage() {
                               <th className="py-1 pr-3">Услуга</th>
                               <th className="py-1 pr-3">Статус</th>
                               <th className="py-1 pr-3">Оплата</th>
+                              {canRefundBooking ? <th className="py-1 pr-3"> </th> : null}
                             </tr>
                           </thead>
                           <tbody>
@@ -1784,6 +1809,33 @@ export function OnlineBookingPage() {
                                 <td className="py-1 pr-3">
                                   {formatMoney(v.paid_amount)} / {formatMoney(v.service_amount)}
                                 </td>
+                                {canRefundBooking ? (
+                                  <td className="py-1 pr-3">
+                                    {Number(v.paid_amount) > 0 ? (
+                                      <button
+                                        type="button"
+                                        className="btn-secondary px-2 py-0.5 text-[11px]"
+                                        disabled={refundAppointmentMutation.isPending}
+                                        onClick={() => {
+                                          const paid = Number(v.paid_amount) || 0;
+                                          if (
+                                            !window.confirm(
+                                              `Оформить возврат ${formatMoney(paid)} для ${item.patient_name}? В «Расходы» появится −${formatMoney(paid)} (Поступления).`,
+                                            )
+                                          ) {
+                                            return;
+                                          }
+                                          refundAppointmentMutation.mutate({
+                                            id: v.appointment_id,
+                                            amount: paid,
+                                          });
+                                        }}
+                                      >
+                                        Возврат
+                                      </button>
+                                    ) : null}
+                                  </td>
+                                ) : null}
                               </tr>
                             ))}
                           </tbody>
@@ -1809,9 +1861,9 @@ export function OnlineBookingPage() {
                   <th>Долг</th>
                   <th className="booking-journal-col-status">Статус</th>
                   <th className="max-w-[140px]">Заметка</th>
-                  {(journalQuery.data ?? []).some((x) => x.can_manage_journal) && (
+                  {(journalQuery.data ?? []).some((x) => x.can_manage_journal) || canRefundBooking ? (
                     <th className="booking-journal-col-actions w-9" aria-label="Действия" />
-                  )}
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -1903,24 +1955,47 @@ export function OnlineBookingPage() {
                         <span className="mo-muted">—</span>
                       )}
                     </td>
-                    {(journalQuery.data ?? []).some((x) => x.can_manage_journal) && (
+                    {(journalQuery.data ?? []).some((x) => x.can_manage_journal) || canRefundBooking ? (
                       <td className="booking-journal-col-actions">
-                        {a.can_manage_journal ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!window.confirm("Удалить эту запись?")) return;
-                              deleteAppointmentMutation.mutate(a.id);
-                            }}
-                            className="booking-journal-delete"
-                            aria-label="Удалить запись"
-                            title="Удалить"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        ) : null}
+                        <div className="flex flex-col items-end gap-1">
+                          {canRefundBooking && Number(a.paid_amount ?? 0) > 0 ? (
+                            <button
+                              type="button"
+                              className="btn-secondary px-1.5 py-0.5 text-[10px] leading-tight"
+                              disabled={refundAppointmentMutation.isPending}
+                              title="Возврат → Расходы (−сумма, Поступления)"
+                              onClick={() => {
+                                const paid = Number(a.paid_amount) || 0;
+                                if (
+                                  !window.confirm(
+                                    `Оформить возврат ${formatMoney(paid)} для ${a.patient_name}? В «Расходы» появится −${formatMoney(paid)} (Поступления).`,
+                                  )
+                                ) {
+                                  return;
+                                }
+                                refundAppointmentMutation.mutate({ id: a.id, amount: paid });
+                              }}
+                            >
+                              Возврат
+                            </button>
+                          ) : null}
+                          {a.can_manage_journal ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!window.confirm("Удалить эту запись?")) return;
+                                deleteAppointmentMutation.mutate(a.id);
+                              }}
+                              className="booking-journal-delete"
+                              aria-label="Удалить запись"
+                              title="Удалить"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
-                    )}
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -1979,6 +2054,37 @@ export function OnlineBookingPage() {
                   }}
                 >
                   Карточка в CRM
+                </button>
+              ) : null}
+              {canRefundBooking && Number(apptDetail.paid_amount ?? 0) > 0 ? (
+                <button
+                  type="button"
+                  className="btn-secondary px-3 py-1.5 text-xs"
+                  disabled={refundAppointmentMutation.isPending}
+                  onClick={() => {
+                    const paid = Number(apptDetail.paid_amount) || 0;
+                    if (
+                      !window.confirm(
+                        `Оформить возврат ${formatMoney(paid)} для ${apptDetail.patient_name}? В «Расходы» появится −${formatMoney(paid)} (Поступления).`,
+                      )
+                    ) {
+                      return;
+                    }
+                    refundAppointmentMutation.mutate(
+                      { id: apptDetail.id, amount: paid },
+                      {
+                        onSuccess: () => {
+                          setApptDetail((prev) =>
+                            prev && prev.id === apptDetail.id
+                              ? { ...prev, paid_amount: 0 }
+                              : prev,
+                          );
+                        },
+                      },
+                    );
+                  }}
+                >
+                  Возврат
                 </button>
               ) : null}
               <button type="button" className="btn-primary px-3 py-1.5 text-xs" onClick={() => setApptDetail(null)}>
