@@ -39,6 +39,21 @@ function threadPhoneForDisplay(t: ChatThread): string {
   return local || "—";
 }
 
+const MONTH_LABELS_RU = [
+  "январь",
+  "февраль",
+  "март",
+  "апрель",
+  "май",
+  "июнь",
+  "июль",
+  "август",
+  "сентябрь",
+  "октябрь",
+  "ноябрь",
+  "декабрь",
+] as const;
+
 function currentYearMonth(): string {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
@@ -52,24 +67,8 @@ function shiftYearMonth(ym: string, delta: number): string {
 
 function formatChatMonthLabel(ym: string): string {
   const [y, m] = ym.split("-").map(Number);
-  if (!y || !m || m < 1 || m > 12) return ym;
-  try {
-    return new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(
-      new Date(y, m - 1, 1),
-    );
-  } catch {
-    return ym;
-  }
-}
-
-/** Опции select: текущий месяц ± 18 мес., плюс выбранный если вне диапазона. */
-function chatMonthOptions(aroundYm: string, selectedYm: string): string[] {
-  const set = new Set<string>();
-  for (let i = -18; i <= 6; i += 1) {
-    set.add(shiftYearMonth(aroundYm, i));
-  }
-  if (/^\d{4}-\d{2}$/.test(selectedYm)) set.add(selectedYm);
-  return Array.from(set).sort();
+  if (!y || !m || m < 1 || m > 12) return ym || "месяц";
+  return `${MONTH_LABELS_RU[m - 1]} ${y}`;
 }
 
 /** Не показываем техническое имя интеграции в списке диалогов. */
@@ -1217,39 +1216,70 @@ export function ChatPage() {
 
           {showManagerChatBuckets ? (
             <div
-              className="mb-2 shrink-0 rounded-xl border px-1.5 py-1.5 max-lg:mb-1.5"
+              className="mb-2 shrink-0 max-lg:mb-1.5"
               style={{
-                borderColor: "var(--mo-border-strong)",
-                background: "var(--mo-surface-elevated)",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 4px",
+                borderRadius: 12,
+                border: "1px solid #94a3b8",
+                background: "#ffffff",
               }}
             >
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-2xl font-bold leading-none"
-                  style={{ color: "var(--mo-text)" }}
-                  aria-label="Предыдущий месяц"
-                  onClick={() => setChatMonth((m) => shiftYearMonth(m, -1))}
-                >
-                  ‹
-                </button>
-                <div
-                  className="min-w-0 flex-1 truncate px-1 text-center text-[15px] font-bold capitalize leading-tight"
-                  style={{ color: "var(--mo-text)" }}
-                  title="Лиды, созданные в этом месяце"
-                >
-                  {formatChatMonthLabel(chatMonth)}
-                </div>
-                <button
-                  type="button"
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-2xl font-bold leading-none"
-                  style={{ color: "var(--mo-text)" }}
-                  aria-label="Следующий месяц"
-                  onClick={() => setChatMonth((m) => shiftYearMonth(m, 1))}
-                >
-                  ›
-                </button>
+              <button
+                type="button"
+                aria-label="Предыдущий месяц"
+                onClick={() => setChatMonth((m) => shiftYearMonth(m, -1))}
+                style={{
+                  flex: "0 0 44px",
+                  height: 44,
+                  border: "none",
+                  borderRadius: 10,
+                  background: "#e2e8f0",
+                  color: "#0f172a",
+                  fontSize: 26,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  cursor: "pointer",
+                }}
+              >
+                {"<"}
+              </button>
+              <div
+                style={{
+                  flex: "1 1 auto",
+                  minWidth: 0,
+                  textAlign: "center",
+                  color: "#0f172a",
+                  fontSize: 16,
+                  fontWeight: 800,
+                  lineHeight: 1.2,
+                  textTransform: "capitalize",
+                }}
+                title="Лиды, созданные в этом месяце"
+              >
+                {formatChatMonthLabel(chatMonth)}
               </div>
+              <button
+                type="button"
+                aria-label="Следующий месяц"
+                onClick={() => setChatMonth((m) => shiftYearMonth(m, 1))}
+                style={{
+                  flex: "0 0 44px",
+                  height: 44,
+                  border: "none",
+                  borderRadius: 10,
+                  background: "#e2e8f0",
+                  color: "#0f172a",
+                  fontSize: 26,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  cursor: "pointer",
+                }}
+              >
+                {">"}
+              </button>
             </div>
           ) : null}
 
