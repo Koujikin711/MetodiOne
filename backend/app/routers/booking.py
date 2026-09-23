@@ -2375,6 +2375,31 @@ async def patch_appointment_details(
         if body.service_title is None:
             a.service_title = new_dir.name
         details_bits.append(f"direction_id {old_dir_id}->{int(new_dir.id)}")
+    if body.responsible_manager_id is not None:
+        if current_user.role not in (
+            UserRole.owner,
+            UserRole.super_owner,
+            UserRole.admin,
+            UserRole.administrator,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Смену ответственного может сделать только владелец/админ",
+            )
+        resp_user = await db.get(User, int(body.responsible_manager_id))
+        if (
+            resp_user is None
+            or resp_user.company_id != company_id
+            or not resp_user.is_active
+            or not _can_be_booking_responsible(resp_user.role)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ответственный должен быть активным менеджером или администратором компании",
+            )
+        old_mid = a.responsible_manager_id
+        a.responsible_manager_id = int(resp_user.id)
+        details_bits.append(f"responsible_manager_id {old_mid}->{int(resp_user.id)}")
     a.updated_at = datetime.now(UTC)
     await write_audit_event(
         db,
