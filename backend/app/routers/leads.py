@@ -2228,8 +2228,11 @@ async def reject_lead(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> LeadRead:
-    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец, админ воронки или менеджер")
+    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.administrator):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Только владелец, админ воронки, администратор или менеджер",
+        )
 
     lead = await db.get(Lead, lead_id)
     if lead is None or lead.company_id != company_id:
@@ -2311,6 +2314,7 @@ async def update_lead_status(
     if target_name in AUTO_ONLY_STAGE_NAMES and current_user.role in (
         UserRole.manager,
         UserRole.admin,
+        UserRole.administrator,
     ):
         hints = {
             "Новый лид": "Стадия «Новый лид» ставится автоматически при поступлении лида",
@@ -2327,13 +2331,14 @@ async def update_lead_status(
         UserRole.admin,
         UserRole.manager,
         UserRole.super_owner,
+        UserRole.administrator,
     ):
         if target_name in MANAGER_SETTABLE_STAGE_NAMES:
             allowed = True
         elif current_user.role in (UserRole.owner, UserRole.super_owner):
             # Владелец двигает по канбану любые стадии, включая Архив.
             allowed = True
-        elif current_user.role == UserRole.admin and target_name not in AUTO_ONLY_STAGE_NAMES:
+        elif current_user.role in (UserRole.admin, UserRole.administrator) and target_name not in AUTO_ONLY_STAGE_NAMES:
             allowed = True
     if (
         not allowed

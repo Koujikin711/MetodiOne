@@ -695,6 +695,8 @@ class BookingAppointment(Base):
     pipeline_id: Mapped[int | None] = mapped_column(ForeignKey("pipelines.id", ondelete="SET NULL"), nullable=True)
     patient_name: Mapped[str] = mapped_column(String(255))
     patient_phone: Mapped[str] = mapped_column(String(64))
+    # Дата рождения ребёнка (обязательна при новой записи с формы).
+    patient_birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     direction_id: Mapped[int] = mapped_column(ForeignKey("booking_directions.id", ondelete="RESTRICT"))
     specialist_id: Mapped[int] = mapped_column(ForeignKey("booking_specialists.id", ondelete="RESTRICT"))
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

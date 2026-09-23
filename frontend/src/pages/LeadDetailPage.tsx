@@ -200,9 +200,12 @@ export function LeadDetailPage() {
   });
 
   const role = decodeRoleFromToken(getStoredToken());
-  const canRejectLead = role === "owner" || role === "admin" || role === "manager";
-  const canEditLeadProfile = role === "owner" || role === "admin" || role === "manager";
-  const canSetLeadStage = role === "owner" || role === "admin" || role === "manager";
+  const canRejectLead =
+    role === "owner" || role === "admin" || role === "manager" || role === "administrator";
+  const canEditLeadProfile =
+    role === "owner" || role === "admin" || role === "manager" || role === "administrator";
+  const canSetLeadStage =
+    role === "owner" || role === "admin" || role === "manager" || role === "administrator";
   const canDeleteLead = role === "owner";
   const bookingViewerQuery = useQuery({
     queryKey: ["booking-viewer-context"],

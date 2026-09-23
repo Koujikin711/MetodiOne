@@ -874,6 +874,38 @@ export function AnalyticsPage() {
                 </AnalyticsTable>
               </AnalyticsPanel>
 
+              <AnalyticsPanel title="Возрастные категории">
+                <p className="analytics-panel-note">
+                  По визитам онлайн-записи за период. Возраст на дату приёма; доля — % от всех визитов в периоде.
+                </p>
+                <AnalyticsTable minWidth={420}>
+                  <thead>
+                    <tr>
+                      <th className="py-2 pr-3">Категория</th>
+                      <th className="py-2 pr-3">Визиты</th>
+                      <th className="py-2 pr-3">Доля</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(overviewQuery.data.by_age_category ?? []).length === 0 ? (
+                      <tr>
+                        <td className="py-2.5 pr-3 mo-muted" colSpan={3}>
+                          Нет визитов за период
+                        </td>
+                      </tr>
+                    ) : (
+                      (overviewQuery.data.by_age_category ?? []).map((r) => (
+                        <tr key={r.category}>
+                          <td className="py-2.5 pr-3 font-medium">{r.category}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{r.visits_count}</td>
+                          <td className="py-2.5 pr-3 tabular-nums">{r.share_pct}%</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </AnalyticsTable>
+              </AnalyticsPanel>
+
               <AnalyticsPanel title="Успеваемость и активность менеджеров">
                 <p className="analytics-panel-note">
                   Успеваемость — план, win rate, скорость ответа. Активность — ответы в чате и исходящие сообщения.

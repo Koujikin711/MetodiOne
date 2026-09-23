@@ -483,6 +483,12 @@ export interface SourceAnalyticsItem {
   lead_share_pct: number;
 }
 
+export interface AgeCategoryAnalyticsItem {
+  category: string;
+  visits_count: number;
+  share_pct: number;
+}
+
 export interface LossReasonItem {
   reason: string;
   count: number;
@@ -538,6 +544,7 @@ export interface AnalyticsOverviewRead {
   executive: ExecutiveKpiRead;
   stage_conversion: StageConversionItem[];
   by_source: SourceAnalyticsItem[];
+  by_age_category?: AgeCategoryAnalyticsItem[];
   loss_reasons: LossReasonItem[];
   manager_plan_fact: ManagerPlanFactItem[];
   manager_performance?: ManagerPerformanceItem[];
@@ -636,6 +643,8 @@ export interface BookingAppointment {
   patient_phone: string;
   patient_phone_display?: string | null;
   patient_phone_can_view_full?: boolean;
+  /** Дата рождения ребёнка YYYY-MM-DD */
+  patient_birth_date?: string | null;
   start_at: string;
   end_at: string;
   status: string;

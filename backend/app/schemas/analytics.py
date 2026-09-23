@@ -71,6 +71,12 @@ class SourceAnalyticsItem(BaseModel):
     lead_share_pct: float = 0
 
 
+class AgeCategoryAnalyticsItem(BaseModel):
+    category: str
+    visits_count: int = 0
+    share_pct: float = 0
+
+
 class LossReasonItem(BaseModel):
     reason: str
     count: int = 0
@@ -126,6 +132,7 @@ class AnalyticsOverviewRead(BaseModel):
     executive: ExecutiveKpiRead
     stage_conversion: list[StageConversionItem] = Field(default_factory=list)
     by_source: list[SourceAnalyticsItem] = Field(default_factory=list)
+    by_age_category: list[AgeCategoryAnalyticsItem] = Field(default_factory=list)
     loss_reasons: list[LossReasonItem] = Field(default_factory=list)
     manager_plan_fact: list[ManagerPlanFactItem] = Field(default_factory=list)
     manager_performance: list[ManagerPerformanceItem] = Field(default_factory=list)

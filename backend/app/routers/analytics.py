@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 import re
 from typing import Annotated
@@ -29,6 +29,7 @@ from app.models import (
     UserRole,
 )
 from app.schemas.analytics import (
+    AgeCategoryAnalyticsItem,
     AnalyticsAlertsRead,
     AnalyticsOverviewRead,
     CustomerValueRead,
@@ -169,6 +170,45 @@ def _safe_pct(num: float, den: float) -> float:
     if den <= 0:
         return 0.0
     return round(min((num / den) * 100, 100.0), 2)
+
+
+_AGE_CATEGORY_ORDER: tuple[str, ...] = (
+    "До 1 года",
+    "1–3 года",
+    "3–7 лет",
+    "7–12 лет",
+    "12–18 лет",
+    "18+ лет",
+    "Не указано",
+)
+
+
+def _age_years_on(birth: date, on_day: date) -> int | None:
+    if birth > on_day:
+        return None
+    years = on_day.year - birth.year
+    if (on_day.month, on_day.day) < (birth.month, birth.day):
+        years -= 1
+    return max(years, 0)
+
+
+def _age_category_label(birth: date | None, on_day: date) -> str:
+    if birth is None:
+        return "Не указано"
+    years = _age_years_on(birth, on_day)
+    if years is None:
+        return "Не указано"
+    if years < 1:
+        return "До 1 года"
+    if years < 3:
+        return "1–3 года"
+    if years < 7:
+        return "3–7 лет"
+    if years < 12:
+        return "7–12 лет"
+    if years < 18:
+        return "12–18 лет"
+    return "18+ лет"
 
 
 def build_funnel_rows(counts_by_name: dict[str, int]) -> list[tuple[str, int, float | None]]:
@@ -820,6 +860,40 @@ async def analytics_overview(
             )
         )
 
+    # Возрастные категории по визитам онлайн-записи (дата рождения ребёнка).
+    age_filters = [
+        BookingAppointment.company_id == company_id,
+        BookingAppointment.start_at >= start,
+        BookingAppointment.start_at < end,
+    ]
+    if pipeline_id is not None:
+        age_filters.append(BookingAppointment.pipeline_id == pipeline_id)
+    age_rows = (
+        await db.execute(
+            select(BookingAppointment.patient_birth_date, BookingAppointment.start_at).where(*age_filters)
+        )
+    ).all()
+    age_counts: dict[str, int] = {k: 0 for k in _AGE_CATEGORY_ORDER}
+    for birth, start_at in age_rows:
+        if start_at is None:
+            on_day = date.today()
+        elif getattr(start_at, "tzinfo", None) is not None:
+            on_day = start_at.astimezone(UTC).date()
+        else:
+            on_day = start_at.date()
+        label = _age_category_label(birth, on_day)
+        age_counts[label] = age_counts.get(label, 0) + 1
+    age_total = sum(age_counts.values())
+    age_items = [
+        AgeCategoryAnalyticsItem(
+            category=cat,
+            visits_count=cnt,
+            share_pct=_safe_pct(float(cnt), float(age_total)),
+        )
+        for cat in _AGE_CATEGORY_ORDER
+        if (cnt := age_counts.get(cat, 0)) > 0
+    ]
+
     # loss reasons
     loss_total = sum(loss_reasons.values())
     loss_items = [
@@ -1105,6 +1179,7 @@ async def analytics_overview(
         ),
         stage_conversion=stage_items,
         by_source=source_items,
+        by_age_category=age_items,
         loss_reasons=loss_items,
         manager_plan_fact=manager_plan_fact,
         manager_performance=manager_performance,

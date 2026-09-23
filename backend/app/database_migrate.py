@@ -263,6 +263,8 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
             await conn.execute(text("ALTER TABLE booking_appointments ADD COLUMN payment_method VARCHAR(16)"))
         if ba_cols and "paid_at" not in ba_cols:
             await conn.execute(text("ALTER TABLE booking_appointments ADD COLUMN paid_at DATETIME"))
+        if ba_cols and "patient_birth_date" not in ba_cols:
+            await conn.execute(text("ALTER TABLE booking_appointments ADD COLUMN patient_birth_date DATE"))
         await conn.execute(
             text(
                 """UPDATE booking_appointments
@@ -514,6 +516,9 @@ async def ensure_booking_specialist_columns(conn: AsyncConnection, database_url:
         )
         await conn.execute(
             text("ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ"),
+        )
+        await conn.execute(
+            text("ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS patient_birth_date DATE"),
         )
         await conn.execute(
             text(

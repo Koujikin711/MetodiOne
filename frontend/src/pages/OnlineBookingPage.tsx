@@ -191,6 +191,7 @@ export function OnlineBookingPage() {
   const [newLeadStageId, setNewLeadStageId] = useState<number | null>(null);
   const [patientName, setPatientName] = useState("");
   const [patientPhone, setPatientPhone] = useState("");
+  const [patientBirthDate, setPatientBirthDate] = useState("");
   const [extraPhones, setExtraPhones] = useState<string[]>([""]);
   const [specialistId, setSpecialistId] = useState(0);
   const [serviceDirectionId, setServiceDirectionId] = useState<number | "">("");
@@ -587,6 +588,7 @@ export function OnlineBookingPage() {
       }
       setPatientName("");
       setPatientPhone("");
+      setPatientBirthDate("");
       setExtraPhones([""]);
       setComment("");
       setServiceTitle("");
@@ -1120,6 +1122,19 @@ export function OnlineBookingPage() {
       toast.error("Выберите услугу");
       return;
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(patientBirthDate.trim())) {
+      toast.error("Укажите дату рождения ребёнка");
+      return;
+    }
+    {
+      const bd = new Date(`${patientBirthDate.trim()}T00:00:00`);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (Number.isNaN(bd.getTime()) || bd > today) {
+        toast.error("Проверьте дату рождения ребёнка");
+        return;
+      }
+    }
     const selectedDir = (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId);
     if (selectedDir && !canBookCourses && isAdminOnlyBookingDirectionName(selectedDir.name)) {
       toast.error("«Курс» и «Протокол» может записывать только администратор");
@@ -1132,6 +1147,7 @@ export function OnlineBookingPage() {
     const payload: Record<string, unknown> = {
       patient_name: patientName.trim(),
       patient_phone: resolvedPhone,
+      patient_birth_date: patientBirthDate.trim(),
       extra_phones: extraPhones.map((p) => p.trim()).filter(Boolean),
       specialist_id: specialistId,
       service_title: serviceTitle.trim(),
@@ -1347,6 +1363,17 @@ export function OnlineBookingPage() {
                       className="mt-1 w-full mo-input"
                       autoComplete="off"
                       inputMode="tel"
+                    />
+                  </label>
+                  <label className="block text-sm mo-muted">
+                    Дата рождения ребёнка
+                    <input
+                      required
+                      type="date"
+                      value={patientBirthDate}
+                      onChange={(e) => setPatientBirthDate(e.target.value)}
+                      className="mt-1 w-full mo-input"
+                      max={new Date().toISOString().slice(0, 10)}
                     />
                   </label>
                   <div className="space-y-2">

@@ -160,6 +160,7 @@ class BookingAppointmentRead(BaseModel):
     patient_phone: str
     patient_phone_display: str | None = None
     patient_phone_can_view_full: bool = False
+    patient_birth_date: date | None = None
     start_at: datetime
     end_at: datetime
     status: str
@@ -200,6 +201,10 @@ class BookingAppointmentCreate(BaseModel):
     patient_name: str = Field(..., min_length=1, max_length=255)
     # При lead_id телефон можно взять из карточки CRM (менеджер может не видеть полный номер).
     patient_phone: str = Field(default="", max_length=64)
+    patient_birth_date: date = Field(
+        ...,
+        description="Дата рождения ребёнка (обязательно для менеджера и администратора)",
+    )
     lead_id: int | None = Field(None, ge=1)
     lead_pipeline_id: int | None = Field(None, ge=1)
     lead_stage_id: int | None = Field(None, ge=1)
@@ -261,6 +266,15 @@ class BookingAppointmentCreate(BaseModel):
             return self
         if len(digits) < 3:
             raise ValueError("Укажите телефон пациента")
+        return self
+
+    @model_validator(mode="after")
+    def validate_patient_birth_date(self) -> "BookingAppointmentCreate":
+        today = date.today()
+        if self.patient_birth_date > today:
+            raise ValueError("Дата рождения не может быть в будущем")
+        if self.patient_birth_date.year < today.year - 120:
+            raise ValueError("Проверьте дату рождения ребёнка")
         return self
 
 
