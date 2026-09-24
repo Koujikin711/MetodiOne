@@ -1464,11 +1464,26 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .chat-thread-header-btn {
-  @apply shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none transition disabled:opacity-50 sm:rounded-xl sm:px-2.5 sm:py-1.5 sm:text-xs;
+  @apply shrink-0 rounded border px-1 py-0.5 text-[9px] font-medium leading-none transition disabled:opacity-50 sm:rounded-xl sm:px-2.5 sm:py-1.5 sm:text-xs;
+  min-height: 1.5rem;
   border-color: var(--mo-border-strong);
   background-color: var(--mo-surface-elevated);
   color: var(--mo-accent-hover);
   box-shadow: none;
+}
+
+.chat-thread-header-actions {
+  min-width: 3.25rem;
+}
+
+@media (max-width: 1023px) {
+  .chat-thread-header-actions .chat-thread-header-btn {
+    width: 100%;
+    text-align: center;
+    min-height: 1.35rem;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+  }
 }
 
 .chat-thread-header-btn:hover:not(:disabled) {

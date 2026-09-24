@@ -36,13 +36,13 @@ export function ThemeToggle({ compact = false, className = "", sidebar = false, 
         type="button"
         onClick={onClick}
         className={[
-          "rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 mo-muted transition hover:border-[var(--mo-gold)] hover:text-[var(--mo-text)]",
+          "inline-flex items-center justify-center rounded border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-1 mo-muted transition hover:border-[var(--mo-gold)] hover:text-[var(--mo-text)]",
           className,
         ].join(" ")}
         title={label}
         aria-label={label}
       >
-        {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        {isDark ? <Sun className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> : <Moon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />}
       </button>
     );
   }

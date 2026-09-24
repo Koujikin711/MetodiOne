@@ -1544,23 +1544,13 @@ export function ChatPage() {
                     </>
                   ) : null}
                 </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {salesChatMode && activeThread?.lead_id ? (
-                    <button
-                      type="button"
-                      className="chat-thread-header-btn shrink-0"
-                      onClick={() => setStatusOpen((v) => !v)}
-                      title="Сменить стадию и взять лид на себя"
-                    >
-                      Статус
-                    </button>
-                  ) : null}
-                  <div className="lg:hidden">
+                <div className="chat-thread-header-actions flex shrink-0 flex-col items-stretch gap-1 lg:flex-row lg:items-center lg:gap-1.5">
+                  <div className="order-1 flex justify-center lg:hidden">
                     <ThemeToggle compact />
                   </div>
                   <button
                     type="button"
-                    className="chat-thread-header-btn shrink-0"
+                    className="chat-thread-header-btn order-2 shrink-0 lg:order-2"
                     disabled={repairMediaMutation.isPending}
                     onClick={() => repairMediaMutation.mutate()}
                     title="Догрузить голосовые и фото, если не отображаются"
@@ -1572,6 +1562,16 @@ export function ChatPage() {
                       {repairMediaMutation.isPending ? "Догрузка…" : "Догрузить медиа"}
                     </span>
                   </button>
+                  {salesChatMode && activeThread?.lead_id ? (
+                    <button
+                      type="button"
+                      className="chat-thread-header-btn order-3 shrink-0 lg:order-1"
+                      onClick={() => setStatusOpen((v) => !v)}
+                      title="Сменить стадию и взять лид на себя"
+                    >
+                      Статус
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
