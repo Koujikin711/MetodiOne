@@ -12,6 +12,8 @@ type Props = {
   id?: string;
   "aria-label"?: string;
   allowClear?: boolean;
+  /** Только иконка календаря (дата в title / aria). */
+  iconOnly?: boolean;
 };
 
 const PANEL_W = 280;
@@ -37,6 +39,7 @@ export function DateField({
   id,
   "aria-label": ariaLabel,
   allowClear = true,
+  iconOnly = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -91,6 +94,10 @@ export function DateField({
   }, [open]);
 
   const display = formatDisplay(value) || "ДД.ММ.ГГГГ";
+  const selectedLabel = formatDisplay(value);
+  const buttonLabel = selectedLabel
+    ? `${ariaLabel ?? "Дата"}: ${selectedLabel}`
+    : (ariaLabel ?? "Выбрать дату");
 
   const panel =
     open && panelPos && !disabled && typeof document !== "undefined"
@@ -141,13 +148,19 @@ export function DateField({
       : null;
 
   return (
-    <div ref={rootRef} className={["date-field relative", className].filter(Boolean).join(" ")}>
+    <div
+      ref={rootRef}
+      className={["date-field relative", iconOnly ? "date-field--icon-only" : "", className]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <button
         ref={triggerRef}
         type="button"
         id={id}
         disabled={disabled}
-        aria-label={ariaLabel}
+        title={selectedLabel || buttonLabel}
+        aria-label={buttonLabel}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-required={required || undefined}
@@ -155,12 +168,13 @@ export function DateField({
           if (!disabled) setOpen((o) => !o);
         }}
         className={[
-          "mo-input flex w-full min-w-0 items-center justify-between gap-2 text-left",
+          "mo-input flex min-w-0 items-center text-left",
+          iconOnly ? "justify-center gap-0 px-1.5" : "w-full justify-between gap-2",
           disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-          !formatDisplay(value) ? "text-[var(--mo-text-muted)]" : "text-[var(--mo-text)]",
+          !selectedLabel ? "text-[var(--mo-text-muted)]" : "text-[var(--mo-text)]",
         ].join(" ")}
       >
-        <span className="min-w-0 truncate tabular-nums">{display}</span>
+        {!iconOnly ? <span className="min-w-0 truncate tabular-nums">{display}</span> : null}
         <span className="shrink-0 text-[var(--mo-text-muted)]" aria-hidden>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
             <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.6" />

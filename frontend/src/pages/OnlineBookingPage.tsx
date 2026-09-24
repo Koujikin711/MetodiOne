@@ -1347,6 +1347,7 @@ export function OnlineBookingPage() {
                         value={patientBirthDate}
                         onChange={setPatientBirthDate}
                         allowClear={false}
+                        iconOnly
                         aria-label="Дата рождения"
                         className="booking-patient-dob"
                       />

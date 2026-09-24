@@ -1741,29 +1741,25 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-patient-dob {
-  width: 7.5rem;
+  width: 2.5rem;
   flex-shrink: 0;
 }
 
 .booking-patient-dob .mo-input {
   min-height: 100%;
   height: 100%;
+  width: 100%;
   border: 0 !important;
   border-radius: 0;
   background: transparent !important;
   box-shadow: none !important;
-  padding-left: 0.45rem;
-  padding-right: 0.4rem;
-  font-size: 0.75rem;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
 }
 
 @media (min-width: 640px) {
   .booking-patient-dob {
-    width: 8.5rem;
-  }
-
-  .booking-patient-dob .mo-input {
-    font-size: 0.8125rem;
+    width: 2.75rem;
   }
 }
 
