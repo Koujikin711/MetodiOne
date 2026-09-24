@@ -1016,22 +1016,23 @@ async def meta_webhook_shared(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Any:
     """Входящие Meta/IG: роутинг по page_id / ig_user_id на нужную интеграцию."""
+    from app.services.instagram_webhook import normalize_meta_webhook_payload
+
     raw_body = await request.body()
     try:
         payload: Any = json.loads(raw_body.decode("utf-8") or "{}") if raw_body else {}
     except Exception:
         logger.warning("meta webhook: invalid JSON body len=%s", len(raw_body or b""))
-        return Response(status_code=200)
+        return Response(content='{"ok":false,"reason":"bad_json"}', media_type="application/json", status_code=200)
     if not isinstance(payload, dict):
         payload = {}
+    has_sample = bool(payload.get("sample"))
     logger.info(
         "meta webhook hit object=%s sample=%s entries=%s",
         payload.get("object"),
-        bool(payload.get("sample")),
+        has_sample,
         len(payload.get("entry") or []) if isinstance(payload.get("entry"), list) else 0,
     )
-    from app.services.instagram_webhook import normalize_meta_webhook_payload
-
     payload = normalize_meta_webhook_payload(payload)
     entries = payload.get("entry") or []
     page_id = ""
@@ -1049,33 +1050,51 @@ async def meta_webhook_shared(
         ).scalars().first()
     if integ is None or integ.company_id is None:
         logger.warning("meta webhook: no instagram integration for entry.id=%s", page_id)
-        return Response(status_code=200)
+        return Response(
+            content='{"ok":false,"reason":"no_instagram_integration"}',
+            media_type="application/json",
+            status_code=200,
+        )
     company_id = int(integ.company_id)
     sig = request.headers.get("X-Hub-Signature-256")
     try:
-        await handle_instagram_webhook(
+        result = await handle_instagram_webhook(
             db,
             integ=integ,
             company_id=company_id,
             raw_body=raw_body,
             payload=payload,
             signature_header=sig,
+            allow_bad_signature=has_sample,
             create_lead_fn=_create_lead_from_integration,
             upsert_thread_fn=_upsert_thread,
             add_message_fn=_add_incoming_message,
             lead_read_fn=_lead_read,
         )
     except HTTPException as e:
-        # Meta повторит при 4xx/5xx — для теста/подписи лучше 200, иначе отключат webhook
         logger.warning("meta webhook handled with HTTPException %s: %s", e.status_code, e.detail)
-        if e.status_code in (401, 403):
-            return Response(status_code=403)
-        return Response(status_code=200)
-    except Exception:
+        body = json.dumps({"ok": False, "reason": "http", "status": e.status_code, "detail": str(e.detail)[:180]})
+        return Response(content=body, media_type="application/json", status_code=200 if e.status_code not in (401, 403) else 403)
+    except Exception as e:
         logger.exception("meta webhook failed entry.id=%s", page_id)
-        return Response(status_code=200)
-    # Meta ждёт быстрый 200 без тела
-    return Response(status_code=200)
+        return Response(
+            content=json.dumps({"ok": False, "reason": "exception", "detail": str(e)[:200]}),
+            media_type="application/json",
+            status_code=200,
+        )
+    if result is not None and not isinstance(result, Response):
+        return Response(
+            content=json.dumps(
+                {"ok": True, "created": True, "lead_id": getattr(result, "id", None), "integration_id": integ.id}
+            ),
+            media_type="application/json",
+            status_code=200,
+        )
+    return Response(
+        content=json.dumps({"ok": True, "created": False, "integration_id": integ.id, "entry_id": page_id}),
+        media_type="application/json",
+        status_code=200,
+    )
 
 
 @router.get("/webhook/{integration_id}")

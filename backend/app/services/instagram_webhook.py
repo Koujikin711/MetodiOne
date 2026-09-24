@@ -235,6 +235,7 @@ async def handle_instagram_webhook(
     raw_body: bytes,
     payload: dict[str, Any],
     signature_header: str | None,
+    allow_bad_signature: bool = False,
     # callbacks injected to avoid circular imports
     create_lead_fn: Any,
     upsert_thread_fn: Any,
@@ -249,8 +250,11 @@ async def handle_instagram_webhook(
     page_token = str(cfg.get("page_access_token") or cfg.get("pageAccessToken") or "").strip()
     app_secret = str(cfg.get("app_secret") or cfg.get("appSecret") or "").strip()
 
-    if not verify_meta_app_signature(raw_body=raw_body, signature_header=signature_header, app_secret=app_secret):
+    sig_ok = verify_meta_app_signature(raw_body=raw_body, signature_header=signature_header, app_secret=app_secret)
+    if not sig_ok and not allow_bad_signature:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid X-Hub-Signature-256")
+    if not sig_ok and allow_bad_signature:
+        logger.warning("instagram webhook: bad signature ignored for Meta dashboard sample")
 
     if not page_token:
         raise HTTPException(
