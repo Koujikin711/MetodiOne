@@ -14,6 +14,8 @@ type Props = {
   allowClear?: boolean;
   /** Только иконка календаря (дата в title / aria). */
   iconOnly?: boolean;
+  /** Подпись, если дата не выбрана. */
+  placeholder?: string;
 };
 
 const PANEL_W = 280;
@@ -40,6 +42,7 @@ export function DateField({
   "aria-label": ariaLabel,
   allowClear = true,
   iconOnly = false,
+  placeholder = "ДД.ММ.ГГГГ",
 }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -93,7 +96,7 @@ export function DateField({
     };
   }, [open]);
 
-  const display = formatDisplay(value) || "ДД.ММ.ГГГГ";
+  const display = formatDisplay(value) || placeholder;
   const selectedLabel = formatDisplay(value);
   const buttonLabel = selectedLabel
     ? `${ariaLabel ?? "Дата"}: ${selectedLabel}`

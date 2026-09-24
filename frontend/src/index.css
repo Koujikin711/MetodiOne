@@ -1741,7 +1741,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-patient-dob {
-  width: 2.5rem;
+  width: 5.75rem;
   flex-shrink: 0;
 }
 
@@ -1753,14 +1753,184 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   border-radius: 0;
   background: transparent !important;
   box-shadow: none !important;
-  padding-left: 0.35rem;
+  padding-left: 0.4rem;
   padding-right: 0.35rem;
+  font-size: 0.72rem;
+  gap: 0.25rem !important;
+}
+
+.booking-patient-dob .mo-input svg {
+  width: 14px;
+  height: 14px;
 }
 
 @media (min-width: 640px) {
   .booking-patient-dob {
-    width: 2.75rem;
+    width: 6.5rem;
   }
+
+  .booking-patient-dob .mo-input {
+    font-size: 0.78rem;
+  }
+}
+
+/* Мобильный компактный список дня */
+.booking-day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.booking-day-list__specs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.booking-day-list__chip {
+  flex-shrink: 0;
+  border: 1px solid var(--mo-border);
+  border-radius: 999px;
+  background: var(--mo-surface-elevated);
+  color: var(--mo-text-muted);
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0.35rem 0.65rem;
+}
+
+.booking-day-list__chip[data-active="true"] {
+  border-color: var(--mo-gold);
+  color: var(--mo-text);
+  background: var(--mo-accent-soft);
+}
+
+.booking-day-list__empty {
+  margin: 0;
+  padding: 0.75rem 0.25rem;
+}
+
+.booking-day-list__ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.booking-day-list__item {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid var(--mo-border);
+  border-radius: 0.45rem;
+  overflow: hidden;
+  background: var(--mo-surface-elevated);
+  border-left-width: 3px;
+}
+
+.booking-day-list__item.booking-day-list__row--booked {
+  border-left-color: var(--booking-appt-booked-border);
+}
+
+.booking-day-list__item.booking-day-list__row--completed {
+  border-left-color: var(--booking-appt-completed-border);
+}
+
+.booking-day-list__item.booking-day-list__row--no_show {
+  border-left-color: var(--booking-appt-noshow-border);
+}
+
+.booking-day-list__item.booking-day-list__row--cancelled {
+  border-left-color: var(--booking-appt-cancel-border);
+}
+
+.booking-day-list__item.booking-day-list__row--notify {
+  border-left-color: var(--booking-appt-notify-border);
+}
+
+.booking-day-list__row {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--mo-text);
+  cursor: pointer;
+}
+
+.booking-day-list__time {
+  flex-shrink: 0;
+  width: 2.6rem;
+  font-size: 0.7rem;
+  font-weight: 650;
+  color: var(--mo-text-muted);
+}
+
+.booking-day-list__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.booking-day-list__name {
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.booking-day-list__spec {
+  font-size: 0.62rem;
+  line-height: 1.15;
+  color: var(--mo-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.booking-day-list__visit {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.booking-day-list__note {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  border: 0;
+  border-left: 1px solid var(--mo-border);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.booking-day-list__note.is-empty {
+  opacity: 0.55;
+}
+
+.booking-day-list__note.is-filled {
+  opacity: 1;
+}
+
+.booking-day-list__note:disabled {
+  cursor: default;
+  opacity: 0.85;
 }
 
 .booking-journal-table th,
