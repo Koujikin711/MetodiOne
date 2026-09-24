@@ -73,6 +73,11 @@ PRESENCE_ROLES = frozenset(
         UserRole.rop,
         UserRole.owner,
         UserRole.administrator,
+        UserRole.curator,
+        UserRole.expert,
+        UserRole.super_owner,
+        UserRole.finance_analyst,
+        UserRole.accountant,
     }
 )
 

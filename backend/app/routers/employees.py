@@ -2,6 +2,7 @@ import html
 import logging
 import secrets
 import string
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from urllib.parse import urlparse, urlunparse
 
@@ -38,6 +39,17 @@ from app.services.mail import send_email
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
+# Как у РОП: last_seen_at в пределах окна = «в сети».
+_ONLINE_WINDOW = timedelta(minutes=2)
+
+
+def _is_online(last_seen: datetime | None, *, now: datetime | None = None) -> bool:
+    if last_seen is None:
+        return False
+    n = now or datetime.now(UTC)
+    ts = last_seen if last_seen.tzinfo else last_seen.replace(tzinfo=UTC)
+    return (n - ts.astimezone(UTC)) <= _ONLINE_WINDOW
+
 
 class EmployeeRead(BaseModel):
     id: int
@@ -48,6 +60,8 @@ class EmployeeRead(BaseModel):
     pipeline_ids: list[int] = Field(default_factory=list)
     specialization: str | None = None
     booking_direction_id: int | None = None
+    is_online: bool = False
+    last_seen_at: datetime | None = None
 
 
 class InviteEmployeeBody(BaseModel):
@@ -128,6 +142,8 @@ async def _employee_read(db: AsyncSession, u: User) -> EmployeeRead:
         pipeline_ids=pids,
         specialization=sp_text or None,
         booking_direction_id=spec_row.direction_id if spec_row else None,
+        is_online=_is_online(u.last_seen_at),
+        last_seen_at=u.last_seen_at,
     )
 
 
@@ -147,6 +163,8 @@ def _employee_read_cached(
         pipeline_ids=pipeline_ids,
         specialization=sp_text or None,
         booking_direction_id=specialist.direction_id if specialist else None,
+        is_online=_is_online(u.last_seen_at),
+        last_seen_at=u.last_seen_at,
     )
 
 

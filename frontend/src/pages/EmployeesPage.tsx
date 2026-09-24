@@ -17,6 +17,8 @@ export interface Employee {
   role: UserRole;
   pipeline_ids: number[];
   specialization?: string | null;
+  is_online?: boolean;
+  last_seen_at?: string | null;
 }
 
 interface InviteResult {
@@ -97,6 +99,7 @@ export function EmployeesPage() {
   const employeesQuery = useQuery({
     queryKey: ["employees"],
     queryFn: () => apiFetch<Employee[]>("/api/employees"),
+    refetchInterval: 30_000,
   });
   const pipelinesQuery = useQuery({
     queryKey: ["pipelines"],
@@ -723,8 +726,24 @@ export function EmployeesPage() {
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={[
+                      "employee-presence-dot",
+                      e.is_online ? "is-online" : "is-offline",
+                    ].join(" ")}
+                    title={e.is_online ? "В сети" : "Не в сети"}
+                    aria-label={e.is_online ? "В сети" : "Не в сети"}
+                  />
                   <div className="truncate lux-subheading">{e.full_name ?? "—"}</div>
                   <span className="employee-role-badge">{roleLabel(e.role)}</span>
+                  <span
+                    className={[
+                      "employee-presence-label",
+                      e.is_online ? "is-online" : "is-offline",
+                    ].join(" ")}
+                  >
+                    {e.is_online ? "В сети" : "Не в сети"}
+                  </span>
                 </div>
                 <div className="mt-1 text-sm lux-caption">
                   {e.email}

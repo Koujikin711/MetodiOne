@@ -6681,6 +6681,34 @@ fieldset.extra-services-field {
   background: var(--mo-accent-soft);
   color: var(--mo-accent-hover);
 }
+.employee-presence-dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.employee-presence-dot.is-online {
+  background: #34d399;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #34d399 28%, transparent);
+}
+.employee-presence-dot.is-offline {
+  background: color-mix(in srgb, var(--mo-text-muted) 55%, transparent);
+}
+.employee-presence-label {
+  @apply inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium;
+}
+.employee-presence-label.is-online {
+  color: #059669;
+  background: color-mix(in srgb, #34d399 18%, transparent);
+}
+.employee-presence-label.is-offline {
+  color: var(--mo-text-muted);
+  background: color-mix(in srgb, var(--mo-text-muted) 12%, transparent);
+}
+:root[data-theme="dark"] .employee-presence-label.is-online {
+  color: #6ee7b7;
+}
 .employees-redistribute-panel {
   @apply rounded-2xl border px-4 py-3.5;
   border-color: color-mix(in srgb, var(--mo-accent) 28%, var(--mo-border));

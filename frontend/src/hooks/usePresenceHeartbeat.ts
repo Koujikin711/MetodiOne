@@ -11,6 +11,11 @@ const HEARTBEAT_ROLES = new Set([
   "rop",
   "owner",
   "administrator",
+  "curator",
+  "expert",
+  "super_owner",
+  "finance_analyst",
+  "accountant",
 ]);
 
 const INTERVAL_MS = 30_000;
