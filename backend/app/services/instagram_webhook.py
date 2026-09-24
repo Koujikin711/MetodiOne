@@ -176,6 +176,57 @@ def meta_hub_challenge_response(*, verify_token: str, hub_mode: str | None, hub_
     return PlainTextResponse(content=hub_challenge, status_code=200)
 
 
+def normalize_meta_webhook_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Meta «Тест → Отправить на сервер» иногда шлёт {sample:{field,value}} вместо entry/messaging."""
+    if not isinstance(payload, dict):
+        return {}
+    if isinstance(payload.get("entry"), list) and payload.get("entry"):
+        return payload
+
+    sample = payload.get("sample")
+    if isinstance(sample, dict):
+        field = str(sample.get("field") or "").strip()
+        value = sample.get("value")
+        if field == "messages" and isinstance(value, dict):
+            recipient = value.get("recipient") if isinstance(value.get("recipient"), dict) else {}
+            entry_id = str(recipient.get("id") or "0").strip() or "0"
+            return {
+                "object": "instagram",
+                "entry": [
+                    {
+                        "id": entry_id,
+                        "time": int(value.get("timestamp") or 0) or None,
+                        "messaging": [value],
+                    }
+                ],
+            }
+        if field == "leadgen" and isinstance(value, dict):
+            page_id = str(value.get("page_id") or "0").strip() or "0"
+            return {
+                "object": "page",
+                "entry": [
+                    {
+                        "id": page_id,
+                        "time": None,
+                        "changes": [{"field": "leadgen", "value": value}],
+                    }
+                ],
+            }
+
+    # Иногда value лежит в корне после «Тест»
+    if isinstance(payload.get("sender"), dict) and isinstance(payload.get("message"), dict):
+        recipient = payload.get("recipient") if isinstance(payload.get("recipient"), dict) else {}
+        entry_id = str(recipient.get("id") or "0").strip() or "0"
+        return {"object": "instagram", "entry": [{"id": entry_id, "messaging": [payload]}]}
+
+    return payload
+
+
+def _is_meta_dashboard_test_mid(mid: str) -> bool:
+    m = (mid or "").strip().lower()
+    return (not m) or m in {"test_message_id", "test_mid"} or m.startswith("test_")
+
+
 async def handle_instagram_webhook(
     db: AsyncSession,
     *,
@@ -207,9 +258,11 @@ async def handle_instagram_webhook(
             detail="Instagram integration missing page_access_token",
         )
 
+    payload = normalize_meta_webhook_payload(payload if isinstance(payload, dict) else {})
     obj = str(payload.get("object") or "").strip()
     entries = payload.get("entry") or []
     if not isinstance(entries, list) or not entries:
+        logger.info("instagram webhook: empty entry after normalize keys=%s", list(payload.keys())[:12])
         return Response(status_code=204)
 
     source_lead = "INSTAGRAM"
@@ -265,9 +318,10 @@ async def handle_instagram_webhook(
             await db.refresh(lead, ["stage"])
             return lead_read_fn(lead)
 
-        # --- Instagram Direct (object == "instagram") ---
-        if obj == "instagram":
-            for msg_evt in entry.get("messaging") or []:
+        # --- Instagram Direct / Page messaging ---
+        messaging_events = entry.get("messaging") or []
+        if messaging_events and obj in ("", "instagram", "page"):
+            for msg_evt in messaging_events:
                 if not isinstance(msg_evt, dict):
                     continue
                 message = msg_evt.get("message") or {}
@@ -277,8 +331,9 @@ async def handle_instagram_webhook(
                 if message.get("is_echo") is True:
                     continue
                 mid = str(message.get("mid") or "").strip()
-                if mid and await _audit_message_mid(db, company_id=company_id, mid=mid):
-                    continue
+                if mid and not _is_meta_dashboard_test_mid(mid):
+                    if await _audit_message_mid(db, company_id=company_id, mid=mid):
+                        continue
                 text = str(message.get("text") or "").strip()
                 if not text and not message.get("attachments"):
                     continue
@@ -286,8 +341,10 @@ async def handle_instagram_webhook(
                 sid = str(sender.get("id") or "").strip()
                 if not sid:
                     continue
-                display = await fetch_ig_user_display_name(sid, page_token)
-                name = display or f"Instagram {sid[:8]}…"
+                display = None
+                if not _is_meta_dashboard_test_mid(mid) and sid not in {"12334", "123", "0"}:
+                    display = await fetch_ig_user_display_name(sid, page_token)
+                name = display or (f"Meta тест {sid}" if _is_meta_dashboard_test_mid(mid) or sid in {"12334", "123"} else f"Instagram {sid[:8]}…")
                 ext = f"ig:{sid}"
                 body = text or "[вложение]"
                 lead = await create_lead_fn(
@@ -310,54 +367,7 @@ async def handle_instagram_webhook(
                     title=name,
                 )
                 await add_message_fn(db, company_id, thread.id, body)
-                if mid:
-                    await _mark_message_mid(db, company_id=company_id, mid=mid)
-                await db.refresh(lead, ["stage"])
-                return lead_read_fn(lead)
-
-        # --- Редко: messaging под object page (Facebook Messenger) ---
-        if obj == "page" and entry.get("messaging"):
-            for msg_evt in entry.get("messaging") or []:
-                if not isinstance(msg_evt, dict):
-                    continue
-                message = msg_evt.get("message") or {}
-                if not isinstance(message, dict):
-                    continue
-                if message.get("is_echo") is True:
-                    continue
-                mid = str(message.get("mid") or "").strip()
-                if mid and await _audit_message_mid(db, company_id=company_id, mid=mid):
-                    continue
-                text = str(message.get("text") or "").strip()
-                if not text:
-                    continue
-                sender = msg_evt.get("sender") or {}
-                sid = str(sender.get("id") or "").strip()
-                if not sid:
-                    continue
-                sender_label = (await fetch_ig_user_display_name(sid, page_token)) or f"Facebook {sid[:8]}…"
-                ext = f"fb:{sid}"
-                lead = await create_lead_fn(
-                    db,
-                    integ=integ,
-                    company_id=company_id,
-                    name=sender_label,
-                    phone=None,
-                    email=None,
-                    source_name="FACEBOOK_MESSENGER",
-                    external_chat_id=ext,
-                    thread_provider=IntegrationProvider.instagram.value,
-                )
-                thread = await upsert_thread_fn(
-                    db,
-                    company_id=company_id,
-                    lead=lead,
-                    provider=IntegrationProvider.instagram.value,
-                    external_chat_id=ext,
-                    title=sender_label,
-                )
-                await add_message_fn(db, company_id, thread.id, text)
-                if mid:
+                if mid and not _is_meta_dashboard_test_mid(mid):
                     await _mark_message_mid(db, company_id=company_id, mid=mid)
                 await db.refresh(lead, ["stage"])
                 return lead_read_fn(lead)

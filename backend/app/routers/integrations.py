@@ -1025,10 +1025,14 @@ async def meta_webhook_shared(
     if not isinstance(payload, dict):
         payload = {}
     logger.info(
-        "meta webhook hit object=%s entries=%s",
+        "meta webhook hit object=%s sample=%s entries=%s",
         payload.get("object"),
+        bool(payload.get("sample")),
         len(payload.get("entry") or []) if isinstance(payload.get("entry"), list) else 0,
     )
+    from app.services.instagram_webhook import normalize_meta_webhook_payload
+
+    payload = normalize_meta_webhook_payload(payload)
     entries = payload.get("entry") or []
     page_id = ""
     if isinstance(entries, list) and entries and isinstance(entries[0], dict):
