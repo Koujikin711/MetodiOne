@@ -296,16 +296,30 @@ export function MarketingPage() {
         <p className="text-sm text-red-400">{(overviewQuery.error as Error).message}</p>
       ) : data ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
               <div className="text-xs mo-muted">Расход</div>
               <div className="mt-1 text-xl font-semibold tabular-nums">{money(data.spend, currency)}</div>
             </div>
             <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
-              <div className="text-xs mo-muted">Лиды</div>
+              <div className="text-xs mo-muted">Лиды Meta</div>
               <div className="mt-1 text-xl font-semibold tabular-nums">{data.leads}</div>
               <div className="mt-1 text-[11px] mo-muted">
-                CPL {data.cost_per_lead != null ? money(data.cost_per_lead, currency) : "—"}
+                формы + переписки · CPL{" "}
+                {data.cost_per_lead != null ? money(data.cost_per_lead, currency) : "—"}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
+              <div className="text-xs mo-muted">В CRM у менеджеров</div>
+              <div className="mt-1 text-xl font-semibold tabular-nums">
+                {data.managers_total?.received ?? 0}
+              </div>
+              <div className="mt-1 text-[11px] mo-muted">
+                {data.leads > 0
+                  ? `${(((data.managers_total?.received ?? 0) / data.leads) * 100).toLocaleString("ru-RU", {
+                      maximumFractionDigits: 1,
+                    })}% от Meta`
+                  : "карточки в воронке"}
               </div>
             </div>
             <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
@@ -324,6 +338,10 @@ export function MarketingPage() {
             </div>
           </div>
 
+          <p className="text-xs mo-muted">
+            Meta считает события рекламы (форма + старт переписки). В CRM — только реальные карточки,
+            которые дошли менеджерам. Не каждый клик/сообщение в Instagram создаёт лид в MetodiOne.
+          </p>
           <MarketingCharts
             campaigns={data.campaigns}
             brands={data.brands}
@@ -410,7 +428,7 @@ export function MarketingPage() {
 
           <section className="overflow-hidden rounded-2xl border border-[var(--mo-border)]">
             <div className="border-b border-[var(--mo-border)] px-4 py-3 text-sm font-semibold">
-              Конверсия менеджеров · лиды с рекламы
+              Конверсия менеджеров · карточки CRM с рекламы (не = лиды Meta)
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
