@@ -33,6 +33,7 @@ type Props = {
   isRop?: boolean;
   showFinance: boolean;
   showExpenses?: boolean;
+  showMarketing?: boolean;
   showIntegrationsHub: boolean;
   showKpi: boolean;
   bookingEnabled?: boolean;
@@ -56,6 +57,7 @@ export function ShellSidebarNav({
   isRop = false,
   showFinance,
   showExpenses = false,
+  showMarketing = false,
   showIntegrationsHub,
   showKpi,
   bookingEnabled = true,
@@ -78,6 +80,7 @@ export function ShellSidebarNav({
         isRop,
         showFinance,
         showExpenses,
+        showMarketing,
         showIntegrationsHub,
         showKpi,
         bookingEnabled,
@@ -99,6 +102,7 @@ export function ShellSidebarNav({
       isRop,
       showFinance,
       showExpenses,
+      showMarketing,
       showIntegrationsHub,
       showKpi,
       bookingEnabled,

@@ -20,6 +20,7 @@ from app.database_migrate import (
     ensure_booking_specialist_columns,
     ensure_chat_performance_indexes,
     ensure_finance_osv_tables,
+    ensure_marketing_meta_settings,
     ensure_integration_provider_migration,
     ensure_multi_tenant_migration,
     ensure_owner_role_migration,
@@ -68,6 +69,7 @@ from app.routers import (
     finance,
     integrations,
     leads,
+    marketing,
     pipelines,
     reports,
     rop,
@@ -141,6 +143,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_booking_specialist_columns(conn, db_url)
                 await ensure_multi_tenant_migration(conn, db_url)
                 await ensure_finance_osv_tables(conn, db_url)
+                await ensure_marketing_meta_settings(conn, db_url)
                 await ensure_sales_kpi_plans(conn, db_url)
                 # Тяжёлые chat-индексы/backfill — после ответа health (см. lifespan background).
                 await ensure_attendance_tracker_tables(conn, db_url)
@@ -938,6 +941,7 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(companies.router, prefix="/api")
 app.include_router(tariff_plans.router, prefix="/api")
 app.include_router(finance.router, prefix="/api")
+app.include_router(marketing.router, prefix="/api")
 app.include_router(team_chat.router, prefix="/api")
 app.include_router(waiting_callbacks.router, prefix="/api")
 app.include_router(extra_services.router, prefix="/api")

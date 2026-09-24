@@ -7,6 +7,7 @@ import {
   HomeEntry,
   RequireExpenses,
   RequireFinance,
+  RequireMarketing,
   RequireNotManager,
   RequireOwner,
   RequireRop,
@@ -40,6 +41,7 @@ import { TasksPage } from "@/pages/TasksPage";
 import { TeamMessengerPage } from "@/pages/TeamMessengerPage";
 import { ManagerDeskPage } from "@/pages/ManagerDeskPage";
 import { ManagerSalesPage } from "@/pages/ManagerSalesPage";
+import { MarketingPage } from "@/pages/MarketingPage";
 import { SalesQuoteCalculatorPage } from "@/pages/SalesQuoteCalculatorPage";
 import { SalesVisitTrackerPage } from "@/pages/SalesVisitTrackerPage";
 import { ExtraServicesPage } from "@/pages/ExtraServicesPage";
@@ -119,6 +121,14 @@ export default function App() {
                 <RequireExpenses>
                   <ExpensesPage />
                 </RequireExpenses>
+              }
+            />
+            <Route
+              path="/marketing"
+              element={
+                <RequireMarketing>
+                  <MarketingPage />
+                </RequireMarketing>
               }
             />
             <Route path="/reports" element={<ExpertReportsPage />} />

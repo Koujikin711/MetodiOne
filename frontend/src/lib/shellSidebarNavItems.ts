@@ -38,6 +38,7 @@ type BuildParams = {
   isRop?: boolean;
   showFinance: boolean;
   showExpenses?: boolean;
+  showMarketing?: boolean;
   showIntegrationsHub: boolean;
   showKpi: boolean;
   bookingEnabled?: boolean;
@@ -101,6 +102,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     isRop = false,
     showFinance,
     showExpenses = false,
+    showMarketing = false,
     showIntegrationsHub,
     showKpi,
     bookingEnabled = true,
@@ -295,6 +297,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "wallet",
       });
     }
+    if (showMarketing) {
+      items.push({
+        id: "marketing",
+        to: "/marketing",
+        title: "Маркетинг",
+        labelShort: "Маркет.",
+        labelFull: "Маркетинг · Meta Ads",
+        variant: "purple",
+        iconKey: "bar-chart",
+      });
+    }
     return items;
   }
 
@@ -321,6 +334,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         labelFull: "Расходы",
         variant: "finance",
         iconKey: "wallet",
+      });
+    }
+    if (showMarketing) {
+      items.push({
+        id: "marketing",
+        to: "/marketing",
+        title: "Маркетинг",
+        labelShort: "Маркет.",
+        labelFull: "Маркетинг · Meta Ads",
+        variant: "purple",
+        iconKey: "bar-chart",
       });
     }
     return items;
@@ -748,6 +772,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       labelFull: "Расходы",
       variant: "finance",
       iconKey: "wallet",
+    });
+  }
+  if (showMarketing) {
+    items.push({
+      id: "marketing",
+      to: "/marketing",
+      title: "Маркетинг",
+      labelShort: "Маркет.",
+      labelFull: "Маркетинг · Meta Ads",
+      variant: "purple",
+      iconKey: "bar-chart",
     });
   }
   if (showNavForFeature("employees")) {

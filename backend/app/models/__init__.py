@@ -5,3 +5,4 @@ from app.models.finance_osv import *  # noqa: F403
 from app.models.waiting_callback import *  # noqa: F403
 from app.models.extra_service import *  # noqa: F403
 from app.models.curator_journal import *  # noqa: F403
+from app.models.marketing_meta import *  # noqa: F403

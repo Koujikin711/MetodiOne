@@ -3991,3 +3991,35 @@ async def ensure_curator_journal_tables(conn: AsyncConnection, database_url: str
             "ON curator_journal_complaints(journal_entry_id)"
         )
     )
+
+
+async def ensure_marketing_meta_settings(conn: AsyncConnection, database_url: str) -> None:
+    low = (database_url or "").lower()
+    sqlite = "sqlite" in low or "aiosqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS marketing_meta_settings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL UNIQUE,
+                    ad_account_id VARCHAR(64) NOT NULL DEFAULT '',
+                    access_token TEXT,
+                    updated_at DATETIME
+                )"""
+            )
+        )
+        return
+    await conn.execute(
+        text(
+            """CREATE TABLE IF NOT EXISTS marketing_meta_settings (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE,
+                ad_account_id VARCHAR(64) NOT NULL DEFAULT '',
+                access_token TEXT,
+                updated_at TIMESTAMPTZ
+            )"""
+        )
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_marketing_meta_settings_company_id ON marketing_meta_settings (company_id)")
+    )

@@ -99,6 +99,12 @@ export function MainLayout() {
     role === "accountant" ||
     role === "admin" ||
     role === "administrator";
+  const showMarketing =
+    role === "owner" ||
+    role === "super_owner" ||
+    role === "accountant" ||
+    role === "admin" ||
+    role === "administrator";
   const showIntegrationsHub = role === "owner" || isChiefExpert;
   const showKpi =
     role === "owner" ||
@@ -175,6 +181,7 @@ export function MainLayout() {
               isRop={isRop}
               showFinance={showFinance}
               showExpenses={showExpenses}
+              showMarketing={showMarketing}
               showIntegrationsHub={showIntegrationsHub}
               showKpi={showKpi}
               bookingEnabled={bookingEnabled}

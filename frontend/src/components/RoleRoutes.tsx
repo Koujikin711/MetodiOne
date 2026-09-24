@@ -177,6 +177,22 @@ export function RequireExpenses({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+export function RequireMarketing({ children }: { children: ReactNode }) {
+  const r = decodeRoleFromToken(getStoredToken());
+  if (
+    r !== "owner" &&
+    r !== "super_owner" &&
+    r !== "accountant" &&
+    r !== "admin" &&
+    r !== "administrator"
+  ) {
+    return (
+      <AccessDenied message="Раздел «Маркетинг» доступен владельцу, администратору и бухгалтеру." />
+    );
+  }
+  return <>{children}</>;
+}
+
 export function RequireSuperOwner({ children }: { children: ReactNode }) {
   if (decodeRoleFromToken(getStoredToken()) !== "super_owner") {
     return <AccessDenied message="Раздел «Компании» доступен только супер-владельцу платформы." />;
