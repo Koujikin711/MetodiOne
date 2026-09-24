@@ -1318,7 +1318,7 @@ export function OnlineBookingPage() {
                 <div ref={patientSuggestRef} className="relative space-y-2.5">
                   <label className="block text-sm mo-muted">
                     Пациент / ДР
-                    <div className="mt-1 flex min-w-0 items-stretch gap-1.5">
+                    <div className="booking-patient-combo mt-1">
                       <input
                         required
                         value={patientName}
@@ -1336,17 +1336,19 @@ export function OnlineBookingPage() {
                             setPatientFieldFocus((prev) => (prev === "name" ? null : prev));
                           }, 120);
                         }}
-                        className="mo-input min-w-0 flex-1 text-sm"
+                        className="booking-patient-combo__name"
                         autoComplete="off"
                         placeholder="ФИО"
+                        aria-label="ФИО пациента"
                       />
+                      <span className="booking-patient-combo__sep" aria-hidden />
                       <DateField
                         required
                         value={patientBirthDate}
                         onChange={setPatientBirthDate}
                         allowClear={false}
                         aria-label="Дата рождения"
-                        className="booking-patient-dob shrink-0"
+                        className="booking-patient-dob"
                       />
                     </div>
                   </label>

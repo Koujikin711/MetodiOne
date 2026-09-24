@@ -1519,10 +1519,10 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   color: inherit;
 }
 .booking-appt-note-btn.is-empty {
-  opacity: 0.42;
+  opacity: 0.72;
 }
 .booking-appt-note-btn.is-empty:hover {
-  opacity: 0.85;
+  opacity: 1;
 }
 .booking-appt-attendance.is-done {
   color: #16a34a;
@@ -1540,7 +1540,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   letter-spacing: 0.02em;
 }
 .booking-appt-head {
-  align-items: center;
+  align-items: flex-start;
 }
 .booking-appt-foot {
   min-height: 0.75rem;
@@ -1702,20 +1702,64 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   @apply grid w-full gap-3 lg:grid-cols-[minmax(0,1fr)_min(100%,17.5rem)] xl:grid-cols-[minmax(0,1fr)_17.5rem] xl:items-start;
 }
 
+.booking-patient-combo {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  border: 1px solid var(--mo-border-strong);
+  border-radius: 0.5rem;
+  background: var(--mo-surface-elevated);
+  overflow: hidden;
+}
+
+.booking-patient-combo:focus-within {
+  border-color: var(--mo-gold);
+}
+
+.booking-patient-combo__name {
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 0;
+  background: transparent;
+  color: var(--mo-text);
+  font-size: 0.875rem;
+  line-height: 1.25;
+  padding: 0.55rem 0.65rem;
+  outline: none;
+}
+
+.booking-patient-combo__name::placeholder {
+  color: var(--mo-text-muted);
+}
+
+.booking-patient-combo__sep {
+  width: 1px;
+  flex-shrink: 0;
+  align-self: stretch;
+  margin: 0.45rem 0;
+  background: var(--mo-border);
+}
+
 .booking-patient-dob {
-  width: 7.75rem;
+  width: 7.5rem;
+  flex-shrink: 0;
 }
 
 .booking-patient-dob .mo-input {
-  min-height: 2.4rem;
-  padding-left: 0.55rem;
-  padding-right: 0.45rem;
+  min-height: 100%;
+  height: 100%;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-left: 0.45rem;
+  padding-right: 0.4rem;
   font-size: 0.75rem;
 }
 
 @media (min-width: 640px) {
   .booking-patient-dob {
-    width: 8.75rem;
+    width: 8.5rem;
   }
 
   .booking-patient-dob .mo-input {
