@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -11,6 +12,23 @@ import httpx
 
 GRAPH_VERSION = "v21.0"
 GRAPH_BASE = f"https://graph.facebook.com/{GRAPH_VERSION}"
+
+# Кампании только с аккаунтов / брендов: Ganjina, Zamiri, Metodi_Clinic
+_ALLOWED_CAMPAIGN_RE = re.compile(
+    r"ganjina|ганчин|zamiri|замири|metodi[_\s-]?clinic|metodione|metodi\s*clinic",
+    re.IGNORECASE,
+)
+
+_LEAD_ACTION_TYPES = (
+    "lead",
+    "onsite_conversion.lead",
+    "onsite_web_lead",
+    "offsite_complete_registration_add_meta_leads",
+)
+_MESSAGING_ACTION_TYPES = (
+    "onsite_conversion.total_messaging_connection",
+    "onsite_conversion.messaging_conversation_started_7d",
+)
 
 
 def normalize_ad_account_id(raw: str) -> str:
@@ -21,6 +39,11 @@ def normalize_ad_account_id(raw: str) -> str:
         return s
     digits = "".join(ch for ch in s if ch.isdigit())
     return f"act_{digits}" if digits else s
+
+
+def is_allowed_campaign_name(name: str | None) -> bool:
+    """Оставляем только Ganjina / Zamiri / Metodi_Clinic (и близкие названия)."""
+    return bool(_ALLOWED_CAMPAIGN_RE.search(name or ""))
 
 
 def _action_value(actions: list[dict[str, Any]] | None, *types: str) -> int:
@@ -35,6 +58,11 @@ def _action_value(actions: list[dict[str, Any]] | None, *types: str) -> int:
             except (TypeError, ValueError):
                 continue
     return total
+
+
+def _row_leads(actions: list[dict[str, Any]] | None) -> int:
+    """Формы + переписки (messaging) = лиды."""
+    return _action_value(actions, *_LEAD_ACTION_TYPES) + _action_value(actions, *_MESSAGING_ACTION_TYPES)
 
 
 async def fetch_account_meta(token: str, ad_account_id: str) -> dict[str, Any]:
@@ -92,6 +120,8 @@ async def fetch_insights_range(
             paging = data.get("paging") or {}
             url = paging.get("next") or None
             params = {}
+    if level == "campaign":
+        out = [row for row in out if is_allowed_campaign_name(str(row.get("campaign_name") or ""))]
     return out
 
 
@@ -100,31 +130,17 @@ def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     impressions = 0
     clicks = 0
     leads = 0
-    messaging = 0
     for row in rows:
         spend += Decimal(str(row.get("spend") or 0))
         impressions += int(float(row.get("impressions") or 0))
         clicks += int(float(row.get("clicks") or 0))
-        actions = row.get("actions")
-        leads += _action_value(
-            actions,
-            "lead",
-            "onsite_conversion.lead",
-            "onsite_web_lead",
-            "offsite_complete_registration_add_meta_leads",
-        )
-        messaging += _action_value(
-            actions,
-            "onsite_conversion.total_messaging_connection",
-            "onsite_conversion.messaging_conversation_started_7d",
-        )
+        leads += _row_leads(row.get("actions"))
     cpl = (spend / Decimal(leads)).quantize(Decimal("0.01")) if leads > 0 else None
     return {
         "spend": spend,
         "impressions": impressions,
         "clicks": clicks,
         "leads": leads,
-        "messaging_connections": messaging,
         "cost_per_lead": cpl,
     }
 
@@ -133,14 +149,7 @@ def campaign_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for row in rows:
         spend = Decimal(str(row.get("spend") or 0))
-        actions = row.get("actions")
-        leads = _action_value(
-            actions,
-            "lead",
-            "onsite_conversion.lead",
-            "onsite_web_lead",
-            "offsite_complete_registration_add_meta_leads",
-        )
+        leads = _row_leads(row.get("actions"))
         out.append(
             {
                 "campaign_id": str(row.get("campaign_id") or ""),

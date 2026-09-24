@@ -33,6 +33,18 @@ class MarketingCampaignRow(BaseModel):
     cost_per_lead: Decimal | None = None
 
 
+class MarketingManagerConversionRow(BaseModel):
+    manager_id: int | None = None
+    manager_name: str
+    received: int = 0
+    answered: int = 0
+    rejected: int = 0
+    sold: int = 0
+    answered_pct: float = 0.0
+    rejected_pct: float = 0.0
+    sold_pct: float = 0.0
+
+
 class MarketingOverviewRead(BaseModel):
     period_start: date
     period_end: date
@@ -43,6 +55,7 @@ class MarketingOverviewRead(BaseModel):
     impressions: int
     clicks: int
     leads: int
-    messaging_connections: int = 0
     cost_per_lead: Decimal | None = None
     campaigns: list[MarketingCampaignRow] = Field(default_factory=list)
+    managers: list[MarketingManagerConversionRow] = Field(default_factory=list)
+    managers_total: MarketingManagerConversionRow | None = None
