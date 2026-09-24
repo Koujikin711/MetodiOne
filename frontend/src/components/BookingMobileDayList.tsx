@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { FileText } from "@/components/icons";
 import { formatTimeInBookingTz, ymdInBookingTz } from "@/lib/bookingTz";
@@ -32,7 +32,17 @@ export function BookingMobileDayList({
   onAppointmentNoteClick,
   showSessionInsteadOfTime,
 }: Props) {
-  const [specFilter, setSpecFilter] = useState<"all" | number>("all");
+  const [specFilter, setSpecFilter] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (specialists.length === 0) {
+      setSpecFilter(null);
+      return;
+    }
+    setSpecFilter((prev) =>
+      prev != null && specialists.some((s) => s.id === prev) ? prev : specialists[0]!.id,
+    );
+  }, [specialists]);
 
   const specNameById = useMemo(() => {
     const m = new Map<number, string>();
@@ -44,7 +54,7 @@ export function BookingMobileDayList({
     const list = appointments.filter((a) => {
       if (a.status === "cancelled") return false;
       if (ymdInBookingTz(new Date(a.start_at).getTime()) !== dateYmd) return false;
-      if (specFilter !== "all" && a.specialist_id !== specFilter) return false;
+      if (specFilter != null && a.specialist_id !== specFilter) return false;
       return true;
     });
     list.sort(
@@ -55,17 +65,8 @@ export function BookingMobileDayList({
 
   return (
     <div className="booking-day-list">
-      {specialists.length > 1 ? (
+      {specialists.length > 0 ? (
         <div className="booking-day-list__specs" role="tablist" aria-label="Эксперт">
-          <button
-            type="button"
-            role="tab"
-            data-active={specFilter === "all" ? "true" : "false"}
-            className="booking-day-list__chip"
-            onClick={() => setSpecFilter("all")}
-          >
-            Все
-          </button>
           {specialists.map((s) => (
             <button
               key={s.id}
@@ -108,7 +109,7 @@ export function BookingMobileDayList({
                   </span>
                   <span className="booking-day-list__main">
                     <span className="booking-day-list__name">{a.patient_name}</span>
-                    {specFilter === "all" && specName ? (
+                    {specialists.length === 1 && specName ? (
                       <span className="booking-day-list__spec">{specName}</span>
                     ) : null}
                   </span>

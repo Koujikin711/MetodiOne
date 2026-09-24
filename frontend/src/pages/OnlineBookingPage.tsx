@@ -1259,7 +1259,7 @@ export function OnlineBookingPage() {
             <div className="booking-page-date-nav" aria-label="Дата записи">
               <button
                 type="button"
-                className="booking-page-date-nav-btn lg:hidden"
+                className="booking-page-date-nav-btn booking-page-date-nav-btn--day"
                 aria-label="Предыдущий день"
                 onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, -1))}
               >
@@ -1267,21 +1267,21 @@ export function OnlineBookingPage() {
               </button>
               <button
                 type="button"
-                className="booking-page-date-nav-btn hidden lg:inline-flex"
+                className="booking-page-date-nav-btn booking-page-date-nav-btn--week"
                 aria-label="Предыдущая неделя"
                 onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, -7))}
               >
                 ‹
               </button>
-              <span className="booking-page-date-label lg:hidden">
+              <span className="booking-page-date-label booking-page-date-label--day">
                 {formatBookingToolbarDate(filterDate)}
               </span>
-              <span className="booking-page-date-label hidden lg:inline">
+              <span className="booking-page-date-label booking-page-date-label--week">
                 {formatWeekRangeLabel(filterDate)}
               </span>
               <button
                 type="button"
-                className="booking-page-date-nav-btn lg:hidden"
+                className="booking-page-date-nav-btn booking-page-date-nav-btn--day"
                 aria-label="Следующий день"
                 onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, 1))}
               >
@@ -1289,7 +1289,7 @@ export function OnlineBookingPage() {
               </button>
               <button
                 type="button"
-                className="booking-page-date-nav-btn hidden lg:inline-flex"
+                className="booking-page-date-nav-btn booking-page-date-nav-btn--week"
                 aria-label="Следующая неделя"
                 onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, 7))}
               >
