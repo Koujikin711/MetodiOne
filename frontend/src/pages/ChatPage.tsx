@@ -77,6 +77,8 @@ function threadProviderLabel(provider: string | null | undefined): string | null
   if (!raw) return null;
   const key = raw.toLowerCase().replace(/\s+/g, "_");
   if (key === "green_api") return null;
+  if (key === "instagram") return "Instagram";
+  if (key === "telegram") return "Telegram";
   return raw;
 }
 
