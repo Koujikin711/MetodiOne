@@ -484,7 +484,7 @@ export function MarketingPage() {
                     <th className="px-3 py-2">Получили</th>
                     <th className="px-3 py-2">Ответили</th>
                     <th className="px-3 py-2">Отказ</th>
-                    <th className="px-3 py-2">Продали</th>
+                    <th className="px-3 py-2">Продали (% от ответивших)</th>
                   </tr>
                 </thead>
                 <tbody>

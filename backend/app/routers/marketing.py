@@ -191,7 +191,8 @@ def _conversion_row(
         sold=sold,
         answered_pct=_pct(answered, received),
         rejected_pct=_pct(rejected, received),
-        sold_pct=_pct(sold, received),
+        # Конверсия в продажу — от ответивших
+        sold_pct=_pct(sold, answered),
     )
 
 
