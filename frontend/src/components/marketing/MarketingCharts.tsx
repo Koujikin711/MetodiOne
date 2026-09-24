@@ -18,6 +18,7 @@ const COLORS = ["#0ea5e9", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6"
 const BRAND_COLORS: Record<string, string> = {
   Ganjina: "#0ea5e9",
   Zamiri: "#10b981",
+  MetodiClinic: "#f59e0b",
   Metodi_Clinic: "#f59e0b",
 };
 
