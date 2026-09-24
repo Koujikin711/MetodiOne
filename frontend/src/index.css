@@ -1464,7 +1464,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .chat-thread-header-btn {
-  @apply shrink-0 rounded-lg border px-2 py-1 text-[11px] font-medium leading-none transition disabled:opacity-50 sm:rounded-xl sm:px-2.5 sm:py-1.5 sm:text-xs;
+  @apply shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none transition disabled:opacity-50 sm:rounded-xl sm:px-2.5 sm:py-1.5 sm:text-xs;
   border-color: var(--mo-border-strong);
   background-color: var(--mo-surface-elevated);
   color: var(--mo-accent-hover);
@@ -2922,12 +2922,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .crm-brand-title {
   font-family: var(--font-sans);
-  @apply text-xl font-semibold leading-tight tracking-tight sm:text-2xl;
+  @apply text-lg font-semibold leading-tight tracking-tight sm:text-2xl;
   color: var(--mo-accent);
 }
 
 .crm-pill-btn {
-  @apply rounded-full border px-3 py-1.5 text-xs font-semibold transition sm:text-sm sm:px-3.5 sm:py-1.5;
+  @apply rounded-full border px-2 py-1 text-[11px] font-semibold transition sm:px-3.5 sm:py-1.5 sm:text-sm;
   border-color: var(--mo-border-strong);
   background: var(--mo-surface);
   color: var(--mo-text);
@@ -4996,6 +4996,145 @@ fieldset.extra-services-field {
   border-color: var(--mo-border);
   background: var(--mo-surface);
   color: var(--mo-text);
+  box-shadow: none;
+}
+
+.chat-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-inline: auto;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.2rem;
+  border-radius: 999px;
+  border: 1px solid var(--mo-border);
+  background: color-mix(in srgb, var(--mo-surface-elevated) 88%, transparent);
+}
+
+.chat-month-nav__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mo-accent-soft) 70%, transparent);
+  color: var(--mo-text);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chat-month-nav__btn:hover {
+  background: var(--mo-accent-soft);
+}
+
+.chat-month-nav__label {
+  min-width: 7.5rem;
+  padding: 0 0.35rem;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: capitalize;
+  color: var(--mo-text);
+}
+
+.chat-stage-tabs--sales {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.chat-stage-tabs--sales > .chat-bucket-tab:nth-child(-n + 3) {
+  grid-column: span 2;
+}
+
+.chat-stage-tabs--sales > .chat-bucket-tab:nth-child(n + 4) {
+  grid-column: span 3;
+}
+
+.mkt-charts-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1024px) {
+  .mkt-charts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.mkt-chart-card {
+  border-radius: 0.9rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface);
+  padding: 0.75rem;
+  box-shadow: none;
+}
+
+.mkt-chart-card .recharts-tooltip-cursor {
+  display: none;
+}
+
+.marketing-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface);
+  padding: 0.55rem 0.75rem;
+  box-shadow: none;
+}
+
+.marketing-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.55rem 0.75rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface);
+  padding: 0.65rem 0.75rem;
+  box-shadow: none;
+}
+
+.marketing-period__range {
+  margin: 0;
+  padding-bottom: 0.35rem;
+}
+
+.marketing-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .marketing-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .marketing-kpi-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.marketing-kpi {
+  border-radius: 0.75rem;
+  border: 1px solid var(--mo-border);
+  background: color-mix(in srgb, var(--mo-surface) 80%, transparent);
+  padding: 0.55rem 0.65rem;
   box-shadow: none;
 }
 .chat-bucket-tab:hover {

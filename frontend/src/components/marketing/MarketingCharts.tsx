@@ -142,11 +142,11 @@ export function MarketingCharts({ campaigns, brands, daily, managers, currency }
   }));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="mkt-charts-grid">
       {dailyRows.length > 1 ? (
-        <section className="rounded-2xl border border-[var(--mo-border)] p-4 lg:col-span-2">
-          <h3 className="mb-3 text-sm font-semibold">Динамика · расход и лиды</h3>
-          <div className="h-56">
+        <section className="mkt-chart-card lg:col-span-2">
+          <h3 className="mb-2 text-sm font-semibold">Динамика · расход и лиды</h3>
+          <div className="h-52 sm:h-56">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={dailyRows} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <defs>
@@ -163,7 +163,7 @@ export function MarketingCharts({ campaigns, brands, daily, managers, currency }
                 <XAxis dataKey="name" tick={tick} />
                 <YAxis yAxisId="left" tick={tick} width={40} />
                 <YAxis yAxisId="right" orientation="right" tick={tick} width={36} />
-                <Tooltip content={<ChartTip currency={currency} />} />
+                <Tooltip cursor={false} content={<ChartTip currency={currency} />} />
                 <Legend />
                 <Area
                   yAxisId="left"
@@ -189,9 +189,9 @@ export function MarketingCharts({ campaigns, brands, daily, managers, currency }
         </section>
       ) : null}
 
-      <section className="rounded-2xl border border-[var(--mo-border)] p-4">
-        <h3 className="mb-3 text-sm font-semibold">Расход по кампаниям</h3>
-        <div className="h-56">
+      <section className="mkt-chart-card">
+        <h3 className="mb-2 text-sm font-semibold">Расход по кампаниям</h3>
+        <div className="h-52 sm:h-56">
           {spendRows.length === 0 ? (
             <p className="text-sm mo-muted">Нет данных</p>
           ) : (
@@ -212,9 +212,9 @@ export function MarketingCharts({ campaigns, brands, daily, managers, currency }
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--mo-border)] p-4">
-        <h3 className="mb-3 text-sm font-semibold">Лиды по кампаниям</h3>
-        <div className="h-56">
+      <section className="mkt-chart-card">
+        <h3 className="mb-2 text-sm font-semibold">Лиды по кампаниям</h3>
+        <div className="h-52 sm:h-56">
           {leadShare.length === 0 ? (
             <p className="text-sm mo-muted">Нет лидов</p>
           ) : (
@@ -232,7 +232,7 @@ export function MarketingCharts({ campaigns, brands, daily, managers, currency }
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip content={<ChartTip />} />
+                <Tooltip cursor={false} content={<ChartTip />} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -240,15 +240,15 @@ export function MarketingCharts({ campaigns, brands, daily, managers, currency }
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--mo-border)] p-4">
-        <h3 className="mb-3 text-sm font-semibold">Подписчики по аккаунтам</h3>
-        <div className="h-56">
+      <section className="mkt-chart-card">
+        <h3 className="mb-2 text-sm font-semibold">Подписчики по аккаунтам</h3>
+        <div className="h-52 sm:h-56">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={brandFollow} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--mo-border)" opacity={0.5} />
               <XAxis dataKey="name" tick={tick} />
               <YAxis tick={tick} width={36} allowDecimals={false} />
-              <Tooltip content={<ChartTip />} />
+              <Tooltip cursor={false} content={<ChartTip />} />
               <Legend />
               <Bar dataKey="followers" name="Подписчики" radius={[6, 6, 0, 0]}>
                 {brandFollow.map((r) => (
@@ -261,9 +261,9 @@ export function MarketingCharts({ campaigns, brands, daily, managers, currency }
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--mo-border)] p-4">
-        <h3 className="mb-3 text-sm font-semibold">Конверсия менеджеров</h3>
-        <div className="h-56">
+      <section className="mkt-chart-card">
+        <h3 className="mb-2 text-sm font-semibold">Конверсия менеджеров</h3>
+        <div className="h-52 sm:h-56">
           {managerRows.length === 0 ? (
             <p className="text-sm mo-muted">Нет лидов в CRM</p>
           ) : (
@@ -272,7 +272,7 @@ export function MarketingCharts({ campaigns, brands, daily, managers, currency }
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--mo-border)" opacity={0.5} />
                 <XAxis dataKey="name" tick={tick} />
                 <YAxis tick={tick} width={32} allowDecimals={false} />
-                <Tooltip content={<ChartTip />} />
+                <Tooltip cursor={false} content={<ChartTip />} />
                 <Legend />
                 <Bar dataKey="answered" name="Ответили" stackId="a" fill="#0ea5e9" />
                 <Bar dataKey="sold" name="Продали" stackId="a" fill="#10b981" />

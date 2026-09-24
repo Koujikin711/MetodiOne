@@ -212,33 +212,33 @@ export function MarketingPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
+    <div className="marketing-page mx-auto flex w-full max-w-6xl flex-col gap-3 sm:gap-4">
       <PageHeader
         title="Маркетинг"
         description="Два IG-аккаунта: Ganjina Zamiri и MetodiClinic (без MetodiOne)"
       />
 
       {configured && !showConnect ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[var(--mo-border)] px-4 py-3">
-          <p className="text-sm mo-muted">
+        <div className="marketing-toolbar">
+          <p className="min-w-0 truncate text-sm mo-muted">
             Meta · {settingsQuery.data?.account_name || "подключено"} · {settingsQuery.data?.ad_account_id}
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
-              className="btn-primary text-sm"
+              className="btn-primary text-xs sm:text-sm"
               disabled={igConnectMutation.isPending}
               onClick={() => igConnectMutation.mutate()}
             >
               {igConnectMutation.isPending ? "Подключение…" : "Подключить Instagram DM"}
             </button>
-            <button type="button" className="btn-secondary text-sm" onClick={() => setShowConnect(true)}>
+            <button type="button" className="btn-secondary text-xs sm:text-sm" onClick={() => setShowConnect(true)}>
               Изменить токен
             </button>
           </div>
         </div>
       ) : (
-        <form onSubmit={onSave} className="mo-section space-y-3 p-4">
+        <form onSubmit={onSave} className="mo-section space-y-3 p-3 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-[var(--mo-text)]">Подключение Meta Ads</h2>
             {configured ? (
@@ -277,7 +277,7 @@ export function MarketingPage() {
       )}
 
       {igHook ? (
-        <div className="space-y-2 rounded-2xl border border-emerald-500/40 bg-emerald-500/5 p-4 text-sm">
+        <div className="space-y-2 rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm sm:p-4">
           <p className="font-semibold text-[var(--mo-text)]">Instagram DM подключены: {igHook.accounts}</p>
           <p className="text-xs mo-muted">
             Один раз в Meta Developers → CRM → Webhooks вставь Callback URL и Verify Token, нажми Verify:
@@ -287,11 +287,11 @@ export function MarketingPage() {
         </div>
       ) : null}
 
-      <section className="mo-section flex flex-wrap items-end gap-3 p-4">
-        <label className="block text-sm mo-muted">
+      <section className="marketing-period">
+        <label className="block text-xs mo-muted sm:text-sm">
           Период
           <select
-            className="mo-input mt-1 min-w-[10rem]"
+            className="mo-input mt-1 min-w-[8.5rem] py-1.5 text-sm"
             value={period}
             onChange={(e) => setPeriodKind(e.target.value as PeriodKind)}
           >
@@ -301,7 +301,7 @@ export function MarketingPage() {
             <option value="custom">Свой период</option>
           </select>
         </label>
-        <label className="block text-sm mo-muted">
+        <label className="block text-xs mo-muted sm:text-sm">
           С
           <div className="mt-1">
             <DateField
@@ -313,7 +313,7 @@ export function MarketingPage() {
             />
           </div>
         </label>
-        <label className="block text-sm mo-muted">
+        <label className="block text-xs mo-muted sm:text-sm">
           По
           <div className="mt-1">
             <DateField
@@ -326,7 +326,7 @@ export function MarketingPage() {
           </div>
         </label>
         {data ? (
-          <p className="pb-2 text-xs mo-muted">
+          <p className="marketing-period__range text-xs mo-muted">
             {data.period_start} — {data.period_end}
           </p>
         ) : null}
@@ -342,43 +342,41 @@ export function MarketingPage() {
         <p className="text-sm text-red-400">{(overviewQuery.error as Error).message}</p>
       ) : data ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
-              <div className="text-xs mo-muted">Расход</div>
-              <div className="mt-1 text-xl font-semibold tabular-nums">{money(data.spend, currency)}</div>
+          <div className="marketing-kpi-grid">
+            <div className="marketing-kpi">
+              <div className="text-[11px] mo-muted">Расход</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums sm:text-xl">{money(data.spend, currency)}</div>
             </div>
-            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
-              <div className="text-xs mo-muted">Лиды Meta</div>
-              <div className="mt-1 text-xl font-semibold tabular-nums">{data.leads}</div>
-              <div className="mt-1 text-[11px] mo-muted">
-                формы + переписки · CPL{" "}
-                {data.cost_per_lead != null ? money(data.cost_per_lead, currency) : "—"}
+            <div className="marketing-kpi">
+              <div className="text-[11px] mo-muted">Лиды Meta</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums sm:text-xl">{data.leads}</div>
+              <div className="mt-0.5 text-[10px] mo-muted">
+                CPL {data.cost_per_lead != null ? money(data.cost_per_lead, currency) : "—"}
               </div>
             </div>
-            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
-              <div className="text-xs mo-muted">В CRM у менеджеров</div>
-              <div className="mt-1 text-xl font-semibold tabular-nums">
+            <div className="marketing-kpi">
+              <div className="text-[11px] mo-muted">В CRM</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums sm:text-xl">
                 {data.managers_total?.received ?? 0}
               </div>
-              <div className="mt-1 text-[11px] mo-muted">
+              <div className="mt-0.5 text-[10px] mo-muted">
                 {data.leads > 0
                   ? `${(((data.managers_total?.received ?? 0) / data.leads) * 100).toLocaleString("ru-RU", {
                       maximumFractionDigits: 1,
                     })}% от Meta`
-                  : "карточки в воронке"}
+                  : "карточки"}
               </div>
             </div>
-            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
-              <div className="text-xs mo-muted">Подписчики</div>
-              <div className="mt-1 text-xl font-semibold tabular-nums">{data.followers}</div>
-              <div className="mt-1 text-[11px] mo-muted">follow / page like</div>
+            <div className="marketing-kpi">
+              <div className="text-[11px] mo-muted">Подписчики</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums sm:text-xl">{data.followers}</div>
             </div>
-            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
-              <div className="text-xs mo-muted">Показы / клики</div>
-              <div className="mt-1 text-xl font-semibold tabular-nums">
+            <div className="marketing-kpi">
+              <div className="text-[11px] mo-muted">Показы / клики</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums sm:text-xl">
                 {Number(data.impressions).toLocaleString("ru-RU")}
               </div>
-              <div className="mt-1 text-[11px] mo-muted">
+              <div className="mt-0.5 text-[10px] mo-muted">
                 клики {Number(data.clicks).toLocaleString("ru-RU")}
               </div>
             </div>

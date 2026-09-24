@@ -1217,70 +1217,23 @@ export function ChatPage() {
           </div>
 
           {showManagerChatBuckets ? (
-            <div
-              className="mb-2 shrink-0 max-lg:mb-1.5"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 4px",
-                borderRadius: 12,
-                border: "1px solid #94a3b8",
-                background: "#ffffff",
-              }}
-            >
+            <div className="chat-month-nav mb-2 shrink-0 max-lg:mb-1.5" title="Лиды, созданные в этом месяце">
               <button
                 type="button"
+                className="chat-month-nav__btn"
                 aria-label="Предыдущий месяц"
                 onClick={() => setChatMonth((m) => shiftYearMonth(m, -1))}
-                style={{
-                  flex: "0 0 44px",
-                  height: 44,
-                  border: "none",
-                  borderRadius: 10,
-                  background: "#e2e8f0",
-                  color: "#0f172a",
-                  fontSize: 26,
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  cursor: "pointer",
-                }}
               >
-                {"<"}
+                {"‹"}
               </button>
-              <div
-                style={{
-                  flex: "1 1 auto",
-                  minWidth: 0,
-                  textAlign: "center",
-                  color: "#0f172a",
-                  fontSize: 16,
-                  fontWeight: 800,
-                  lineHeight: 1.2,
-                  textTransform: "capitalize",
-                }}
-                title="Лиды, созданные в этом месяце"
-              >
-                {formatChatMonthLabel(chatMonth)}
-              </div>
+              <div className="chat-month-nav__label">{formatChatMonthLabel(chatMonth)}</div>
               <button
                 type="button"
+                className="chat-month-nav__btn"
                 aria-label="Следующий месяц"
                 onClick={() => setChatMonth((m) => shiftYearMonth(m, 1))}
-                style={{
-                  flex: "0 0 44px",
-                  height: 44,
-                  border: "none",
-                  borderRadius: 10,
-                  background: "#e2e8f0",
-                  color: "#0f172a",
-                  fontSize: 26,
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  cursor: "pointer",
-                }}
               >
-                {">"}
+                {"›"}
               </button>
             </div>
           ) : null}
@@ -1290,8 +1243,8 @@ export function ChatPage() {
               <div
                 className={
                   salesChatMode
-                    ? "chat-stage-tabs grid grid-cols-2 gap-1.5 sm:grid-cols-3"
-                    : "chat-stage-tabs grid grid-cols-4 gap-1.5"
+                    ? "chat-stage-tabs chat-stage-tabs--sales"
+                    : "chat-stage-tabs grid grid-cols-2 gap-1.5 sm:grid-cols-4"
                 }
               >
                 {(salesChatMode ? stageTabs : CHAT_BUCKET_TABS).map((tab) => {
@@ -1331,7 +1284,7 @@ export function ChatPage() {
                         }
                       }}
                       className={[
-                        "chat-bucket-tab flex min-h-[3.35rem] flex-col items-center justify-center rounded-xl border px-1 py-1.5 text-center transition touch-manipulation sm:min-h-[3.75rem] sm:rounded-2xl sm:px-1.5 sm:py-2",
+                        "chat-bucket-tab flex min-h-[2.85rem] flex-col items-center justify-center rounded-xl border px-1 py-1 text-center transition touch-manipulation sm:min-h-[3.25rem] sm:rounded-2xl sm:px-1.5 sm:py-1.5",
                         active ? "is-active" : "",
                       ].join(" ")}
                       style={
@@ -1346,7 +1299,7 @@ export function ChatPage() {
                         {tab.label}
                       </span>
                       <span
-                        className="mt-1 text-base font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-lg"
+                        className="mt-0.5 text-sm font-bold tabular-nums leading-none text-[var(--mo-text)] sm:mt-1 sm:text-base"
                         title={String(count)}
                       >
                         {formatCompactCount(count)}
@@ -1375,15 +1328,15 @@ export function ChatPage() {
                     title={tab.hint}
                     onClick={() => setReplyQueue(tab.id)}
                     className={[
-                      "chat-bucket-tab chat-reply-tab flex min-h-[3.5rem] flex-col items-center justify-center rounded-2xl border px-2 py-2.5 text-center transition touch-manipulation sm:min-h-[3.85rem]",
+                      "chat-bucket-tab chat-reply-tab flex min-h-[2.85rem] flex-col items-center justify-center rounded-xl border px-2 py-1.5 text-center transition touch-manipulation sm:min-h-[3.25rem] sm:rounded-2xl",
                       active ? "is-active" : "",
                     ].join(" ")}
                   >
-                    <span className="max-w-full text-[11px] font-semibold leading-tight tracking-wide text-[var(--mo-text-muted)] sm:text-xs">
+                    <span className="max-w-full text-[10px] font-semibold leading-tight tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
                       {tab.label}
                     </span>
                     <span
-                      className="mt-1 text-lg font-bold tabular-nums leading-none text-[var(--mo-text)] sm:text-xl"
+                      className="mt-0.5 text-base font-bold tabular-nums leading-none text-[var(--mo-text)] sm:mt-1 sm:text-lg"
                       title={String(count)}
                     >
                       {formatCompactCount(count)}

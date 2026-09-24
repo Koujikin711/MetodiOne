@@ -1315,29 +1315,42 @@ export function OnlineBookingPage() {
                   <h2 className="mb-3 lux-subheading">Новая запись</h2>
                   <form onSubmit={onSubmit} className="space-y-2.5">
                 <div ref={patientSuggestRef} className="relative space-y-2.5">
-                  <label className="block text-sm mo-muted">
-                    Пациент / клиент
-                    <input
-                      required
-                      value={patientName}
-                      onChange={(e) => {
-                        setPatientName(e.target.value);
-                        setPatientSuggestOpen(true);
-                        lastAutoSuggestKeyRef.current = null;
-                      }}
-                      onFocus={() => {
-                        setPatientFieldFocus("name");
-                        setPatientSuggestOpen(true);
-                      }}
-                      onBlur={() => {
-                        window.setTimeout(() => {
-                          setPatientFieldFocus((prev) => (prev === "name" ? null : prev));
-                        }, 120);
-                      }}
-                      className="mt-1 w-full mo-input"
-                      autoComplete="off"
-                    />
-                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block min-w-0 text-xs mo-muted sm:text-sm">
+                      Пациент / клиент
+                      <input
+                        required
+                        value={patientName}
+                        onChange={(e) => {
+                          setPatientName(e.target.value);
+                          setPatientSuggestOpen(true);
+                          lastAutoSuggestKeyRef.current = null;
+                        }}
+                        onFocus={() => {
+                          setPatientFieldFocus("name");
+                          setPatientSuggestOpen(true);
+                        }}
+                        onBlur={() => {
+                          window.setTimeout(() => {
+                            setPatientFieldFocus((prev) => (prev === "name" ? null : prev));
+                          }, 120);
+                        }}
+                        className="mt-1 w-full mo-input text-sm"
+                        autoComplete="off"
+                      />
+                    </label>
+                    <label className="block min-w-0 text-xs mo-muted sm:text-sm">
+                      Дата рождения ребёнка
+                      <input
+                        required
+                        type="date"
+                        value={patientBirthDate}
+                        onChange={(e) => setPatientBirthDate(e.target.value)}
+                        className="mt-1 w-full mo-input text-sm"
+                        max={new Date().toISOString().slice(0, 10)}
+                      />
+                    </label>
+                  </div>
                   <label className="block text-sm mo-muted">
                     Телефон
                     <input
@@ -1363,17 +1376,6 @@ export function OnlineBookingPage() {
                       className="mt-1 w-full mo-input"
                       autoComplete="off"
                       inputMode="tel"
-                    />
-                  </label>
-                  <label className="block text-sm mo-muted">
-                    Дата рождения ребёнка
-                    <input
-                      required
-                      type="date"
-                      value={patientBirthDate}
-                      onChange={(e) => setPatientBirthDate(e.target.value)}
-                      className="mt-1 w-full mo-input"
-                      max={new Date().toISOString().slice(0, 10)}
                     />
                   </label>
                   <div className="space-y-2">
