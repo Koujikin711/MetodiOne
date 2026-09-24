@@ -818,23 +818,30 @@ export function ChatPage() {
     return () => root.removeAttribute("data-chat-composing");
   }, [hideMobileBottomNav]);
 
-  /** Android/iOS: высота под клавиатуру — композер остаётся над ней, лента скроллится отдельно */
+  /** Android/iOS: высота под клавиатуру — композер остаётся над ней */
   useEffect(() => {
     if (threadId == null) return;
     const vv = window.visualViewport;
     if (!vv) return;
     const sync = () => {
-      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      /* Порог: игнорируем мелкий jitter viewport, чтобы не дёргать высоту чата */
-      const px = inset < 48 ? 0 : Math.round(inset);
+      const layoutH = window.innerHeight;
+      const visibleH = vv.height;
+      const offsetTop = vv.offsetTop || 0;
+      const inset = Math.max(0, layoutH - visibleH - offsetTop);
+      /* Порог: игнорируем мелкий jitter; на iOS клавиатура обычно > 120px */
+      const px = inset < 80 ? 0 : Math.round(inset);
       document.documentElement.style.setProperty("--chat-keyboard-inset", `${px}px`);
     };
     vv.addEventListener("resize", sync);
     vv.addEventListener("scroll", sync);
+    window.addEventListener("focusin", sync);
+    window.addEventListener("focusout", sync);
     sync();
     return () => {
       vv.removeEventListener("resize", sync);
       vv.removeEventListener("scroll", sync);
+      window.removeEventListener("focusin", sync);
+      window.removeEventListener("focusout", sync);
       document.documentElement.style.removeProperty("--chat-keyboard-inset");
     };
   }, [threadId]);
@@ -1186,6 +1193,7 @@ export function ChatPage() {
 
   return (
     <div
+      data-chat-page
       className={[
         "relative mx-auto flex h-full w-full max-w-none flex-col gap-2 sm:gap-3 lg:min-h-0 lg:flex-1 lg:gap-3 lg:overflow-hidden",
         "max-lg:m-0 max-lg:min-h-0 max-lg:flex-1 max-lg:gap-0 max-lg:overflow-hidden",
@@ -1479,7 +1487,7 @@ export function ChatPage() {
           )}
           {threadId != null && (
             <>
-              <div className="chat-thread-header flex shrink-0 items-center gap-1.5 border-b border-[var(--mo-border)] pb-2 pt-0.5 max-lg:gap-1 max-lg:pb-1.5">
+              <div className="chat-thread-header flex shrink-0 items-start gap-1.5 border-b border-[var(--mo-border)] pb-2 pt-0.5 max-lg:gap-1 max-lg:pb-1.5">
                 <button
                   type="button"
                   className="chat-thread-header-btn chat-thread-header-btn--back lg:hidden"
@@ -1490,12 +1498,12 @@ export function ChatPage() {
                   <span className="max-lg:hidden">Назад</span>
                 </button>
                 <div className="min-w-0 flex-1">
-                  <div className="lux-subheading truncate text-sm sm:text-base">
+                  <div className="lux-subheading truncate text-sm sm:text-base max-lg:text-[13px]">
                     {activeThread ? threadDisplayTitle(activeThread) : `Диалог #${threadId}`}
                   </div>
                   {activeThread ? (
                     <>
-                      <div className="mt-1 text-base font-semibold tracking-wide text-[var(--mo-text)] tabular-nums max-lg:text-sm">
+                      <div className="mt-0.5 text-sm font-semibold tracking-wide text-[var(--mo-text)] tabular-nums max-lg:text-xs">
                         {threadPhoneForDisplay(activeThread) !== "—" ? (
                           <PatientPhone
                             value={{
@@ -1509,48 +1517,52 @@ export function ChatPage() {
                           <span className="text-xs font-normal lux-caption">Номер не указан</span>
                         )}
                       </div>
-                      {activeThread.lead_stage_name ? (
-                        <div className="mt-1 text-[11px] mo-muted sm:text-xs">
-                          Стадия:{" "}
-                          <span
-                            className="font-semibold"
-                            style={{ color: stageColorForThread(activeThread) }}
-                          >
-                            {stageLabelForDisplay(activeThread.lead_stage_name)}
-                          </span>
-                        </div>
-                      ) : null}
-                      {saleSummaryLine(activeThread) ? (
-                        <div className="mt-1 text-xs font-medium text-[var(--mo-accent-hover)] sm:text-sm">
-                          {saleSummaryLine(activeThread)}
-                        </div>
-                      ) : null}
-                      {(() => {
-                        const providerLabel = threadProviderLabel(activeThread.provider);
-                        if (!providerLabel && !selectedManagerLabel) return null;
-                        return (
-                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs lux-caption">
-                            {providerLabel ? <span>{providerLabel}</span> : null}
-                            {providerLabel && selectedManagerLabel ? <span className="opacity-60">·</span> : null}
-                            {selectedManagerLabel ? (
-                              <span>
-                                Ответственный:{" "}
-                                <span className="text-[var(--mo-text)]/90">{selectedManagerLabel}</span>
-                              </span>
-                            ) : null}
+                      <div className="chat-thread-meta">
+                        {activeThread.lead_stage_name ? (
+                          <div className="text-[11px] mo-muted sm:text-xs max-lg:text-[10px]">
+                            Стадия:{" "}
+                            <span
+                              className="font-semibold"
+                              style={{ color: stageColorForThread(activeThread) }}
+                            >
+                              {stageLabelForDisplay(activeThread.lead_stage_name)}
+                            </span>
                           </div>
-                        );
-                      })()}
+                        ) : null}
+                        {saleSummaryLine(activeThread) ? (
+                          <div className="text-xs font-medium text-[var(--mo-accent-hover)] sm:text-sm max-lg:text-[10px]">
+                            {saleSummaryLine(activeThread)}
+                          </div>
+                        ) : null}
+                        {(() => {
+                          const providerLabel = threadProviderLabel(activeThread.provider);
+                          if (!providerLabel && !selectedManagerLabel) return null;
+                          return (
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs lux-caption max-lg:text-[10px]">
+                              {providerLabel ? <span>{providerLabel}</span> : null}
+                              {providerLabel && selectedManagerLabel ? (
+                                <span className="opacity-60">·</span>
+                              ) : null}
+                              {selectedManagerLabel ? (
+                                <span>
+                                  Ответственный:{" "}
+                                  <span className="text-[var(--mo-text)]/90">{selectedManagerLabel}</span>
+                                </span>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </>
                   ) : null}
                 </div>
-                <div className="chat-thread-header-actions flex shrink-0 flex-col items-stretch gap-1 lg:flex-row lg:items-center lg:gap-1.5">
-                  <div className="order-1 flex justify-center lg:hidden">
+                <div className="chat-thread-header-actions flex shrink-0 flex-row items-center gap-1 lg:gap-1.5">
+                  <div className="flex justify-center lg:hidden">
                     <ThemeToggle compact />
                   </div>
                   <button
                     type="button"
-                    className="chat-thread-header-btn order-2 shrink-0 lg:order-2"
+                    className="chat-thread-header-btn shrink-0"
                     disabled={repairMediaMutation.isPending}
                     onClick={() => repairMediaMutation.mutate()}
                     title="Догрузить голосовые и фото, если не отображаются"
@@ -1565,7 +1577,7 @@ export function ChatPage() {
                   {salesChatMode && activeThread?.lead_id ? (
                     <button
                       type="button"
-                      className="chat-thread-header-btn order-3 shrink-0 lg:order-1"
+                      className="chat-thread-header-btn shrink-0"
                       onClick={() => setStatusOpen((v) => !v)}
                       title="Сменить стадию и взять лид на себя"
                     >

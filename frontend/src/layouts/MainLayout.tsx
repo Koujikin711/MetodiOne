@@ -216,10 +216,7 @@ export function MainLayout() {
               : "px-3 py-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))]",
             location.pathname.startsWith("/chat")
               ? [
-                  "max-lg:!px-0 max-lg:!pt-0 max-lg:overflow-hidden",
-                  deskSalesEnabled || managerChatFirst
-                    ? "max-lg:!pb-[calc(4.25rem+env(safe-area-inset-bottom))]"
-                    : "max-lg:!pb-[calc(5.75rem+env(safe-area-inset-bottom))]",
+                  "max-lg:!px-0 max-lg:!pt-0 max-lg:!pb-0 max-lg:overflow-hidden",
                   "max-lg:flex max-lg:h-[100dvh] max-lg:max-h-[100dvh] max-lg:flex-col max-lg:transition-none",
                 ].join(" ")
               : "",

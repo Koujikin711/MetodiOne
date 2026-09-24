@@ -204,16 +204,71 @@ html[data-chat-composing="1"] nav[aria-label="Основная навигаци�
     visibility 0s linear var(--mo-duration);
 }
 
-html[data-chat-composing="1"] .shell-main {
-  padding-bottom: max(0.35rem, env(safe-area-inset-bottom)) !important;
-}
-
+/* Список диалогов — место под нижнюю панель; открытый диалог — без «дыры» */
 @media (max-width: 1023px) {
+  html:not([data-chat-composing="1"]) .shell-main:has([data-chat-page]) {
+    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
   html[data-chat-composing="1"] .shell-main {
-    /* Высота только под клавиатуру; без inset — ровно 100dvh, без скачка */
+    padding-bottom: max(0.15rem, env(safe-area-inset-bottom, 0px)) !important;
     height: calc(100dvh - var(--chat-keyboard-inset, 0px)) !important;
     max-height: calc(100dvh - var(--chat-keyboard-inset, 0px)) !important;
+    min-height: 0 !important;
     overflow: hidden !important;
+  }
+
+  html[data-chat-composing="1"] .shell-main > * {
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+  }
+
+  html[data-chat-composing="1"] [data-chat-page] {
+    height: 100%;
+    max-height: 100%;
+  }
+
+  html[data-chat-composing="1"] .chat-thread-panel {
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  html[data-chat-composing="1"] .chat-composer {
+    margin-top: auto;
+    padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-thread-header {
+    align-items: flex-start;
+  }
+
+  .chat-thread-header-actions {
+    flex-direction: row !important;
+    align-items: center !important;
+    min-width: 0;
+    gap: 0.3rem !important;
+  }
+
+  .chat-thread-header-actions .chat-thread-header-btn {
+    width: auto;
+    min-height: 1.5rem;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.65rem;
+  }
+
+  .chat-thread-header .chat-thread-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    margin-top: 0.2rem;
+  }
+
+  .chat-thread-header .chat-thread-meta > * {
+    margin-top: 0 !important;
   }
 }
 
