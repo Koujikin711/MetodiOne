@@ -1528,16 +1528,16 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .chat-thread-header-actions {
-  min-width: 3.25rem;
+  min-width: 0;
 }
 
 @media (max-width: 1023px) {
   .chat-thread-header-actions .chat-thread-header-btn {
-    width: 100%;
+    width: auto;
     text-align: center;
-    min-height: 1.35rem;
-    padding-left: 0.35rem;
-    padding-right: 0.35rem;
+    min-height: 1.5rem;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
   }
 }
 
