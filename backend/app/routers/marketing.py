@@ -558,8 +558,9 @@ async def connect_instagram_dms(
         callback_url=callback,
         accounts=accounts,
         hint=(
-            "В Meta Developers → приложение CRM → Webhooks: Callback URL ниже, "
-            "Verify Token = этот секрет, объект Page + поля messages (и leadgen). "
-            "После Verify Direct с Ganjina Zamiri и MetodiClinic пойдут в Чаты."
+            "Важно: в Meta Developers → приложение CRM (не CRM-IG) → Webhooks → продукт PAGE "
+            "(и при необходимости Instagram). Callback URL и Verify Token ниже. "
+            "Подпиши messages. Кнопка «Тест» → Send to server. "
+            "Пока приложение не Live — пиши с Instagram Tester на @metodi_clinic / @dr.ganjina.zamir."
         ),
     )

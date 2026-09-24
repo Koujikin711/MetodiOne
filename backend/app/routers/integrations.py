@@ -1005,6 +1005,8 @@ async def _instagram_by_page_id(db: AsyncSession, page_id: str) -> Integration |
         cfg = row.config if isinstance(row.config, dict) else {}
         if str(cfg.get("page_id") or "").strip() == pid:
             return row
+        if str(cfg.get("ig_user_id") or "").strip() == pid:
+            return row
     return None
 
 
@@ -1013,21 +1015,26 @@ async def meta_webhook_shared(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Any:
-    """Входящие Meta/IG: роутинг по page_id / entry.id на нужную интеграцию."""
+    """Входящие Meta/IG: роутинг по page_id / ig_user_id на нужную интеграцию."""
     raw_body = await request.body()
     try:
         payload: Any = json.loads(raw_body.decode("utf-8") or "{}") if raw_body else {}
     except Exception:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Expected JSON body")
+        logger.warning("meta webhook: invalid JSON body len=%s", len(raw_body or b""))
+        return Response(status_code=200)
     if not isinstance(payload, dict):
         payload = {}
+    logger.info(
+        "meta webhook hit object=%s entries=%s",
+        payload.get("object"),
+        len(payload.get("entry") or []) if isinstance(payload.get("entry"), list) else 0,
+    )
     entries = payload.get("entry") or []
     page_id = ""
     if isinstance(entries, list) and entries and isinstance(entries[0], dict):
         page_id = str(entries[0].get("id") or "").strip()
     integ = await _instagram_by_page_id(db, page_id)
     if integ is None:
-        # fallback: единственная активная IG-интеграция
         integ = (
             await db.execute(
                 select(Integration).where(
@@ -1037,22 +1044,34 @@ async def meta_webhook_shared(
             )
         ).scalars().first()
     if integ is None or integ.company_id is None:
-        logger.warning("meta webhook: no instagram integration for page_id=%s", page_id)
-        return Response(status_code=204)
+        logger.warning("meta webhook: no instagram integration for entry.id=%s", page_id)
+        return Response(status_code=200)
     company_id = int(integ.company_id)
     sig = request.headers.get("X-Hub-Signature-256")
-    return await handle_instagram_webhook(
-        db,
-        integ=integ,
-        company_id=company_id,
-        raw_body=raw_body,
-        payload=payload,
-        signature_header=sig,
-        create_lead_fn=_create_lead_from_integration,
-        upsert_thread_fn=_upsert_thread,
-        add_message_fn=_add_incoming_message,
-        lead_read_fn=_lead_read,
-    )
+    try:
+        await handle_instagram_webhook(
+            db,
+            integ=integ,
+            company_id=company_id,
+            raw_body=raw_body,
+            payload=payload,
+            signature_header=sig,
+            create_lead_fn=_create_lead_from_integration,
+            upsert_thread_fn=_upsert_thread,
+            add_message_fn=_add_incoming_message,
+            lead_read_fn=_lead_read,
+        )
+    except HTTPException as e:
+        # Meta повторит при 4xx/5xx — для теста/подписи лучше 200, иначе отключат webhook
+        logger.warning("meta webhook handled with HTTPException %s: %s", e.status_code, e.detail)
+        if e.status_code in (401, 403):
+            return Response(status_code=403)
+        return Response(status_code=200)
+    except Exception:
+        logger.exception("meta webhook failed entry.id=%s", page_id)
+        return Response(status_code=200)
+    # Meta ждёт быстрый 200 без тела
+    return Response(status_code=200)
 
 
 @router.get("/webhook/{integration_id}")
