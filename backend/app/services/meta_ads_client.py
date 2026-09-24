@@ -29,6 +29,14 @@ _MESSAGING_ACTION_TYPES = (
     "onsite_conversion.total_messaging_connection",
     "onsite_conversion.messaging_conversation_started_7d",
 )
+_FOLLOW_ACTION_TYPES = (
+    "follow",
+    "onsite_conversion.follow",
+    "page_like",
+    "like",
+)
+
+BRAND_ORDER = ("Ganjina", "Zamiri", "Metodi_Clinic")
 
 
 def normalize_ad_account_id(raw: str) -> str:
@@ -44,6 +52,21 @@ def normalize_ad_account_id(raw: str) -> str:
 def is_allowed_campaign_name(name: str | None) -> bool:
     """Оставляем только Ganjina / Zamiri / Metodi_Clinic (и близкие названия)."""
     return bool(_ALLOWED_CAMPAIGN_RE.search(name or ""))
+
+
+def campaign_brand(name: str | None) -> str | None:
+    """К какому аккаунту относится кампания."""
+    n = (name or "").lower()
+    if not n or not is_allowed_campaign_name(n):
+        return None
+    # Zamiri раньше Ganjina — «Замири Ганчина» → Zamiri
+    if re.search(r"zamiri|замири", n):
+        return "Zamiri"
+    if re.search(r"ganjina|ганчин", n):
+        return "Ganjina"
+    if re.search(r"metodi", n):
+        return "Metodi_Clinic"
+    return None
 
 
 def _action_value(actions: list[dict[str, Any]] | None, *types: str) -> int:
@@ -63,6 +86,10 @@ def _action_value(actions: list[dict[str, Any]] | None, *types: str) -> int:
 def _row_leads(actions: list[dict[str, Any]] | None) -> int:
     """Формы + переписки (messaging) = лиды."""
     return _action_value(actions, *_LEAD_ACTION_TYPES) + _action_value(actions, *_MESSAGING_ACTION_TYPES)
+
+
+def _row_followers(actions: list[dict[str, Any]] | None) -> int:
+    return _action_value(actions, *_FOLLOW_ACTION_TYPES)
 
 
 async def fetch_account_meta(token: str, ad_account_id: str) -> dict[str, Any]:
@@ -90,23 +117,25 @@ async def fetch_insights_range(
     since: date,
     until: date,
     level: str = "campaign",
+    time_increment: int | None = None,
 ) -> list[dict[str, Any]]:
     act = normalize_ad_account_id(ad_account_id)
-    fields = (
-        "campaign_id,campaign_name,spend,impressions,clicks,cpc,ctr,reach,frequency,actions"
-        if level == "campaign"
-        else "spend,impressions,clicks,cpc,ctr,reach,frequency,actions"
-    )
+    if level == "campaign":
+        fields = "campaign_id,campaign_name,spend,impressions,clicks,cpc,ctr,reach,frequency,actions,date_start,date_stop"
+    else:
+        fields = "spend,impressions,clicks,cpc,ctr,reach,frequency,actions,date_start,date_stop"
     params: dict[str, Any] = {
         "fields": fields,
         "level": level,
         "time_range": json.dumps({"since": since.isoformat(), "until": until.isoformat()}),
-        "limit": 200,
+        "limit": 500,
         "access_token": token,
     }
+    if time_increment is not None:
+        params["time_increment"] = time_increment
     out: list[dict[str, Any]] = []
     url: str | None = f"{GRAPH_BASE}/{act}/insights"
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=90.0) as client:
         first = True
         while url:
             r = await client.get(url, params=params if first else None)
@@ -130,38 +159,105 @@ def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     impressions = 0
     clicks = 0
     leads = 0
+    followers = 0
     for row in rows:
         spend += Decimal(str(row.get("spend") or 0))
         impressions += int(float(row.get("impressions") or 0))
         clicks += int(float(row.get("clicks") or 0))
         leads += _row_leads(row.get("actions"))
+        followers += _row_followers(row.get("actions"))
     cpl = (spend / Decimal(leads)).quantize(Decimal("0.01")) if leads > 0 else None
     return {
         "spend": spend,
         "impressions": impressions,
         "clicks": clicks,
         "leads": leads,
+        "followers": followers,
         "cost_per_lead": cpl,
     }
 
 
 def campaign_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
+    """Агрегат по campaign_id (на случай daily rows)."""
+    by_id: dict[str, dict[str, Any]] = {}
     for row in rows:
+        cid = str(row.get("campaign_id") or row.get("campaign_name") or "")
         spend = Decimal(str(row.get("spend") or 0))
         leads = _row_leads(row.get("actions"))
+        followers = _row_followers(row.get("actions"))
+        impress = int(float(row.get("impressions") or 0))
+        clicks = int(float(row.get("clicks") or 0))
+        name = str(row.get("campaign_name") or "—")
+        bucket = by_id.get(cid)
+        if bucket is None:
+            by_id[cid] = {
+                "campaign_id": cid,
+                "campaign_name": name,
+                "brand": campaign_brand(name),
+                "spend": spend,
+                "impressions": impress,
+                "clicks": clicks,
+                "leads": leads,
+                "followers": followers,
+            }
+        else:
+            bucket["spend"] += spend
+            bucket["impressions"] += impress
+            bucket["clicks"] += clicks
+            bucket["leads"] += leads
+            bucket["followers"] += followers
+    out: list[dict[str, Any]] = []
+    for bucket in by_id.values():
+        spend = bucket["spend"]
+        leads = int(bucket["leads"])
         out.append(
             {
-                "campaign_id": str(row.get("campaign_id") or ""),
-                "campaign_name": str(row.get("campaign_name") or "—"),
-                "spend": spend,
-                "impressions": int(float(row.get("impressions") or 0)),
-                "clicks": int(float(row.get("clicks") or 0)),
+                **bucket,
                 "leads": leads,
-                "cpc": Decimal(str(row.get("cpc") or 0)) if row.get("cpc") not in (None, "") else None,
-                "ctr": Decimal(str(row.get("ctr") or 0)) if row.get("ctr") not in (None, "") else None,
+                "followers": int(bucket["followers"]),
+                "cpc": None,
+                "ctr": None,
                 "cost_per_lead": (spend / Decimal(leads)).quantize(Decimal("0.01")) if leads > 0 else None,
             }
         )
     out.sort(key=lambda x: x["spend"], reverse=True)
+    return out
+
+
+def brand_subscriber_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Подписчики / лиды / расход по аккаунтам Ganjina · Zamiri · Metodi_Clinic."""
+    buckets: dict[str, dict[str, Any]] = {
+        b: {"account": b, "followers": 0, "leads": 0, "spend": Decimal("0"), "impressions": 0, "clicks": 0}
+        for b in BRAND_ORDER
+    }
+    for row in rows:
+        brand = campaign_brand(str(row.get("campaign_name") or ""))
+        if brand is None:
+            continue
+        b = buckets[brand]
+        b["followers"] += _row_followers(row.get("actions"))
+        b["leads"] += _row_leads(row.get("actions"))
+        b["spend"] += Decimal(str(row.get("spend") or 0))
+        b["impressions"] += int(float(row.get("impressions") or 0))
+        b["clicks"] += int(float(row.get("clicks") or 0))
+    return [buckets[b] for b in BRAND_ORDER]
+
+
+def daily_series(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Дневной ряд spend / leads / followers (если insights с time_increment=1)."""
+    by_day: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        day = str(row.get("date_start") or "")[:10]
+        if not day:
+            continue
+        bucket = by_day.setdefault(
+            day,
+            {"date": day, "spend": Decimal("0"), "leads": 0, "followers": 0, "clicks": 0, "impressions": 0},
+        )
+        bucket["spend"] += Decimal(str(row.get("spend") or 0))
+        bucket["leads"] += _row_leads(row.get("actions"))
+        bucket["followers"] += _row_followers(row.get("actions"))
+        bucket["clicks"] += int(float(row.get("clicks") or 0))
+        bucket["impressions"] += int(float(row.get("impressions") or 0))
+    out = sorted(by_day.values(), key=lambda x: x["date"])
     return out

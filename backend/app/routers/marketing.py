@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import calendar
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -17,14 +17,18 @@ from app.database import get_db
 from app.models import ChatMessage, ChatThread, Lead, Pipeline, PipelineStage, User, UserRole
 from app.models.marketing_meta import MarketingMetaSettings
 from app.schemas.marketing import (
+    MarketingBrandRow,
     MarketingCampaignRow,
+    MarketingDailyPoint,
     MarketingManagerConversionRow,
     MarketingMetaSettingsPatch,
     MarketingMetaSettingsRead,
     MarketingOverviewRead,
 )
 from app.services.meta_ads_client import (
+    brand_subscriber_rows,
     campaign_rows,
+    daily_series,
     fetch_account_meta,
     fetch_insights_range,
     normalize_ad_account_id,
@@ -74,14 +78,59 @@ def _biz_tz() -> ZoneInfo:
         return ZoneInfo("Asia/Dushanbe")
 
 
-def _calendar_month_utc(ym: date) -> tuple[datetime, datetime]:
+def _dates_to_utc_window(since: date, until: date) -> tuple[datetime, datetime]:
+    """Календарные дни since..until включительно → [start, end) UTC."""
     tz = _biz_tz()
-    start_local = datetime(ym.year, ym.month, 1, tzinfo=tz)
-    if ym.month == 12:
-        end_local = datetime(ym.year + 1, 1, 1, tzinfo=tz)
-    else:
-        end_local = datetime(ym.year, ym.month + 1, 1, tzinfo=tz)
+    start_local = datetime(since.year, since.month, since.day, tzinfo=tz)
+    end_exclusive = until + timedelta(days=1)
+    end_local = datetime(end_exclusive.year, end_exclusive.month, end_exclusive.day, tzinfo=tz)
     return start_local.astimezone(UTC), end_local.astimezone(UTC)
+
+
+def _resolve_period(
+    period: str,
+    date_from: str | None,
+    date_to: str | None,
+    year_month: str | None,
+) -> tuple[str, date, date]:
+    tz = _biz_tz()
+    today = datetime.now(tz).date()
+
+    if year_month and not date_from and period == "month":
+        # legacy YYYY-MM
+        try:
+            y, m = year_month.split("-", 1)
+            ym = date(int(y), int(m), 1)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="year_month должен быть YYYY-MM") from e
+        since, until = _month_bounds(ym)
+        if until > today:
+            until = today
+        return "month", since, until
+
+    p = (period or "month").strip().lower()
+    if p == "day":
+        return "day", today, today
+    if p == "week":
+        start = today - timedelta(days=today.weekday())  # понедельник
+        return "week", start, today
+    if p == "month":
+        since = date(today.year, today.month, 1)
+        return "month", since, today
+    if p == "custom":
+        if not date_from or not date_to:
+            raise HTTPException(status_code=400, detail="Укажите date_from и date_to")
+        try:
+            since = date.fromisoformat(date_from)
+            until = date.fromisoformat(date_to)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="Даты: YYYY-MM-DD") from e
+        if until < since:
+            raise HTTPException(status_code=400, detail="date_to раньше date_from")
+        if until > today:
+            until = today
+        return "custom", since, until
+    raise HTTPException(status_code=400, detail="period: day | week | month | custom")
 
 
 def _pct(num: int, den: int) -> float:
@@ -342,14 +391,15 @@ async def meta_overview(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
-    year_month: str = Query(..., description="YYYY-MM"),
+    period: str = Query("month", description="day | week | month | custom"),
+    date_from: str | None = Query(default=None, description="YYYY-MM-DD для custom"),
+    date_to: str | None = Query(default=None, description="YYYY-MM-DD для custom"),
+    year_month: str | None = Query(default=None, description="legacy YYYY-MM"),
 ) -> MarketingOverviewRead:
     _assert_marketing_access(current_user)
-    try:
-        y, m = year_month.split("-", 1)
-        ym = date(int(y), int(m), 1)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail="year_month должен быть YYYY-MM") from e
+    resolved, since, until = _resolve_period(period, date_from, date_to, year_month)
+    if since > until:
+        raise HTTPException(status_code=400, detail="Период ещё не начался")
 
     row = await _get_settings(db, company_id)
     if row is None or not (row.access_token or "").strip() or not (row.ad_account_id or "").strip():
@@ -358,13 +408,7 @@ async def meta_overview(
             detail="Сначала сохраните Meta Ads: ad account и токен в настройках маркетинга",
         )
 
-    since, until = _month_bounds(ym)
-    today = datetime.now(UTC).date()
-    if until > today:
-        until = today
-    if since > until:
-        raise HTTPException(status_code=400, detail="Период ещё не начался")
-
+    use_daily = (until - since).days >= 1
     try:
         meta = await fetch_account_meta(row.access_token or "", row.ad_account_id)
         rows = await fetch_insights_range(
@@ -373,19 +417,37 @@ async def meta_overview(
             since=since,
             until=until,
             level="campaign",
+            time_increment=1 if use_daily else None,
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Meta API: {e}") from e
 
     summary = summarize_rows(rows)
     camps = [MarketingCampaignRow(**c) for c in campaign_rows(rows)]
+    brands = [MarketingBrandRow(**b) for b in brand_subscriber_rows(rows)]
+    daily_pts: list[MarketingDailyPoint] = []
+    for d in daily_series(rows):
+        try:
+            daily_pts.append(
+                MarketingDailyPoint(
+                    date=date.fromisoformat(str(d["date"])),
+                    spend=d["spend"],
+                    leads=int(d["leads"]),
+                    followers=int(d["followers"]),
+                    clicks=int(d["clicks"]),
+                    impressions=int(d["impressions"]),
+                )
+            )
+        except Exception:
+            continue
 
-    crm_start, crm_end = _calendar_month_utc(ym)
+    crm_start, crm_end = _dates_to_utc_window(since, until)
     managers, managers_total = await _manager_conversion(
         db, company_id=company_id, start=crm_start, end=crm_end
     )
 
     return MarketingOverviewRead(
+        period=resolved,
         period_start=since,
         period_end=until,
         currency=str(meta.get("currency") or "USD"),
@@ -395,8 +457,11 @@ async def meta_overview(
         impressions=summary["impressions"],
         clicks=summary["clicks"],
         leads=summary["leads"],
+        followers=int(summary.get("followers") or 0),
         cost_per_lead=summary["cost_per_lead"],
         campaigns=camps,
+        brands=brands,
+        daily=daily_pts,
         managers=managers,
         managers_total=managers_total,
     )

@@ -24,13 +24,33 @@ class MarketingMetaSettingsPatch(BaseModel):
 class MarketingCampaignRow(BaseModel):
     campaign_id: str
     campaign_name: str
+    brand: str | None = None
     spend: Decimal
     impressions: int
     clicks: int
     leads: int
+    followers: int = 0
     cpc: Decimal | None = None
     ctr: Decimal | None = None
     cost_per_lead: Decimal | None = None
+
+
+class MarketingBrandRow(BaseModel):
+    account: str
+    followers: int = 0
+    leads: int = 0
+    spend: Decimal = Decimal("0")
+    impressions: int = 0
+    clicks: int = 0
+
+
+class MarketingDailyPoint(BaseModel):
+    date: date
+    spend: Decimal = Decimal("0")
+    leads: int = 0
+    followers: int = 0
+    clicks: int = 0
+    impressions: int = 0
 
 
 class MarketingManagerConversionRow(BaseModel):
@@ -46,6 +66,7 @@ class MarketingManagerConversionRow(BaseModel):
 
 
 class MarketingOverviewRead(BaseModel):
+    period: str
     period_start: date
     period_end: date
     currency: str = "USD"
@@ -55,7 +76,10 @@ class MarketingOverviewRead(BaseModel):
     impressions: int
     clicks: int
     leads: int
+    followers: int = 0
     cost_per_lead: Decimal | None = None
     campaigns: list[MarketingCampaignRow] = Field(default_factory=list)
+    brands: list[MarketingBrandRow] = Field(default_factory=list)
+    daily: list[MarketingDailyPoint] = Field(default_factory=list)
     managers: list[MarketingManagerConversionRow] = Field(default_factory=list)
     managers_total: MarketingManagerConversionRow | None = None

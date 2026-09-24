@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
-import { MonthYearPicker } from "@/components/MonthYearPicker";
+import { DateField } from "@/components/DateField";
+import { MarketingCharts } from "@/components/marketing/MarketingCharts";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch } from "@/lib/api";
 
@@ -18,13 +19,31 @@ type MetaSettings = {
 type CampaignRow = {
   campaign_id: string;
   campaign_name: string;
+  brand?: string | null;
   spend: string | number;
   impressions: number;
   clicks: number;
   leads: number;
-  cpc?: string | number | null;
-  ctr?: string | number | null;
+  followers?: number;
   cost_per_lead?: string | number | null;
+};
+
+type BrandRow = {
+  account: string;
+  followers: number;
+  leads: number;
+  spend: string | number;
+  impressions: number;
+  clicks: number;
+};
+
+type DailyPoint = {
+  date: string;
+  spend: string | number;
+  leads: number;
+  followers: number;
+  clicks: number;
+  impressions: number;
 };
 
 type ManagerRow = {
@@ -40,6 +59,7 @@ type ManagerRow = {
 };
 
 type Overview = {
+  period: string;
   period_start: string;
   period_end: string;
   currency: string;
@@ -49,16 +69,16 @@ type Overview = {
   impressions: number;
   clicks: number;
   leads: number;
+  followers: number;
   cost_per_lead?: string | number | null;
   campaigns: CampaignRow[];
+  brands: BrandRow[];
+  daily: DailyPoint[];
   managers: ManagerRow[];
   managers_total?: ManagerRow | null;
 };
 
-function defaultYearMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
+type PeriodKind = "day" | "week" | "month" | "custom";
 
 function money(v: number | string | null | undefined, currency = "USD") {
   const n = Number(v || 0);
@@ -74,9 +94,16 @@ function pctCell(count: number, pct: number) {
   );
 }
 
+function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function MarketingPage() {
   const qc = useQueryClient();
-  const [yearMonth, setYearMonth] = useState(defaultYearMonth);
+  const [period, setPeriod] = useState<PeriodKind>("month");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [adAccountId, setAdAccountId] = useState("act_1442491974027857");
   const [accessToken, setAccessToken] = useState("");
   const [showConnect, setShowConnect] = useState(false);
@@ -93,13 +120,25 @@ export function MarketingPage() {
     if (!s.configured) setShowConnect(true);
   }, [settingsQuery.data]);
 
+  const periodReady = period !== "custom" || Boolean(dateFrom && dateTo);
+
+  const qs = useMemo(() => {
+    const p = new URLSearchParams();
+    p.set("period", period);
+    if (period === "custom") {
+      if (dateFrom) p.set("date_from", dateFrom);
+      if (dateTo) p.set("date_to", dateTo);
+    }
+    return p.toString();
+  }, [period, dateFrom, dateTo]);
+
   const overviewQuery = useQuery({
-    queryKey: ["marketing-meta-overview", yearMonth],
+    queryKey: ["marketing-meta-overview", qs],
     queryFn: () =>
-      apiFetch<Overview>(`/api/marketing/meta/overview?year_month=${encodeURIComponent(yearMonth)}`, {
-        timeoutMs: 60_000,
+      apiFetch<Overview>(`/api/marketing/meta/overview?${qs}`, {
+        timeoutMs: 90_000,
       }),
-    enabled: Boolean(settingsQuery.data?.configured),
+    enabled: Boolean(settingsQuery.data?.configured) && periodReady,
   });
 
   const saveMutation = useMutation({
@@ -138,11 +177,20 @@ export function MarketingPage() {
     saveMutation.mutate();
   }
 
+  function setPeriodKind(next: PeriodKind) {
+    setPeriod(next);
+    if (next === "custom" && !dateFrom && !dateTo) {
+      const t = todayIso();
+      setDateFrom(t.slice(0, 8) + "01");
+      setDateTo(t);
+    }
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
       <PageHeader
         title="Маркетинг"
-        description="Meta Ads: Ganjina · Zamiri · Metodi_Clinic. Лиды = формы + переписки."
+        description="Meta Ads · Ganjina / Zamiri / Metodi_Clinic · лиды, подписчики и конверсия"
       />
 
       {configured && !showConnect ? (
@@ -193,34 +241,79 @@ export function MarketingPage() {
         </form>
       )}
 
-      <div className="flex flex-wrap items-end gap-3">
-        <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
-      </div>
+      <section className="mo-section flex flex-wrap items-end gap-3 p-4">
+        <label className="block text-sm mo-muted">
+          Период
+          <select
+            className="mo-input mt-1 min-w-[10rem]"
+            value={period}
+            onChange={(e) => setPeriodKind(e.target.value as PeriodKind)}
+          >
+            <option value="day">День</option>
+            <option value="week">Неделя</option>
+            <option value="month">Месяц</option>
+            <option value="custom">Свой период</option>
+          </select>
+        </label>
+        <label className="block text-sm mo-muted">
+          С
+          <div className="mt-1">
+            <DateField
+              value={dateFrom}
+              onChange={setDateFrom}
+              disabled={period !== "custom"}
+              allowClear={false}
+              aria-label="Дата с"
+            />
+          </div>
+        </label>
+        <label className="block text-sm mo-muted">
+          По
+          <div className="mt-1">
+            <DateField
+              value={dateTo}
+              onChange={setDateTo}
+              disabled={period !== "custom"}
+              allowClear={false}
+              aria-label="Дата по"
+            />
+          </div>
+        </label>
+        {data ? (
+          <p className="pb-2 text-xs mo-muted">
+            {data.period_start} — {data.period_end}
+          </p>
+        ) : null}
+      </section>
 
       {!configured ? (
         <p className="text-sm mo-muted">Один раз вставьте токен выше — дальше форма скрыта.</p>
+      ) : !periodReady ? (
+        <p className="text-sm mo-muted">Укажите даты периода.</p>
       ) : overviewQuery.isLoading ? (
         <p className="text-sm mo-muted">Загрузка из Meta…</p>
       ) : overviewQuery.isError ? (
         <p className="text-sm text-red-400">{(overviewQuery.error as Error).message}</p>
       ) : data ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-[var(--mo-border)] p-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
               <div className="text-xs mo-muted">Расход</div>
               <div className="mt-1 text-xl font-semibold tabular-nums">{money(data.spend, currency)}</div>
-              <div className="mt-1 text-[11px] mo-muted">
-                {data.period_start} — {data.period_end}
-              </div>
             </div>
-            <div className="rounded-2xl border border-[var(--mo-border)] p-4">
-              <div className="text-xs mo-muted">Лиды (формы + переписки)</div>
+            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
+              <div className="text-xs mo-muted">Лиды</div>
               <div className="mt-1 text-xl font-semibold tabular-nums">{data.leads}</div>
               <div className="mt-1 text-[11px] mo-muted">
                 CPL {data.cost_per_lead != null ? money(data.cost_per_lead, currency) : "—"}
               </div>
             </div>
-            <div className="rounded-2xl border border-[var(--mo-border)] p-4">
+            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
+              <div className="text-xs mo-muted">Подписчики</div>
+              <div className="mt-1 text-xl font-semibold tabular-nums">{data.followers}</div>
+              <div className="mt-1 text-[11px] mo-muted">follow / page like</div>
+            </div>
+            <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-4">
               <div className="text-xs mo-muted">Показы / клики</div>
               <div className="mt-1 text-xl font-semibold tabular-nums">
                 {Number(data.impressions).toLocaleString("ru-RU")}
@@ -231,6 +324,46 @@ export function MarketingPage() {
             </div>
           </div>
 
+          <MarketingCharts
+            campaigns={data.campaigns}
+            brands={data.brands}
+            daily={data.daily}
+            managers={data.managers}
+            currency={currency}
+          />
+
+          <section className="overflow-hidden rounded-2xl border border-[var(--mo-border)]">
+            <div className="border-b border-[var(--mo-border)] px-4 py-3 text-sm font-semibold">
+              Подписчики по аккаунтам
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-[var(--mo-surface)]/70 text-xs mo-muted">
+                  <tr>
+                    <th className="px-3 py-2">Аккаунт</th>
+                    <th className="px-3 py-2">Подписчики</th>
+                    <th className="px-3 py-2">Лиды</th>
+                    <th className="px-3 py-2">Расход</th>
+                    <th className="px-3 py-2">Клики</th>
+                    <th className="px-3 py-2">Показы</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.brands.map((b) => (
+                    <tr key={b.account} className="border-t border-[var(--mo-border)]/60">
+                      <td className="px-3 py-2 font-medium">{b.account}</td>
+                      <td className="px-3 py-2 tabular-nums">{b.followers}</td>
+                      <td className="px-3 py-2 tabular-nums">{b.leads}</td>
+                      <td className="px-3 py-2 tabular-nums">{money(b.spend, currency)}</td>
+                      <td className="px-3 py-2 tabular-nums">{b.clicks}</td>
+                      <td className="px-3 py-2 tabular-nums">{b.impressions}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <section className="overflow-hidden rounded-2xl border border-[var(--mo-border)]">
             <div className="border-b border-[var(--mo-border)] px-4 py-3 text-sm font-semibold">
               Кампании · Ganjina / Zamiri / Metodi_Clinic
@@ -240,31 +373,33 @@ export function MarketingPage() {
                 <thead className="bg-[var(--mo-surface)]/70 text-xs mo-muted">
                   <tr>
                     <th className="px-3 py-2">Кампания</th>
+                    <th className="px-3 py-2">Аккаунт</th>
                     <th className="px-3 py-2">Расход</th>
                     <th className="px-3 py-2">Лиды</th>
+                    <th className="px-3 py-2">Подписчики</th>
                     <th className="px-3 py-2">CPL</th>
                     <th className="px-3 py-2">Клики</th>
-                    <th className="px-3 py-2">Показы</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.campaigns.length === 0 ? (
                     <tr>
-                      <td className="px-3 py-3 mo-muted" colSpan={6}>
-                        Нет кампаний Ganjina / Zamiri / Metodi_Clinic за месяц
+                      <td className="px-3 py-3 mo-muted" colSpan={7}>
+                        Нет кампаний за период
                       </td>
                     </tr>
                   ) : (
                     data.campaigns.map((c) => (
                       <tr key={c.campaign_id || c.campaign_name} className="border-t border-[var(--mo-border)]/60">
                         <td className="px-3 py-2">{c.campaign_name}</td>
+                        <td className="px-3 py-2 mo-muted">{c.brand || "—"}</td>
                         <td className="px-3 py-2 tabular-nums">{money(c.spend, currency)}</td>
                         <td className="px-3 py-2 tabular-nums">{c.leads}</td>
+                        <td className="px-3 py-2 tabular-nums">{c.followers ?? 0}</td>
                         <td className="px-3 py-2 tabular-nums">
                           {c.cost_per_lead != null ? money(c.cost_per_lead, currency) : "—"}
                         </td>
                         <td className="px-3 py-2 tabular-nums">{c.clicks}</td>
-                        <td className="px-3 py-2 tabular-nums">{c.impressions}</td>
                       </tr>
                     ))
                   )}
@@ -275,7 +410,7 @@ export function MarketingPage() {
 
           <section className="overflow-hidden rounded-2xl border border-[var(--mo-border)]">
             <div className="border-b border-[var(--mo-border)] px-4 py-3 text-sm font-semibold">
-              Конверсия менеджеров · лиды с рекламы (Instagram / WhatsApp / Facebook)
+              Конверсия менеджеров · лиды с рекламы
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
@@ -292,7 +427,7 @@ export function MarketingPage() {
                   {data.managers.length === 0 ? (
                     <tr>
                       <td className="px-3 py-3 mo-muted" colSpan={5}>
-                        Нет лидов с рекламы за месяц в CRM
+                        Нет лидов с рекламы за период
                       </td>
                     </tr>
                   ) : (
