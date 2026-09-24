@@ -9,6 +9,7 @@ import { BookingDirectionsPanel } from "@/components/BookingDirectionsPanel";
 import { BookingWeekSpecialistGrid } from "@/components/BookingWeekSpecialistGrid";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
 import { DateTimeField } from "@/components/DateTimeField";
+import { DateField } from "@/components/DateField";
 import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { PatientPhone } from "@/components/PatientPhone";
 import { BookingSpecialistsFilter } from "@/components/BookingSpecialistsFilter";
@@ -1123,7 +1124,7 @@ export function OnlineBookingPage() {
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(patientBirthDate.trim())) {
-      toast.error("Укажите дату рождения ребёнка");
+      toast.error("Укажите дату рождения");
       return;
     }
     {
@@ -1131,7 +1132,7 @@ export function OnlineBookingPage() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (Number.isNaN(bd.getTime()) || bd > today) {
-        toast.error("Проверьте дату рождения ребёнка");
+        toast.error("Проверьте дату рождения");
         return;
       }
     }
@@ -1315,9 +1316,9 @@ export function OnlineBookingPage() {
                   <h2 className="mb-3 lux-subheading">Новая запись</h2>
                   <form onSubmit={onSubmit} className="space-y-2.5">
                 <div ref={patientSuggestRef} className="relative space-y-2.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block min-w-0 text-xs mo-muted sm:text-sm">
-                      Пациент / клиент
+                  <label className="block text-sm mo-muted">
+                    Пациент / ДР
+                    <div className="mt-1 flex min-w-0 items-stretch gap-1.5">
                       <input
                         required
                         value={patientName}
@@ -1335,22 +1336,20 @@ export function OnlineBookingPage() {
                             setPatientFieldFocus((prev) => (prev === "name" ? null : prev));
                           }, 120);
                         }}
-                        className="mt-1 w-full mo-input text-sm"
+                        className="mo-input min-w-0 flex-1 text-sm"
                         autoComplete="off"
+                        placeholder="ФИО"
                       />
-                    </label>
-                    <label className="block min-w-0 text-xs mo-muted sm:text-sm">
-                      Дата рождения ребёнка
-                      <input
+                      <DateField
                         required
-                        type="date"
                         value={patientBirthDate}
-                        onChange={(e) => setPatientBirthDate(e.target.value)}
-                        className="mt-1 w-full mo-input text-sm"
-                        max={new Date().toISOString().slice(0, 10)}
+                        onChange={setPatientBirthDate}
+                        allowClear={false}
+                        aria-label="Дата рождения"
+                        className="booking-patient-dob shrink-0"
                       />
-                    </label>
-                  </div>
+                    </div>
+                  </label>
                   <label className="block text-sm mo-muted">
                     Телефон
                     <input

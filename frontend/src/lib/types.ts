@@ -554,6 +554,8 @@ export interface AnalyticsOverviewRead {
 export interface ServicesAnalyticsServiceStat {
   direction_id: number | null;
   direction_name: string;
+  /** booking | kpi | mixed — оплаты курсов KPI подмешиваются в деньги */
+  money_source?: string;
   appointments_total: number;
   appeared_count: number;
   no_show_count: number;
@@ -593,6 +595,7 @@ export interface ServicesAnalyticsRead {
   revenue_total: string | number;
   debtor_total: string | number;
   creditor_total: string | number;
+  kpi_course_paid_total?: string | number;
   service_stats: ServicesAnalyticsServiceStat[];
   expert_stats: ServicesAnalyticsExpertStat[];
 }

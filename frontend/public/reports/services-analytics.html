@@ -106,7 +106,7 @@
     <div class="grid">
       <section class="panel">
         <h2>Оплаты по услугам</h2>
-        <p class="note">Сумма оплат за выбранный период (TJS)</p>
+        <p class="note">Визиты + курсы/протоколы KPI за период (TJS)</p>
         <div class="chart-box"><canvas id="chartRevenue"></canvas></div>
       </section>
       <section class="panel">
@@ -324,15 +324,20 @@
       });
 
       document.getElementById("svcTable").innerHTML = services.length
-        ? services.map((s) => `<tr>
-            <td>${s.direction_name}</td>
+        ? services.map((s) => {
+            const tag = s.money_source === "kpi" ? " <span style=\"opacity:.65;font-size:11px\">KPI</span>"
+              : s.money_source === "mixed" ? " <span style=\"opacity:.65;font-size:11px\">запись+KPI</span>"
+              : "";
+            return `<tr>
+            <td>${s.direction_name}${tag}</td>
             <td class="num">${s.appointments_total}</td>
             <td class="num">${s.appeared_count}</td>
             <td class="num">${s.no_show_count}</td>
             <td class="num">${s.booked_count ?? 0}</td>
             <td class="num">${money(s.revenue_paid)}</td>
             <td class="num">${money(s.debtor_amount)}</td>
-          </tr>`).join("")
+          </tr>`;
+          }).join("")
         : `<tr><td colspan="7">Нет записей за период</td></tr>`;
 
       statusEl.className = "status ok";

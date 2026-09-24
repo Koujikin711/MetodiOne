@@ -1702,6 +1702,27 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   @apply grid w-full gap-3 lg:grid-cols-[minmax(0,1fr)_min(100%,17.5rem)] xl:grid-cols-[minmax(0,1fr)_17.5rem] xl:items-start;
 }
 
+.booking-patient-dob {
+  width: 7.75rem;
+}
+
+.booking-patient-dob .mo-input {
+  min-height: 2.4rem;
+  padding-left: 0.55rem;
+  padding-right: 0.45rem;
+  font-size: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .booking-patient-dob {
+    width: 8.75rem;
+  }
+
+  .booking-patient-dob .mo-input {
+    font-size: 0.8125rem;
+  }
+}
+
 .booking-journal-table th,
 .booking-journal-table td {
   padding: 0.4rem 0.5rem;

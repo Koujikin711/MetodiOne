@@ -24,6 +24,7 @@ from app.models import (
     SalesKpiManualSale,
     SalesKpiManualSalePayment,
     SalesKpiPlan,
+    SalesKpiPlanItem,
     User,
     UserPipelineAssignment,
     UserRole,
@@ -1274,7 +1275,7 @@ async def analytics_services(
     date_to: str | None = Query(default=None),
     pipeline_id: int = Query(..., ge=1),
 ) -> ServicesAnalyticsRead:
-    """Аналитика по услугам за период: оплаты, явки, дебиторка по направлениям записи."""
+    """Аналитика по услугам: визиты записи + оплаты курсов/протоколов KPI (деньги вместе)."""
     _assert_owner(current_user)
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None or pipe.company_id != company_id:
@@ -1329,6 +1330,7 @@ async def analytics_services(
                 "specialist_name": str(spec_name or f"#{sid}"),
                 "direction_id": did if did else None,
                 "direction_name": str(dir_name) if dir_name else "—",
+                "money_source": "booking",
                 "appointments_total": 0,
                 "appeared_count": 0,
                 "booked_count": 0,
@@ -1400,6 +1402,7 @@ async def analytics_services(
             service_acc[did] = {
                 "direction_id": row["direction_id"],
                 "direction_name": str(row.get("direction_name") or "—"),
+                "money_source": "booking",
                 "appointments_total": 0,
                 "appeared_count": 0,
                 "no_show_count": 0,
@@ -1429,13 +1432,142 @@ async def analytics_services(
         ):
             s[k] += Decimal(str(row[k]))
 
+    # Оплаты курсов/протоколов KPI за период (по paid_at) — деньги в ту же таблицу услуг.
+    kpi_pay_rows = (
+        await db.execute(
+            select(
+                SalesKpiPlanItem.name,
+                func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0),
+            )
+            .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .where(
+                SalesKpiManualSalePayment.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSalePayment.paid_at >= start,
+                SalesKpiManualSalePayment.paid_at < end,
+            )
+            .group_by(SalesKpiPlanItem.name),
+        )
+    ).all()
+    kpi_debt_rows = (
+        await db.execute(
+            select(
+                SalesKpiPlanItem.name,
+                func.coalesce(
+                    func.sum(SalesKpiManualSale.service_amount - SalesKpiManualSale.paid_amount),
+                    0,
+                ),
+            )
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.status == "active",
+                SalesKpiManualSale.service_amount > SalesKpiManualSale.paid_amount,
+            )
+            .group_by(SalesKpiPlanItem.name),
+        )
+    ).all()
+    kpi_debt_by_name = {
+        str(name or "").casefold(): Decimal(str(amount or 0)) for name, amount in kpi_debt_rows
+    }
+    kpi_course_paid_total = Decimal("0")
+    # Индекс строк записи по имени направления (без регистра)
+    by_name: dict[str, dict] = {}
+    for row in service_acc.values():
+        key = str(row.get("direction_name") or "").casefold()
+        if key:
+            by_name[key] = row
+
+    next_kpi_key = -1
+    for raw_name, amount_raw in kpi_pay_rows:
+        name = str(raw_name or "").strip() or "Курс / протокол"
+        paid = Decimal(str(amount_raw or 0))
+        if paid <= 0:
+            continue
+        kpi_course_paid_total += paid
+        key = name.casefold()
+        debt = kpi_debt_by_name.get(key, Decimal("0"))
+        if key in by_name:
+            row = by_name[key]
+            row["revenue_paid"] = Decimal(str(row["revenue_paid"])) + paid
+            row["paid_full_amount"] = Decimal(str(row["paid_full_amount"])) + paid
+            row["debtor_amount"] = Decimal(str(row["debtor_amount"])) + debt
+            row["money_source"] = "mixed"
+        else:
+            service_acc[next_kpi_key] = {
+                "direction_id": None,
+                "direction_name": name,
+                "money_source": "kpi",
+                "appointments_total": 0,
+                "appeared_count": 0,
+                "no_show_count": 0,
+                "booked_count": 0,
+                "cancelled_count": 0,
+                "revenue_paid": paid,
+                "paid_full_amount": paid,
+                "paid_no_show_amount": Decimal("0"),
+                "debtor_amount": debt,
+                "creditor_amount": Decimal("0"),
+            }
+            by_name[key] = service_acc[next_kpi_key]
+            next_kpi_key -= 1
+        # долг уже учли при merge; убрать из map чтобы не дублировать при нулевых оплатах ниже
+        kpi_debt_by_name.pop(key, None)
+
+    # Дебиторка KPI без платежей в периоде — всё равно показать строку
+    for key, debt in list(kpi_debt_by_name.items()):
+        if debt <= 0:
+            continue
+        if key in by_name:
+            row = by_name[key]
+            if row.get("money_source") == "booking":
+                row["money_source"] = "mixed"
+            row["debtor_amount"] = Decimal(str(row["debtor_amount"])) + debt
+        else:
+            # имя из map — ключ casefold; восстановить из долга-запроса
+            display = next(
+                (str(n) for n, _ in kpi_debt_rows if str(n or "").casefold() == key),
+                key,
+            )
+            service_acc[next_kpi_key] = {
+                "direction_id": None,
+                "direction_name": display,
+                "money_source": "kpi",
+                "appointments_total": 0,
+                "appeared_count": 0,
+                "no_show_count": 0,
+                "booked_count": 0,
+                "cancelled_count": 0,
+                "revenue_paid": Decimal("0"),
+                "paid_full_amount": Decimal("0"),
+                "paid_no_show_amount": Decimal("0"),
+                "debtor_amount": debt,
+                "creditor_amount": Decimal("0"),
+            }
+            next_kpi_key -= 1
+
+    revenue_total = revenue_total + kpi_course_paid_total
+    debtor_total = debtor_total + sum(
+        (Decimal(str(amount or 0)) for _, amount in kpi_debt_rows),
+        Decimal("0"),
+    )
+
     service_stats = [
         ServicesAnalyticsServiceRow(**row)
         for row in sorted(
             service_acc.values(),
-            key=lambda x: (-int(x["appointments_total"]), str(x["direction_name"])),
+            key=lambda x: (
+                -float(x["revenue_paid"]),
+                -int(x["appointments_total"]),
+                str(x["direction_name"]),
+            ),
         )
-        if int(row["appointments_total"]) > 0 or int(row["cancelled_count"]) > 0
+        if int(row["appointments_total"]) > 0
+        or int(row["cancelled_count"]) > 0
+        or Decimal(str(row["revenue_paid"])) > 0
+        or Decimal(str(row["debtor_amount"])) > 0
     ]
 
     expert_roll: dict[int, dict] = {}
@@ -1495,6 +1627,7 @@ async def analytics_services(
         revenue_total=revenue_total,
         debtor_total=debtor_total,
         creditor_total=creditor_total,
+        kpi_course_paid_total=kpi_course_paid_total,
         service_stats=service_stats,
         expert_stats=expert_stats,
     )

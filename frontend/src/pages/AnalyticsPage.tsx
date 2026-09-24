@@ -541,6 +541,13 @@ export function AnalyticsPage() {
                     ),
                   )}
                   tone="success"
+                  hint={
+                    servicesLiveEmpty
+                      ? undefined
+                      : Number(servicesQuery.data.kpi_course_paid_total ?? 0) > 0
+                        ? `в т.ч. курсы/протоколы KPI: ${moneyFmt.format(Number(servicesQuery.data.kpi_course_paid_total))}`
+                        : "визиты + курсы/протоколы KPI"
+                  }
                 />
                 <MetricCard
                   label="Дебиторка"
@@ -590,7 +597,8 @@ export function AnalyticsPage() {
 
               <AnalyticsPanel title="По услугам">
                 <p className="analytics-panel-note">
-                  Отдельно: Курс, Курс 15, Протокол, Массаж и т.д. — итог по клинике за месяц.
+                  Деньги в одном месте: визиты записи + оплаты Курс/Протокол из KPI. Явки — только по
+                  записи; у KPI-строк записи = 0.
                 </p>
                 <AnalyticsTable minWidth={1100}>
                   <thead>
@@ -615,8 +623,15 @@ export function AnalyticsPage() {
                       </tr>
                     ) : (
                       chartServices.map((s) => (
-                        <tr key={s.direction_id ?? s.direction_name}>
-                          <td className="py-2.5 pr-3 font-medium">{s.direction_name}</td>
+                        <tr key={`${s.money_source ?? "booking"}-${s.direction_id ?? s.direction_name}`}>
+                          <td className="py-2.5 pr-3 font-medium">
+                            {s.direction_name}
+                            {s.money_source === "kpi" ? (
+                              <span className="ml-1.5 text-xs font-normal mo-muted">KPI</span>
+                            ) : s.money_source === "mixed" ? (
+                              <span className="ml-1.5 text-xs font-normal mo-muted">запись+KPI</span>
+                            ) : null}
+                          </td>
                           <td className="py-2.5 pr-3 tabular-nums">{s.appointments_total}</td>
                           <td className="py-2.5 pr-3 tabular-nums">{s.appeared_count}</td>
                           <td className="py-2.5 pr-3 tabular-nums">{s.no_show_count}</td>
