@@ -940,6 +940,102 @@ def _extract_phones_from_csv(content: bytes) -> list[str]:
     return out
 
 
+@router.get("/webhook/meta")
+async def meta_webhook_verify_shared(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Общий Callback URL для Meta App (несколько страниц → одна точка входа)."""
+    qp = request.query_params
+    hub_mode = qp.get("hub.mode")
+    hub_verify_token = qp.get("hub.verify_token")
+    hub_challenge = qp.get("hub.challenge")
+    rows = (
+        await db.execute(
+            select(Integration).where(
+                Integration.provider == IntegrationProvider.instagram,
+                Integration.is_active.is_(True),
+            )
+        )
+    ).scalars().all()
+    for integ in rows:
+        challenge = meta_hub_challenge_response(
+            verify_token=integ.secret,
+            hub_mode=hub_mode,
+            hub_verify_token=hub_verify_token,
+            hub_challenge=hub_challenge,
+        )
+        if challenge is not None:
+            return challenge
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Verification failed")
+
+
+async def _instagram_by_page_id(db: AsyncSession, page_id: str) -> Integration | None:
+    pid = (page_id or "").strip()
+    if not pid:
+        return None
+    rows = (
+        await db.execute(
+            select(Integration).where(
+                Integration.provider == IntegrationProvider.instagram,
+                Integration.is_active.is_(True),
+            )
+        )
+    ).scalars().all()
+    for row in rows:
+        cfg = row.config if isinstance(row.config, dict) else {}
+        if str(cfg.get("page_id") or "").strip() == pid:
+            return row
+    return None
+
+
+@router.post("/webhook/meta", response_model=None)
+async def meta_webhook_shared(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Any:
+    """Входящие Meta/IG: роутинг по page_id / entry.id на нужную интеграцию."""
+    raw_body = await request.body()
+    try:
+        payload: Any = json.loads(raw_body.decode("utf-8") or "{}") if raw_body else {}
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Expected JSON body")
+    if not isinstance(payload, dict):
+        payload = {}
+    entries = payload.get("entry") or []
+    page_id = ""
+    if isinstance(entries, list) and entries and isinstance(entries[0], dict):
+        page_id = str(entries[0].get("id") or "").strip()
+    integ = await _instagram_by_page_id(db, page_id)
+    if integ is None:
+        # fallback: единственная активная IG-интеграция
+        integ = (
+            await db.execute(
+                select(Integration).where(
+                    Integration.provider == IntegrationProvider.instagram,
+                    Integration.is_active.is_(True),
+                ).limit(1)
+            )
+        ).scalars().first()
+    if integ is None or integ.company_id is None:
+        logger.warning("meta webhook: no instagram integration for page_id=%s", page_id)
+        return Response(status_code=204)
+    company_id = int(integ.company_id)
+    sig = request.headers.get("X-Hub-Signature-256")
+    return await handle_instagram_webhook(
+        db,
+        integ=integ,
+        company_id=company_id,
+        raw_body=raw_body,
+        payload=payload,
+        signature_header=sig,
+        create_lead_fn=_create_lead_from_integration,
+        upsert_thread_fn=_upsert_thread,
+        add_message_fn=_add_incoming_message,
+        lead_read_fn=_lead_read,
+    )
+
+
 @router.get("/webhook/{integration_id}")
 async def integration_webhook_verify(
     integration_id: int,

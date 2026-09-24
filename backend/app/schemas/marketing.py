@@ -83,3 +83,19 @@ class MarketingOverviewRead(BaseModel):
     daily: list[MarketingDailyPoint] = Field(default_factory=list)
     managers: list[MarketingManagerConversionRow] = Field(default_factory=list)
     managers_total: MarketingManagerConversionRow | None = None
+
+
+class MarketingInstagramAccountConnected(BaseModel):
+    label: str
+    integration_id: int
+    page_id: str
+    ig_username: str | None = None
+    subscribed: bool = False
+
+
+class MarketingInstagramConnectRead(BaseModel):
+    ok: bool = True
+    verify_token: str
+    callback_url: str
+    accounts: list[MarketingInstagramAccountConnected] = Field(default_factory=list)
+    hint: str = ""

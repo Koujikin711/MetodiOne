@@ -107,6 +107,9 @@ export function MarketingPage() {
   const [adAccountId, setAdAccountId] = useState("act_1442491974027857");
   const [accessToken, setAccessToken] = useState("");
   const [showConnect, setShowConnect] = useState(false);
+  const [igHook, setIgHook] = useState<{ callback_url: string; verify_token: string; accounts: string } | null>(
+    null,
+  );
 
   const settingsQuery = useQuery({
     queryKey: ["marketing-meta-settings"],
@@ -160,6 +163,28 @@ export function MarketingPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const igConnectMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<{
+        ok: boolean;
+        verify_token: string;
+        callback_url: string;
+        accounts: Array<{ label: string; ig_username?: string | null }>;
+        hint: string;
+      }>("/api/marketing/meta/connect-instagram", { method: "POST", timeoutMs: 90_000 }),
+    onSuccess: (data) => {
+      toast.success(`Instagram: ${data.accounts.map((a) => a.label).join(", ")}`);
+      setIgHook({
+        callback_url: data.callback_url,
+        verify_token: data.verify_token,
+        accounts: data.accounts
+          .map((a) => `${a.label}${a.ig_username ? ` (@${a.ig_username})` : ""}`)
+          .join(" · "),
+      });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const data = overviewQuery.data;
   const currency = data?.currency || settingsQuery.data?.currency || "USD";
   const configured = Boolean(settingsQuery.data?.configured);
@@ -198,9 +223,19 @@ export function MarketingPage() {
           <p className="text-sm mo-muted">
             Meta · {settingsQuery.data?.account_name || "подключено"} · {settingsQuery.data?.ad_account_id}
           </p>
-          <button type="button" className="btn-secondary text-sm" onClick={() => setShowConnect(true)}>
-            Изменить подключение
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-primary text-sm"
+              disabled={igConnectMutation.isPending}
+              onClick={() => igConnectMutation.mutate()}
+            >
+              {igConnectMutation.isPending ? "Подключение…" : "Подключить Instagram DM"}
+            </button>
+            <button type="button" className="btn-secondary text-sm" onClick={() => setShowConnect(true)}>
+              Изменить токен
+            </button>
+          </div>
         </div>
       ) : (
         <form onSubmit={onSave} className="mo-section space-y-3 p-4">
@@ -240,6 +275,17 @@ export function MarketingPage() {
           </button>
         </form>
       )}
+
+      {igHook ? (
+        <div className="space-y-2 rounded-2xl border border-emerald-500/40 bg-emerald-500/5 p-4 text-sm">
+          <p className="font-semibold text-[var(--mo-text)]">Instagram DM подключены: {igHook.accounts}</p>
+          <p className="text-xs mo-muted">
+            Один раз в Meta Developers → CRM → Webhooks вставь Callback URL и Verify Token, нажми Verify:
+          </p>
+          <div className="break-all font-mono text-[11px]">{igHook.callback_url}</div>
+          <div className="break-all font-mono text-[11px]">Verify: {igHook.verify_token}</div>
+        </div>
+      ) : null}
 
       <section className="mo-section flex flex-wrap items-end gap-3 p-4">
         <label className="block text-sm mo-muted">

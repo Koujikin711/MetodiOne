@@ -3,28 +3,43 @@
 from __future__ import annotations
 
 import calendar
+import secrets
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
-from app.models import ChatMessage, ChatThread, Lead, Pipeline, PipelineStage, User, UserRole
+from app.models import (
+    ChatMessage,
+    ChatThread,
+    Integration,
+    IntegrationProvider,
+    Lead,
+    Pipeline,
+    PipelineStage,
+    User,
+    UserRole,
+)
 from app.models.marketing_meta import MarketingMetaSettings
 from app.schemas.marketing import (
     MarketingBrandRow,
     MarketingCampaignRow,
     MarketingDailyPoint,
+    MarketingInstagramAccountConnected,
+    MarketingInstagramConnectRead,
     MarketingManagerConversionRow,
     MarketingMetaSettingsPatch,
     MarketingMetaSettingsRead,
     MarketingOverviewRead,
 )
+from app.services.green_api_settings import resolve_public_api_base
+from app.services.instagram_connect import fetch_target_pages, upsert_instagram_integrations
 from app.services.meta_ads_client import (
     brand_subscriber_rows,
     campaign_rows,
@@ -464,4 +479,78 @@ async def meta_overview(
         daily=daily_pts,
         managers=managers,
         managers_total=managers_total,
+    )
+
+
+@router.post("/meta/connect-instagram", response_model=MarketingInstagramConnectRead)
+async def connect_instagram_dms(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> MarketingInstagramConnectRead:
+    """Создаёт/обновляет интеграции Instagram · Ganjina Zamiri и MetodiClinic из токена маркетинга."""
+    _assert_marketing_access(current_user)
+    row = await _get_settings(db, company_id)
+    if row is None or not (row.access_token or "").strip():
+        raise HTTPException(status_code=400, detail="Сначала сохраните Meta-токен в маркетинге")
+
+    try:
+        pages = await fetch_target_pages(row.access_token or "")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Meta: {e}") from e
+    if not pages:
+        raise HTTPException(
+            status_code=400,
+            detail="Не найдены страницы Ganjina Zamiri / MetodiClinic у System User. Назначьте их в Meta Business.",
+        )
+
+    existing_ig = (
+        await db.execute(
+            select(Integration).where(
+                Integration.company_id == company_id,
+                Integration.provider == IntegrationProvider.instagram,
+            )
+        )
+    ).scalars().first()
+    verify = (existing_ig.secret if existing_ig and (existing_ig.secret or "").strip() else "") or secrets.token_urlsafe(24)
+
+    try:
+        rows = await upsert_instagram_integrations(
+            db, company_id=company_id, pages=pages, verify_token=verify
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    pub = resolve_public_api_base(request, settings.public_api_base_url)
+    if not pub:
+        pub = "https://metodi-one-koujikin.amvera.io"
+    callback = f"{pub.rstrip('/')}/api/integrations/webhook/meta"
+
+    accounts: list[MarketingInstagramAccountConnected] = []
+    by_pid = {str(p.get("page_id") or ""): p for p in pages}
+    for integ in rows:
+        cfg = integ.config if isinstance(integ.config, dict) else {}
+        pid = str(cfg.get("page_id") or "")
+        page = by_pid.get(pid) or {}
+        accounts.append(
+            MarketingInstagramAccountConnected(
+                label=str(page.get("label") or cfg.get("account_label") or integ.name),
+                integration_id=int(integ.id),
+                page_id=pid,
+                ig_username=page.get("ig_username") or cfg.get("ig_username"),
+                subscribed=True,
+            )
+        )
+
+    return MarketingInstagramConnectRead(
+        ok=True,
+        verify_token=verify,
+        callback_url=callback,
+        accounts=accounts,
+        hint=(
+            "В Meta Developers → приложение CRM → Webhooks: Callback URL ниже, "
+            "Verify Token = этот секрет, объект Page + поля messages (и leadgen). "
+            "После Verify Direct с Ganjina Zamiri и MetodiClinic пойдут в Чаты."
+        ),
     )
