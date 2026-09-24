@@ -13,12 +13,9 @@ import httpx
 GRAPH_VERSION = "v21.0"
 GRAPH_BASE = f"https://graph.facebook.com/{GRAPH_VERSION}"
 
-# Instagram: Ganjina, Zamiri; аккаунт MetodiClinic. MetodiOne — не входит.
+# Instagram-аккаунты: «Ganjina Zamiri» (один) и «MetodiClinic» (второй). MetodiOne — нет.
 _EXCLUDED_CAMPAIGN_RE = re.compile(r"metodione|metodi[\s_-]*one", re.IGNORECASE)
-_ALLOWED_CAMPAIGN_RE = re.compile(
-    r"ganjina|ганчин|zamiri|замири|metodiclinic|metodi[_\s-]?clinic",
-    re.IGNORECASE,
-)
+_GANJINA_ZAMIRI_RE = re.compile(r"ganjina|ганчин|zamiri|замири", re.IGNORECASE)
 _CLINIC_RE = re.compile(r"metodiclinic|metodi[_\s-]?clinic", re.IGNORECASE)
 
 _LEAD_ACTION_TYPES = (
@@ -38,7 +35,7 @@ _FOLLOW_ACTION_TYPES = (
     "like",
 )
 
-BRAND_ORDER = ("Ganjina", "Zamiri", "MetodiClinic")
+BRAND_ORDER = ("Ganjina Zamiri", "MetodiClinic")
 
 
 def normalize_ad_account_id(raw: str) -> str:
@@ -52,26 +49,22 @@ def normalize_ad_account_id(raw: str) -> str:
 
 
 def is_allowed_campaign_name(name: str | None) -> bool:
-    """Только Ganjina / Zamiri / MetodiClinic. MetodiOne исключён."""
+    """Только кампании IG Ganjina Zamiri и MetodiClinic. MetodiOne исключён."""
     n = name or ""
     if _EXCLUDED_CAMPAIGN_RE.search(n):
         return False
-    return bool(_ALLOWED_CAMPAIGN_RE.search(n))
+    return bool(_GANJINA_ZAMIRI_RE.search(n) or _CLINIC_RE.search(n))
 
 
 def campaign_brand(name: str | None) -> str | None:
-    """К какому аккаунту относится кампания."""
+    """Два аккаунта: Ganjina Zamiri | MetodiClinic."""
     n = name or ""
     if not is_allowed_campaign_name(n):
         return None
-    low = n.lower()
-    # Zamiri раньше Ganjina — «Замири Ганчина» → Zamiri
-    if re.search(r"zamiri|замири", low):
-        return "Zamiri"
-    if re.search(r"ganjina|ганчин", low):
-        return "Ganjina"
     if _CLINIC_RE.search(n):
         return "MetodiClinic"
+    if _GANJINA_ZAMIRI_RE.search(n):
+        return "Ganjina Zamiri"
     return None
 
 

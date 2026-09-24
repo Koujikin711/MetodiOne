@@ -190,7 +190,7 @@ export function MarketingPage() {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
       <PageHeader
         title="Маркетинг"
-        description="IG: Ganjina · Zamiri · MetodiClinic (без MetodiOne)"
+        description="Два IG-аккаунта: Ganjina Zamiri и MetodiClinic (без MetodiOne)"
       />
 
       {configured && !showConnect ? (
@@ -366,7 +366,7 @@ export function MarketingPage() {
 
           <section className="overflow-hidden rounded-2xl border border-[var(--mo-border)]">
             <div className="border-b border-[var(--mo-border)] px-4 py-3 text-sm font-semibold">
-              Кампании · Ganjina / Zamiri / MetodiClinic
+              Кампании · Ganjina Zamiri / MetodiClinic
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
@@ -385,7 +385,7 @@ export function MarketingPage() {
                   {data.campaigns.length === 0 ? (
                     <tr>
                       <td className="px-3 py-3 mo-muted" colSpan={7}>
-                        Нет кампаний Ganjina / Zamiri / MetodiClinic
+                        Нет кампаний Ganjina Zamiri / MetodiClinic
                       </td>
                     </tr>
                   ) : (
