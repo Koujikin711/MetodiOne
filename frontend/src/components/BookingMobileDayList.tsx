@@ -54,7 +54,7 @@ export function BookingMobileDayList({
   }, [appointments, dateYmd, specFilter]);
 
   return (
-    <div className="booking-day-list lg:hidden">
+    <div className="booking-day-list">
       {specialists.length > 1 ? (
         <div className="booking-day-list__specs" role="tablist" aria-label="Эксперт">
           <button

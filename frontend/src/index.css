@@ -1774,11 +1774,17 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   }
 }
 
-/* Мобильный компактный список дня */
+/* Мобильный компактный список дня — только телефон/планшет < lg */
 .booking-day-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+@media (min-width: 1024px) {
+  .booking-day-list {
+    display: none !important;
+  }
 }
 
 .booking-day-list__specs {
