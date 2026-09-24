@@ -536,6 +536,17 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "wallet",
       });
     }
+    if (showMarketing) {
+      items.push({
+        id: "marketing",
+        to: "/marketing",
+        title: "Маркетинг",
+        labelShort: "Маркет.",
+        labelFull: "Маркетинг · Meta Ads",
+        variant: "purple",
+        iconKey: "bar-chart",
+      });
+    }
     if (isChiefExpert && bookingEnabled && showNavForFeature("reports")) {
       items.push({
         id: "reports",

@@ -36,8 +36,6 @@ def _assert_marketing_access(user) -> None:
         UserRole.owner,
         UserRole.super_owner,
         UserRole.admin,
-        UserRole.administrator,
-        UserRole.accountant,
     ):
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к маркетингу")

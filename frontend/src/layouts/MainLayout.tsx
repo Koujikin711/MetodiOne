@@ -100,11 +100,7 @@ export function MainLayout() {
     role === "admin" ||
     role === "administrator";
   const showMarketing =
-    role === "owner" ||
-    role === "super_owner" ||
-    role === "accountant" ||
-    role === "admin" ||
-    role === "administrator";
+    role === "owner" || role === "super_owner" || role === "admin";
   const showIntegrationsHub = role === "owner" || isChiefExpert;
   const showKpi =
     role === "owner" ||

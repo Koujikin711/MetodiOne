@@ -179,15 +179,9 @@ export function RequireExpenses({ children }: { children: ReactNode }) {
 
 export function RequireMarketing({ children }: { children: ReactNode }) {
   const r = decodeRoleFromToken(getStoredToken());
-  if (
-    r !== "owner" &&
-    r !== "super_owner" &&
-    r !== "accountant" &&
-    r !== "admin" &&
-    r !== "administrator"
-  ) {
+  if (r !== "owner" && r !== "super_owner" && r !== "admin") {
     return (
-      <AccessDenied message="Раздел «Маркетинг» доступен владельцу, администратору и бухгалтеру." />
+      <AccessDenied message="Раздел «Маркетинг» доступен только владельцу и админу." />
     );
   }
   return <>{children}</>;
