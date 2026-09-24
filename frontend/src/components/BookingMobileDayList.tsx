@@ -39,15 +39,10 @@ export function BookingMobileDayList({
       setSpecFilter(null);
       return;
     }
-    setSpecFilter((prev) =>
-      prev != null && specialists.some((s) => s.id === prev) ? prev : specialists[0]!.id,
-    );
-  }, [specialists]);
-
-  const specNameById = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const s of specialists) m.set(s.id, s.full_name);
-    return m;
+    setSpecFilter((prev) => {
+      if (prev != null && specialists.some((s) => s.id === prev)) return prev;
+      return specialists[0]!.id;
+    });
   }, [specialists]);
 
   const dayAppts = useMemo(() => {
@@ -65,7 +60,7 @@ export function BookingMobileDayList({
 
   return (
     <div className="booking-day-list">
-      {specialists.length > 0 ? (
+      {specialists.length > 1 ? (
         <div className="booking-day-list__specs" role="tablist" aria-label="Эксперт">
           {specialists.map((s) => (
             <button
@@ -94,7 +89,6 @@ export function BookingMobileDayList({
             const timeLabel = showSessionInsteadOfTime
               ? null
               : formatTimeInBookingTz(a.start_at);
-            const specName = specNameById.get(a.specialist_id) ?? "";
             const showNoteBtn = canEditNotes || Boolean(note);
 
             return (
@@ -109,9 +103,6 @@ export function BookingMobileDayList({
                   </span>
                   <span className="booking-day-list__main">
                     <span className="booking-day-list__name">{a.patient_name}</span>
-                    {specialists.length === 1 && specName ? (
-                      <span className="booking-day-list__spec">{specName}</span>
-                    ) : null}
                   </span>
                   {showVisit ? (
                     <span className="booking-day-list__visit" title={visitDisplayTitle(a)}>

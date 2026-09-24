@@ -1259,7 +1259,7 @@ export function OnlineBookingPage() {
             <div className="booking-page-date-nav" aria-label="Дата записи">
               <button
                 type="button"
-                className="booking-page-date-nav-btn booking-page-date-nav-btn--day"
+                className="booking-page-date-nav-btn lg:hidden"
                 aria-label="Предыдущий день"
                 onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, -1))}
               >
@@ -1267,21 +1267,21 @@ export function OnlineBookingPage() {
               </button>
               <button
                 type="button"
-                className="booking-page-date-nav-btn booking-page-date-nav-btn--week"
+                className="booking-page-date-nav-btn hidden lg:inline-flex"
                 aria-label="Предыдущая неделя"
                 onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, -7))}
               >
                 ‹
               </button>
-              <span className="booking-page-date-label booking-page-date-label--day">
+              <span className="booking-page-date-label lg:hidden">
                 {formatBookingToolbarDate(filterDate)}
               </span>
-              <span className="booking-page-date-label booking-page-date-label--week">
+              <span className="booking-page-date-label hidden lg:inline">
                 {formatWeekRangeLabel(filterDate)}
               </span>
               <button
                 type="button"
-                className="booking-page-date-nav-btn booking-page-date-nav-btn--day"
+                className="booking-page-date-nav-btn lg:hidden"
                 aria-label="Следующий день"
                 onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, 1))}
               >
@@ -1289,7 +1289,7 @@ export function OnlineBookingPage() {
               </button>
               <button
                 type="button"
-                className="booking-page-date-nav-btn booking-page-date-nav-btn--week"
+                className="booking-page-date-nav-btn hidden lg:inline-flex"
                 aria-label="Следующая неделя"
                 onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, 7))}
               >
@@ -1344,7 +1344,7 @@ export function OnlineBookingPage() {
                   className="mo-section overflow-visible p-4 ring-1 ring-[#d4af37]/20"
                 >
                   <div className="booking-form-calendar mb-3">
-                    <MiniMonthCalendar value={filterDate} onChange={setFilterDate} />
+                    <MiniMonthCalendar compact value={filterDate} onChange={setFilterDate} />
                   </div>
                   <h2 className="mb-3 lux-subheading">Новая запись</h2>
                   <form onSubmit={onSubmit} className="space-y-2.5">

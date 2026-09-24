@@ -1663,7 +1663,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-page-date-nav {
-  @apply inline-flex min-w-0 items-center gap-0.5 rounded-xl border px-1.5 py-1 text-sm font-medium sm:gap-1 sm:px-2 sm:py-1.5;
+  @apply inline-flex items-center gap-1 rounded-xl border px-2 py-1.5 text-sm font-medium;
   border-color: var(--mo-border);
   background: var(--mo-surface-elevated);
   color: var(--mo-text);
@@ -1679,28 +1679,8 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   color: var(--mo-accent);
 }
 
-.booking-page-date-nav-btn--week,
-.booking-page-date-label--week {
-  display: none !important;
-}
-
-@media (min-width: 1024px) {
-  .booking-page-date-nav-btn--day,
-  .booking-page-date-label--day {
-    display: none !important;
-  }
-
-  .booking-page-date-nav-btn--week {
-    display: inline-flex !important;
-  }
-
-  .booking-page-date-label--week {
-    display: inline !important;
-  }
-}
-
 .booking-page-date-label {
-  @apply min-w-0 flex-1 truncate px-1 text-center text-xs font-semibold capitalize sm:min-w-[9rem] sm:flex-none sm:text-sm;
+  @apply min-w-[9rem] px-1 text-center text-sm font-semibold capitalize;
 }
 
 .booking-form-calendar {
@@ -1710,28 +1690,70 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-page-toolbar-row {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.booking-page-toolbar-row .booking-page-date-nav {
-  flex: 1 1 auto;
-  min-width: 0;
-  justify-content: space-between;
-}
-
-.booking-page-toolbar-row .booking-filter-root {
-  flex-shrink: 0;
+  @apply flex flex-wrap items-center gap-2;
 }
 
 @media (max-width: 1023px) {
-  .booking-page-toolbar-row .booking-filter-trigger {
-    padding-left: 0.55rem;
-    padding-right: 0.55rem;
-    gap: 0.3rem;
+  .booking-page-toolbar-row {
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 0.45rem;
+  }
+
+  .booking-page-toolbar-row .booking-page-date-nav {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: space-between;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+  }
+
+  .booking-page-toolbar-row .booking-page-date-label {
+    min-width: 0;
+    flex: 1 1 auto;
     font-size: 0.75rem;
+    padding-left: 0.15rem;
+    padding-right: 0.15rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .booking-page-toolbar-row .booking-page-date-nav-btn {
+    height: 1.85rem;
+    width: 1.85rem;
+    font-size: 1rem;
+  }
+
+  .booking-page-toolbar-row .booking-filter-root {
+    flex-shrink: 0;
+  }
+
+  .booking-page-toolbar-row .booking-filter-trigger {
+    height: 100%;
+    min-height: 2.35rem;
+    padding-left: 0.65rem;
+    padding-right: 0.65rem;
+    font-size: 0.75rem;
+    gap: 0.3rem;
+  }
+
+  .booking-page-toolbar-row .booking-filter-trigger span {
+    display: none;
+  }
+
+  .booking-page-toolbar-row .booking-filter-trigger svg {
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .booking-form-calendar {
+    max-width: 14.5rem;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0.45rem 0.55rem;
   }
 }
 
