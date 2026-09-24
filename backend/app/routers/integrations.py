@@ -946,10 +946,29 @@ async def meta_webhook_verify_shared(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Общий Callback URL для Meta App (несколько страниц → одна точка входа)."""
+    from app.models.marketing_meta import MarketingMetaSettings
+
     qp = request.query_params
     hub_mode = qp.get("hub.mode")
     hub_verify_token = qp.get("hub.verify_token")
     hub_challenge = qp.get("hub.challenge")
+
+    # 1) токен из маркетинга (после «Подключить Instagram DM»)
+    mrows = (await db.execute(select(MarketingMetaSettings))).scalars().all()
+    for m in mrows:
+        vt = (m.ig_verify_token or "").strip()
+        if not vt:
+            continue
+        challenge = meta_hub_challenge_response(
+            verify_token=vt,
+            hub_mode=hub_mode,
+            hub_verify_token=hub_verify_token,
+            hub_challenge=hub_challenge,
+        )
+        if challenge is not None:
+            return challenge
+
+    # 2) секреты интеграций Instagram
     rows = (
         await db.execute(
             select(Integration).where(

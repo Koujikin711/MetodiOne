@@ -19,4 +19,6 @@ class MarketingMetaSettings(Base):
     # act_123… или просто цифры — нормализуем в сервисе
     ad_account_id: Mapped[str] = mapped_column(String(64), default="")
     access_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Verify Token для общего Meta webhook (/api/integrations/webhook/meta)
+    ig_verify_token: Mapped[str | None] = mapped_column(String(128), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)

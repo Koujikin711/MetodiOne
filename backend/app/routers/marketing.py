@@ -514,7 +514,14 @@ async def connect_instagram_dms(
             )
         )
     ).scalars().first()
-    verify = (existing_ig.secret if existing_ig and (existing_ig.secret or "").strip() else "") or secrets.token_urlsafe(24)
+    # hex — без путаницы i/l/_ при копировании в Meta
+    verify = (
+        (row.ig_verify_token or "").strip()
+        or (existing_ig.secret if existing_ig and (existing_ig.secret or "").strip() else "")
+        or secrets.token_hex(24)
+    )
+    row.ig_verify_token = verify
+    row.updated_at = datetime.now(UTC)
 
     try:
         rows = await upsert_instagram_integrations(
@@ -525,7 +532,8 @@ async def connect_instagram_dms(
 
     pub = resolve_public_api_base(request, settings.public_api_base_url)
     if not pub:
-        pub = "https://metodi-one-koujikin.amvera.io"
+        pub = "https://metodione.com"
+    # webhook всегда на API (metodione.com проксирует /api)
     callback = f"{pub.rstrip('/')}/api/integrations/webhook/meta"
 
     accounts: list[MarketingInstagramAccountConnected] = []

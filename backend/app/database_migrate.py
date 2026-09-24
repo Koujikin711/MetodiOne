@@ -4004,10 +4004,15 @@ async def ensure_marketing_meta_settings(conn: AsyncConnection, database_url: st
                     company_id INTEGER NOT NULL UNIQUE,
                     ad_account_id VARCHAR(64) NOT NULL DEFAULT '',
                     access_token TEXT,
+                    ig_verify_token VARCHAR(128),
                     updated_at DATETIME
                 )"""
             )
         )
+        try:
+            await conn.execute(text("ALTER TABLE marketing_meta_settings ADD COLUMN ig_verify_token VARCHAR(128)"))
+        except Exception:
+            pass
         return
     await conn.execute(
         text(
@@ -4016,10 +4021,16 @@ async def ensure_marketing_meta_settings(conn: AsyncConnection, database_url: st
                 company_id INTEGER NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE,
                 ad_account_id VARCHAR(64) NOT NULL DEFAULT '',
                 access_token TEXT,
+                ig_verify_token VARCHAR(128),
                 updated_at TIMESTAMPTZ
             )"""
         )
     )
     await conn.execute(
         text("CREATE INDEX IF NOT EXISTS ix_marketing_meta_settings_company_id ON marketing_meta_settings (company_id)")
+    )
+    await conn.execute(
+        text(
+            "ALTER TABLE marketing_meta_settings ADD COLUMN IF NOT EXISTS ig_verify_token VARCHAR(128)"
+        )
     )
