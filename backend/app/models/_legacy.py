@@ -365,6 +365,8 @@ class SalesKpiManualSale(Base):
     manager_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     client_name: Mapped[str] = mapped_column(String(255))
     client_phone: Mapped[str] = mapped_column(String(64))
+    # Опциональная привязка к Lead (без auto-merge по телефону).
+    lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
     # Номер потока (Поток 1…10)
     stream_no: Mapped[int | None] = mapped_column(nullable=True)
     # Номер группы (Группа 1…20)

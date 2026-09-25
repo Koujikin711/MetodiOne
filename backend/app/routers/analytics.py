@@ -1206,6 +1206,7 @@ async def analytics_customer_value(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> CustomerValueRead:
+    """Legacy: sum(service_amount) визитов. Не Paid LTV — см. /analytics/ltv/patient/{id}."""
     _assert_owner(current_user)
     total = await db.scalar(
         select(func.coalesce(func.sum(BookingAppointment.service_amount), 0)).where(
@@ -1215,6 +1216,49 @@ async def analytics_customer_value(
     )
     total = total if total is not None else Decimal("0")
     return CustomerValueRead(customer_id=customer_id, value=Decimal(str(total)))
+
+
+@router.post("/ltv/sync")
+async def analytics_ltv_sync(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> dict:
+    """Идемпотентный sync Purchase/Payment ledger (Phase 1). Owner only."""
+    _assert_owner(current_user)
+    from app.services.patient_ltv import sync_company_purchases
+
+    stats = await sync_company_purchases(db, company_id)
+    await db.commit()
+    return {"ok": True, **stats}
+
+
+@router.get("/ltv/patient/{lead_id}")
+async def analytics_ltv_patient(
+    lead_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> dict:
+    """Paid LTV / Sales Value / outstanding по Lead (backend formula)."""
+    _assert_owner(current_user)
+    lead = await db.get(Lead, lead_id)
+    if lead is None or lead.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    from app.services.patient_ltv import load_lead_ltv
+
+    snap = await load_lead_ltv(db, company_id=company_id, lead_id=lead_id)
+    return {
+        "lead_id": snap.lead_id,
+        "purchase_count": snap.purchase_count,
+        "paid_ltv": snap.paid_ltv,
+        "sales_value": snap.sales_value,
+        "outstanding": snap.outstanding,
+        "refunds_total": snap.refunds_total,
+        "first_purchase_at": snap.first_purchase_at,
+        "last_purchase_at": snap.last_purchase_at,
+        "lifetime_days": snap.lifetime_days,
+    }
 
 
 def _services_calendar_bounds(

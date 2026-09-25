@@ -4034,3 +4034,117 @@ async def ensure_marketing_meta_settings(conn: AsyncConnection, database_url: st
             "ALTER TABLE marketing_meta_settings ADD COLUMN IF NOT EXISTS ig_verify_token VARCHAR(128)"
         )
     )
+
+
+async def ensure_patient_purchase_tables(conn: AsyncConnection, database_url: str) -> None:
+    """Phase 1: patient_purchases / payments + optional lead_id on KPI sales."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS patient_purchases (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    lead_id INTEGER,
+                    pipeline_id INTEGER,
+                    source_type VARCHAR(40) NOT NULL,
+                    source_id INTEGER NOT NULL,
+                    product_kind VARCHAR(40) NOT NULL DEFAULT 'other_service',
+                    product_name VARCHAR(255) NOT NULL DEFAULT '',
+                    service_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    status VARCHAR(24) NOT NULL DEFAULT 'active',
+                    purchased_at DATETIME,
+                    client_name VARCHAR(255),
+                    client_phone VARCHAR(64),
+                    note TEXT,
+                    created_at DATETIME,
+                    updated_at DATETIME,
+                    UNIQUE(company_id, source_type, source_id)
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS patient_purchase_payments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    purchase_id INTEGER NOT NULL,
+                    source_type VARCHAR(40) NOT NULL,
+                    source_id INTEGER NOT NULL,
+                    amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                    is_refund INTEGER NOT NULL DEFAULT 0,
+                    paid_at DATETIME,
+                    note TEXT,
+                    created_at DATETIME,
+                    UNIQUE(company_id, source_type, source_id)
+                )"""
+            ),
+        )
+        try:
+            await conn.execute(text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN lead_id INTEGER"))
+        except Exception:
+            pass
+        for idx, ddl in (
+            ("ix_patient_purchases_company_id", "CREATE INDEX IF NOT EXISTS ix_patient_purchases_company_id ON patient_purchases (company_id)"),
+            ("ix_patient_purchases_lead_id", "CREATE INDEX IF NOT EXISTS ix_patient_purchases_lead_id ON patient_purchases (lead_id)"),
+            ("ix_patient_purchase_payments_purchase_id", "CREATE INDEX IF NOT EXISTS ix_patient_purchase_payments_purchase_id ON patient_purchase_payments (purchase_id)"),
+        ):
+            await conn.execute(text(ddl))
+        return
+
+    await conn.execute(
+        text(
+            """CREATE TABLE IF NOT EXISTS patient_purchases (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+                pipeline_id INTEGER REFERENCES pipelines(id) ON DELETE SET NULL,
+                source_type VARCHAR(40) NOT NULL,
+                source_id INTEGER NOT NULL,
+                product_kind VARCHAR(40) NOT NULL DEFAULT 'other_service',
+                product_name VARCHAR(255) NOT NULL DEFAULT '',
+                service_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                status VARCHAR(24) NOT NULL DEFAULT 'active',
+                purchased_at TIMESTAMPTZ,
+                client_name VARCHAR(255),
+                client_phone VARCHAR(64),
+                note TEXT,
+                created_at TIMESTAMPTZ,
+                updated_at TIMESTAMPTZ,
+                CONSTRAINT uq_patient_purchase_source UNIQUE (company_id, source_type, source_id)
+            )"""
+        ),
+    )
+    await conn.execute(
+        text(
+            """CREATE TABLE IF NOT EXISTS patient_purchase_payments (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                purchase_id INTEGER NOT NULL REFERENCES patient_purchases(id) ON DELETE CASCADE,
+                source_type VARCHAR(40) NOT NULL,
+                source_id INTEGER NOT NULL,
+                amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                is_refund BOOLEAN NOT NULL DEFAULT FALSE,
+                paid_at TIMESTAMPTZ,
+                note TEXT,
+                created_at TIMESTAMPTZ,
+                CONSTRAINT uq_patient_purchase_payment_source UNIQUE (company_id, source_type, source_id)
+            )"""
+        ),
+    )
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_patient_purchases_company_id ON patient_purchases (company_id)"))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_patient_purchases_lead_id ON patient_purchases (lead_id)"))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_patient_purchases_purchased_at ON patient_purchases (purchased_at)"))
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_patient_purchase_payments_purchase_id ON patient_purchase_payments (purchase_id)")
+    )
+    await conn.execute(
+        text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL")
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_sales_kpi_manual_sales_lead_id ON sales_kpi_manual_sales (lead_id)")
+    )
