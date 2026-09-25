@@ -433,6 +433,10 @@ export function AnalyticsPatientsLtvPanel() {
     linked_main_course: number;
     linked_protocol: number;
     note?: string;
+    classification?: {
+      main_course: Record<string, number>;
+      protocol: Record<string, number>;
+    };
     rows: {
       sale_id: number;
       sold_at?: string | null;
@@ -448,6 +452,12 @@ export function AnalyticsPatientsLtvPanel() {
       suggested_lead?: { lead_id: number; lead_name: string; lead_phone?: string | null } | null;
       candidate_leads?: { lead_id: number; lead_name: string; lead_phone?: string | null }[];
       match_evidence?: string[];
+      evidence?: {
+        phone?: boolean;
+        fio?: string;
+        booking?: boolean;
+        warning?: string | null;
+      };
     }[];
   };
 
@@ -704,6 +714,34 @@ export function AnalyticsPatientsLtvPanel() {
                     <strong className="tabular-nums">{prog?.unresolved_main_course ?? "…"}</strong>
                   </span>
                 </div>
+                {prog?.classification?.main_course ? (
+                  <div className="mt-2 text-[11px] mo-muted space-y-0.5">
+                    <div>
+                      High confidence:{" "}
+                      <strong className="tabular-nums text-[var(--mo-text)]">
+                        {prog.classification.main_course.high_confidence ?? 0}
+                      </strong>
+                    </div>
+                    <div>
+                      Review required:{" "}
+                      <strong className="tabular-nums text-[var(--mo-text)]">
+                        {prog.classification.main_course.review_required ?? 0}
+                      </strong>
+                    </div>
+                    <div>
+                      Ambiguous:{" "}
+                      <strong className="tabular-nums text-[var(--mo-text)]">
+                        {prog.classification.main_course.ambiguous ?? 0}
+                      </strong>
+                    </div>
+                    <div>
+                      No candidate:{" "}
+                      <strong className="tabular-nums text-[var(--mo-text)]">
+                        {prog.classification.main_course.no_candidate ?? 0}
+                      </strong>
+                    </div>
+                  </div>
+                ) : null}
               </div>
               <div className="rounded-lg border border-[var(--mo-border)] px-3 py-2 text-sm">
                 <div className="font-semibold">Протоколы</div>
@@ -717,6 +755,34 @@ export function AnalyticsPatientsLtvPanel() {
                     <strong className="tabular-nums">{prog?.unresolved_protocol ?? "…"}</strong>
                   </span>
                 </div>
+                {prog?.classification?.protocol ? (
+                  <div className="mt-2 text-[11px] mo-muted space-y-0.5">
+                    <div>
+                      High confidence:{" "}
+                      <strong className="tabular-nums text-[var(--mo-text)]">
+                        {prog.classification.protocol.high_confidence ?? 0}
+                      </strong>
+                    </div>
+                    <div>
+                      Review required:{" "}
+                      <strong className="tabular-nums text-[var(--mo-text)]">
+                        {prog.classification.protocol.review_required ?? 0}
+                      </strong>
+                    </div>
+                    <div>
+                      Ambiguous:{" "}
+                      <strong className="tabular-nums text-[var(--mo-text)]">
+                        {prog.classification.protocol.ambiguous ?? 0}
+                      </strong>
+                    </div>
+                    <div>
+                      No candidate:{" "}
+                      <strong className="tabular-nums text-[var(--mo-text)]">
+                        {prog.classification.protocol.no_candidate ?? 0}
+                      </strong>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
             {programNeedsDq ? (
@@ -759,21 +825,62 @@ export function AnalyticsPatientsLtvPanel() {
                         <td className="px-2 py-1.5 text-right tabular-nums">{money(r.paid_amount)}</td>
                         <td className="px-2 py-1.5">{r.manager_name}</td>
                         <td className="px-2 py-1.5">
-                          {r.suggestion_confidence === "unique" && r.suggested_lead ? (
-                            <div>
-                              <div>
-                                Возможный пациент: {r.suggested_lead.lead_name} — Lead #
-                                {r.suggested_lead.lead_id}
+                          {(() => {
+                            const conf = r.suggestion_confidence;
+                            const ev = r.evidence;
+                            const fioOk = ev?.fio === "exact" || ev?.fio === "partial";
+                            return (
+                              <div className="space-y-1">
+                                {conf === "high_confidence" && r.suggested_lead ? (
+                                  <div>
+                                    <div className="font-medium text-emerald-600/90 dark:text-emerald-400/90">
+                                      High confidence (не auto-link)
+                                    </div>
+                                    <div>
+                                      Возможный пациент: {r.suggested_lead.lead_name} — Lead #
+                                      {r.suggested_lead.lead_id}
+                                    </div>
+                                  </div>
+                                ) : null}
+                                {conf === "review_required" && r.suggested_lead ? (
+                                  <div>
+                                    <div className="font-medium text-amber-600 dark:text-amber-400">
+                                      Review required
+                                    </div>
+                                    <div>
+                                      {r.suggested_lead.lead_name} — Lead #{r.suggested_lead.lead_id}
+                                    </div>
+                                    <div className="text-amber-700/90 dark:text-amber-300/90">
+                                      {ev?.warning ||
+                                        "Телефон совпадает, данные пациента отличаются"}
+                                    </div>
+                                  </div>
+                                ) : null}
+                                {conf === "ambiguous" ? (
+                                  <span className="text-amber-700 dark:text-amber-300">
+                                    ⚠ Несколько возможных пациентов — автопривязка запрещена
+                                  </span>
+                                ) : null}
+                                {conf === "no_candidate" || conf === "none" ? (
+                                  <span className="mo-muted">Нет кандидата</span>
+                                ) : null}
+                                {/* legacy unique from old API */}
+                                {conf === "unique" && r.suggested_lead ? (
+                                  <div className="text-amber-700 dark:text-amber-300">
+                                    Только телефон (нужен review) — {r.suggested_lead.lead_name} #
+                                    {r.suggested_lead.lead_id}
+                                  </div>
+                                ) : null}
+                                {ev ? (
+                                  <div className="mo-muted text-[10px]">
+                                    Телефон {ev.phone ? "✓" : "—"} · ФИО{" "}
+                                    {fioOk ? "✓" : ev?.fio === "mismatch" ? "⚠" : "—"} · Booking{" "}
+                                    {ev.booking ? "✓" : "—"}
+                                  </div>
+                                ) : null}
                               </div>
-                              <div className="mo-muted">
-                                {(r.match_evidence || []).join(", ") || "phone"}
-                              </div>
-                            </div>
-                          ) : r.suggestion_confidence === "ambiguous" ? (
-                            <span className="mo-muted">Несколько кандидатов — выберите вручную</span>
-                          ) : (
-                            <span className="mo-muted">Нет уникального совпадения</span>
-                          )}
+                            );
+                          })()}
                         </td>
                         <td className="px-2 py-1.5">
                           <div className="flex flex-col gap-1">
