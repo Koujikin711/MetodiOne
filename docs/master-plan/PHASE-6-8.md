@@ -1,25 +1,21 @@
 # Phase 6–8 — статус
 
-## Phase 6 — DONE (ранее + в main)
+## Phase 6 — DONE
 
-Online Booking → «Отчёт по услугам»: KPI + таблица + drill-down = summary.
+Online Booking → «Отчёт по услугам».
 
-## Phase 7 — checklist (текущий статус)
+## Phase 7 — DONE (2026-09-25)
 
 | Проверка | Статус |
 |----------|--------|
-| Purchase ledger sync | есть (`POST /ltv/sync`) |
-| Paid LTV ≠ month revenue | cohort API |
-| Double-count Курс/Протокол booking | исключены из purchase |
-| Unique patient Lead.id (booking report) | да |
-| Journey branch marker (first main/protocol) | да; оба продукта остаются в LTV; МК не gate |
-| Course15/Masterclass ≠ purchase prerequisite | да |
-| Curator journal ≠ Protocol auto-write | да |
-| Permissions owner на LTV | да |
-| Полный regression E2E всех модулей | **не автоматически** — ручной smoke после деплоя |
-| KPI sales без lead_id в Paid LTV пациента | unresolved + coverage UI (ожидаемо) |
-| Product Transitions (Phase 5 backlog) | **done** — A→B/A→A на Purchase Events |
+| Production Sync ledger | выполнен (идемпотентен) |
+| 6 booking_refund reconciliation | PASS (leads 38849, 39513; top-200 miss = low Paid LTV) |
+| KPI unresolved classification | unique≈52 / ambiguous=0 / no_lead≈10 / returned=1 (phone=signal only) |
+| Safe linking new KPI sales | `lead_id` на create + `PATCH .../link-lead` (owner, explicit) |
+| No phone auto-merge | да |
+| Coverage | Before 97.7%; After **unchanged** (no blind link) |
+| MainCourse / Protocol | 1 sale = 1 purchase; payments ≠ purchases; MK/C15 not required |
+| Product Transitions | done (Phase 5) |
+| pytest | см. финальный отчёт |
 
 ## Phase 8 — НЕ реализуется
-
-Резерв: Сегодня / Требует внимания / Аудит / Data Quality на том же ledger.

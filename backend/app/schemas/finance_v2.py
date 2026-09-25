@@ -21,6 +21,7 @@ class FinanceOsvRowRead(BaseModel):
     detail_category: str | None = None
     brief_category: str | None = None
     source: str
+    external_key: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

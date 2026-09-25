@@ -317,6 +317,7 @@ export function KpiPage() {
     group_no: "",
     client_name: "",
     client_phone: "",
+    lead_id: "",
     service_amount: "",
     paid_amount: "",
     second_paid_amount: "",
@@ -488,6 +489,7 @@ export function KpiPage() {
           group_no: Number(saleForm.group_no),
           client_name: saleForm.client_name.trim(),
           client_phone: saleForm.client_phone.trim(),
+          lead_id: saleForm.lead_id.trim() ? Number(saleForm.lead_id) : null,
           service_amount: Number(saleForm.service_amount),
           paid_amount: Number(saleForm.paid_amount || 0),
           second_paid_amount: Number(saleForm.second_paid_amount || 0),
@@ -506,6 +508,7 @@ export function KpiPage() {
         group_no: "",
         client_name: "",
         client_phone: "",
+        lead_id: "",
         service_amount: "",
         paid_amount: "",
         second_paid_amount: "",
@@ -518,6 +521,21 @@ export function KpiPage() {
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-payment-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const linkLeadMutation = useMutation({
+    mutationFn: async ({ id, leadId }: { id: number; leadId: number }) => {
+      await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${id}/link-lead`, {
+        method: "PATCH",
+        body: JSON.stringify({ lead_id: leadId }),
+      });
+    },
+    onSuccess: () => {
+      toast.success("Lead привязан");
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["analytics-ltv-cohort"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1267,6 +1285,20 @@ export function KpiPage() {
                 />
               </label>
               <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
+                Lead ID (опционально)
+                <input
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                  inputMode="numeric"
+                  placeholder="явная привязка к пациенту"
+                  value={saleForm.lead_id}
+                  onChange={(e) => setSaleForm((s) => ({ ...s, lead_id: e.target.value }))}
+                  title="Без auto-merge по телефону — только явный Lead"
+                />
+                <span className="text-[10px] leading-snug text-[var(--mo-text-muted)]">
+                  Lead → sale; телефон сам по себе не связывает
+                </span>
+              </label>
+              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
                 Стоимость
                 <input
                   type="number"
@@ -1612,19 +1644,40 @@ export function KpiPage() {
                       ) : null}
                     </td>
                     <td>
-                      {s.status === "active" ? (
-                        <SaleRowActionsMenu
-                          onReturn={() => {
-                            if (window.confirm("Отметить возврат и снять с KPI?")) {
-                              returnMutation.mutate(s.id);
-                            }
-                          }}
-                          onRefuse={() => askCloseSale(s.id, "refused")}
-                          onComplete={() => askCloseSale(s.id, "completed")}
-                        />
-                      ) : (
-                        <span className="text-[var(--mo-text-muted)]">—</span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {s.lead_id ? (
+                          <span className="text-[10px] tabular-nums mo-muted">Lead #{s.lead_id}</span>
+                        ) : (role === "owner" || role === "super_owner") ? (
+                          <button
+                            type="button"
+                            className="text-left text-[11px] text-[var(--mo-accent-hover)] underline"
+                            disabled={linkLeadMutation.isPending}
+                            onClick={() => {
+                              const raw = window.prompt("Lead ID для явной привязки (без phone-merge):");
+                              const leadId = Number(raw || 0);
+                              if (!leadId) return;
+                              linkLeadMutation.mutate({ id: s.id, leadId });
+                            }}
+                          >
+                            Привязать Lead
+                          </button>
+                        ) : (
+                          <span className="text-[10px] mo-muted">без Lead</span>
+                        )}
+                        {s.status === "active" ? (
+                          <SaleRowActionsMenu
+                            onReturn={() => {
+                              if (window.confirm("Отметить возврат и снять с KPI?")) {
+                                returnMutation.mutate(s.id);
+                              }
+                            }}
+                            onRefuse={() => askCloseSale(s.id, "refused")}
+                            onComplete={() => askCloseSale(s.id, "completed")}
+                          />
+                        ) : (
+                          <span className="text-[var(--mo-text-muted)]">—</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

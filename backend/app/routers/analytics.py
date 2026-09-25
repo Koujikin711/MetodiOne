@@ -1289,9 +1289,9 @@ async def analytics_ltv_patient(
     lead = await db.get(Lead, lead_id)
     if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
-    from app.services.patient_ltv import load_lead_ltv
+    from app.services.patient_ltv import load_lead_ltv, normalize_payment_row
     from app.services.patient_journey import sync_journey_for_lead
-    from app.models import PatientJourney, PatientJourneyEpisode
+    from app.models import PatientJourney, PatientJourneyEpisode, PatientPurchase, PatientPurchasePayment
 
     await sync_journey_for_lead(db, company_id=company_id, lead_id=lead_id)
     snap = await load_lead_ltv(db, company_id=company_id, lead_id=lead_id)
@@ -1313,6 +1313,26 @@ async def analytics_ltv_patient(
             .order_by(PatientJourneyEpisode.kind.asc(), PatientJourneyEpisode.sequence_no.asc()),
         )
     ).scalars().all()
+    purchases = (
+        await db.execute(
+            select(PatientPurchase)
+            .where(
+                PatientPurchase.company_id == company_id,
+                PatientPurchase.lead_id == lead_id,
+            )
+            .order_by(PatientPurchase.purchased_at.asc()),
+        )
+    ).scalars().all()
+    purchase_ids = [int(p.id) for p in purchases]
+    payments: list[PatientPurchasePayment] = []
+    if purchase_ids:
+        payments = (
+            await db.execute(
+                select(PatientPurchasePayment)
+                .where(PatientPurchasePayment.purchase_id.in_(purchase_ids))
+                .order_by(PatientPurchasePayment.paid_at.asc()),
+            )
+        ).scalars().all()
     return {
         "lead_id": snap.lead_id,
         "purchase_count": snap.purchase_count,
@@ -1340,6 +1360,34 @@ async def analytics_ltv_patient(
                 "purchase_id": e.purchase_id,
             }
             for e in episodes
+        ],
+        "purchases": [
+            {
+                "id": int(p.id),
+                "source_type": p.source_type,
+                "source_id": int(p.source_id),
+                "product_kind": p.product_kind,
+                "product_name": p.product_name,
+                "service_amount": p.service_amount,
+                "paid_amount": p.paid_amount,
+                "status": p.status,
+                "purchased_at": p.purchased_at,
+            }
+            for p in purchases
+        ],
+        "money_events": [
+            {
+                "id": int(pay.id),
+                "purchase_id": int(pay.purchase_id),
+                "source_type": pay.source_type,
+                "source_id": int(pay.source_id),
+                "amount": pay.amount,
+                "is_refund": bool(pay.is_refund),
+                "signed_amount": normalize_payment_row(pay).signed_amount,
+                "event_type": normalize_payment_row(pay).event_type,
+                "paid_at": pay.paid_at,
+            }
+            for pay in payments
         ],
     }
 

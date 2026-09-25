@@ -1061,6 +1061,8 @@ export interface SalesKpiManualSale {
   manager_name: string;
   client_name: string;
   client_phone: string;
+  /** Явная привязка к Lead (без phone auto-merge) */
+  lead_id?: number | null;
   /** Номер потока (Поток 1…10) */
   stream_no?: number | null;
   /** Номер группы (Группа 1…20) */

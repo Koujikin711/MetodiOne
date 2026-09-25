@@ -45,6 +45,7 @@ from app.schemas.sales_kpi import (
     SalesKpiDebtorsReport,
     SalesKpiDirectionMeta,
     SalesKpiManualSaleCreate,
+    SalesKpiManualSaleLinkLeadPatch,
     SalesKpiManualSaleOut,
     SalesKpiManualSalePaymentOut,
     SalesKpiManualSalePaymentPatch,
@@ -358,6 +359,7 @@ def _manual_sale_out(
         manager_name=manager_name,
         client_name=sale.client_name,
         client_phone=sale.client_phone,
+        lead_id=int(sale.lead_id) if getattr(sale, "lead_id", None) is not None else None,
         stream_no=int(stream_raw) if stream_raw is not None else None,
         group_no=int(group_raw) if group_raw is not None else None,
         service_amount=sa,
@@ -896,6 +898,13 @@ async def create_manual_sale(
     if first_paid + second_paid > body.service_amount:
         raise HTTPException(status_code=400, detail="Сумма платежей не может быть больше стоимости")
 
+    link_lead_id: int | None = None
+    if body.lead_id is not None:
+        lead = await db.get(Lead, int(body.lead_id))
+        if lead is None or lead.company_id != company_id:
+            raise HTTPException(status_code=400, detail="Lead не найден в компании")
+        link_lead_id = int(lead.id)
+
     total_paid = first_paid + second_paid
     first_at = _paid_at_from_input(body.first_paid_at if body.first_paid_at is not None else body.sold_at)
     second_at = _paid_at_from_input(body.second_paid_at)
@@ -907,6 +916,7 @@ async def create_manual_sale(
         manager_user_id=body.manager_user_id,
         client_name=body.client_name.strip(),
         client_phone=body.client_phone.strip(),
+        lead_id=link_lead_id,
         stream_no=int(body.stream_no),
         group_no=int(body.group_no),
         service_amount=body.service_amount,
@@ -1038,6 +1048,43 @@ async def patch_manual_sale_sold_at(
     if sale is None or sale.company_id != company_id:
         raise HTTPException(status_code=404, detail="Продажа не найдена")
     sale.sold_at = _paid_at_from_input(body.sold_at)
+    sale.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(sale)
+    payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
+    item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    manager = await db.get(User, sale.manager_user_id)
+    return _manual_sale_out(
+        sale,
+        plan_item_name=item.name if item else "",
+        manager_name=str(
+            (manager.full_name if manager else None)
+            or (manager.email if manager else None)
+            or f"#{sale.manager_user_id}"
+        ),
+        payments=payments,
+    )
+
+
+@router.patch("/manual-sales/{sale_id}/link-lead", response_model=SalesKpiManualSaleOut)
+async def link_manual_sale_lead(
+    sale_id: int,
+    body: SalesKpiManualSaleLinkLeadPatch,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> SalesKpiManualSaleOut:
+    """Owner: явная ручная привязка KPI-продажи к Lead. Без phone auto-merge."""
+    _assert_kpi_access(current_user)
+    if current_user.role not in (UserRole.owner, UserRole.super_owner):
+        raise HTTPException(status_code=403, detail="Только владелец может привязать Lead")
+    sale = await db.get(SalesKpiManualSale, sale_id)
+    if sale is None or sale.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Продажа не найдена")
+    lead = await db.get(Lead, int(body.lead_id))
+    if lead is None or lead.company_id != company_id:
+        raise HTTPException(status_code=400, detail="Lead не найден в компании")
+    sale.lead_id = int(lead.id)
     sale.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(sale)

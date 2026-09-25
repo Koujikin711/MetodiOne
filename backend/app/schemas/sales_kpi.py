@@ -196,6 +196,8 @@ class SalesKpiManualSaleCreate(BaseModel):
     )
     sold_at: datetime | None = None
     note: str | None = None
+    # Явная привязка к Lead в момент продажи (без phone auto-merge).
+    lead_id: int | None = Field(default=None, ge=1)
 
 
 class SalesKpiManualSaleSoldAtPatch(BaseModel):
@@ -254,6 +256,7 @@ class SalesKpiManualSaleOut(BaseModel):
     manager_name: str
     client_name: str
     client_phone: str
+    lead_id: int | None = None
     stream_no: int | None = None
     group_no: int | None = None
     service_amount: Decimal
@@ -267,6 +270,12 @@ class SalesKpiManualSaleOut(BaseModel):
     status_reason: str | None = None
     counts_in_kpi: bool
     payments: list[SalesKpiManualSalePaymentOut] = Field(default_factory=list)
+
+
+class SalesKpiManualSaleLinkLeadPatch(BaseModel):
+    """Ручная привязка owner к Lead. Без phone auto-merge."""
+
+    lead_id: int = Field(..., ge=1)
 
 class SalesKpiDebtorRow(BaseModel):
     source: str  # booking | manual
