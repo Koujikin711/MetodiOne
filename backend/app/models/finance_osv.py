@@ -35,4 +35,4 @@ class FinanceOsvRow(Base):
     brief_category: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source: Mapped[str] = mapped_column(String(24), default="manual")
     external_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)

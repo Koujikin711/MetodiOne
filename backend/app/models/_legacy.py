@@ -49,7 +49,7 @@ class TariffPlan(Base):
     warehouse_enabled: Mapped[bool] = mapped_column(default=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     sort_order: Mapped[int] = mapped_column(default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     # Биллинг конструктора: валюта пакета и скидка к сумме функций+лимитов (до переопределения на компании).
     billing_currency: Mapped[str] = mapped_column(String(3), default="TJS")
     discount_percent: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("0"))
@@ -65,7 +65,7 @@ class Company(Base):
     # clinic = онлайн-запись; sales = окно продаж менеджера (без booking)
     crm_mode: Mapped[str] = mapped_column(String(32), default="clinic", index=True)
     is_active: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     tariff_plan_id: Mapped[int | None] = mapped_column(
         ForeignKey("tariff_plans.id", ondelete="SET NULL"),
         nullable=True,
@@ -322,13 +322,13 @@ class ManagerDeskSale(Base):
     activity_sphere: Mapped[str] = mapped_column(String(255), default="")
     service_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
-    sold_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    sold_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     # active | cancelled
     status: Mapped[str] = mapped_column(String(24), default="active")
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class SalesFieldVisit(Base):
@@ -349,8 +349,8 @@ class SalesFieldVisit(Base):
     accuracy_m: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     address: Mapped[str | None] = mapped_column(String(512), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    visited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    visited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class SalesKpiManualSale(Base):
@@ -373,7 +373,7 @@ class SalesKpiManualSale(Base):
     paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     # Сумма первого платежа — для KPI/бонуса; доплаты её не меняют.
     first_paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
-    sold_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    sold_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     # active | returned | refused | completed
     status: Mapped[str] = mapped_column(String(24), default="active")
     returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -381,8 +381,8 @@ class SalesKpiManualSale(Base):
     status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class SalesKpiManualSalePayment(Base):
@@ -399,9 +399,9 @@ class SalesKpiManualSalePayment(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     is_first: Mapped[bool] = mapped_column(default=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class PipelineStage(Base):
@@ -442,7 +442,6 @@ class Lead(Base):
         DateTime(timezone=True),
         nullable=True,
         default=_utc_now,
-        insert_default=_utc_now,
     )
     # Вечерняя реактивация из Архива: grace, чтобы classify не вернул сразу в Архив.
     reactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
@@ -488,7 +487,6 @@ class LeadExtraPhone(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
     )
 
     lead: Mapped["Lead"] = relationship(back_populates="extra_phones")
@@ -503,7 +501,7 @@ class LeadAuditEvent(Base):
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action: Mapped[str] = mapped_column(String(64))
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
     lead: Mapped["Lead"] = relationship(back_populates="audit_events")
     user: Mapped["User | None"] = relationship(foreign_keys=[user_id])
@@ -519,7 +517,7 @@ class SystemAuditEvent(Base):
     action: Mapped[str] = mapped_column(String(64))
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, index=True)
 
     user: Mapped["User | None"] = relationship(foreign_keys=[user_id])
 
@@ -564,7 +562,7 @@ class Integration(Base):
     # Кнопка «Закрыть сделку» на карточке лида для менеджеров (воронка = pipeline_id интеграции)
     manager_close_deal_enabled: Mapped[bool] = mapped_column(default=False)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class ChatThread(Base):
@@ -579,8 +577,8 @@ class ChatThread(Base):
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Denormalized last ChatMessage.direction (in/out) for reply-bucket counts/filters.
     last_message_direction: Mapped[str | None] = mapped_column(String(8), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class ChatThreadUserRead(Base):
@@ -610,7 +608,7 @@ class ChatMessage(Base):
     file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     provider_message_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     delivery_status: Mapped[str] = mapped_column(String(24), default="sent")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class BookingDirection(Base):
@@ -716,8 +714,8 @@ class BookingAppointment(Base):
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Текст услуги с формы (без справочника направлений в UI).
     service_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
     lead: Mapped["Lead | None"] = relationship(back_populates="booking_appointments")
     direction: Mapped["BookingDirection"] = relationship(back_populates="appointments")
@@ -788,11 +786,10 @@ class AttendanceGeofence(Base):
     longitude: Mapped[Decimal] = mapped_column(Numeric(10, 7))
     radius_m: Mapped[int] = mapped_column(default=120)
     is_active: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         onupdate=_utc_now,
     )
 
@@ -808,7 +805,7 @@ class AttendanceShift(Base):
         nullable=True,
         index=True,
     )
-    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, index=True)
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, index=True)
     end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     start_latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
     start_longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
@@ -845,7 +842,7 @@ class AttendancePing(Base):
     inside_geofence: Mapped[bool] = mapped_column(default=False)
     suspicious: Mapped[bool] = mapped_column(default=False)
     suspicious_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, index=True)
 
 
 class SuperOwnerAuditEvent(Base):
@@ -858,7 +855,7 @@ class SuperOwnerAuditEvent(Base):
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True)
     action: Mapped[str] = mapped_column(String(160))
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, index=True)
 
 
 class PlatformSettings(Base):
@@ -912,7 +909,7 @@ class FinanceCompanySettings(Base):
     revenue_goods_policy: Mapped[str] = mapped_column(String(24), default="shipment")
     # deferred_period | payment | shipment
     revenue_services_policy: Mapped[str] = mapped_column(String(24), default="deferred_period")
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, onupdate=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
     # Последний успешный импорт ОСВ (для автоподстановки периода в отчётах)
     last_osv_import_from: Mapped[date | None] = mapped_column(Date, nullable=True, default=None)
     last_osv_import_to: Mapped[date | None] = mapped_column(Date, nullable=True, default=None)
@@ -933,7 +930,7 @@ class FinanceBudgetMonth(Base):
     month: Mapped[int] = mapped_column()  # 1–12
     revenue_plan: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     expense_plan: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now, onupdate=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now)
 
     __table_args__ = (UniqueConstraint("company_id", "year", "month", name="uq_finance_budget_co_ym"),)
 
@@ -948,7 +945,7 @@ class FinanceJournalTemplate(Base):
     name: Mapped[str] = mapped_column(String(255))
     # [{"account_code":"1010","debit":"0","credit":"1000.00"}, ...]
     lines: Mapped[list] = mapped_column(JSON, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class FinanceWarehouse(Base):
@@ -988,7 +985,7 @@ class FinanceJournalEntry(Base):
     memo: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_type: Mapped[str] = mapped_column(String(40), default="manual")
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     related_lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
     related_deal_id: Mapped[int | None] = mapped_column(ForeignKey("deals.id", ondelete="SET NULL"), nullable=True, index=True)
 
@@ -1014,7 +1011,7 @@ class FinanceClosedMonth(Base):
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
     year: Mapped[int] = mapped_column()
     month: Mapped[int] = mapped_column()
-    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     closed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
 
@@ -1034,7 +1031,7 @@ class FinanceBankStatementLine(Base):
         index=True,
     )
     matched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class FinanceProduct(Base):
@@ -1075,7 +1072,7 @@ class FinanceStockMovement(Base):
     unit_cost: Mapped[Decimal | None] = mapped_column(Numeric(14, 4), nullable=True)
     counter_warehouse_id: Mapped[int | None] = mapped_column(ForeignKey("finance_warehouses.id", ondelete="SET NULL"), nullable=True)
     memo: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class FinanceStockLayer(Base):
@@ -1089,7 +1086,7 @@ class FinanceStockLayer(Base):
     qty_remaining: Mapped[Decimal] = mapped_column(Numeric(18, 4))
     unit_cost: Mapped[Decimal] = mapped_column(Numeric(14, 4))
     movement_id: Mapped[int | None] = mapped_column(ForeignKey("finance_stock_movements.id", ondelete="SET NULL"), nullable=True)
-    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class FinanceDeferredContract(Base):
@@ -1105,7 +1102,7 @@ class FinanceDeferredContract(Base):
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     memo: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class FinanceDeferredPeriod(Base):
@@ -1147,7 +1144,7 @@ class ServiceTemplate(Base):
     course_stream_gap_days: Mapped[int] = mapped_column(default=10)
     is_active: Mapped[bool] = mapped_column(default=True)
     is_legacy: Mapped[bool] = mapped_column(default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class ServicePaymentRule(Base):
@@ -1177,7 +1174,7 @@ class PatientServiceEnrollment(Base):
     template_id: Mapped[int] = mapped_column(ForeignKey("service_templates.id", ondelete="RESTRICT"), index=True)
     pipeline_id: Mapped[int] = mapped_column(ForeignKey("pipelines.id", ondelete="CASCADE"), index=True)
     direction_id: Mapped[int | None] = mapped_column(ForeignKey("booking_directions.id", ondelete="SET NULL"), nullable=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     status: Mapped[str] = mapped_column(String(24), default="active")  # active|completed|cancelled
     total_price: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
 
@@ -1218,4 +1215,4 @@ class FinanceGmailInboxItem(Base):
     attachment_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(24), default="pending")  # pending|applied|rejected
     parsed_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)

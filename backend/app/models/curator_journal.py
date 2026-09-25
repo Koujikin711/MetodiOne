@@ -57,13 +57,11 @@ class CuratorCourseFlow(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         server_default=func.now(),
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         server_default=func.now(),
     )
 
@@ -96,7 +94,6 @@ class CuratorFlowMembership(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         server_default=func.now(),
     )
 
@@ -138,13 +135,11 @@ class CuratorJournalEntry(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         server_default=func.now(),
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         server_default=func.now(),
     )
 
@@ -170,12 +165,10 @@ class CuratorJournalComplaint(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         server_default=func.now(),
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         server_default=func.now(),
     )

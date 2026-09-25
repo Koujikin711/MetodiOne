@@ -21,4 +21,4 @@ class MarketingMetaSettings(Base):
     access_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Verify Token для общего Meta webhook (/api/integrations/webhook/meta)
     ig_verify_token: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, insert_default=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)

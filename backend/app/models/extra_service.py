@@ -30,13 +30,11 @@ class ExtraServiceType(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         server_default=func.now(),
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         server_default=func.now(),
     )
 
@@ -62,7 +60,6 @@ class ExtraServiceSale(Base):
     sold_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         index=True,
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -76,6 +73,5 @@ class ExtraServiceSale(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         server_default=func.now(),
     )

@@ -35,6 +35,5 @@ class LeadWaitingCallback(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
-        insert_default=_utc_now,
         server_default=func.now(),
     )
