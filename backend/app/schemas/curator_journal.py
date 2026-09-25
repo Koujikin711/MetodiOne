@@ -279,3 +279,45 @@ class Course15QueueOut(BaseModel):
     note: str
     counts: dict[str, int]
     rows: list[Course15QueueRowOut]
+
+
+class ProtocolQueuePreviousOut(BaseModel):
+    sequence_no: int
+    purchase_id: int
+    started_at: datetime | None = None
+    expected_end_at: datetime | None = None
+    product_name: str | None = None
+
+
+class ProtocolQueueRowOut(BaseModel):
+    lead_id: int
+    patient_name: str
+    patient_phone: str | None = None
+    product_label: str
+    sequence_no: int
+    protocols_count: int
+    state: str
+    state_label: str
+    started_at: datetime | None = None
+    expected_end_at: datetime | None = None
+    days_remaining: int
+    previous_protocols_label: str
+    previous_protocols: list[ProtocolQueuePreviousOut] = Field(default_factory=list)
+    manager_name: str | None = None
+    responsible_name: str | None = None
+    last_contact_at: datetime | None = None
+    next_contact_at: datetime | None = None
+    next_sale_status: str
+    requires_attention: bool
+    attention_reason: str | None = None
+    purchase_id: int | None = None
+
+
+class ProtocolQueueOut(BaseModel):
+    predicate: str
+    duration_days: int
+    ending_soon_days: int
+    include_converted: bool
+    note: str
+    counts: dict[str, int]
+    rows: list[ProtocolQueueRowOut]

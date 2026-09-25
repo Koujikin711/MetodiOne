@@ -44,6 +44,8 @@ from app.schemas.curator_journal import (
     MembershipOut,
     MembershipTransfer,
     MonthJournalOut,
+    ProtocolQueueOut,
+    ProtocolQueueRowOut,
     RecurringComplaintOut,
 )
 from app.services.curator_journal_access import (
@@ -290,6 +292,45 @@ async def course15_waiting_queue(
         note=raw["note"],
         counts=raw["counts"],
         rows=[Course15QueueRowOut(**r) for r in raw["rows"]],
+    )
+
+
+@router.get("/protocol-queue", response_model=ProtocolQueueOut)
+async def protocol_term_queue(
+    user: CurrentUser,
+    company_id: CurrentCompanyId,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    include_converted: bool = Query(
+        False,
+        description="Включить строки, где следующий Протокол уже куплен",
+    ),
+    ending_soon_days: int = Query(
+        7,
+        ge=0,
+        le=30,
+        description="Порог «скоро заканчивается» (дней). Configurable, не medical hardcode.",
+    ),
+    q: str | None = Query(None, max_length=120),
+) -> ProtocolQueueOut:
+    """Протоколы: 30-дневный срок + next sale. Без daily Дневник/Фото/Жалоба."""
+    assert_journal_access(user)
+    from app.services.protocol_queue import build_protocol_queue
+
+    raw = await build_protocol_queue(
+        db,
+        company_id=company_id,
+        include_converted=include_converted,
+        ending_soon_days=ending_soon_days,
+        q=q,
+    )
+    return ProtocolQueueOut(
+        predicate=raw["predicate"],
+        duration_days=raw["duration_days"],
+        ending_soon_days=raw["ending_soon_days"],
+        include_converted=raw["include_converted"],
+        note=raw["note"],
+        counts=raw["counts"],
+        rows=[ProtocolQueueRowOut(**r) for r in raw["rows"]],
     )
 
 

@@ -17,6 +17,7 @@ import { decodeRoleFromToken } from "@/lib/auth";
 import { canAccessCuratorJournal } from "@/lib/clinicRoles";
 import { Course15QueuePanel } from "@/components/Course15QueuePanel";
 import { DateField } from "@/components/DateField";
+import { ProtocolQueuePanel } from "@/components/ProtocolQueuePanel";
 import { Pencil, Search, Trash2 } from "@/components/icons";
 
 type DiaryStatus = "pending" | "done" | "missed";
@@ -236,7 +237,7 @@ export function CuratorJournalPage() {
     role === "owner" || role === "admin" || role === "administrator" || role === "super_owner";
 
   const qc = useQueryClient();
-  const [section, setSection] = useState<"course15" | "course">("course15");
+  const [section, setSection] = useState<"course15" | "course" | "protocols">("course15");
   const [selectedFlowId, setSelectedFlowId] = useState<number | null>(null);
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -409,7 +410,9 @@ export function CuratorJournalPage() {
           <p className="mo-page-sub">
             {section === "course15"
               ? "Курс 15 — контроль следующего шага"
-              : "Курс — успеваемость потока"}
+              : section === "protocols"
+                ? "Протоколы — срок 30 дней и следующая продажа"
+                : "Курс — успеваемость потока"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -436,6 +439,7 @@ export function CuratorJournalPage() {
           [
             ["course15", "Курс 15"],
             ["course", "Курс"],
+            ["protocols", "Протоколы"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -452,15 +456,10 @@ export function CuratorJournalPage() {
             {label}
           </button>
         ))}
-        <span
-          className="rounded-xl border border-dashed border-[var(--mo-border)] px-4 py-2 text-sm mo-muted"
-          title="Phase 8D"
-        >
-          Протоколы
-        </span>
       </div>
 
       {section === "course15" ? <Course15QueuePanel enabled={allowed} /> : null}
+      {section === "protocols" ? <ProtocolQueuePanel enabled={allowed} /> : null}
 
       {section === "course" ? (
         <>

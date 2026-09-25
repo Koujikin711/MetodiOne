@@ -33,8 +33,8 @@ Operational Debt → Journey) **заморожен**. Не перестраив�
 |-------|------------|--------|
 | **8A** | Docs + dual eligibility (CURRENT purchase / TARGET fully_paid) + compare API | **DONE** (`1a3cca6`) |
 | **8B** | New sales identity: auto `lead_id` / Lead picker (не numeric UX) | **DONE** (`b6577b3`) |
-| **8C** | Curator Journal — Курс 15 waiting queue | **DONE** |
-| **8D** | Curator Journal — Протоколы 30д (без diary) | не начат |
+| **8C** | Curator Journal — Курс 15 waiting queue | **DONE** (`66fabf6`) |
+| **8D** | Curator Journal — Протоколы 30д (без diary) | **DONE** |
 | **8E** | Course 90-day program period | не начат |
 | **8F** | Deposit DQ read-only (A/B/C/D) — **до** LTV cutover | не начат |
 | **8G** | Fully-paid LTV Entry cutover | **заблокирован** до approve 8F |
