@@ -173,7 +173,7 @@ class ServicesAnalyticsExpertRow(BaseModel):
 
 
 class ServicesAnalyticsRead(BaseModel):
-    """Сводка по услугам: визиты записи + оплаты курсов/протоколов KPI (деньги в одном месте)."""
+    """Сводка по услугам: визиты записи + Курс/Протокол только из KPI (без визитов этих пакетов)."""
 
     pipeline_id: int
     pipeline_name: str

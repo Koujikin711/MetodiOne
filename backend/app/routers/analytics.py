@@ -29,6 +29,12 @@ from app.models import (
     UserPipelineAssignment,
     UserRole,
 )
+from app.services.booking_directions import is_admin_only_booking_direction_name
+from app.services.sales_kpi_weighted import (
+    booking_debt_cutoff,
+    course_debt_is_due,
+    first_course_payment_at,
+)
 from app.schemas.analytics import (
     AgeCategoryAnalyticsItem,
     AnalyticsAlertsRead,
@@ -1275,7 +1281,7 @@ async def analytics_services(
     date_to: str | None = Query(default=None),
     pipeline_id: int = Query(..., ge=1),
 ) -> ServicesAnalyticsRead:
-    """Аналитика по услугам: визиты записи + оплаты курсов/протоколов KPI (деньги вместе)."""
+    """Аналитика по услугам: визиты записи + Курс/Протокол только из KPI (без визитов записи)."""
     _assert_owner(current_user)
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None or pipe.company_id != company_id:
@@ -1318,6 +1324,9 @@ async def analytics_services(
     creditor_total = Decimal("0")
 
     for sid_raw, sa_raw, pa_raw, status_raw, start_at, spec_name, dir_id, dir_name in appt_rows:
+        # Курс / Протокол — пакеты KPI: визиты записи в эту аналитику не входят.
+        if is_admin_only_booking_direction_name(str(dir_name) if dir_name else None):
+            continue
         sid = int(sid_raw)
         did = int(dir_id) if dir_id is not None else 0
         sa = Decimal(str(sa_raw or 0))
@@ -1371,10 +1380,14 @@ async def analytics_services(
                     bucket["creditor_amount"] += pa
                     creditor_total += pa
 
-    # Дебиторка на конец периода: открытые визиты с start_at < end
+    # Дебиторка на конец периода: открытые визиты с start_at < end (без Курс/Протокол)
     open_debt_rows = (
         await db.execute(
-            select(BookingAppointment.service_amount, BookingAppointment.paid_amount)
+            select(
+                BookingAppointment.service_amount,
+                BookingAppointment.paid_amount,
+                BookingDirection.name,
+            )
             .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
             .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
             .outerjoin(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
@@ -1392,7 +1405,9 @@ async def analytics_services(
         )
     ).all()
     debtor_total = Decimal("0")
-    for sa_raw, pa_raw in open_debt_rows:
+    for sa_raw, pa_raw, dir_name in open_debt_rows:
+        if is_admin_only_booking_direction_name(str(dir_name) if dir_name else None):
+            continue
         debtor_total += max(Decimal(str(sa_raw or 0)) - Decimal(str(pa_raw or 0)), Decimal("0"))
 
     service_acc: dict[int, dict] = {}
@@ -1450,28 +1465,49 @@ async def analytics_services(
             .group_by(SalesKpiPlanItem.name),
         )
     ).all()
-    kpi_debt_rows = (
+    # Дебиторка KPI как во вкладке KPI: остаток active + через месяц после первой оплаты.
+    manual_debt_sales = (
         await db.execute(
-            select(
-                SalesKpiPlanItem.name,
-                func.coalesce(
-                    func.sum(SalesKpiManualSale.service_amount - SalesKpiManualSale.paid_amount),
-                    0,
-                ),
-            )
+            select(SalesKpiManualSale, SalesKpiPlanItem.name)
             .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
             .where(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.sold_at < end,
                 SalesKpiManualSale.status == "active",
                 SalesKpiManualSale.service_amount > SalesKpiManualSale.paid_amount,
-            )
-            .group_by(SalesKpiPlanItem.name),
+            ),
         )
     ).all()
-    kpi_debt_by_name = {
-        str(name or "").casefold(): Decimal(str(amount or 0)) for name, amount in kpi_debt_rows
-    }
+    sale_ids = [int(s.id) for s, _ in manual_debt_sales]
+    payments_by_sale: dict[int, list] = {i: [] for i in sale_ids}
+    if sale_ids:
+        pay_rows = (
+            await db.execute(
+                select(SalesKpiManualSalePayment)
+                .where(SalesKpiManualSalePayment.sale_id.in_(sale_ids))
+                .order_by(SalesKpiManualSalePayment.id.asc()),
+            )
+        ).scalars().all()
+        for p in pay_rows:
+            payments_by_sale.setdefault(int(p.sale_id), []).append(p)
+    debt_cutoff = booking_debt_cutoff(end, now=now)
+    kpi_debt_by_name: dict[str, Decimal] = {}
+    kpi_debt_display: dict[str, str] = {}
+    for sale, item_name in manual_debt_sales:
+        first_at = first_course_payment_at(sale.sold_at, payments_by_sale.get(int(sale.id), []))
+        if not course_debt_is_due(first_at, debt_cutoff):
+            continue
+        sa = Decimal(str(sale.service_amount or 0))
+        pa = Decimal(str(sale.paid_amount or 0))
+        debt = max(sa - pa, Decimal("0"))
+        if debt <= 0:
+            continue
+        name = str(item_name or "").strip() or "Курс / протокол"
+        key = name.casefold()
+        kpi_debt_by_name[key] = kpi_debt_by_name.get(key, Decimal("0")) + debt
+        kpi_debt_display[key] = name
+    kpi_debt_rows = list(kpi_debt_by_name.items())
     kpi_course_paid_total = Decimal("0")
     # Индекс строк записи по имени направления (без регистра)
     by_name: dict[str, dict] = {}
@@ -1489,13 +1525,18 @@ async def analytics_services(
         kpi_course_paid_total += paid
         key = name.casefold()
         debt = kpi_debt_by_name.get(key, Decimal("0"))
-        if key in by_name:
+        # Курс/Протокол — только KPI-строка, без смешивания с визитами записи.
+        force_kpi_only = is_admin_only_booking_direction_name(name)
+        if key in by_name and not force_kpi_only:
             row = by_name[key]
             row["revenue_paid"] = Decimal(str(row["revenue_paid"])) + paid
             row["paid_full_amount"] = Decimal(str(row["paid_full_amount"])) + paid
             row["debtor_amount"] = Decimal(str(row["debtor_amount"])) + debt
             row["money_source"] = "mixed"
         else:
+            if force_kpi_only and key in by_name:
+                # на всякий случай не тащим старые счётчики записи
+                by_name.pop(key, None)
             service_acc[next_kpi_key] = {
                 "direction_id": None,
                 "direction_name": name,
@@ -1520,17 +1561,14 @@ async def analytics_services(
     for key, debt in list(kpi_debt_by_name.items()):
         if debt <= 0:
             continue
-        if key in by_name:
+        display = kpi_debt_display.get(key, key)
+        force_kpi_only = is_admin_only_booking_direction_name(display)
+        if key in by_name and not force_kpi_only:
             row = by_name[key]
             if row.get("money_source") == "booking":
                 row["money_source"] = "mixed"
             row["debtor_amount"] = Decimal(str(row["debtor_amount"])) + debt
         else:
-            # имя из map — ключ casefold; восстановить из долга-запроса
-            display = next(
-                (str(n) for n, _ in kpi_debt_rows if str(n or "").casefold() == key),
-                key,
-            )
             service_acc[next_kpi_key] = {
                 "direction_id": None,
                 "direction_name": display,

@@ -597,8 +597,8 @@ export function AnalyticsPage() {
 
               <AnalyticsPanel title="По услугам">
                 <p className="analytics-panel-note">
-                  Деньги в одном месте: визиты записи + оплаты Курс/Протокол из KPI. Явки — только по
-                  записи; у KPI-строк записи = 0.
+                  Визиты записи + Курс/Протокол только из KPI (записи пакетов не считаем). Дебиторка
+                  курсов — как во вкладке KPI (через месяц после первой оплаты).
                 </p>
                 <AnalyticsTable minWidth={1100}>
                   <thead>
