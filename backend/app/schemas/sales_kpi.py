@@ -277,6 +277,24 @@ class SalesKpiManualSaleLinkLeadPatch(BaseModel):
 
     lead_id: int = Field(..., ge=1)
 
+
+class SalesKpiLeadSearchItem(BaseModel):
+    """Кандидат для Lead picker при создании KPI sale. Без auto-select по phone."""
+
+    lead_id: int
+    name: str
+    phone: str | None = None
+    manager_name: str | None = None
+    stage_name: str | None = None
+    match_hint: str | None = None
+
+
+class SalesKpiLeadSearchOut(BaseModel):
+    q: str
+    count: int
+    note: str
+    items: list[SalesKpiLeadSearchItem]
+
 class SalesKpiDebtorRow(BaseModel):
     source: str  # booking | manual
     source_id: int

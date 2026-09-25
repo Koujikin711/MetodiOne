@@ -53,6 +53,8 @@ from app.schemas.sales_kpi import (
     SalesKpiManualSaleSoldAtPatch,
     SalesKpiManualSaleStatusPatch,
     SalesKpiPlanItemOut,
+    SalesKpiLeadSearchItem,
+    SalesKpiLeadSearchOut,
     SalesKpiSalesReport,
     SalesKpiSpecialistMeta,
     SalesKpiWeightedPlanOut,
@@ -869,6 +871,32 @@ async def manual_payment_journal(
     return journal
 
 
+@router.get("/leads/search", response_model=SalesKpiLeadSearchOut)
+async def search_leads_for_manual_sale(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    q: str = Query(..., min_length=1, max_length=120, description="ФИО / телефон / Lead ID"),
+    limit: int = Query(20, ge=1, le=40),
+) -> SalesKpiLeadSearchOut:
+    """Lead picker search for new KPI sales. Multiple Leads per phone → all shown, no auto-select."""
+    _assert_kpi_access(current_user)
+    _assert_admin_or_owner(current_user)
+    from app.services.kpi_lead_search import search_leads_for_kpi_sale
+
+    items_raw = await search_leads_for_kpi_sale(db, company_id=company_id, q=q, limit=limit)
+    items = [SalesKpiLeadSearchItem(**row) for row in items_raw]
+    return SalesKpiLeadSearchOut(
+        q=q.strip(),
+        count=len(items),
+        note=(
+            "Каждый Lead — отдельный кандидат. Один телефон может относиться к нескольким "
+            "детям — выберите явно. Без auto-select и без phone merge."
+        ),
+        items=items,
+    )
+
+
 @router.post("/manual-sales", response_model=SalesKpiManualSaleOut, status_code=status.HTTP_201_CREATED)
 async def create_manual_sale(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -899,12 +927,11 @@ async def create_manual_sale(
     if first_paid + second_paid > body.service_amount:
         raise HTTPException(status_code=400, detail="Сумма платежей не может быть больше стоимости")
 
-    link_lead_id: int | None = None
-    if body.lead_id is not None:
-        lead = await db.get(Lead, int(body.lead_id))
-        if lead is None or lead.company_id != company_id:
-            raise HTTPException(status_code=400, detail="Lead не найден в компании")
-        link_lead_id = int(lead.id)
+    from app.services.audit import write_audit_event
+    from app.services.kpi_lead_search import resolve_kpi_sale_lead_id
+
+    # lead_id=None → unresolved (explicit); never infer from phone.
+    link_lead_id = await resolve_kpi_sale_lead_id(db, company_id=company_id, lead_id=body.lead_id)
 
     total_paid = first_paid + second_paid
     first_at = _paid_at_from_input(body.first_paid_at if body.first_paid_at is not None else body.sold_at)
@@ -955,6 +982,18 @@ async def create_manual_sale(
         )
         db.add(pay2)
         payments.append(pay2)
+
+    await write_audit_event(
+        db,
+        entity_type="kpi_manual_sale",
+        entity_id=int(sale.id),
+        action="create",
+        current_user=current_user,
+        details=(
+            f"lead_id={link_lead_id!r}; client={sale.client_name!r}; "
+            f"phone={sale.client_phone!r}; service={sale.service_amount}; paid={total_paid}"
+        ),
+    )
     await db.commit()
     await db.refresh(sale)
     for p in payments:
@@ -1086,9 +1125,10 @@ async def link_manual_sale_lead(
     if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=400, detail="Lead не найден в компании")
     from app.services.audit import write_audit_event
+    from app.services.kpi_lead_search import resolve_kpi_sale_lead_id
 
     before_lead = sale.lead_id
-    sale.lead_id = int(lead.id)
+    sale.lead_id = await resolve_kpi_sale_lead_id(db, company_id=company_id, lead_id=int(body.lead_id))
     sale.updated_at = datetime.now(UTC)
     await write_audit_event(
         db,

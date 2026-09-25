@@ -618,6 +618,19 @@ export function LeadDetailPage() {
               >
                 Чат
               </Link>
+              {role === "owner" ||
+              role === "super_owner" ||
+              role === "admin" ||
+              role === "administrator" ||
+              role === "rop" ? (
+                <Link
+                  to={`/kpi?lead_id=${query.data.id}`}
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-3 text-sm font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                  title="Создать KPI-продажу с этим Lead"
+                >
+                  Продажа KPI
+                </Link>
+              ) : null}
               <button
                 type="button"
                 onClick={() => setAuditOpen(true)}

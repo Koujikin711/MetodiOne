@@ -31,8 +31,8 @@ Operational Debt → Journey) **заморожен**. Не перестраив�
 
 | Phase | Содержание | Статус |
 |-------|------------|--------|
-| **8A** | Docs + dual eligibility (CURRENT purchase / TARGET fully_paid) + compare API | **DONE** |
-| **8B** | New sales identity: auto `lead_id` / Lead picker (не numeric UX) | не начат |
+| **8A** | Docs + dual eligibility (CURRENT purchase / TARGET fully_paid) + compare API | **DONE** (`1a3cca6`) |
+| **8B** | New sales identity: auto `lead_id` / Lead picker (не numeric UX) | **DONE** |
 | **8C** | Curator Journal — Курс 15 waiting queue | не начат |
 | **8D** | Curator Journal — Протоколы 30д (без diary) | не начат |
 | **8E** | Course 90-day program period | не начат |

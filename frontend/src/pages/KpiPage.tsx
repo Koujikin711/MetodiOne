@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { AccessDenied } from "@/components/AccessDenied";
 import { DateField } from "@/components/DateField";
+import { KpiLeadPicker, type KpiLeadPick } from "@/components/KpiLeadPicker";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { ServiceRevenueCharts } from "@/components/ServiceRevenueCharts";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -13,6 +15,7 @@ import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { formatMoney } from "@/lib/money";
 import type {
+  Lead,
   SalesKpiCompanyReport,
   SalesKpiDebtorsReport,
   SalesKpiManualSale,
@@ -317,7 +320,6 @@ export function KpiPage() {
     group_no: "",
     client_name: "",
     client_phone: "",
-    lead_id: "",
     service_amount: "",
     paid_amount: "",
     second_paid_amount: "",
@@ -325,6 +327,9 @@ export function KpiPage() {
     second_paid_at: "",
     note: "",
   });
+  const [selectedLead, setSelectedLead] = useState<KpiLeadPick | null>(null);
+  const [leadFromContext, setLeadFromContext] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [payDraft, setPayDraft] = useState<Record<number, string>>({});
   const [payDates, setPayDates] = useState<Record<number, string>>({});
   const [expandedDebtorKey, setExpandedDebtorKey] = useState<string | null>(null);
@@ -342,6 +347,43 @@ export function KpiPage() {
       setPipelineId(list[0].id);
     }
   }, [pipelinesQuery.data, pipelineId]);
+
+  // Phase 8B: create-from-Lead — ?lead_id= → auto-select, open manual tab
+  useEffect(() => {
+    if (!isAdminOrOwner) return;
+    const raw = searchParams.get("lead_id");
+    if (!raw) return;
+    const lid = Number(raw);
+    if (!Number.isFinite(lid) || lid < 1) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const lead = await apiFetch<Lead>(`/api/leads/${lid}`);
+        if (cancelled) return;
+        setSelectedLead({
+          lead_id: lead.id,
+          name: lead.name,
+          phone: lead.phone ?? null,
+        });
+        setLeadFromContext(true);
+        setSaleForm((s) => ({
+          ...s,
+          client_name: lead.name || s.client_name,
+          client_phone: (lead.phone || "").trim() || s.client_phone,
+        }));
+        setTab("manual");
+        const next = new URLSearchParams(searchParams);
+        next.delete("lead_id");
+        setSearchParams(next, { replace: true });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Lead не найден");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot from URL
+  }, [isAdminOrOwner]);
 
   const qs = useMemo(() => {
     if (!pipelineId) return "";
@@ -479,6 +521,10 @@ export function KpiPage() {
       if (!pipelineId) throw new Error("Выберите воронку");
       if (!saleForm.stream_no) throw new Error("Укажите этап");
       if (!saleForm.group_no) throw new Error("Укажите поток");
+      const clientName = saleForm.client_name.trim() || selectedLead?.name?.trim() || "";
+      const clientPhone = saleForm.client_phone.trim() || selectedLead?.phone?.trim() || "";
+      if (!clientName) throw new Error("Укажите имя клиента или выберите пациента");
+      if (!clientPhone) throw new Error("Укажите телефон или выберите пациента с телефоном");
       await apiFetch<SalesKpiManualSale>("/api/sales-kpi/manual-sales", {
         method: "POST",
         body: JSON.stringify({
@@ -487,9 +533,9 @@ export function KpiPage() {
           manager_user_id: Number(saleForm.manager_user_id),
           stream_no: Number(saleForm.stream_no),
           group_no: Number(saleForm.group_no),
-          client_name: saleForm.client_name.trim(),
-          client_phone: saleForm.client_phone.trim(),
-          lead_id: saleForm.lead_id.trim() ? Number(saleForm.lead_id) : null,
+          client_name: clientName,
+          client_phone: clientPhone,
+          lead_id: selectedLead?.lead_id ?? null,
           service_amount: Number(saleForm.service_amount),
           paid_amount: Number(saleForm.paid_amount || 0),
           second_paid_amount: Number(saleForm.second_paid_amount || 0),
@@ -500,7 +546,11 @@ export function KpiPage() {
       });
     },
     onSuccess: () => {
-      toast.success("Продажа добавлена");
+      toast.success(
+        selectedLead
+          ? `Продажа добавлена · Lead #${selectedLead.lead_id}`
+          : "Продажа добавлена без Lead (unresolved)",
+      );
       setSaleForm({
         plan_item_id: "",
         manager_user_id: "",
@@ -508,7 +558,6 @@ export function KpiPage() {
         group_no: "",
         client_name: "",
         client_phone: "",
-        lead_id: "",
         service_amount: "",
         paid_amount: "",
         second_paid_amount: "",
@@ -516,6 +565,8 @@ export function KpiPage() {
         second_paid_at: "",
         note: "",
       });
+      setSelectedLead(null);
+      setLeadFromContext(false);
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
@@ -1284,20 +1335,21 @@ export function KpiPage() {
                   onChange={(e) => setSaleForm((s) => ({ ...s, client_phone: e.target.value }))}
                 />
               </label>
-              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
-                Lead ID (опционально)
-                <input
-                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                  inputMode="numeric"
-                  placeholder="явная привязка к пациенту"
-                  value={saleForm.lead_id}
-                  onChange={(e) => setSaleForm((s) => ({ ...s, lead_id: e.target.value }))}
-                  title="Без auto-merge по телефону — только явный Lead"
-                />
-                <span className="text-[10px] leading-snug text-[var(--mo-text-muted)]">
-                  Lead → sale; телефон сам по себе не связывает
-                </span>
-              </label>
+              <KpiLeadPicker
+                selected={selectedLead}
+                lockedFromContext={leadFromContext}
+                onSelect={(lead) => {
+                  setSelectedLead(lead);
+                  setLeadFromContext(false);
+                  if (lead) {
+                    setSaleForm((s) => ({
+                      ...s,
+                      client_name: lead.name || s.client_name,
+                      client_phone: (lead.phone || "").trim() || s.client_phone,
+                    }));
+                  }
+                }}
+              />
               <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
                 Стоимость
                 <input
