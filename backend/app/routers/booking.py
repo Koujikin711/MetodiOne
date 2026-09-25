@@ -2996,14 +2996,16 @@ async def upcoming_services_report(
     )
 
     tmr = today + timedelta(days=1)
+    w_from, w_to = upcoming_svc.period_ymd_span("next_7_days", today=today)
+    m_from, m_to = upcoming_svc.period_ymd_span("next_30_days", today=today)
     return UpcomingServicesReport(
         timezone=settings.booking_timezone or "Asia/Dushanbe",
         today_ymd=today.isoformat(),
         tomorrow_ymd=tmr.isoformat(),
-        next_7_days_from=today.isoformat(),
-        next_7_days_to=(today + timedelta(days=6)).isoformat(),
-        next_30_days_from=today.isoformat(),
-        next_30_days_to=(today + timedelta(days=29)).isoformat(),
+        next_7_days_from=w_from,
+        next_7_days_to=w_to,
+        next_30_days_from=m_from,
+        next_30_days_to=m_to,
         summary=summary,
         services=services,
     )
@@ -3130,14 +3132,7 @@ async def upcoming_services_drilldown(
             ),
         )
 
-    from_ymd = today.isoformat()
-    to_ymd = today.isoformat()
-    if period == "tomorrow":
-        from_ymd = to_ymd = (today + timedelta(days=1)).isoformat()
-    elif period == "next_7_days":
-        to_ymd = (today + timedelta(days=6)).isoformat()
-    elif period == "next_30_days":
-        to_ymd = (today + timedelta(days=29)).isoformat()
+    from_ymd, to_ymd = upcoming_svc.period_ymd_span(period, today=today)
 
     return UpcomingServicesDrillDown(
         period=period,

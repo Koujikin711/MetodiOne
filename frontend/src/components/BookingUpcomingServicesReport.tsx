@@ -101,8 +101,8 @@ type Props = {
 const PERIOD_LABEL: Record<UpcomingPeriod, string> = {
   today: "Сегодня",
   tomorrow: "Завтра",
-  next_7_days: "7 дней",
-  next_30_days: "30 дней",
+  next_7_days: "Неделя",
+  next_30_days: "Месяц",
 };
 
 const STATUS_LABEL: Record<string, string> = {

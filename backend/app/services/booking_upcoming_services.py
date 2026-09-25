@@ -39,6 +39,23 @@ def day_bounds_utc(day: date) -> tuple[datetime, datetime]:
     return local_start.astimezone(UTC), local_end.astimezone(UTC)
 
 
+def calendar_week_span(d0: date) -> tuple[date, date]:
+    """Календарная неделя пн–вс, содержащая d0."""
+    monday = d0 - timedelta(days=d0.weekday())
+    sunday = monday + timedelta(days=6)
+    return monday, sunday
+
+
+def calendar_month_span(d0: date) -> tuple[date, date]:
+    """Календарный месяц: 1-е … последний день месяца d0."""
+    start = d0.replace(day=1)
+    if start.month == 12:
+        end = date(start.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        end = date(start.year, start.month + 1, 1) - timedelta(days=1)
+    return start, end
+
+
 def period_bounds_utc(
     period: PeriodKey,
     *,
@@ -51,19 +68,47 @@ def period_bounds_utc(
     if period == "tomorrow":
         return day_bounds_utc(d0 + timedelta(days=1))
     if period == "next_7_days":
-        start, _ = day_bounds_utc(d0)
-        _, end = day_bounds_utc(d0 + timedelta(days=6))
+        # Календарная неделя (пн–вс)
+        w0, w1 = calendar_week_span(d0)
+        start, _ = day_bounds_utc(w0)
+        _, end = day_bounds_utc(w1)
         return start, end
     if period == "next_30_days":
-        start, _ = day_bounds_utc(d0)
-        _, end = day_bounds_utc(d0 + timedelta(days=29))
+        # Календарный месяц (1 … конец месяца)
+        m0, m1 = calendar_month_span(d0)
+        start, _ = day_bounds_utc(m0)
+        _, end = day_bounds_utc(m1)
         return start, end
     raise ValueError(f"Unknown period: {period}")
 
 
+def period_ymd_span(period: PeriodKey, *, today: date | None = None) -> tuple[str, str]:
+    """Даты периода для UI (включительно)."""
+    d0 = today or local_today()
+    if period == "today":
+        return d0.isoformat(), d0.isoformat()
+    if period == "tomorrow":
+        t = d0 + timedelta(days=1)
+        return t.isoformat(), t.isoformat()
+    if period == "next_7_days":
+        a, b = calendar_week_span(d0)
+        return a.isoformat(), b.isoformat()
+    if period == "next_30_days":
+        a, b = calendar_month_span(d0)
+        return a.isoformat(), b.isoformat()
+    raise ValueError(f"Unknown period: {period}")
+
+
 def report_window_utc(*, today: date | None = None) -> tuple[datetime, datetime]:
-    """Весь горизонт отчёта: today … today+29."""
-    return period_bounds_utc("next_30_days", today=today)
+    """Горизонт загрузки: объединение недели и месяца (плюс today/tomorrow внутри)."""
+    d0 = today or local_today()
+    w0, w1 = calendar_week_span(d0)
+    m0, m1 = calendar_month_span(d0)
+    start_d = min(w0, m0, d0)
+    end_d = max(w1, m1, d0 + timedelta(days=1))
+    start, _ = day_bounds_utc(start_d)
+    _, end = day_bounds_utc(end_d)
+    return start, end
 
 
 def ymd_in_booking_tz(dt: datetime) -> str:
@@ -176,9 +221,11 @@ def daily_breakdown(
     elif period == "tomorrow":
         days = [d0 + timedelta(days=1)]
     elif period == "next_7_days":
-        days = [d0 + timedelta(days=i) for i in range(7)]
+        w0, w1 = calendar_week_span(d0)
+        days = [w0 + timedelta(days=i) for i in range((w1 - w0).days + 1)]
     else:
-        days = [d0 + timedelta(days=i) for i in range(30)]
+        m0, m1 = calendar_month_span(d0)
+        days = [m0 + timedelta(days=i) for i in range((m1 - m0).days + 1)]
 
     filtered = filter_period(appts, period, today=today)
     counts: dict[str, int] = {d.isoformat(): 0 for d in days}

@@ -33,29 +33,49 @@ def _appt(
     )
 
 
-def test_period_bounds_today_subset_of_7_and_30():
+def test_calendar_week_is_monday_to_sunday():
+    # 2026-09-25 = Friday → week Mon 21 … Sun 27
     today = date(2026, 9, 25)
-    t0, t1 = svc.period_bounds_utc("today", today=today)
-    m0, m1 = svc.period_bounds_utc("tomorrow", today=today)
+    w0, w1 = svc.calendar_week_span(today)
+    assert w0 == date(2026, 9, 21)
+    assert w1 == date(2026, 9, 27)
     s0, s1 = svc.period_bounds_utc("next_7_days", today=today)
-    n0, n1 = svc.period_bounds_utc("next_30_days", today=today)
-    assert t0 == s0 == n0
-    assert t1 == m0
-    assert m1 < s1
-    assert s1 < n1
     assert (s1 - s0).days == 7
-    assert (n1 - n0).days == 30
+    from_ymd, to_ymd = svc.period_ymd_span("next_7_days", today=today)
+    assert from_ymd == "2026-09-21"
+    assert to_ymd == "2026-09-27"
 
 
-def test_past_dates_excluded_from_window():
+def test_calendar_month_first_to_last():
+    today = date(2026, 9, 25)
+    m0, m1 = svc.calendar_month_span(today)
+    assert m0 == date(2026, 9, 1)
+    assert m1 == date(2026, 9, 30)
+    from_ymd, to_ymd = svc.period_ymd_span("next_30_days", today=today)
+    assert from_ymd == "2026-09-01"
+    assert to_ymd == "2026-09-30"
+    s0, s1 = svc.period_bounds_utc("next_30_days", today=today)
+    assert (s1 - s0).days == 30
+
+
+def test_past_monday_included_in_week_not_in_rolling_sense():
+    today = date(2026, 9, 25)  # Friday
+    appts = [
+        _appt(id=1, direction_id=1, day=date(2026, 9, 22)),  # Tue this week
+        _appt(id=2, direction_id=1, day=today),
+        _appt(id=3, direction_id=1, day=date(2026, 9, 28)),  # next Mon — outside week
+    ]
+    assert svc.period_appointment_count(appts, "next_7_days", today=today) == 2
+
+
+def test_month_excludes_next_month_and_includes_first():
     today = date(2026, 9, 25)
     appts = [
-        _appt(id=1, direction_id=1, day=today - timedelta(days=1)),
-        _appt(id=2, direction_id=1, day=today),
+        _appt(id=1, direction_id=1, day=date(2026, 9, 1)),
+        _appt(id=2, direction_id=1, day=date(2026, 9, 30)),
+        _appt(id=3, direction_id=1, day=date(2026, 10, 1)),
     ]
-    assert svc.period_appointment_count(appts, "today", today=today) == 1
-    assert svc.period_appointment_count(appts, "next_7_days", today=today) == 1
-    assert svc.period_appointment_count(appts, "next_30_days", today=today) == 1
+    assert svc.period_appointment_count(appts, "next_30_days", today=today) == 2
 
 
 def test_cancelled_excluded_from_future_load():
@@ -125,23 +145,20 @@ def test_zero_displays_as_zero():
     assert by[7]["next_30_days_appointments"] == 0
 
 
-def test_7_and_30_include_today_and_tomorrow():
+def test_daily_breakdown_week_has_seven_days():
     today = date(2026, 9, 25)
     appts = [
-        _appt(id=1, direction_id=1, day=today),
-        _appt(id=2, direction_id=1, day=today + timedelta(days=1)),
-        _appt(id=3, direction_id=1, day=today + timedelta(days=6)),
-        _appt(id=4, direction_id=1, day=today + timedelta(days=7)),  # outside 7d
-        _appt(id=5, direction_id=1, day=today + timedelta(days=29)),
-        _appt(id=6, direction_id=1, day=today + timedelta(days=30)),  # outside 30d
+        _appt(id=1, direction_id=1, day=date(2026, 9, 22), hour=9),
+        _appt(id=2, direction_id=1, day=today, hour=11),
     ]
-    assert svc.period_appointment_count(appts, "next_7_days", today=today) == 3
-    assert svc.period_appointment_count(appts, "next_30_days", today=today) == 5
+    daily = svc.daily_breakdown(appts, "next_7_days", today=today)
+    assert len(daily) == 7
+    assert sum(n for _, n in daily) == 2
+    assert daily[0][0] == "2026-09-21"
 
 
 def test_midnight_boundary_in_booking_tz():
     today = date(2026, 9, 25)
-    # 23:30 Dushanbe today vs 00:30 tomorrow
     late = datetime(2026, 9, 25, 23, 30, tzinfo=TZ).astimezone(UTC)
     early = datetime(2026, 9, 26, 0, 30, tzinfo=TZ).astimezone(UTC)
     appts = [
@@ -150,16 +167,3 @@ def test_midnight_boundary_in_booking_tz():
     ]
     assert svc.period_appointment_count(appts, "today", today=today) == 1
     assert svc.period_appointment_count(appts, "tomorrow", today=today) == 1
-
-
-def test_daily_breakdown_matches_period_total():
-    today = date(2026, 9, 25)
-    appts = [
-        _appt(id=1, direction_id=1, day=today, hour=9),
-        _appt(id=2, direction_id=1, day=today, hour=11),
-        _appt(id=3, direction_id=1, day=today + timedelta(days=2)),
-    ]
-    daily = svc.daily_breakdown(appts, "next_7_days", today=today)
-    assert len(daily) == 7
-    assert sum(n for _, n in daily) == 3
-    assert daily[0] == (today.isoformat(), 2)
