@@ -25,6 +25,8 @@ from app.schemas.curator_journal import (
     ComplaintsReportOut,
     ComplaintIn,
     ComplaintOut,
+    Course15QueueOut,
+    Course15QueueRowOut,
     CuratorFlowCreate,
     CuratorFlowOut,
     CuratorFlowUpdate,
@@ -259,6 +261,36 @@ def _entry_out(
 
 
 # ── curators list ──────────────────────────────────────────────
+
+
+@router.get("/course15-queue", response_model=Course15QueueOut)
+async def course15_waiting_queue(
+    user: CurrentUser,
+    company_id: CurrentCompanyId,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    include_converted: bool = Query(
+        False,
+        description="Включить converted (обычно скрыты из active queue)",
+    ),
+    q: str | None = Query(None, max_length=120),
+) -> Course15QueueOut:
+    """Курс 15 lifecycle / next-product queue. Не daily Telegram journal."""
+    assert_journal_access(user)
+    from app.services.course15_queue import build_course15_queue
+
+    raw = await build_course15_queue(
+        db,
+        company_id=company_id,
+        include_converted=include_converted,
+        q=q,
+    )
+    return Course15QueueOut(
+        predicate=raw["predicate"],
+        include_converted=raw["include_converted"],
+        note=raw["note"],
+        counts=raw["counts"],
+        rows=[Course15QueueRowOut(**r) for r in raw["rows"]],
+    )
 
 
 @router.get("/curators", response_model=list[CuratorUserOut])

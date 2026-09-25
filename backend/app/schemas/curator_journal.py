@@ -251,3 +251,31 @@ class KpiImportPreviewRow(BaseModel):
 class KpiImportPreviewOut(BaseModel):
     group_no: int
     rows: list[KpiImportPreviewRow]
+
+
+class Course15QueueRowOut(BaseModel):
+    lead_id: int
+    patient_name: str
+    patient_phone: str | None = None
+    product_label: str
+    state: str
+    state_label: str
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    manager_name: str | None = None
+    responsible_name: str | None = None
+    last_contact_at: datetime | None = None
+    next_contact_at: datetime | None = None
+    next_step: str
+    requires_attention: bool
+    attention_reason: str | None = None
+    anchor_purchase_id: int | None = None
+    next_program_kind: str | None = None
+
+
+class Course15QueueOut(BaseModel):
+    predicate: str
+    include_converted: bool
+    note: str
+    counts: dict[str, int]
+    rows: list[Course15QueueRowOut]

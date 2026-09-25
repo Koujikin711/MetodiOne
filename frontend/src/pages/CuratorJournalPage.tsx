@@ -15,6 +15,7 @@ import { Navigate } from "react-router-dom";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { canAccessCuratorJournal } from "@/lib/clinicRoles";
+import { Course15QueuePanel } from "@/components/Course15QueuePanel";
 import { DateField } from "@/components/DateField";
 import { Pencil, Search, Trash2 } from "@/components/icons";
 
@@ -235,6 +236,7 @@ export function CuratorJournalPage() {
     role === "owner" || role === "admin" || role === "administrator" || role === "super_owner";
 
   const qc = useQueryClient();
+  const [section, setSection] = useState<"course15" | "course">("course15");
   const [selectedFlowId, setSelectedFlowId] = useState<number | null>(null);
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -258,20 +260,20 @@ export function CuratorJournalPage() {
 
   const flowsQuery = useQuery({
     queryKey: ["curator-journal", "flows"],
-    enabled: allowed,
+    enabled: allowed && section === "course",
     queryFn: () => apiFetch<Flow[]>("/api/curator-journal/flows"),
   });
 
   useEffect(() => {
-    if (!allowed) return;
+    if (!allowed || section !== "course") return;
     if (selectedFlowId == null && flowsQuery.data?.length) {
       setSelectedFlowId(flowsQuery.data[0].id);
     }
-  }, [flowsQuery.data, selectedFlowId, allowed]);
+  }, [flowsQuery.data, selectedFlowId, allowed, section]);
 
   const monthQuery = useQuery({
     queryKey: ["curator-journal", "month", selectedFlowId, year, month, search],
-    enabled: allowed && selectedFlowId != null,
+    enabled: allowed && section === "course" && selectedFlowId != null,
     placeholderData: (prev) => prev,
     queryFn: () => {
       const q = search.trim() ? `&q=${encodeURIComponent(search.trim())}` : "";
@@ -285,7 +287,7 @@ export function CuratorJournalPage() {
 
   const summaryQuery = useQuery({
     queryKey: ["curator-journal", "day-summary", selectedFlowId, dayForSummary],
-    enabled: allowed && selectedFlowId != null && !!dayForSummary,
+    enabled: allowed && section === "course" && selectedFlowId != null && !!dayForSummary,
     placeholderData: (prev) => prev,
     queryFn: () =>
       apiFetch<DaySummary>(
@@ -404,15 +406,19 @@ export function CuratorJournalPage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="mo-page-title">Журнал куратора</h1>
-          <p className="mo-page-sub">Успеваемость потока</p>
+          <p className="mo-page-sub">
+            {section === "course15"
+              ? "Курс 15 — контроль следующего шага"
+              : "Курс — успеваемость потока"}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canManageFlows ? (
+          {section === "course" && canManageFlows ? (
             <button type="button" className="btn-secondary text-sm" onClick={() => setShowCreate(true)}>
               Новый поток
             </button>
           ) : null}
-          {selectedFlowId ? (
+          {section === "course" && selectedFlowId ? (
             <>
               <button type="button" className="btn-secondary text-sm" onClick={() => setShowImport(true)}>
                 Импорт
@@ -425,6 +431,39 @@ export function CuratorJournalPage() {
         </div>
       </header>
 
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ["course15", "Курс 15"],
+            ["course", "Курс"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setSection(id)}
+            className={[
+              "rounded-xl border px-4 py-2 text-sm font-semibold transition",
+              section === id
+                ? "border-[var(--mo-accent)] bg-[var(--mo-accent)]/15"
+                : "border-[var(--mo-border)] bg-[var(--mo-surface)] hover:border-[var(--mo-accent)]/40",
+            ].join(" ")}
+          >
+            {label}
+          </button>
+        ))}
+        <span
+          className="rounded-xl border border-dashed border-[var(--mo-border)] px-4 py-2 text-sm mo-muted"
+          title="Phase 8D"
+        >
+          Протоколы
+        </span>
+      </div>
+
+      {section === "course15" ? <Course15QueuePanel enabled={allowed} /> : null}
+
+      {section === "course" ? (
+        <>
       {/* Flow picker */}
       <div className="flex flex-wrap gap-2">
         {(flowsQuery.data || []).map((f) => (
@@ -796,6 +835,8 @@ export function CuratorJournalPage() {
         </>
       ) : selectedFlowId && monthQuery.isLoading ? (
         <p className="text-sm text-[var(--mo-muted)]">Загрузка журнала…</p>
+      ) : null}
+        </>
       ) : null}
 
       {showCreate ? (
