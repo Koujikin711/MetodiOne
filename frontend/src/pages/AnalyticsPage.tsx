@@ -330,6 +330,7 @@ export function AnalyticsPage() {
       <div className="mo-fill-page-scroll space-y-5 pt-4">
       {patientsMode ? <AnalyticsPatientsLtvPanel /> : null}
       {!patientsMode ? (
+      <>
       <section className="mo-section analytics-toolbar-section p-4 sm:p-5">
         <div className="analytics-toolbar">
           {managersMode ? (
@@ -1137,6 +1138,7 @@ export function AnalyticsPage() {
           )}
         </section>
       )}
+      </>
       ) : null}
       </div>
     </div>
