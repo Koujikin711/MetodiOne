@@ -35,8 +35,8 @@ Operational Debt → Journey) **заморожен**. Не перестраив�
 | **8B** | New sales identity: auto `lead_id` / Lead picker (не numeric UX) | **DONE** (`b6577b3`) |
 | **8C** | Curator Journal — Курс 15 waiting queue | **DONE** (`66fabf6`) |
 | **8D** | Curator Journal — Протоколы 30д (без diary) | **DONE** (`8625a41`) |
-| **8E** | Course 90-day program period | **DONE** |
-| **8F** | Deposit DQ read-only (A/B/C/D) — **до** LTV cutover | не начат |
+| **8E** | Course 90-day program period | **DONE** (`84b1b31`) |
+| **8F** | Deposit DQ read-only (A/B/C/D) — **до** LTV cutover | **DONE** |
 | **8G** | Fully-paid LTV Entry cutover | **заблокирован** до approve 8F |
 
 **8A–8E:** Paid LTV math не менять.  

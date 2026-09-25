@@ -1313,6 +1313,38 @@ async def analytics_ltv_program_unresolved(
     return await build_program_unresolved_report(db, company_id=company_id)
 
 
+@router.get("/ltv/deposit-dq")
+async def analytics_ltv_deposit_dq(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    possible_deposit_max: float = Query(
+        500,
+        ge=1,
+        le=50000,
+        description="DQ attention band max for class B (not catalog price / no auto-rewrite)",
+    ),
+    deposit_class: str | None = Query(
+        None,
+        description="Filter: A|B|C|D or full class key",
+    ),
+    q: str | None = Query(None, max_length=120),
+    limit: int = Query(200, ge=1, le=2000),
+) -> dict:
+    """Course15 Deposit DQ A/B/C/D — read-only. Required before 8G cutover. No auto-fix."""
+    _assert_owner(current_user)
+    from app.services.deposit_dq import build_deposit_dq_report
+
+    return await build_deposit_dq_report(
+        db,
+        company_id=company_id,
+        possible_deposit_max=possible_deposit_max,
+        class_filter=deposit_class,
+        q=q,
+        limit=limit,
+    )
+
+
 @router.get("/ltv/patient/{lead_id}")
 async def analytics_ltv_patient(
     lead_id: int,

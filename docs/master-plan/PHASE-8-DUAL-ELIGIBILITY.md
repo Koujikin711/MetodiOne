@@ -61,7 +61,7 @@ API (owner): `GET /api/analytics/ltv/entry-compare?date_from=&date_to=`
 | **8C** | Curator Journal — Курс 15 queue | — |
 | **8D** | Curator Journal — Протоколы (30д, без diary) | — |
 | **8E** | Course 90-day program period | DONE |
-| **8F** | Deposit DQ read-only (A/B/C/D) | нет auto-fix |
+| **8F** | Deposit DQ read-only (A/B/C/D) | DONE (read-only; no auto-fix) |
 | **8G** | Fully-paid LTV cutover | только после approve 8F |
 
 ## Multi-state

@@ -413,6 +413,9 @@ export function AnalyticsPatientsLtvPanel() {
   const [dateTo, setDateTo] = useState(initial.to);
   const [showUnresolved, setShowUnresolved] = useState(false);
   const [showProgramDq, setShowProgramDq] = useState(false);
+  const [showDepositDq, setShowDepositDq] = useState(true);
+  const [depositClassFilter, setDepositClassFilter] = useState("");
+  const [depositQ, setDepositQ] = useState("");
   const [drawer, setDrawer] = useState<{ leadId: number; name: string } | null>(null);
 
   const syncMutation = useMutation({
@@ -421,6 +424,8 @@ export function AnalyticsPatientsLtvPanel() {
       toast.success("Ledger синхронизирован");
       void qc.invalidateQueries({ queryKey: ["analytics-ltv-cohort"] });
       void qc.invalidateQueries({ queryKey: ["analytics-ltv-program-unresolved"] });
+      void qc.invalidateQueries({ queryKey: ["analytics-ltv-deposit-dq"] });
+      void qc.invalidateQueries({ queryKey: ["analytics-ltv-entry-compare"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -437,6 +442,7 @@ export function AnalyticsPatientsLtvPanel() {
       toast.success("Продажа привязана, ledger обновлён");
       void qc.invalidateQueries({ queryKey: ["analytics-ltv-cohort"] });
       void qc.invalidateQueries({ queryKey: ["analytics-ltv-program-unresolved"] });
+      void qc.invalidateQueries({ queryKey: ["analytics-ltv-deposit-dq"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -497,6 +503,55 @@ export function AnalyticsPatientsLtvPanel() {
   const programDqQuery = useQuery({
     queryKey: ["analytics-ltv-program-unresolved"],
     queryFn: () => apiFetch<ProgramUnresolved>("/api/analytics/ltv/program-unresolved"),
+  });
+
+  type DepositDqReport = {
+    read_only: boolean;
+    auto_fix: boolean;
+    possible_deposit_max: string;
+    note?: string;
+    counts: Record<string, number>;
+    total_in_scope: number;
+    rows_returned: number;
+    class_labels: Record<string, string>;
+    rows: {
+      deposit_class: string;
+      deposit_class_label: string;
+      purchase_id: number;
+      lead_id?: number | null;
+      patient_name: string;
+      patient_phone?: string | null;
+      product_label: string;
+      source_type: string;
+      booking_id?: number | null;
+      kpi_sale_id?: number | null;
+      service_amount: string | number;
+      paid_amount: string | number;
+      purchased_at?: string | null;
+      manager_name?: string | null;
+      payments_count: number;
+      payments: { amount: string; source_type: string; is_refund: boolean }[];
+      related_course15: {
+        purchase_id: number;
+        service_amount: string;
+        paid_amount: string;
+      }[];
+      evidence_reasons: string[];
+      target_entry_would_pass: boolean;
+    }[];
+  };
+
+  const depositDqQs = useMemo(() => {
+    const p = new URLSearchParams();
+    if (depositClassFilter) p.set("deposit_class", depositClassFilter);
+    if (depositQ.trim()) p.set("q", depositQ.trim());
+    p.set("limit", "200");
+    return p.toString();
+  }, [depositClassFilter, depositQ]);
+
+  const depositDqQuery = useQuery({
+    queryKey: ["analytics-ltv-deposit-dq", depositDqQs],
+    queryFn: () => apiFetch<DepositDqReport>(`/api/analytics/ltv/deposit-dq?${depositDqQs}`),
   });
 
   const data = cohortQuery.data;
@@ -668,6 +723,178 @@ export function AnalyticsPatientsLtvPanel() {
           ) : entryCompareQuery.isLoading ? (
             <p className="lux-caption px-1">Сравнение Entry modes…</p>
           ) : null}
+
+          <div className="mo-section space-y-3 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">Deposit DQ — Курс 15 (Phase 8F)</h3>
+                <p className="mt-1 max-w-2xl text-xs mo-muted">
+                  Read-only классификация A/B/C/D перед fully-paid Entry cutover. Без auto-fix и
+                  без hardcode цены (300 ≠ 1300). Band B — только флаг внимания.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="text-sm text-[var(--mo-accent-hover)] underline"
+                onClick={() => setShowDepositDq((v) => !v)}
+              >
+                {showDepositDq ? "Скрыть" : "Показать"}
+              </button>
+            </div>
+            {depositDqQuery.data ? (
+              <div className="flex flex-wrap gap-3 text-xs tabular-nums">
+                <span>
+                  Всего <strong>{depositDqQuery.data.total_in_scope}</strong>
+                </span>
+                <span>
+                  A partial <strong>{depositDqQuery.data.counts.clear_partial ?? 0}</strong>
+                </span>
+                <span className="text-amber-800 dark:text-amber-200">
+                  B possible deposit{" "}
+                  <strong>
+                    {depositDqQuery.data.counts.technically_full_possible_deposit ?? 0}
+                  </strong>
+                </span>
+                <span>
+                  C clear full <strong>{depositDqQuery.data.counts.clear_full ?? 0}</strong>
+                </span>
+                <span>
+                  D unknown <strong>{depositDqQuery.data.counts.unknown ?? 0}</strong>
+                </span>
+                <span className="mo-muted">
+                  band ≤{depositDqQuery.data.possible_deposit_max}
+                </span>
+              </div>
+            ) : depositDqQuery.isLoading ? (
+              <p className="lux-caption">Загрузка Deposit DQ…</p>
+            ) : depositDqQuery.isError ? (
+              <p className="text-sm text-red-400">{(depositDqQuery.error as Error).message}</p>
+            ) : null}
+            {showDepositDq && depositDqQuery.data ? (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    className="mo-input text-sm"
+                    value={depositClassFilter}
+                    onChange={(e) => setDepositClassFilter(e.target.value)}
+                  >
+                    <option value="">Все классы</option>
+                    <option value="A">A · Clear partial</option>
+                    <option value="B">B · Possible deposit</option>
+                    <option value="C">C · Clear full</option>
+                    <option value="D">D · Unknown</option>
+                  </select>
+                  <input
+                    className="mo-input text-sm"
+                    placeholder="Поиск ФИО / телефон…"
+                    value={depositQ}
+                    onChange={(e) => setDepositQ(e.target.value)}
+                  />
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[900px] text-left text-xs">
+                    <thead>
+                      <tr className="mo-muted">
+                        <th className="py-1 pr-2 font-medium">Класс</th>
+                        <th className="py-1 pr-2 font-medium">Пациент</th>
+                        <th className="py-1 pr-2 font-medium">Продукт</th>
+                        <th className="py-1 pr-2 font-medium">Service</th>
+                        <th className="py-1 pr-2 font-medium">Paid</th>
+                        <th className="py-1 pr-2 font-medium">Источник</th>
+                        <th className="py-1 pr-2 font-medium">Менеджер</th>
+                        <th className="py-1 font-medium">Evidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {depositDqQuery.data.rows.map((r) => (
+                        <tr key={r.purchase_id} className="border-t border-[var(--mo-border)]/60 align-top">
+                          <td className="py-1.5 pr-2 whitespace-nowrap">
+                            <span
+                              className={
+                                r.deposit_class === "technically_full_possible_deposit"
+                                  ? "text-amber-800 dark:text-amber-200"
+                                  : r.deposit_class === "unknown"
+                                    ? "text-red-400"
+                                    : ""
+                              }
+                            >
+                              {r.deposit_class_label}
+                            </span>
+                            {r.target_entry_would_pass ? (
+                              <div className="text-[10px] mo-muted">TARGET Entry: да</div>
+                            ) : (
+                              <div className="text-[10px] mo-muted">TARGET Entry: нет</div>
+                            )}
+                          </td>
+                          <td className="py-1.5 pr-2">
+                            {r.lead_id ? (
+                              <button
+                                type="button"
+                                className="text-left underline"
+                                onClick={() =>
+                                  setDrawer({ leadId: r.lead_id!, name: r.patient_name })
+                                }
+                              >
+                                {r.patient_name}
+                              </button>
+                            ) : (
+                              r.patient_name
+                            )}
+                            <div className="mo-muted">
+                              {r.patient_phone || "—"}
+                              {r.lead_id != null ? ` · #${r.lead_id}` : " · unresolved"}
+                            </div>
+                          </td>
+                          <td className="py-1.5 pr-2">{r.product_label}</td>
+                          <td className="py-1.5 pr-2 tabular-nums">{money(r.service_amount)}</td>
+                          <td className="py-1.5 pr-2 tabular-nums">{money(r.paid_amount)}</td>
+                          <td className="py-1.5 pr-2">
+                            {r.source_type}
+                            {r.kpi_sale_id != null ? ` · KPI #${r.kpi_sale_id}` : null}
+                            {r.booking_id != null ? ` · booking #${r.booking_id}` : null}
+                            <div className="mo-muted">
+                              {r.purchased_at
+                                ? new Date(r.purchased_at).toLocaleDateString("ru-RU")
+                                : "—"}
+                              {" · "}
+                              payments {r.payments_count}
+                            </div>
+                          </td>
+                          <td className="py-1.5 pr-2">{r.manager_name || "—"}</td>
+                          <td className="py-1.5 max-w-[18rem]">
+                            <ul className="list-disc space-y-0.5 pl-3 mo-muted">
+                              {r.evidence_reasons.map((ev) => (
+                                <li key={ev}>{ev}</li>
+                              ))}
+                              {r.related_course15.length ? (
+                                <li>
+                                  related Course15:{" "}
+                                  {r.related_course15
+                                    .map(
+                                      (x) =>
+                                        `#${x.purchase_id} ${x.service_amount}/${x.paid_amount}`,
+                                    )
+                                    .join("; ")}
+                                </li>
+                              ) : null}
+                            </ul>
+                          </td>
+                        </tr>
+                      ))}
+                      {!depositDqQuery.data.rows.length ? (
+                        <tr>
+                          <td colSpan={8} className="py-3 mo-muted">
+                            Нет строк по фильтру
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[11px] mo-muted">{depositDqQuery.data.note}</p>
+              </>
+            ) : null}
+          </div>
 
           <div className="mo-section p-4">
             <h3 className="mb-2 text-sm font-semibold">Покрытие данных</h3>
