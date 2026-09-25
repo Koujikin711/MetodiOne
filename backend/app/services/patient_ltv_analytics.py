@@ -16,6 +16,7 @@ from app.services.patient_journey_paths import (
     aggregate_path_analytics,
     aggregate_product_transitions,
     empty_path_analytics,
+    transition_product_key,
 )
 from app.services.patient_ltv import compute_lead_ltv
 
@@ -27,6 +28,40 @@ def _utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=UTC)
     return dt.astimezone(UTC)
+
+
+def purchase_event_identity(product_kind: str | None, product_name: str | None) -> tuple[str, str]:
+    """Ключ/имя для first/last purchase — тот же канон, что Product Transitions."""
+    fact = LeadPurchaseFact(
+        product_kind=(product_kind or "other_service"),
+        product_name=product_name,
+    )
+    key = transition_product_key(fact)
+    name = (product_name or "").strip() or key
+    return key, name
+
+
+def first_last_purchase_fields(purchases: list[PatientPurchase]) -> dict:
+    """Additive projection из canonical Purchase Event sequence (без новой LTV-математики)."""
+    seq = sorted(
+        (p for p in purchases if (p.status or "") not in ("cancelled", "returned")),
+        key=lambda p: _utc(p.purchased_at) if p.purchased_at else datetime.max.replace(tzinfo=UTC),
+    )
+    if not seq:
+        return {
+            "first_purchase_product_key": None,
+            "first_purchase_product_name": None,
+            "last_purchase_product_key": None,
+            "last_purchase_product_name": None,
+        }
+    fk, fn = purchase_event_identity(seq[0].product_kind, seq[0].product_name)
+    lk, ln = purchase_event_identity(seq[-1].product_kind, seq[-1].product_name)
+    return {
+        "first_purchase_product_key": fk,
+        "first_purchase_product_name": fn,
+        "last_purchase_product_key": lk,
+        "last_purchase_product_name": ln,
+    }
 
 
 async def build_ltv_cohort_report(
@@ -169,20 +204,20 @@ async def build_ltv_cohort_report(
                 if t0 <= pt < end:
                     w_paid += Decimal(str(pay.amount or 0))
             window_sums[d] += w_paid
-        rows_out.append(
-            {
-                "lead_id": lid,
-                "paid_ltv": snap.paid_ltv,
-                "sales_value": snap.sales_value,
-                "purchase_count": snap.purchase_count,
-                "outstanding": snap.outstanding,
-                "operational_debt": snap.operational_debt,
-                "refunds_total": snap.refunds_total,
-                "first_purchase_at": snap.first_purchase_at,
-                "last_purchase_at": snap.last_purchase_at,
-                "lifetime_days": snap.lifetime_days,
-            },
-        )
+        row = {
+            "lead_id": lid,
+            "paid_ltv": snap.paid_ltv,
+            "sales_value": snap.sales_value,
+            "purchase_count": snap.purchase_count,
+            "outstanding": snap.outstanding,
+            "operational_debt": snap.operational_debt,
+            "refunds_total": snap.refunds_total,
+            "first_purchase_at": snap.first_purchase_at,
+            "last_purchase_at": snap.last_purchase_at,
+            "lifetime_days": snap.lifetime_days,
+        }
+        row.update(first_last_purchase_fields(pur_list))
+        rows_out.append(row)
 
     journeys = (
         await db.execute(
