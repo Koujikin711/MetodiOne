@@ -81,6 +81,33 @@ type CohortReport = {
   }[];
 };
 
+/** Phase 8A design compare — does not cut over production cohort. */
+type EntryModeSnapshot = {
+  entry_mode: string;
+  patients: number;
+  avg_paid_ltv: string | number;
+  avg_sales_value: string | number;
+  repeat_purchase_rate: string | number;
+  purchases_per_patient: string | number;
+  avg_lifetime_days: string | number;
+  ltv_windows: Record<string, string | number>;
+  first_product_top?: { product: string; patients: number }[];
+};
+
+type EntryCompareReport = {
+  production_entry_mode: string;
+  cutover_blocked_reason?: string;
+  note?: string;
+  current: EntryModeSnapshot;
+  target: EntryModeSnapshot;
+  diff: {
+    patients_delta: number;
+    first_at_changed_patients: number;
+    entry_only_under_current: number;
+    entry_only_under_target: number;
+  };
+};
+
 type PatientLtvDetail = {
   lead_id: number;
   purchase_count: number;
@@ -427,6 +454,12 @@ export function AnalyticsPatientsLtvPanel() {
     enabled: Boolean(dateFrom && dateTo),
   });
 
+  const entryCompareQuery = useQuery({
+    queryKey: ["analytics-ltv-entry-compare", qs],
+    queryFn: () => apiFetch<EntryCompareReport>(`/api/analytics/ltv/entry-compare?${qs}`),
+    enabled: Boolean(dateFrom && dateTo),
+  });
+
   type ProgramUnresolved = {
     unresolved_main_course: number;
     unresolved_protocol: number;
@@ -467,6 +500,7 @@ export function AnalyticsPatientsLtvPanel() {
   });
 
   const data = cohortQuery.data;
+  const entryCompare = entryCompareQuery.data;
   const j = data?.journey;
   const prog = programDqQuery.data;
 
@@ -536,6 +570,104 @@ export function AnalyticsPatientsLtvPanel() {
               </div>
             ))}
           </div>
+
+          {entryCompare ? (
+            <div className="mo-section space-y-3 p-4">
+              <div>
+                <h3 className="text-sm font-semibold">LTV Entry — CURRENT vs TARGET</h3>
+                <p className="mt-1 text-xs mo-muted">
+                  Design preview (Phase 8A). Production ={" "}
+                  <strong>{entryCompare.production_entry_mode}</strong>. Fully-paid cutover
+                  заблокирован до Deposit DQ (8F). Paid LTV formula не меняется.
+                </p>
+                {entryCompare.cutover_blocked_reason ? (
+                  <p className="mt-1 text-[11px] text-amber-700/90 dark:text-amber-300/90">
+                    {entryCompare.cutover_blocked_reason}
+                  </p>
+                ) : null}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left text-xs">
+                  <thead>
+                    <tr className="mo-muted">
+                      <th className="py-1 pr-2 font-medium">Метрика</th>
+                      <th className="py-1 pr-2 font-medium">CURRENT (purchase)</th>
+                      <th className="py-1 pr-2 font-medium">TARGET (fully_paid)</th>
+                      <th className="py-1 font-medium">Δ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="tabular-nums">
+                    {(
+                      [
+                        ["Пациентов", "patients", "int"],
+                        ["Avg Paid LTV", "avg_paid_ltv", "money"],
+                        ["Повторная покупка", "repeat_purchase_rate", "pct"],
+                        ["Покупок / пациент", "purchases_per_patient", "num2"],
+                        ["Avg lifetime", "avg_lifetime_days", "num0"],
+                        ["D0", "d0", "money_win"],
+                        ["D30", "d30", "money_win"],
+                        ["D90", "d90", "money_win"],
+                        ["D180", "d180", "money_win"],
+                        ["D365", "d365", "money_win"],
+                      ] as const
+                    ).map(([label, key, kind]) => {
+                      const cur =
+                        kind === "money_win"
+                          ? entryCompare.current.ltv_windows[key]
+                          : entryCompare.current[key as keyof EntryModeSnapshot];
+                      const tgt =
+                        kind === "money_win"
+                          ? entryCompare.target.ltv_windows[key]
+                          : entryCompare.target[key as keyof EntryModeSnapshot];
+                      const fmt = (v: unknown) => {
+                        if (kind === "money" || kind === "money_win") return money(v as string | number);
+                        if (kind === "pct") return pct(v as string | number);
+                        if (kind === "num2") return Number(v ?? 0).toFixed(2);
+                        if (kind === "num0") return Number(v ?? 0).toFixed(0);
+                        return String(v ?? "—");
+                      };
+                      const cn = Number(cur ?? 0);
+                      const tn = Number(tgt ?? 0);
+                      const delta =
+                        kind === "pct"
+                          ? `${(((tn - cn) * 100)).toFixed(1)} п.п.`
+                          : kind === "money" || kind === "money_win"
+                            ? money(tn - cn)
+                            : kind === "int"
+                              ? String(tn - cn)
+                              : (tn - cn).toFixed(kind === "num0" ? 0 : 2);
+                      return (
+                        <tr key={label} className="border-t border-[var(--mo-border)]/60">
+                          <td className="py-1.5 pr-2">{label}</td>
+                          <td className="py-1.5 pr-2">{fmt(cur)}</td>
+                          <td className="py-1.5 pr-2">{fmt(tgt)}</td>
+                          <td className="py-1.5">{delta}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] mo-muted">
+                first_purchase_at изменится у{" "}
+                <strong className="tabular-nums">
+                  {entryCompare.diff.first_at_changed_patients}
+                </strong>{" "}
+                пациентов · только CURRENT:{" "}
+                <strong className="tabular-nums">
+                  {entryCompare.diff.entry_only_under_current}
+                </strong>{" "}
+                · только TARGET:{" "}
+                <strong className="tabular-nums">
+                  {entryCompare.diff.entry_only_under_target}
+                </strong>
+                {" · "}patients Δ{" "}
+                <strong className="tabular-nums">{entryCompare.diff.patients_delta}</strong>
+              </p>
+            </div>
+          ) : entryCompareQuery.isLoading ? (
+            <p className="lux-caption px-1">Сравнение Entry modes…</p>
+          ) : null}
 
           <div className="mo-section p-4">
             <h3 className="mb-2 text-sm font-semibold">Покрытие данных</h3>

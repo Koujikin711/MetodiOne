@@ -1251,21 +1251,7 @@ async def analytics_ltv_sync(
     return {"ok": True, **stats, "journeys_synced": journey_n}
 
 
-@router.get("/ltv/cohort")
-async def analytics_ltv_cohort(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: CurrentUser,
-    company_id: CurrentCompanyId,
-    date_from: str = Query(..., description="YYYY-MM-DD cohort start"),
-    date_to: str = Query(..., description="YYYY-MM-DD cohort end exclusive-ish calendar"),
-) -> dict:
-    """Cohort LTV по first_purchase_at (не revenue выбранного месяца)."""
-    _assert_owner(current_user)
-    from zoneinfo import ZoneInfo
-
-    from app.config import settings
-    from app.services.patient_ltv_analytics import build_ltv_cohort_report
-
+def _ltv_cohort_window(date_from: str, date_to: str) -> tuple[datetime, datetime]:
     try:
         d0 = datetime.strptime(date_from, "%Y-%m-%d").date()
         d1 = datetime.strptime(date_to, "%Y-%m-%d").date()
@@ -1274,7 +1260,44 @@ async def analytics_ltv_cohort(
     tz = ZoneInfo(settings.booking_timezone or "Asia/Dushanbe")
     start = datetime.combine(d0, datetime.min.time(), tzinfo=tz).astimezone(UTC)
     end = datetime.combine(d1, datetime.min.time(), tzinfo=tz).astimezone(UTC) + timedelta(days=1)
+    return start, end
+
+
+@router.get("/ltv/cohort")
+async def analytics_ltv_cohort(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD cohort start"),
+    date_to: str = Query(..., description="YYYY-MM-DD cohort end exclusive-ish calendar"),
+) -> dict:
+    """Cohort LTV по first_purchase_at (не revenue выбранного месяца).
+
+    Production Entry = purchase-based (Phase 8A). Fully-paid cutover = Phase 8G only.
+    """
+    _assert_owner(current_user)
+    from app.services.patient_ltv_analytics import build_ltv_cohort_report
+
+    start, end = _ltv_cohort_window(date_from, date_to)
     return await build_ltv_cohort_report(db, company_id=company_id, cohort_from=start, cohort_to=end)
+
+
+@router.get("/ltv/entry-compare")
+async def analytics_ltv_entry_compare(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD cohort start"),
+    date_to: str = Query(..., description="YYYY-MM-DD cohort end"),
+) -> dict:
+    """CURRENT (purchase) vs TARGET (fully_paid) Entry — design compare, no cutover."""
+    _assert_owner(current_user)
+    from app.services.ltv_entry_compare import build_ltv_entry_compare_report
+
+    start, end = _ltv_cohort_window(date_from, date_to)
+    return await build_ltv_entry_compare_report(
+        db, company_id=company_id, cohort_from=start, cohort_to=end,
+    )
 
 
 @router.get("/ltv/program-unresolved")

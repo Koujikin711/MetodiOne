@@ -25,4 +25,20 @@ Online Booking → «Отчёт по услугам».
 Operational Debt → Journey) **заморожен**. Не перестраивать без regression fail
 или явной бизнес-причины. См. `UNIVERSAL-LTV-BASELINE.md`.
 
-## Phase 8 — НЕ начинать
+## Phase 8 — порядок (утверждён)
+
+Подробности: `PHASE-8-DUAL-ELIGIBILITY.md`.
+
+| Phase | Содержание | Статус |
+|-------|------------|--------|
+| **8A** | Docs + dual eligibility (CURRENT purchase / TARGET fully_paid) + compare API | **DONE** |
+| **8B** | New sales identity: auto `lead_id` / Lead picker (не numeric UX) | не начат |
+| **8C** | Curator Journal — Курс 15 waiting queue | не начат |
+| **8D** | Curator Journal — Протоколы 30д (без diary) | не начат |
+| **8E** | Course 90-day program period | не начат |
+| **8F** | Deposit DQ read-only (A/B/C/D) — **до** LTV cutover | не начат |
+| **8G** | Fully-paid LTV Entry cutover | **заблокирован** до approve 8F |
+
+**8A–8E:** Paid LTV math не менять.  
+**8F:** только read-only classification; no auto-fix; no hardcode 1300.  
+**8G:** только после отдельного approve + CURRENT vs TARGET report.
