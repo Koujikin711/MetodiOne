@@ -79,6 +79,7 @@ def test_partial_refund_reduces_paid_ltv_once():
     assert snap.refunds_total == Decimal("100")
     assert snap.sales_value == Decimal("300")
     assert snap.outstanding == Decimal("100")  # 300 - paid_amount cache 200
+    assert snap.operational_debt == Decimal("0")  # 300 - 200 - 100; refund ≠ debt
 
 
 def test_full_refund_paid_ltv_zero_events_distinguishable():
@@ -123,6 +124,8 @@ def test_full_refund_paid_ltv_zero_events_distinguishable():
     assert snap.paid_ltv == Decimal("0")
     assert snap.refunds_total == Decimal("500")
     assert len(payments) == 2
+    assert snap.outstanding == Decimal("500")  # math sa − net
+    assert snap.operational_debt == Decimal("0")  # full refund ≠ debt
 
 
 def test_returned_kpi_no_double_subtract():
@@ -170,6 +173,7 @@ def test_returned_kpi_no_double_subtract():
     assert snap.refunds_total == Decimal("2000")
     assert snap.purchase_count == 0
     assert snap.outstanding == Decimal("0")
+    assert snap.operational_debt == Decimal("0")
 
 
 def test_debt_does_not_inflate_paid_ltv():
@@ -204,3 +208,4 @@ def test_debt_does_not_inflate_paid_ltv():
     assert snap.paid_ltv == Decimal("1000")
     assert snap.sales_value == Decimal("10000")
     assert snap.outstanding == Decimal("9000")
+    assert snap.operational_debt == Decimal("9000")

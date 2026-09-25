@@ -90,6 +90,23 @@ def normalize_payment_row(pay: PatientPurchasePayment) -> NormalizedMoneyEvent:
     return normalize_money_event(amount=pay.amount or 0, is_refund=bool(pay.is_refund))
 
 
+def obligation_open_debt(
+    service_amount: Decimal | int | float | str,
+    paid_amount: Decimal | int | float | str,
+    refunded: Decimal | int | float | str = 0,
+) -> Decimal:
+    """Операционная дебиторка по активному обязательству (канон KPI/Booking).
+
+    REFUND ≠ AUTOMATIC DEBT: возврат уменьшает paid_amount, но service_amount
+    остаётся — без вычета refunded строка выглядит как полный долг.
+    Формула совпадает с ``sales_kpi_board._booking_open_debt``.
+    """
+    sa = Decimal(str(service_amount or 0))
+    pa = Decimal(str(paid_amount or 0))
+    ref = max(Decimal(str(refunded or 0)), Decimal("0"))
+    return max(sa - pa - ref, Decimal("0"))
+
+
 @dataclass
 class LeadLtvSnapshot:
     lead_id: int
@@ -97,6 +114,7 @@ class LeadLtvSnapshot:
     paid_ltv: Decimal
     sales_value: Decimal
     outstanding: Decimal
+    operational_debt: Decimal
     refunds_total: Decimal
     first_purchase_at: datetime | None
     last_purchase_at: datetime | None
@@ -107,7 +125,9 @@ def compute_lead_ltv(purchases: Iterable[PatientPurchase], payments: Iterable[Pa
     """Единая формула Paid LTV / Sales Value (backend-only).
 
     Paid LTV = sum(normalized signed money events).
-    Debt/outstanding не входит в Paid LTV.
+    Outstanding = математический остаток по АКТИВНОМУ обязательству (sa − net paid).
+    Operational Debt = дебиторка клиники (канон KPI: sa − paid − refunds); refund ≠ debt.
+    Returned/cancelled: обязательство прекращено → outstanding и operational_debt = 0.
     Returned sale: Sales Value исключается; payments+refund остаются (net), без двойного вычета.
     """
     pur_list = list(purchases)
@@ -123,14 +143,26 @@ def compute_lead_ltv(purchases: Iterable[PatientPurchase], payments: Iterable[Pa
     events = [normalize_payment_row(x) for x in pay_list]
     paid_ltv = sum((e.signed_amount for e in events), Decimal("0"))
     refunds_total = sum((abs(e.signed_amount) for e in events if e.is_refund), Decimal("0"))
-    # outstanding only on non-returned active
+
+    refunds_by_purchase: dict[int, Decimal] = {}
+    for pay in pay_list:
+        e = normalize_payment_row(pay)
+        if not e.is_refund:
+            continue
+        pid = int(pay.purchase_id) if pay.purchase_id is not None else 0
+        refunds_by_purchase[pid] = refunds_by_purchase.get(pid, Decimal("0")) + abs(e.signed_amount)
+
+    # Только активное обязательство (не returned). Cancelled уже вне active.
     outstanding = Decimal("0")
+    operational_debt = Decimal("0")
     for p in active:
         if (p.status or "") == "returned":
             continue
         sa = Decimal(str(p.service_amount or 0))
         pa = Decimal(str(p.paid_amount or 0))
         outstanding += max(sa - pa, Decimal("0"))
+        ref = refunds_by_purchase.get(int(p.id) if p.id is not None else 0, Decimal("0"))
+        operational_debt += obligation_open_debt(sa, pa, ref)
 
     times = [_utc(p.purchased_at) for p in active if p.purchased_at is not None]
     first_at = min(times) if times else None
@@ -145,6 +177,7 @@ def compute_lead_ltv(purchases: Iterable[PatientPurchase], payments: Iterable[Pa
         paid_ltv=paid_ltv,
         sales_value=sales_value,
         outstanding=outstanding,
+        operational_debt=operational_debt,
         refunds_total=refunds_total,
         first_purchase_at=first_at,
         last_purchase_at=last_at,
@@ -548,6 +581,7 @@ async def load_lead_ltv(db: AsyncSession, *, company_id: int, lead_id: int) -> L
         paid_ltv=snap.paid_ltv,
         sales_value=snap.sales_value,
         outstanding=snap.outstanding,
+        operational_debt=snap.operational_debt,
         refunds_total=snap.refunds_total,
         first_purchase_at=snap.first_purchase_at,
         last_purchase_at=snap.last_purchase_at,

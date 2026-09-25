@@ -1339,6 +1339,7 @@ async def analytics_ltv_patient(
         "paid_ltv": snap.paid_ltv,
         "sales_value": snap.sales_value,
         "outstanding": snap.outstanding,
+        "operational_debt": snap.operational_debt,
         "refunds_total": snap.refunds_total,
         "first_purchase_at": snap.first_purchase_at,
         "last_purchase_at": snap.last_purchase_at,

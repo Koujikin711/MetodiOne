@@ -288,10 +288,11 @@ def _parse_booking_refund_appointment_id(external_key: str | None) -> int | None
 def _booking_open_debt(service_amount: Decimal, paid_amount: Decimal, refunded: Decimal) -> Decimal:
     """Остаток долга по визиту: возврат не превращается в дебиторку.
 
-    Возврат уменьшает paid_amount, но service_amount остаётся — без учёта
-    refunded строка выглядит как полный долг (услуга 150 / оплачено 0).
+    Канон — ``patient_ltv.obligation_open_debt`` (REFUND ≠ AUTOMATIC DEBT).
     """
-    return max(service_amount - paid_amount - max(refunded, Decimal("0")), Decimal("0"))
+    from app.services.patient_ltv import obligation_open_debt
+
+    return obligation_open_debt(service_amount, paid_amount, refunded)
 
 
 async def _booking_refund_totals_by_appointment(

@@ -176,6 +176,8 @@ async def build_ltv_cohort_report(
                 "sales_value": snap.sales_value,
                 "purchase_count": snap.purchase_count,
                 "outstanding": snap.outstanding,
+                "operational_debt": snap.operational_debt,
+                "refunds_total": snap.refunds_total,
                 "first_purchase_at": snap.first_purchase_at,
                 "last_purchase_at": snap.last_purchase_at,
                 "lifetime_days": snap.lifetime_days,

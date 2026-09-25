@@ -93,6 +93,7 @@ def test_paid_ltv_sales_value_outstanding_and_lifetime():
     assert snap.sales_value == Decimal("1600")
     assert snap.paid_ltv == Decimal("700")  # 300+500-100
     assert snap.outstanding == Decimal("800")  # 1300-500
+    assert snap.operational_debt == Decimal("800")  # p1: 300-300-100=0; p2: 800
     assert snap.refunds_total == Decimal("100")
     assert snap.first_purchase_at is not None
     assert snap.last_purchase_at is not None
@@ -142,3 +143,4 @@ def test_returned_purchase_excluded_from_sales_value():
     assert snap.sales_value == Decimal("0")
     assert snap.paid_ltv == Decimal("0")
     assert snap.outstanding == Decimal("0")
+    assert snap.operational_debt == Decimal("0")

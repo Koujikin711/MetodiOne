@@ -16,6 +16,13 @@ Online Booking → «Отчёт по услугам».
 | Coverage | Before 97.7%; After **unchanged** (no blind link) |
 | MainCourse / Protocol | 1 sale = 1 purchase; payments ≠ purchases; MK/C15 not required |
 | Product Transitions | done (Phase 5) |
+| REFUND ≠ AUTOMATIC DEBT | Outstanding vs Operational Debt; UI «Остаток»/«Дебиторка» |
 | pytest | см. финальный отчёт |
 
-## Phase 8 — НЕ реализуется
+## PHASE 0–7 = FROZEN BASELINE
+
+Фундамент (Lead → Purchase → Payment/Refund → Paid LTV / Sales Value / Outstanding /
+Operational Debt → Journey) **заморожен**. Не перестраивать без regression fail
+или явной бизнес-причины. См. `UNIVERSAL-LTV-BASELINE.md`.
+
+## Phase 8 — НЕ начинать

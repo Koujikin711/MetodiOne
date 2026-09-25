@@ -68,6 +68,8 @@ type CohortReport = {
     sales_value: string | number;
     purchase_count: number;
     outstanding: string | number;
+    operational_debt?: string | number;
+    refunds_total?: string | number;
     lifetime_days: number | null;
   }[];
 };
@@ -405,21 +407,33 @@ export function AnalyticsPatientsLtvPanel() {
           </div>
 
           <div className="mo-section overflow-x-auto p-0">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[960px] text-sm">
               <thead>
                 <tr className="border-b border-[var(--mo-border)] text-left text-xs mo-muted">
                   <th className="px-3 py-2">Пациент</th>
                   <th className="px-3 py-2 text-right">Paid LTV</th>
                   <th className="px-3 py-2 text-right">Sales Value</th>
+                  <th className="px-3 py-2 text-right">Refunds</th>
+                  <th
+                    className="px-3 py-2 text-right"
+                    title="Математический остаток по активному обязательству (sa − net). Не дебиторка."
+                  >
+                    Остаток
+                  </th>
+                  <th
+                    className="px-3 py-2 text-right"
+                    title="Операционная дебиторка клиники. Refund ≠ automatic debt."
+                  >
+                    Дебиторка
+                  </th>
                   <th className="px-3 py-2 text-right">Purchases</th>
-                  <th className="px-3 py-2 text-right">Долг</th>
                   <th className="px-3 py-2 text-right">Lifetime</th>
                 </tr>
               </thead>
               <tbody>
                 {(data.patients_rows ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center mo-muted">
+                    <td colSpan={8} className="px-3 py-6 text-center mo-muted">
                       Нет пациентов с первой покупкой в когорте. Нажмите Sync ledger.
                     </td>
                   </tr>
@@ -437,8 +451,12 @@ export function AnalyticsPatientsLtvPanel() {
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{money(r.paid_ltv)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{money(r.sales_value)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{r.purchase_count}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{money(r.refunds_total)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{money(r.outstanding)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {money(r.operational_debt ?? 0)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{r.purchase_count}</td>
                       <td className="px-3 py-2 text-right tabular-nums">
                         {r.lifetime_days ?? "—"}
                       </td>

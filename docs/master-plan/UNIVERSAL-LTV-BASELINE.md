@@ -17,6 +17,9 @@ Commit-якорь: `cb85677` (+ последующие без перестрой
 | События | Purchase ≠ Payment ≠ Refund ≠ Appointment ≠ Delivery |
 | Paid LTV | единый `normalize_money_event` → signed amount; refund **один раз** |
 | Sales Value | отдельно от Paid LTV; debt не увеличивает Paid LTV |
+| Outstanding | math остаток по **активному** обязательству (`sa − net paid`); не «Дебиторка» |
+| Operational Debt | канон KPI `obligation_open_debt(sa, paid, refunds)`; **REFUND ≠ AUTOMATIC DEBT** |
+| Returned / cancelled | обязательство прекращено → outstanding = operational_debt = 0 |
 | Unresolved | `lead_id IS NULL` → **не** в patient LTV; остаются в company ledger |
 | Coverage | linked / unresolved видимы owner в «Пациенты & LTV» |
 | Phone | **запрещён** auto-merge только по телефону |
@@ -44,5 +47,5 @@ Program context (Course15, Masterclass, Main/Protocol episodes) обогащае
 
 Phase 5 Product Transitions — **сделано** (на Purchase Event engine; см. cohort `product_transitions`).
 
-Phase 7 — ручной smoke / reconciliation после деплоя.
-Phase 8 — не реализуется.
+Phase 7 — **DONE** + semantic fix REFUND ≠ AUTOMATIC DEBT.
+**PHASE 0–7 = FROZEN BASELINE.** Phase 8 — не начинать.

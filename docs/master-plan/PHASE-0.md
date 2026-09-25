@@ -50,7 +50,12 @@
 4. **Deal.protocol_*** (файл) ≠ продукт «Протокол» — в LTV Phase 1 **не** включаем.  
 5. KPI без `lead_id` → purchase с `lead_id=NULL` (**unresolved**), в метриках пациента не мержится.  
 6. Добавляем nullable `SalesKpiManualSale.lead_id` для **ручной/будущей** привязки, без auto-fill.  
-7. Paid LTV = сумма payments − refunds; Sales Value = `service_amount` покупок; debt = max(0, sales − paid) по active.
+7. Paid LTV = сумма payments − refunds; Sales Value = `service_amount` покупок;
+   **Outstanding** = max(0, sa − net paid) по активному обязательству (math);
+   **Operational Debt** = max(0, sa − paid − refunds) — канон KPI/Booking
+   (`obligation_open_debt`); **REFUND ≠ AUTOMATIC DEBT**.
+   Returned/cancelled → outstanding и operational_debt = 0.
+   UI: «Остаток» ≠ «Дебиторка».
 
 ## Phase 8 (резерв)
 
