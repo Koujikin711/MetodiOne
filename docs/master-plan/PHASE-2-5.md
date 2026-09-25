@@ -28,19 +28,13 @@ Lead → First Valid Purchase → Next Valid Purchase → … → Lifetime / Pai
 - Вкладка **Пациенты & LTV**
 - `GET /api/analytics/ltv/cohort` — когорта по `first_purchase_at`
 - Avg Paid LTV, Sales Value, Repeat %, purchases/patient, lifetime, D0–D365
-- First Product, Course15 funnel (в т.ч. без recorded МК), conversions, Main/Protocol origin
+- First Product, **Product Transitions** (A→B / A→A, count, patients, share of from, interval)
+- Course15 funnel (в т.ч. без recorded МК), conversions, Main/Protocol origin
 - Data coverage: purchases linked / unresolved (без phone auto-merge)
 - Patient table → Lead
 - Sync button вызывает ledger + journey
 
-### Backlog Phase 5 — Product Transitions (не blocker)
-
-Отдельный UI-блок на существующем Purchase Event engine (без второго calculation layer):
-
-- Product A → Product B и Product A → Product A
-- count / patients
-- conversion/share при однозначном denominator
-- median/average interval (опционально)
+Baseline канона: `docs/master-plan/UNIVERSAL-LTV-BASELINE.md`.
 
 ## Phase 6
 

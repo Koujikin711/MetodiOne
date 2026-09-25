@@ -42,5 +42,7 @@ Program context (Course15, Masterclass, Main/Protocol episodes) обогащае
 
 ## Backlog (не blocker фундамента)
 
-**Phase 5 — Product Transitions UI** на существующем Purchase Event engine
-(без второго calculation layer): A→B, A→A, count, patients, share, interval.
+Phase 5 Product Transitions — **сделано** (на Purchase Event engine; см. cohort `product_transitions`).
+
+Phase 7 — ручной smoke / reconciliation после деплоя.
+Phase 8 — не реализуется.

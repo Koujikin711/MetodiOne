@@ -17,7 +17,8 @@ Online Booking → «Отчёт по услугам»: KPI + таблица + dr
 | Curator journal ≠ Protocol auto-write | да |
 | Permissions owner на LTV | да |
 | Полный regression E2E всех модулей | **не автоматически** — ручной smoke после деплоя |
-| KPI sales без lead_id в Paid LTV пациента | unresolved (ожидаемо) |
+| KPI sales без lead_id в Paid LTV пациента | unresolved + coverage UI (ожидаемо) |
+| Product Transitions (Phase 5 backlog) | **done** — A→B/A→A на Purchase Events |
 
 ## Phase 8 — НЕ реализуется
 

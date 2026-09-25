@@ -21,6 +21,89 @@ class LeadPurchaseFact:
 
     product_kind: str
     purchased_at: datetime | None = None
+    product_name: str | None = None
+
+
+def transition_product_key(p: LeadPurchaseFact) -> str:
+    """Ключ для Product Transitions: kind для program-продуктов, иначе имя из каталога."""
+    kind = (p.product_kind or "other_service").strip() or "other_service"
+    if kind in ("course_15", "main_course", "protocol"):
+        return kind
+    name = (p.product_name or "").strip()
+    if name:
+        return name
+    return kind
+
+
+def consecutive_transitions(
+    facts: LeadJourneyFacts,
+) -> list[tuple[str, str, int | None]]:
+    """Пары (from, to, interval_days) по соседним Purchase Events. Допускает A→A."""
+    purchases = [p for p in facts.purchases if p.product_kind]
+    out: list[tuple[str, str, int | None]] = []
+    for i in range(len(purchases) - 1):
+        a = purchases[i]
+        b = purchases[i + 1]
+        days: int | None = None
+        if a.purchased_at is not None and b.purchased_at is not None:
+            days = max(0, (b.purchased_at.date() - a.purchased_at.date()).days)
+        out.append((transition_product_key(a), transition_product_key(b), days))
+    return out
+
+
+def aggregate_product_transitions(
+    facts_list: Iterable[LeadJourneyFacts],
+    *,
+    lead_ids: Sequence[int] | None = None,
+    limit: int = 40,
+) -> list[dict]:
+    """Product Transitions из Purchase Events (без второго LTV-слоя).
+
+    share = transition_count(A→B) / transition_count(A→*), denominator однозначен.
+    """
+    material = list(facts_list)
+    ids: list[int] = list(lead_ids) if lead_ids is not None else list(range(len(material)))
+
+    edge_counts: Counter[tuple[str, str]] = Counter()
+    edge_patients: dict[tuple[str, str], set[int]] = {}
+    edge_intervals: dict[tuple[str, str], list[int]] = {}
+    from_out: Counter[str] = Counter()
+
+    for i, facts in enumerate(material):
+        lid = int(ids[i]) if i < len(ids) else i
+        for frm, to, days in consecutive_transitions(facts):
+            key = (frm, to)
+            edge_counts[key] += 1
+            from_out[frm] += 1
+            edge_patients.setdefault(key, set()).add(lid)
+            if days is not None:
+                edge_intervals.setdefault(key, []).append(days)
+
+    rows: list[dict] = []
+    for (frm, to), cnt in edge_counts.items():
+        denom = from_out[frm]
+        intervals = edge_intervals.get((frm, to), [])
+        avg_days = None
+        median_days = None
+        if intervals:
+            s = sorted(intervals)
+            avg_days = round(sum(s) / len(s), 1)
+            mid = len(s) // 2
+            median_days = float(s[mid] if len(s) % 2 else (s[mid - 1] + s[mid]) / 2)
+        rows.append(
+            {
+                "from_product": frm,
+                "to_product": to,
+                "transition_count": cnt,
+                "patients": len(edge_patients.get((frm, to), set())),
+                "share_of_from": round(cnt / denom, 4) if denom else None,
+                "from_out_count": denom,
+                "avg_interval_days": avg_days,
+                "median_interval_days": median_days,
+            },
+        )
+    rows.sort(key=lambda r: (-int(r["transition_count"]), str(r["from_product"]), str(r["to_product"])))
+    return rows[:limit]
 
 
 @dataclass(frozen=True)

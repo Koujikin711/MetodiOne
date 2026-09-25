@@ -50,6 +50,16 @@ type CohortReport = {
     client_name?: string | null;
     client_phone?: string | null;
   }[];
+  product_transitions?: {
+    from_product: string;
+    to_product: string;
+    transition_count: number;
+    patients: number;
+    share_of_from: number | null;
+    from_out_count: number;
+    avg_interval_days: number | null;
+    median_interval_days: number | null;
+  }[];
   patients_rows: {
     lead_id: number;
     patient_name?: string | null;
@@ -305,6 +315,53 @@ export function AnalyticsPatientsLtvPanel() {
             <h3 className="mb-1 text-sm font-semibold">First Product</h3>
             <p className="mb-2 text-xs mo-muted">По реальной первой valid purchase, без навязанной воронки.</p>
             <StatGrid entries={j?.first_product} labels={FIRST_PRODUCT_LABELS} />
+          </div>
+
+          <div className="mo-section overflow-x-auto p-4">
+            <h3 className="mb-1 text-sm font-semibold">Product Transitions</h3>
+            <p className="mb-2 text-xs mo-muted">
+              Соседние Purchase Events (A→B и A→A). Share = count(A→B) / count(A→*). Без второго
+              calculation layer.
+            </p>
+            {(data.product_transitions ?? []).length === 0 ? (
+              <p className="text-xs mo-muted">Нет переходов в когорте (нужно ≥2 покупки у пациента).</p>
+            ) : (
+              <table className="w-full min-w-[640px] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--mo-border)] text-left text-xs mo-muted">
+                    <th className="px-2 py-1">From</th>
+                    <th className="px-2 py-1">To</th>
+                    <th className="px-2 py-1 text-right">Count</th>
+                    <th className="px-2 py-1 text-right">Patients</th>
+                    <th className="px-2 py-1 text-right">Share of from</th>
+                    <th className="px-2 py-1 text-right">Avg days</th>
+                    <th className="px-2 py-1 text-right">Median days</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.product_transitions!.map((t) => (
+                    <tr
+                      key={`${t.from_product}→${t.to_product}`}
+                      className="border-b border-[var(--mo-border)]/50"
+                    >
+                      <td className="px-2 py-1">{t.from_product}</td>
+                      <td className="px-2 py-1">{t.to_product}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{t.transition_count}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{t.patients}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">
+                        {t.share_of_from != null ? pct(t.share_of_from) : "—"}
+                      </td>
+                      <td className="px-2 py-1 text-right tabular-nums">
+                        {t.avg_interval_days ?? "—"}
+                      </td>
+                      <td className="px-2 py-1 text-right tabular-nums">
+                        {t.median_interval_days ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
           <div className="mo-section p-4">

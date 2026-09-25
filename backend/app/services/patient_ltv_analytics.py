@@ -14,6 +14,7 @@ from app.services.patient_journey_paths import (
     LeadJourneyFacts,
     LeadPurchaseFact,
     aggregate_path_analytics,
+    aggregate_product_transitions,
     empty_path_analytics,
 )
 from app.services.patient_ltv import compute_lead_ltv
@@ -125,6 +126,7 @@ async def build_ltv_cohort_report(
             "avg_lifetime_days": Decimal("0"),
             "ltv_windows": {f"d{d}": Decimal("0") for d in LTV_WINDOWS_DAYS},
             "journey": empty_path_analytics(),
+            "product_transitions": [],
             "coverage": coverage,
             "unresolved_rows": unresolved_rows,
             "patients_rows": [],
@@ -203,6 +205,7 @@ async def build_ltv_cohort_report(
                     LeadPurchaseFact(
                         product_kind=(p.product_kind or "other_service"),
                         purchased_at=_utc(p.purchased_at) if p.purchased_at else None,
+                        product_name=p.product_name,
                     )
                     for p in pur_list
                     if (p.status or "") != "returned"
@@ -217,6 +220,7 @@ async def build_ltv_cohort_report(
         branch_by_lead={lid: (jmap[lid].branch if lid in jmap else "none") for lid in cohort_leads},
         lead_ids=cohort_leads,
     )
+    product_transitions = aggregate_product_transitions(facts_list, lead_ids=cohort_leads)
 
     leads = (
         await db.execute(select(Lead.id, Lead.name, Lead.phone).where(Lead.id.in_(cohort_leads)))
@@ -240,6 +244,7 @@ async def build_ltv_cohort_report(
         "avg_lifetime_days": (Decimal(lifetime_sum) / Decimal(lifetime_n)) if lifetime_n else Decimal("0"),
         "ltv_windows": {f"d{d}": (window_sums[d] / n) if n else Decimal("0") for d in LTV_WINDOWS_DAYS},
         "journey": journey_stats,
+        "product_transitions": product_transitions,
         "coverage": coverage,
         "unresolved_rows": unresolved_rows,
         "patients_rows": rows_out[:200],
