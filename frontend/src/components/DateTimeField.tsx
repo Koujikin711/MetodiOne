@@ -35,6 +35,11 @@ function joinLocal(date: string, hour: number, minute: number): string {
   return `${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
+/** Только цифры и разделители даты/времени — буквы отсекаем сразу. */
+function sanitizeDateTimeDraft(raw: string): string {
+  return raw.replace(/[^\d./,: ]/g, "").slice(0, 18);
+}
+
 /** Разбор «ДД.ММ.ГГГГ, ЧЧ:ММ» / «ДД.ММ.ГГГГ ЧЧ:ММ» / «ДД.ММ.ГГГГ». */
 function parseTypedDateTime(raw: string): string | null {
   const s = raw.trim().replace(/\s+/g, " ");
@@ -270,7 +275,7 @@ export function DateTimeField({
           aria-label={ariaLabel}
           placeholder="ДД.ММ.ГГГГ, --:--"
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => setDraft(sanitizeDateTimeDraft(e.target.value))}
           onFocus={() => setFocused(true)}
           onBlur={() => {
             setFocused(false);

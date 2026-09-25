@@ -26,6 +26,11 @@ function formatDisplay(iso: string): string {
   return `${d}.${m}.${y}`;
 }
 
+/** Только цифры и разделители даты — буквы отсекаем сразу. */
+function sanitizeDateDraft(raw: string): string {
+  return raw.replace(/[^\d./]/g, "").slice(0, 10);
+}
+
 /** Разбор «ДД.ММ.ГГГГ» / «ДД/ММ/ГГ». */
 function parseTypedDate(raw: string): string | null {
   const s = raw.trim();
@@ -245,7 +250,7 @@ export function DateField({
           aria-label={ariaLabel}
           placeholder={placeholder}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => setDraft(sanitizeDateDraft(e.target.value))}
           onFocus={() => setFocused(true)}
           onBlur={() => {
             setFocused(false);
