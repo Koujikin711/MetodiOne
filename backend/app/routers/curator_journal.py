@@ -72,7 +72,11 @@ def _norm_phone(raw: str | None) -> str:
     return digits
 
 
-def _membership_out(m: CuratorFlowMembership) -> MembershipOut:
+def _membership_out(
+    m: CuratorFlowMembership,
+    *,
+    program: dict | None = None,
+) -> MembershipOut:
     return MembershipOut(
         id=int(m.id),
         flow_id=int(m.flow_id),
@@ -84,7 +88,42 @@ def _membership_out(m: CuratorFlowMembership) -> MembershipOut:
         source=m.source or "manual",
         kpi_sale_id=int(m.kpi_sale_id) if m.kpi_sale_id is not None else None,
         is_active=m.left_on is None,
+        program_started_on=program.get("program_started_on") if program else None,
+        program_expected_end_on=program.get("program_expected_end_on") if program else None,
+        program_days_remaining=program.get("program_days_remaining") if program else None,
+        program_day_index=program.get("program_day_index") if program else None,
+        program_duration_days=program.get("program_duration_days") if program else None,
+        program_status=program.get("program_status") if program else None,
+        program_start_source=program.get("program_start_source") if program else None,
+        program_purchase_id=program.get("program_purchase_id") if program else None,
     )
+
+
+async def _program_by_membership(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    memberships: list[CuratorFlowMembership],
+    ending_soon_days: int = 14,
+) -> dict[int, dict]:
+    """Batch-derive Course 90d period for memberships. No new membership rows."""
+    from app.services.course_program_period import (
+        COURSE_ENDING_SOON_DAYS_DEFAULT,
+        load_main_course_purchases_by_lead,
+        membership_period_fields,
+    )
+
+    soon = ending_soon_days if ending_soon_days is not None else COURSE_ENDING_SOON_DAYS_DEFAULT
+    lead_ids = [int(m.lead_id) for m in memberships if m.lead_id is not None]
+    by_lead = await load_main_course_purchases_by_lead(
+        db, company_id=company_id, lead_ids=lead_ids
+    )
+    out: dict[int, dict] = {}
+    for m in memberships:
+        out[int(m.id)] = membership_period_fields(
+            m, by_lead, ending_soon_days=soon
+        )
+    return out
 
 
 def _complaint_out(c: CuratorJournalComplaint) -> ComplaintOut:
@@ -481,8 +520,9 @@ async def list_memberships(
     if active_only:
         q = q.where(CuratorFlowMembership.left_on.is_(None))
     q = q.order_by(CuratorFlowMembership.display_name)
-    rows = (await db.execute(q)).scalars().all()
-    return [_membership_out(m) for m in rows]
+    rows = list((await db.execute(q)).scalars().all())
+    programs = await _program_by_membership(db, company_id=company_id, memberships=rows)
+    return [_membership_out(m, program=programs.get(int(m.id))) for m in rows]
 
 
 @router.post(
@@ -792,7 +832,15 @@ async def get_month_journal(
     year: int = Query(ge=2000, le=2100),
     month: int = Query(ge=1, le=12),
     q: str | None = Query(default=None, description="Поиск по ФИО"),
+    ending_soon_days: int = Query(
+        14,
+        ge=0,
+        le=90,
+        description="Порог «скоро заканчивается» для Курс 90д (дней).",
+    ),
 ) -> MonthJournalOut:
+    from app.services.course_program_period import COURSE_DURATION_DAYS
+
     flow = await _get_flow(db, company_id, flow_id)
     assert_flow_readable(user, flow)
     days = _month_days_in_flow(flow, year, month)
@@ -812,8 +860,19 @@ async def get_month_journal(
         like = f"%{q.strip()}%"
         mq = mq.where(CuratorFlowMembership.display_name.ilike(like))
     mq = mq.order_by(CuratorFlowMembership.display_name)
-    participants = (await db.execute(mq)).scalars().all()
+    participants = list((await db.execute(mq)).scalars().all())
     member_ids = [int(m.id) for m in participants]
+    programs = await _program_by_membership(
+        db,
+        company_id=company_id,
+        memberships=participants,
+        ending_soon_days=ending_soon_days,
+    )
+    program_counts = {"active": 0, "ending_soon": 0, "ended": 0}
+    for prog in programs.values():
+        st = prog.get("program_status")
+        if st in program_counts:
+            program_counts[st] += 1
 
     entries: list[CuratorJournalEntry] = []
     if member_ids and days:
@@ -835,8 +894,13 @@ async def get_month_journal(
         year=year,
         month=month,
         days=days,
-        participants=[_membership_out(m) for m in participants],
+        participants=[
+            _membership_out(m, program=programs.get(int(m.id))) for m in participants
+        ],
         entries=[_entry_out(e, complaints_map.get(int(e.id), [])) for e in entries],
+        program_duration_days=COURSE_DURATION_DAYS,
+        program_ending_soon_days=ending_soon_days,
+        program_counts=program_counts,
     )
 
 
@@ -1147,7 +1211,12 @@ async def member_history(
     ]
 
     return MemberHistoryOut(
-        membership=_membership_out(m),
+        membership=_membership_out(
+            m,
+            program=(
+                await _program_by_membership(db, company_id=company_id, memberships=[m])
+            ).get(int(m.id)),
+        ),
         flow_number=int(flow.flow_number),
         course_name=flow.course_name,
         year=year,

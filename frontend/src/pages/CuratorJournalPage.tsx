@@ -56,6 +56,14 @@ type Membership = {
   left_on: string | null;
   source: string;
   is_active: boolean;
+  program_started_on?: string | null;
+  program_expected_end_on?: string | null;
+  program_days_remaining?: number | null;
+  program_day_index?: number | null;
+  program_duration_days?: number | null;
+  program_status?: string | null;
+  program_start_source?: string | null;
+  program_purchase_id?: number | null;
 };
 
 type JournalEntry = {
@@ -90,6 +98,9 @@ type MonthJournal = {
   days: string[];
   participants: Membership[];
   entries: JournalEntry[];
+  program_duration_days?: number;
+  program_ending_soon_days?: number;
+  program_counts?: Record<string, number>;
 };
 
 type DaySummary = {
@@ -189,6 +200,42 @@ function formatDdMm(iso: string) {
 function formatRuDate(iso: string) {
   const [y, m, d] = iso.split("-");
   return `${d}.${m}.${y}`;
+}
+
+function programPeriodLabel(m: Membership): string | null {
+  if (!m.program_status || m.program_days_remaining == null) return null;
+  const dur = m.program_duration_days ?? 90;
+  if (m.program_status === "ended") {
+    return `Курс 90д · завершён (${Math.abs(m.program_days_remaining)} дн. назад)`;
+  }
+  if (m.program_status === "ending_soon") {
+    return `Курс 90д · осталось ${m.program_days_remaining} дн.`;
+  }
+  const day = m.program_day_index != null ? Math.min(Math.max(m.program_day_index, 1), dur) : null;
+  return day != null ? `Курс 90д · день ${day}/${dur}` : `Курс 90д · ${m.program_days_remaining} дн.`;
+}
+
+function ProgramPeriodHint({ m }: { m: Membership }) {
+  const label = programPeriodLabel(m);
+  if (!label) return null;
+  const tone =
+    m.program_status === "ended"
+      ? "text-amber-800 dark:text-amber-200"
+      : m.program_status === "ending_soon"
+        ? "text-orange-700 dark:text-orange-300"
+        : "text-[var(--mo-muted)]";
+  const title = [
+    m.program_started_on ? `Старт: ${formatRuDate(m.program_started_on)}` : null,
+    m.program_expected_end_on ? `Ожид. конец: ${formatRuDate(m.program_expected_end_on)}` : null,
+    m.program_start_source === "purchase" ? "источник: покупка Курс" : "источник: дата вступления",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <div className={`mt-0.5 text-[10px] font-normal leading-tight tabular-nums ${tone}`} title={title}>
+      {label}
+    </div>
+  );
 }
 
 function statusGlyph(kind: "diary" | "photo" | "complaint", status: string): string {
@@ -516,6 +563,16 @@ export function CuratorJournalPage() {
                 <span className="cj-meta-label">Участников</span>
                 <span className="cj-meta-value">{flow.participants_count}</span>
               </div>
+              {monthQuery.data?.program_counts ? (
+                <div>
+                  <span className="cj-meta-label">Курс 90д</span>
+                  <span className="cj-meta-value text-xs tabular-nums">
+                    в сроке {monthQuery.data.program_counts.active ?? 0} · скоро{" "}
+                    {monthQuery.data.program_counts.ending_soon ?? 0} · вышли{" "}
+                    {monthQuery.data.program_counts.ended ?? 0}
+                  </span>
+                </div>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {canManageFlows ? (
@@ -667,6 +724,7 @@ export function CuratorJournalPage() {
                       >
                         {p.display_name}
                       </button>
+                      <ProgramPeriodHint m={p} />
                     </th>
                     {monthQuery.data!.days.map((d) => {
                       const e = entryMap.get(`${p.id}|${d}`);
@@ -780,12 +838,13 @@ export function CuratorJournalPage() {
                 >
                   <button
                     type="button"
-                    className="mb-2 font-medium hover:underline"
+                    className="mb-0.5 font-medium hover:underline"
                     onClick={() => setHistoryMemberId(p.id)}
                   >
                     {p.display_name}
                   </button>
-                  <div className="flex flex-wrap gap-2 text-sm">
+                  <ProgramPeriodHint m={p} />
+                  <div className="mt-2 flex flex-wrap gap-2 text-sm">
                     <MobileStatus
                       label="Дневник"
                       glyph={statusGlyph("diary", e?.diary_status || "pending")}
@@ -1615,6 +1674,16 @@ function HistoryModal({
             <div className="text-[var(--mo-muted)]">
               {h.course_name} · Поток №{h.flow_number} · {MONTHS_RU[month - 1]} {year}
             </div>
+            <ProgramPeriodHint m={h.membership} />
+            {h.membership.program_started_on && h.membership.program_expected_end_on ? (
+              <div className="mt-1 text-xs text-[var(--mo-muted)]">
+                Программа: {formatRuDate(h.membership.program_started_on)} –{" "}
+                {formatRuDate(h.membership.program_expected_end_on)}
+                {h.membership.program_start_source === "purchase"
+                  ? " (покупка Курс)"
+                  : " (дата вступления)"}
+              </div>
+            ) : null}
           </div>
           <div className="grid grid-cols-3 gap-2">
             <SummaryCard title="Дневник" body={`${h.diary_done}/${h.diary_total_days}`} />

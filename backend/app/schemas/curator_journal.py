@@ -115,6 +115,15 @@ class MembershipOut(BaseModel):
     source: str
     kpi_sale_id: int | None = None
     is_active: bool = True
+    # Phase 8E — Course 90-day program period (derived; no Booking-as-end)
+    program_started_on: date | None = None
+    program_expected_end_on: date | None = None
+    program_days_remaining: int | None = None
+    program_day_index: int | None = None
+    program_duration_days: int | None = None
+    program_status: str | None = None
+    program_start_source: str | None = None
+    program_purchase_id: int | None = None
 
 
 class ComplaintIn(BaseModel):
@@ -162,6 +171,9 @@ class MonthJournalOut(BaseModel):
     days: list[date]
     participants: list[MembershipOut]
     entries: list[JournalEntryOut]
+    program_duration_days: int = 90
+    program_ending_soon_days: int = 14
+    program_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class DaySummaryOut(BaseModel):
