@@ -612,8 +612,8 @@ export function BookingWeekSpecialistGrid({
         )}
       </div>
       <p className="border-t border-[var(--mo-border)] px-3 py-2 text-[11px] mo-muted">
-        Клик по ячейке дня — новая запись (форма справа). Имя специалиста — развернуть или свернуть список. Часовой
-        пояс: {BOOKING_TIME_ZONE}.
+        Клик по ячейке дня — новая запись. Имя специалиста — развернуть или свернуть. На телефоне
+        листните неделю вбок. Часовой пояс: {BOOKING_TIME_ZONE}.
       </p>
     </div>
   );

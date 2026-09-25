@@ -35,6 +35,26 @@ function joinLocal(date: string, hour: number, minute: number): string {
   return `${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
+/** Разбор «ДД.ММ.ГГГГ, ЧЧ:ММ» / «ДД.ММ.ГГГГ ЧЧ:ММ» / «ДД.ММ.ГГГГ». */
+function parseTypedDateTime(raw: string): string | null {
+  const s = raw.trim().replace(/\s+/g, " ");
+  if (!s) return null;
+  const m = /^(\d{1,2})[./](\d{1,2})[./](\d{2}|\d{4})(?:[,\s]+(\d{1,2}):(\d{2}))?$/.exec(s);
+  if (!m) return null;
+  let y = Number(m[3]);
+  if (y < 100) y += 2000;
+  const mo = Number(m[2]);
+  const d = Number(m[1]);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const date = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const check = new Date(y, mo - 1, d);
+  if (check.getFullYear() !== y || check.getMonth() !== mo - 1 || check.getDate() !== d) return null;
+  const hour = m[4] != null ? Number(m[4]) : 9;
+  const minute = m[5] != null ? Number(m[5]) : 0;
+  if (hour > 23 || minute > 59) return null;
+  return joinLocal(date, hour, minute);
+}
+
 function buildTimeOptions(step: number): { hour: number; minute: number; label: string }[] {
   const out: { hour: number; minute: number; label: string }[] = [];
   for (let h = 0; h < 24; h++) {
@@ -54,7 +74,7 @@ function todayYmd(): string {
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
 }
 
-/** Дата+время в стиле MetodiOne (без нативного Chrome-календаря). Значение: YYYY-MM-DDTHH:mm */
+/** Дата+время: ручной ввод + календарь. Значение: YYYY-MM-DDTHH:mm */
 export function DateTimeField({
   value,
   onChange,
@@ -67,10 +87,16 @@ export function DateTimeField({
   allowClear = true,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(() => formatDisplay(value));
+  const [focused, setFocused] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const timeListRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!focused) setDraft(formatDisplay(value));
+  }, [value, focused]);
 
   const parsed = parseLocal(value);
   const datePart = parsed?.date ?? todayYmd();
@@ -104,7 +130,7 @@ export function DateTimeField({
       return;
     }
     function place() {
-      const el = triggerRef.current;
+      const el = rootRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
       const gap = 6;
@@ -137,7 +163,15 @@ export function DateTimeField({
     return () => window.cancelAnimationFrame(id);
   }, [open, selectedLabel]);
 
-  const display = formatDisplay(value) || "ДД.ММ.ГГГГ, --:--";
+  function commitDraft(raw: string) {
+    const next = parseTypedDateTime(raw);
+    if (next) {
+      onChange(next);
+      setDraft(formatDisplay(next));
+      return;
+    }
+    setDraft(formatDisplay(value));
+  }
 
   function setDate(isoDate: string) {
     onChange(joinLocal(isoDate, hour, minute));
@@ -153,13 +187,7 @@ export function DateTimeField({
     const rounded = Math.round(n.getMinutes() / step) * step;
     const h = rounded >= 60 ? n.getHours() + 1 : n.getHours();
     const m = rounded >= 60 ? 0 : rounded;
-    onChange(
-      joinLocal(
-        todayYmd(),
-        Math.min(23, h),
-        m,
-      ),
-    );
+    onChange(joinLocal(todayYmd(), Math.min(23, h), m));
     setOpen(false);
   }
 
@@ -207,6 +235,7 @@ export function DateTimeField({
                   className="date-field__link"
                   onClick={() => {
                     onChange("");
+                    setDraft("");
                     setOpen(false);
                   }}
                 >
@@ -226,32 +255,55 @@ export function DateTimeField({
 
   return (
     <div ref={rootRef} className={["date-time-field relative", className].filter(Boolean).join(" ")}>
-      <button
-        ref={triggerRef}
-        type="button"
-        id={id}
-        disabled={disabled}
-        aria-label={ariaLabel}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        aria-required={required || undefined}
-        onClick={() => {
-          if (!disabled) setOpen((o) => !o);
-        }}
+      <div
         className={[
-          "mo-input flex w-full min-w-0 items-center justify-between gap-2 text-left",
-          disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-          !formatDisplay(value) ? "text-[var(--mo-text-muted)]" : "text-[var(--mo-text)]",
+          "mo-input flex w-full min-w-0 items-center gap-1",
+          disabled ? "cursor-not-allowed opacity-50" : "",
         ].join(" ")}
       >
-        <span className="min-w-0 truncate tabular-nums">{display}</span>
-        <span className="shrink-0 text-[var(--mo-text-muted)]" aria-hidden>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          disabled={disabled}
+          required={required}
+          aria-label={ariaLabel}
+          placeholder="ДД.ММ.ГГГГ, --:--"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            commitDraft(draft);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitDraft(draft);
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[inherit] outline-none tabular-nums placeholder:text-[var(--mo-text-muted)]"
+          autoComplete="off"
+        />
+        <button
+          ref={triggerRef}
+          type="button"
+          disabled={disabled}
+          aria-label="Открыть календарь"
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          onClick={() => {
+            if (!disabled) setOpen((o) => !o);
+          }}
+          className="shrink-0 rounded-md p-0.5 text-[var(--mo-text-muted)] hover:bg-[var(--mo-accent-soft)] hover:text-[var(--mo-text)]"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
             <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.6" />
             <path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
-        </span>
-      </button>
+        </button>
+      </div>
       {panel}
     </div>
   );

@@ -7,7 +7,6 @@ import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { BookingDirectionsPanel } from "@/components/BookingDirectionsPanel";
 import { BookingWeekSpecialistGrid } from "@/components/BookingWeekSpecialistGrid";
-import { BookingMobileDayList } from "@/components/BookingMobileDayList";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
 import { DateTimeField } from "@/components/DateTimeField";
 import { DateField } from "@/components/DateField";
@@ -70,17 +69,6 @@ const PAYMENT_METHOD_OPTIONS: { value: BookingPaymentMethod; label: string }[] =
 function paymentMethodLabel(method: string | null | undefined): string {
   if (!method) return "—";
   return PAYMENT_METHOD_OPTIONS.find((o) => o.value === method)?.label ?? method;
-}
-
-function formatBookingToolbarDate(ymd: string): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  if (!y || !m || !d) return ymd;
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "long",
-    weekday: "short",
-  });
 }
 
 function formatJournalDateShort(ymd: string): string {
@@ -1256,40 +1244,19 @@ export function OnlineBookingPage() {
       {tab === "online" && (
         <div className="space-y-3">
           <div className="booking-page-toolbar-row">
-            <div className="booking-page-date-nav" aria-label="Дата записи">
+            <div className="booking-page-date-nav" aria-label="Неделя записи">
               <button
                 type="button"
-                className="booking-page-date-nav-btn lg:hidden"
-                aria-label="Предыдущий день"
-                onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, -1))}
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                className="booking-page-date-nav-btn hidden lg:inline-flex"
+                className="booking-page-date-nav-btn"
                 aria-label="Предыдущая неделя"
                 onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, -7))}
               >
                 ‹
               </button>
-              <span className="booking-page-date-label lg:hidden">
-                {formatBookingToolbarDate(filterDate)}
-              </span>
-              <span className="booking-page-date-label hidden lg:inline">
-                {formatWeekRangeLabel(filterDate)}
-              </span>
+              <span className="booking-page-date-label">{formatWeekRangeLabel(filterDate)}</span>
               <button
                 type="button"
-                className="booking-page-date-nav-btn lg:hidden"
-                aria-label="Следующий день"
-                onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, 1))}
-              >
-                ›
-              </button>
-              <button
-                type="button"
-                className="booking-page-date-nav-btn hidden lg:inline-flex"
+                className="booking-page-date-nav-btn"
                 aria-label="Следующая неделя"
                 onClick={() => setFilterDate((d) => shiftFilterDateYmd(d, 7))}
               >
@@ -1308,31 +1275,20 @@ export function OnlineBookingPage() {
           </div>
           <div className="booking-page-shell">
             <div className="min-w-0">
-              <BookingMobileDayList
-                dateYmd={filterDate}
+              <BookingWeekSpecialistGrid
+                anchorDateYmd={filterDate}
                 specialists={specialistsForCalendarView}
                 appointments={gridAppointmentsQuery.data ?? []}
                 onAppointmentClick={onCalendarAppointmentClick}
+                onSlotClick={canEditBooking ? handleSlotClick : undefined}
+                onEditSpecialist={canEditBooking ? openEditSpecialistModal : undefined}
+                onReorderSpecialists={canEditBooking ? (orderedIds) => reorderSpecialistsMutation.mutate(orderedIds) : undefined}
                 showSessionInsteadOfTime={showSessionInsteadOfTime}
                 canEditNotes={canEditBooking}
                 onAppointmentNoteClick={canEditBooking ? onAppointmentNoteClick : undefined}
+                canToggleComplete={canEditBooking}
+                onAppointmentCompleteToggle={canEditBooking ? onAppointmentCompleteToggle : undefined}
               />
-              <div className="hidden min-w-0 lg:block">
-                <BookingWeekSpecialistGrid
-                  anchorDateYmd={filterDate}
-                  specialists={specialistsForCalendarView}
-                  appointments={gridAppointmentsQuery.data ?? []}
-                  onAppointmentClick={onCalendarAppointmentClick}
-                  onSlotClick={canEditBooking ? handleSlotClick : undefined}
-                  onEditSpecialist={canEditBooking ? openEditSpecialistModal : undefined}
-                  onReorderSpecialists={canEditBooking ? (orderedIds) => reorderSpecialistsMutation.mutate(orderedIds) : undefined}
-                  showSessionInsteadOfTime={showSessionInsteadOfTime}
-                  canEditNotes={canEditBooking}
-                  onAppointmentNoteClick={canEditBooking ? onAppointmentNoteClick : undefined}
-                  canToggleComplete={canEditBooking}
-                  onAppointmentCompleteToggle={canEditBooking ? onAppointmentCompleteToggle : undefined}
-                />
-              </div>
               {gridAppointmentsQuery.isLoading && (
                 <p className="mt-3 text-sm lux-caption">Загрузка записей…</p>
               )}
