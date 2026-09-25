@@ -202,7 +202,8 @@ async def build_ltv_entry_compare_report(
         "cohort_to": cohort_to,
         "production_entry_mode": PRODUCTION_ENTRY_MODE,
         "cutover_blocked_reason": (
-            "Phase 8G cutover blocked until Phase 8F Deposit DQ is reviewed. "
+            "Phase 8G cutover blocked until Phase 8F Deposit DQ is reviewed "
+            "(GET /api/analytics/ltv/deposit-dq). "
             "paid>=service alone is insufficient while Course15 sa=pa=200–300 may be deposits. "
             "No hardcode of catalog prices."
         ),
