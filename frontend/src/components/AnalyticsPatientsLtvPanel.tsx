@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
 import { formatMoney } from "@/lib/money";
+import { productDisplayLabel } from "@/lib/productLexicon";
 
 type JourneyReport = {
   course_15_started: number;
@@ -138,9 +139,9 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 /** Display labels; canonical keys in API stay English. */
-const PRODUCT_KIND_LABELS: Record<string, string> = {
+const FIRST_PRODUCT_LABELS: Record<string, string> = {
   course_15: "Курс 15",
-  main_course: "Основной курс",
+  main_course: "Курс",
   protocol: "Протокол",
   other_service: "Другая услуга",
   visit: "Визит",
@@ -148,32 +149,24 @@ const PRODUCT_KIND_LABELS: Record<string, string> = {
   extra: "Доп. услуга",
 };
 
-function productLabel(keyOrName: string | null | undefined, name?: string | null): string {
-  const n = (name || "").trim();
-  if (n) return n;
-  const k = (keyOrName || "").trim();
-  if (!k) return "—";
-  return PRODUCT_KIND_LABELS[k] ?? k;
-}
-
 const FUNNEL_LABELS: Record<string, string> = {
-  mk_main: "МК зафиксирован → Основной курс",
+  mk_main: "МК зафиксирован → Курс",
   mk_protocol: "МК зафиксирован → Протокол",
-  mk_both: "МК зафиксирован → Основной курс + Протокол",
+  mk_both: "МК зафиксирован → Курс + Протокол",
   mk_none: "МК зафиксирован → без следующей покупки",
-  no_mk_main: "МК не зафиксирован → Основной курс",
+  no_mk_main: "МК не зафиксирован → Курс",
   no_mk_protocol: "МК не зафиксирован → Протокол",
-  no_mk_both: "МК не зафиксирован → Основной курс + Протокол",
+  no_mk_both: "МК не зафиксирован → Курс + Протокол",
   no_mk_none: "МК не зафиксирован → без следующей покупки",
 };
 
 const CONV_LABELS: Record<string, string> = {
-  course15_to_main: "Курс 15 → Основной курс",
+  course15_to_main: "Курс 15 → Курс",
   course15_to_protocol: "Курс 15 → Протокол",
   course15_to_masterclass: "Курс 15 → МК (зафиксирован)",
-  masterclass_to_main: "МК → Основной курс",
+  masterclass_to_main: "МК → Курс",
   masterclass_to_protocol: "МК → Протокол",
-  course15_to_main_without_mk: "Курс 15 → Основной курс без МК",
+  course15_to_main_without_mk: "Курс 15 → Курс без МК",
   course15_to_protocol_without_mk: "Курс 15 → Протокол без МК",
 };
 
@@ -183,16 +176,6 @@ const ORIGIN_LABELS: Record<string, string> = {
   after_course15_mk_not_recorded: "после Курса 15, МК не зафиксирован",
   without_course15: "без Курса 15",
   other_previous_path: "другой предыдущий путь",
-};
-
-const FIRST_PRODUCT_LABELS: Record<string, string> = {
-  course_15: "Курс 15",
-  main_course: "Основной курс",
-  protocol: "Протокол",
-  other_service: "Другая услуга",
-  visit: "Визит",
-  desk: "Desk",
-  extra: "Доп. услуга",
 };
 
 const LTV_WINDOW_LABELS: Record<string, string> = {
@@ -218,7 +201,7 @@ function StatGrid({
     <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 text-sm">
       {rows.map(([k, v]) => (
         <div key={k} className="flex justify-between gap-2 border-b border-[var(--mo-border)]/40 py-1">
-          <span className="mo-muted">{labels[k] ?? productLabel(k)}</span>
+          <span className="mo-muted">{labels[k] ?? productDisplayLabel(k)}</span>
           <strong className="tabular-nums">{v}</strong>
         </div>
       ))}
@@ -343,7 +326,7 @@ function PatientLtvDrawer({
                           <div>
                             <span className="text-xs mo-muted">{formatDate(p.purchased_at)}</span>
                             <div className="font-medium">
-                              {productLabel(p.product_kind, p.product_name)}
+                              {productDisplayLabel(p.product_kind, p.product_name)}
                               {(p.status || "") === "returned" ? (
                                 <span className="ml-2 text-[11px] mo-muted">(возврат)</span>
                               ) : null}
@@ -402,6 +385,7 @@ export function AnalyticsPatientsLtvPanel() {
   const [dateFrom, setDateFrom] = useState(initial.from);
   const [dateTo, setDateTo] = useState(initial.to);
   const [showUnresolved, setShowUnresolved] = useState(false);
+  const [showProgramDq, setShowProgramDq] = useState(false);
   const [drawer, setDrawer] = useState<{ leadId: number; name: string } | null>(null);
 
   const syncMutation = useMutation({
@@ -409,6 +393,23 @@ export function AnalyticsPatientsLtvPanel() {
     onSuccess: () => {
       toast.success("Ledger синхронизирован");
       void qc.invalidateQueries({ queryKey: ["analytics-ltv-cohort"] });
+      void qc.invalidateQueries({ queryKey: ["analytics-ltv-program-unresolved"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const linkLeadMutation = useMutation({
+    mutationFn: async ({ saleId, leadId }: { saleId: number; leadId: number }) => {
+      await apiFetch(`/api/sales-kpi/manual-sales/${saleId}/link-lead`, {
+        method: "PATCH",
+        body: JSON.stringify({ lead_id: leadId }),
+      });
+      await apiFetch("/api/analytics/ltv/sync", { method: "POST" });
+    },
+    onSuccess: () => {
+      toast.success("Продажа привязана, ledger обновлён");
+      void qc.invalidateQueries({ queryKey: ["analytics-ltv-cohort"] });
+      void qc.invalidateQueries({ queryKey: ["analytics-ltv-program-unresolved"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -426,8 +427,38 @@ export function AnalyticsPatientsLtvPanel() {
     enabled: Boolean(dateFrom && dateTo),
   });
 
+  type ProgramUnresolved = {
+    unresolved_main_course: number;
+    unresolved_protocol: number;
+    linked_main_course: number;
+    linked_protocol: number;
+    note?: string;
+    rows: {
+      sale_id: number;
+      sold_at?: string | null;
+      client_name: string;
+      client_phone: string;
+      product_kind: string;
+      product_display: string;
+      service_amount: string | number;
+      paid_amount: string | number;
+      status: string;
+      manager_name: string;
+      suggestion_confidence: string;
+      suggested_lead?: { lead_id: number; lead_name: string; lead_phone?: string | null } | null;
+      candidate_leads?: { lead_id: number; lead_name: string; lead_phone?: string | null }[];
+      match_evidence?: string[];
+    }[];
+  };
+
+  const programDqQuery = useQuery({
+    queryKey: ["analytics-ltv-program-unresolved"],
+    queryFn: () => apiFetch<ProgramUnresolved>("/api/analytics/ltv/program-unresolved"),
+  });
+
   const data = cohortQuery.data;
   const j = data?.journey;
+  const prog = programDqQuery.data;
 
   const topTransitions = useMemo(() => {
     const list = [...(data?.product_transitions ?? [])];
@@ -435,19 +466,8 @@ export function AnalyticsPatientsLtvPanel() {
     return list.slice(0, 5);
   }, [data?.product_transitions]);
 
-  const unresolvedMainProto = useMemo(() => {
-    const rows = data?.unresolved_rows ?? [];
-    return rows.filter((r) => {
-      const k = (r.product_kind || "").toLowerCase();
-      return k === "main_course" || k === "protocol";
-    }).length;
-  }, [data?.unresolved_rows]);
-
-  const showCourse15Dq =
-    Boolean(data) &&
-    (j?.branch_main_course ?? 0) === 0 &&
-    (j?.branch_protocols ?? 0) === 0 &&
-    ((data?.coverage?.purchases_unresolved ?? 0) > 0 || unresolvedMainProto > 0);
+  const programNeedsDq =
+    (prog?.unresolved_main_course ?? 0) > 0 || (prog?.unresolved_protocol ?? 0) > 0;
 
   return (
     <div className="space-y-4">
@@ -557,7 +577,7 @@ export function AnalyticsPatientsLtvPanel() {
                           {r.source_type}#{r.source_id}
                         </td>
                         <td className="px-2 py-1">
-                          {productLabel(r.product_kind, r.product_name)}
+                          {productDisplayLabel(r.product_kind, r.product_name)}
                         </td>
                         <td className="px-2 py-1">
                           {r.client_name || "—"}
@@ -617,7 +637,7 @@ export function AnalyticsPatientsLtvPanel() {
                     className="rounded-lg border border-[var(--mo-border)] px-3 py-1.5 text-xs"
                   >
                     <span className="font-medium">
-                      {productLabel(t.from_product)} → {productLabel(t.to_product)}
+                      {productDisplayLabel(t.from_product)} → {productDisplayLabel(t.to_product)}
                     </span>
                     <span className="ml-2 tabular-nums mo-muted">{t.transition_count}</span>
                   </div>
@@ -645,8 +665,8 @@ export function AnalyticsPatientsLtvPanel() {
                       key={`${t.from_product}→${t.to_product}`}
                       className="border-b border-[var(--mo-border)]/50"
                     >
-                      <td className="px-2 py-1">{productLabel(t.from_product)}</td>
-                      <td className="px-2 py-1">{productLabel(t.to_product)}</td>
+                      <td className="px-2 py-1">{productDisplayLabel(t.from_product)}</td>
+                      <td className="px-2 py-1">{productDisplayLabel(t.to_product)}</td>
                       <td className="px-2 py-1 text-right tabular-nums">{t.transition_count}</td>
                       <td className="px-2 py-1 text-right tabular-nums">{t.patients}</td>
                       <td className="px-2 py-1 text-right tabular-nums">
@@ -666,40 +686,155 @@ export function AnalyticsPatientsLtvPanel() {
           </div>
 
           <div className="mo-section p-4">
+            <h3 className="mb-1 text-sm font-semibold">Program Journey · Курс / Протокол</h3>
+            <p className="mb-3 text-xs mo-muted">
+              Связанные продажи входят в Patient Journey. Непривязанные KPI — Data Quality gap, не
+              «ноль продаж». Телефон = подсказка, не auto-merge.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-[var(--mo-border)] px-3 py-2 text-sm">
+                <div className="font-semibold">Курс</div>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                  <span>
+                    Связано:{" "}
+                    <strong className="tabular-nums">{prog?.linked_main_course ?? "…"}</strong>
+                  </span>
+                  <span>
+                    Требуют привязки:{" "}
+                    <strong className="tabular-nums">{prog?.unresolved_main_course ?? "…"}</strong>
+                  </span>
+                </div>
+              </div>
+              <div className="rounded-lg border border-[var(--mo-border)] px-3 py-2 text-sm">
+                <div className="font-semibold">Протоколы</div>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                  <span>
+                    Связано:{" "}
+                    <strong className="tabular-nums">{prog?.linked_protocol ?? "…"}</strong>
+                  </span>
+                  <span>
+                    Требуют привязки:{" "}
+                    <strong className="tabular-nums">{prog?.unresolved_protocol ?? "…"}</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+            {programNeedsDq ? (
+              <button
+                type="button"
+                className="mt-3 text-sm text-[var(--mo-accent-hover)] underline"
+                onClick={() => setShowProgramDq((v) => !v)}
+              >
+                {showProgramDq ? "Скрыть непривязанные" : "Разобрать непривязанные"}
+              </button>
+            ) : (
+              <p className="mt-2 text-xs mo-muted">Непривязанных продаж Курс/Протокол нет.</p>
+            )}
+            {showProgramDq && prog ? (
+              <div className="mt-3 overflow-x-auto">
+                <p className="mb-2 text-[11px] mo-muted">{prog.note}</p>
+                <table className="w-full min-w-[900px] text-xs">
+                  <thead>
+                    <tr className="border-b border-[var(--mo-border)] text-left mo-muted">
+                      <th className="px-2 py-1">Клиент</th>
+                      <th className="px-2 py-1">Продукт</th>
+                      <th className="px-2 py-1">Дата</th>
+                      <th className="px-2 py-1 text-right">Sales</th>
+                      <th className="px-2 py-1 text-right">Paid</th>
+                      <th className="px-2 py-1">Менеджер</th>
+                      <th className="px-2 py-1">Подсказка</th>
+                      <th className="px-2 py-1">Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {prog.rows.map((r) => (
+                      <tr key={r.sale_id} className="border-b border-[var(--mo-border)]/40 align-top">
+                        <td className="px-2 py-1.5">
+                          {r.client_name || "—"}
+                          <div className="mo-muted">{r.client_phone || ""}</div>
+                        </td>
+                        <td className="px-2 py-1.5">{r.product_display}</td>
+                        <td className="px-2 py-1.5 tabular-nums">{formatDate(r.sold_at)}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{money(r.service_amount)}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{money(r.paid_amount)}</td>
+                        <td className="px-2 py-1.5">{r.manager_name}</td>
+                        <td className="px-2 py-1.5">
+                          {r.suggestion_confidence === "unique" && r.suggested_lead ? (
+                            <div>
+                              <div>
+                                Возможный пациент: {r.suggested_lead.lead_name} — Lead #
+                                {r.suggested_lead.lead_id}
+                              </div>
+                              <div className="mo-muted">
+                                {(r.match_evidence || []).join(", ") || "phone"}
+                              </div>
+                            </div>
+                          ) : r.suggestion_confidence === "ambiguous" ? (
+                            <span className="mo-muted">Несколько кандидатов — выберите вручную</span>
+                          ) : (
+                            <span className="mo-muted">Нет уникального совпадения</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex flex-col gap-1">
+                            {r.suggested_lead ? (
+                              <>
+                                <Link
+                                  to={`/leads/${r.suggested_lead.lead_id}`}
+                                  className="text-[var(--mo-accent-hover)] hover:underline"
+                                >
+                                  Открыть Lead
+                                </Link>
+                                <button
+                                  type="button"
+                                  className="text-left text-[var(--mo-accent-hover)] underline"
+                                  disabled={linkLeadMutation.isPending}
+                                  onClick={() =>
+                                    linkLeadMutation.mutate({
+                                      saleId: r.sale_id,
+                                      leadId: r.suggested_lead!.lead_id,
+                                    })
+                                  }
+                                >
+                                  Привязать
+                                </button>
+                              </>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="text-left text-[var(--mo-accent-hover)] underline"
+                              disabled={linkLeadMutation.isPending}
+                              onClick={() => {
+                                const raw = window.prompt(
+                                  "Lead ID для явной привязки (без phone auto-merge):",
+                                );
+                                const leadId = Number(raw || 0);
+                                if (!leadId) return;
+                                linkLeadMutation.mutate({ saleId: r.sale_id, leadId });
+                              }}
+                            >
+                              Найти / указать Lead
+                            </button>
+                            <span className="mo-muted">Оставить unresolved</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {prog.rows.length === 0 ? (
+                  <p className="text-xs mo-muted">Список пуст.</p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mo-section p-4">
             <h3 className="mb-1 text-sm font-semibold">Путь после Курса 15</h3>
             <p className="mb-2 text-xs mo-muted">
               Program Journey (аналитика). МК — event; «не зафиксирован» ≠ отсутствие визита. Не
               gate для LTV.
             </p>
-            {showCourse15Dq ? (
-              <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-                <p>
-                  Недостаточно связанных данных. Часть продаж Основного курса/Протоколов не привязана
-                  к пациентам и поэтому не включена в Patient Journey.
-                </p>
-                <p className="mt-1 text-xs mo-muted">
-                  Непривязанных покупок:{" "}
-                  <strong className="tabular-nums text-[var(--mo-text)]">
-                    {data.coverage?.purchases_unresolved ?? 0}
-                  </strong>
-                  {unresolvedMainProto > 0 ? (
-                    <>
-                      {" "}
-                      · из них Основной курс/Протокол в выборке:{" "}
-                      <strong className="tabular-nums text-[var(--mo-text)]">
-                        {unresolvedMainProto}
-                      </strong>
-                    </>
-                  ) : null}
-                </p>
-                <Link
-                  to="/kpi"
-                  className="mt-2 inline-block text-sm text-[var(--mo-accent-hover)] hover:underline"
-                >
-                  Привязать продажи →
-                </Link>
-              </div>
-            ) : null}
             <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4 text-sm">
               <div>
                 Купили Курс 15: <strong>{j?.course_15_buyers ?? j?.course_15_started ?? 0}</strong>
@@ -714,9 +849,7 @@ export function AnalyticsPatientsLtvPanel() {
                 МК не зафиксирован: <strong>{j?.master_class_not_recorded ?? 0}</strong>
               </div>
             </div>
-            {!showCourse15Dq || (j?.course_15_buyers ?? 0) > 0 ? (
-              <StatGrid entries={j?.funnel} labels={FUNNEL_LABELS} />
-            ) : null}
+            <StatGrid entries={j?.funnel} labels={FUNNEL_LABELS} />
           </div>
 
           <div className="mo-section p-4">
@@ -727,12 +860,31 @@ export function AnalyticsPatientsLtvPanel() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="mo-section p-4">
-              <h3 className="mb-1 text-sm font-semibold">Вход в Основной курс</h3>
-              <StatGrid entries={j?.main_course_origin} labels={ORIGIN_LABELS} />
+              <h3 className="mb-1 text-sm font-semibold">Вход в Курс</h3>
+              <p className="mb-2 text-[11px] mo-muted">
+                Origin по связанным покупкам. Непривязанные KPI сюда не входят.
+              </p>
+              {(prog?.linked_main_course ?? 0) === 0 && (prog?.unresolved_main_course ?? 0) > 0 ? (
+                <p className="text-xs mo-muted">
+                  Связанных нет — {prog?.unresolved_main_course} продаж требуют привязки (см. выше).
+                </p>
+              ) : (
+                <StatGrid entries={j?.main_course_origin} labels={ORIGIN_LABELS} />
+              )}
             </div>
             <div className="mo-section p-4">
               <h3 className="mb-1 text-sm font-semibold">Вход в Протоколы</h3>
-              <StatGrid entries={j?.protocol_origin} labels={ORIGIN_LABELS} />
+              <p className="mb-2 text-[11px] mo-muted">
+                Protocol может быть первой покупкой или после любой услуги — не только после Курса
+                15.
+              </p>
+              {(prog?.linked_protocol ?? 0) === 0 && (prog?.unresolved_protocol ?? 0) > 0 ? (
+                <p className="text-xs mo-muted">
+                  Связанных нет — {prog?.unresolved_protocol} продаж требуют привязки (см. выше).
+                </p>
+              ) : (
+                <StatGrid entries={j?.protocol_origin} labels={ORIGIN_LABELS} />
+              )}
             </div>
           </div>
 
@@ -789,13 +941,13 @@ export function AnalyticsPatientsLtvPanel() {
                         <div className="text-[11px] mo-muted">{r.patient_phone || ""}</div>
                       </td>
                       <td className="px-3 py-2">
-                        {productLabel(
+                        {productDisplayLabel(
                           r.first_purchase_product_key,
                           r.first_purchase_product_name,
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        {productLabel(
+                        {productDisplayLabel(
                           r.last_purchase_product_key,
                           r.last_purchase_product_name,
                         )}

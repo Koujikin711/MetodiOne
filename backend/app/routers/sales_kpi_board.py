@@ -1085,8 +1085,19 @@ async def link_manual_sale_lead(
     lead = await db.get(Lead, int(body.lead_id))
     if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=400, detail="Lead не найден в компании")
+    from app.services.audit import write_audit_event
+
+    before_lead = sale.lead_id
     sale.lead_id = int(lead.id)
     sale.updated_at = datetime.now(UTC)
+    await write_audit_event(
+        db,
+        entity_type="kpi_manual_sale",
+        entity_id=int(sale.id),
+        action="link_lead",
+        current_user=current_user,
+        details=f"lead_id: {before_lead!r} → {int(lead.id)}; client={sale.client_name!r}",
+    )
     await db.commit()
     await db.refresh(sale)
     payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])

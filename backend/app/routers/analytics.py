@@ -1277,6 +1277,19 @@ async def analytics_ltv_cohort(
     return await build_ltv_cohort_report(db, company_id=company_id, cohort_from=start, cohort_to=end)
 
 
+@router.get("/ltv/program-unresolved")
+async def analytics_ltv_program_unresolved(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> dict:
+    """Unresolved Курс/Протокол KPI sales + phone suggestions (owner). No auto-link."""
+    _assert_owner(current_user)
+    from app.services.program_unresolved import build_program_unresolved_report
+
+    return await build_program_unresolved_report(db, company_id=company_id)
+
+
 @router.get("/ltv/patient/{lead_id}")
 async def analytics_ltv_patient(
     lead_id: int,
