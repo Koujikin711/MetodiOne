@@ -270,6 +270,57 @@ def _booking_debt_cutoff(month_end: datetime, *, now: datetime | None = None) ->
     return booking_debt_cutoff(month_end, now=now)
 
 
+def _parse_booking_refund_appointment_id(external_key: str | None) -> int | None:
+    """external_key вида booking_refund:{appointment_id}:{uuid}."""
+    key = (external_key or "").strip()
+    if not key.startswith("booking_refund:"):
+        return None
+    parts = key.split(":")
+    if len(parts) < 2:
+        return None
+    try:
+        return int(parts[1])
+    except ValueError:
+        return None
+
+
+def _booking_open_debt(service_amount: Decimal, paid_amount: Decimal, refunded: Decimal) -> Decimal:
+    """Остаток долга по визиту: возврат не превращается в дебиторку.
+
+    Возврат уменьшает paid_amount, но service_amount остаётся — без учёта
+    refunded строка выглядит как полный долг (услуга 150 / оплачено 0).
+    """
+    return max(service_amount - paid_amount - max(refunded, Decimal("0")), Decimal("0"))
+
+
+async def _booking_refund_totals_by_appointment(
+    db: AsyncSession,
+    company_id: int,
+    appointment_ids: list[int] | set[int],
+) -> dict[int, Decimal]:
+    ids = {int(i) for i in appointment_ids if i is not None}
+    if not ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(FinanceOsvRow.expense, FinanceOsvRow.external_key).where(
+                FinanceOsvRow.company_id == company_id,
+                FinanceOsvRow.source == "booking_refund",
+            )
+        )
+    ).all()
+    out: dict[int, Decimal] = {}
+    for exp, ext in rows:
+        aid = _parse_booking_refund_appointment_id(ext)
+        if aid is None or aid not in ids:
+            continue
+        amt = abs(Decimal(str(exp or 0)))
+        if amt <= 0:
+            continue
+        out[aid] = out.get(aid, Decimal("0")) + amt
+    return out
+
+
 def _payment_out(
     row: SalesKpiManualSalePayment,
     *,
@@ -1179,9 +1230,18 @@ async def debtors_report(
         for uid, full_name, email in urows:
             name_map[int(uid)] = str(full_name or email or f"#{uid}")
 
+    booking_refunds = await _booking_refund_totals_by_appointment(
+        db,
+        company_id,
+        [int(appt.id) for appt, _dname, _lead_mgr in booking_q],
+    )
     for appt, dname, lead_mgr in booking_q:
         sa = Decimal(str(appt.service_amount or 0))
         pa = Decimal(str(appt.paid_amount or 0))
+        refunded = booking_refunds.get(int(appt.id), Decimal("0"))
+        debt = _booking_open_debt(sa, pa, refunded)
+        if debt <= 0:
+            continue
         mid = int(appt.responsible_manager_id or lead_mgr) if (appt.responsible_manager_id or lead_mgr) else None
         rows_out.append(
             SalesKpiDebtorRow(
@@ -1195,7 +1255,7 @@ async def debtors_report(
                 manager_name=name_map.get(mid) if mid else None,
                 service_amount=sa,
                 paid_amount=pa,
-                debt_amount=max(sa - pa, Decimal("0")),
+                debt_amount=debt,
                 status="debt",
             ),
         )
@@ -1471,6 +1531,7 @@ async def company_report(
         appt_rows = (
             await db.execute(
                 select(
+                    BookingAppointment.id,
                     BookingAppointment.specialist_id,
                     BookingAppointment.service_amount,
                     BookingAppointment.paid_amount,
@@ -1507,6 +1568,12 @@ async def company_report(
             )
         ).all()
 
+        month_refunds = await _booking_refund_totals_by_appointment(
+            db,
+            company_id,
+            [int(aid) for aid, *_rest in appt_rows],
+        )
+
         def _ts_in(dt: datetime | None) -> bool:
             if dt is None:
                 return False
@@ -1514,7 +1581,18 @@ async def company_report(
                 dt = dt.replace(tzinfo=UTC)
             return start <= dt < end
 
-        for sid_raw, sa_raw, pa_raw, status_raw, start_at, paid_at_raw, spec_name, dir_id, dir_name in appt_rows:
+        for (
+            appt_id_raw,
+            sid_raw,
+            sa_raw,
+            pa_raw,
+            status_raw,
+            start_at,
+            paid_at_raw,
+            spec_name,
+            dir_id,
+            dir_name,
+        ) in appt_rows:
             sid = int(sid_raw)
             did = int(dir_id) if dir_id is not None else 0
             sa = Decimal(str(sa_raw or 0))
@@ -1566,7 +1644,11 @@ async def company_report(
                     continue
                 # Долг только по явке (completed); «Запись»/будущее/неявка — не дебиторка.
                 if st == "completed":
-                    debt = max(sa - pa, Decimal("0"))
+                    debt = _booking_open_debt(
+                        sa,
+                        pa,
+                        month_refunds.get(int(appt_id_raw), Decimal("0")),
+                    )
                     if debt > 0:
                         bucket["debtor_amount"] += debt
                     bucket["appeared_count"] += 1
@@ -1583,10 +1665,15 @@ async def company_report(
                         bucket["booked_future_count"] += 1
 
         # Дебиторка записи: прошедшие явки с остатком (неявка/будущее не входят).
+        # Возвраты (ОСВ booking_refund) вычитаем — иначе «оплачено 0» после возврата = ложный долг.
         debt_cutoff = _booking_debt_cutoff(end, now=now)
         open_booking_debt = (
             await db.execute(
-                select(BookingAppointment.service_amount, BookingAppointment.paid_amount)
+                select(
+                    BookingAppointment.id,
+                    BookingAppointment.service_amount,
+                    BookingAppointment.paid_amount,
+                )
                 .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
                 .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
                 .outerjoin(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
@@ -1603,11 +1690,16 @@ async def company_report(
                 ),
             )
         ).all()
+        open_refunds = await _booking_refund_totals_by_appointment(
+            db,
+            company_id,
+            [int(aid) for aid, _sa, _pa in open_booking_debt],
+        )
         debtor_booking = Decimal("0")
-        for sa_raw, pa_raw in open_booking_debt:
+        for aid, sa_raw, pa_raw in open_booking_debt:
             sa = Decimal(str(sa_raw or 0))
             pa = Decimal(str(pa_raw or 0))
-            debtor_booking += max(sa - pa, Decimal("0"))
+            debtor_booking += _booking_open_debt(sa, pa, open_refunds.get(int(aid), Decimal("0")))
 
     # Курсы/протоколы: платежи с paid_at в этом месяце → выручка месяца.
     # KPI менеджера считается отдельно (только первый платёж / sold_at).
