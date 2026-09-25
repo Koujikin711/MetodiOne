@@ -52,10 +52,20 @@ from app.schemas.booking import (
     BookingViewerContext,
     SpecialistReorderBody,
 )
+from app.schemas.booking_upcoming import (
+    UpcomingServicesDailyBucket,
+    UpcomingServicesDrillDown,
+    UpcomingServicesDrillRow,
+    UpcomingServicesReport,
+    UpcomingServicesServiceRow,
+    UpcomingServicesSummary,
+    UpcomingServicesTodayBreakdown,
+)
 from app.schemas.lead import LeadRead
 from app.services.automation import process_lead_automation
 from app.services.audit import write_audit_event
 from app.services.booking_responsible import can_be_booking_responsible
+from app.services import booking_upcoming_services as upcoming_svc
 from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.lead_sales_stages import resolve_new_lead_stage_id
 from app.services.lead_extra_phones import find_lead_by_any_phone, sync_lead_extra_phones
@@ -2852,3 +2862,293 @@ async def delete_appointment(
         details=f"patient={appt.patient_name}, start_at={_ensure_utc(appt.start_at).isoformat()}",
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+async def _upcoming_scope_filters(
+    db: AsyncSession,
+    current_user: User,
+    *,
+    specialist_id: int | None,
+    direction_id: int | None,
+):
+    """Общие фильтры summary/drill-down (тот же scope, что list_appointments)."""
+    filters: list = []
+    if specialist_id is not None:
+        filters.append(BookingAppointment.specialist_id == specialist_id)
+    if direction_id is not None:
+        filters.append(BookingAppointment.direction_id == direction_id)
+    if current_user.role == UserRole.expert:
+        chief_pids = await _expert_chief_pipeline_ids(db, current_user)
+        if chief_pids:
+            filters.append(_appointment_in_pipelines(pipeline_ids=chief_pids))
+        else:
+            filters.append(BookingSpecialist.crm_user_id == current_user.id)
+    return filters
+
+
+@router.get("/reports/upcoming-services", response_model=UpcomingServicesReport)
+async def upcoming_services_report(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    specialist_id: int | None = Query(default=None, ge=1),
+    direction_id: int | None = Query(default=None, ge=1),
+) -> UpcomingServicesReport:
+    """Сводка будущей загрузки: сегодня / завтра / 7 / 30 дней по услугам."""
+    today = upcoming_svc.local_today()
+    win_start, win_end = upcoming_svc.report_window_utc(today=today)
+    scope = await _upcoming_scope_filters(
+        db, current_user, specialist_id=specialist_id, direction_id=direction_id,
+    )
+
+    dir_q = (
+        select(BookingDirection.id, BookingDirection.name)
+        .where(BookingDirection.company_id == company_id)
+        .order_by(BookingDirection.name.asc())
+    )
+    if direction_id is not None:
+        dir_q = dir_q.where(BookingDirection.id == direction_id)
+    else:
+        dir_q = dir_q.where(BookingDirection.is_active.is_(True))
+    directions = (await db.execute(dir_q)).all()
+    direction_ids = [int(r[0]) for r in directions]
+    name_by_id = {int(r[0]): str(r[1] or "—") for r in directions}
+
+    appt_q = (
+        select(
+            BookingAppointment.id,
+            BookingAppointment.direction_id,
+            BookingAppointment.lead_id,
+            BookingAppointment.start_at,
+            BookingAppointment.status,
+        )
+        .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+        .join(BookingSpecialist, BookingSpecialist.id == BookingAppointment.specialist_id)
+        .where(
+            BookingAppointment.company_id == company_id,
+            BookingAppointment.start_at >= win_start,
+            BookingAppointment.start_at < win_end,
+            *scope,
+        )
+    )
+    raw = (await db.execute(appt_q)).all()
+    lites = [
+        upcoming_svc.ApptLite(
+            id=int(rid),
+            direction_id=int(did),
+            lead_id=int(lid) if lid is not None else None,
+            start_at=start_at,
+            status=str(st or ""),
+        )
+        for rid, did, lid, start_at, st in raw
+    ]
+
+    for a in lites:
+        if a.direction_id not in name_by_id:
+            direction_ids.append(a.direction_id)
+    if any(d not in name_by_id for d in direction_ids):
+        missing = [d for d in direction_ids if d not in name_by_id]
+        extra = (
+            await db.execute(
+                select(BookingDirection.id, BookingDirection.name).where(
+                    BookingDirection.id.in_(missing),
+                ),
+            )
+        ).all()
+        for rid, rname in extra:
+            name_by_id[int(rid)] = str(rname or "—")
+        direction_ids = list(dict.fromkeys(direction_ids))
+
+    by_dir = upcoming_svc.aggregate_by_direction(lites, direction_ids, today=today)
+    zero = {
+        "today_appointments": 0,
+        "today_unique_patients": 0,
+        "tomorrow_appointments": 0,
+        "tomorrow_unique_patients": 0,
+        "next_7_days_appointments": 0,
+        "next_7_days_unique_patients": 0,
+        "next_30_days_appointments": 0,
+        "next_30_days_unique_patients": 0,
+    }
+    services = [
+        UpcomingServicesServiceRow(
+            direction_id=did,
+            direction_name=name_by_id.get(did, "—"),
+            **by_dir.get(did, zero),
+        )
+        for did in direction_ids
+    ]
+    services.sort(
+        key=lambda s: (-s.next_7_days_appointments, s.direction_name.casefold()),
+    )
+
+    bd = upcoming_svc.today_status_breakdown(lites, today=today)
+    summary = UpcomingServicesSummary(
+        today=upcoming_svc.period_appointment_count(lites, "today", today=today),
+        tomorrow=upcoming_svc.period_appointment_count(lites, "tomorrow", today=today),
+        next_7_days=upcoming_svc.period_appointment_count(lites, "next_7_days", today=today),
+        next_30_days=upcoming_svc.period_appointment_count(lites, "next_30_days", today=today),
+        today_unique_patients=upcoming_svc.period_unique_count(lites, "today", today=today),
+        tomorrow_unique_patients=upcoming_svc.period_unique_count(lites, "tomorrow", today=today),
+        next_7_days_unique_patients=upcoming_svc.period_unique_count(lites, "next_7_days", today=today),
+        next_30_days_unique_patients=upcoming_svc.period_unique_count(lites, "next_30_days", today=today),
+        today_breakdown=UpcomingServicesTodayBreakdown(**bd),
+    )
+
+    tmr = today + timedelta(days=1)
+    return UpcomingServicesReport(
+        timezone=settings.booking_timezone or "Asia/Dushanbe",
+        today_ymd=today.isoformat(),
+        tomorrow_ymd=tmr.isoformat(),
+        next_7_days_from=today.isoformat(),
+        next_7_days_to=(today + timedelta(days=6)).isoformat(),
+        next_30_days_from=today.isoformat(),
+        next_30_days_to=(today + timedelta(days=29)).isoformat(),
+        summary=summary,
+        services=services,
+    )
+
+
+@router.get("/reports/upcoming-services/appointments", response_model=UpcomingServicesDrillDown)
+async def upcoming_services_drilldown(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    period: Literal["today", "tomorrow", "next_7_days", "next_30_days"] = Query(...),
+    direction_id: int | None = Query(default=None, ge=1),
+    specialist_id: int | None = Query(default=None, ge=1),
+    status: str | None = Query(default=None, max_length=32),
+    search: str | None = Query(default=None, max_length=120),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+) -> UpcomingServicesDrillDown:
+    """Список записей периода — totals совпадают с summary при тех же фильтрах."""
+    today = upcoming_svc.local_today()
+    range_start, range_end = upcoming_svc.period_bounds_utc(period, today=today)
+    scope = await _upcoming_scope_filters(
+        db, current_user, specialist_id=specialist_id, direction_id=direction_id,
+    )
+
+    q = (
+        select(
+            BookingAppointment,
+            BookingDirection.name,
+            BookingSpecialist.full_name,
+        )
+        .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+        .join(BookingSpecialist, BookingSpecialist.id == BookingAppointment.specialist_id)
+        .where(
+            BookingAppointment.company_id == company_id,
+            BookingAppointment.start_at >= range_start,
+            BookingAppointment.start_at < range_end,
+            *scope,
+        )
+        .order_by(BookingAppointment.start_at.asc(), BookingAppointment.id.asc())
+    )
+    if status:
+        q = q.where(BookingAppointment.status == status.strip())
+    else:
+        q = q.where(BookingAppointment.status.in_(tuple(upcoming_svc.LOAD_STATUSES)))
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        q = q.where(
+            or_(
+                BookingAppointment.patient_name.ilike(term),
+                BookingAppointment.patient_phone.ilike(term),
+            ),
+        )
+
+    rows = (await db.execute(q)).all()
+    lites = [
+        upcoming_svc.ApptLite(
+            id=int(a.id),
+            direction_id=int(a.direction_id),
+            lead_id=int(a.lead_id) if a.lead_id is not None else None,
+            start_at=a.start_at,
+            status=str(a.status or ""),
+        )
+        for a, _dn, _sn in rows
+    ]
+    appointments_total = len(lites)
+    unique_patients = upcoming_svc.unique_patient_count(lites)
+    daily = [
+        UpcomingServicesDailyBucket(date_ymd=ymd, appointments=n)
+        for ymd, n in upcoming_svc.daily_breakdown(lites, period, today=today)
+    ]
+
+    offset = (page - 1) * page_size
+    page_rows = rows[offset : offset + page_size]
+
+    manager_ids = {
+        int(a.responsible_manager_id)
+        for a, _, _ in page_rows
+        if a.responsible_manager_id is not None
+    }
+    name_map: dict[int, str] = {}
+    if manager_ids:
+        urows = (
+            await db.execute(
+                select(User.id, User.full_name, User.email).where(User.id.in_(list(manager_ids))),
+            )
+        ).all()
+        for uid, full_name, email in urows:
+            name_map[int(uid)] = str(full_name or email or f"#{uid}")
+
+    direction_name: str | None = None
+    if direction_id is not None:
+        d = await db.get(BookingDirection, direction_id)
+        direction_name = d.name if d else None
+
+    drill_rows: list[UpcomingServicesDrillRow] = []
+    for a, dname, sname in page_rows:
+        sa = Decimal(str(a.service_amount or 0))
+        pa = Decimal(str(a.paid_amount or 0))
+        start_at = a.start_at
+        if start_at.tzinfo is None:
+            start_at = start_at.replace(tzinfo=UTC)
+        local = start_at.astimezone(upcoming_svc.booking_tz())
+        mid = int(a.responsible_manager_id) if a.responsible_manager_id is not None else None
+        drill_rows.append(
+            UpcomingServicesDrillRow(
+                id=int(a.id),
+                start_at=start_at,
+                date_ymd=local.date().isoformat(),
+                time_label=local.strftime("%H:%M"),
+                patient_name=str(a.patient_name or ""),
+                patient_phone=str(a.patient_phone or ""),
+                lead_id=int(a.lead_id) if a.lead_id is not None else None,
+                direction_id=int(a.direction_id),
+                direction_name=str(dname or ""),
+                specialist_id=int(a.specialist_id),
+                specialist_name=str(sname or "") if sname else None,
+                responsible_manager_id=mid,
+                manager_name=name_map.get(mid) if mid else None,
+                status=str(a.status or ""),
+                service_amount=sa,
+                paid_amount=pa,
+                remainder_amount=upcoming_svc.money_remainder(sa, pa),
+            ),
+        )
+
+    from_ymd = today.isoformat()
+    to_ymd = today.isoformat()
+    if period == "tomorrow":
+        from_ymd = to_ymd = (today + timedelta(days=1)).isoformat()
+    elif period == "next_7_days":
+        to_ymd = (today + timedelta(days=6)).isoformat()
+    elif period == "next_30_days":
+        to_ymd = (today + timedelta(days=29)).isoformat()
+
+    return UpcomingServicesDrillDown(
+        period=period,
+        direction_id=direction_id,
+        direction_name=direction_name,
+        from_ymd=from_ymd,
+        to_ymd=to_ymd,
+        appointments_total=appointments_total,
+        unique_patients=unique_patients,
+        page=page,
+        page_size=page_size,
+        daily=daily,
+        rows=drill_rows,
+    )

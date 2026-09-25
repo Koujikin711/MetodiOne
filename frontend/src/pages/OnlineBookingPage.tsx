@@ -7,6 +7,7 @@ import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { BookingDirectionsPanel } from "@/components/BookingDirectionsPanel";
 import { BookingWeekSpecialistGrid } from "@/components/BookingWeekSpecialistGrid";
+import { BookingUpcomingServicesReport } from "@/components/BookingUpcomingServicesReport";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
 import { DateTimeField } from "@/components/DateTimeField";
 import { DateField } from "@/components/DateField";
@@ -49,7 +50,7 @@ import type {
   Lead,
 } from "@/lib/types";
 
-type Tab = "online" | "journal";
+type Tab = "online" | "journal" | "upcoming";
 
 const statusLabels: Record<string, string> = {
   booked: "Запись",
@@ -1226,8 +1227,9 @@ export function OnlineBookingPage() {
             ) : null}
           </div>
           <div className="crm-view-switch booking-page-tabs flex flex-wrap items-center gap-2" role="tablist" aria-label="Раздел записи">
-            {tabBtn("online", "Онлайн-записи")}
+            {tabBtn("online", "Расписание")}
             {tabBtn("journal", "Журнал")}
+            {tabBtn("upcoming", "Отчёт по услугам")}
             {canEditBooking ? (
               <button
                 type="button"
@@ -2025,6 +2027,28 @@ export function OnlineBookingPage() {
             )}
           </div>
         </section>
+      )}
+
+      {tab === "upcoming" && (
+        <BookingUpcomingServicesReport
+          specialists={specialistsActive}
+          directions={(directionsQuery.data ?? [])
+            .filter((d) => d.is_active)
+            .map((d) => ({ id: d.id, name: d.name }))}
+          onOpenAppointment={(appointmentId) => {
+            const found = (gridAppointmentsQuery.data ?? []).find((a) => a.id === appointmentId);
+            if (found) {
+              setApptDetail(found);
+              return;
+            }
+            const fromJournal = (journalQuery.data ?? []).find((a) => a.id === appointmentId);
+            if (fromJournal) {
+              setApptDetail(fromJournal);
+              return;
+            }
+            toast("Откройте запись во вкладке «Расписание»");
+          }}
+        />
       )}
 
       {canEditDirectionStreams ? <DirectionStreamsPanel /> : null}
