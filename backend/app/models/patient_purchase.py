@@ -77,7 +77,7 @@ class PatientPurchasePayment(Base):
     source_type: Mapped[str] = mapped_column(String(40), index=True)
     source_id: Mapped[int] = mapped_column(index=True)
 
-    # >0 оплата, <0 возврат
+    # Канон после normalize: payment >= 0; refund <= 0 + is_refund=True
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     is_refund: Mapped[bool] = mapped_column(default=False)
     paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, index=True)

@@ -71,6 +71,48 @@ async def build_ltv_cohort_report(
             first_at[lid] = t0
 
     n = len(cohort_leads)
+    # Company-wide ledger coverage (не только когорта) — без phone auto-merge
+    all_ledger = (
+        await db.execute(
+            select(PatientPurchase).where(
+                PatientPurchase.company_id == company_id,
+                PatientPurchase.status.notin_(("cancelled",)),
+            ),
+        )
+    ).scalars().all()
+    linked_n = sum(1 for p in all_ledger if p.lead_id is not None)
+    unresolved_list = [p for p in all_ledger if p.lead_id is None]
+    unresolved_n = len(unresolved_list)
+    total_cov = linked_n + unresolved_n
+    coverage = {
+        "purchases_linked": linked_n,
+        "purchases_unresolved": unresolved_n,
+        "coverage_pct": (Decimal(linked_n) * Decimal("100") / Decimal(total_cov)).quantize(Decimal("0.1"))
+        if total_cov
+        else None,
+        "note": "Unresolved = lead_id NULL. Без auto-merge по телефону. Не в patient LTV; остаются в company ledger.",
+    }
+    unresolved_rows = [
+        {
+            "purchase_id": int(p.id),
+            "source_type": p.source_type,
+            "source_id": int(p.source_id),
+            "product_kind": p.product_kind,
+            "product_name": p.product_name,
+            "service_amount": p.service_amount,
+            "paid_amount": p.paid_amount,
+            "status": p.status,
+            "purchased_at": p.purchased_at,
+            "client_name": p.client_name,
+            "client_phone": p.client_phone,
+        }
+        for p in sorted(
+            unresolved_list,
+            key=lambda x: _utc(x.purchased_at) if x.purchased_at else datetime.min.replace(tzinfo=UTC),
+            reverse=True,
+        )[:100]
+    ]
+
     if n == 0:
         return {
             "cohort_from": cohort_from,
@@ -83,6 +125,8 @@ async def build_ltv_cohort_report(
             "avg_lifetime_days": Decimal("0"),
             "ltv_windows": {f"d{d}": Decimal("0") for d in LTV_WINDOWS_DAYS},
             "journey": empty_path_analytics(),
+            "coverage": coverage,
+            "unresolved_rows": unresolved_rows,
             "patients_rows": [],
         }
 
@@ -196,5 +240,7 @@ async def build_ltv_cohort_report(
         "avg_lifetime_days": (Decimal(lifetime_sum) / Decimal(lifetime_n)) if lifetime_n else Decimal("0"),
         "ltv_windows": {f"d{d}": (window_sums[d] / n) if n else Decimal("0") for d in LTV_WINDOWS_DAYS},
         "journey": journey_stats,
+        "coverage": coverage,
+        "unresolved_rows": unresolved_rows,
         "patients_rows": rows_out[:200],
     }

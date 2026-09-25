@@ -31,6 +31,25 @@ type CohortReport = {
   avg_lifetime_days: string | number;
   ltv_windows: Record<string, string | number>;
   journey: JourneyReport;
+  coverage?: {
+    purchases_linked: number;
+    purchases_unresolved: number;
+    coverage_pct: string | number | null;
+    note?: string;
+  };
+  unresolved_rows?: {
+    purchase_id: number;
+    source_type: string;
+    source_id: number;
+    product_kind: string;
+    product_name: string;
+    service_amount: string | number;
+    paid_amount: string | number;
+    status: string;
+    purchased_at?: string | null;
+    client_name?: string | null;
+    client_phone?: string | null;
+  }[];
   patients_rows: {
     lead_id: number;
     patient_name?: string | null;
@@ -210,6 +229,64 @@ export function AnalyticsPatientsLtvPanel() {
                 <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
               </div>
             ))}
+          </div>
+
+          <div className="mo-section p-4">
+            <h3 className="mb-1 text-sm font-semibold">Data coverage (ledger)</h3>
+            <p className="mb-2 text-xs mo-muted">
+              {data.coverage?.note ||
+                "Unresolved = без lead_id. Не в patient LTV; phone auto-merge запрещён."}
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 text-sm">
+              <div>
+                Привязано к пациентам:{" "}
+                <strong className="tabular-nums">{data.coverage?.purchases_linked ?? "—"}</strong>
+              </div>
+              <div>
+                Не привязано:{" "}
+                <strong className="tabular-nums">{data.coverage?.purchases_unresolved ?? "—"}</strong>
+              </div>
+              <div>
+                Coverage:{" "}
+                <strong className="tabular-nums">
+                  {data.coverage?.coverage_pct != null ? `${data.coverage.coverage_pct}%` : "—"}
+                </strong>
+              </div>
+            </div>
+            {(data.unresolved_rows ?? []).length > 0 ? (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[640px] text-xs">
+                  <thead>
+                    <tr className="border-b border-[var(--mo-border)] text-left mo-muted">
+                      <th className="px-2 py-1">Источник</th>
+                      <th className="px-2 py-1">Продукт</th>
+                      <th className="px-2 py-1">Клиент</th>
+                      <th className="px-2 py-1 text-right">Sales</th>
+                      <th className="px-2 py-1 text-right">Paid</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.unresolved_rows!.slice(0, 30).map((r) => (
+                      <tr key={r.purchase_id} className="border-b border-[var(--mo-border)]/40">
+                        <td className="px-2 py-1">
+                          {r.source_type}#{r.source_id}
+                        </td>
+                        <td className="px-2 py-1">{r.product_name || r.product_kind}</td>
+                        <td className="px-2 py-1">
+                          {r.client_name || "—"}
+                          <div className="mo-muted">{r.client_phone || ""}</div>
+                        </td>
+                        <td className="px-2 py-1 text-right tabular-nums">{money(r.service_amount)}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{money(r.paid_amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {(data.unresolved_rows?.length ?? 0) > 30 ? (
+                  <p className="mt-1 text-[11px] mo-muted">Показаны первые 30 из unresolved.</p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="mo-section p-4">

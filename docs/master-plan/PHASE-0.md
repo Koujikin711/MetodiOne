@@ -28,7 +28,11 @@
 1. Нет сущности **Purchase ≠ Payment ≠ Delivery**.  
 2. KPI/Desk/Extra **не привязаны к Lead** → Paid LTV по пациенту неполный без явной связи.  
 3. Нет **Paid LTV / Sales Value / cohort first_purchase_at**.  
-4. Нет Patient Journey (Курс 15 → МК → Main | Protocols) как data model.  
+4. Patient Journey (на момент аудита отсутствовал) **не** равен жёсткой воронке
+   `Course15 → Masterclass → MainCourse/Protocol`. Актуальная модель (Phase 2+):
+   Universal Journey = Lead → первая valid Purchase Event → … → Lifetime / Paid LTV;
+   Course15 — не обязательный entry point; Masterclass = event, не gate;
+   MainCourse/Protocol допустимы без Course15 и без recorded Masterclass.
 5. Нет вкладки **Пациенты & LTV**.  
 6. Risk double-count: визиты «Курс/Протокол» в booking + KPI-пакеты (уже частично разделены в analytics services).  
 7. Legacy `patient_service_enrollments` / installments — схема есть, CRUD мёртв; **не используем как source of truth** для LTV.

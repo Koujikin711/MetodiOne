@@ -15,6 +15,7 @@ from app.models import (
     BookingDirection,
     ExtraServiceSale,
     ExtraServiceType,
+    FinanceOsvRow,
     ManagerDeskSale,
     PatientPurchase,
     PatientPurchasePayment,
@@ -61,6 +62,34 @@ def booking_counts_as_purchase(direction_name: str | None) -> bool:
     return not is_admin_only_booking_direction_name(direction_name)
 
 
+@dataclass(frozen=True)
+class NormalizedMoneyEvent:
+    """Каноническое финансовое событие для Paid LTV (после нормализации источника)."""
+
+    signed_amount: Decimal
+    is_refund: bool
+    event_type: str  # payment | refund
+
+
+def normalize_money_event(*, amount: Decimal | int | float | str, is_refund: bool = False) -> NormalizedMoneyEvent:
+    """Единый контракт: source → signed amount / event type.
+
+    - payment: signed_amount >= 0, is_refund=False
+    - refund: signed_amount <= 0, is_refund=True (ровно один раз; |amount| не зависит от знака входа)
+    - is_refund=True + amount>0 → negate once
+    - is_refund=False + amount<0 → трактуем как refund
+    """
+    raw = Decimal(str(amount or 0))
+    if is_refund or raw < 0:
+        signed = -abs(raw)
+        return NormalizedMoneyEvent(signed_amount=signed, is_refund=True, event_type="refund")
+    return NormalizedMoneyEvent(signed_amount=raw, is_refund=False, event_type="payment")
+
+
+def normalize_payment_row(pay: PatientPurchasePayment) -> NormalizedMoneyEvent:
+    return normalize_money_event(amount=pay.amount or 0, is_refund=bool(pay.is_refund))
+
+
 @dataclass
 class LeadLtvSnapshot:
     lead_id: int
@@ -75,7 +104,12 @@ class LeadLtvSnapshot:
 
 
 def compute_lead_ltv(purchases: Iterable[PatientPurchase], payments: Iterable[PatientPurchasePayment]) -> LeadLtvSnapshot:
-    """Единая формула Paid LTV / Sales Value (backend-only)."""
+    """Единая формула Paid LTV / Sales Value (backend-only).
+
+    Paid LTV = sum(normalized signed money events).
+    Debt/outstanding не входит в Paid LTV.
+    Returned sale: Sales Value исключается; payments+refund остаются (net), без двойного вычета.
+    """
     pur_list = list(purchases)
     pay_list = list(payments)
     lead_id = next((int(p.lead_id) for p in pur_list if p.lead_id is not None), 0)
@@ -86,11 +120,9 @@ def compute_lead_ltv(purchases: Iterable[PatientPurchase], payments: Iterable[Pa
         (Decimal(str(p.service_amount or 0)) for p in active if (p.status or "") != "returned"),
         Decimal("0"),
     )
-    paid_ltv = sum((Decimal(str(x.amount or 0)) for x in pay_list), Decimal("0"))
-    refunds_total = sum(
-        (abs(Decimal(str(x.amount or 0))) for x in pay_list if x.is_refund or Decimal(str(x.amount or 0)) < 0),
-        Decimal("0"),
-    )
+    events = [normalize_payment_row(x) for x in pay_list]
+    paid_ltv = sum((e.signed_amount for e in events), Decimal("0"))
+    refunds_total = sum((abs(e.signed_amount) for e in events if e.is_refund), Decimal("0"))
     # outstanding only on non-returned active
     outstanding = Decimal("0")
     for p in active:
@@ -195,6 +227,7 @@ async def _upsert_payment(
     paid_at: datetime,
     note: str | None = None,
 ) -> PatientPurchasePayment:
+    norm = normalize_money_event(amount=amount, is_refund=is_refund)
     existing = (
         await db.execute(
             select(PatientPurchasePayment).where(
@@ -210,8 +243,8 @@ async def _upsert_payment(
             purchase_id=purchase_id,
             source_type=source_type,
             source_id=source_id,
-            amount=amount,
-            is_refund=is_refund,
+            amount=norm.signed_amount,
+            is_refund=norm.is_refund,
             paid_at=_utc(paid_at),
             note=note,
         )
@@ -219,17 +252,60 @@ async def _upsert_payment(
         await db.flush()
         return row
     existing.purchase_id = purchase_id
-    existing.amount = amount
-    existing.is_refund = is_refund
+    existing.amount = norm.signed_amount
+    existing.is_refund = norm.is_refund
     existing.paid_at = _utc(paid_at)
     existing.note = note
     await db.flush()
     return existing
 
 
+def _parse_booking_refund_appointment_id(external_key: str | None) -> int | None:
+    key = (external_key or "").strip()
+    if not key.startswith("booking_refund:"):
+        return None
+    parts = key.split(":")
+    if len(parts) < 2:
+        return None
+    try:
+        return int(parts[1])
+    except ValueError:
+        return None
+
+
+async def _booking_refunds_by_appointment(
+    db: AsyncSession,
+    *,
+    company_id: int,
+) -> dict[int, list[tuple[int, Decimal, datetime]]]:
+    """appt_id → [(osv_id, refund_abs, paid_at), ...]. Источник — Finance ОСВ."""
+    rows = (
+        await db.execute(
+            select(FinanceOsvRow).where(
+                FinanceOsvRow.company_id == company_id,
+                FinanceOsvRow.source == "booking_refund",
+            ),
+        )
+    ).scalars().all()
+    out: dict[int, list[tuple[int, Decimal, datetime]]] = {}
+    for row in rows:
+        aid = _parse_booking_refund_appointment_id(row.external_key)
+        if aid is None:
+            continue
+        # expense хранит −сумму; берём abs
+        amt = abs(Decimal(str(row.expense or 0)))
+        if amt <= 0:
+            continue
+        at = datetime.combine(row.txn_date, datetime.min.time(), tzinfo=UTC)
+        out.setdefault(aid, []).append((int(row.id), amt, at))
+    return out
+
+
 async def sync_company_purchases(db: AsyncSession, company_id: int) -> dict[str, int]:
     """Идемпотентный sync ledger для компании. Без phone auto-merge."""
-    stats = {"purchases": 0, "payments": 0, "skipped_course_booking": 0}
+    stats = {"purchases": 0, "payments": 0, "skipped_course_booking": 0, "booking_refunds": 0}
+
+    booking_refunds = await _booking_refunds_by_appointment(db, company_id=company_id)
 
     # --- Booking visits (не Курс/Протокол пакеты) ---
     appt_rows = (
@@ -248,9 +324,11 @@ async def sync_company_purchases(db: AsyncSession, company_id: int) -> dict[str,
         if st == "completed":
             status = "completed"
         sa = Decimal(str(appt.service_amount or 0))
-        pa = Decimal(str(appt.paid_amount or 0))
-        # нулевые бесплатные без оплаты можно всё равно учитывать как delivery;
-        # для LTV sales_value 0 ок
+        net_paid = Decimal(str(appt.paid_amount or 0))
+        refund_rows = booking_refunds.get(int(appt.id), [])
+        refund_sum = sum((r[1] for r in refund_rows), Decimal("0"))
+        # Gross received = net on appointment + refunds already applied (distinguishable events)
+        gross_paid = net_paid + refund_sum
         pur = await _upsert_purchase(
             db,
             company_id=company_id,
@@ -261,24 +339,38 @@ async def sync_company_purchases(db: AsyncSession, company_id: int) -> dict[str,
             product_kind=classify_product_kind(dname),
             product_name=str(appt.service_title or dname or "Визит"),
             service_amount=sa,
-            paid_amount=pa,
+            paid_amount=net_paid,
             status=status,
             purchased_at=appt.start_at or datetime.now(UTC),
             client_name=appt.patient_name,
             client_phone=appt.patient_phone,
         )
         stats["purchases"] += 1
-        if pa > 0:
+        # Всегда upsert payment (в т.ч. 0), чтобы полный refund не оставлял stale amount
+        await _upsert_payment(
+            db,
+            company_id=company_id,
+            purchase_id=int(pur.id),
+            source_type="booking_payment",
+            source_id=int(appt.id),
+            amount=gross_paid,
+            is_refund=False,
+            paid_at=appt.paid_at or appt.start_at or datetime.now(UTC),
+        )
+        stats["payments"] += 1
+        for osv_id, refund_amt, refund_at in refund_rows:
             await _upsert_payment(
                 db,
                 company_id=company_id,
                 purchase_id=int(pur.id),
-                source_type="booking_payment",
-                source_id=int(appt.id),
-                amount=pa,
-                is_refund=False,
-                paid_at=appt.paid_at or appt.start_at or datetime.now(UTC),
+                source_type="booking_refund",
+                source_id=int(osv_id),
+                amount=refund_amt,
+                is_refund=True,
+                paid_at=refund_at,
+                note="booking_refund",
             )
+            stats["booking_refunds"] += 1
             stats["payments"] += 1
 
     # --- KPI packages ---
@@ -329,7 +421,7 @@ async def sync_company_purchases(db: AsyncSession, company_id: int) -> dict[str,
                 paid_at=pay.paid_at or datetime.now(UTC),
             )
             stats["payments"] += 1
-        # Возврат пакета: если returned и paid_amount обнулён — отражаем refund по сумме first/paid history
+        # Возврат пакета: payments остаются + один kpi_return (без двойного исключения sale)
         if st == "returned":
             paid_sum = sum((Decimal(str(p.amount or 0)) for p in pays), Decimal("0"))
             if paid_sum > 0:
@@ -339,7 +431,7 @@ async def sync_company_purchases(db: AsyncSession, company_id: int) -> dict[str,
                     purchase_id=int(pur.id),
                     source_type="kpi_return",
                     source_id=int(sale.id),
-                    amount=-paid_sum,
+                    amount=paid_sum,
                     is_refund=True,
                     paid_at=sale.returned_at or datetime.now(UTC),
                     note="KPI sale returned",
@@ -372,7 +464,7 @@ async def sync_company_purchases(db: AsyncSession, company_id: int) -> dict[str,
             client_phone=sale.client_phone,
         )
         stats["purchases"] += 1
-        if pa > 0 and status != "cancelled":
+        if status != "cancelled":
             await _upsert_payment(
                 db,
                 company_id=company_id,
@@ -415,7 +507,7 @@ async def sync_company_purchases(db: AsyncSession, company_id: int) -> dict[str,
             client_phone=sale.client_phone,
         )
         stats["purchases"] += 1
-        if amount > 0 and not cancelled:
+        if not cancelled:
             await _upsert_payment(
                 db,
                 company_id=company_id,
