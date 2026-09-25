@@ -53,6 +53,7 @@ from app.database_migrate import (
     ensure_chat_thread_unique_external,
     ensure_curator_journal_tables,
     ensure_patient_purchase_tables,
+    ensure_patient_journey_tables,
 )
 from app.core.security import decode_token, hash_password, verify_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
@@ -175,6 +176,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_curator_journal_tables(conn, db_url)
                 await ensure_chat_thread_unique_external(conn, db_url)
                 await ensure_patient_purchase_tables(conn, db_url)
+                await ensure_patient_journey_tables(conn, db_url)
             return
         except Exception as exc:
             is_last = attempt == max_attempts

@@ -1224,13 +1224,57 @@ async def analytics_ltv_sync(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> dict:
-    """Идемпотентный sync Purchase/Payment ledger (Phase 1). Owner only."""
+    """Идемпотентный sync Purchase/Payment ledger + journey (Phase 1–4). Owner only."""
     _assert_owner(current_user)
     from app.services.patient_ltv import sync_company_purchases
+    from app.services.patient_journey import sync_journey_for_lead
+    from app.models import PatientPurchase
 
     stats = await sync_company_purchases(db, company_id)
+    lead_ids = (
+        await db.execute(
+            select(PatientPurchase.lead_id)
+            .where(
+                PatientPurchase.company_id == company_id,
+                PatientPurchase.lead_id.is_not(None),
+            )
+            .distinct(),
+        )
+    ).scalars().all()
+    journey_n = 0
+    for lid in lead_ids:
+        if lid is None:
+            continue
+        await sync_journey_for_lead(db, company_id=company_id, lead_id=int(lid))
+        journey_n += 1
     await db.commit()
-    return {"ok": True, **stats}
+    return {"ok": True, **stats, "journeys_synced": journey_n}
+
+
+@router.get("/ltv/cohort")
+async def analytics_ltv_cohort(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    date_from: str = Query(..., description="YYYY-MM-DD cohort start"),
+    date_to: str = Query(..., description="YYYY-MM-DD cohort end exclusive-ish calendar"),
+) -> dict:
+    """Cohort LTV по first_purchase_at (не revenue выбранного месяца)."""
+    _assert_owner(current_user)
+    from zoneinfo import ZoneInfo
+
+    from app.config import settings
+    from app.services.patient_ltv_analytics import build_ltv_cohort_report
+
+    try:
+        d0 = datetime.strptime(date_from, "%Y-%m-%d").date()
+        d1 = datetime.strptime(date_to, "%Y-%m-%d").date()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="date_from/date_to: YYYY-MM-DD") from e
+    tz = ZoneInfo(settings.booking_timezone or "Asia/Dushanbe")
+    start = datetime.combine(d0, datetime.min.time(), tzinfo=tz).astimezone(UTC)
+    end = datetime.combine(d1, datetime.min.time(), tzinfo=tz).astimezone(UTC) + timedelta(days=1)
+    return await build_ltv_cohort_report(db, company_id=company_id, cohort_from=start, cohort_to=end)
 
 
 @router.get("/ltv/patient/{lead_id}")
@@ -1246,8 +1290,29 @@ async def analytics_ltv_patient(
     if lead is None or lead.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     from app.services.patient_ltv import load_lead_ltv
+    from app.services.patient_journey import sync_journey_for_lead
+    from app.models import PatientJourney, PatientJourneyEpisode
 
+    await sync_journey_for_lead(db, company_id=company_id, lead_id=lead_id)
     snap = await load_lead_ltv(db, company_id=company_id, lead_id=lead_id)
+    journey = (
+        await db.execute(
+            select(PatientJourney).where(
+                PatientJourney.company_id == company_id,
+                PatientJourney.lead_id == lead_id,
+            ),
+        )
+    ).scalar_one_or_none()
+    episodes = (
+        await db.execute(
+            select(PatientJourneyEpisode)
+            .where(
+                PatientJourneyEpisode.company_id == company_id,
+                PatientJourneyEpisode.lead_id == lead_id,
+            )
+            .order_by(PatientJourneyEpisode.kind.asc(), PatientJourneyEpisode.sequence_no.asc()),
+        )
+    ).scalars().all()
     return {
         "lead_id": snap.lead_id,
         "purchase_count": snap.purchase_count,
@@ -1258,6 +1323,24 @@ async def analytics_ltv_patient(
         "first_purchase_at": snap.first_purchase_at,
         "last_purchase_at": snap.last_purchase_at,
         "lifetime_days": snap.lifetime_days,
+        "journey": {
+            "course_15_status": journey.course_15_status if journey else "none",
+            "course_15_completed_at": journey.course_15_completed_at if journey else None,
+            "master_class_at": journey.master_class_at if journey else None,
+            "branch": journey.branch if journey else "none",
+            "branch_started_at": journey.branch_started_at if journey else None,
+        },
+        "episodes": [
+            {
+                "id": int(e.id),
+                "kind": e.kind,
+                "sequence_no": int(e.sequence_no),
+                "status": e.status,
+                "started_at": e.started_at,
+                "purchase_id": e.purchase_id,
+            }
+            for e in episodes
+        ],
     }
 
 

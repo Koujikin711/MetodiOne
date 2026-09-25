@@ -61,7 +61,7 @@ export const appLexicon: AppLexicon = {
   navFinance: "Финансы",
   navFinanceTitle: "Финансы",
   analyticsIntro:
-    "Менеджеры — воронки и успеваемость. Услуги — явки по записи; Курс/Протокол — только из KPI. Только владелец.",
+    "Менеджеры — воронки. Услуги — запись + KPI. Пациенты & LTV — когорта по first purchase. Только владелец.",
   pipelineAll: "Все воронки",
   sectionStageFlow: "Конверсия по стадиям",
   sectionPlanFact: "План / факт по менеджерам",

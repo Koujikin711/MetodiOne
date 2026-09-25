@@ -4148,3 +4148,113 @@ async def ensure_patient_purchase_tables(conn: AsyncConnection, database_url: st
     await conn.execute(
         text("CREATE INDEX IF NOT EXISTS ix_sales_kpi_manual_sales_lead_id ON sales_kpi_manual_sales (lead_id)")
     )
+
+
+async def ensure_patient_journey_tables(conn: AsyncConnection, database_url: str) -> None:
+    """Phase 2–4: patient journey path + episodes + events."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS patient_journeys (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    lead_id INTEGER NOT NULL,
+                    course_15_status VARCHAR(24) NOT NULL DEFAULT 'none',
+                    course_15_started_at DATETIME,
+                    course_15_completed_at DATETIME,
+                    master_class_at DATETIME,
+                    branch VARCHAR(24) NOT NULL DEFAULT 'none',
+                    branch_started_at DATETIME,
+                    updated_at DATETIME,
+                    UNIQUE(company_id, lead_id)
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS patient_journey_episodes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    lead_id INTEGER NOT NULL,
+                    kind VARCHAR(24) NOT NULL,
+                    sequence_no INTEGER NOT NULL DEFAULT 1,
+                    status VARCHAR(24) NOT NULL DEFAULT 'active',
+                    started_at DATETIME,
+                    ended_at DATETIME,
+                    purchase_id INTEGER,
+                    curator_flow_id INTEGER,
+                    note TEXT,
+                    created_at DATETIME,
+                    UNIQUE(company_id, lead_id, kind, sequence_no)
+                )"""
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS patient_journey_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    lead_id INTEGER NOT NULL,
+                    event_type VARCHAR(40) NOT NULL,
+                    occurred_at DATETIME,
+                    payload TEXT,
+                    created_at DATETIME
+                )"""
+            ),
+        )
+        return
+
+    await conn.execute(
+        text(
+            """CREATE TABLE IF NOT EXISTS patient_journeys (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+                course_15_status VARCHAR(24) NOT NULL DEFAULT 'none',
+                course_15_started_at TIMESTAMPTZ,
+                course_15_completed_at TIMESTAMPTZ,
+                master_class_at TIMESTAMPTZ,
+                branch VARCHAR(24) NOT NULL DEFAULT 'none',
+                branch_started_at TIMESTAMPTZ,
+                updated_at TIMESTAMPTZ,
+                CONSTRAINT uq_patient_journey_lead UNIQUE (company_id, lead_id)
+            )"""
+        ),
+    )
+    await conn.execute(
+        text(
+            """CREATE TABLE IF NOT EXISTS patient_journey_episodes (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+                kind VARCHAR(24) NOT NULL,
+                sequence_no INTEGER NOT NULL DEFAULT 1,
+                status VARCHAR(24) NOT NULL DEFAULT 'active',
+                started_at TIMESTAMPTZ,
+                ended_at TIMESTAMPTZ,
+                purchase_id INTEGER REFERENCES patient_purchases(id) ON DELETE SET NULL,
+                curator_flow_id INTEGER REFERENCES curator_course_flows(id) ON DELETE SET NULL,
+                note TEXT,
+                created_at TIMESTAMPTZ,
+                CONSTRAINT uq_patient_journey_episode_seq UNIQUE (company_id, lead_id, kind, sequence_no)
+            )"""
+        ),
+    )
+    await conn.execute(
+        text(
+            """CREATE TABLE IF NOT EXISTS patient_journey_events (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+                event_type VARCHAR(40) NOT NULL,
+                occurred_at TIMESTAMPTZ,
+                payload TEXT,
+                created_at TIMESTAMPTZ
+            )"""
+        ),
+    )
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_patient_journeys_lead_id ON patient_journeys (lead_id)"))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_patient_journey_episodes_lead_id ON patient_journey_episodes (lead_id)"))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_patient_journey_events_lead_id ON patient_journey_events (lead_id)"))

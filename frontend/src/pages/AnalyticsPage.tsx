@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { appLexicon } from "@/lib/appLexicon";
 import { formatMoney } from "@/lib/money";
 import { AnalyticsServicesCharts } from "@/components/analytics/AnalyticsServicesCharts";
+import { AnalyticsPatientsLtvPanel } from "@/components/AnalyticsPatientsLtvPanel";
 import { DateField } from "@/components/DateField";
 import type {
   AnalyticsOverviewRead,
@@ -17,7 +18,7 @@ import type {
   ServicesAnalyticsServiceStat,
 } from "@/lib/types";
 
-type AnalyticsDimension = "managers" | "services";
+type AnalyticsDimension = "managers" | "services" | "patients";
 
 function formatReplyMinutes(minutes: number | null | undefined): string {
   if (minutes == null || Number.isNaN(minutes)) return "—";
@@ -121,6 +122,7 @@ export function AnalyticsPage() {
   const periodReady = period !== "custom" || Boolean(dateFrom && dateTo);
   const managersMode = dimension === "managers";
   const servicesMode = dimension === "services";
+  const patientsMode = dimension === "patients";
 
   useEffect(() => {
     if (!servicesMode) return;
@@ -313,10 +315,21 @@ export function AnalyticsPage() {
           >
             Услуги
           </button>
+          <button
+            type="button"
+            role="tab"
+            data-active={patientsMode ? "true" : "false"}
+            aria-selected={patientsMode}
+            onClick={() => setDimension("patients")}
+          >
+            Пациенты & LTV
+          </button>
         </div>
       </header>
 
       <div className="mo-fill-page-scroll space-y-5 pt-4">
+      {patientsMode ? <AnalyticsPatientsLtvPanel /> : null}
+      {!patientsMode ? (
       <section className="mo-section analytics-toolbar-section p-4 sm:p-5">
         <div className="analytics-toolbar">
           {managersMode ? (
@@ -1124,6 +1137,7 @@ export function AnalyticsPage() {
           )}
         </section>
       )}
+      ) : null}
       </div>
     </div>
   );
