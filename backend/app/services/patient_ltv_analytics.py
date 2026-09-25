@@ -10,10 +10,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Lead, PatientJourney, PatientPurchase, PatientPurchasePayment
+from app.services.patient_journey_paths import (
+    LeadJourneyFacts,
+    LeadPurchaseFact,
+    aggregate_path_analytics,
+    empty_path_analytics,
+)
 from app.services.patient_ltv import compute_lead_ltv
 
 
 LTV_WINDOWS_DAYS = (0, 30, 90, 180, 365)
+
+
+def _utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 async def build_ltv_cohort_report(
@@ -52,15 +64,7 @@ async def build_ltv_cohort_report(
         times = [p.purchased_at for p in pur_list if p.purchased_at is not None]
         if not times:
             continue
-        t0 = min(times if times[0].tzinfo else [t.replace(tzinfo=UTC) if t.tzinfo is None else t for t in times])
-        # normalize
-        norm = []
-        for t in times:
-            if t.tzinfo is None:
-                t = t.replace(tzinfo=UTC)
-            else:
-                t = t.astimezone(UTC)
-            norm.append(t)
+        norm = [_utc(t) for t in times]
         t0 = min(norm)
         if cohort_from <= t0 < cohort_to:
             cohort_leads.append(lid)
@@ -78,13 +82,7 @@ async def build_ltv_cohort_report(
             "purchases_per_patient": Decimal("0"),
             "avg_lifetime_days": Decimal("0"),
             "ltv_windows": {f"d{d}": Decimal("0") for d in LTV_WINDOWS_DAYS},
-            "journey": {
-                "course_15_started": 0,
-                "course_15_completed": 0,
-                "master_class": 0,
-                "branch_main_course": 0,
-                "branch_protocols": 0,
-            },
+            "journey": empty_path_analytics(),
             "patients_rows": [],
         }
 
@@ -114,7 +112,6 @@ async def build_ltv_cohort_report(
         t0 = first_at[lid]
         for d in LTV_WINDOWS_DAYS:
             end = t0 + timedelta(days=d) if d > 0 else t0 + timedelta(seconds=1)
-            # D0 = payments on first purchase day roughly: paid_at < t0+1day
             if d == 0:
                 end = t0 + timedelta(days=1)
             w_paid = Decimal("0")
@@ -122,10 +119,7 @@ async def build_ltv_cohort_report(
                 pt = pay.paid_at
                 if pt is None:
                     continue
-                if pt.tzinfo is None:
-                    pt = pt.replace(tzinfo=UTC)
-                else:
-                    pt = pt.astimezone(UTC)
+                pt = _utc(pt)
                 if t0 <= pt < end:
                     w_paid += Decimal(str(pay.amount or 0))
             window_sums[d] += w_paid
@@ -152,22 +146,41 @@ async def build_ltv_cohort_report(
     ).scalars().all()
     jmap = {int(j.lead_id): j for j in journeys}
 
-    journey_stats = {
-        "course_15_started": sum(1 for lid in cohort_leads if (jmap.get(lid) and jmap[lid].course_15_status in ("active", "completed"))),
-        "course_15_completed": sum(1 for lid in cohort_leads if (jmap.get(lid) and jmap[lid].course_15_status == "completed")),
-        "master_class": sum(1 for lid in cohort_leads if (jmap.get(lid) and jmap[lid].master_class_at is not None)),
-        "branch_main_course": sum(1 for lid in cohort_leads if (jmap.get(lid) and jmap[lid].branch == "main_course")),
-        "branch_protocols": sum(1 for lid in cohort_leads if (jmap.get(lid) and jmap[lid].branch == "protocols")),
-    }
+    facts_list: list[LeadJourneyFacts] = []
+    for lid in cohort_leads:
+        pur_list = sorted(
+            by_lead[lid],
+            key=lambda p: _utc(p.purchased_at) if p.purchased_at else datetime.max.replace(tzinfo=UTC),
+        )
+        j = jmap.get(lid)
+        facts_list.append(
+            LeadJourneyFacts(
+                purchases=[
+                    LeadPurchaseFact(
+                        product_kind=(p.product_kind or "other_service"),
+                        purchased_at=_utc(p.purchased_at) if p.purchased_at else None,
+                    )
+                    for p in pur_list
+                    if (p.status or "") != "returned"
+                ],
+                master_class_at=_utc(j.master_class_at) if j and j.master_class_at else None,
+                course_15_status=(j.course_15_status if j else "none") or "none",
+            ),
+        )
 
-    # names
+    journey_stats = aggregate_path_analytics(
+        facts_list,
+        branch_by_lead={lid: (jmap[lid].branch if lid in jmap else "none") for lid in cohort_leads},
+        lead_ids=cohort_leads,
+    )
+
     leads = (
         await db.execute(select(Lead.id, Lead.name, Lead.phone).where(Lead.id.in_(cohort_leads)))
     ).all()
     name_map = {int(i): (n, ph) for i, n, ph in leads}
     for r in rows_out:
-        n, ph = name_map.get(int(r["lead_id"]), (None, None))
-        r["patient_name"] = n
+        nm, ph = name_map.get(int(r["lead_id"]), (None, None))
+        r["patient_name"] = nm
         r["patient_phone"] = ph
 
     rows_out.sort(key=lambda x: float(x["paid_ltv"]), reverse=True)

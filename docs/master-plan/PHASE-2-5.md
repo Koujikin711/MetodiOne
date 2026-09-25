@@ -1,9 +1,24 @@
 # Phase 2–5 — отчёт
 
+## Universal Patient Journey (уточнение)
+
+Source of truth:
+
+```
+Lead → First Valid Purchase → Next Valid Purchase → … → Lifetime / Paid LTV
+```
+
+- **Course15** и **Masterclass** — program context / events, **не** обязательный gate
+  для Main Course / Protocol и **не** фильтр LTV.
+- Отсутствие `master_class` ≠ «не посетил»; формулировка: «посещение не зафиксировано».
+- Не backfill fake Masterclass / completion из последующей покупки.
+- Branch `main_course` / `protocols` — маркер первой program-ветки (аналитика),
+  не запрет второй покупки.
+
 ## Phase 2–4 Journey
 
 - Таблицы: `patient_journeys`, `patient_journey_episodes`, `patient_journey_events`
-- Sync из purchases: Курс 15 → (МК event) → branch `main_course` XOR `protocols`
+- Sync из реальных purchases + явный `master_class` event
 - Episodes #1…N без hardcode max
 - Month 1/2/3 helper относительно старта episode
 - Протоколы не пишутся в curator journal автоматически
@@ -13,7 +28,8 @@
 - Вкладка **Пациенты & LTV**
 - `GET /api/analytics/ltv/cohort` — когорта по `first_purchase_at`
 - Avg Paid LTV, Sales Value, Repeat %, purchases/patient, lifetime, D0–D365
-- Journey counters + patient table → Lead
+- First Product, Course15 funnel (в т.ч. без recorded МК), conversions, Main/Protocol origin
+- Patient table → Lead
 - Sync button вызывает ledger + journey
 
 ## Phase 6

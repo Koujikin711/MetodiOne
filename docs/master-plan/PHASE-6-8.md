@@ -12,7 +12,8 @@ Online Booking → «Отчёт по услугам»: KPI + таблица + dr
 | Paid LTV ≠ month revenue | cohort API |
 | Double-count Курс/Протокол booking | исключены из purchase |
 | Unique patient Lead.id (booking report) | да |
-| Journey Main XOR Protocols | да (при равном timestamp — branch=none) |
+| Journey branch marker (first main/protocol) | да; оба продукта остаются в LTV; МК не gate |
+| Course15/Masterclass ≠ purchase prerequisite | да |
 | Curator journal ≠ Protocol auto-write | да |
 | Permissions owner на LTV | да |
 | Полный regression E2E всех модулей | **не автоматически** — ручной smoke после деплоя |

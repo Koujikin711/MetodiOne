@@ -1,6 +1,7 @@
-"""Patient Journey: Курс 15 → МК → Main Course | Protocols (Phase 2–4).
+"""Universal Patient Journey: Lead → valid purchases → Lifetime LTV (Phase 2–4).
 
-Telegram daily workflow Курс 15 в MetodiOne НЕ переносится — только milestones.
+Course15 / Masterclass — program context (events), НЕ обязательный gate
+для Main Course / Protocol. Telegram daily workflow Курс 15 не переносится.
 """
 
 from __future__ import annotations
@@ -32,9 +33,11 @@ class PatientJourney(Base):
     course_15_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     course_15_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Program event (recorded attendance). Отсутствие ≠ «не посетил» и ≠ блок покупки.
     master_class_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # none | main_course | protocols — взаимоисключающие после МК
+    # none | main_course | protocols — маркер первой program-ветки (аналитика).
+    # НЕ gate: оба продукта могут быть в LTV; МК не требуется.
     branch: Mapped[str] = mapped_column(String(24), default="none", index=True)
     branch_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

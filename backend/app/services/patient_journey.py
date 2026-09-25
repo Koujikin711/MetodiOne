@@ -59,7 +59,12 @@ async def ensure_journey(db: AsyncSession, *, company_id: int, lead_id: int) -> 
 
 
 async def sync_journey_for_lead(db: AsyncSession, *, company_id: int, lead_id: int) -> PatientJourney:
-    """Пересчитать путь Lead из purchases + events. Branch exclusivity: main XOR protocols."""
+    """Пересчитать путь Lead из реальных purchases + events.
+
+    Masterclass / Course15 — enrichment, НЕ prerequisite и НЕ фильтр LTV.
+    Branch = маркер первой main/protocol покупки (аналитика); оба продукта остаются в ledger.
+    Не создаём fake master_class / completion из последующих продаж.
+    """
     j = await ensure_journey(db, company_id=company_id, lead_id=lead_id)
     purchases = (
         await db.execute(
@@ -102,7 +107,7 @@ async def sync_journey_for_lead(db: AsyncSession, *, company_id: int, lead_id: i
     main_ps = [p for p in purchases if p.product_kind == "main_course" and (p.status or "") not in ("cancelled", "returned")]
     proto_ps = [p for p in purchases if p.product_kind == "protocol" and (p.status or "") not in ("cancelled", "returned")]
 
-    # Взаимоисключение веток: если уже выбрана — не переключаем автоматически на другую.
+    # Маркер первой program-ветки по timestamp (не запрет второй покупки, не требует МК).
     if j.branch == "none":
         if main_ps and not proto_ps:
             j.branch = "main_course"
@@ -111,8 +116,6 @@ async def sync_journey_for_lead(db: AsyncSession, *, company_id: int, lead_id: i
             j.branch = "protocols"
             j.branch_started_at = _utc(proto_ps[0].purchased_at)
         elif main_ps and proto_ps:
-            # неоднозначность: оба продукта — НЕ угадываем branch, оставляем none
-            # (остановка по правилам Master Plan: показать в Data Quality позже)
             first_main = _utc(main_ps[0].purchased_at)
             first_proto = _utc(proto_ps[0].purchased_at)
             if first_main and first_proto:
