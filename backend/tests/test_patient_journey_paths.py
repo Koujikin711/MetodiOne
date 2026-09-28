@@ -9,9 +9,11 @@ from app.models.patient_purchase import PatientPurchase, PatientPurchasePayment
 from app.services.patient_journey_paths import (
     LeadJourneyFacts,
     LeadPurchaseFact,
+    aggregate_path_analytics,
     classify_product_origin,
     conversion_flags,
     course15_funnel_leaf,
+    first_product_key,
     first_product_kind,
     master_class_recorded,
 )
@@ -135,3 +137,31 @@ def test_no_fake_masterclass_from_main_purchase():
     f = _facts(["main_course"], mk=False)
     assert master_class_recorded(f) is False
     assert conversion_flags(f)["course15_to_masterclass"] is False
+
+
+def test_massage_after_course15_is_not_missing_next_purchase():
+    """no_mk_none = нет Курса и Протокола. Массаж остаётся следующей покупкой."""
+    f = LeadJourneyFacts(
+        purchases=[
+            LeadPurchaseFact(product_kind="course_15", product_name="Курс 15"),
+            LeadPurchaseFact(product_kind="other_service", product_name="Массаж"),
+        ],
+        course_15_status="completed",
+    )
+    assert course15_funnel_leaf(f) == "no_mk_none"
+    assert first_product_key(f) == "course_15"
+    stats = aggregate_path_analytics([f])
+    assert stats["funnel"]["no_mk_none"] == 1
+    assert stats["first_product"] == {"course_15": 1}
+
+
+def test_first_product_uses_service_name_not_other_bucket():
+    massage = LeadJourneyFacts(
+        purchases=[LeadPurchaseFact(product_kind="other_service", product_name="Массаж")],
+    )
+    consult = LeadJourneyFacts(
+        purchases=[LeadPurchaseFact(product_kind="other_service", product_name="Консультация")],
+    )
+    stats = aggregate_path_analytics([massage, consult, massage])
+    assert stats["first_product"] == {"Массаж": 2, "Консультация": 1}
+    assert "other_service" not in stats["first_product"]

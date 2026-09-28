@@ -124,6 +124,14 @@ def first_product_kind(facts: LeadJourneyFacts) -> str | None:
     return kinds[0] if kinds else None
 
 
+def first_product_key(facts: LeadJourneyFacts) -> str | None:
+    """Тот же ключ, что у переходов: Курс 15 / Курс / Протокол по виду, остальное — по имени."""
+    for p in facts.purchases:
+        if p.product_kind:
+            return transition_product_key(p)
+    return None
+
+
 def has_kind(facts: LeadJourneyFacts, kind: str) -> bool:
     return kind in _kinds(facts)
 
@@ -268,7 +276,7 @@ def aggregate_path_analytics(
 
     for i, facts in enumerate(material):
         lid = ids[i] if i < len(ids) else i
-        fp = first_product_kind(facts)
+        fp = first_product_key(facts)
         if fp:
             first_counter[fp] += 1
 
@@ -303,5 +311,5 @@ def aggregate_path_analytics(
         elif br == "protocols":
             out["branch_protocols"] += 1
 
-    out["first_product"] = dict(first_counter)
+    out["first_product"] = dict(first_counter.most_common())
     return out

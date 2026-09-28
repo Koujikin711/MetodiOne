@@ -48,7 +48,8 @@ paid_amount + ε ≥ service_amount
 API (owner): `GET /api/analytics/ltv/entry-compare?date_from=&date_to=`
 
 Возвращает CURRENT и TARGET cohort snapshots + `first_at_changed_patients`
-(сколько linked пациентов с разным `first_purchase_at` между режимами).
+(сколько пациентов **в выбранном окне** когорты имеют разный `first_purchase_at`
+между режимами; пациенты вне `date_from`/`date_to` не входят в diff).
 
 Дефолтный `GET /api/analytics/ltv/cohort` **без изменений** (= CURRENT).
 

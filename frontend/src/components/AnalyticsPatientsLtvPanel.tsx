@@ -180,11 +180,11 @@ const FUNNEL_LABELS: Record<string, string> = {
   mk_main: "МК зафиксирован → Курс",
   mk_protocol: "МК зафиксирован → Протокол",
   mk_both: "МК зафиксирован → Курс + Протокол",
-  mk_none: "МК зафиксирован → без следующей покупки",
+  mk_none: "МК зафиксирован → нет Курса и Протокола",
   no_mk_main: "МК не зафиксирован → Курс",
   no_mk_protocol: "МК не зафиксирован → Протокол",
   no_mk_both: "МК не зафиксирован → Курс + Протокол",
-  no_mk_none: "МК не зафиксирован → без следующей покупки",
+  no_mk_none: "МК не зафиксирован → нет Курса и Протокола",
 };
 
 const CONV_LABELS: Record<string, string> = {
@@ -212,6 +212,39 @@ const LTV_WINDOW_LABELS: Record<string, string> = {
   d180: "D180",
   d365: "D365",
 };
+
+function OriginBlock({
+  entries,
+  linked,
+  unresolved,
+  productLabel,
+}: {
+  entries: Record<string, number> | undefined;
+  linked: number;
+  unresolved: number;
+  productLabel: string;
+}) {
+  const hasCohort = Object.values(entries ?? {}).some((v) => Number(v) > 0);
+  if (hasCohort) {
+    return <StatGrid entries={entries} labels={ORIGIN_LABELS} />;
+  }
+  if (linked > 0) {
+    return (
+      <p className="text-xs mo-muted">
+        В этой когорте нет связанного «{productLabel}». Связанных продаж в компании: {linked} — они
+        вне окна первой покупки.
+      </p>
+    );
+  }
+  if (unresolved > 0) {
+    return (
+      <p className="text-xs mo-muted">
+        Связанных нет — {unresolved} продаж требуют привязки (см. выше).
+      </p>
+    );
+  }
+  return <StatGrid entries={entries} labels={ORIGIN_LABELS} />;
+}
 
 function StatGrid({
   entries,
@@ -704,7 +737,7 @@ export function AnalyticsPatientsLtvPanel() {
                 </table>
               </div>
               <p className="text-[11px] mo-muted">
-                first_purchase_at изменится у{" "}
+                В этом периоде first_purchase_at отличается у{" "}
                 <strong className="tabular-nums">
                   {entryCompare.diff.first_at_changed_patients}
                 </strong>{" "}
@@ -988,7 +1021,8 @@ export function AnalyticsPatientsLtvPanel() {
           <div className="mo-section p-4">
             <h3 className="mb-1 text-sm font-semibold">Первый продукт</h3>
             <p className="mb-2 text-xs mo-muted">
-              По реальной первой покупке когорты (product kind). Любой продукт может быть первым.
+              По реальной первой покупке когорты. Курс 15, Курс и Протокол — по виду, остальные
+              услуги — по имени.
             </p>
             <StatGrid entries={j?.first_product} labels={FIRST_PRODUCT_LABELS} />
           </div>
@@ -1298,8 +1332,9 @@ export function AnalyticsPatientsLtvPanel() {
           <div className="mo-section p-4">
             <h3 className="mb-1 text-sm font-semibold">Путь после Курса 15</h3>
             <p className="mb-2 text-xs mo-muted">
-              Program Journey (аналитика). МК — event; «не зафиксирован» ≠ отсутствие визита. Не
-              gate для LTV.
+              Program Journey (аналитика). МК — event; «не зафиксирован» ≠ отсутствие визита.
+              «Нет Курса и Протокола» не отменяет массаж, ТМС и другие услуги — они в переходах
+              выше. Не gate для LTV.
             </p>
             <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4 text-sm">
               <div>
@@ -1320,7 +1355,9 @@ export function AnalyticsPatientsLtvPanel() {
 
           <div className="mo-section p-4">
             <h3 className="mb-1 text-sm font-semibold">Конверсии</h3>
-            <p className="mb-2 text-xs mo-muted">Метрики путей, не правила допуска к покупке.</p>
+            <p className="mb-2 text-xs mo-muted">
+              Только Курс, Протокол и МК. Массаж и ТМС здесь не считаются — они в переходах выше.
+            </p>
             <StatGrid entries={j?.conversions} labels={CONV_LABELS} />
           </div>
 
@@ -1330,13 +1367,12 @@ export function AnalyticsPatientsLtvPanel() {
               <p className="mb-2 text-[11px] mo-muted">
                 Origin по связанным покупкам. Непривязанные KPI сюда не входят.
               </p>
-              {(prog?.linked_main_course ?? 0) === 0 && (prog?.unresolved_main_course ?? 0) > 0 ? (
-                <p className="text-xs mo-muted">
-                  Связанных нет — {prog?.unresolved_main_course} продаж требуют привязки (см. выше).
-                </p>
-              ) : (
-                <StatGrid entries={j?.main_course_origin} labels={ORIGIN_LABELS} />
-              )}
+              <OriginBlock
+                entries={j?.main_course_origin}
+                linked={prog?.linked_main_course ?? 0}
+                unresolved={prog?.unresolved_main_course ?? 0}
+                productLabel="Курс"
+              />
             </div>
             <div className="mo-section p-4">
               <h3 className="mb-1 text-sm font-semibold">Вход в Протоколы</h3>
@@ -1344,13 +1380,12 @@ export function AnalyticsPatientsLtvPanel() {
                 Protocol может быть первой покупкой или после любой услуги — не только после Курса
                 15.
               </p>
-              {(prog?.linked_protocol ?? 0) === 0 && (prog?.unresolved_protocol ?? 0) > 0 ? (
-                <p className="text-xs mo-muted">
-                  Связанных нет — {prog?.unresolved_protocol} продаж требуют привязки (см. выше).
-                </p>
-              ) : (
-                <StatGrid entries={j?.protocol_origin} labels={ORIGIN_LABELS} />
-              )}
+              <OriginBlock
+                entries={j?.protocol_origin}
+                linked={prog?.linked_protocol ?? 0}
+                unresolved={prog?.unresolved_protocol ?? 0}
+                productLabel="Протокол"
+              />
             </div>
           </div>
 

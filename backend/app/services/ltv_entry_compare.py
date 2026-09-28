@@ -44,6 +44,40 @@ def _empty_mode_snapshot(mode: EntryMode) -> dict:
     }
 
 
+def cohort_entry_diff(
+    by_lead: dict[int, list[PatientPurchase]],
+    *,
+    cohort_from: datetime,
+    cohort_to: datetime,
+) -> dict[str, int]:
+    """Entry-date diff for leads whose CURRENT or TARGET entry falls in the cohort window.
+
+    Global ledger is not counted: a September filter must not report patients
+    whose first purchase sits outside that month.
+    """
+    changed = 0
+    only_current = 0
+    only_target = 0
+    for pur_list in by_lead.values():
+        current_at = first_entry_at(pur_list, ENTRY_MODE_PURCHASE)
+        target_at = first_entry_at(pur_list, ENTRY_MODE_FULLY_PAID)
+        in_current = current_at is not None and cohort_from <= current_at < cohort_to
+        in_target = target_at is not None and cohort_from <= target_at < cohort_to
+        if not in_current and not in_target:
+            continue
+        if in_current and not in_target:
+            only_current += 1
+        elif in_target and not in_current:
+            only_target += 1
+        if current_at != target_at:
+            changed += 1
+    return {
+        "first_at_changed_patients": changed,
+        "entry_only_under_current": only_current,
+        "entry_only_under_target": only_target,
+    }
+
+
 def _cohort_snapshot_for_mode(
     *,
     mode: EntryMode,
@@ -177,25 +211,7 @@ async def build_ltv_entry_compare_report(
         cohort_to=cohort_to,
     )
 
-    changed = 0
-    only_current = 0
-    only_target = 0
-    for lid, pur_list in by_lead.items():
-        a = first_entry_at(pur_list, ENTRY_MODE_PURCHASE)
-        b = first_entry_at(pur_list, ENTRY_MODE_FULLY_PAID)
-        if a is None and b is None:
-            continue
-        if a is None and b is not None:
-            only_target += 1
-            changed += 1
-            continue
-        if a is not None and b is None:
-            only_current += 1
-            changed += 1
-            continue
-        assert a is not None and b is not None
-        if a != b:
-            changed += 1
+    diff = cohort_entry_diff(by_lead, cohort_from=cohort_from, cohort_to=cohort_to)
 
     return {
         "cohort_from": cohort_from,
@@ -217,8 +233,6 @@ async def build_ltv_entry_compare_report(
         "target": target,
         "diff": {
             "patients_delta": int(target["patients"]) - int(current["patients"]),
-            "first_at_changed_patients": changed,
-            "entry_only_under_current": only_current,
-            "entry_only_under_target": only_target,
+            **diff,
         },
     }
