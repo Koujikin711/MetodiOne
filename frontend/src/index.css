@@ -3982,6 +3982,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   gap: 0.5rem;
 }
 
+@media (min-width: 768px) {
+  .expenses-month__cards {
+    display: none;
+  }
+}
+
 .expenses-month__card {
   border-radius: 0.85rem;
   border: 1px solid var(--mo-border);
