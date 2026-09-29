@@ -56,8 +56,9 @@ def local_day_start_utc(now: datetime | None = None) -> datetime:
 
 
 async def apply_mavluda_daily_archive_quota(db: AsyncSession) -> dict[str, int]:
-    """Включает Мавлуде новые лиды и снимает старый архивный лимит 3.
+    """Снимает Мавлуде старый архивный лимит 3.
 
+    Автораздачу (accepts_new_leads) не трогает: её включает и выключает кнопка в кабинете РОП.
     Архив — общая дневная квота. Идемпотентно на каждом старте.
     """
     managers = (
@@ -77,9 +78,6 @@ async def apply_mavluda_daily_archive_quota(db: AsyncSession) -> dict[str, int]:
     changed = 0
     if target.daily_archive_leads_quota is not None:
         target.daily_archive_leads_quota = None
-        changed = 1
-    if not bool(target.accepts_new_leads):
-        target.accepts_new_leads = True
         changed = 1
 
     await db.flush()

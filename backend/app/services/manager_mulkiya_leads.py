@@ -37,10 +37,10 @@ def is_mulkiya_haidarzoda(full_name: str | None) -> bool:
 
 
 async def apply_mulkiya_receives_new_leads(db: AsyncSession) -> dict[str, int | str]:
-    """Включает accepts_new_leads, назначает на воронки компании, снимает с intake.
+    """Назначает на воронки компании и снимает с intake.
 
-    Идемпотентно на каждом старте. Без этого Мулкия может висеть в Analytics с 0 лидов,
-    пока остальные менеджеры получают WhatsApp/запись через round-robin.
+    Автораздачу (accepts_new_leads) не трогает: её включает и выключает кнопка в кабинете РОП.
+    Идемпотентно на каждом старте.
     """
     managers = (
         await db.execute(
@@ -80,9 +80,6 @@ async def apply_mulkiya_receives_new_leads(db: AsyncSession) -> dict[str, int | 
         return {"found": 1, "updated": 0, "reason": "no_company"}
 
     changed = 0
-    if not bool(target.accepts_new_leads):
-        target.accepts_new_leads = True
-        changed += 1
 
     # Снять с intake — иначе lead_assignment исключает её из round-robin.
     intake_pipes = (

@@ -52,14 +52,6 @@ async def apply_blocked_managers_new_leads_policy(db: AsyncSession) -> dict[str,
     ).scalars().all()
 
     targets_user = next((u for u in managers if _name_matches(u.full_name)), None)
-    if targets_user is not None and bool(targets_user.accepts_new_leads):
-        targets_user.accepts_new_leads = False
-        await db.flush()
-        logger.info(
-            "manager_new_leads_block: %s (#%s) accepts_new_leads=False",
-            targets_user.full_name,
-            targets_user.id,
-        )
 
     already = (
         await db.execute(select(SystemAuditEvent.id).where(SystemAuditEvent.action == AUDIT_ACTION).limit(1))
