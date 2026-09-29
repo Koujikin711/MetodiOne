@@ -33,15 +33,12 @@ type Course15Queue = {
 
 function fmtDt(iso: string | null | undefined): string {
   if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleDateString("ru-RU", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return "—";
-  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}.${mm}.${yy}`;
 }
 
 export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
@@ -103,7 +100,7 @@ export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
             <h2 className="text-base font-semibold text-[var(--mo-text)]">Курс 15 — очередь перехода</h2>
             <p className="mt-1 max-w-2xl text-xs mo-muted">
               Имя из онлайн-записи, телефон отдельно. Начало — последняя оплата, окончание —
-              через 15 дней. В одной кнопке «Админу» выбирается Курс или Протокол.
+              через 15 дней. В списке выбирается, что пациент берёт дальше: Курс или Протокол.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
@@ -195,13 +192,14 @@ export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
                 <th className="px-3 py-2 font-medium">След. контакт</th>
                 <th className="px-3 py-2 font-medium">След. шаг</th>
                 <th className="px-3 py-2 font-medium">Внимание</th>
-                <th className="px-3 py-2 font-medium">Админу</th>
+                <th className="px-3 py-2 font-medium">Дальше</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr
                   key={r.lead_id}
+                  data-lead-row={r.lead_id}
                   className={[
                     "border-b border-[var(--mo-border)]/50",
                     r.requires_attention ? "bg-amber-500/5" : "",
@@ -239,10 +237,10 @@ export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
                   <td className="px-3 py-2.5">
                     {r.state === "waiting_next_step" || r.state === "active" ? (
                       <select
-                        className="mo-input min-w-[7.5rem] py-1 text-xs"
+                        className="mo-input min-w-[9.5rem] py-1 text-xs"
                         value={r.pending_program ?? ""}
                         disabled={sendMutation.isPending || withdrawMutation.isPending}
-                        aria-label="Отправить админу"
+                        aria-label="Курс или Протокол"
                         onChange={(e) => {
                           const v = e.target.value;
                           if (v === "main_course" || v === "protocol") {
@@ -252,7 +250,7 @@ export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
                           }
                         }}
                       >
-                        <option value="">Админу</option>
+                        <option value="">Курс / Протокол</option>
                         <option value="main_course">Курс</option>
                         <option value="protocol">Протокол</option>
                       </select>

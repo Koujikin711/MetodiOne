@@ -37,15 +37,12 @@ type ProtocolQueue = {
 
 function fmtDt(iso: string | null | undefined): string {
   if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleDateString("ru-RU", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return "—";
-  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}.${mm}.${yy}`;
 }
 
 export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
@@ -166,6 +163,7 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
               {rows.map((r) => (
                 <tr
                   key={`${r.lead_id}-${r.sequence_no}-${r.purchase_id ?? ""}`}
+                  data-lead-row={r.lead_id ?? undefined}
                   className={[
                     "border-b border-[var(--mo-border)]/50",
                     r.requires_attention ? "bg-amber-500/5" : "",

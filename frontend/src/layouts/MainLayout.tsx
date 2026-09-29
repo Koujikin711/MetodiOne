@@ -17,7 +17,7 @@ import { ShellSidebarNav } from "@/components/ShellSidebarNav";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TariffFeatureOutletGate } from "@/components/TariffFeatureOutletGate";
 import { GradientIconBox } from "@/components/GradientIconBox";
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import metodiMarkUrl from "@/assets/metodione-mark.svg?url";
@@ -28,6 +28,13 @@ import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { usePresenceHeartbeat } from "@/hooks/usePresenceHeartbeat";
 import { useShellSidebarExpanded } from "@/hooks/useShellSidebarExpanded";
 import { appLexicon } from "@/lib/appLexicon";
+import {
+  leadIdFromPath,
+  readJournalSection,
+  readLeadReturn,
+  rememberLeadReturn,
+  restoreLeadPlace,
+} from "@/lib/leadReturn";
 
 function mobileBottomNavLinkClass({ isActive }: { isActive: boolean }) {
   return [
@@ -134,12 +141,69 @@ export function MainLayout() {
   }
 
   const mainRef = useRef<HTMLElement | null>(null);
+  const prevFullPath = useRef<string | null>(null);
 
   useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = (event.target as Element | null)?.closest?.("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      let pathname = "";
+      try {
+        pathname = new URL(anchor.href, window.location.origin).pathname;
+      } catch {
+        return;
+      }
+      const openedLeadId = leadIdFromPath(pathname);
+      if (openedLeadId == null) return;
+      rememberLeadReturn({
+        path: `${location.pathname}${location.search}`,
+        scroll: mainRef.current?.scrollTop ?? 0,
+        leadId: openedLeadId,
+        journalSection: readJournalSection(),
+      });
+    };
+    window.addEventListener("click", onClick, true);
+    return () => window.removeEventListener("click", onClick, true);
+  }, [location.pathname, location.search]);
+
+  useLayoutEffect(() => {
     const main = mainRef.current;
     if (!main) return;
-    main.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [location.pathname]);
+    const full = `${location.pathname}${location.search}`;
+    const prev = prevFullPath.current;
+    prevFullPath.current = full;
+    if (prev == null) {
+      main.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      return;
+    }
+
+    const openedLeadId = leadIdFromPath(location.pathname);
+    const prevPathname = prev.split("?")[0] ?? prev;
+    const closedLeadId = leadIdFromPath(prevPathname);
+
+    if (openedLeadId != null && closedLeadId == null) {
+      rememberLeadReturn({
+        path: prev,
+        scroll: main.scrollTop,
+        leadId: openedLeadId,
+        journalSection: readJournalSection(),
+      });
+      main.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      return;
+    }
+
+    const spot = readLeadReturn();
+    if (closedLeadId != null && spot && spot.path === full && spot.leadId === closedLeadId) {
+      restoreLeadPlace(main, spot);
+      return;
+    }
+
+    if (prevPathname !== location.pathname) {
+      main.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+  }, [location.pathname, location.search]);
 
   return (
     <div className="relative h-screen overflow-hidden app-shell-bg">

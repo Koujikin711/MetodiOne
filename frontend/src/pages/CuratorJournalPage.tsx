@@ -15,6 +15,7 @@ import { Navigate } from "react-router-dom";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { canAccessCuratorJournal } from "@/lib/clinicRoles";
+import { readJournalSection, rememberJournalSection, type JournalSection } from "@/lib/leadReturn";
 import { Course15QueuePanel } from "@/components/Course15QueuePanel";
 import { DateField } from "@/components/DateField";
 import { ProtocolQueuePanel } from "@/components/ProtocolQueuePanel";
@@ -284,7 +285,11 @@ export function CuratorJournalPage() {
     role === "owner" || role === "admin" || role === "administrator" || role === "super_owner";
 
   const qc = useQueryClient();
-  const [section, setSection] = useState<"course15" | "course" | "protocols">("course15");
+  const [section, setSection] = useState<JournalSection>(readJournalSection);
+
+  useEffect(() => {
+    rememberJournalSection(section);
+  }, [section]);
   const [selectedFlowId, setSelectedFlowId] = useState<number | null>(null);
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
