@@ -138,7 +138,11 @@ def booking_fact_filters(ym: date) -> list[ColumnElement[bool]]:
 
 
 def manager_expr():
-    return func.coalesce(BookingAppointment.responsible_manager_id, Lead.manager_id)
+    """Кто получает факт онлайн-записи: только менеджер, который сам создал запись.
+
+    Админ и администратор могут поставить ответственным менеджера — в его KPI это не идёт.
+    """
+    return BookingAppointment.created_by_user_id
 
 
 def completion_ratio(fact: int, plan_qty: int) -> Decimal | None:
@@ -328,7 +332,7 @@ async def load_direction_facts_full_paid(
     pipeline_id: int,
     ym: date,
 ) -> dict[tuple[int, int], int]:
-    """Факт по направлениям записи: только 100% оплата (fallback, если эксперты не привязаны)."""
+    """Факт по направлениям записи: 100% оплата и запись создал сам менеджер."""
     rows = (
         await db.execute(
             select(
@@ -339,8 +343,10 @@ async def load_direction_facts_full_paid(
             .select_from(BookingAppointment)
             .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
             .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .join(User, User.id == BookingAppointment.created_by_user_id)
             .where(
                 BookingAppointment.company_id == company_id,
+                User.role == UserRole.manager,
                 *booking_fact_filters(ym),
                 or_(
                     BookingAppointment.pipeline_id == pipeline_id,
@@ -369,6 +375,7 @@ async def load_specialist_facts_full_paid(
 
     Сумма услуги нужна, чтобы «Курс 15» (1300) не смешивать с разовой консультацией (150)
     или полным «Курсом» (16000) у того же эксперта.
+    В факт менеджера входит только запись, которую создал он сам.
     """
     rows = (
         await db.execute(
@@ -381,8 +388,10 @@ async def load_specialist_facts_full_paid(
             .select_from(BookingAppointment)
             .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
             .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .join(User, User.id == BookingAppointment.created_by_user_id)
             .where(
                 BookingAppointment.company_id == company_id,
+                User.role == UserRole.manager,
                 *booking_fact_filters(ym),
                 or_(
                     BookingAppointment.pipeline_id == pipeline_id,

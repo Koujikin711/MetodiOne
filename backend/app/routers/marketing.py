@@ -45,8 +45,13 @@ from app.services.meta_ads_client import (
     campaign_rows,
     daily_series,
     fetch_account_meta,
+    fetch_ad_campaigns,
+    fetch_campaign_instagram_ids,
     fetch_insights_range,
+    keep_rows_for_instagram_accounts,
+    merge_campaign_catalog,
     normalize_ad_account_id,
+    resolve_ig_account_labels,
     summarize_rows,
 )
 
@@ -434,6 +439,21 @@ async def meta_overview(
             until=until,
             level="campaign",
             time_increment=1 if use_daily else None,
+        )
+        token = row.access_token or ""
+        campaign_ig = await fetch_campaign_instagram_ids(token, row.ad_account_id)
+        ig_labels = await resolve_ig_account_labels(token, set(campaign_ig.values()))
+        brand_by_campaign = {
+            cid: ig_labels[ig] for cid, ig in campaign_ig.items() if ig in ig_labels
+        }
+        rows = keep_rows_for_instagram_accounts(rows, campaign_ig, ig_labels)
+        catalog = await fetch_ad_campaigns(token, row.ad_account_id)
+        rows = merge_campaign_catalog(
+            rows,
+            catalog,
+            since=since,
+            until=until,
+            brand_by_campaign=brand_by_campaign,
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Meta API: {e}") from e

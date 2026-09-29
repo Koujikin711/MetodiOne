@@ -70,7 +70,8 @@ def _assert_kpi_access(current_user: CurrentUser) -> None:
 
 
 def _manager_expr():
-    return func.coalesce(BookingAppointment.responsible_manager_id, Lead.manager_id)
+    """Факт только у менеджера, который сам создал онлайн-запись."""
+    return BookingAppointment.created_by_user_id
 
 
 async def _load_pipeline(db: AsyncSession, company_id: int, pipeline_id: int) -> Pipeline:
@@ -186,8 +187,10 @@ async def _load_facts(
             .select_from(BookingAppointment)
             .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
             .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .join(User, User.id == BookingAppointment.created_by_user_id)
             .where(
                 BookingAppointment.company_id == company_id,
+                User.role == UserRole.manager,
                 BookingAppointment.start_at >= start,
                 BookingAppointment.start_at < end,
                 or_(

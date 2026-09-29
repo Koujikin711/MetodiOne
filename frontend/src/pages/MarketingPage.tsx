@@ -107,6 +107,7 @@ export function MarketingPage() {
   const [adAccountId, setAdAccountId] = useState("act_1442491974027857");
   const [accessToken, setAccessToken] = useState("");
   const [showConnect, setShowConnect] = useState(false);
+  const [igAccount, setIgAccount] = useState<string | null>(null);
   const [igHook, setIgHook] = useState<{ callback_url: string; verify_token: string; accounts: string } | null>(
     null,
   );
@@ -187,6 +188,11 @@ export function MarketingPage() {
 
   const data = overviewQuery.data;
   const currency = data?.currency || settingsQuery.data?.currency || "USD";
+  const visibleCampaigns = useMemo(() => {
+    const rows = data?.campaigns ?? [];
+    if (!igAccount) return [];
+    return rows.filter((c) => c.brand === igAccount);
+  }, [data?.campaigns, igAccount]);
   const configured = Boolean(settingsQuery.data?.configured);
 
   function onSave(e: FormEvent) {
@@ -412,7 +418,13 @@ export function MarketingPage() {
                 </thead>
                 <tbody>
                   {data.brands.map((b) => (
-                    <tr key={b.account} className="border-t border-[var(--mo-border)]/60">
+                    <tr
+                      key={b.account}
+                      className={`cursor-pointer border-t border-[var(--mo-border)]/60 ${
+                        igAccount === b.account ? "bg-[var(--mo-surface)]" : ""
+                      }`}
+                      onClick={() => setIgAccount((cur) => (cur === b.account ? null : b.account))}
+                    >
                       <td className="px-3 py-2 font-medium">{b.account}</td>
                       <td className="px-3 py-2 tabular-nums">{b.followers}</td>
                       <td className="px-3 py-2 tabular-nums">{b.leads}</td>
@@ -428,7 +440,7 @@ export function MarketingPage() {
 
           <section className="overflow-hidden rounded-2xl border border-[var(--mo-border)]">
             <div className="border-b border-[var(--mo-border)] px-4 py-3 text-sm font-semibold">
-              Кампании · Ganjina Zamiri / MetodiClinic
+              {igAccount ? `Кампании · ${igAccount}` : "Кампании · нажмите аккаунт Instagram"}
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
@@ -444,14 +456,20 @@ export function MarketingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.campaigns.length === 0 ? (
+                  {!igAccount ? (
                     <tr>
                       <td className="px-3 py-3 mo-muted" colSpan={7}>
-                        Нет кампаний Ganjina Zamiri / MetodiClinic
+                        Нажмите Ganjina Zamiri или MetodiClinic — появятся кампании, которые запущены с этого Instagram.
+                      </td>
+                    </tr>
+                  ) : visibleCampaigns.length === 0 ? (
+                    <tr>
+                      <td className="px-3 py-3 mo-muted" colSpan={7}>
+                        С этого Instagram за период кампаний нет
                       </td>
                     </tr>
                   ) : (
-                    data.campaigns.map((c) => (
+                    visibleCampaigns.map((c) => (
                       <tr key={c.campaign_id || c.campaign_name} className="border-t border-[var(--mo-border)]/60">
                         <td className="px-3 py-2">{c.campaign_name}</td>
                         <td className="px-3 py-2 mo-muted">{c.brand || "—"}</td>
