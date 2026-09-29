@@ -221,7 +221,7 @@ export function MarketingPage() {
     <div className="marketing-page mx-auto flex w-full max-w-6xl flex-col gap-3 sm:gap-4">
       <PageHeader
         title="Маркетинг"
-        description="Два IG-аккаунта: Ganjina Zamiri и MetodiClinic (без MetodiOne)"
+        description="Два IG-аккаунта: Ganjina Zamiri и MetodiClinic"
       />
 
       {configured && !showConnect ? (
