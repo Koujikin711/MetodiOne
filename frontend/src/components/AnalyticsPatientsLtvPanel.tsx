@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import { DateField } from "@/components/DateField";
 import { apiFetch } from "@/lib/api";
 import { formatMoney } from "@/lib/money";
 import { productDisplayLabel } from "@/lib/productLexicon";
@@ -606,21 +607,11 @@ export function AnalyticsPatientsLtvPanel() {
       <div className="mo-section flex flex-wrap items-end gap-3 p-4">
         <label className="text-sm mo-muted">
           Когорта по первой покупке — с
-          <input
-            type="date"
-            className="mo-input mt-1"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
+          <DateField className="mt-1" value={dateFrom} onChange={setDateFrom} aria-label="Когорта с" />
         </label>
         <label className="text-sm mo-muted">
           по
-          <input
-            type="date"
-            className="mo-input mt-1"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-          />
+          <DateField className="mt-1" value={dateTo} onChange={setDateTo} aria-label="Когорта по" />
         </label>
         <button
           type="button"

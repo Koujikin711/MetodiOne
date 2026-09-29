@@ -35,9 +35,57 @@ function joinLocal(date: string, hour: number, minute: number): string {
   return `${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-/** Только цифры и разделители даты/времени — буквы отсекаем сразу. */
-function sanitizeDateTimeDraft(raw: string): string {
-  return raw.replace(/[^\d./,: ]/g, "").slice(0, 18);
+function dateTimeDigits(raw: string): string {
+  return raw.replace(/\D/g, "").slice(0, 12);
+}
+
+function caretAfterDateTimeDigits(masked: string, digitCount: number): number {
+  if (digitCount <= 0) return 0;
+  let seen = 0;
+  for (let i = 0; i < masked.length; i++) {
+    const ch = masked[i] ?? "";
+    if (ch >= "0" && ch <= "9") {
+      seen += 1;
+      if (seen === digitCount) {
+        let j = i + 1;
+        while (j < masked.length && "., :".includes(masked[j] ?? "")) j += 1;
+        return j;
+      }
+    }
+  }
+  return masked.length;
+}
+
+/** «ДД.ММ.ГГГГ, ЧЧ:ММ»: точки, запятая и двоеточие по мере набора. */
+export function maskDateTimeDraft(
+  raw: string,
+  previous: string,
+  cursor: number,
+): { text: string; caret: number } {
+  const prevDigits = dateTimeDigits(previous);
+  let digits = dateTimeDigits(raw);
+  const removedSeparator = raw.length < previous.length && digits.length === prevDigits.length;
+  const digitsBeforeRaw = dateTimeDigits(raw.slice(0, Math.max(0, cursor))).length;
+  if (removedSeparator) {
+    const dropAt = Math.max(0, digitsBeforeRaw - 1);
+    digits = `${digits.slice(0, dropAt)}${digits.slice(dropAt + 1)}`;
+  }
+  const deleting = digits.length < prevDigits.length || removedSeparator;
+  let text = "";
+  for (let i = 0; i < digits.length; i++) {
+    if (i === 2 || i === 4) text += ".";
+    if (i === 8) text += ", ";
+    if (i === 10) text += ":";
+    text += digits[i];
+  }
+  if (!deleting && (digits.length === 2 || digits.length === 4)) text += ".";
+  if (!deleting && digits.length === 8) text += ", ";
+  if (!deleting && digits.length === 10) text += ":";
+  const digitsBefore = removedSeparator ? Math.max(0, digitsBeforeRaw - 1) : digitsBeforeRaw;
+  return {
+    text,
+    caret: caretAfterDateTimeDigits(text, Math.min(digitsBefore, digits.length)),
+  };
 }
 
 /** Разбор «ДД.ММ.ГГГГ, ЧЧ:ММ» / «ДД.ММ.ГГГГ ЧЧ:ММ» / «ДД.ММ.ГГГГ». */
@@ -96,12 +144,22 @@ export function DateTimeField({
   const [focused, setFocused] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const caretRef = useRef<number | null>(null);
   const timeListRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null);
 
   useEffect(() => {
     if (!focused) setDraft(formatDisplay(value));
   }, [value, focused]);
+
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!focused || caretRef.current == null || !el) return;
+    const pos = caretRef.current;
+    caretRef.current = null;
+    el.setSelectionRange(pos, pos);
+  }, [draft, focused]);
 
   const parsed = parseLocal(value);
   const datePart = parsed?.date ?? todayYmd();
@@ -267,6 +325,7 @@ export function DateTimeField({
         ].join(" ")}
       >
         <input
+          ref={inputRef}
           id={id}
           type="text"
           inputMode="numeric"
@@ -275,7 +334,17 @@ export function DateTimeField({
           aria-label={ariaLabel}
           placeholder="ДД.ММ.ГГГГ, --:--"
           value={draft}
-          onChange={(e) => setDraft(sanitizeDateTimeDraft(e.target.value))}
+          onChange={(e) => {
+            const el = e.target;
+            const cursor = el.selectionStart ?? el.value.length;
+            const next = maskDateTimeDraft(el.value, draft, cursor);
+            caretRef.current = next.caret;
+            setDraft(next.text);
+            if (next.text.replace(/\D/g, "").length === 12) {
+              const iso = parseTypedDateTime(next.text);
+              if (iso) onChange(iso);
+            }
+          }}
           onFocus={() => setFocused(true)}
           onBlur={() => {
             setFocused(false);

@@ -26,9 +26,49 @@ function formatDisplay(iso: string): string {
   return `${d}.${m}.${y}`;
 }
 
-/** Только цифры и разделители даты — буквы отсекаем сразу. */
-function sanitizeDateDraft(raw: string): string {
-  return raw.replace(/[^\d./]/g, "").slice(0, 10);
+function dateDigits(raw: string): string {
+  return raw.replace(/\D/g, "").slice(0, 8);
+}
+
+function caretAfterDateDigits(masked: string, digitCount: number): number {
+  if (digitCount <= 0) return 0;
+  let seen = 0;
+  for (let i = 0; i < masked.length; i++) {
+    const ch = masked[i] ?? "";
+    if (ch >= "0" && ch <= "9") {
+      seen += 1;
+      if (seen === digitCount) {
+        if (masked[i + 1] === ".") return i + 2;
+        return i + 1;
+      }
+    }
+  }
+  return masked.length;
+}
+
+/** ДД.ММ.ГГГГ: точки после дня и месяца. Стирание точки убирает цифру перед ней. */
+export function maskDateDraft(
+  raw: string,
+  previous: string,
+  cursor: number,
+): { text: string; caret: number } {
+  const prevDigits = dateDigits(previous);
+  let digits = dateDigits(raw);
+  const removedSeparator = raw.length < previous.length && digits.length === prevDigits.length;
+  const digitsBeforeRaw = dateDigits(raw.slice(0, Math.max(0, cursor))).length;
+  if (removedSeparator) {
+    const dropAt = Math.max(0, digitsBeforeRaw - 1);
+    digits = `${digits.slice(0, dropAt)}${digits.slice(dropAt + 1)}`;
+  }
+  const deleting = digits.length < prevDigits.length || removedSeparator;
+  let text = "";
+  for (let i = 0; i < digits.length; i++) {
+    if (i === 2 || i === 4) text += ".";
+    text += digits[i];
+  }
+  if (!deleting && (digits.length === 2 || digits.length === 4)) text += ".";
+  const digitsBefore = removedSeparator ? Math.max(0, digitsBeforeRaw - 1) : digitsBeforeRaw;
+  return { text, caret: caretAfterDateDigits(text, Math.min(digitsBefore, digits.length)) };
 }
 
 /** Разбор «ДД.ММ.ГГГГ» / «ДД/ММ/ГГ». */
@@ -70,11 +110,21 @@ export function DateField({
   const [focused, setFocused] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const caretRef = useRef<number | null>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null);
 
   useEffect(() => {
     if (!focused) setDraft(formatDisplay(value));
   }, [value, focused]);
+
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!focused || caretRef.current == null || !el) return;
+    const pos = caretRef.current;
+    caretRef.current = null;
+    el.setSelectionRange(pos, pos);
+  }, [draft, focused]);
 
   useEffect(() => {
     if (!open) return;
@@ -242,6 +292,7 @@ export function DateField({
         ].join(" ")}
       >
         <input
+          ref={inputRef}
           id={id}
           type="text"
           inputMode="numeric"
@@ -250,7 +301,17 @@ export function DateField({
           aria-label={ariaLabel}
           placeholder={placeholder}
           value={draft}
-          onChange={(e) => setDraft(sanitizeDateDraft(e.target.value))}
+          onChange={(e) => {
+            const el = e.target;
+            const cursor = el.selectionStart ?? el.value.length;
+            const next = maskDateDraft(el.value, draft, cursor);
+            caretRef.current = next.caret;
+            setDraft(next.text);
+            if (next.text.replace(/\D/g, "").length === 8) {
+              const iso = parseTypedDate(next.text);
+              if (iso) onChange(iso);
+            }
+          }}
           onFocus={() => setFocused(true)}
           onBlur={() => {
             setFocused(false);
