@@ -8,13 +8,22 @@ without rewriting UI (currently purchase-based, NOT fully-paid cutover).
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ChatThread, Lead, LeadWaitingCallback, PatientJourney, PatientPurchase, User
+from app.models import (
+    ChatThread,
+    Lead,
+    LeadWaitingCallback,
+    PatientPurchase,
+    PatientPurchasePayment,
+    User,
+)
+from app.services.booking_patient_name import display_patient_identity, load_booking_identity_by_lead
 from app.services.patient_journey import purchase_is_fulfilled
 from app.services.product_lexicon import product_display_label
 
@@ -25,6 +34,7 @@ Course15QueueState = Literal[
     "converted_to_protocol",
 ]
 
+COURSE15_TERM_DAYS = 15
 NEXT_PROGRAM_KINDS = frozenset({"main_course", "protocol"})
 ACTIVE_QUEUE_STATES = frozenset({"active", "waiting_next_step"})
 
@@ -121,6 +131,14 @@ def classify_course15_queue_state(
     }
 
 
+def course15_term_from_last_payment(last_paid_at: datetime | None) -> tuple[datetime | None, datetime | None]:
+    """Начало = последняя оплата. Окончание = эта дата + 15 дней."""
+    start = _utc(last_paid_at)
+    if start is None:
+        return None, None
+    return start, start + timedelta(days=COURSE15_TERM_DAYS)
+
+
 def next_step_label(state: Course15QueueState) -> str:
     if state == "active":
         return "в процессе Курс 15"
@@ -196,6 +214,7 @@ async def build_course15_queue(
                 "converted_to_course": 0,
                 "converted_to_protocol": 0,
                 "requires_attention": 0,
+                "pending_admin": 0,
             },
             "rows": [],
         }
@@ -205,16 +224,6 @@ async def build_course15_queue(
         await db.execute(select(Lead).where(Lead.company_id == company_id, Lead.id.in_(lead_ids)))
     ).scalars().all()
     lead_map = {int(l.id): l for l in leads}
-
-    journeys = (
-        await db.execute(
-            select(PatientJourney).where(
-                PatientJourney.company_id == company_id,
-                PatientJourney.lead_id.in_(lead_ids),
-            ),
-        )
-    ).scalars().all()
-    journey_map = {int(j.lead_id): j for j in journeys}
 
     mgr_ids = [int(l.manager_id) for l in leads if l.manager_id is not None]
     mgr_map: dict[int, str] = {}
@@ -271,6 +280,40 @@ async def build_course15_queue(
         if prev is None or u > prev:
             chat_last[int(lid)] = u
 
+    from app.services.curator_program_request import pending_program_by_lead, program_label
+
+    booking_by_lead = await load_booking_identity_by_lead(db, company_id=company_id, lead_ids=lead_ids)
+    pending_by_lead = await pending_program_by_lead(db, company_id=company_id, lead_ids=lead_ids)
+
+    c15_purchase_lead: dict[int, int] = {}
+    for lid, plist in by_lead.items():
+        for purchase in plist:
+            if course15_purchase_counts(purchase):
+                c15_purchase_lead[int(purchase.id)] = lid
+    last_paid_by_lead: dict[int, datetime] = {}
+    if c15_purchase_lead:
+        pay_rows = (
+            await db.execute(
+                select(PatientPurchasePayment).where(
+                    PatientPurchasePayment.company_id == company_id,
+                    PatientPurchasePayment.purchase_id.in_(list(c15_purchase_lead)),
+                    PatientPurchasePayment.is_refund.is_(False),
+                ),
+            )
+        ).scalars().all()
+        for pay in pay_rows:
+            if Decimal(str(pay.amount or 0)) <= 0:
+                continue
+            owner = c15_purchase_lead.get(int(pay.purchase_id))
+            if owner is None:
+                continue
+            paid_at = _utc(pay.paid_at)
+            if paid_at is None:
+                continue
+            prev = last_paid_by_lead.get(owner)
+            if prev is None or paid_at > prev:
+                last_paid_by_lead[owner] = paid_at
+
     term = (q or "").strip().casefold()
     dig_term = "".join(ch for ch in term if ch.isdigit())
     rows: list[dict] = []
@@ -280,17 +323,22 @@ async def build_course15_queue(
         "converted_to_course": 0,
         "converted_to_protocol": 0,
         "requires_attention": 0,
+        "pending_admin": 0,
     }
 
     for lid, info in classified:
         lead = lead_map.get(lid)
         if lead is None:
             continue
-        name = (lead.name or "").strip() or f"Lead #{lid}"
-        phone = lead.phone
+        name, phone = display_patient_identity(
+            lead_name=lead.name,
+            lead_phone=lead.phone,
+            booking=booking_by_lead.get(lid),
+        )
         if term:
             dig_p = "".join(ch for ch in (phone or "") if ch.isdigit())
-            name_ok = term in name.casefold()
+            lead_name = (lead.name or "").casefold()
+            name_ok = term in name.casefold() or term in lead_name
             id_ok = term in str(lid)
             phone_ok = bool(dig_term) and len(dig_term) >= 3 and dig_term in dig_p
             if not (name_ok or id_ok or phone_ok):
@@ -299,17 +347,17 @@ async def build_course15_queue(
         state: Course15QueueState = info["state"]
         counts[state] = counts.get(state, 0) + 1
 
-        j = journey_map.get(lid)
-        started = (j and _utc(j.course_15_started_at)) or info["course15_started_at"]
-        # End only when Journey has completed_at — never invent duration
-        ended = _utc(j.course_15_completed_at) if j and j.course_15_completed_at else None
-        if state == "active":
-            ended = None
+        started, ended = course15_term_from_last_payment(last_paid_by_lead.get(lid))
 
         next_c = next_by_lead.get(lid)
         last_c = last_cb_by_lead.get(lid) or chat_last.get(lid)
+        pending = pending_by_lead.get(lid)
         attn, attn_reason = requires_attention(state=state, next_contact_at=next_c, now=now)
-        if attn:
+        if pending and state in ACTIVE_QUEUE_STATES:
+            attn = False
+            attn_reason = f"{program_label(pending)} ждёт оплату админа"
+            counts["pending_admin"] += 1
+        elif attn:
             counts["requires_attention"] += 1
 
         rows.append(
@@ -328,10 +376,14 @@ async def build_course15_queue(
                 "started_at": started,
                 "ended_at": ended,
                 "manager_name": mgr_map.get(int(lead.manager_id)) if lead.manager_id else None,
+                "manager_user_id": int(lead.manager_id) if lead.manager_id else None,
                 "responsible_name": mgr_map.get(int(lead.manager_id)) if lead.manager_id else None,
                 "last_contact_at": last_c,
                 "next_contact_at": next_c,
-                "next_step": next_step_label(state),
+                "next_step": (
+                    f"{program_label(pending)} — у админа" if pending else next_step_label(state)
+                ),
+                "pending_program": pending,
                 "requires_attention": attn,
                 "attention_reason": attn_reason,
                 "anchor_purchase_id": info["anchor_purchase_id"],
@@ -343,6 +395,7 @@ async def build_course15_queue(
     order = {"waiting_next_step": 0, "active": 1, "converted_to_course": 2, "converted_to_protocol": 3}
     rows.sort(
         key=lambda r: (
+            1 if r.get("pending_program") else 0,
             0 if r["requires_attention"] else 1,
             order.get(r["state"], 9),
             (r["patient_name"] or "").casefold(),

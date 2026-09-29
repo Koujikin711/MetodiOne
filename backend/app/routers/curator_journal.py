@@ -44,6 +44,8 @@ from app.schemas.curator_journal import (
     MembershipOut,
     MembershipTransfer,
     MonthJournalOut,
+    ProgramRequestCreate,
+    ProgramRequestOut,
     ProtocolQueueOut,
     ProtocolQueueRowOut,
     RecurringComplaintOut,
@@ -302,6 +304,49 @@ def _entry_out(
 
 
 # ── curators list ──────────────────────────────────────────────
+
+
+@router.post("/program-requests", response_model=ProgramRequestOut, status_code=status.HTTP_201_CREATED)
+async def create_curator_program_request(
+    body: ProgramRequestCreate,
+    user: CurrentUser,
+    company_id: CurrentCompanyId,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ProgramRequestOut:
+    """Куратор подтверждает Курс или Протокол. Оплату не принимает."""
+    assert_journal_access(user)
+    from app.services.curator_program_request import create_program_request, program_label
+
+    row = await create_program_request(
+        db,
+        company_id=company_id,
+        lead_id=int(body.lead_id),
+        program_kind=body.program_kind.strip(),
+        user=user,
+    )
+    return ProgramRequestOut(
+        id=int(row.id),
+        lead_id=int(row.lead_id),
+        program_kind=row.program_kind,
+        program_label=program_label(row.program_kind),
+        patient_name=row.patient_name,
+        patient_phone=row.patient_phone,
+        manager_user_id=int(row.manager_user_id) if row.manager_user_id else None,
+        created_at=row.created_at,
+    )
+
+
+@router.delete("/program-requests/{lead_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def withdraw_curator_program_request(
+    lead_id: int,
+    user: CurrentUser,
+    company_id: CurrentCompanyId,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    assert_journal_access(user)
+    from app.services.curator_program_request import withdraw_program_request
+
+    await withdraw_program_request(db, company_id=company_id, lead_id=lead_id)
 
 
 @router.get("/course15-queue", response_model=Course15QueueOut)

@@ -411,6 +411,24 @@ export function KpiPage() {
     enabled: Boolean(pipelineId && isAdminOrOwner && tab === "manual"),
   });
 
+  const programRequestsQuery = useQuery({
+    queryKey: ["sales-kpi-program-requests"],
+    queryFn: () =>
+      apiFetch<
+        {
+          id: number;
+          lead_id: number;
+          program_kind: string;
+          program_label: string;
+          patient_name: string;
+          patient_phone: string;
+          manager_user_id?: number | null;
+          manager_name?: string | null;
+        }[]
+      >("/api/sales-kpi/program-requests"),
+    enabled: Boolean(isAdminOrOwner && tab === "manual"),
+  });
+
   const paymentJournalQuery = useQuery({
     queryKey: ["sales-kpi-payment-journal", pipelineId],
     queryFn: () =>
@@ -548,8 +566,8 @@ export function KpiPage() {
     onSuccess: () => {
       toast.success(
         selectedLead
-          ? `Продажа добавлена · Lead #${selectedLead.lead_id}`
-          : "Продажа добавлена без Lead (unresolved)",
+          ? `Продажа добавлена · #${selectedLead.lead_id}`
+          : "Продажа добавлена без привязки к пациенту",
       );
       setSaleForm({
         plan_item_id: "",
@@ -572,9 +590,52 @@ export function KpiPage() {
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-payment-journal"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-program-requests"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const dismissRequestMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch(`/api/sales-kpi/program-requests/${id}/dismiss`, { method: "POST" }),
+    onSuccess: () => {
+      toast.success("Заявка снята");
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-program-requests"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function fillFromCuratorRequest(req: {
+    lead_id: number;
+    program_kind: string;
+    program_label: string;
+    patient_name: string;
+    patient_phone: string;
+    manager_user_id?: number | null;
+    manager_name?: string | null;
+  }) {
+    const item = (planQuery.data?.items ?? [])
+      .filter((it) => it.source_type === "manual")
+      .find((it) => {
+        const n = it.name.toLowerCase();
+        if (req.program_kind === "protocol") return n.includes("протокол");
+        return n.includes("курс") && !n.includes("15");
+      });
+    setSelectedLead({
+      lead_id: req.lead_id,
+      name: req.patient_name,
+      phone: req.patient_phone,
+      manager_name: req.manager_name,
+    });
+    setLeadFromContext(true);
+    setSaleForm((s) => ({
+      ...s,
+      client_name: req.patient_name,
+      client_phone: req.patient_phone,
+      plan_item_id: item ? String(item.id) : s.plan_item_id,
+      manager_user_id: req.manager_user_id ? String(req.manager_user_id) : s.manager_user_id,
+    }));
+  }
 
   const linkLeadMutation = useMutation({
     mutationFn: async ({ id, leadId }: { id: number; leadId: number }) => {
@@ -1245,6 +1306,48 @@ export function KpiPage() {
                 : "Без онлайн-записи. В бонус/KPI идёт только первый платёж (≥25%). Доплаты уменьшают остаток и пишутся в журнал. В дебиторку остаток попадает через месяц после первой оплаты."}
             </p>
           </div>
+
+          {(programRequestsQuery.data ?? []).length > 0 ? (
+            <div className="space-y-2 rounded-xl border border-[var(--mo-border)] p-3">
+              <p className="text-sm font-semibold text-[var(--mo-text)]">От куратора — подтвердить и принять оплату</p>
+              <p className="text-[11px] mo-muted">
+                Имя из онлайн-записи. Сумму, поток, этап и платежи заполняет админ в форме ниже.
+              </p>
+              <ul className="space-y-2">
+                {(programRequestsQuery.data ?? []).map((req) => (
+                  <li
+                    key={req.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--mo-border)] px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{req.patient_name}</p>
+                      <p className="text-[11px] tabular-nums mo-muted">
+                        {req.patient_phone || "—"} · #{req.lead_id} · {req.program_label}
+                        {req.manager_name ? ` · ${req.manager_name}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="btn-primary px-3 py-1.5 text-xs"
+                        onClick={() => fillFromCuratorRequest(req)}
+                      >
+                        В форму
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary px-3 py-1.5 text-xs"
+                        disabled={dismissRequestMutation.isPending}
+                        onClick={() => dismissRequestMutation.mutate(req.id)}
+                      >
+                        Не продаём
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {manualPlanItems.length === 0 ? (
             <p className="text-sm text-amber-200/90">

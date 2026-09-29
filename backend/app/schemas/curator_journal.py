@@ -283,6 +283,26 @@ class Course15QueueRowOut(BaseModel):
     attention_reason: str | None = None
     anchor_purchase_id: int | None = None
     next_program_kind: str | None = None
+    pending_program: str | None = None
+    manager_user_id: int | None = None
+
+
+class ProgramRequestCreate(BaseModel):
+    lead_id: int
+    program_kind: str
+
+
+class ProgramRequestOut(BaseModel):
+    id: int
+    lead_id: int
+    program_kind: str
+    program_label: str
+    patient_name: str
+    patient_phone: str
+    manager_user_id: int | None = None
+    manager_name: str | None = None
+    requested_by_name: str = ""
+    created_at: datetime | None = None
 
 
 class Course15QueueOut(BaseModel):
@@ -302,7 +322,7 @@ class ProtocolQueuePreviousOut(BaseModel):
 
 
 class ProtocolQueueRowOut(BaseModel):
-    lead_id: int
+    lead_id: int | None = None
     patient_name: str
     patient_phone: str | None = None
     product_label: str

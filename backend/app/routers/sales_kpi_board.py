@@ -897,6 +897,34 @@ async def search_leads_for_manual_sale(
     )
 
 
+@router.get("/program-requests")
+async def list_curator_program_requests(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[dict]:
+    """Заявки куратора: админ подтверждает и принимает оплату в форме курса/протокола."""
+    _assert_kpi_access(current_user)
+    _assert_admin_or_owner(current_user)
+    from app.services.curator_program_request import list_pending_requests
+
+    return await list_pending_requests(db, company_id=company_id)
+
+
+@router.post("/program-requests/{request_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
+async def dismiss_curator_program_request(
+    request_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> None:
+    _assert_kpi_access(current_user)
+    _assert_admin_or_owner(current_user)
+    from app.services.curator_program_request import dismiss_program_request
+
+    await dismiss_program_request(db, company_id=company_id, request_id=request_id)
+
+
 @router.post("/manual-sales", response_model=SalesKpiManualSaleOut, status_code=status.HTTP_201_CREATED)
 async def create_manual_sale(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -993,6 +1021,18 @@ async def create_manual_sale(
             f"lead_id={link_lead_id!r}; client={sale.client_name!r}; "
             f"phone={sale.client_phone!r}; service={sale.service_amount}; paid={total_paid}"
         ),
+    )
+    await db.flush()
+    from app.services.curator_program_request import accept_requests_for_sale
+    from app.services.patient_ltv import mirror_manual_sale_purchase
+
+    await mirror_manual_sale_purchase(db, sale=sale, item_name=item.name)
+    await accept_requests_for_sale(
+        db,
+        company_id=company_id,
+        lead_id=link_lead_id,
+        product_name=item.name,
+        sale_id=int(sale.id),
     )
     await db.commit()
     await db.refresh(sale)
@@ -1137,6 +1177,19 @@ async def link_manual_sale_lead(
         action="link_lead",
         current_user=current_user,
         details=f"lead_id: {before_lead!r} → {int(lead.id)}; client={sale.client_name!r}",
+    )
+    item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    await db.flush()
+    from app.services.curator_program_request import accept_requests_for_sale
+    from app.services.patient_ltv import mirror_manual_sale_purchase
+
+    await mirror_manual_sale_purchase(db, sale=sale, item_name=item.name if item else "")
+    await accept_requests_for_sale(
+        db,
+        company_id=company_id,
+        lead_id=int(sale.lead_id) if sale.lead_id is not None else None,
+        product_name=item.name if item else "",
+        sale_id=int(sale.id),
     )
     await db.commit()
     await db.refresh(sale)

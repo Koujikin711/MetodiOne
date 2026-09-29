@@ -10,6 +10,7 @@ from app.services.protocol_queue import (
     ACTIVE_QUEUE_STATES,
     PROTOCOL_DURATION_DAYS,
     classify_protocol_episodes,
+    protocol_sale_ids_already_linked,
     requires_attention,
 )
 
@@ -122,6 +123,14 @@ def test_requires_attention_rules():
         state="active", days_remaining=20, next_contact_at=past,
     )
     assert ok3
+
+
+def test_unlinked_protocol_sale_is_not_treated_as_already_in_queue():
+    linked = _p(id=5, at=datetime(2026, 9, 1, tzinfo=UTC))
+    unlinked = _p(id=6, at=datetime(2026, 9, 2, tzinfo=UTC))
+    unlinked.lead_id = None
+    course = _p(id=7, at=datetime(2026, 9, 3, tzinfo=UTC), kind="main_course", name="Курс")
+    assert protocol_sale_ids_already_linked([linked, unlinked, course]) == {5}
 
 
 def test_returned_protocol_excluded():

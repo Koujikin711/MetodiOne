@@ -13,7 +13,17 @@ from typing import Literal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ChatThread, Lead, LeadWaitingCallback, PatientPurchase, User
+from app.models import (
+    ChatThread,
+    Lead,
+    LeadWaitingCallback,
+    PatientPurchase,
+    SalesKpiManualSale,
+    SalesKpiPlanItem,
+    User,
+)
+from app.services.booking_patient_name import display_patient_identity, load_booking_identity_by_lead
+from app.services.patient_ltv import classify_product_kind
 from app.services.product_lexicon import product_display_label
 
 ProtocolQueueState = Literal[
@@ -42,7 +52,18 @@ def protocol_purchase_counts(p: PatientPurchase) -> bool:
     if (p.product_kind or "") != "protocol":
         return False
     st = (p.status or "").strip()
-    return st not in ("cancelled", "returned")
+    return st not in ("cancelled", "returned", "refused")
+
+
+def protocol_sale_ids_already_linked(purchases: list[PatientPurchase]) -> set[int]:
+    """KPI-продажа уже есть в очереди, если по ней есть покупка с пациентом."""
+    return {
+        int(p.source_id)
+        for p in purchases
+        if (p.source_type or "") == "kpi_manual_sale"
+        and p.lead_id is not None
+        and protocol_purchase_counts(p)
+    }
 
 
 def classify_protocol_episodes(
@@ -169,6 +190,44 @@ async def build_protocol_queue(
     for p in purchases:
         by_lead[int(p.lead_id)].append(p)
 
+    already = protocol_sale_ids_already_linked(purchases)
+    sale_rows = (
+        await db.execute(
+            select(SalesKpiManualSale, SalesKpiPlanItem.name, User.full_name)
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .outerjoin(User, User.id == SalesKpiManualSale.manager_user_id)
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.status.notin_(("returned", "refused", "cancelled")),
+            ),
+        )
+    ).all()
+    unlinked: list[tuple[PatientPurchase, str]] = []
+    for sale, item_name, mgr_name in sale_rows:
+        if classify_product_kind(item_name) != "protocol":
+            continue
+        if int(sale.id) in already:
+            continue
+        synthetic = PatientPurchase(
+            id=-int(sale.id),
+            company_id=company_id,
+            lead_id=int(sale.lead_id) if sale.lead_id is not None else None,
+            source_type="kpi_manual_sale",
+            source_id=int(sale.id),
+            product_kind="protocol",
+            product_name=str(item_name or "Протокол"),
+            service_amount=sale.service_amount or 0,
+            paid_amount=sale.paid_amount or 0,
+            status=(sale.status or "active").strip(),
+            purchased_at=sale.sold_at,
+            client_name=sale.client_name,
+            client_phone=sale.client_phone,
+        )
+        if sale.lead_id is not None:
+            by_lead[int(sale.lead_id)].append(synthetic)
+        else:
+            unlinked.append((synthetic, str(mgr_name or "").strip()))
+
     now = datetime.now(UTC)
     # (lead_id, episode_info)
     classified: list[tuple[int, dict]] = []
@@ -188,7 +247,8 @@ async def build_protocol_queue(
         "note": (
             "Очередь Протоколов: контроль 30-дневного срока и следующей продажи. "
             "Без daily Дневник/Фото/Жалоба. Multi-state: Курс может идти параллельно. "
-            "Каждый Protocol #N — отдельная строка."
+            "Каждый Protocol #N — отдельная строка. "
+            "Показаны уже купленные протоколы, в том числе без привязки к пациенту."
         ),
         "counts": {
             "active": 0,
@@ -199,13 +259,15 @@ async def build_protocol_queue(
         },
         "rows": [],
     }
-    if not classified:
+    if not classified and not unlinked:
         return empty
 
     lead_ids = sorted({lid for lid, _ in classified})
-    leads = (
-        await db.execute(select(Lead).where(Lead.company_id == company_id, Lead.id.in_(lead_ids)))
-    ).scalars().all()
+    leads = []
+    if lead_ids:
+        leads = (
+            await db.execute(select(Lead).where(Lead.company_id == company_id, Lead.id.in_(lead_ids)))
+        ).scalars().all()
     lead_map = {int(l.id): l for l in leads}
 
     mgr_ids = [int(l.manager_id) for l in leads if l.manager_id is not None]
@@ -216,15 +278,17 @@ async def build_protocol_queue(
         ).all():
             mgr_map[int(uid)] = str(fname or email or f"#{uid}")
 
-    cbs = (
-        await db.execute(
-            select(LeadWaitingCallback).where(
-                LeadWaitingCallback.company_id == company_id,
-                LeadWaitingCallback.lead_id.in_(lead_ids),
-                LeadWaitingCallback.status == "scheduled",
-            ),
-        )
-    ).scalars().all()
+    cbs = []
+    if lead_ids:
+        cbs = (
+            await db.execute(
+                select(LeadWaitingCallback).where(
+                    LeadWaitingCallback.company_id == company_id,
+                    LeadWaitingCallback.lead_id.in_(lead_ids),
+                    LeadWaitingCallback.status == "scheduled",
+                ),
+            )
+        ).scalars().all()
     next_by_lead: dict[int, datetime] = {}
     last_cb_by_lead: dict[int, datetime] = {}
     for cb in cbs:
@@ -241,14 +305,16 @@ async def build_protocol_queue(
             if prev is None or at > prev:
                 last_cb_by_lead[lid] = at
 
-    threads = (
-        await db.execute(
-            select(ChatThread.lead_id, ChatThread.updated_at).where(
-                ChatThread.company_id == company_id,
-                ChatThread.lead_id.in_(lead_ids),
-            ),
-        )
-    ).all()
+    threads = []
+    if lead_ids:
+        threads = (
+            await db.execute(
+                select(ChatThread.lead_id, ChatThread.updated_at).where(
+                    ChatThread.company_id == company_id,
+                    ChatThread.lead_id.in_(lead_ids),
+                ),
+            )
+        ).all()
     chat_last: dict[int, datetime] = {}
     for lid, upd in threads:
         if lid is None or upd is None:
@@ -259,6 +325,8 @@ async def build_protocol_queue(
         prev = chat_last.get(int(lid))
         if prev is None or u > prev:
             chat_last[int(lid)] = u
+
+    booking_by_lead = await load_booking_identity_by_lead(db, company_id=company_id, lead_ids=lead_ids) if lead_ids else {}
 
     term = (q or "").strip().casefold()
     dig_term = "".join(ch for ch in term if ch.isdigit())
@@ -275,11 +343,15 @@ async def build_protocol_queue(
         lead = lead_map.get(lid)
         if lead is None:
             continue
-        name = (lead.name or "").strip() or f"Lead #{lid}"
-        phone = lead.phone
+        name, phone = display_patient_identity(
+            lead_name=lead.name,
+            lead_phone=lead.phone,
+            booking=booking_by_lead.get(lid),
+        )
         if term:
             dig_p = "".join(ch for ch in (phone or "") if ch.isdigit())
-            name_ok = term in name.casefold()
+            lead_name = (lead.name or "").casefold()
+            name_ok = term in name.casefold() or term in lead_name
             id_ok = term in str(lid)
             phone_ok = bool(dig_term) and len(dig_term) >= 3 and dig_term in dig_p
             if not (name_ok or id_ok or phone_ok):
@@ -333,6 +405,63 @@ async def build_protocol_queue(
                 "purchase_id": info["purchase_id"],
             },
         )
+
+    state_labels = {
+        "active": "В сроке",
+        "ending_soon": "Скоро конец",
+        "ended_waiting_next": "Срок вышел — ждёт следующий",
+        "next_protocol_sold": "Следующий Протокол куплен",
+    }
+    for synthetic, mgr_name in unlinked:
+        for info in classify_protocol_episodes(
+            [synthetic], now=now, ending_soon_days=ending_soon_days,
+        ):
+            if not include_converted and info["state"] not in ACTIVE_QUEUE_STATES:
+                continue
+            name = (synthetic.client_name or "").strip() or "—"
+            phone = (synthetic.client_phone or "").strip()
+            if term:
+                dig_p = "".join(ch for ch in phone if ch.isdigit())
+                name_ok = term in name.casefold()
+                phone_ok = bool(dig_term) and len(dig_term) >= 3 and dig_term in dig_p
+                if not (name_ok or phone_ok):
+                    continue
+            state = info["state"]
+            counts[state] = counts.get(state, 0) + 1
+            days_rem = int(info["days_remaining"])
+            attn, attn_reason = requires_attention(
+                state=state,
+                days_remaining=days_rem,
+                next_contact_at=None,
+                now=now,
+            )
+            if attn:
+                counts["requires_attention"] += 1
+            rows.append(
+                {
+                    "lead_id": None,
+                    "patient_name": name,
+                    "patient_phone": phone or None,
+                    "product_label": product_display_label("protocol", info.get("product_name")),
+                    "sequence_no": info["sequence_no"],
+                    "protocols_count": info["protocols_count"],
+                    "state": state,
+                    "state_label": state_labels.get(state, state),
+                    "started_at": info["started_at"],
+                    "expected_end_at": info["expected_end_at"],
+                    "days_remaining": days_rem,
+                    "previous_protocols_label": "—",
+                    "previous_protocols": info["previous_protocols"],
+                    "manager_name": mgr_name or None,
+                    "responsible_name": mgr_name or None,
+                    "last_contact_at": None,
+                    "next_contact_at": None,
+                    "next_sale_status": next_sale_label(state),
+                    "requires_attention": attn,
+                    "attention_reason": attn_reason,
+                    "purchase_id": int(synthetic.source_id),
+                },
+            )
 
     order = {
         "ended_waiting_next": 0,

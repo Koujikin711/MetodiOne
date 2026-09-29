@@ -4258,3 +4258,53 @@ async def ensure_patient_journey_tables(conn: AsyncConnection, database_url: str
     await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_patient_journeys_lead_id ON patient_journeys (lead_id)"))
     await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_patient_journey_episodes_lead_id ON patient_journey_episodes (lead_id)"))
     await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_patient_journey_events_lead_id ON patient_journey_events (lead_id)"))
+
+
+async def ensure_curator_program_requests(conn: AsyncConnection, database_url: str) -> None:
+    """Заявка куратора на Курс/Протокол — оплату заполняет админ."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_program_requests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    lead_id INTEGER NOT NULL,
+                    program_kind VARCHAR(24) NOT NULL,
+                    status VARCHAR(24) NOT NULL DEFAULT 'pending',
+                    patient_name VARCHAR(255) NOT NULL DEFAULT '',
+                    patient_phone VARCHAR(64) NOT NULL DEFAULT '',
+                    manager_user_id INTEGER,
+                    requested_by_user_id INTEGER,
+                    sale_id INTEGER,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_program_requests (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+                    program_kind VARCHAR(24) NOT NULL,
+                    status VARCHAR(24) NOT NULL DEFAULT 'pending',
+                    patient_name VARCHAR(255) NOT NULL DEFAULT '',
+                    patient_phone VARCHAR(64) NOT NULL DEFAULT '',
+                    manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    requested_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    sale_id INTEGER REFERENCES sales_kpi_manual_sales(id) ON DELETE SET NULL,
+                    created_at TIMESTAMPTZ,
+                    updated_at TIMESTAMPTZ
+                )"""
+            ),
+        )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_curator_program_requests_company ON curator_program_requests (company_id, status)"),
+    )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_curator_program_requests_lead ON curator_program_requests (lead_id)"),
+    )

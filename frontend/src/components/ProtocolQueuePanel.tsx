@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
 
 type ProtocolRow = {
-  lead_id: number;
+  lead_id: number | null;
   patient_name: string;
   patient_phone?: string | null;
   product_label: string;
@@ -81,8 +81,8 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
               Протоколы — срок {data?.duration_days ?? 30} дней
             </h2>
             <p className="mt-1 max-w-2xl text-xs mo-muted">
-              Контроль окончания срока и следующей продажи Протокола. Без ежедневного дневника,
-              фото и жалоб. Курс может идти параллельно (multi-state).
+              Кто уже купил Протокол. Срок 30 дней с даты продажи. Без привязки к карточке
+              человек тоже виден — по имени из продажи.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
@@ -107,7 +107,7 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
             <input
               className="mo-input mt-1 min-w-[14rem]"
               value={q}
-              placeholder="ФИО / телефон / Lead #"
+              placeholder="ФИО / телефон / #"
               onChange={(e) => setQ(e.target.value)}
             />
           </label>
@@ -172,14 +172,19 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
                   ].join(" ")}
                 >
                   <td className="px-3 py-2.5">
-                    <Link
-                      to={`/leads/${r.lead_id}`}
-                      className="font-semibold text-[var(--mo-accent-hover)] hover:underline"
-                    >
-                      {r.patient_name}
-                    </Link>
+                    {r.lead_id ? (
+                      <Link
+                        to={`/leads/${r.lead_id}`}
+                        className="font-semibold text-[var(--mo-accent-hover)] hover:underline"
+                      >
+                        {r.patient_name}
+                      </Link>
+                    ) : (
+                      <span className="font-semibold">{r.patient_name}</span>
+                    )}
                     <div className="text-[11px] tabular-nums mo-muted">
-                      {r.patient_phone || "—"} · Lead #{r.lead_id}
+                      {r.patient_phone || "—"}
+                      {r.lead_id ? ` · #${r.lead_id}` : ""}
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-xs font-medium tabular-nums">

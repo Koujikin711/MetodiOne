@@ -334,6 +334,47 @@ async def _booking_refunds_by_appointment(
     return out
 
 
+async def mirror_manual_sale_purchase(db: AsyncSession, *, sale: SalesKpiManualSale, item_name: str) -> None:
+    """Одна KPI-продажа сразу попадает в Purchase ledger, без полного sync компании."""
+    lead_id = int(sale.lead_id) if getattr(sale, "lead_id", None) is not None else None
+    pur = await _upsert_purchase(
+        db,
+        company_id=int(sale.company_id),
+        lead_id=lead_id,
+        pipeline_id=int(sale.pipeline_id) if sale.pipeline_id is not None else None,
+        source_type="kpi_manual_sale",
+        source_id=int(sale.id),
+        product_kind=classify_product_kind(item_name),
+        product_name=str(item_name or "Курс/протокол"),
+        service_amount=Decimal(str(sale.service_amount or 0)),
+        paid_amount=Decimal(str(sale.paid_amount or 0)),
+        status=(sale.status or "active").strip(),
+        purchased_at=sale.sold_at or datetime.now(UTC),
+        client_name=sale.client_name,
+        client_phone=sale.client_phone,
+    )
+    pays = (
+        await db.execute(
+            select(SalesKpiManualSalePayment).where(SalesKpiManualSalePayment.sale_id == int(sale.id)),
+        )
+    ).scalars().all()
+    for pay in pays:
+        await _upsert_payment(
+            db,
+            company_id=int(sale.company_id),
+            purchase_id=int(pur.id),
+            source_type="kpi_payment",
+            source_id=int(pay.id),
+            amount=Decimal(str(pay.amount or 0)),
+            is_refund=False,
+            paid_at=pay.paid_at or datetime.now(UTC),
+        )
+    if lead_id is not None:
+        from app.services.patient_journey import sync_journey_for_lead
+
+        await sync_journey_for_lead(db, company_id=int(sale.company_id), lead_id=lead_id)
+
+
 async def sync_company_purchases(db: AsyncSession, company_id: int) -> dict[str, int]:
     """Идемпотентный sync ledger для компании. Без phone auto-merge."""
     stats = {"purchases": 0, "payments": 0, "skipped_course_booking": 0, "booking_refunds": 0}

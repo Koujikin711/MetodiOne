@@ -172,3 +172,31 @@ class CuratorJournalComplaint(Base):
         default=_utc_now,
         server_default=func.now(),
     )
+
+
+class CuratorProgramRequest(Base):
+    """Куратор подтвердил переход на Курс или Протокол. Оплату вносит админ в KPI."""
+
+    __tablename__ = "curator_program_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    program_kind: Mapped[str] = mapped_column(String(24))
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    patient_name: Mapped[str] = mapped_column(String(255), default="")
+    patient_phone: Mapped[str] = mapped_column(String(64), default="")
+    manager_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    requested_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    sale_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sales_kpi_manual_sales.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)

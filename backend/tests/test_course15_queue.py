@@ -8,7 +8,9 @@ from decimal import Decimal
 from app.models.patient_purchase import PatientPurchase
 from app.services.course15_queue import (
     ACTIVE_QUEUE_STATES,
+    COURSE15_TERM_DAYS,
     classify_course15_queue_state,
+    course15_term_from_last_payment,
     next_program_purchase_counts,
     requires_attention,
 )
@@ -147,6 +149,14 @@ def test_case_l_unresolved_excluded_by_caller():
 def test_next_program_predicate_excludes_returned():
     p = _p(id=1, kind="main_course", name="Курс", status="returned")
     assert next_program_purchase_counts(p) is False
+
+
+def test_term_starts_on_last_payment_and_ends_15_days_later():
+    assert COURSE15_TERM_DAYS == 15
+    start, end = course15_term_from_last_payment(datetime(2026, 9, 23, tzinfo=UTC))
+    assert start == datetime(2026, 9, 23, tzinfo=UTC)
+    assert end == datetime(2026, 10, 8, tzinfo=UTC)
+    assert course15_term_from_last_payment(None) == (None, None)
 
 
 def test_requires_attention_waiting_and_overdue_contact():

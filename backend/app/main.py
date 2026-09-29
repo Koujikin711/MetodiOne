@@ -52,6 +52,7 @@ from app.database_migrate import (
     ensure_extra_services_tables,
     ensure_chat_thread_unique_external,
     ensure_curator_journal_tables,
+    ensure_curator_program_requests,
     ensure_patient_purchase_tables,
     ensure_patient_journey_tables,
 )
@@ -174,6 +175,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_fix_redistribute_keep_booking_sellers(conn, db_url)
                 await ensure_extra_services_tables(conn, db_url)
                 await ensure_curator_journal_tables(conn, db_url)
+                await ensure_curator_program_requests(conn, db_url)
                 await ensure_chat_thread_unique_external(conn, db_url)
                 await ensure_patient_purchase_tables(conn, db_url)
                 await ensure_patient_journey_tables(conn, db_url)
