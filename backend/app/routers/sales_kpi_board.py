@@ -256,6 +256,13 @@ def _payment_paid_at(value: datetime | None) -> datetime:
     return when
 
 
+def _manual_open_debt(status: str, service_amount: Decimal, paid_amount: Decimal) -> Decimal:
+    """Отказ, завершение и возврат закрывают остаток. Это уже не долг клиента."""
+    if (status or "") in ("returned", "refused", "cancelled", "completed"):
+        return Decimal("0")
+    return max(service_amount - paid_amount, Decimal("0"))
+
+
 def _manual_counts_in_kpi(service_amount: Decimal, first_paid_amount: Decimal, status: str) -> bool:
     """В KPI/бонус идёт только первый платёж (≥25% стоимости). Доплаты — только дебиторка."""
     if status != "active":
@@ -368,7 +375,7 @@ def _manual_sale_out(
         service_amount=sa,
         paid_amount=pa,
         first_paid_amount=first,
-        debt_amount=max(sa - pa, Decimal("0")),
+        debt_amount=_manual_open_debt(sale.status or "", sa, pa),
         sold_at=sale.sold_at,
         status=sale.status,
         returned_at=sale.returned_at,

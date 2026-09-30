@@ -2,7 +2,17 @@
 
 from datetime import date, datetime, timezone
 
+from decimal import Decimal
+
+from app.routers.sales_kpi_board import _manual_open_debt
 from app.services.sales_kpi_weighted import paid_at_from_input
+
+
+def test_refused_sale_has_no_remaining_debt():
+    assert _manual_open_debt("refused", Decimal("17000"), Decimal("5600")) == Decimal("0")
+    assert _manual_open_debt("returned", Decimal("3000"), Decimal("3000")) == Decimal("0")
+    assert _manual_open_debt("completed", Decimal("17000"), Decimal("5600")) == Decimal("0")
+    assert _manual_open_debt("active", Decimal("17000"), Decimal("5600")) == Decimal("11400")
 
 
 def test_paid_at_date_uses_dushanbe_noon():
