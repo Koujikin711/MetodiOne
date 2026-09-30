@@ -3899,6 +3899,17 @@ async def ensure_curator_journal_tables(conn: AsyncConnection, database_url: str
                 )"""
             ),
         )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_membership_pauses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    membership_id INTEGER NOT NULL,
+                    started_on DATE NOT NULL,
+                    ended_on DATE,
+                    created_at DATETIME
+                )"""
+            ),
+        )
     else:
         await conn.execute(
             text(
@@ -3973,6 +3984,17 @@ async def ensure_curator_journal_tables(conn: AsyncConnection, database_url: str
                 )"""
             ),
         )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS curator_membership_pauses (
+                    id SERIAL PRIMARY KEY,
+                    membership_id INTEGER NOT NULL REFERENCES curator_flow_memberships(id) ON DELETE CASCADE,
+                    started_on DATE NOT NULL,
+                    ended_on DATE,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )"""
+            ),
+        )
     await conn.execute(
         text("CREATE INDEX IF NOT EXISTS idx_curator_flows_company ON curator_course_flows(company_id, status)")
     )
@@ -3989,6 +4011,12 @@ async def ensure_curator_journal_tables(conn: AsyncConnection, database_url: str
         text(
             "CREATE INDEX IF NOT EXISTS idx_curator_complaints_entry "
             "ON curator_journal_complaints(journal_entry_id)"
+        )
+    )
+    await conn.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS idx_curator_pauses_membership "
+            "ON curator_membership_pauses(membership_id)"
         )
     )
 

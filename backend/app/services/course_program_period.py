@@ -83,6 +83,7 @@ def classify_course_program_period(
     now: date | datetime | None = None,
     ending_soon_days: int = COURSE_ENDING_SOON_DAYS_DEFAULT,
     duration_days: int = COURSE_DURATION_DAYS,
+    pause_days: int = 0,
 ) -> dict:
     """Derive Course program period for one membership."""
     if isinstance(now, datetime):
@@ -98,9 +99,10 @@ def classify_course_program_period(
         kpi_sale_id=kpi_sale_id,
         purchases=list(purchases or []),
     )
-    expected_end_on = started_on + timedelta(days=int(duration_days))
+    pause_days = max(0, int(pause_days))
+    expected_end_on = started_on + timedelta(days=int(duration_days) + pause_days)
     days_remaining = (expected_end_on - today).days
-    day_index = (today - started_on).days + 1  # 1..duration while active
+    day_index = (today - started_on).days + 1 - pause_days
 
     if days_remaining < 0:
         status: CourseProgramStatus = "ended"
@@ -127,6 +129,7 @@ def membership_period_fields(
     *,
     now: date | datetime | None = None,
     ending_soon_days: int = COURSE_ENDING_SOON_DAYS_DEFAULT,
+    pause_days: int = 0,
 ) -> dict:
     lead_id = int(m.lead_id) if m.lead_id is not None else None
     purchases = purchases_by_lead.get(lead_id, []) if lead_id is not None else []
@@ -136,6 +139,7 @@ def membership_period_fields(
         purchases=purchases,
         now=now,
         ending_soon_days=ending_soon_days,
+        pause_days=pause_days,
     )
 
 
@@ -164,3 +168,30 @@ async def load_main_course_purchases_by_lead(
             continue
         out[int(p.lead_id)].append(p)
     return dict(out)
+
+
+def pause_extension_days(
+    intervals: list[tuple[date, date | None]],
+    today: date,
+) -> int:
+    """Сколько дней паузы уже прошло, включая сегодняшний, если пауза ещё открыта."""
+    total = 0
+    for started_on, ended_on in intervals:
+        end = ended_on if ended_on is not None else today + timedelta(days=1)
+        last = min(end, today + timedelta(days=1))
+        if last > started_on:
+            total += (last - started_on).days
+    return total
+
+
+def day_is_paused(
+    intervals: list[tuple[date, date | None]],
+    day: date,
+    today: date,
+) -> bool:
+    """День паузы не требует дневник, фото и жалобу."""
+    for started_on, ended_on in intervals:
+        end = ended_on if ended_on is not None else today + timedelta(days=1)
+        if started_on <= day < end and day <= today:
+            return True
+    return False

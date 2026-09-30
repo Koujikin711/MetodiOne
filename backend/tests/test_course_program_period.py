@@ -9,6 +9,8 @@ from app.models.patient_purchase import PatientPurchase
 from app.services.course_program_period import (
     COURSE_DURATION_DAYS,
     classify_course_program_period,
+    day_is_paused,
+    pause_extension_days,
     resolve_course_program_start,
 )
 
@@ -139,3 +141,34 @@ def test_ended_still_derived_without_booking():
     assert info["program_start_source"] == "membership_joined"
     assert info["program_status"] == "ended"
     assert info["program_days_remaining"] < 0
+
+
+def test_pause_days_shift_expected_end():
+    start = date(2026, 6, 1)
+    now = date(2026, 7, 1)
+    info = classify_course_program_period(
+        joined_on=start,
+        purchases=[],
+        now=now,
+        pause_days=5,
+    )
+    assert info["program_expected_end_on"] == start + timedelta(days=90 + 5)
+    assert info["program_day_index"] == (now - start).days + 1 - 5
+
+
+def test_pause_extension_counts_closed_and_open_intervals():
+    today = date(2026, 9, 30)
+    assert pause_extension_days([(date(2026, 9, 28), date(2026, 9, 30))], today) == 2
+    assert pause_extension_days([(date(2026, 9, 30), None)], today) == 1
+    assert pause_extension_days([(date(2026, 10, 1), None)], today) == 0
+
+
+def test_day_is_paused_skips_future_and_resume_day():
+    today = date(2026, 9, 30)
+    intervals = [(date(2026, 9, 28), date(2026, 9, 30))]
+    assert day_is_paused(intervals, date(2026, 9, 28), today)
+    assert day_is_paused(intervals, date(2026, 9, 29), today)
+    assert not day_is_paused(intervals, date(2026, 9, 30), today)
+    open_pause = [(date(2026, 9, 30), None)]
+    assert day_is_paused(open_pause, date(2026, 9, 30), today)
+    assert not day_is_paused(open_pause, date(2026, 10, 1), today)

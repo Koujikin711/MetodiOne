@@ -65,6 +65,10 @@ type Membership = {
   program_status?: string | null;
   program_start_source?: string | null;
   program_purchase_id?: number | null;
+  is_paused?: boolean;
+  paused_on?: string | null;
+  pause_days?: number;
+  pauses?: Array<{ started_on: string; ended_on: string | null }>;
 };
 
 type JournalEntry = {
@@ -203,7 +207,24 @@ function formatRuDate(iso: string) {
   return `${d}.${m}.${y}`;
 }
 
+function addOneDay(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  return next.toISOString().slice(0, 10);
+}
+
+function dayIsPaused(m: Membership, day: string): boolean {
+  const today = todayIso();
+  if (day > today) return false;
+  for (const pause of m.pauses || []) {
+    const end = pause.ended_on ?? addOneDay(today);
+    if (pause.started_on <= day && day < end) return true;
+  }
+  return false;
+}
+
 function programPeriodLabel(m: Membership): string | null {
+  if (m.is_paused) return "Курс 90д · пауза";
   if (!m.program_status || m.program_days_remaining == null) return null;
   const dur = m.program_duration_days ?? 90;
   if (m.program_status === "ended") {
@@ -228,6 +249,7 @@ function ProgramPeriodHint({ m }: { m: Membership }) {
   const title = [
     m.program_started_on ? `Старт: ${formatRuDate(m.program_started_on)}` : null,
     m.program_expected_end_on ? `Ожид. конец: ${formatRuDate(m.program_expected_end_on)}` : null,
+    m.pause_days ? `пауза: ${m.pause_days} дн.` : null,
     m.program_start_source === "purchase" ? "источник: покупка Курс" : "источник: дата вступления",
   ]
     .filter(Boolean)
@@ -432,6 +454,18 @@ export function CuratorJournalPage() {
       void qc.invalidateQueries({ queryKey: ["curator-journal", "day-summary", selectedFlowId] });
     },
     onError: (err: Error) => toast.error(err.message || "Ошибка сохранения"),
+  });
+
+  const pauseMut = useMutation({
+    mutationFn: ({ id, resume }: { id: number; resume: boolean }) =>
+      apiFetch<Membership>(`/api/curator-journal/memberships/${id}/${resume ? "resume" : "pause"}`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["curator-journal", "month", selectedFlowId] });
+      void qc.invalidateQueries({ queryKey: ["curator-journal", "day-summary", selectedFlowId] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Не удалось изменить паузу"),
   });
 
   if (!allowed) {
@@ -730,8 +764,26 @@ export function CuratorJournalPage() {
                         {p.display_name}
                       </button>
                       <ProgramPeriodHint m={p} />
+                      {p.left_on ? null : (
+                        <button
+                          type="button"
+                          className="mt-1 block text-[10px] font-medium text-[var(--mo-accent)] hover:underline"
+                          onClick={() => pauseMut.mutate({ id: p.id, resume: Boolean(p.is_paused) })}
+                        >
+                          {p.is_paused ? "Продолжить" : "Пауза"}
+                        </button>
+                      )}
                     </th>
                     {monthQuery.data!.days.map((d) => {
+                      if (dayIsPaused(p, d)) {
+                        return (
+                          <FragmentCells key={`${p.id}-${d}`}>
+                            <StatusCell glyph="П" title="Пауза" />
+                            <StatusCell glyph="П" title="Пауза" />
+                            <StatusCell glyph="П" title="Пауза" />
+                          </FragmentCells>
+                        );
+                      }
                       const e = entryMap.get(`${p.id}|${d}`);
                       const diary = (e?.diary_status || "pending") as DiaryStatus;
                       const photo = (e?.photo_status || "pending") as PhotoStatus;
@@ -849,6 +901,19 @@ export function CuratorJournalPage() {
                     {p.display_name}
                   </button>
                   <ProgramPeriodHint m={p} />
+                  {p.left_on ? null : (
+                    <button
+                      type="button"
+                      className="mt-1 block text-xs font-medium text-[var(--mo-accent)] hover:underline"
+                      onClick={() => pauseMut.mutate({ id: p.id, resume: Boolean(p.is_paused) })}
+                    >
+                      {p.is_paused ? "Продолжить" : "Пауза"}
+                    </button>
+                  )}
+                  {dayIsPaused(p, mobileDay) ? (
+                    <p className="mt-2 text-sm text-[var(--mo-muted)]">П · пауза</p>
+                  ) : (
+                  <>
                   <div className="mt-2 flex flex-wrap gap-2 text-sm">
                     <MobileStatus
                       label="Дневник"
@@ -891,6 +956,8 @@ export function CuratorJournalPage() {
                       ))}
                     </ul>
                   ) : null}
+                  </>
+                  )}
                 </div>
               );
             })}
@@ -1001,10 +1068,12 @@ function StatusCell({
 }: {
   glyph: string;
   title: string;
-  onClick: () => void;
+  onClick?: () => void;
 }) {
   const color =
-    glyph === "✓"
+    glyph === "П"
+      ? "text-sky-700 dark:text-sky-300"
+      : glyph === "✓"
       ? "text-emerald-600"
       : glyph === "✕"
         ? "text-rose-600"
@@ -1013,14 +1082,23 @@ function StatusCell({
           : "text-[var(--mo-muted)]";
   return (
     <td className="border-l border-[var(--mo-border)] p-0">
-      <button
-        type="button"
-        title={title}
-        className={`flex h-9 w-9 items-center justify-center text-base font-semibold ${color} hover:bg-[var(--mo-accent)]/10`}
-        onClick={onClick}
-      >
-        {glyph}
-      </button>
+      {onClick ? (
+        <button
+          type="button"
+          title={title}
+          className={`flex h-9 w-9 items-center justify-center text-base font-semibold ${color} hover:bg-[var(--mo-accent)]/10`}
+          onClick={onClick}
+        >
+          {glyph}
+        </button>
+      ) : (
+        <span
+          title={title}
+          className={`flex h-9 w-9 items-center justify-center text-base font-semibold ${color}`}
+        >
+          {glyph}
+        </span>
+      )}
     </td>
   );
 }

@@ -98,6 +98,25 @@ class CuratorFlowMembership(Base):
     )
 
 
+class CuratorMembershipPause(Base):
+    """Пауза участника. ended_on — первый день снова в работе. Пусто — пауза ещё идёт."""
+
+    __tablename__ = "curator_membership_pauses"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    membership_id: Mapped[int] = mapped_column(
+        ForeignKey("curator_flow_memberships.id", ondelete="CASCADE"),
+        index=True,
+    )
+    started_on: Mapped[date] = mapped_column(Date)
+    ended_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=_utc_now,
+        server_default=func.now(),
+    )
+
+
 class CuratorJournalEntry(Base):
     """Одна запись: участник + дата. Пустые дни не создаём заранее."""
 

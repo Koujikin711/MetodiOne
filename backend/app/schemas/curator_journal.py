@@ -104,6 +104,11 @@ class MembershipTransfer(BaseModel):
     joined_on: date | None = None
 
 
+class MembershipPauseOut(BaseModel):
+    started_on: date
+    ended_on: date | None = None
+
+
 class MembershipOut(BaseModel):
     id: int
     flow_id: int
@@ -124,6 +129,10 @@ class MembershipOut(BaseModel):
     program_status: str | None = None
     program_start_source: str | None = None
     program_purchase_id: int | None = None
+    is_paused: bool = False
+    paused_on: date | None = None
+    pause_days: int = 0
+    pauses: list[MembershipPauseOut] = Field(default_factory=list)
 
 
 class ComplaintIn(BaseModel):

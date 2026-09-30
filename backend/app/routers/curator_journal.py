@@ -18,6 +18,7 @@ from app.models.curator_journal import (
     CuratorFlowMembership,
     CuratorJournalComplaint,
     CuratorJournalEntry,
+    CuratorMembershipPause,
 )
 from app.schemas.curator_journal import (
     COMPLAINT_CATEGORIES,
@@ -98,6 +99,10 @@ def _membership_out(
         program_status=program.get("program_status") if program else None,
         program_start_source=program.get("program_start_source") if program else None,
         program_purchase_id=program.get("program_purchase_id") if program else None,
+        is_paused=bool(program.get("is_paused")) if program else False,
+        paused_on=program.get("paused_on") if program else None,
+        pause_days=int(program.get("pause_days") or 0) if program else 0,
+        pauses=(program.get("pauses") or []) if program else [],
     )
 
 
@@ -109,10 +114,12 @@ async def _program_by_membership(
     ending_soon_days: int = 14,
 ) -> dict[int, dict]:
     """Batch-derive Course 90d period for memberships. No new membership rows."""
+    from app.services.course_flow_from_kpi import sale_local_day
     from app.services.course_program_period import (
         COURSE_ENDING_SOON_DAYS_DEFAULT,
         load_main_course_purchases_by_lead,
         membership_period_fields,
+        pause_extension_days,
     )
 
     soon = ending_soon_days if ending_soon_days is not None else COURSE_ENDING_SOON_DAYS_DEFAULT
@@ -120,11 +127,38 @@ async def _program_by_membership(
     by_lead = await load_main_course_purchases_by_lead(
         db, company_id=company_id, lead_ids=lead_ids
     )
+    member_ids = [int(m.id) for m in memberships]
+    pause_rows: list[CuratorMembershipPause] = []
+    if member_ids:
+        pause_rows = list(
+            (
+                await db.execute(
+                    select(CuratorMembershipPause)
+                    .where(CuratorMembershipPause.membership_id.in_(member_ids))
+                    .order_by(CuratorMembershipPause.started_on),
+                )
+            ).scalars().all()
+        )
+    by_member: dict[int, list[CuratorMembershipPause]] = {}
+    for row in pause_rows:
+        by_member.setdefault(int(row.membership_id), []).append(row)
+    today = sale_local_day(datetime.now(UTC))
     out: dict[int, dict] = {}
     for m in memberships:
-        out[int(m.id)] = membership_period_fields(
-            m, by_lead, ending_soon_days=soon
+        rows = by_member.get(int(m.id), [])
+        intervals = [(row.started_on, row.ended_on) for row in rows]
+        extension = pause_extension_days(intervals, today)
+        fields = membership_period_fields(
+            m, by_lead, ending_soon_days=soon, pause_days=extension, now=today,
         )
+        open_row = next((row for row in rows if row.ended_on is None), None)
+        fields["is_paused"] = open_row is not None
+        fields["paused_on"] = open_row.started_on if open_row else None
+        fields["pause_days"] = extension
+        fields["pauses"] = [
+            {"started_on": row.started_on, "ended_on": row.ended_on} for row in rows
+        ]
+        out[int(m.id)] = fields
     return out
 
 
@@ -655,6 +689,92 @@ async def leave_membership(
     return _membership_out(m)
 
 
+async def _pause_rows(db: AsyncSession, membership_id: int) -> list[CuratorMembershipPause]:
+    return list(
+        (
+            await db.execute(
+                select(CuratorMembershipPause)
+                .where(CuratorMembershipPause.membership_id == membership_id)
+                .order_by(CuratorMembershipPause.started_on),
+            )
+        ).scalars().all()
+    )
+
+
+async def _membership_after_pause(
+    db: AsyncSession,
+    company_id: int,
+    m: CuratorFlowMembership,
+) -> MembershipOut:
+    programs = await _program_by_membership(db, company_id=company_id, memberships=[m])
+    return _membership_out(m, program=programs.get(int(m.id)))
+
+
+@router.post("/memberships/{membership_id}/pause", response_model=MembershipOut)
+async def pause_membership(
+    membership_id: int,
+    user: CurrentUser,
+    company_id: CurrentCompanyId,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> MembershipOut:
+    m = (
+        await db.execute(
+            select(CuratorFlowMembership).where(
+                CuratorFlowMembership.id == membership_id,
+                CuratorFlowMembership.company_id == company_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not m:
+        raise HTTPException(status_code=404, detail="Участник не найден")
+    flow = await _get_flow(db, company_id, int(m.flow_id))
+    assert_flow_writable(user, flow)
+    if m.left_on is not None:
+        raise HTTPException(status_code=400, detail="Участник уже вышел из потока")
+    from app.services.course_flow_from_kpi import sale_local_day
+
+    today = sale_local_day(datetime.now(UTC))
+    rows = await _pause_rows(db, int(m.id))
+    if any(row.ended_on is None for row in rows):
+        raise HTTPException(status_code=400, detail="Уже на паузе")
+    db.add(CuratorMembershipPause(membership_id=int(m.id), started_on=today))
+    await db.commit()
+    await db.refresh(m)
+    return await _membership_after_pause(db, company_id, m)
+
+
+@router.post("/memberships/{membership_id}/resume", response_model=MembershipOut)
+async def resume_membership(
+    membership_id: int,
+    user: CurrentUser,
+    company_id: CurrentCompanyId,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> MembershipOut:
+    m = (
+        await db.execute(
+            select(CuratorFlowMembership).where(
+                CuratorFlowMembership.id == membership_id,
+                CuratorFlowMembership.company_id == company_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not m:
+        raise HTTPException(status_code=404, detail="Участник не найден")
+    flow = await _get_flow(db, company_id, int(m.flow_id))
+    assert_flow_writable(user, flow)
+    from app.services.course_flow_from_kpi import sale_local_day
+
+    today = sale_local_day(datetime.now(UTC))
+    rows = await _pause_rows(db, int(m.id))
+    open_row = next((row for row in rows if row.ended_on is None), None)
+    if open_row is None:
+        raise HTTPException(status_code=400, detail="Паузы нет")
+    open_row.ended_on = today
+    await db.commit()
+    await db.refresh(m)
+    return await _membership_after_pause(db, company_id, m)
+
+
 @router.post("/memberships/{membership_id}/transfer", response_model=MembershipOut)
 async def transfer_membership(
     membership_id: int,
@@ -981,6 +1101,17 @@ async def upsert_entry(
     ).scalar_one_or_none()
     if not membership:
         raise HTTPException(status_code=404, detail="Участник не найден в потоке")
+    from app.services.course_flow_from_kpi import sale_local_day
+    from app.services.course_program_period import day_is_paused
+
+    today = sale_local_day(datetime.now(UTC))
+    pause_rows = await _pause_rows(db, int(membership.id))
+    if day_is_paused(
+        [(row.started_on, row.ended_on) for row in pause_rows],
+        body.entry_date,
+        today,
+    ):
+        raise HTTPException(status_code=400, detail="В этот день пауза")
 
     entry = (
         await db.execute(
@@ -1077,6 +1208,26 @@ async def day_summary(
             ).scalars().all()
         )
     by_member = {int(e.membership_id): e for e in entries}
+    from app.services.course_flow_from_kpi import sale_local_day
+    from app.services.course_program_period import day_is_paused
+
+    today = sale_local_day(datetime.now(UTC))
+    pause_by_member: dict[int, list[tuple[date, date | None]]] = {}
+    if member_ids:
+        for row in (
+            await db.execute(
+                select(CuratorMembershipPause).where(
+                    CuratorMembershipPause.membership_id.in_(member_ids),
+                )
+            )
+        ).scalars().all():
+            pause_by_member.setdefault(int(row.membership_id), []).append((row.started_on, row.ended_on))
+    members = [
+        m
+        for m in members
+        if not day_is_paused(pause_by_member.get(int(m.id), []), day, today)
+    ]
+    total = len(members)
 
     diary_done = diary_missed = diary_pending = 0
     photo_done = photo_missed = photo_pending = 0
