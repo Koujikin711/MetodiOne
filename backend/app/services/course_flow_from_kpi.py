@@ -9,12 +9,17 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models import SalesKpiManualSale, SalesKpiPlanItem
-from app.models.curator_journal import CuratorCourseFlow, CuratorFlowMembership
+from app.models.curator_journal import (
+    CuratorCourseFlow,
+    CuratorFlowMembership,
+    CuratorJournalComplaint,
+    CuratorJournalEntry,
+)
 from app.services.course_program_period import COURSE_DURATION_DAYS
 from app.services.patient_ltv import classify_product_kind
 from app.services.phone_match import phones_equivalent
@@ -75,14 +80,75 @@ def _already_in_flow(members: list[CuratorFlowMembership], sale: SalesKpiManualS
     return None
 
 
-async def sync_course_flows_from_kpi(db: AsyncSession, *, company_id: int) -> int:
-    """Идемпотентно: поток N есть — пациент курса в нём; потока нет — создаётся."""
+# Потоки, которые сбор старых продаж создал 30.09.2026. Живые №6–№8 не входят.
+_BACKFILL_FLOW_NUMBERS = (1, 3, 5)
+_BACKFILL_PATCH = "drop_kpi_backfill_flows_1_3_5_v1"
+
+
+async def drop_backfilled_course_flows(db: AsyncSession, *, company_id: int) -> int:
+    """Один раз убирает потоки №1, №3 и №5, собранные из прошлых продаж."""
+    from sqlalchemy import text
+
+    await db.execute(
+        text(
+            """CREATE TABLE IF NOT EXISTS app_data_patches (
+                name TEXT PRIMARY KEY,
+                applied_at TEXT
+            )"""
+        ),
+    )
+    seen = await db.execute(
+        text("SELECT 1 FROM app_data_patches WHERE name = :n LIMIT 1"),
+        {"n": _BACKFILL_PATCH},
+    )
+    if seen.first() is not None:
+        return 0
+    flows = list(
+        (
+            await db.execute(
+                select(CuratorCourseFlow).where(
+                    CuratorCourseFlow.company_id == company_id,
+                    CuratorCourseFlow.flow_number.in_(_BACKFILL_FLOW_NUMBERS),
+                    CuratorCourseFlow.status == "active",
+                ),
+            )
+        ).scalars().all(),
+    )
+    ids = [int(flow.id) for flow in flows if flow.kpi_group_no == flow.flow_number]
+    if ids:
+        entry_ids = select(CuratorJournalEntry.id).where(CuratorJournalEntry.flow_id.in_(ids))
+        await db.execute(
+            delete(CuratorJournalComplaint).where(
+                CuratorJournalComplaint.journal_entry_id.in_(entry_ids),
+            ),
+        )
+        await db.execute(delete(CuratorJournalEntry).where(CuratorJournalEntry.flow_id.in_(ids)))
+        await db.execute(delete(CuratorFlowMembership).where(CuratorFlowMembership.flow_id.in_(ids)))
+        await db.execute(delete(CuratorCourseFlow).where(CuratorCourseFlow.id.in_(ids)))
+    await db.execute(
+        text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, :at)"),
+        {"n": _BACKFILL_PATCH, "at": datetime.now(UTC).isoformat()},
+    )
+    await db.flush()
+    return len(ids)
+
+
+async def sync_course_flows_from_kpi(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    sale_id: int | None = None,
+) -> int:
+    """Только эта продажа курса. Прошлые продажи потоки не создают."""
+    if sale_id is None:
+        return 0
     sale_rows = (
         await db.execute(
             select(SalesKpiManualSale, SalesKpiPlanItem.name)
             .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
             .where(
                 SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.id == sale_id,
                 SalesKpiManualSale.status.notin_(_CLOSED),
             ),
         )

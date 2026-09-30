@@ -1036,7 +1036,7 @@ async def create_manual_sale(
     )
     from app.services.course_flow_from_kpi import sync_course_flows_from_kpi
 
-    await sync_course_flows_from_kpi(db, company_id=company_id)
+    await sync_course_flows_from_kpi(db, company_id=company_id, sale_id=int(sale.id))
     await db.commit()
     await db.refresh(sale)
     for p in payments:
@@ -1189,7 +1189,7 @@ async def link_manual_sale_lead(
     await mirror_manual_sale_purchase(db, sale=sale, item_name=item.name if item else "")
     from app.services.course_flow_from_kpi import sync_course_flows_from_kpi
 
-    await sync_course_flows_from_kpi(db, company_id=company_id)
+    await sync_course_flows_from_kpi(db, company_id=company_id, sale_id=int(sale.id))
     await accept_requests_for_sale(
         db,
         company_id=company_id,
