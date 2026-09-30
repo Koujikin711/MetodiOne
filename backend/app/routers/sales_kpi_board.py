@@ -1232,10 +1232,15 @@ async def return_manual_sale(
     sale.status = "returned"
     sale.returned_at = datetime.now(UTC)
     sale.updated_at = sale.returned_at
+    item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    from app.services.patient_ltv import mirror_manual_sale_purchase
+
+    await mirror_manual_sale_purchase(db, sale=sale, item_name=item.name if item else "")
+    from app.services.course_flow_from_kpi import release_closed_sale_memberships
+
+    await release_closed_sale_memberships(db, company_id=company_id, sale_id=int(sale.id))
     await db.commit()
     await db.refresh(sale)
-
-    item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
     manager = await db.get(User, sale.manager_user_id)
     out = _manual_sale_out(
         sale,
@@ -1276,10 +1281,15 @@ async def patch_manual_sale_status(
     sale.updated_at = datetime.now(UTC)
     if not (sale.note or "").strip():
         sale.note = reason
+    item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    from app.services.patient_ltv import mirror_manual_sale_purchase
+
+    await mirror_manual_sale_purchase(db, sale=sale, item_name=item.name if item else "")
+    from app.services.course_flow_from_kpi import release_closed_sale_memberships
+
+    await release_closed_sale_memberships(db, company_id=company_id, sale_id=int(sale.id))
     await db.commit()
     await db.refresh(sale)
-
-    item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
     manager = await db.get(User, sale.manager_user_id)
     return _manual_sale_out(
         sale,

@@ -58,6 +58,16 @@ def protocol_purchase_counts(p: PatientPurchase) -> bool:
     return st not in ("cancelled", "returned", "refused")
 
 
+def purchase_closed_by_kpi_sale(p: PatientPurchase, closed_sale_ids: set[int]) -> bool:
+    """Отказ/возврат на продаже KPI закрывает протокол, даже если карточка ещё active."""
+    if (p.source_type or "") != "kpi_manual_sale" or not closed_sale_ids:
+        return False
+    try:
+        return int(p.source_id) in closed_sale_ids
+    except (TypeError, ValueError):
+        return False
+
+
 def protocol_sale_ids_already_linked(purchases: list[PatientPurchase]) -> set[int]:
     """KPI-продажа уже есть в очереди, если по ней есть покупка с пациентом."""
     return {
@@ -220,6 +230,19 @@ async def build_protocol_queue(
             ),
         )
     ).scalars().all()
+
+    closed_sale_ids = {
+        int(sale_id)
+        for sale_id in (
+            await db.execute(
+                select(SalesKpiManualSale.id).where(
+                    SalesKpiManualSale.company_id == company_id,
+                    SalesKpiManualSale.status.in_(("returned", "refused", "cancelled")),
+                ),
+            )
+        ).scalars().all()
+    }
+    purchases = [p for p in purchases if not purchase_closed_by_kpi_sale(p, closed_sale_ids)]
 
     by_lead: dict[int, list[PatientPurchase]] = defaultdict(list)
     for p in purchases:

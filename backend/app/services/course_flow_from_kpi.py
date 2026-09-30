@@ -27,6 +27,11 @@ from app.services.phone_match import phones_equivalent
 _CLOSED = ("returned", "refused", "cancelled")
 
 
+def sale_status_releases_flow(status: str | None) -> bool:
+    """Отказ, возврат и отмена снимают человека с потока этой продажи."""
+    return (status or "").strip() in _CLOSED
+
+
 def sale_local_day(sold_at: datetime | None) -> date:
     if sold_at is None:
         return datetime.now(UTC).date()
@@ -89,11 +94,13 @@ async def drop_backfilled_course_flows(db: AsyncSession, *, company_id: int) -> 
     """Один раз убирает потоки №1, №3 и №5, собранные из прошлых продаж."""
     from sqlalchemy import text
 
+    sqlite = "sqlite" in (settings.database_url or "").lower()
+    applied_type = "DATETIME" if sqlite else "TIMESTAMPTZ"
     await db.execute(
         text(
-            """CREATE TABLE IF NOT EXISTS app_data_patches (
+            f"""CREATE TABLE IF NOT EXISTS app_data_patches (
                 name TEXT PRIMARY KEY,
-                applied_at TEXT
+                applied_at {applied_type}
             )"""
         ),
     )
@@ -126,8 +133,8 @@ async def drop_backfilled_course_flows(db: AsyncSession, *, company_id: int) -> 
         await db.execute(delete(CuratorFlowMembership).where(CuratorFlowMembership.flow_id.in_(ids)))
         await db.execute(delete(CuratorCourseFlow).where(CuratorCourseFlow.id.in_(ids)))
     await db.execute(
-        text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, :at)"),
-        {"n": _BACKFILL_PATCH, "at": datetime.now(UTC).isoformat()},
+        text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, CURRENT_TIMESTAMP)"),
+        {"n": _BACKFILL_PATCH},
     )
     await db.flush()
     return len(ids)
@@ -238,3 +245,47 @@ async def sync_course_flows_from_kpi(
     if changed:
         await db.flush()
     return changed
+
+
+async def release_closed_sale_memberships(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    sale_id: int | None = None,
+) -> int:
+    """Снимает с потока только участника этой закрытой продажи. Чужих не трогает."""
+    q = select(CuratorFlowMembership).where(
+        CuratorFlowMembership.company_id == company_id,
+        CuratorFlowMembership.left_on.is_(None),
+        CuratorFlowMembership.kpi_sale_id.is_not(None),
+    )
+    if sale_id is not None:
+        q = q.where(CuratorFlowMembership.kpi_sale_id == int(sale_id))
+    members = list((await db.execute(q)).scalars().all())
+    if not members:
+        return 0
+    sale_ids = {int(member.kpi_sale_id) for member in members if member.kpi_sale_id is not None}
+    closed_ids = {
+        int(row_id)
+        for row_id in (
+            await db.execute(
+                select(SalesKpiManualSale.id).where(
+                    SalesKpiManualSale.company_id == company_id,
+                    SalesKpiManualSale.id.in_(sale_ids),
+                    SalesKpiManualSale.status.in_(_CLOSED),
+                ),
+            )
+        ).scalars().all()
+    }
+    if not closed_ids:
+        return 0
+    today = datetime.now(UTC).date()
+    released = 0
+    for member in members:
+        if member.kpi_sale_id is None or int(member.kpi_sale_id) not in closed_ids:
+            continue
+        member.left_on = today
+        released += 1
+    if released:
+        await db.flush()
+    return released

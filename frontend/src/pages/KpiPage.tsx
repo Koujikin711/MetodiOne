@@ -1402,7 +1402,9 @@ export function KpiPage() {
                     </option>
                   ))}
                 </select>
-                <span className="text-[10px] leading-snug text-[var(--mo-text-muted)]">время образования</span>
+                <span className="text-[10px] leading-snug text-[var(--mo-text-muted)]">
+                  курс: один номер — один поток куратора
+                </span>
               </label>
               <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                 Этап
@@ -1755,7 +1757,7 @@ export function KpiPage() {
                     <td className="tabular-nums">{s.client_phone}</td>
                     <td className="tabular-nums whitespace-nowrap">{formatMoney(num(s.service_amount))}</td>
                     <td className="tabular-nums whitespace-nowrap">
-                      {s.status === "returned" || num(s.debt_amount) <= 0 ? (
+                      {s.status !== "active" || num(s.debt_amount) <= 0 ? (
                         formatMoney(num(s.paid_amount))
                       ) : (
                         <ManualPayPack

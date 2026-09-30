@@ -12,6 +12,7 @@ from app.services.protocol_queue import (
     classify_protocol_episodes,
     cluster_unlinked_protocols,
     protocol_sale_ids_already_linked,
+    purchase_closed_by_kpi_sale,
     requires_attention,
 )
 
@@ -137,6 +138,21 @@ def test_unlinked_protocol_sale_is_not_treated_as_already_in_queue():
 def test_returned_protocol_excluded():
     start = datetime(2026, 6, 1, tzinfo=UTC)
     assert classify_protocol_episodes([_p(id=1, at=start, status="returned")]) == []
+
+
+def test_refused_protocol_excluded():
+    start = datetime(2026, 6, 1, tzinfo=UTC)
+    assert classify_protocol_episodes([_p(id=1, at=start, status="refused")]) == []
+
+
+def test_closed_kpi_sale_hides_protocol_even_if_card_still_active():
+    row = _p(id=3374, at=datetime(2026, 9, 30, tzinfo=UTC))
+    row.source_id = 45
+    assert purchase_closed_by_kpi_sale(row, {45}) is True
+    assert purchase_closed_by_kpi_sale(row, set()) is False
+    other = _p(id=1, at=datetime(2026, 9, 30, tzinfo=UTC), kind="course_15", name="Курс 15")
+    other.source_type = "booking_appointment"
+    assert purchase_closed_by_kpi_sale(other, {1}) is False
 
 
 def test_same_name_and_phone_without_card_is_one_series():
