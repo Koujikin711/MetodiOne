@@ -1225,7 +1225,7 @@ export function ChatPage() {
           </div>
 
           {showManagerChatBuckets ? (
-            <div className="chat-month-nav mb-2 shrink-0 max-lg:mb-1.5" title="Лиды, созданные в этом месяце">
+            <div className="chat-month-nav mb-2 shrink-0 max-lg:mb-1.5" title="Новые лиды и выданные из архива в этом месяце">
               <button
                 type="button"
                 className="chat-month-nav__btn"
