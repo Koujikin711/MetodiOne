@@ -10,6 +10,7 @@ from app.services.protocol_queue import (
     ACTIVE_QUEUE_STATES,
     PROTOCOL_DURATION_DAYS,
     classify_protocol_episodes,
+    cluster_unlinked_protocols,
     protocol_sale_ids_already_linked,
     requires_attention,
 )
@@ -136,3 +137,33 @@ def test_unlinked_protocol_sale_is_not_treated_as_already_in_queue():
 def test_returned_protocol_excluded():
     start = datetime(2026, 6, 1, tzinfo=UTC)
     assert classify_protocol_episodes([_p(id=1, at=start, status="returned")]) == []
+
+
+def test_same_name_and_phone_without_card_is_one_series():
+    first = _p(id=-5, at=datetime(2026, 8, 14, tzinfo=UTC))
+    first.lead_id = None
+    first.client_name = "Ниёзов Хофиз"
+    first.client_phone = "+79935930184"
+    second = _p(id=-46, at=datetime(2026, 9, 30, tzinfo=UTC))
+    second.lead_id = None
+    second.client_name = "Ниёзов Хофиз"
+    second.client_phone = "79935930184"
+    groups = cluster_unlinked_protocols([(first, "А"), (second, "Б")])
+    assert len(groups) == 1
+    episodes = classify_protocol_episodes([first, second], now=datetime(2026, 9, 30, tzinfo=UTC))
+    assert [ep["sequence_no"] for ep in episodes] == [1, 2]
+    assert episodes[0]["state"] == "next_protocol_sold"
+    assert episodes[1]["state"] == "active"
+
+
+def test_different_names_stay_separate_protocol_series():
+    first = _p(id=-1, at=datetime(2026, 8, 1, tzinfo=UTC))
+    first.lead_id = None
+    first.client_name = "Ниёзов Хофиз"
+    first.client_phone = "992900000001"
+    second = _p(id=-2, at=datetime(2026, 9, 1, tzinfo=UTC))
+    second.lead_id = None
+    second.client_name = "Другой Пациент"
+    second.client_phone = "992900000001"
+    groups = cluster_unlinked_protocols([(first, ""), (second, "")])
+    assert len(groups) == 2

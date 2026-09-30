@@ -6,6 +6,8 @@ Duration = 30 days from start (purchased_at). Ending-soon threshold via API para
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -24,6 +26,7 @@ from app.models import (
 )
 from app.services.booking_patient_name import display_patient_identity, load_booking_identity_by_lead
 from app.services.patient_ltv import classify_product_kind
+from app.services.phone_match import phone_digits
 from app.services.product_lexicon import product_display_label
 
 ProtocolQueueState = Literal[
@@ -135,6 +138,38 @@ def classify_protocol_episodes(
             },
         )
     return out
+
+
+def _protocol_client_key(name: str | None, phone: str | None) -> str | None:
+    """Ключ серии #1, #2, #3 для продаж без карточки. Не привязывает Lead."""
+    digits = phone_digits(phone)
+    if len(digits) < 9:
+        return None
+    raw = unicodedata.normalize("NFKC", name or "").casefold().replace("ё", "е")
+    raw = re.sub(r"\s+", " ", raw).strip()
+    if len(raw) < 3:
+        return None
+    return f"{digits[-9:]}|{raw}"
+
+
+def cluster_unlinked_protocols(
+    items: list[tuple[PatientPurchase, str]],
+) -> list[list[tuple[PatientPurchase, str]]]:
+    """Одинаковые имя и телефон без карточки — одна серия протоколов."""
+    groups: dict[str, list[tuple[PatientPurchase, str]]] = {}
+    order: list[str] = []
+    singles: list[list[tuple[PatientPurchase, str]]] = []
+    for item in items:
+        purchase, _mgr = item
+        key = _protocol_client_key(purchase.client_name, purchase.client_phone)
+        if key is None:
+            singles.append([item])
+            continue
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(item)
+    return [groups[key] for key in order] + singles
 
 
 def next_sale_label(state: ProtocolQueueState) -> str:
@@ -412,12 +447,20 @@ async def build_protocol_queue(
         "ended_waiting_next": "Срок вышел — ждёт следующий",
         "next_protocol_sold": "Следующий Протокол куплен",
     }
-    for synthetic, mgr_name in unlinked:
-        for info in classify_protocol_episodes(
-            [synthetic], now=now, ending_soon_days=ending_soon_days,
-        ):
+    by_purchase_id = {int(purchase.id): (purchase, mgr) for purchase, mgr in unlinked}
+    for group in cluster_unlinked_protocols(unlinked):
+        episodes = classify_protocol_episodes(
+            [purchase for purchase, _mgr in group],
+            now=now,
+            ending_soon_days=ending_soon_days,
+        )
+        for info in episodes:
             if not include_converted and info["state"] not in ACTIVE_QUEUE_STATES:
                 continue
+            found = by_purchase_id.get(int(info["purchase_id"]))
+            if found is None:
+                continue
+            synthetic, mgr_name = found
             name = (synthetic.client_name or "").strip() or "—"
             phone = (synthetic.client_phone or "").strip()
             if term:
@@ -437,6 +480,9 @@ async def build_protocol_queue(
             )
             if attn:
                 counts["requires_attention"] += 1
+            prev_label = ", ".join(
+                f"#{x['sequence_no']}" for x in info["previous_protocols"]
+            ) or "—"
             rows.append(
                 {
                     "lead_id": None,
@@ -450,7 +496,7 @@ async def build_protocol_queue(
                     "started_at": info["started_at"],
                     "expected_end_at": info["expected_end_at"],
                     "days_remaining": days_rem,
-                    "previous_protocols_label": "—",
+                    "previous_protocols_label": prev_label,
                     "previous_protocols": info["previous_protocols"],
                     "manager_name": mgr_name or None,
                     "responsible_name": mgr_name or None,

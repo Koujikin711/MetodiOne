@@ -466,6 +466,10 @@ async def list_flows(
     status_filter: str | None = Query(default="active", alias="status"),
 ) -> list[CuratorFlowOut]:
     assert_journal_access(user)
+    from app.services.course_flow_from_kpi import sync_course_flows_from_kpi
+
+    if await sync_course_flows_from_kpi(db, company_id=company_id):
+        await db.commit()
     q = select(CuratorCourseFlow).where(CuratorCourseFlow.company_id == company_id)
     if status_filter and status_filter != "all":
         q = q.where(CuratorCourseFlow.status == status_filter)
