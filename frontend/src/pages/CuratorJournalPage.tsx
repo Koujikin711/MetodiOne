@@ -68,7 +68,7 @@ type Membership = {
   is_paused?: boolean;
   paused_on?: string | null;
   pause_days?: number;
-  pauses?: Array<{ started_on: string; ended_on: string | null }>;
+  pauses?: Array<{ started_on: string; ended_on: string | null; comment?: string | null }>;
 };
 
 type JournalEntry = {
@@ -213,14 +213,24 @@ function addOneDay(iso: string): string {
   return next.toISOString().slice(0, 10);
 }
 
-function dayIsPaused(m: Membership, day: string): boolean {
+function coveringPause(m: Membership, day: string) {
   const today = todayIso();
-  if (day > today) return false;
+  if (day > today) return null;
   for (const pause of m.pauses || []) {
     const end = pause.ended_on ?? addOneDay(today);
-    if (pause.started_on <= day && day < end) return true;
+    if (pause.started_on <= day && day < end) return pause;
   }
-  return false;
+  return null;
+}
+
+function dayIsPaused(m: Membership, day: string): boolean {
+  return coveringPause(m, day) != null;
+}
+
+function openPauseComment(m: Membership): string | null {
+  const open = (m.pauses || []).find((pause) => !pause.ended_on);
+  const text = open?.comment?.trim();
+  return text || null;
 }
 
 function programPeriodLabel(m: Membership): string | null {
@@ -250,6 +260,7 @@ function ProgramPeriodHint({ m }: { m: Membership }) {
     m.program_started_on ? `Старт: ${formatRuDate(m.program_started_on)}` : null,
     m.program_expected_end_on ? `Ожид. конец: ${formatRuDate(m.program_expected_end_on)}` : null,
     m.pause_days ? `пауза: ${m.pause_days} дн.` : null,
+    openPauseComment(m),
     m.program_start_source === "purchase" ? "источник: покупка Курс" : "источник: дата вступления",
   ]
     .filter(Boolean)
@@ -330,6 +341,7 @@ export function CuratorJournalPage() {
   const [historyMemberId, setHistoryMemberId] = useState<number | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [mobileDay, setMobileDay] = useState(todayIso());
+  const [pauseDraft, setPauseDraft] = useState<{ id: number; name: string; comment: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const didScrollToday = useRef(false);
 
@@ -457,11 +469,13 @@ export function CuratorJournalPage() {
   });
 
   const pauseMut = useMutation({
-    mutationFn: ({ id, resume }: { id: number; resume: boolean }) =>
+    mutationFn: ({ id, resume, comment }: { id: number; resume: boolean; comment?: string }) =>
       apiFetch<Membership>(`/api/curator-journal/memberships/${id}/${resume ? "resume" : "pause"}`, {
         method: "POST",
+        body: resume ? undefined : JSON.stringify({ comment }),
       }),
     onSuccess: () => {
+      setPauseDraft(null);
       void qc.invalidateQueries({ queryKey: ["curator-journal", "month", selectedFlowId] });
       void qc.invalidateQueries({ queryKey: ["curator-journal", "day-summary", selectedFlowId] });
     },
@@ -768,19 +782,29 @@ export function CuratorJournalPage() {
                         <button
                           type="button"
                           className="mt-1 block text-[10px] font-medium text-[var(--mo-accent)] hover:underline"
-                          onClick={() => pauseMut.mutate({ id: p.id, resume: Boolean(p.is_paused) })}
+                          onClick={() => {
+                            if (p.is_paused) pauseMut.mutate({ id: p.id, resume: true });
+                            else setPauseDraft({ id: p.id, name: p.display_name, comment: "" });
+                          }}
                         >
                           {p.is_paused ? "Продолжить" : "Пауза"}
                         </button>
                       )}
+                      {openPauseComment(p) ? (
+                        <div className="mt-0.5 text-[10px] font-normal leading-tight text-[var(--mo-muted)]">
+                          {openPauseComment(p)}
+                        </div>
+                      ) : null}
                     </th>
                     {monthQuery.data!.days.map((d) => {
+                      const pauseNote = coveringPause(p, d)?.comment?.trim();
                       if (dayIsPaused(p, d)) {
+                        const title = pauseNote ? `Пауза · ${pauseNote}` : "Пауза";
                         return (
                           <FragmentCells key={`${p.id}-${d}`}>
-                            <StatusCell glyph="П" title="Пауза" />
-                            <StatusCell glyph="П" title="Пауза" />
-                            <StatusCell glyph="П" title="Пауза" />
+                            <StatusCell glyph="П" title={title} />
+                            <StatusCell glyph="П" title={title} />
+                            <StatusCell glyph="П" title={title} />
                           </FragmentCells>
                         );
                       }
@@ -905,13 +929,21 @@ export function CuratorJournalPage() {
                     <button
                       type="button"
                       className="mt-1 block text-xs font-medium text-[var(--mo-accent)] hover:underline"
-                      onClick={() => pauseMut.mutate({ id: p.id, resume: Boolean(p.is_paused) })}
+                      onClick={() => {
+                        if (p.is_paused) pauseMut.mutate({ id: p.id, resume: true });
+                        else setPauseDraft({ id: p.id, name: p.display_name, comment: "" });
+                      }}
                     >
                       {p.is_paused ? "Продолжить" : "Пауза"}
                     </button>
                   )}
+                  {openPauseComment(p) ? (
+                    <p className="mt-1 text-xs text-[var(--mo-muted)]">{openPauseComment(p)}</p>
+                  ) : null}
                   {dayIsPaused(p, mobileDay) ? (
-                    <p className="mt-2 text-sm text-[var(--mo-muted)]">П · пауза</p>
+                    <p className="mt-2 text-sm text-[var(--mo-muted)]">
+                      П · пауза{coveringPause(p, mobileDay)?.comment?.trim() ? ` · ${coveringPause(p, mobileDay)?.comment?.trim()}` : ""}
+                    </p>
                   ) : (
                   <>
                   <div className="mt-2 flex flex-wrap gap-2 text-sm">
@@ -967,6 +999,33 @@ export function CuratorJournalPage() {
         <p className="text-sm text-[var(--mo-muted)]">Загрузка журнала…</p>
       ) : null}
         </>
+      ) : null}
+
+      {pauseDraft ? (
+        <Modal title={`Пауза · ${pauseDraft.name}`} onClose={() => setPauseDraft(null)}>
+          <label className="mb-1 block text-sm text-[var(--mo-muted)]">Комментарий</label>
+          <textarea
+            className="mo-input min-h-[5rem] w-full text-sm"
+            value={pauseDraft.comment}
+            autoFocus
+            placeholder="Почему пауза"
+            onChange={(e) => setPauseDraft({ ...pauseDraft, comment: e.target.value })}
+          />
+          <button
+            type="button"
+            className="btn-primary mt-3 px-3 py-1.5 text-sm"
+            disabled={!pauseDraft.comment.trim() || pauseMut.isPending}
+            onClick={() =>
+              pauseMut.mutate({
+                id: pauseDraft.id,
+                resume: false,
+                comment: pauseDraft.comment.trim(),
+              })
+            }
+          >
+            Поставить паузу
+          </button>
+        </Modal>
       ) : null}
 
       {showCreate ? (

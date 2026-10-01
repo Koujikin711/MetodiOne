@@ -110,6 +110,7 @@ class CuratorMembershipPause(Base):
     )
     started_on: Mapped[date] = mapped_column(Date)
     ended_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,

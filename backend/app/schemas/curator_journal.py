@@ -104,9 +104,14 @@ class MembershipTransfer(BaseModel):
     joined_on: date | None = None
 
 
+class MembershipPauseIn(BaseModel):
+    comment: str = Field(min_length=1, max_length=2000)
+
+
 class MembershipPauseOut(BaseModel):
     started_on: date
     ended_on: date | None = None
+    comment: str | None = None
 
 
 class MembershipOut(BaseModel):

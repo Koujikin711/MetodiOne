@@ -3906,6 +3906,7 @@ async def ensure_curator_journal_tables(conn: AsyncConnection, database_url: str
                     membership_id INTEGER NOT NULL,
                     started_on DATE NOT NULL,
                     ended_on DATE,
+                    comment TEXT,
                     created_at DATETIME
                 )"""
             ),
@@ -3991,6 +3992,7 @@ async def ensure_curator_journal_tables(conn: AsyncConnection, database_url: str
                     membership_id INTEGER NOT NULL REFERENCES curator_flow_memberships(id) ON DELETE CASCADE,
                     started_on DATE NOT NULL,
                     ended_on DATE,
+                    comment TEXT,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 )"""
             ),
@@ -4019,6 +4021,17 @@ async def ensure_curator_journal_tables(conn: AsyncConnection, database_url: str
             "ON curator_membership_pauses(membership_id)"
         )
     )
+    if sqlite:
+        pause_cols = {
+            row[1]
+            for row in (await conn.execute(text("PRAGMA table_info(curator_membership_pauses)"))).fetchall()
+        }
+        if "comment" not in pause_cols:
+            await conn.execute(text("ALTER TABLE curator_membership_pauses ADD COLUMN comment TEXT"))
+    else:
+        await conn.execute(
+            text("ALTER TABLE curator_membership_pauses ADD COLUMN IF NOT EXISTS comment TEXT")
+        )
 
 
 async def ensure_marketing_meta_settings(conn: AsyncConnection, database_url: str) -> None:

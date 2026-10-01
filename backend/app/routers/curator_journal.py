@@ -43,6 +43,7 @@ from app.schemas.curator_journal import (
     MemberHistoryOut,
     MembershipCreate,
     MembershipOut,
+    MembershipPauseIn,
     MembershipTransfer,
     MonthJournalOut,
     ProgramRequestCreate,
@@ -156,7 +157,8 @@ async def _program_by_membership(
         fields["paused_on"] = open_row.started_on if open_row else None
         fields["pause_days"] = extension
         fields["pauses"] = [
-            {"started_on": row.started_on, "ended_on": row.ended_on} for row in rows
+            {"started_on": row.started_on, "ended_on": row.ended_on, "comment": row.comment}
+            for row in rows
         ]
         out[int(m.id)] = fields
     return out
@@ -713,6 +715,7 @@ async def _membership_after_pause(
 @router.post("/memberships/{membership_id}/pause", response_model=MembershipOut)
 async def pause_membership(
     membership_id: int,
+    body: MembershipPauseIn,
     user: CurrentUser,
     company_id: CurrentCompanyId,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -737,7 +740,13 @@ async def pause_membership(
     rows = await _pause_rows(db, int(m.id))
     if any(row.ended_on is None for row in rows):
         raise HTTPException(status_code=400, detail="Уже на паузе")
-    db.add(CuratorMembershipPause(membership_id=int(m.id), started_on=today))
+    db.add(
+        CuratorMembershipPause(
+            membership_id=int(m.id),
+            started_on=today,
+            comment=body.comment.strip(),
+        )
+    )
     await db.commit()
     await db.refresh(m)
     return await _membership_after_pause(db, company_id, m)
