@@ -358,12 +358,14 @@ class ProtocolQueueRowOut(BaseModel):
     attention_reason: str | None = None
     purchase_id: int | None = None
     next_request_id: int | None = None
+    next_request_kind: str | None = None
 
 
 class ProtocolNextRequestIn(BaseModel):
     lead_id: int | None = None
     sale_id: int | None = None
     sequence_no: int = Field(ge=1, le=20)
+    program_kind: str = "protocol"
 
 
 class ProtocolQueueOut(BaseModel):

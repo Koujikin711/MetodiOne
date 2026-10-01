@@ -26,6 +26,7 @@ type ProtocolRow = {
   attention_reason?: string | null;
   purchase_id?: number | null;
   next_request_id?: number | null;
+  next_request_kind?: "main_course" | "protocol" | null;
 };
 
 type ProtocolQueue = {
@@ -73,13 +74,14 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
   const rows = data?.rows ?? [];
 
   const sendNext = useMutation({
-    mutationFn: (row: ProtocolRow) =>
+    mutationFn: (row: ProtocolRow & { program_kind: "main_course" | "protocol" }) =>
       apiFetch("/api/curator-journal/protocol-queue/next-request", {
         method: "POST",
         body: JSON.stringify({
           lead_id: row.lead_id,
           sale_id: row.lead_id ? null : row.purchase_id,
           sequence_no: row.sequence_no,
+          program_kind: row.program_kind,
         }),
       }),
     onSuccess: () => {
@@ -243,27 +245,28 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-xs">
-                    {r.state === "next_protocol_sold" ? (
-                      "—"
-                    ) : r.next_request_id ? (
-                      <button
-                        type="button"
-                        className="text-[var(--mo-accent)] hover:underline"
-                        disabled={withdrawNext.isPending}
-                        onClick={() => withdrawNext.mutate(r.next_request_id as number)}
-                      >
-                        У админа · отозвать
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn-secondary px-2 py-1 text-xs"
-                        disabled={sendNext.isPending || (!r.lead_id && !r.purchase_id)}
-                        onClick={() => sendNext.mutate(r)}
-                      >
-                        На {r.sequence_no + 1}-й протокол
-                      </button>
-                    )}
+                    <select
+                      className="mo-input min-w-[9.5rem] py-1 text-xs"
+                      aria-label="Курс или протокол"
+                      value={r.next_request_kind ?? ""}
+                      disabled={
+                        sendNext.isPending ||
+                        withdrawNext.isPending ||
+                        (!r.lead_id && !r.purchase_id)
+                      }
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "main_course" || v === "protocol") {
+                          sendNext.mutate({ ...r, program_kind: v });
+                        } else if (r.next_request_id) {
+                          withdrawNext.mutate(r.next_request_id);
+                        }
+                      }}
+                    >
+                      <option value="">Курс / протокол</option>
+                      <option value="main_course">Курс</option>
+                      <option value="protocol">На {r.sequence_no + 1}-й протокол</option>
+                    </select>
                   </td>
                 </tr>
               ))}

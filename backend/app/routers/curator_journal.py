@@ -476,6 +476,7 @@ async def request_next_protocol(
         sequence_no=body.sequence_no,
         lead_id=body.lead_id,
         sale_id=body.sale_id,
+        program_kind=body.program_kind,
     )
     label = program_label(row.program_kind)
     if row.note:

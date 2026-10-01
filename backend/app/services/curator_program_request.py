@@ -222,14 +222,20 @@ def _person_key(name: str | None, phone: str | None) -> tuple[str, str]:
     return folded, tail
 
 
-async def _open_protocol_requests(db: AsyncSession, *, company_id: int) -> list[CuratorProgramRequest]:
+async def _open_protocol_requests(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    kinds: frozenset[str] | None = None,
+) -> list[CuratorProgramRequest]:
+    allowed = kinds or frozenset({"protocol"})
     return list(
         (
             await db.execute(
                 select(CuratorProgramRequest).where(
                     CuratorProgramRequest.company_id == company_id,
                     CuratorProgramRequest.status == OPEN_STATUS,
-                    CuratorProgramRequest.program_kind == "protocol",
+                    CuratorProgramRequest.program_kind.in_(allowed),
                 ),
             )
         ).scalars().all()
@@ -254,10 +260,13 @@ async def attach_protocol_request_ids(
     company_id: int,
     rows: list[dict],
 ) -> None:
-    reqs = await _open_protocol_requests(db, company_id=company_id)
+    reqs = await _open_protocol_requests(
+        db, company_id=company_id, kinds=frozenset({"protocol", "main_course"}),
+    )
     for row in rows:
         match = next((req for req in reqs if _request_matches_row(req, row)), None)
         row["next_request_id"] = int(match.id) if match else None
+        row["next_request_kind"] = match.program_kind if match else None
 
 
 async def create_next_protocol_request(
@@ -268,13 +277,18 @@ async def create_next_protocol_request(
     sequence_no: int,
     lead_id: int | None = None,
     sale_id: int | None = None,
+    program_kind: str = "protocol",
 ) -> CuratorProgramRequest:
-    """Заявка на следующий Протокол. Оплату вносит админ в KPI."""
+    """Заявка админу: следующий Протокол или Курс. Оплату вносит админ в KPI."""
+    kind = (program_kind or "protocol").strip()
+    if kind not in ("protocol", "main_course"):
+        raise HTTPException(status_code=400, detail="Можно отправить только Курс или Протокол")
     next_no = int(sequence_no) + 1
-    if next_no < 2 or next_no > 21:
+    if kind == "protocol" and (next_no < 2 or next_no > 21):
         raise HTTPException(status_code=400, detail="Неверный номер протокола")
-    note = f"№{next_no}"
+    note = f"№{next_no}" if kind == "protocol" else None
     now = datetime.now(UTC)
+    open_kinds = frozenset({"protocol", "main_course"})
 
     if lead_id is not None:
         lead = await db.get(Lead, int(lead_id))
@@ -308,7 +322,11 @@ async def create_next_protocol_request(
         )
         manager_id = int(lead.manager_id) if lead.manager_id else None
         existing = next(
-            (row for row in await _open_protocol_requests(db, company_id=company_id) if row.lead_id == int(lead_id)),
+            (
+                row
+                for row in await _open_protocol_requests(db, company_id=company_id, kinds=open_kinds)
+                if row.lead_id == int(lead_id)
+            ),
             None,
         )
     elif sale_id is not None:
@@ -322,6 +340,7 @@ async def create_next_protocol_request(
                 user=user,
                 sequence_no=sequence_no,
                 lead_id=int(sale.lead_id),
+                program_kind=kind,
             )
         item_name = await db.scalar(
             select(SalesKpiPlanItem.name).where(SalesKpiPlanItem.id == sale.plan_item_id),
@@ -335,7 +354,7 @@ async def create_next_protocol_request(
         existing = next(
             (
                 row
-                for row in await _open_protocol_requests(db, company_id=company_id)
+                for row in await _open_protocol_requests(db, company_id=company_id, kinds=open_kinds)
                 if row.lead_id is None and _person_key(row.patient_name, row.patient_phone) == key
             ),
             None,
@@ -345,6 +364,7 @@ async def create_next_protocol_request(
         raise HTTPException(status_code=400, detail="Укажите пациента или продажу")
 
     if existing is not None:
+        existing.program_kind = kind
         existing.note = note
         existing.patient_name = name
         existing.patient_phone = phone or ""
@@ -357,7 +377,7 @@ async def create_next_protocol_request(
     req = CuratorProgramRequest(
         company_id=company_id,
         lead_id=int(lead_id) if lead_id is not None else None,
-        program_kind="protocol",
+        program_kind=kind,
         status=OPEN_STATUS,
         note=note,
         patient_name=name,
@@ -384,7 +404,7 @@ async def withdraw_next_protocol_request(
         row is None
         or row.company_id != company_id
         or row.status != OPEN_STATUS
-        or row.program_kind != "protocol"
+        or row.program_kind not in ("protocol", "main_course")
     ):
         raise HTTPException(status_code=404, detail="Заявки у админа нет")
     row.status = "withdrawn"
@@ -419,10 +439,10 @@ async def accept_requests_for_sale(
                 )
             ).scalars().all()
         )
-    if kind == "protocol" and (client_name or client_phone):
+    if kind in ("protocol", "main_course") and (client_name or client_phone):
         key = _person_key(client_name, client_phone)
         seen = {int(row.id) for row in rows}
-        for row in await _open_protocol_requests(db, company_id=company_id):
+        for row in await _open_protocol_requests(db, company_id=company_id, kinds=frozenset({kind})):
             if int(row.id) in seen or row.lead_id is not None:
                 continue
             if _person_key(row.patient_name, row.patient_phone) == key and key[0]:
