@@ -48,6 +48,7 @@ from app.schemas.curator_journal import (
     MonthJournalOut,
     ProgramRequestCreate,
     ProgramRequestOut,
+    ProtocolNextRequestIn,
     ProtocolQueueOut,
     ProtocolQueueRowOut,
     RecurringComplaintOut,
@@ -443,6 +444,9 @@ async def protocol_term_queue(
         ending_soon_days=ending_soon_days,
         q=q,
     )
+    from app.services.curator_program_request import attach_protocol_request_ids
+
+    await attach_protocol_request_ids(db, company_id=company_id, rows=raw["rows"])
     return ProtocolQueueOut(
         predicate=raw["predicate"],
         duration_days=raw["duration_days"],
@@ -452,6 +456,53 @@ async def protocol_term_queue(
         counts=raw["counts"],
         rows=[ProtocolQueueRowOut(**r) for r in raw["rows"]],
     )
+
+
+@router.post("/protocol-queue/next-request", response_model=ProgramRequestOut)
+async def request_next_protocol(
+    body: ProtocolNextRequestIn,
+    user: CurrentUser,
+    company_id: CurrentCompanyId,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ProgramRequestOut:
+    """Куратор отправляет человека на следующий Протокол. Уведомление — заявка у админа в KPI."""
+    assert_journal_access(user)
+    from app.services.curator_program_request import create_next_protocol_request, program_label
+
+    row = await create_next_protocol_request(
+        db,
+        company_id=company_id,
+        user=user,
+        sequence_no=body.sequence_no,
+        lead_id=body.lead_id,
+        sale_id=body.sale_id,
+    )
+    label = program_label(row.program_kind)
+    if row.note:
+        label = f"{label} {row.note}"
+    return ProgramRequestOut(
+        id=int(row.id),
+        lead_id=int(row.lead_id) if row.lead_id is not None else None,
+        program_kind=row.program_kind,
+        program_label=label,
+        patient_name=row.patient_name,
+        patient_phone=row.patient_phone,
+        manager_user_id=int(row.manager_user_id) if row.manager_user_id else None,
+        created_at=row.created_at,
+    )
+
+
+@router.delete("/protocol-queue/next-request/{request_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def withdraw_next_protocol(
+    request_id: int,
+    user: CurrentUser,
+    company_id: CurrentCompanyId,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    assert_journal_access(user)
+    from app.services.curator_program_request import withdraw_next_protocol_request
+
+    await withdraw_next_protocol_request(db, company_id=company_id, request_id=request_id)
 
 
 @router.get("/curators", response_model=list[CuratorUserOut])

@@ -4311,8 +4311,9 @@ async def ensure_curator_program_requests(conn: AsyncConnection, database_url: s
                 """CREATE TABLE IF NOT EXISTS curator_program_requests (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     company_id INTEGER NOT NULL,
-                    lead_id INTEGER NOT NULL,
+                    lead_id INTEGER,
                     program_kind VARCHAR(24) NOT NULL,
+                    note VARCHAR(255),
                     status VARCHAR(24) NOT NULL DEFAULT 'pending',
                     patient_name VARCHAR(255) NOT NULL DEFAULT '',
                     patient_phone VARCHAR(64) NOT NULL DEFAULT '',
@@ -4330,8 +4331,9 @@ async def ensure_curator_program_requests(conn: AsyncConnection, database_url: s
                 """CREATE TABLE IF NOT EXISTS curator_program_requests (
                     id SERIAL PRIMARY KEY,
                     company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-                    lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+                    lead_id INTEGER REFERENCES leads(id) ON DELETE CASCADE,
                     program_kind VARCHAR(24) NOT NULL,
+                    note VARCHAR(255),
                     status VARCHAR(24) NOT NULL DEFAULT 'pending',
                     patient_name VARCHAR(255) NOT NULL DEFAULT '',
                     patient_phone VARCHAR(64) NOT NULL DEFAULT '',
@@ -4349,3 +4351,17 @@ async def ensure_curator_program_requests(conn: AsyncConnection, database_url: s
     await conn.execute(
         text("CREATE INDEX IF NOT EXISTS ix_curator_program_requests_lead ON curator_program_requests (lead_id)"),
     )
+    if sqlite:
+        cols = {
+            row[1]
+            for row in (await conn.execute(text("PRAGMA table_info(curator_program_requests)"))).fetchall()
+        }
+        if "note" not in cols:
+            await conn.execute(text("ALTER TABLE curator_program_requests ADD COLUMN note VARCHAR(255)"))
+    else:
+        await conn.execute(
+            text("ALTER TABLE curator_program_requests ALTER COLUMN lead_id DROP NOT NULL"),
+        )
+        await conn.execute(
+            text("ALTER TABLE curator_program_requests ADD COLUMN IF NOT EXISTS note VARCHAR(255)"),
+        )

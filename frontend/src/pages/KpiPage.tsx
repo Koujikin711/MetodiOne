@@ -417,7 +417,7 @@ export function KpiPage() {
       apiFetch<
         {
           id: number;
-          lead_id: number;
+          lead_id: number | null;
           program_kind: string;
           program_label: string;
           patient_name: string;
@@ -606,7 +606,7 @@ export function KpiPage() {
   });
 
   function fillFromCuratorRequest(req: {
-    lead_id: number;
+    lead_id: number | null;
     program_kind: string;
     program_label: string;
     patient_name: string;
@@ -621,13 +621,18 @@ export function KpiPage() {
         if (req.program_kind === "protocol") return n.includes("протокол");
         return n.includes("курс") && !n.includes("15");
       });
-    setSelectedLead({
-      lead_id: req.lead_id,
-      name: req.patient_name,
-      phone: req.patient_phone,
-      manager_name: req.manager_name,
-    });
-    setLeadFromContext(true);
+    if (req.lead_id) {
+      setSelectedLead({
+        lead_id: req.lead_id,
+        name: req.patient_name,
+        phone: req.patient_phone,
+        manager_name: req.manager_name,
+      });
+      setLeadFromContext(true);
+    } else {
+      setSelectedLead(null);
+      setLeadFromContext(false);
+    }
     setSaleForm((s) => ({
       ...s,
       client_name: req.patient_name,
@@ -1322,7 +1327,8 @@ export function KpiPage() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{req.patient_name}</p>
                       <p className="text-[11px] tabular-nums mo-muted">
-                        {req.patient_phone || "—"} · #{req.lead_id} · {req.program_label}
+                        {req.patient_phone || "—"}
+                        {req.lead_id ? ` · #${req.lead_id}` : ""} · {req.program_label}
                         {req.manager_name ? ` · ${req.manager_name}` : ""}
                       </p>
                     </div>

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.services.booking_patient_name import display_patient_identity, pick_latest_booking_identity
-from app.services.curator_program_request import sale_kind_matches_request
+from app.services.curator_program_request import _person_key, sale_kind_matches_request
 
 
 def test_latest_booking_name_wins_over_older_chat_snapshot():
@@ -39,3 +39,7 @@ def test_admin_sale_matches_only_the_requested_program():
     assert sale_kind_matches_request("protocol", "Протокол") is True
     assert sale_kind_matches_request("protocol", "Курс") is False
     assert sale_kind_matches_request("main_course", "Массаж") is False
+
+
+def test_next_protocol_person_key_matches_phone_formats():
+    assert _person_key("Ниёзов Хофиз", "+992935930184") == _person_key("Ниёзов Хофиз", "992935930184")

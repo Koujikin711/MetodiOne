@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import toast from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
 
@@ -24,6 +25,7 @@ type ProtocolRow = {
   requires_attention: boolean;
   attention_reason?: string | null;
   purchase_id?: number | null;
+  next_request_id?: number | null;
 };
 
 type ProtocolQueue = {
@@ -46,6 +48,7 @@ function fmtDt(iso: string | null | undefined): string {
 }
 
 export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
+  const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [includeConverted, setIncludeConverted] = useState(false);
   const [endingSoonDays, setEndingSoonDays] = useState("7");
@@ -68,6 +71,35 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
 
   const data = query.data;
   const rows = data?.rows ?? [];
+
+  const sendNext = useMutation({
+    mutationFn: (row: ProtocolRow) =>
+      apiFetch("/api/curator-journal/protocol-queue/next-request", {
+        method: "POST",
+        body: JSON.stringify({
+          lead_id: row.lead_id,
+          sale_id: row.lead_id ? null : row.purchase_id,
+          sequence_no: row.sequence_no,
+        }),
+      }),
+    onSuccess: () => {
+      toast.success("Заявка у администратора в KPI");
+      void qc.invalidateQueries({ queryKey: ["curator-journal", "protocol-queue"] });
+      void qc.invalidateQueries({ queryKey: ["sales-kpi-program-requests"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Не удалось отправить"),
+  });
+
+  const withdrawNext = useMutation({
+    mutationFn: (requestId: number) =>
+      apiFetch(`/api/curator-journal/protocol-queue/next-request/${requestId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast.success("Заявка отозвана");
+      void qc.invalidateQueries({ queryKey: ["curator-journal", "protocol-queue"] });
+      void qc.invalidateQueries({ queryKey: ["sales-kpi-program-requests"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Не удалось отозвать"),
+  });
 
   return (
     <div className="space-y-4">
@@ -157,6 +189,7 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
                 <th className="px-3 py-2 font-medium">След. контакт</th>
                 <th className="px-3 py-2 font-medium">След. продажа</th>
                 <th className="px-3 py-2 font-medium">Внимание</th>
+                <th className="px-3 py-2 font-medium">Админу</th>
               </tr>
             </thead>
             <tbody>
@@ -207,6 +240,29 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
                       </span>
                     ) : (
                       "—"
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-xs">
+                    {r.state === "next_protocol_sold" ? (
+                      "—"
+                    ) : r.next_request_id ? (
+                      <button
+                        type="button"
+                        className="text-[var(--mo-accent)] hover:underline"
+                        disabled={withdrawNext.isPending}
+                        onClick={() => withdrawNext.mutate(r.next_request_id as number)}
+                      >
+                        У админа · отозвать
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-secondary px-2 py-1 text-xs"
+                        disabled={sendNext.isPending || (!r.lead_id && !r.purchase_id)}
+                        onClick={() => sendNext.mutate(r)}
+                      >
+                        На {r.sequence_no + 1}-й протокол
+                      </button>
                     )}
                   </td>
                 </tr>

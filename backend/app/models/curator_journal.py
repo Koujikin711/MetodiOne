@@ -201,8 +201,13 @@ class CuratorProgramRequest(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
-    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    lead_id: Mapped[int | None] = mapped_column(
+        ForeignKey("leads.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     program_kind: Mapped[str] = mapped_column(String(24))
+    note: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
     patient_name: Mapped[str] = mapped_column(String(255), default="")
     patient_phone: Mapped[str] = mapped_column(String(64), default="")

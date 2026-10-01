@@ -308,7 +308,7 @@ class ProgramRequestCreate(BaseModel):
 
 class ProgramRequestOut(BaseModel):
     id: int
-    lead_id: int
+    lead_id: int | None = None
     program_kind: str
     program_label: str
     patient_name: str
@@ -357,6 +357,13 @@ class ProtocolQueueRowOut(BaseModel):
     requires_attention: bool
     attention_reason: str | None = None
     purchase_id: int | None = None
+    next_request_id: int | None = None
+
+
+class ProtocolNextRequestIn(BaseModel):
+    lead_id: int | None = None
+    sale_id: int | None = None
+    sequence_no: int = Field(ge=1, le=20)
 
 
 class ProtocolQueueOut(BaseModel):

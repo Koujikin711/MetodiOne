@@ -1040,6 +1040,8 @@ async def create_manual_sale(
         lead_id=link_lead_id,
         product_name=item.name,
         sale_id=int(sale.id),
+        client_name=sale.client_name,
+        client_phone=sale.client_phone,
     )
     from app.services.course_flow_from_kpi import sync_course_flows_from_kpi
 
@@ -1203,6 +1205,8 @@ async def link_manual_sale_lead(
         lead_id=int(sale.lead_id) if sale.lead_id is not None else None,
         product_name=item.name if item else "",
         sale_id=int(sale.id),
+        client_name=sale.client_name,
+        client_phone=sale.client_phone,
     )
     await db.commit()
     await db.refresh(sale)
