@@ -17,6 +17,8 @@ export interface Employee {
   role: UserRole;
   pipeline_ids: number[];
   specialization?: string | null;
+  base_salary?: string | number | null;
+  payout_bank?: string | null;
   is_online?: boolean;
   last_seen_at?: string | null;
 }
@@ -136,6 +138,8 @@ export function EmployeesPage() {
   const [editFullName, setEditFullName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editSalary, setEditSalary] = useState("");
+  const [editPayoutBank, setEditPayoutBank] = useState("");
   const [editSpecialization, setEditSpecialization] = useState("");
   const [editPipelineIds, setEditPipelineIds] = useState<number[]>([]);
 
@@ -379,6 +383,8 @@ export function EmployeesPage() {
     setEditFullName(e.full_name ?? "");
     setEditEmail(e.email);
     setEditPhone(e.phone ?? "");
+    setEditSalary(e.base_salary == null || e.base_salary === "" ? "" : String(e.base_salary));
+    setEditPayoutBank(e.payout_bank ?? "");
     setEditSpecialization(e.specialization ?? "");
     setEditPipelineIds([...e.pipeline_ids]);
   }
@@ -408,6 +414,8 @@ export function EmployeesPage() {
       const emailChanged = editEmail.trim().toLowerCase() !== (editEmployee.email || "").trim().toLowerCase();
       const phoneChanged = editPhone.trim() !== (editEmployee.phone || "").trim();
       const nameChanged = editFullName.trim() !== (editEmployee.full_name || "").trim();
+      const salaryChanged = editSalary.trim() !== (editEmployee.base_salary == null ? "" : String(editEmployee.base_salary));
+      const bankChanged = editPayoutBank !== (editEmployee.payout_bank || "");
       const specChanged =
         editEmployee.role === "expert" &&
         editSpecialization.trim() !== (editEmployee.specialization || "").trim();
@@ -417,7 +425,7 @@ export function EmployeesPage() {
           editPipelineIds.some((id) => !editEmployee.pipeline_ids.includes(id)));
 
       const profileChanged =
-        emailChanged || phoneChanged || nameChanged || specChanged;
+        emailChanged || phoneChanged || nameChanged || specChanged || salaryChanged || bankChanged;
 
       if (!profileChanged && !pipelinesChanged) {
         throw new Error("Нет изменений");
@@ -434,6 +442,8 @@ export function EmployeesPage() {
                 specialization: editSpecialization.trim(),
               }
             : {}),
+          base_salary: editSalary.trim() ? Number(editSalary) : null,
+          payout_bank: editPayoutBank.trim() || null,
         });
         const profilePath = `/api/employees/${editEmployee.id}`;
         try {
@@ -890,6 +900,33 @@ export function EmployeesPage() {
                       onChange={(ev) => setEditPhone(ev.target.value)}
                       className="mo-input"
                     />
+                  </label>
+                  <label className="employee-edit-field">
+                    <span>Оклад</span>
+                    <input
+                      type="number"
+                      min={0}
+                      inputMode="decimal"
+                      value={editSalary}
+                      onChange={(ev) => setEditSalary(ev.target.value)}
+                      className="mo-input"
+                      placeholder="Пусто, если оклада нет"
+                    />
+                  </label>
+                  <label className="employee-edit-field">
+                    <span>Куда платить</span>
+                    <select
+                      value={editPayoutBank}
+                      onChange={(ev) => setEditPayoutBank(ev.target.value)}
+                      className="mo-input"
+                    >
+                      <option value="">—</option>
+                      {["ДС", "КАССА", "Алиф", "Амонатбонк", "Эсхата"].map((bank) => (
+                        <option key={bank} value={bank}>
+                          {bank}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
                 <p className="mt-2 text-[11px] leading-relaxed mo-muted">

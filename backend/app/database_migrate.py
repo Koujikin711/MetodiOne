@@ -1818,6 +1818,29 @@ async def ensure_clinic_staff_roles(conn: AsyncConnection, database_url: str) ->
             await ac.execute(text(f"ALTER TYPE user_role ADD VALUE '{val}'"))
 
 
+async def ensure_user_pay_profile(conn: AsyncConnection, database_url: str) -> None:
+    """Оклад и способ выплаты на карточке сотрудника."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        r = await conn.execute(text("PRAGMA table_info(users)"))
+        cols = {row[1] for row in r.fetchall()}
+        if "base_salary" not in cols:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN base_salary NUMERIC(14, 2)"))
+        if "payout_bank" not in cols:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN payout_bank VARCHAR(32)"))
+        r2 = await conn.execute(text("PRAGMA table_info(finance_osv_rows)"))
+        osv_cols = {row[1] for row in r2.fetchall()}
+        if "employee_user_id" not in osv_cols:
+            await conn.execute(text("ALTER TABLE finance_osv_rows ADD COLUMN employee_user_id INTEGER"))
+    else:
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS base_salary NUMERIC(14, 2)"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS payout_bank VARCHAR(32)"))
+        await conn.execute(
+            text("ALTER TABLE finance_osv_rows ADD COLUMN IF NOT EXISTS employee_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL")
+        )
+
+
 async def ensure_user_last_seen_at(conn: AsyncConnection, database_url: str) -> None:
     """Колонка users.last_seen_at — онлайн-статус для дашборда РОП."""
     low = database_url.lower()
@@ -1831,6 +1854,50 @@ async def ensure_user_last_seen_at(conn: AsyncConnection, database_url: str) -> 
         await conn.execute(
             text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ"),
         )
+
+
+async def ensure_debtor_collection_notes(conn: AsyncConnection, database_url: str) -> None:
+    """Комментарий и дата обещания оплаты на строке дебиторки."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS debtor_collection_notes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    source VARCHAR(16) NOT NULL,
+                    source_id INTEGER NOT NULL,
+                    comment TEXT,
+                    promised_on DATE,
+                    updated_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    updated_at TIMESTAMP,
+                    UNIQUE(company_id, source, source_id)
+                )"""
+            )
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS debtor_collection_notes (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    source VARCHAR(16) NOT NULL,
+                    source_id INTEGER NOT NULL,
+                    comment TEXT,
+                    promised_on DATE,
+                    updated_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    updated_at TIMESTAMPTZ,
+                    UNIQUE(company_id, source, source_id)
+                )"""
+            )
+        )
+    await conn.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS idx_debtor_collection_notes_company "
+            "ON debtor_collection_notes (company_id, source, source_id)"
+        )
+    )
 
 
 async def ensure_user_presence_days(conn: AsyncConnection, database_url: str) -> None:

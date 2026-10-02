@@ -18,6 +18,7 @@ from app.models import (
     BookingAppointment,
     BookingDirection,
     BookingSpecialist,
+    DebtorCollectionNote,
     FinanceOsvRow,
     Lead,
     ManagerDeskSale,
@@ -35,6 +36,11 @@ from app.models import (
     UserRole,
 )
 from app.services.crm_space import company_is_sales_mode
+from app.services.debtor_collection import (
+    clinic_today,
+    promise_is_overdue,
+    sort_debtors_for_calls,
+)
 from app.schemas.sales_kpi import (
     SalesKpiBoardLine,
     SalesKpiBoardManager,
@@ -42,6 +48,8 @@ from app.schemas.sales_kpi import (
     SalesKpiCompanyPlanLine,
     SalesKpiCompanyReport,
     SalesKpiCompanyServiceStat,
+    SalesKpiDebtorNoteOut,
+    SalesKpiDebtorNotePut,
     SalesKpiDebtorRow,
     SalesKpiDebtorsReport,
     SalesKpiDirectionMeta,
@@ -1539,18 +1547,111 @@ async def debtors_report(
             ),
         )
 
-    total = sum((r.debt_amount for r in rows_out), Decimal("0"))
     from app.services.clinic_roles import debtors_course_protocol_only, is_course_or_protocol_indicator
 
     if debtors_course_protocol_only(current_user.role):
         rows_out = [r for r in rows_out if is_course_or_protocol_indicator(r.indicator_name)]
-        total = sum((r.debt_amount for r in rows_out), Decimal("0"))
+    rows_out = await _attach_collection_notes(db, company_id, rows_out)
+    total = sum((r.debt_amount for r in rows_out), Decimal("0"))
     return SalesKpiDebtorsReport(
         pipeline_id=pipe.id,
         pipeline_name=pipe.name,
         year_month=ym.isoformat()[:7],
         rows=rows_out,
         total_debt=total,
+    )
+
+
+async def _attach_collection_notes(
+    db: AsyncSession,
+    company_id: int,
+    rows: list[SalesKpiDebtorRow],
+) -> list[SalesKpiDebtorRow]:
+    if not rows:
+        return rows
+    sources = {r.source for r in rows}
+    ids = {int(r.source_id) for r in rows}
+    found = (
+        await db.execute(
+            select(DebtorCollectionNote).where(
+                DebtorCollectionNote.company_id == company_id,
+                DebtorCollectionNote.source.in_(sources),
+                DebtorCollectionNote.source_id.in_(ids),
+            )
+        )
+    ).scalars().all()
+    by_key = {(n.source, int(n.source_id)): n for n in found}
+    today = clinic_today()
+    enriched: list[SalesKpiDebtorRow] = []
+    for row in rows:
+        note = by_key.get((row.source, int(row.source_id)))
+        promised = note.promised_on if note else None
+        comment = ((note.comment or "").strip() or None) if note else None
+        enriched.append(
+            row.model_copy(
+                update={
+                    "comment": comment,
+                    "promised_on": promised,
+                    "promise_overdue": promise_is_overdue(promised, today),
+                }
+            )
+        )
+    return sort_debtors_for_calls(enriched, today)
+
+
+async def _debtor_source_in_company(db: AsyncSession, company_id: int, source: str, source_id: int) -> bool:
+    if source == "manual":
+        sale = await db.get(SalesKpiManualSale, source_id)
+        return sale is not None and int(sale.company_id) == company_id
+    if source == "booking":
+        appt = await db.get(BookingAppointment, source_id)
+        if appt is not None and int(appt.company_id) == company_id:
+            return True
+        desk = await db.get(ManagerDeskSale, source_id)
+        return desk is not None and int(desk.company_id) == company_id
+    return False
+
+
+@router.put("/debtors/note", response_model=SalesKpiDebtorNoteOut)
+async def save_debtor_note(
+    body: SalesKpiDebtorNotePut,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> SalesKpiDebtorNoteOut:
+    """Комментарий и дата «обещал оплатить». Сумму долга не меняет."""
+    _assert_kpi_access(current_user)
+    _assert_debtors_access(current_user)
+    if not await _debtor_source_in_company(db, company_id, body.source, body.source_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Долг не найден")
+    comment = (body.comment or "").strip() or None
+    note = (
+        await db.execute(
+            select(DebtorCollectionNote).where(
+                DebtorCollectionNote.company_id == company_id,
+                DebtorCollectionNote.source == body.source,
+                DebtorCollectionNote.source_id == body.source_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if note is None:
+        note = DebtorCollectionNote(
+            company_id=company_id,
+            source=body.source,
+            source_id=body.source_id,
+        )
+        db.add(note)
+    note.comment = comment
+    note.promised_on = body.promised_on
+    note.updated_by_user_id = int(current_user.id)
+    await db.commit()
+    today = clinic_today()
+    return SalesKpiDebtorNoteOut(
+        source=body.source,
+        source_id=body.source_id,
+        comment=comment,
+        promised_on=body.promised_on,
+        promise_overdue=promise_is_overdue(body.promised_on, today),
     )
 
 

@@ -22,6 +22,7 @@ class FinanceOsvRowRead(BaseModel):
     brief_category: str | None = None
     source: str
     external_key: str | None = None
+    employee_user_id: int | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -119,12 +120,39 @@ class FinanceExpenseCatalogRead(BaseModel):
     products: list[str] = Field(default_factory=list)
 
 
+class FinanceStaffCard(BaseModel):
+    id: int
+    full_name: str | None = None
+    phone: str | None = None
+    role: str
+    base_salary: Decimal | None = None
+    payout_bank: str | None = None
+
+
+class FinancePayrollRow(BaseModel):
+    user_id: int
+    full_name: str
+    phone: str | None = None
+    payout_bank: str | None = None
+    base_salary: Decimal | None = None
+    bonus: Decimal = Decimal("0")
+    advances: Decimal = Decimal("0")
+    remainder: Decimal = Decimal("0")
+
+
+class FinancePayrollReport(BaseModel):
+    year_month: str
+    pipeline_name: str | None = None
+    rows: list[FinancePayrollRow] = Field(default_factory=list)
+
+
 class FinanceExpenseCreate(BaseModel):
     txn_date: date
     expense: Decimal = Field(..., gt=0)
     bank: str | None = Field(default=None, max_length=64)
     basis: str | None = Field(default=None, max_length=255)
     counterparty: str | None = Field(default=None, max_length=255)
+    employee_user_id: int | None = Field(default=None, ge=1)
     phone: str | None = Field(default=None, max_length=64)
     via_person: str | None = Field(default=None, max_length=128)
     product_service: str | None = Field(default=None, max_length=255)

@@ -1097,6 +1097,9 @@ export interface SalesKpiDebtorRow {
   paid_amount: string | number;
   debt_amount: string | number;
   status: string;
+  comment?: string | null;
+  promised_on?: string | null;
+  promise_overdue?: boolean;
 }
 
 export interface SalesKpiDebtorsReport {

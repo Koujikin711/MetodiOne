@@ -1,5 +1,7 @@
 from calendar import monthrange
+from collections import defaultdict
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -9,11 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings as app_settings
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
-from app.models import FinanceCompanySettings, FinanceOsvRow, UserRole
+from app.models import FinanceCompanySettings, FinanceOsvRow, Pipeline, User, UserRole
 from app.schemas.finance_v2 import (
     FinanceDdsReportRead,
     FinanceExpenseCatalogRead,
     FinanceExpenseCreate,
+    FinancePayrollReport,
+    FinancePayrollRow,
+    FinanceStaffCard,
     FinanceIntegrateResultRead,
     FinanceIntegrationStatusRead,
     FinanceOpiuReportRead,
@@ -36,6 +41,23 @@ def _assert_expenses_access(user) -> None:
     if can_access_expenses(user.role):
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к расходам")
+
+
+_PAY_ROLES = frozenset(
+    {
+        UserRole.manager,
+        UserRole.curator,
+        UserRole.administrator,
+        UserRole.expert,
+        UserRole.accountant,
+        UserRole.rop,
+        UserRole.admin,
+    }
+)
+
+
+def _norm_person(value: str | None) -> str:
+    return " ".join((value or "").replace("ё", "е").replace("Ё", "Е").casefold().split())
 
 
 def _settings_read(row: FinanceCompanySettings | None) -> FinanceSettingsRead:
@@ -209,6 +231,146 @@ async def list_expenses(
     return [FinanceOsvRowRead.model_validate(r) for r in rows]
 
 
+@router.get("/staff", response_model=list[FinanceStaffCard])
+async def list_pay_staff(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[FinanceStaffCard]:
+    """Сотрудники и менеджеры для статьи ФОТ."""
+    _assert_expenses_access(current_user)
+    await assert_finance_access(db, current_user)
+    users = (
+        await db.execute(
+            select(User)
+            .where(
+                User.company_id == company_id,
+                User.is_active.is_(True),
+                User.role.in_(list(_PAY_ROLES)),
+            )
+            .order_by(User.full_name.asc(), User.id.asc())
+        )
+    ).scalars().all()
+    return [
+        FinanceStaffCard(
+            id=int(u.id),
+            full_name=u.full_name,
+            phone=u.phone,
+            role=u.role.value if hasattr(u.role, "value") else str(u.role),
+            base_salary=u.base_salary,
+            payout_bank=u.payout_bank,
+        )
+        for u in users
+        if (u.full_name or "").strip()
+    ]
+
+
+@router.get("/payroll", response_model=FinancePayrollReport)
+async def payroll_sheet(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    year: int = Query(..., ge=2020, le=2100),
+    month: int = Query(..., ge=1, le=12),
+) -> FinancePayrollReport:
+    """Ведомость за месяц: оклад, бонус KPI, авансы из расходов. Ничего не выплачивает."""
+    _assert_expenses_access(current_user)
+    await assert_finance_access(db, current_user)
+    day_from = date(year, month, 1)
+    day_to = date(year, month, monthrange(year, month)[1])
+    users = (
+        await db.execute(
+            select(User).where(
+                User.company_id == company_id,
+                User.is_active.is_(True),
+                User.role.in_(list(_PAY_ROLES)),
+            )
+        )
+    ).scalars().all()
+    by_id = {int(u.id): u for u in users if (u.full_name or "").strip()}
+    name_hits: dict[str, list[int]] = defaultdict(list)
+    for uid, user in by_id.items():
+        name_hits[_norm_person(user.full_name)].append(uid)
+    name_to_id = {name: ids[0] for name, ids in name_hits.items() if name and len(ids) == 1}
+
+    fot_rows = (
+        await db.execute(
+            select(FinanceOsvRow).where(
+                FinanceOsvRow.company_id == company_id,
+                FinanceOsvRow.txn_date >= day_from,
+                FinanceOsvRow.txn_date <= day_to,
+                FinanceOsvRow.expense > 0,
+            )
+        )
+    ).scalars().all()
+    advances: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
+    for row in fot_rows:
+        article = (row.article or "").casefold()
+        brief = (row.brief_category or "").casefold()
+        if "фот" not in article and "зарплат" not in brief and "зарплат" not in article:
+            continue
+        amount = Decimal(str(row.expense or 0))
+        if row.employee_user_id and int(row.employee_user_id) in by_id:
+            advances[int(row.employee_user_id)] += amount
+            continue
+        matched = name_to_id.get(_norm_person(row.counterparty))
+        if matched is not None:
+            advances[matched] += amount
+
+    bonus_by_id: dict[int, Decimal] = {}
+    pipeline_name: str | None = None
+    pipes = (
+        await db.execute(
+            select(Pipeline).where(Pipeline.company_id == company_id).order_by(Pipeline.id.asc())
+        )
+    ).scalars().all()
+    pipe = next((p for p in pipes if "медицин" in (p.name or "").casefold()), pipes[0] if pipes else None)
+    if pipe is not None:
+        from app.routers.sales_kpi_board import _build_sales_report
+        from app.services.sales_kpi_weighted import parse_year_month
+
+        report = await _build_sales_report(
+            db,
+            company_id=company_id,
+            pipe=pipe,
+            ym=parse_year_month(f"{year:04d}-{month:02d}"),
+        )
+        pipeline_name = report.pipeline_name
+        for manager in report.managers:
+            bonus_by_id[int(manager.manager_id)] = Decimal(str(manager.bonus or 0))
+
+    out: list[FinancePayrollRow] = []
+    seen = set(by_id) | set(advances) | set(bonus_by_id)
+    for uid in seen:
+        user = by_id.get(uid)
+        if user is None:
+            continue
+        salary = Decimal(str(user.base_salary)) if user.base_salary is not None else None
+        bonus = bonus_by_id.get(uid, Decimal("0"))
+        paid = advances.get(uid, Decimal("0"))
+        if salary is None and bonus == 0 and paid == 0:
+            continue
+        remainder = (salary or Decimal("0")) + bonus - paid
+        out.append(
+            FinancePayrollRow(
+                user_id=uid,
+                full_name=(user.full_name or "").strip(),
+                phone=user.phone,
+                payout_bank=user.payout_bank,
+                base_salary=salary,
+                bonus=bonus,
+                advances=paid,
+                remainder=remainder,
+            )
+        )
+    out.sort(key=lambda row: row.full_name.casefold())
+    return FinancePayrollReport(
+        year_month=f"{year:04d}-{month:02d}",
+        pipeline_name=pipeline_name,
+        rows=out,
+    )
+
+
 @router.post("/expenses", response_model=FinanceOsvRowRead, status_code=status.HTTP_201_CREATED)
 async def create_expense(
     body: FinanceExpenseCreate,
@@ -218,6 +380,10 @@ async def create_expense(
 ) -> FinanceOsvRowRead:
     _assert_expenses_access(current_user)
     await assert_finance_access(db, current_user)
+    if body.employee_user_id is not None:
+        person = await db.get(User, body.employee_user_id)
+        if person is None or person.company_id != company_id or not person.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Сотрудник не найден")
     row = FinanceOsvRow(
         company_id=company_id,
         txn_date=body.txn_date,
@@ -234,6 +400,7 @@ async def create_expense(
         brief_category=(body.brief_category or "Расход").strip() or "Расход",
         source="manual",
         external_key=None,
+        employee_user_id=body.employee_user_id,
     )
     db.add(row)
     await db.flush()

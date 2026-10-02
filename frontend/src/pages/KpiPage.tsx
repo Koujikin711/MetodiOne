@@ -40,6 +40,7 @@ function ManualPayPack({
   onDraft,
   onDate,
   onOk,
+  showPaid = true,
 }: {
   paid: number;
   draft: string;
@@ -48,10 +49,11 @@ function ManualPayPack({
   onDraft: (value: string) => void;
   onDate: (value: string) => void;
   onOk: () => void;
+  showPaid?: boolean;
 }) {
   return (
     <div className="kpi-pay-pack">
-      <span className="kpi-pay-pack__sum">{formatMoney(paid)}</span>
+      {showPaid ? <span className="kpi-pay-pack__sum">{formatMoney(paid)}</span> : null}
       <input
         type="number"
         min={0}
@@ -73,6 +75,13 @@ function ManualPayPack({
       </button>
     </div>
   );
+}
+
+function saleProductKind(name: string | null | undefined): "course" | "protocol" | "other" {
+  const n = (name || "").toLowerCase().replace(/ё/g, "е");
+  if (n.includes("протокол")) return "protocol";
+  if (n.includes("курс")) return "course";
+  return "other";
 }
 
 type PlanDraftItem = {
@@ -289,6 +298,56 @@ function formatSaleDt(iso: string): string {
   }
 }
 
+function clinicTodayYmd(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dushanbe",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function DebtorNoteFields({
+  comment,
+  promisedOn,
+  onSave,
+}: {
+  comment: string | null | undefined;
+  promisedOn: string | null | undefined;
+  onSave: (comment: string, promisedOn: string) => void;
+}) {
+  const [text, setText] = useState(comment ?? "");
+  const [promised, setPromised] = useState(promisedOn ?? "");
+  useEffect(() => {
+    setText(comment ?? "");
+    setPromised(promisedOn ?? "");
+  }, [comment, promisedOn]);
+  return (
+    <div className="debtor-note">
+      <input
+        className="mo-input debtor-note__comment"
+        aria-label="Комментарий по долгу"
+        placeholder="Звонок, что обещал"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          if (text !== (comment ?? "")) onSave(text, promised);
+        }}
+      />
+      <DateField
+        aria-label="Обещал оплатить"
+        placeholder="Обещал оплатить"
+        value={promised}
+        allowClear
+        onChange={(iso) => {
+          setPromised(iso);
+          onSave(text, iso);
+        }}
+      />
+    </div>
+  );
+}
+
 export function KpiPage() {
   const queryClient = useQueryClient();
   const role = decodeRoleFromToken(getStoredToken());
@@ -306,6 +365,7 @@ export function KpiPage() {
   const [listQuery, setListQuery] = useState("");
   const [journalSearch, setJournalSearch] = useState("");
   const [journalOpen, setJournalOpen] = useState(false);
+  const [saleProductFilter, setSaleProductFilter] = useState<"all" | "course" | "protocol">("all");
   const [tab, setTab] = useState<TabId>(
     isCurator ? "debtors" : isAccountant ? "company" : isOwner ? "plan" : "sales",
   );
@@ -334,6 +394,7 @@ export function KpiPage() {
   const [payDraft, setPayDraft] = useState<Record<number, string>>({});
   const [payDates, setPayDates] = useState<Record<number, string>>({});
   const [expandedDebtorKey, setExpandedDebtorKey] = useState<string | null>(null);
+  const [debtorManager, setDebtorManager] = useState<string | null>(null);
 
   const pipelinesQuery = useQuery({
     queryKey: ["sales-kpi-pipelines"],
@@ -452,6 +513,23 @@ export function KpiPage() {
     queryKey: ["sales-kpi-debtors", qs],
     queryFn: () => apiFetch<SalesKpiDebtorsReport>(`/api/sales-kpi/debtors?${qs}`),
     enabled: Boolean(pipelineId && (isAdminOrOwner || isCurator) && tab === "debtors"),
+  });
+
+  const debtorNoteMutation = useMutation({
+    mutationFn: (body: { source: string; source_id: number; comment: string; promised_on: string }) =>
+      apiFetch("/api/sales-kpi/debtors/note", {
+        method: "PUT",
+        body: JSON.stringify({
+          source: body.source,
+          source_id: body.source_id,
+          comment: body.comment.trim() || null,
+          promised_on: body.promised_on || null,
+        }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const companyQuery = useQuery({
@@ -840,7 +918,10 @@ export function KpiPage() {
   }, [paymentJournalQuery.data, journalSearch]);
 
   const filteredManualSales = useMemo(() => {
-    const rows = manualQuery.data ?? [];
+    let rows = manualQuery.data ?? [];
+    if (saleProductFilter !== "all") {
+      rows = rows.filter((s) => saleProductKind(s.plan_item_name) === saleProductFilter);
+    }
     if (!listQuery.trim()) return rows;
     return rows.filter((s) =>
       matchesKpiListQuery(listQuery, [
@@ -855,10 +936,22 @@ export function KpiPage() {
         s.note,
       ]),
     );
-  }, [manualQuery.data, listQuery]);
+  }, [manualQuery.data, listQuery, saleProductFilter]);
+
+  const debtorManagers = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of debtorsQuery.data?.rows ?? []) {
+      const name = row.manager_name?.trim() || "Без менеджера";
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ru"));
+  }, [debtorsQuery.data?.rows]);
 
   const filteredDebtors = useMemo(() => {
-    const rows = debtorsQuery.data?.rows ?? [];
+    let rows = debtorsQuery.data?.rows ?? [];
+    if (debtorManager) {
+      rows = rows.filter((r) => (r.manager_name?.trim() || "Без менеджера") === debtorManager);
+    }
     if (!listQuery.trim()) return rows;
     return rows.filter((r) =>
       matchesKpiListQuery(listQuery, [
@@ -866,10 +959,15 @@ export function KpiPage() {
         r.client_phone,
         r.manager_name,
         r.indicator_name,
+        r.comment,
         r.source === "booking" ? "запись" : "курс",
       ]),
     );
-  }, [debtorsQuery.data?.rows, listQuery]);
+  }, [debtorManager, debtorsQuery.data?.rows, listQuery]);
+
+  const clinicToday = clinicTodayYmd();
+  const callTodayCount = filteredDebtors.filter((r) => Boolean(r.promised_on) && (r.promised_on as string) <= clinicToday).length;
+  const debtorsScoped = Boolean(listQuery.trim() || debtorManager);
   const visibleTabs = tabs.filter((t) => t.show);
 
   return (
@@ -1715,6 +1813,25 @@ export function KpiPage() {
               )
             : null}
 
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {(
+              [
+                ["all", "Все"],
+                ["course", "Курсы"],
+                ["protocol", "Протоколы"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={["debtor-chip", saleProductFilter === id ? "is-on" : ""].filter(Boolean).join(" ")}
+                onClick={() => setSaleProductFilter(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <ul className="space-y-2 pt-1 sm:hidden">
             {filteredManualSales.map((s) => (
               <li key={s.id} className="kpi-sale-card">
@@ -1838,28 +1955,30 @@ export function KpiPage() {
                     <td>{s.manager_name}</td>
                     <td className="font-medium">{s.client_name}</td>
                     <td className="tabular-nums">{s.client_phone}</td>
-                    <td className="tabular-nums whitespace-nowrap">{formatMoney(num(s.service_amount))}</td>
                     <td className="tabular-nums whitespace-nowrap">
-                      {s.status !== "active" || num(s.debt_amount) <= 0 ? (
-                        formatMoney(num(s.paid_amount))
-                      ) : (
-                        <ManualPayPack
-                          paid={num(s.paid_amount)}
-                          draft={payDraft[s.id] ?? ""}
-                          date={payDates[s.id] || todayYmd()}
-                          pending={payMutation.isPending}
-                          onDraft={(value) => setPayDraft((prev) => ({ ...prev, [s.id]: value }))}
-                          onDate={(value) => setPayDates((prev) => ({ ...prev, [s.id]: value }))}
-                          onOk={() =>
-                            payMutation.mutate({
-                              id: s.id,
-                              add: Number(payDraft[s.id] || 0),
-                              paid_at: payDates[s.id] || todayYmd(),
-                            })
-                          }
-                        />
-                      )}
+                      <div className="kpi-sum-pay">
+                        <span className="kpi-pay-pack__sum">{formatMoney(num(s.service_amount))}</span>
+                        {s.status === "active" && num(s.debt_amount) > 0 ? (
+                          <ManualPayPack
+                            showPaid={false}
+                            paid={num(s.paid_amount)}
+                            draft={payDraft[s.id] ?? ""}
+                            date={payDates[s.id] || todayYmd()}
+                            pending={payMutation.isPending}
+                            onDraft={(value) => setPayDraft((prev) => ({ ...prev, [s.id]: value }))}
+                            onDate={(value) => setPayDates((prev) => ({ ...prev, [s.id]: value }))}
+                            onOk={() =>
+                              payMutation.mutate({
+                                id: s.id,
+                                add: Number(payDraft[s.id] || 0),
+                                paid_at: payDates[s.id] || todayYmd(),
+                              })
+                            }
+                          />
+                        ) : null}
+                      </div>
                     </td>
+                    <td className="tabular-nums whitespace-nowrap">{formatMoney(num(s.paid_amount))}</td>
                     <td>
                       <span className={["kpi-debt", num(s.debt_amount) <= 0 ? "is-zero" : ""].filter(Boolean).join(" ")}>
                         {formatMoney(num(s.debt_amount))}
@@ -1943,18 +2062,20 @@ export function KpiPage() {
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Дебиторка</h2>
+              <p className="mt-1 text-sm text-[var(--mo-text)]">
+                Звонить сегодня: <span className="font-semibold tabular-nums">{callTodayCount}</span>
+              </p>
               <p className="mt-1 hidden text-sm lux-caption sm:block">
-                Долг по записям — только прошедшие визиты со статусом «Пришёл» (неявка и будущие записи не
-                считаются). Возврат по записи не попадает в дебиторку. Курс или протокол — через месяц после
-                первой оплаты, пока клиент не закроет остаток или статус отказ/завершён/возврат.
+                Комментарий и дата «обещал оплатить» пишет куратор. Красным — только если эта дата уже прошла.
+                Сверху те, кому звонить сегодня. Сумма долга от пометки не меняется.
               </p>
             </div>
             <p className="text-xs mo-muted sm:text-sm">
               Итого
-              {listQuery.trim() ? " (поиск)" : ""}:{" "}
+              {debtorsScoped ? " (фильтр)" : ""}:{" "}
               <span className="font-semibold text-[var(--mo-text)]">
                 {formatMoney(
-                  listQuery.trim()
+                  debtorsScoped
                     ? filteredDebtors.reduce((sum, r) => sum + num(r.debt_amount), 0)
                     : num(debtorsQuery.data?.total_debt),
                 )}
@@ -1962,12 +2083,50 @@ export function KpiPage() {
             </p>
           </div>
 
+          {debtorManagers.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                className={["debtor-chip", debtorManager ? "" : "is-on"].filter(Boolean).join(" ")}
+                onClick={() => setDebtorManager(null)}
+              >
+                Все
+              </button>
+              {debtorManagers.map(([name, count]) => (
+                <button
+                  key={name}
+                  type="button"
+                  className={["debtor-chip", debtorManager === name ? "is-on" : ""].filter(Boolean).join(" ")}
+                  onClick={() => setDebtorManager(debtorManager === name ? null : name)}
+                >
+                  {name} · {count}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <ul className="space-y-2 sm:hidden">
             {filteredDebtors.map((r) => {
               const key = `${r.source}-${r.source_id}`;
               const open = expandedDebtorKey === key;
+              const saveNote = (comment: string, promisedOn: string) => {
+                debtorNoteMutation.mutate({
+                  source: r.source,
+                  source_id: r.source_id,
+                  comment,
+                  promised_on: promisedOn,
+                });
+              };
               return (
-                <li key={key} className="overflow-hidden rounded-xl border border-[var(--mo-border)]">
+                <li
+                  key={key}
+                  className={[
+                    "overflow-hidden rounded-xl border border-[var(--mo-border)]",
+                    r.promise_overdue ? "is-overdue" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
                   <button
                     type="button"
                     className="flex w-full items-start justify-between gap-2 px-3 py-2.5 text-left"
@@ -2042,13 +2201,20 @@ export function KpiPage() {
                       </span>
                     </div>
                   )}
+                  <div className="border-t border-[var(--mo-border)] px-3 py-2">
+                    {r.promise_overdue ? <p className="mb-1 text-[11px] font-semibold text-red-400">Просрочено</p> : null}
+                    {!r.promise_overdue && r.promised_on === clinicToday ? (
+                      <p className="mb-1 text-[11px] font-semibold text-[var(--mo-text)]">Сегодня</p>
+                    ) : null}
+                    <DebtorNoteFields comment={r.comment} promisedOn={r.promised_on} onSave={saveNote} />
+                  </div>
                 </li>
               );
             })}
           </ul>
 
           <div className="hidden overflow-x-auto sm:block">
-            <table className="kpi-data-table min-w-[1000px] text-sm">
+            <table className="kpi-data-table min-w-[1180px] text-sm">
               <thead>
                 <tr>
                   <th className="py-2 pr-3">Источник</th>
@@ -2060,11 +2226,12 @@ export function KpiPage() {
                   <th className="py-2 pr-3">Сумма</th>
                   <th className="py-2 pr-3">Оплачено</th>
                   <th className="py-2 pr-3">Долг</th>
+                  <th className="py-2 pr-3">Сбор</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredDebtors.map((r) => (
-                  <tr key={`${r.source}-${r.source_id}`}>
+                  <tr key={`${r.source}-${r.source_id}`} className={r.promise_overdue ? "is-overdue" : undefined}>
                     <td className="py-2 pr-3">{r.source === "booking" ? "Запись" : "Курс/протокол"}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">
                       {r.sold_at ? formatSaleDt(r.sold_at) : "—"}
@@ -2076,6 +2243,24 @@ export function KpiPage() {
                     <td className="py-2 pr-3">{formatMoney(num(r.service_amount))}</td>
                     <td className="py-2 pr-3">{formatMoney(num(r.paid_amount))}</td>
                     <td className="py-2 pr-3 kpi-actual-value">{formatMoney(num(r.debt_amount))}</td>
+                    <td className="py-2 pr-3">
+                      {r.promise_overdue ? <p className="mb-1 text-[11px] font-semibold text-red-400">Просрочено</p> : null}
+                      {!r.promise_overdue && r.promised_on === clinicToday ? (
+                        <p className="mb-1 text-[11px] font-semibold text-[var(--mo-text)]">Сегодня</p>
+                      ) : null}
+                      <DebtorNoteFields
+                        comment={r.comment}
+                        promisedOn={r.promised_on}
+                        onSave={(comment, promisedOn) =>
+                          debtorNoteMutation.mutate({
+                            source: r.source,
+                            source_id: r.source_id,
+                            comment,
+                            promised_on: promisedOn,
+                          })
+                        }
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>

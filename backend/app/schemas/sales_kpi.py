@@ -310,6 +310,24 @@ class SalesKpiDebtorRow(BaseModel):
     paid_amount: Decimal
     debt_amount: Decimal
     status: str
+    comment: str | None = None
+    promised_on: date | None = None
+    promise_overdue: bool = False
+
+
+class SalesKpiDebtorNotePut(BaseModel):
+    source: Literal["booking", "manual"]
+    source_id: int = Field(..., ge=1)
+    comment: str | None = Field(default=None, max_length=500)
+    promised_on: date | None = None
+
+
+class SalesKpiDebtorNoteOut(BaseModel):
+    source: str
+    source_id: int
+    comment: str | None = None
+    promised_on: date | None = None
+    promise_overdue: bool = False
 
 
 class SalesKpiDebtorsReport(BaseModel):

@@ -8,6 +8,32 @@ import { APP_CURRENCY } from "@/lib/money";
 import { DateField } from "@/components/DateField";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 
+type StaffCard = {
+  id: number;
+  full_name: string | null;
+  phone: string | null;
+  role: string;
+  base_salary: string | number | null;
+  payout_bank: string | null;
+};
+
+type PayrollRow = {
+  user_id: number;
+  full_name: string;
+  phone: string | null;
+  payout_bank: string | null;
+  base_salary: string | number | null;
+  bonus: string | number;
+  advances: string | number;
+  remainder: string | number;
+};
+
+type PayrollReport = {
+  year_month: string;
+  pipeline_name: string | null;
+  rows: PayrollRow[];
+};
+
 type ExpenseRow = {
   id: number;
   txn_date: string;
@@ -45,6 +71,8 @@ export function ExpensesPage() {
   const qc = useQueryClient();
   const [yearMonth, setYearMonth] = useState(defaultYearMonth);
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"journal" | "payroll">("journal");
+  const [employeeId, setEmployeeId] = useState("");
   const year = Number(yearMonth.slice(0, 4));
   const month = Number(yearMonth.slice(5, 7));
 
@@ -66,6 +94,16 @@ export function ExpensesPage() {
   const [product, setProduct] = useState("");
   const [basis, setBasis] = useState("");
   const [counterparty, setCounterparty] = useState("");
+  const fot = article.trim().toUpperCase() === "ФОТ";
+  const staffQuery = useQuery({
+    queryKey: ["finance-staff"],
+    queryFn: () => apiFetch<StaffCard[]>("/api/finance/staff"),
+  });
+  const payrollQuery = useQuery({
+    queryKey: ["finance-payroll", year, month],
+    queryFn: () => apiFetch<PayrollReport>(`/api/finance/payroll?year=${year}&month=${month}`),
+    enabled: view === "payroll",
+  });
   const [phone, setPhone] = useState("");
   const [viaPerson, setViaPerson] = useState("");
 
@@ -120,6 +158,7 @@ export function ExpensesPage() {
           product_service: product || null,
           basis: basis || null,
           counterparty: counterparty || null,
+          employee_user_id: fot && employeeId ? Number(employeeId) : null,
           phone: phone || null,
           via_person: viaPerson || null,
         }),
@@ -129,8 +168,10 @@ export function ExpensesPage() {
       setExpense("");
       setBasis("");
       setCounterparty("");
+      setEmployeeId("");
       setPhone("");
       void qc.invalidateQueries({ queryKey: ["finance-expenses"] });
+      void qc.invalidateQueries({ queryKey: ["finance-payroll"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -140,6 +181,10 @@ export function ExpensesPage() {
     const amount = Number(expense);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error("Укажите сумму расхода");
+      return;
+    }
+    if (fot && !employeeId) {
+      toast.error("Для статьи ФОТ выберите сотрудника");
       return;
     }
     createMutation.mutate();
@@ -188,6 +233,22 @@ export function ExpensesPage() {
       <div className="mo-admin-page-head expenses-page__head">
         <div className="min-w-0 flex-1">
           <h1 className="mo-page-title">Расходы</h1>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              className={["debtor-chip", view === "journal" ? "is-on" : ""].filter(Boolean).join(" ")}
+              onClick={() => setView("journal")}
+            >
+              Журнал
+            </button>
+            <button
+              type="button"
+              className={["debtor-chip", view === "payroll" ? "is-on" : ""].filter(Boolean).join(" ")}
+              onClick={() => setView("payroll")}
+            >
+              Ведомость
+            </button>
+          </div>
           <p className="mo-page-sub hidden sm:block">
             Банк, статья, товар. «Кому» — получатель (ЗП), «Через кого» — кто передал; это разные роли.
           </p>
@@ -236,13 +297,43 @@ export function ExpensesPage() {
             </label>
             <label className="expenses-field">
               <span className="expenses-field__label">Кому (получатель)</span>
-              <input
-                className="mo-input expenses-field__control"
-                value={counterparty}
-                onChange={(e) => setCounterparty(e.target.value)}
-                placeholder="Например: Шакармамадова Мадина"
-              />
-              <span className="expenses-field__hint">Кому ушли деньги (ЗП, оплата услуги)</span>
+              {fot ? (
+                <select
+                  className="mo-input expenses-field__control"
+                  value={employeeId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setEmployeeId(id);
+                    const person = (staffQuery.data ?? []).find((s) => String(s.id) === id);
+                    if (!person) {
+                      setCounterparty("");
+                      return;
+                    }
+                    setCounterparty(person.full_name || "");
+                    if (person.phone) setPhone(person.phone);
+                    if (person.payout_bank) setBank(person.payout_bank);
+                  }}
+                >
+                  <option value="">Выберите сотрудника</option>
+                  {(staffQuery.data ?? []).map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {person.full_name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="mo-input expenses-field__control"
+                  value={counterparty}
+                  onChange={(e) => setCounterparty(e.target.value)}
+                  placeholder="Например: Шакармамадова Мадина"
+                />
+              )}
+              <span className="expenses-field__hint">
+                {fot
+                  ? "Телефон и банк подставляются из карточки, если они там есть"
+                  : "Кому ушли деньги (ЗП, оплата услуги)"}
+              </span>
             </label>
             <label className="expenses-field">
               <span className="expenses-field__label">Телефон</span>
@@ -276,6 +367,60 @@ export function ExpensesPage() {
           </div>
         </form>
 
+        {view === "payroll" ? (
+          <section className="expenses-month">
+            <div className="expenses-month__head">
+              <h2 className="expenses-month__title">Ведомость</h2>
+              <span className="expenses-month__total tabular-nums">
+                {payrollQuery.data?.pipeline_name
+                  ? `Бонус из KPI · ${payrollQuery.data.pipeline_name}`
+                  : "Бонус из KPI"}
+              </span>
+            </div>
+            <p className="mb-2 text-xs mo-muted">
+              Оклад берётся из карточки сотрудника. Авансы — расходы со статьёй ФОТ за этот месяц. Выплата отсюда не создаётся.
+            </p>
+            {payrollQuery.isLoading ? <p className="text-sm mo-muted">Загрузка…</p> : null}
+            {payrollQuery.isError ? (
+              <p className="text-sm text-red-300">{(payrollQuery.error as Error).message}</p>
+            ) : null}
+            {!payrollQuery.isLoading && (payrollQuery.data?.rows.length ?? 0) === 0 ? (
+              <p className="text-sm mo-muted">За этот месяц нечего показать: нет оклада, бонуса и авансов.</p>
+            ) : null}
+            {(payrollQuery.data?.rows.length ?? 0) > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="kpi-data-table min-w-[720px] text-sm">
+                  <thead>
+                    <tr>
+                      <th>Сотрудник</th>
+                      <th>Телефон</th>
+                      <th>Выплата</th>
+                      <th>Оклад</th>
+                      <th>Бонус KPI</th>
+                      <th>Авансы</th>
+                      <th>Остаток</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(payrollQuery.data?.rows ?? []).map((row) => (
+                      <tr key={row.user_id}>
+                        <td>{row.full_name}</td>
+                        <td className="tabular-nums">{row.phone || "—"}</td>
+                        <td>{row.payout_bank || "—"}</td>
+                        <td className="tabular-nums">{row.base_salary == null ? "—" : money(row.base_salary)}</td>
+                        <td className="tabular-nums">{money(row.bonus)}</td>
+                        <td className="tabular-nums">{money(row.advances)}</td>
+                        <td className="tabular-nums">{money(row.remainder)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {view === "journal" ? (
         <section className="expenses-month">
           <div className="expenses-month__head">
             <h2 className="expenses-month__title">За месяц</h2>
@@ -412,6 +557,7 @@ export function ExpensesPage() {
             </>
           )}
         </section>
+        ) : null}
       </div>
     </div>
   );

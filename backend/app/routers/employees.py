@@ -3,6 +3,7 @@ import logging
 import secrets
 import string
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Annotated
 from urllib.parse import urlparse, urlunparse
 
@@ -62,6 +63,8 @@ class EmployeeRead(BaseModel):
     booking_direction_id: int | None = None
     is_online: bool = False
     last_seen_at: datetime | None = None
+    base_salary: Decimal | None = None
+    payout_bank: str | None = None
 
 
 class InviteEmployeeBody(BaseModel):
@@ -96,6 +99,8 @@ class PatchEmployeeContactBody(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=255)
     specialization: str | None = Field(default=None, max_length=255)
     booking_direction_id: int | None = None
+    base_salary: Decimal | None = Field(default=None, ge=0)
+    payout_bank: str | None = Field(default=None, max_length=32)
 
 
 class PatchEmployeeContactResult(BaseModel):
@@ -144,6 +149,8 @@ async def _employee_read(db: AsyncSession, u: User) -> EmployeeRead:
         booking_direction_id=spec_row.direction_id if spec_row else None,
         is_online=_is_online(u.last_seen_at),
         last_seen_at=u.last_seen_at,
+        base_salary=u.base_salary,
+        payout_bank=u.payout_bank,
     )
 
 
@@ -165,6 +172,8 @@ def _employee_read_cached(
         booking_direction_id=specialist.direction_id if specialist else None,
         is_online=_is_online(u.last_seen_at),
         last_seen_at=u.last_seen_at,
+        base_salary=u.base_salary,
+        payout_bank=u.payout_bank,
     )
 
 
@@ -697,6 +706,8 @@ async def patch_employee_contact(
         and body.full_name is None
         and body.specialization is None
         and body.booking_direction_id is None
+        and "base_salary" not in body.model_fields_set
+        and "payout_bank" not in body.model_fields_set
     ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет данных для обновления")
 
@@ -811,6 +822,15 @@ async def patch_employee_contact(
             if new_spec != (spec.specialization or "").strip():
                 changed = True
                 spec.specialization = new_spec
+
+    if "base_salary" in body.model_fields_set and body.base_salary != target.base_salary:
+        changed = True
+        target.base_salary = body.base_salary
+    if "payout_bank" in body.model_fields_set:
+        bank = (body.payout_bank or "").strip() or None
+        if bank != (target.payout_bank or None):
+            changed = True
+            target.payout_bank = bank
 
     if not changed:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет изменений")

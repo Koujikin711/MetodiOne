@@ -144,6 +144,10 @@ class User(Base):
     daily_archive_leads_quota: Mapped[int | None] = mapped_column(nullable=True)
     # Heartbeat для статуса «в сети» (РОП-дашборд).
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Оклад для ведомости. Пусто — колонка в ведомости не заполнена.
+    base_salary: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # Куда обычно платят: ДС, КАССА, Алиф…
+    payout_bank: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     leads: Mapped[list["Lead"]] = relationship(
         back_populates="manager",
@@ -153,6 +157,27 @@ class User(Base):
         back_populates="assignee",
         foreign_keys=lambda: [Task.assigned_to],
     )
+
+
+class DebtorCollectionNote(Base):
+    """Пометка куратора по открытому долгу: комментарий и дата обещания оплаты."""
+
+    __tablename__ = "debtor_collection_notes"
+    __table_args__ = (
+        UniqueConstraint("company_id", "source", "source_id", name="uq_debtor_collection_note"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    source: Mapped[str] = mapped_column(String(16))
+    source_id: Mapped[int] = mapped_column(index=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    promised_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    updated_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
 class UserPresenceDay(Base):
