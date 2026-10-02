@@ -26,6 +26,7 @@ from app.models import (
     SalesKpiManualSale,
     SalesKpiManualSalePayment,
     SalesKpiPlanItem,
+    SalesKpiPlanItemService,
     SalesKpiPlanItemSpecialist,
     SalesKpiServicePrice,
     SalesKpiWeightedSettings,
@@ -61,7 +62,7 @@ from app.schemas.sales_kpi import (
     SalesKpiWeightedPlanPut,
 )
 from app.services.sales_kpi_weighted import (
-    MANUAL_SALE_MIN_PAID_RATIO,
+    manual_sale_counts_in_kpi,
     _norm_kpi_label,
     build_manager_lines,
     completion_ratio,
@@ -73,6 +74,8 @@ from app.services.sales_kpi_weighted import (
     load_kpi_unit_prices_by_label,
     load_managers,
     load_manual_facts,
+    load_booking_service_facts,
+    load_plan_item_services,
     load_plan_item_specialists,
     load_plan_items,
     load_specialist_facts_company_full_paid,
@@ -84,6 +87,7 @@ from app.services.sales_kpi_weighted import (
     first_course_payment_at,
     parse_year_month,
     shift_year_month,
+    sum_service_facts_company,
     sum_specialist_facts_company,
 )
 
@@ -189,7 +193,11 @@ async def _load_directions_meta(
     ]
 
 
-def _item_out(item: SalesKpiPlanItem, specialist_ids: list[int] | None = None) -> SalesKpiPlanItemOut:
+def _item_out(
+    item: SalesKpiPlanItem,
+    specialist_ids: list[int] | None = None,
+    direction_ids: list[int] | None = None,
+) -> SalesKpiPlanItemOut:
     return SalesKpiPlanItemOut(
         id=int(item.id),
         name=item.name,
@@ -198,6 +206,7 @@ def _item_out(item: SalesKpiPlanItem, specialist_ids: list[int] | None = None) -
         source_type=item.source_type,
         direction_id=int(item.direction_id) if item.direction_id is not None else None,
         specialist_ids=list(specialist_ids or []),
+        direction_ids=list(direction_ids or []),
         sort_order=int(item.sort_order or 0),
     )
 
@@ -243,6 +252,19 @@ async def _replace_item_specialists(
         db.add(SalesKpiPlanItemSpecialist(plan_item_id=plan_item_id, specialist_id=sid))
 
 
+async def _replace_item_services(
+    db: AsyncSession,
+    *,
+    plan_item_id: int,
+    direction_ids: list[int],
+) -> None:
+    await db.execute(
+        delete(SalesKpiPlanItemService).where(SalesKpiPlanItemService.plan_item_id == plan_item_id),
+    )
+    for did in sorted({int(x) for x in direction_ids if int(x) > 0}):
+        db.add(SalesKpiPlanItemService(plan_item_id=plan_item_id, direction_id=did))
+
+
 def _date_noon(value: date | None) -> datetime | None:
     if value is None:
         return None
@@ -263,13 +285,9 @@ def _manual_open_debt(status: str, service_amount: Decimal, paid_amount: Decimal
     return max(service_amount - paid_amount, Decimal("0"))
 
 
-def _manual_counts_in_kpi(service_amount: Decimal, first_paid_amount: Decimal, status: str) -> bool:
-    """В KPI/бонус идёт только первый платёж (≥25% стоимости). Доплаты — только дебиторка."""
-    if status != "active":
-        return False
-    if service_amount <= 0:
-        return False
-    return first_paid_amount >= (service_amount * MANUAL_SALE_MIN_PAID_RATIO)
+def _manual_counts_in_kpi(service_amount: Decimal, paid_amount: Decimal, status: str) -> bool:
+    """В KPI продажа встаёт один раз, когда накопленная оплата дошла до 25%."""
+    return manual_sale_counts_in_kpi(service_amount, paid_amount, status)
 
 
 def _paid_at_from_input(raw: date | datetime | None, *, fallback: datetime | None = None) -> datetime:
@@ -381,7 +399,7 @@ def _manual_sale_out(
         returned_at=sale.returned_at,
         note=sale.note,
         status_reason=getattr(sale, "status_reason", None),
-        counts_in_kpi=_manual_counts_in_kpi(sa, first, sale.status),
+        counts_in_kpi=_manual_counts_in_kpi(sa, pa, sale.status),
         payments=[_payment_out(p) for p in pay_rows],
     )
 
@@ -414,7 +432,9 @@ async def _build_sales_report(
     only_manager_id: int | None = None,
 ) -> SalesKpiSalesReport:
     items = await load_plan_items(db, company_id=company_id, pipeline_id=pipe.id, ym=ym)
-    item_specialists = await load_plan_item_specialists(db, plan_item_ids=[int(i.id) for i in items])
+    plan_ids = [int(i.id) for i in items]
+    item_specialists = await load_plan_item_specialists(db, plan_item_ids=plan_ids)
+    item_services = await load_plan_item_services(db, plan_item_ids=plan_ids)
     bonus_fund = await load_bonus_fund(db, company_id=company_id, pipeline_id=pipe.id, ym=ym)
     managers = await load_managers(db, company_id=company_id, pipeline_id=pipe.id)
     if only_manager_id is not None:
@@ -423,6 +443,9 @@ async def _build_sales_report(
         db, company_id=company_id, pipeline_id=pipe.id, ym=ym,
     )
     specialist_facts = await load_specialist_facts_full_paid(
+        db, company_id=company_id, pipeline_id=pipe.id, ym=ym,
+    )
+    service_facts = await load_booking_service_facts(
         db, company_id=company_id, pipeline_id=pipe.id, ym=ym,
     )
     manual_facts = await load_manual_facts(db, company_id=company_id, pipeline_id=pipe.id, ym=ym)
@@ -450,6 +473,8 @@ async def _build_sales_report(
             desk_facts=desk_facts,
             bonus_fund=bonus_fund,
             unit_price_by_label=unit_prices,
+            item_direction_ids=item_services,
+            service_facts=service_facts,
         )
         board.append(
             SalesKpiBoardManager(
@@ -498,7 +523,9 @@ async def get_weighted_plan(
         pipeline_id=pipeline_id,
         ym=ym,
     )
-    item_specialists = await load_plan_item_specialists(db, plan_item_ids=[int(i.id) for i in items])
+    plan_ids = [int(i.id) for i in items]
+    item_specialists = await load_plan_item_specialists(db, plan_item_ids=plan_ids)
+    item_services = await load_plan_item_services(db, plan_item_ids=plan_ids)
     bonus_fund = await load_bonus_fund(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
     directions = await _load_directions_meta(db, company_id, pipeline_id, ym)
     specialists = await _load_specialists_meta(db, company_id, pipeline_id)
@@ -508,7 +535,10 @@ async def get_weighted_plan(
         pipeline_name=pipe.name,
         year_month=ym.isoformat()[:7],
         bonus_fund=bonus_fund,
-        items=[_item_out(i, item_specialists.get(int(i.id), [])) for i in items],
+        items=[
+            _item_out(i, item_specialists.get(int(i.id), []), item_services.get(int(i.id), []))
+            for i in items
+        ],
         directions=directions,
         specialists=specialists,
         managers=[{"id": mid, "name": name} for mid, name in managers],
@@ -533,7 +563,10 @@ async def put_weighted_plan(
     sales_space = await company_is_sales_mode(db, company_id)
     specialists_meta = await _load_specialists_meta(db, company_id, body.pipeline_id)
     allowed_specialist_ids = {s.id for s in specialists_meta}
+    directions_meta = await _load_directions_meta(db, company_id, body.pipeline_id, ym)
+    allowed_direction_ids = {d.direction_id for d in directions_meta}
     seen_specialists: dict[int, str] = {}
+    seen_services: dict[int, str] = {}
 
     for raw in body.items:
         st = (raw.source_type or "manual").strip().lower()
@@ -543,11 +576,12 @@ async def put_weighted_plan(
             raw.source_type = "manual"
             raw.direction_id = None
             raw.specialist_ids = []
+            raw.direction_ids = []
         if st not in ("direction", "manual"):
             raise HTTPException(status_code=400, detail=f"Неверный source_type: {raw.source_type}")
         if st == "direction":
             sids = [int(x) for x in (raw.specialist_ids or []) if int(x) > 0]
-            if not sids and not raw.direction_id:
+            if not sids and not raw.direction_id and not raw.direction_ids:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Для «{raw.name}» привяжите хотя бы одного эксперта онлайн-записи (или направление)",
@@ -565,6 +599,15 @@ async def put_weighted_plan(
                 d = await db.get(BookingDirection, raw.direction_id)
                 if d is None or d.company_id != company_id or d.pipeline_id != body.pipeline_id:
                     raise HTTPException(status_code=400, detail=f"Направление не найдено: {raw.direction_id}")
+            for did in [int(x) for x in (raw.direction_ids or []) if int(x) > 0]:
+                if did not in allowed_direction_ids:
+                    raise HTTPException(status_code=400, detail=f"Услуга #{did} не найдена в этой воронке")
+                if did in seen_services:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Услуга уже входит в «{seen_services[did]}» — одна услуга = один продукт",
+                    )
+                seen_services[did] = raw.name.strip()
 
     settings = (
         await db.execute(
@@ -610,6 +653,7 @@ async def put_weighted_plan(
         name = raw.name.strip()
         st = (raw.source_type or "manual").strip().lower()
         sids = [int(x) for x in (raw.specialist_ids or []) if int(x) > 0] if st == "direction" else []
+        dids = [int(x) for x in (raw.direction_ids or []) if int(x) > 0] if st == "direction" else []
         # Если эксперты выбраны, направление подставим с первого эксперта (для цен записи).
         direction_id = raw.direction_id if st == "direction" else None
         if st == "direction" and sids and not direction_id:
@@ -639,6 +683,7 @@ async def put_weighted_plan(
             row.sort_order = raw.sort_order if raw.sort_order else idx
             await db.flush()
         await _replace_item_specialists(db, plan_item_id=int(row.id), specialist_ids=sids)
+        await _replace_item_services(db, plan_item_id=int(row.id), direction_ids=dids)
 
     await db.execute(
         delete(SalesKpiServicePrice).where(
@@ -1088,7 +1133,7 @@ async def patch_manual_sale_payment(
         )
 
     sale.paid_amount = new_paid
-    # first_paid_amount не трогаем — KPI/бонус только по первому платежу
+    # first_paid_amount — сумма открытия. Порог KPI смотрит накопленную оплату.
     if getattr(sale, "first_paid_amount", None) is None:
         sale.first_paid_amount = current_paid
     sale.updated_at = datetime.now(UTC)
@@ -1534,6 +1579,14 @@ async def company_report(
     async def _q_specialists(session: AsyncSession):
         return await load_plan_item_specialists(session, plan_item_ids=plan_item_ids)
 
+    async def _q_services(session: AsyncSession):
+        return await load_plan_item_services(session, plan_item_ids=plan_item_ids)
+
+    async def _q_service_facts(session: AsyncSession):
+        return await load_booking_service_facts(
+            session, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+        )
+
     async def _q_managers(session: AsyncSession):
         return await load_managers(session, company_id=company_id, pipeline_id=pipeline_id)
 
@@ -1572,20 +1625,24 @@ async def company_report(
 
     (
         item_specialists,
+        item_services,
         managers,
         direction_facts,
         specialist_facts,
         specialist_company_facts,
+        service_facts,
         manual_facts,
         bonus_fund,
         unit_prices,
         sales_mode,
     ) = await asyncio.gather(
         _run(_q_specialists),
+        _run(_q_services),
         _run(_q_managers),
         _run(_q_dir_facts),
         _run(_q_spec_facts),
         _run(_q_spec_company),
+        _run(_q_service_facts),
         _run(_q_manual),
         _run(_q_bonus),
         _run(_q_prices),
@@ -1610,8 +1667,15 @@ async def company_report(
     total_contrib = Decimal("0")
     for item in items:
         sids = item_specialists.get(int(item.id), [])
+        chosen_services = item_services.get(int(item.id), [])
         fact = 0
-        if item.source_type == "direction":
+        if item.source_type == "direction" and chosen_services:
+            fact = sum_service_facts_company(
+                service_facts,
+                specialist_ids=sids,
+                direction_ids=chosen_services,
+            )
+        elif item.source_type == "direction":
             if sids:
                 unit_price = unit_prices.get(_norm_kpi_label(item.name))
                 fact = sum_specialist_facts_company(
@@ -1659,6 +1723,8 @@ async def company_report(
             desk_facts=desk_facts,
             bonus_fund=bonus_fund,
             unit_price_by_label=unit_prices,
+            item_direction_ids=item_services,
+            service_facts=service_facts,
         )
         managers_bonus += Decimal(str(raw["bonus"]))
 
@@ -1881,7 +1947,7 @@ async def company_report(
             debtor_booking += _booking_open_debt(sa, pa, open_refunds.get(int(aid), Decimal("0")))
 
     # Курсы/протоколы: платежи с paid_at в этом месяце → выручка месяца.
-    # KPI менеджера считается отдельно (только первый платёж / sold_at).
+    # KPI менеджера считается отдельно: +1 в месяц, когда оплата впервые дошла до 25%.
     revenue_manual_paid = (
         await db.execute(
             select(func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0)).where(

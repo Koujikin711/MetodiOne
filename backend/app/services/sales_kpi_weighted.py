@@ -18,7 +18,9 @@ from app.models import (
     ManagerDeskSale,
     PipelineStage,
     SalesKpiManualSale,
+    SalesKpiManualSalePayment,
     SalesKpiPlanItem,
+    SalesKpiPlanItemService,
     SalesKpiPlanItemSpecialist,
     SalesKpiWeightedSettings,
     User,
@@ -27,6 +29,8 @@ from app.models import (
 )
 
 MANUAL_SALE_MIN_PAID_RATIO = Decimal("0.25")
+# Отказ и возврат из факта выходят. Завершённая продажа остаётся.
+MANUAL_SALE_KPI_STATUSES = frozenset({"active", "completed"})
 DEFAULT_BONUS_FUND = Decimal("10000")
 # С отчётов за июль 2026+: июньские (и более ранние) записи в факт не входят.
 # Бонус всегда в месяц явки (start_at); «записали в июле → пришли в августе» = август.
@@ -244,7 +248,9 @@ async def ensure_plan_carried_forward(
     if not prev_items:
         return [], False
 
-    prev_specs = await load_plan_item_specialists(db, plan_item_ids=[int(i.id) for i in prev_items])
+    prev_ids = [int(i.id) for i in prev_items]
+    prev_specs = await load_plan_item_specialists(db, plan_item_ids=prev_ids)
+    prev_services = await load_plan_item_services(db, plan_item_ids=prev_ids)
     bonus = await load_bonus_fund(db, company_id=company_id, pipeline_id=pipeline_id, ym=prev_ym)
 
     existing_settings = (
@@ -287,6 +293,13 @@ async def ensure_plan_carried_forward(
                 SalesKpiPlanItemSpecialist(
                     plan_item_id=int(dst.id),
                     specialist_id=int(sid),
+                ),
+            )
+        for did in prev_services.get(int(src.id), []):
+            db.add(
+                SalesKpiPlanItemService(
+                    plan_item_id=int(dst.id),
+                    direction_id=int(did),
                 ),
             )
 
@@ -543,6 +556,83 @@ def sum_specialist_facts_company(
     return total
 
 
+async def load_booking_service_facts(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> dict[tuple[int, int, int], int]:
+    """Факт онлайн-записи: (manager_id, specialist_id, direction_id) → шт при 100% оплате."""
+    rows = (
+        await db.execute(
+            select(
+                manager_expr(),
+                BookingAppointment.specialist_id,
+                BookingAppointment.direction_id,
+                func.count(BookingAppointment.id),
+            )
+            .select_from(BookingAppointment)
+            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .join(User, User.id == BookingAppointment.created_by_user_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                User.role == UserRole.manager,
+                *booking_fact_filters(ym),
+                or_(
+                    BookingAppointment.pipeline_id == pipeline_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                ),
+            )
+            .group_by(manager_expr(), BookingAppointment.specialist_id, BookingAppointment.direction_id),
+        )
+    ).all()
+    out: dict[tuple[int, int, int], int] = {}
+    for manager_id, specialist_id, direction_id, cnt in rows:
+        if manager_id is None or specialist_id is None or direction_id is None:
+            continue
+        out[(int(manager_id), int(specialist_id), int(direction_id))] = int(cnt or 0)
+    return out
+
+
+def sum_service_facts_for_manager(
+    service_facts: dict[tuple[int, int, int], int],
+    *,
+    manager_id: int,
+    specialist_ids: list[int],
+    direction_ids: list[int],
+) -> int:
+    did_set = {int(d) for d in direction_ids}
+    sid_set = {int(s) for s in specialist_ids}
+    total = 0
+    for (mid, sid, did), cnt in service_facts.items():
+        if mid != manager_id or did not in did_set:
+            continue
+        if sid_set and sid not in sid_set:
+            continue
+        total += int(cnt or 0)
+    return total
+
+
+def sum_service_facts_company(
+    service_facts: dict[tuple[int, int, int], int],
+    *,
+    specialist_ids: list[int],
+    direction_ids: list[int],
+) -> int:
+    did_set = {int(d) for d in direction_ids}
+    sid_set = {int(s) for s in specialist_ids}
+    total = 0
+    for (_mid, sid, did), cnt in service_facts.items():
+        if did not in did_set:
+            continue
+        if sid_set and sid not in sid_set:
+            continue
+        total += int(cnt or 0)
+    return total
+
+
 async def load_plan_item_specialists(
     db: AsyncSession,
     *,
@@ -563,6 +653,85 @@ async def load_plan_item_specialists(
     return out
 
 
+async def load_plan_item_services(
+    db: AsyncSession,
+    *,
+    plan_item_ids: list[int],
+) -> dict[int, list[int]]:
+    if not plan_item_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(SalesKpiPlanItemService.plan_item_id, SalesKpiPlanItemService.direction_id).where(
+                SalesKpiPlanItemService.plan_item_id.in_(plan_item_ids),
+            ),
+        )
+    ).all()
+    out: dict[int, list[int]] = {int(pid): [] for pid in plan_item_ids}
+    for plan_item_id, direction_id in rows:
+        out.setdefault(int(plan_item_id), []).append(int(direction_id))
+    return out
+
+
+def manual_sale_counts_in_kpi(service_amount: Decimal, paid_amount: Decimal, status: str) -> bool:
+    """Одна продажа, как только накопленная оплата достигла 25%. Дальше доплаты счётчик не растят."""
+    if status not in MANUAL_SALE_KPI_STATUSES:
+        return False
+    sa = Decimal(str(service_amount or 0))
+    if sa <= 0:
+        return False
+    return Decimal(str(paid_amount or 0)) >= (sa * MANUAL_SALE_MIN_PAID_RATIO)
+
+
+def _as_utc(when: datetime) -> datetime:
+    if when.tzinfo is None:
+        return when.replace(tzinfo=UTC)
+    return when.astimezone(UTC)
+
+
+def manual_sale_threshold_crossed_at(
+    *,
+    service_amount: Decimal,
+    paid_amount: Decimal,
+    sold_at: datetime,
+    payments: list[tuple[datetime, Decimal]],
+) -> datetime | None:
+    """Момент, когда накопленная оплата впервые дошла до 25%. None — порог ещё не взят.
+
+    Платежи без строки журнала стоят на sold_at. Если порог взят платежом раньше продажи, факт ставится в день заведения.
+    """
+    sa = Decimal(str(service_amount or 0))
+    if sa <= 0 or sold_at is None:
+        return None
+    threshold = sa * MANUAL_SALE_MIN_PAID_RATIO
+    events: list[tuple[datetime, Decimal]] = []
+    covered = Decimal("0")
+    for paid_at, amount in payments:
+        amt = Decimal(str(amount or 0))
+        if paid_at is None or amt <= 0:
+            continue
+        events.append((_as_utc(paid_at), amt))
+        covered += amt
+    gap = Decimal(str(paid_amount or 0)) - covered
+    if gap > 0:
+        events.append((_as_utc(sold_at), gap))
+    events.sort(key=lambda item: item[0])
+    opened = _as_utc(sold_at)
+    running = Decimal("0")
+    crossed: datetime | None = None
+    for paid_at, amt in events:
+        running += amt
+        if running >= threshold:
+            crossed = paid_at
+            break
+    if crossed is None:
+        return None
+    # Продажи ещё не было — факт встаёт в день заведения, а не в месяц задним числом.
+    if crossed < opened:
+        return opened
+    return crossed
+
+
 async def load_manual_facts(
     db: AsyncSession,
     *,
@@ -570,32 +739,51 @@ async def load_manual_facts(
     pipeline_id: int,
     ym: date,
 ) -> dict[tuple[int, int], int]:
-    """Факт по курсам/протоколам: только первый платёж ≥25%, не возврат. Доплаты не влияют на KPI."""
-    start, end = month_bounds(ym)
-    rows = (
+    """Факт курса/протокола: +1 в месяц, когда оплата впервые дошла до 25%. Доплаты после порога не считаются."""
+    sales = (
         await db.execute(
             select(
+                SalesKpiManualSale.id,
                 SalesKpiManualSale.manager_user_id,
                 SalesKpiManualSale.plan_item_id,
                 SalesKpiManualSale.service_amount,
-                SalesKpiManualSale.first_paid_amount,
                 SalesKpiManualSale.paid_amount,
+                SalesKpiManualSale.sold_at,
             ).where(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
-                SalesKpiManualSale.sold_at >= start,
-                SalesKpiManualSale.sold_at < end,
-                SalesKpiManualSale.status == "active",
+                SalesKpiManualSale.status.in_(tuple(MANUAL_SALE_KPI_STATUSES)),
             ),
         )
     ).all()
+    if not sales:
+        return {}
+    pay_rows = (
+        await db.execute(
+            select(
+                SalesKpiManualSalePayment.sale_id,
+                SalesKpiManualSalePayment.paid_at,
+                SalesKpiManualSalePayment.amount,
+            ).where(SalesKpiManualSalePayment.sale_id.in_([int(row[0]) for row in sales])),
+        )
+    ).all()
+    payments_by_sale: dict[int, list[tuple[datetime, Decimal]]] = {}
+    for sale_id, paid_at, amount in pay_rows:
+        payments_by_sale.setdefault(int(sale_id), []).append((paid_at, Decimal(str(amount or 0))))
+
+    target = date(ym.year, ym.month, 1)
     out: dict[tuple[int, int], int] = {}
-    for manager_id, plan_item_id, service_amount, first_paid_amount, paid_amount in rows:
-        sa = Decimal(str(service_amount or 0))
-        first = Decimal(str(first_paid_amount if first_paid_amount is not None else paid_amount or 0))
-        if sa <= 0:
+    for sale_id, manager_id, plan_item_id, service_amount, paid_amount, sold_at in sales:
+        crossed = manual_sale_threshold_crossed_at(
+            service_amount=Decimal(str(service_amount or 0)),
+            paid_amount=Decimal(str(paid_amount or 0)),
+            sold_at=sold_at,
+            payments=payments_by_sale.get(int(sale_id), []),
+        )
+        if crossed is None:
             continue
-        if first < (sa * MANUAL_SALE_MIN_PAID_RATIO):
+        crossed_utc = _as_utc(crossed)
+        if date(crossed_utc.year, crossed_utc.month, 1) != target:
             continue
         key = (int(manager_id), int(plan_item_id))
         out[key] = out.get(key, 0) + 1
@@ -705,14 +893,26 @@ def build_manager_lines(
     bonus_fund: Decimal,
     desk_facts: dict[tuple[int, int], int] | None = None,
     unit_price_by_label: dict[str, Decimal] | None = None,
+    item_direction_ids: dict[int, list[int]] | None = None,
+    service_facts: dict[tuple[int, int, int], int] | None = None,
 ) -> dict:
     lines = []
     total_contrib = Decimal("0")
     desk = desk_facts or {}
     prices = unit_price_by_label or {}
+    services_by_item = item_direction_ids or {}
+    svc_facts = service_facts or {}
     for item in items:
         specialist_ids = item_specialists.get(int(item.id), [])
-        if item.source_type == "direction":
+        chosen_services = services_by_item.get(int(item.id), [])
+        if item.source_type == "direction" and chosen_services:
+            fact = sum_service_facts_for_manager(
+                svc_facts,
+                manager_id=manager_id,
+                specialist_ids=specialist_ids,
+                direction_ids=chosen_services,
+            )
+        elif item.source_type == "direction":
             if specialist_ids:
                 unit_price = prices.get(_norm_kpi_label(item.name))
                 fact = sum_specialist_facts_for_manager(

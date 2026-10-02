@@ -99,6 +99,7 @@ class SalesKpiPlanItemWrite(BaseModel):
     source_type: str = Field(default="manual", description="direction|manual")
     direction_id: int | None = Field(default=None, ge=1)
     specialist_ids: list[int] = Field(default_factory=list)
+    direction_ids: list[int] = Field(default_factory=list, description="Услуги онлайн-записи, входящие в продукт")
     sort_order: int = Field(default=0, ge=0)
 
 
@@ -126,6 +127,7 @@ class SalesKpiPlanItemOut(BaseModel):
     source_type: str
     direction_id: int | None = None
     specialist_ids: list[int] = Field(default_factory=list)
+    direction_ids: list[int] = Field(default_factory=list)
     sort_order: int = 0
 
 

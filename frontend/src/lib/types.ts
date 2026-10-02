@@ -976,6 +976,7 @@ export interface SalesKpiPlanItem {
   source_type: "direction" | "manual" | string;
   direction_id: number | null;
   specialist_ids: number[];
+  direction_ids?: number[];
   sort_order: number;
 }
 

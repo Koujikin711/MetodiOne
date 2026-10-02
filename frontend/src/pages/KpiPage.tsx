@@ -83,6 +83,7 @@ type PlanDraftItem = {
   source_type: "direction" | "manual";
   direction_id: string;
   specialist_ids: number[];
+  direction_ids: number[];
 };
 
 function SaleRowActionsMenu({
@@ -479,6 +480,11 @@ export function KpiPage() {
           : Array.isArray(it.specialist_ids)
             ? it.specialist_ids.map(Number)
             : [],
+        direction_ids: salesSpace
+          ? []
+          : Array.isArray(it.direction_ids)
+            ? it.direction_ids.map(Number)
+            : [],
       })),
     );
     const p: Record<number, string> = {};
@@ -501,6 +507,7 @@ export function KpiPage() {
           direction_id:
             salesSpace || x.source_type !== "direction" ? null : Number(x.direction_id || 0) || null,
           specialist_ids: salesSpace || x.source_type !== "direction" ? [] : x.specialist_ids,
+          direction_ids: salesSpace || x.source_type !== "direction" ? [] : x.direction_ids,
           sort_order: idx,
         }));
       if (!salesSpace) {
@@ -762,8 +769,58 @@ export function KpiPage() {
         source_type: "manual",
         direction_id: "",
         specialist_ids: [],
+        direction_ids: [],
       },
     ]);
+  }
+
+  function serviceChecks(row: PlanDraftItem) {
+    if (salesSpace || row.source_type !== "direction") {
+      return <span className="text-xs mo-muted">—</span>;
+    }
+    const dirs = planQuery.data?.directions ?? [];
+    const takenElsewhere = new Set(
+      planItems
+        .filter((x) => x.key !== row.key && x.source_type === "direction")
+        .flatMap((x) => x.direction_ids),
+    );
+    if (dirs.length === 0) {
+      return <span className="text-xs mo-muted">Нет услуг в воронке</span>;
+    }
+    return (
+      <div className="max-h-36 min-w-[180px] space-y-1 overflow-y-auto rounded border border-[var(--mo-border)] p-2">
+        {dirs.map((d) => {
+          const checked = row.direction_ids.includes(d.direction_id);
+          const disabled = !checked && takenElsewhere.has(d.direction_id);
+          return (
+            <label
+              key={d.direction_id}
+              className={`flex items-start gap-2 text-xs ${disabled ? "opacity-40" : ""}`}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={checked}
+                disabled={disabled}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setPlanItems((prev) =>
+                    prev.map((x) => {
+                      if (x.key !== row.key) return x;
+                      const next = on
+                        ? [...x.direction_ids, d.direction_id]
+                        : x.direction_ids.filter((id) => id !== d.direction_id);
+                      return { ...x, direction_ids: next };
+                    }),
+                  );
+                }}
+              />
+              <span>{d.direction_name}</span>
+            </label>
+          );
+        })}
+      </div>
+    );
   }
 
   const manualPlanItems = (planQuery.data?.items ?? []).filter((x) => x.source_type === "manual");
@@ -829,7 +886,7 @@ export function KpiPage() {
           description={
             salesSpace
               ? "Условия KPI без онлайн-записи: факт из окна «Продажи» (полная оплата) и курсов/протоколов (≥25%). Имя продукта = сфера/услуга в продажах."
-              : "Онлайн-запись — в факт при 100% оплате. Окно «Продажи» — полная оплата тоже в факт. Курсы/протоколы вносит админ — в факт с оплаты ≥25%."
+              : "Онлайн-запись — в факт при 100% оплате. Окно «Продажи» — полная оплата тоже в факт. Курсы/протоколы вносит админ — в факт один раз, когда оплата доходит до 25%."
           }
         />
       </header>
@@ -893,8 +950,9 @@ export function KpiPage() {
               <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">План на месяц</h2>
               <p className="mt-1 hidden text-sm lux-caption sm:block">
                 Один план на всех менеджеров. Сохранили один раз — в следующем месяце подтянется
-                автоматически (продукты, веса, эксперты, фонд). Для услуг из онлайн-записи привяжите экспертов — запись к
-                ним пойдёт в факт этой услуги (при 100% оплате). Один эксперт = одна услуга KPI.
+                автоматически (продукты, веса, эксперты, услуги, фонд). Для онлайн-записи привяжите экспертов и
+                отметьте услуги, которые входят в продукт: в факт идут только эти услуги у этих экспертов (при 100%
+                оплате). Одна услуга и один эксперт — в одном продукте.
               </p>
             </div>
             <button
@@ -973,6 +1031,8 @@ export function KpiPage() {
                                     source_type: e.target.value === "direction" ? "direction" : "manual",
                                     specialist_ids:
                                       e.target.value === "direction" ? x.specialist_ids : [],
+                                    direction_ids:
+                                      e.target.value === "direction" ? x.direction_ids : [],
                                   }
                                 : x,
                             ),
@@ -1033,6 +1093,12 @@ export function KpiPage() {
                       )}
                     </div>
                   ) : null}
+                  {!salesSpace && row.source_type === "direction" ? (
+                    <div>
+                      <div className="mb-1 text-[11px] mo-muted">Услуги в продукте</div>
+                      {serviceChecks(row)}
+                    </div>
+                  ) : null}
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block text-[11px] mo-muted">
                       План (шт)
@@ -1087,6 +1153,7 @@ export function KpiPage() {
                   <th className="py-2 pr-3">Продукт</th>
                   <th className="py-2 pr-3">Источник</th>
                   {!salesSpace ? <th className="py-2 pr-3">Эксперты онлайн-записи</th> : null}
+                  {!salesSpace ? <th className="py-2 pr-3">Услуги в продукте</th> : null}
                   <th className="py-2 pr-3">План (шт)</th>
                   <th className="py-2 pr-3">Вес (%)</th>
                   <th className="py-2 pr-3" />
@@ -1129,6 +1196,8 @@ export function KpiPage() {
                                       source_type: e.target.value === "direction" ? "direction" : "manual",
                                       specialist_ids:
                                         e.target.value === "direction" ? x.specialist_ids : [],
+                                      direction_ids:
+                                        e.target.value === "direction" ? x.direction_ids : [],
                                     }
                                   : x,
                               ),
@@ -1195,6 +1264,7 @@ export function KpiPage() {
                       )}
                     </td>
                     ) : null}
+                    {!salesSpace ? <td className="py-2 pr-3">{serviceChecks(row)}</td> : null}
                     <td className="py-2 pr-3">
                       <input
                         type="number"
@@ -1307,8 +1377,8 @@ export function KpiPage() {
             <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажа курса / протокола</h2>
             <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
               {salesSpace
-                ? "Без онлайн-записи. В бонус/KPI идёт только первый платёж (≥25%). Доплаты уменьшают остаток и пишутся в журнал. В дебиторку остаток попадает через месяц после первой оплаты."
-                : "Без онлайн-записи. В бонус/KPI идёт только первый платёж (≥25%). Доплаты уменьшают остаток и пишутся в журнал. В дебиторку остаток попадает через месяц после первой оплаты."}
+                ? "Без онлайн-записи. Продажа попадает в KPI один раз, в месяц, когда оплата впервые доходит до 25%. Дальнейшие доплаты факт не увеличивают. В дебиторку остаток попадает через месяц после первой оплаты."
+                : "Без онлайн-записи. Продажа попадает в KPI один раз, в месяц, когда оплата впервые доходит до 25%. Дальнейшие доплаты факт не увеличивают. В дебиторку остаток попадает через месяц после первой оплаты."}
             </p>
           </div>
 
@@ -1674,7 +1744,14 @@ export function KpiPage() {
                   ) : s.status === "refused" ? (
                     <span className="kpi-chip kpi-chip--refuse">отказ</span>
                   ) : s.status === "completed" ? (
-                    <span className="kpi-chip kpi-chip--done">завершён</span>
+                    <>
+                      <span className="kpi-chip kpi-chip--done">завершён</span>
+                      {s.counts_in_kpi ? (
+                        <span className="kpi-chip kpi-chip--fact">в факте</span>
+                      ) : (
+                        <span className="kpi-chip kpi-chip--low">&lt;25%</span>
+                      )}
+                    </>
                   ) : s.counts_in_kpi ? (
                     <span className="kpi-chip kpi-chip--fact">в факте</span>
                   ) : (
@@ -1794,7 +1871,14 @@ export function KpiPage() {
                       ) : s.status === "refused" ? (
                         <span className="kpi-chip kpi-chip--refuse">отказ</span>
                       ) : s.status === "completed" ? (
-                        <span className="kpi-chip kpi-chip--done">завершён</span>
+                        <>
+                          <span className="kpi-chip kpi-chip--done">завершён</span>
+                          {s.counts_in_kpi ? (
+                            <span className="kpi-chip kpi-chip--fact">в факте</span>
+                          ) : (
+                            <span className="kpi-chip kpi-chip--low">&lt;25%</span>
+                          )}
+                        </>
                       ) : s.counts_in_kpi ? (
                         <span className="kpi-chip kpi-chip--fact">в факте</span>
                       ) : (

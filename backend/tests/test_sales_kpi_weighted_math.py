@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -12,6 +12,8 @@ from app.services.sales_kpi_weighted import (
     completion_ratio,
     contribution,
     kpi_booking_created_cutoff,
+    manual_sale_counts_in_kpi,
+    manual_sale_threshold_crossed_at,
     sum_specialist_facts_company,
     sum_specialist_facts_for_manager,
 )
@@ -31,6 +33,62 @@ def test_sheet_formula_example():
 def test_overachievement_capped():
     assert completion_ratio(100, 10) == Decimal("1")
     assert contribution(Decimal("1"), Decimal("25")) == Decimal("0.2500")
+
+
+def test_completed_protocol_stays_in_kpi_when_first_payment_clears_threshold():
+    """1500+1500 за протокол 3000: закрытие «завершён» не выкидывает августовский факт."""
+    assert manual_sale_counts_in_kpi(Decimal("3000"), Decimal("1500"), "completed")
+    assert manual_sale_counts_in_kpi(Decimal("3000"), Decimal("1500"), "active")
+    assert manual_sale_counts_in_kpi(Decimal("3000"), Decimal("3000"), "active")
+    assert not manual_sale_counts_in_kpi(Decimal("3000"), Decimal("500"), "completed")
+    assert not manual_sale_counts_in_kpi(Decimal("3000"), Decimal("1500"), "returned")
+    assert not manual_sale_counts_in_kpi(Decimal("3000"), Decimal("1500"), "refused")
+
+
+def test_threshold_stays_open_until_cumulative_payment_crosses_it():
+    """500 в день продажи не хватает. Доплата, которая переходит 25%, ставит факт на свою дату. Вторая доплата месяц не двигает."""
+    opened = datetime(2026, 9, 8, 9, 40, tzinfo=UTC)
+    topup = datetime(2026, 9, 25, 7, 0, tzinfo=UTC)
+    crossed = manual_sale_threshold_crossed_at(
+        service_amount=Decimal("3000"),
+        paid_amount=Decimal("3000"),
+        sold_at=opened,
+        payments=[(opened, Decimal("500")), (topup, Decimal("2500"))],
+    )
+    assert crossed == topup
+
+    august = datetime(2026, 8, 31, 4, 32, tzinfo=UTC)
+    september = datetime(2026, 9, 4, 10, 58, tzinfo=UTC)
+    already = manual_sale_threshold_crossed_at(
+        service_amount=Decimal("3000"),
+        paid_amount=Decimal("3000"),
+        sold_at=august,
+        payments=[(september, Decimal("1500"))],
+    )
+    assert already == august
+
+    assert (
+        manual_sale_threshold_crossed_at(
+            service_amount=Decimal("3000"),
+            paid_amount=Decimal("400"),
+            sold_at=opened,
+            payments=[(opened, Decimal("400"))],
+        )
+        is None
+    )
+
+    # Доплата задним числом раньше продажи не переписывает прошлый месяц: факт в день заведения.
+    backdated = datetime(2026, 1, 7, 7, 0, tzinfo=UTC)
+    registered = datetime(2026, 9, 10, 7, 51, tzinfo=UTC)
+    assert (
+        manual_sale_threshold_crossed_at(
+            service_amount=Decimal("17000"),
+            paid_amount=Decimal("12000"),
+            sold_at=registered,
+            payments=[(backdated, Decimal("9000")), (registered, Decimal("3000"))],
+        )
+        == registered
+    )
 
 
 def test_norm_kpi_label():
@@ -129,3 +187,29 @@ def test_kurs15_excludes_consultation_and_full_course():
         specialist_ids=[8, 9],
         unit_price=None,
     ) == 5
+
+
+def test_selected_services_ignore_name_price():
+    """Отмеченные услуги продукта считаются сами, без фильтра цены по имени."""
+    item = SimpleNamespace(
+        id=2,
+        name="Остеопат",
+        source_type="direction",
+        direction_id=None,
+        plan_qty=10,
+        weight_percent=Decimal("15"),
+    )
+    raw = build_manager_lines(
+        manager_id=1,
+        manager_name="Дилнора",
+        items=[item],
+        direction_facts={},
+        specialist_facts={(1, 9, Decimal("150.00")): 7},
+        item_specialists={2: [9]},
+        manual_facts={},
+        bonus_fund=Decimal("10000"),
+        unit_price_by_label={"остеопат": Decimal("1000")},
+        item_direction_ids={2: [4]},
+        service_facts={(1, 9, 4): 3, (1, 8, 4): 5, (1, 9, 6): 9},
+    )
+    assert raw["lines"][0]["fact_qty"] == 3

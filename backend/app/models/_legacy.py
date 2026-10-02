@@ -321,6 +321,29 @@ class SalesKpiPlanItemSpecialist(Base):
     )
 
 
+class SalesKpiPlanItemService(Base):
+    """Услуги онлайн-записи, которые входят в продукт KPI."""
+
+    __tablename__ = "sales_kpi_plan_item_services"
+    __table_args__ = (
+        UniqueConstraint(
+            "plan_item_id",
+            "direction_id",
+            name="uq_sales_kpi_plan_item_service",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    plan_item_id: Mapped[int] = mapped_column(
+        ForeignKey("sales_kpi_plan_items.id", ondelete="CASCADE"),
+        index=True,
+    )
+    direction_id: Mapped[int] = mapped_column(
+        ForeignKey("booking_directions.id", ondelete="CASCADE"),
+        index=True,
+    )
+
+
 class ManagerDeskSale(Base):
     """Продажа менеджера в пространстве crm_mode=sales (вместо онлайн-записи)."""
 
@@ -386,7 +409,7 @@ class SalesKpiManualSale(Base):
     group_no: Mapped[int | None] = mapped_column(nullable=True)
     service_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
-    # Сумма первого платежа — для KPI/бонуса; доплаты её не меняют.
+    # Сумма первого платежа. Порог KPI смотрит накопленную оплату, это поле доплаты не двигают.
     first_paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     sold_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     # active | returned | refused | completed

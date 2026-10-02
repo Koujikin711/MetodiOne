@@ -1236,6 +1236,16 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
                 "ON sales_kpi_manual_sale_payments(sale_id, id)",
             ),
         )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_plan_item_services (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_item_id INTEGER NOT NULL,
+                    direction_id INTEGER NOT NULL,
+                    UNIQUE (plan_item_id, direction_id)
+                )""",
+            ),
+        )
         return
 
     if "postgresql" in low or "asyncpg" in low:
@@ -1403,6 +1413,16 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
             text(
                 "CREATE INDEX IF NOT EXISTS idx_sales_kpi_manual_sale_payments_sale "
                 "ON sales_kpi_manual_sale_payments(sale_id, id)",
+            ),
+        )
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS sales_kpi_plan_item_services (
+                    id SERIAL PRIMARY KEY,
+                    plan_item_id INTEGER NOT NULL REFERENCES sales_kpi_plan_items(id) ON DELETE CASCADE,
+                    direction_id INTEGER NOT NULL REFERENCES booking_directions(id) ON DELETE CASCADE,
+                    CONSTRAINT uq_sales_kpi_plan_item_service UNIQUE (plan_item_id, direction_id)
+                )""",
             ),
         )
 
