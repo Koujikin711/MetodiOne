@@ -706,6 +706,7 @@ export interface BookingPatientSuggestItem {
   patient_phone_display?: string | null;
   patient_phone_can_view_full?: boolean;
   manager_name: string | null;
+  patient_birth_date?: string | null;
   source: "crm" | "visits" | string;
 }
 

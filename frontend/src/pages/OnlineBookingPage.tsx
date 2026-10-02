@@ -478,6 +478,10 @@ export function OnlineBookingPage() {
       setNewLeadPipelineId(null);
       setNewLeadStageId(null);
     }
+    const born = (item.patient_birth_date || "").slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(born)) {
+      setPatientBirthDate(born);
+    }
     setPatientSuggestOpen(false);
     setPatientFieldFocus(null);
     lastAutoSuggestKeyRef.current = patientSuggestItemKey(item);
@@ -509,6 +513,10 @@ export function OnlineBookingPage() {
     }
     if (!patientName.trim()) {
       setPatientName(item.patient_name);
+    }
+    const born = (item.patient_birth_date || "").slice(0, 10);
+    if (!patientBirthDate.trim() && /^\d{4}-\d{2}-\d{2}$/.test(born)) {
+      setPatientBirthDate(born);
     }
     lastAutoSuggestKeyRef.current = patientSuggestItemKey(item);
   }
@@ -556,6 +564,7 @@ export function OnlineBookingPage() {
     patientSuggestQuery.data,
     patientName,
     patientPhone,
+    patientBirthDate,
     leadId,
   ]);
 
@@ -1113,15 +1122,17 @@ export function OnlineBookingPage() {
       toast.error("Выберите услугу");
       return;
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(patientBirthDate.trim())) {
+    const birthDateRequired = currentRole !== "manager";
+    const birthRaw = patientBirthDate.trim();
+    if (birthDateRequired && !/^\d{4}-\d{2}-\d{2}$/.test(birthRaw)) {
       toast.error("Укажите дату рождения");
       return;
     }
-    {
-      const bd = new Date(`${patientBirthDate.trim()}T00:00:00`);
+    if (birthRaw) {
+      const bd = new Date(`${birthRaw}T00:00:00`);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      if (Number.isNaN(bd.getTime()) || bd > today) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(birthRaw) || Number.isNaN(bd.getTime()) || bd > today) {
         toast.error("Проверьте дату рождения");
         return;
       }
@@ -1138,7 +1149,7 @@ export function OnlineBookingPage() {
     const payload: Record<string, unknown> = {
       patient_name: patientName.trim(),
       patient_phone: resolvedPhone,
-      patient_birth_date: patientBirthDate.trim(),
+      patient_birth_date: patientBirthDate.trim() || null,
       extra_phones: extraPhones.map((p) => p.trim()).filter(Boolean),
       specialist_id: specialistId,
       service_title: serviceTitle.trim(),
@@ -1334,10 +1345,10 @@ export function OnlineBookingPage() {
                       />
                       <span className="booking-patient-combo__sep" aria-hidden />
                       <DateField
-                        required
+                        required={currentRole !== "manager"}
                         value={patientBirthDate}
                         onChange={setPatientBirthDate}
-                        allowClear={false}
+                        allowClear={currentRole === "manager"}
                         placeholder="ДР"
                         aria-label="Дата рождения"
                         className="booking-patient-dob"

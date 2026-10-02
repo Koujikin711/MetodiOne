@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 import re
 import uuid
@@ -1394,6 +1394,68 @@ def _norm_patient_name(name: str) -> str:
     return " ".join((name or "").strip().lower().split())
 
 
+def booking_birth_date_required(role: UserRole) -> bool:
+    """Менеджер может записать без даты рождения. Админ — нет."""
+    return role != UserRole.manager
+
+
+async def _lookup_previous_birth_date(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    lead_id: int | None,
+    phone: str | None,
+    name: str | None,
+) -> date | None:
+    """Последняя известная дата рождения: карточка, телефон, затем точное имя."""
+    if lead_id is not None:
+        found = await db.scalar(
+            select(BookingAppointment.patient_birth_date)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.lead_id == int(lead_id),
+                BookingAppointment.patient_birth_date.is_not(None),
+            )
+            .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc())
+            .limit(1),
+        )
+        if found is not None:
+            return found
+    digits = _norm_phone(phone) or ""
+    if len(digits) >= 7:
+        tail = digits[-9:]
+        found = await db.scalar(
+            select(BookingAppointment.patient_birth_date)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.patient_birth_date.is_not(None),
+                BookingAppointment.patient_phone.ilike(f"%{tail}%"),
+            )
+            .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc())
+            .limit(1),
+        )
+        if found is not None:
+            return found
+    key = _norm_patient_name(name or "")
+    if len(key) < 3:
+        return None
+    rows = (
+        await db.execute(
+            select(BookingAppointment.patient_birth_date)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.patient_birth_date.is_not(None),
+                func.lower(BookingAppointment.patient_name) == key,
+            )
+            .distinct()
+            .limit(2),
+        )
+    ).scalars().all()
+    if len(rows) == 1:
+        return rows[0]
+    return None
+
+
 def _can_be_booking_responsible(role: UserRole | None) -> bool:
     return can_be_booking_responsible(role)
 
@@ -1803,6 +1865,7 @@ async def booking_patient_suggest(
                 patient_phone_display=phone_display,
                 patient_phone_can_view_full=can_view,
                 manager_name=(mgr_name or "").strip() or None,
+                patient_birth_date=birth_by_lead.get(int(lead.id)),
                 source="crm",
             ),
         )
@@ -1822,12 +1885,20 @@ async def booking_patient_suggest(
                 BookingAppointment.lead_id,
                 BookingAppointment.patient_name,
                 BookingAppointment.patient_phone,
+                BookingAppointment.patient_birth_date,
             )
             .where(BookingAppointment.company_id == company_id, or_(*appt_filters))
             .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc())
             .limit(80),
         )
     ).all()
+
+    birth_by_lead: dict[int, date] = {}
+    for row in appt_rows:
+        lid, _name, _phone, born = row
+        if lid is None or born is None:
+            continue
+        birth_by_lead.setdefault(int(lid), born)
 
     appt_lead_ids = {int(r[0]) for r in appt_rows if r[0] is not None}
     mgr_by_lead: dict[int, str | None] = {}
@@ -1841,7 +1912,7 @@ async def booking_patient_suggest(
         ).all()
         mgr_by_lead = {int(lid): (str(name).strip() if name else None) for lid, name in mgr_rows}
 
-    for lead_id, patient_name, patient_phone in appt_rows:
+    for lead_id, patient_name, patient_phone, patient_birth_date in appt_rows:
         name = (patient_name or "").strip() or "Клиент"
         phone = (patient_phone or "").strip() or "—"
         if phone_digits:
@@ -1867,6 +1938,11 @@ async def booking_patient_suggest(
                 patient_phone_display=phone_display,
                 patient_phone_can_view_full=can_view,
                 manager_name=mgr_name,
+                patient_birth_date=(
+                    patient_birth_date
+                    if patient_birth_date is not None
+                    else (birth_by_lead.get(int(lead_id)) if lead_id is not None else None)
+                ),
                 source="visits",
             ),
         )
@@ -2132,6 +2208,20 @@ async def create_appointment(
         if lead_for_phone is not None and (lead_for_phone.phone or "").strip():
             stored_phone = (lead_for_phone.phone or "").strip()
     phone_digits = _norm_phone(stored_phone) or ""
+    birth_date = body.patient_birth_date
+    if birth_date is None:
+        birth_date = await _lookup_previous_birth_date(
+            db,
+            company_id=company_id,
+            lead_id=lead_id,
+            phone=stored_phone,
+            name=body.patient_name,
+        )
+    if birth_date is None and booking_birth_date_required(current_user.role):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Укажите дату рождения",
+        )
     if len(phone_digits) < 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -2183,7 +2273,7 @@ async def create_appointment(
             pipeline_id=appointment_pipeline_id,
             patient_name=body.patient_name.strip(),
             patient_phone=stored_phone,
-            patient_birth_date=body.patient_birth_date,
+            patient_birth_date=birth_date,
             direction_id=resolved_direction_id,
             specialist_id=body.specialist_id,
             start_at=slot_start,
