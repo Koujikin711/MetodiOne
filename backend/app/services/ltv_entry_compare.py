@@ -20,6 +20,7 @@ from app.services.ltv_entry_eligibility import (
     first_entry_purchase,
     last_entry_purchase,
 )
+from app.services.deposit_dq import is_cashless_purchase, is_free_followup_inspection
 from app.services.patient_ltv import compute_lead_ltv
 from app.services.patient_ltv_analytics import LTV_WINDOWS_DAYS, purchase_event_identity
 
@@ -111,10 +112,11 @@ def _cohort_snapshot_for_mode(
 
     for lid in cohort_leads:
         pur_list = by_lead[lid]
+        money_purchases = [p for p in pur_list if not is_cashless_purchase(p)]
         pay_list: list[PatientPurchasePayment] = []
-        for p in pur_list:
+        for p in money_purchases:
             pay_list.extend(pays_by_purchase.get(int(p.id), []))
-        snap = compute_lead_ltv(pur_list, pay_list)
+        snap = compute_lead_ltv(money_purchases, pay_list)
         # Paid LTV / Sales Value — same financial formulas; only Entry/cohort differs.
         paid_sum += snap.paid_ltv
         sales_sum += snap.sales_value
@@ -228,6 +230,12 @@ async def build_ltv_entry_compare_report(
             "TARGET = fully-paid Entry projection. "
             "Paid LTV formula identical (payments − refunds). "
             "This endpoint does not change /ltv/cohort."
+        ),
+        "free_followup_inspections_count": sum(
+            1
+            for pur_list in by_lead.values()
+            for p in pur_list
+            if is_free_followup_inspection(p, pur_list)
         ),
         "current": current,
         "target": target,

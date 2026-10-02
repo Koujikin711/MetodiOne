@@ -10,7 +10,7 @@ The possible-deposit amount band is a DQ *flag* range only (covers 200–300 exa
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 
@@ -31,18 +31,24 @@ CLASS_A = "clear_partial"
 CLASS_B = "technically_full_possible_deposit"
 CLASS_C = "clear_full"
 CLASS_D = "unknown"
+CLASS_FOLLOWUP = "free_followup_inspection"
+
+_PROGRAM_KINDS = frozenset({"course_15", "main_course", "protocol"})
 
 CLASS_LABELS = {
     CLASS_A: "A · Clear partial",
     CLASS_B: "B · Technically full, possible deposit",
     CLASS_C: "C · Clear full",
     CLASS_D: "D · Unknown",
+    CLASS_FOLLOWUP: "Бесплатный контрольный осмотр",
 }
 
 # DQ attention band ONLY — not catalog price, not auto-rewrite target.
 # Covers audit examples sa=pa=200–300 on Course 15. Configurable via API.
 POSSIBLE_DEPOSIT_MAX_DEFAULT = Decimal("500")
 EPS = Decimal("0.01")
+# Приём к врачу после Курса и Протокола — не раньше чем через месяц от даты договора.
+FOLLOWUP_DOCTOR_AFTER_DAYS = 30
 
 
 def _dec(v) -> Decimal:
@@ -107,6 +113,150 @@ def classify_course15_deposit(
     return CLASS_C, reasons
 
 
+def is_cashless_purchase(p: PatientPurchase) -> bool:
+    """Нулевой визит без кассы. Не якорь когорты и не платёж в окнах LTV."""
+    if (p.status or "").strip() == "cancelled":
+        return False
+    return _dec(p.service_amount) <= 0 and _dec(p.paid_amount) <= EPS
+
+
+def program_contract_is_fully_paid(
+    p: PatientPurchase,
+    *,
+    possible_deposit_max: Decimal = POSSIBLE_DEPOSIT_MAX_DEFAULT,
+) -> bool:
+    """Договор курса или протокола закрыт целиком относительно записанной суммы.
+
+    Сумму задаёт администратор (1100, 1200, 1300 — одинаково). Каталог не подставляется.
+    Частичная оплата (класс A) и договор в полосе депозита (класс B) права на
+    бесплатный осмотр не дают.
+    """
+    if (p.product_kind or "") not in _PROGRAM_KINDS:
+        return False
+    if (p.status or "").strip() in ("cancelled", "returned"):
+        return False
+    sa = _dec(p.service_amount)
+    pa = _dec(p.paid_amount)
+    if sa <= 0 or pa + EPS < sa:
+        return False
+    klass, _reasons = classify_course15_deposit(
+        service_amount=sa,
+        paid_amount=pa,
+        possible_deposit_max=possible_deposit_max,
+    )
+    return klass == CLASS_C
+
+
+def main_course_first_stage_paid(
+    p: PatientPurchase,
+    *,
+    possible_deposit_max: Decimal = POSSIBLE_DEPOSIT_MAX_DEFAULT,
+) -> bool:
+    """Курс закрыт целиком либо оплачен хотя бы первый из трёх этапов.
+
+    Этап — треть записанной суммы договора, не цена из каталога.
+    Платёж не больше полосы депозита этапом не считается.
+    """
+    if (p.product_kind or "") != "main_course":
+        return False
+    if (p.status or "").strip() in ("cancelled", "returned"):
+        return False
+    sa = _dec(p.service_amount)
+    pa = _dec(p.paid_amount)
+    band = _dec(possible_deposit_max)
+    if sa <= band or pa <= band:
+        return False
+    if pa + EPS >= sa:
+        return True
+    stage = sa / Decimal(3)
+    if stage <= band:
+        return False
+    # 1 сомони на округление трети, без подстановки каталога.
+    return pa + Decimal("1") >= stage
+
+
+def _is_doctor_appointment(p: PatientPurchase) -> bool:
+    """Приём к врачу: консультация, осмотр. ТМС, массаж и кЭЭГ сюда не входят."""
+    if (p.product_kind or "") == "visit":
+        return True
+    name = (p.product_name or "").casefold().replace("ё", "е")
+    return any(mark in name for mark in ("консульт", "консулт", "прием", "осмотр", "врач"))
+
+
+def is_free_followup_inspection(
+    p: PatientPurchase,
+    siblings: list[PatientPurchase],
+    *,
+    possible_deposit_max: Decimal = POSSIBLE_DEPOSIT_MAX_DEFAULT,
+) -> bool:
+    """Бесплатный визит без кассы. Правила разные у разных продуктов.
+
+    Курс 15, закрытый целиком: любой более поздний нулевой визит из записи.
+    Протокол, закрытый целиком: приём к врачу не раньше чем через месяц.
+    Курс, закрытый целиком или с оплаченным первым из трёх этапов: приём к врачу
+    не раньше чем через месяц. Платная процедура (сумма > 0) сюда не попадает.
+    Не Class D и не дата входа в когорту.
+    """
+    if (p.source_type or "") != "booking_appointment":
+        return False
+    if (p.status or "").strip() in ("cancelled", "returned"):
+        return False
+    if p.lead_id is None or p.purchased_at is None:
+        return False
+    if _dec(p.service_amount) > 0 or _dec(p.paid_amount) > EPS:
+        return False
+    visit_at = _utc(p.purchased_at)
+    if visit_at is None:
+        return False
+    for other in siblings:
+        if other is p:
+            continue
+        if p.id is not None and other.id is not None and int(other.id) == int(p.id):
+            continue
+        if other.lead_id is not None and int(other.lead_id) != int(p.lead_id):
+            continue
+        fully_paid = program_contract_is_fully_paid(other, possible_deposit_max=possible_deposit_max)
+        staged = main_course_first_stage_paid(other, possible_deposit_max=possible_deposit_max)
+        if not fully_paid and not staged:
+            continue
+        if other.purchased_at is None:
+            continue
+        other_at = _utc(other.purchased_at)
+        if other_at is None or other_at >= visit_at:
+            continue
+        kind = other.product_kind or ""
+        if kind == "course_15":
+            return True
+        if kind in ("main_course", "protocol"):
+            if not _is_doctor_appointment(p):
+                continue
+            if visit_at < other_at + timedelta(days=FOLLOWUP_DOCTOR_AFTER_DAYS):
+                continue
+            return True
+    return False
+
+
+def classify_course15_for_dq(
+    p: PatientPurchase,
+    siblings: list[PatientPurchase],
+    *,
+    possible_deposit_max: Decimal = POSSIBLE_DEPOSIT_MAX_DEFAULT,
+    related_higher_service: bool = False,
+) -> tuple[str, list[str]]:
+    """A/B/C/D, либо free_followup_inspection вместо ложного Class D."""
+    if is_free_followup_inspection(p, siblings, possible_deposit_max=possible_deposit_max):
+        return CLASS_FOLLOWUP, [
+            "service_amount<=0 и paid_amount<=0 — кассы нет",
+            "договор закрыт целиком по записанной сумме — бесплатный осмотр, не ошибка DQ",
+        ]
+    return classify_course15_deposit(
+        service_amount=p.service_amount,
+        paid_amount=p.paid_amount,
+        possible_deposit_max=possible_deposit_max,
+        related_higher_service=related_higher_service,
+    )
+
+
 def _related_higher(sa: Decimal, siblings: list[PatientPurchase], self_id: int) -> bool:
     for o in siblings:
         if int(o.id) == self_id:
@@ -163,6 +313,21 @@ async def build_deposit_dq_report(
             payments_by_purchase[int(pay.purchase_id)].append(pay)
 
     lead_ids = {int(p.lead_id) for p in scoped if p.lead_id is not None}
+    program_by_lead: dict[int, list[PatientPurchase]] = defaultdict(list)
+    for lid, items in by_lead.items():
+        program_by_lead[lid].extend(items)
+    if lead_ids:
+        for other in (
+            await db.execute(
+                select(PatientPurchase).where(
+                    PatientPurchase.company_id == company_id,
+                    PatientPurchase.lead_id.in_(lead_ids),
+                    PatientPurchase.product_kind.in_(("main_course", "protocol")),
+                )
+            )
+        ).scalars().all():
+            if other.lead_id is not None:
+                program_by_lead[int(other.lead_id)].append(other)
     leads: dict[int, Lead] = {}
     if lead_ids:
         for lead in (
@@ -198,20 +363,25 @@ async def build_deposit_dq_report(
             managers[int(u.id)] = u.full_name or u.email or f"#{u.id}"
 
     counts = {CLASS_A: 0, CLASS_B: 0, CLASS_C: 0, CLASS_D: 0}
+    followup_n = 0
     rows: list[dict] = []
     qn = (q or "").strip().casefold()
 
     for p in scoped:
         sa = _dec(p.service_amount)
-        siblings = by_lead.get(int(p.lead_id), []) if p.lead_id is not None else []
-        higher = _related_higher(sa, siblings, int(p.id))
-        klass, reasons = classify_course15_deposit(
-            service_amount=sa,
-            paid_amount=p.paid_amount,
+        course_siblings = by_lead.get(int(p.lead_id), []) if p.lead_id is not None else []
+        program_siblings = program_by_lead.get(int(p.lead_id), []) if p.lead_id is not None else []
+        higher = _related_higher(sa, course_siblings, int(p.id))
+        klass, reasons = classify_course15_for_dq(
+            p,
+            program_siblings,
             possible_deposit_max=band,
             related_higher_service=higher,
         )
-        counts[klass] += 1
+        if klass == CLASS_FOLLOWUP:
+            followup_n += 1
+        else:
+            counts[klass] += 1
 
         if class_filter:
             shortcuts = {
@@ -219,10 +389,13 @@ async def build_deposit_dq_report(
                 "B": CLASS_B,
                 "C": CLASS_C,
                 "D": CLASS_D,
+                "F": CLASS_FOLLOWUP,
+                "followup": CLASS_FOLLOWUP,
                 CLASS_A: CLASS_A,
                 CLASS_B: CLASS_B,
                 CLASS_C: CLASS_C,
                 CLASS_D: CLASS_D,
+                CLASS_FOLLOWUP: CLASS_FOLLOWUP,
             }
             want = shortcuts.get(class_filter.strip()) or shortcuts.get(class_filter.strip().upper())
             if want and want != klass:
@@ -322,9 +495,13 @@ async def build_deposit_dq_report(
         "note": (
             "Read-only Deposit DQ for Course 15 before fully-paid Entry cutover. "
             "Class B uses an attention band (not a catalog rewrite to 1300). "
+            "Бесплатный контрольный осмотр после оплаченного курса или протокола — "
+            "free_followup_inspection, не Class D и не касса. "
+            "Платная процедура остаётся покупкой. "
             "No automatic correction."
         ),
         "counts": counts,
+        "free_followup_inspections_count": followup_n,
         "total_in_scope": sum(counts.values()),
         "rows_returned": len(rows),
         "class_labels": CLASS_LABELS,

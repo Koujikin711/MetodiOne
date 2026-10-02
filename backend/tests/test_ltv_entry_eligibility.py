@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from app.models.patient_purchase import PatientPurchase
+from app.models.patient_purchase import PatientPurchase, PatientPurchasePayment
+from app.services.deposit_dq import is_cashless_purchase, is_free_followup_inspection
+from app.services.patient_ltv import compute_lead_ltv
+from app.services.patient_ltv_analytics import LTV_WINDOWS_DAYS
 from app.services.ltv_entry_eligibility import (
     ENTRY_MODE_FULLY_PAID,
     ENTRY_MODE_PURCHASE,
@@ -59,6 +62,53 @@ def test_technically_full_possible_deposit_still_passes_predicate():
     assert purchase_is_fully_paid_for_entry(p) is True
 
 
+def test_included_visit_does_not_move_entry_in_either_mode():
+    """Повторный нулевой визит после полного курса не становится датой входа."""
+    course = _p(
+        id=1,
+        source_id=1,
+        service_amount=Decimal("1300"),
+        paid_amount=Decimal("1300"),
+        purchased_at=datetime(2026, 6, 1, tzinfo=UTC),
+    )
+    visit = _p(
+        id=2,
+        source_id=2,
+        source_type="booking_appointment",
+        service_amount=Decimal("0"),
+        paid_amount=Decimal("0"),
+        purchased_at=datetime(2026, 6, 20, tzinfo=UTC),
+    )
+    assert first_entry_purchase([visit, course], ENTRY_MODE_PURCHASE) is course
+    assert first_entry_purchase([visit, course], ENTRY_MODE_FULLY_PAID) is course
+    assert entry_purchase_count([course, visit], ENTRY_MODE_PURCHASE) == 1
+    assert entry_purchase_count([course, visit], ENTRY_MODE_FULLY_PAID) == 1
+    pay = PatientPurchasePayment(
+        id=1,
+        company_id=1,
+        purchase_id=1,
+        source_type="kpi_payment",
+        source_id=1,
+        amount=Decimal("1300"),
+        is_refund=False,
+        paid_at=course.purchased_at,
+    )
+    zero_pay = PatientPurchasePayment(
+        id=2,
+        company_id=1,
+        purchase_id=2,
+        source_type="booking_payment",
+        source_id=2,
+        amount=Decimal("0"),
+        is_refund=False,
+        paid_at=visit.purchased_at,
+    )
+    with_visit = compute_lead_ltv([course, visit], [pay, zero_pay])
+    without_visit = compute_lead_ltv([course], [pay])
+    assert with_visit.paid_ltv == without_visit.paid_ltv
+    assert with_visit.sales_value == without_visit.sales_value
+
+
 def test_zero_service_amount_not_entry_even_if_completed():
     p = _p(
         service_amount=Decimal("0"),
@@ -68,8 +118,101 @@ def test_zero_service_amount_not_entry_even_if_completed():
     )
     assert purchase_is_fully_paid_for_entry(p) is False
     assert first_entry_purchase([p], ENTRY_MODE_FULLY_PAID) is None
-    # CURRENT still counts purchase events
-    assert first_entry_purchase([p], ENTRY_MODE_PURCHASE) is p
+    assert first_entry_purchase([p], ENTRY_MODE_PURCHASE) is None
+
+
+def test_paid_procedure_counts_admin_course_price_does_not():
+    """1100 — договор админа. Массаж 150 входит в повтор. Нулевой осмотр — нет."""
+    course = _p(
+        id=1,
+        source_id=1,
+        service_amount=Decimal("1100"),
+        paid_amount=Decimal("1100"),
+        purchased_at=datetime(2026, 6, 1, tzinfo=UTC),
+    )
+    visit = _p(
+        id=2,
+        source_id=2,
+        source_type="booking_appointment",
+        service_amount=Decimal("0"),
+        paid_amount=Decimal("0"),
+        purchased_at=datetime(2026, 6, 10, tzinfo=UTC),
+    )
+    massage = _p(
+        id=3,
+        source_id=3,
+        source_type="booking_appointment",
+        product_kind="other_service",
+        product_name="Массаж",
+        service_amount=Decimal("150"),
+        paid_amount=Decimal("150"),
+        purchased_at=datetime(2026, 6, 20, tzinfo=UTC),
+    )
+    assert first_entry_purchase([visit, massage, course], ENTRY_MODE_PURCHASE) is course
+    assert entry_purchase_count([course, visit, massage], ENTRY_MODE_PURCHASE) == 2
+    partial = _p(
+        id=4,
+        source_id=4,
+        service_amount=Decimal("1200"),
+        paid_amount=Decimal("300"),
+        purchased_at=datetime(2026, 5, 1, tzinfo=UTC),
+    )
+    early_zero = _p(
+        id=5,
+        source_id=5,
+        source_type="booking_appointment",
+        service_amount=Decimal("0"),
+        paid_amount=Decimal("0"),
+        purchased_at=datetime(2026, 5, 20, tzinfo=UTC),
+    )
+    assert first_entry_purchase([early_zero, partial], ENTRY_MODE_PURCHASE) is partial
+
+
+def test_paid_500_after_class_c_lands_in_d30_through_d365_zero_does_not():
+    """Процедура 500 после класса C входит в D30–D365. Осмотр за 0 не входит ни в кассу, ни в число пациентов."""
+    t0 = datetime(2026, 6, 1, tzinfo=UTC)
+    course = _p(
+        id=1,
+        source_id=1,
+        service_amount=Decimal("1100"),
+        paid_amount=Decimal("1100"),
+        purchased_at=t0,
+    )
+    visit = _p(
+        id=2,
+        source_id=2,
+        source_type="booking_appointment",
+        service_amount=Decimal("0"),
+        paid_amount=Decimal("0"),
+        purchased_at=t0 + timedelta(days=10),
+    )
+    procedure = _p(
+        id=3,
+        source_id=3,
+        source_type="booking_appointment",
+        product_kind="other_service",
+        product_name="ТМС",
+        service_amount=Decimal("500"),
+        paid_amount=Decimal("500"),
+        purchased_at=t0 + timedelta(days=20),
+    )
+    assert is_free_followup_inspection(visit, [course, visit, procedure]) is True
+    assert is_cashless_purchase(visit) is True
+    assert is_cashless_purchase(procedure) is False
+    money = [p for p in (course, visit, procedure) if not is_cashless_purchase(p)]
+    assert money == [course, procedure]
+    pays = {
+        1: t0,
+        3: t0 + timedelta(days=20),
+    }
+    amounts = {1: Decimal("1100"), 3: Decimal("500")}
+    windows = {}
+    for d in LTV_WINDOWS_DAYS:
+        end = t0 + timedelta(days=1) if d == 0 else t0 + timedelta(days=d)
+        windows[d] = sum((amounts[pid] for pid, pt in pays.items() if t0 <= pt < end), Decimal("0"))
+    assert windows[0] == Decimal("1100")
+    assert windows[30] == Decimal("1600")
+    assert windows[90] == windows[180] == windows[365] == Decimal("1600")
 
 
 def test_first_entry_shifts_when_deposit_then_full():

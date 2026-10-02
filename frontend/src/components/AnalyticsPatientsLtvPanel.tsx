@@ -97,6 +97,7 @@ type EntryModeSnapshot = {
 
 type EntryCompareReport = {
   production_entry_mode: string;
+  free_followup_inspections_count?: number;
   cutover_blocked_reason?: string;
   note?: string;
   current: EntryModeSnapshot;
@@ -545,6 +546,7 @@ export function AnalyticsPatientsLtvPanel() {
     possible_deposit_max: string;
     note?: string;
     counts: Record<string, number>;
+    free_followup_inspections_count?: number;
     total_in_scope: number;
     rows_returned: number;
     class_labels: Record<string, string>;
@@ -659,6 +661,13 @@ export function AnalyticsPatientsLtvPanel() {
                   <strong>{entryCompare.production_entry_mode}</strong>. Fully-paid cutover
                   заблокирован до Deposit DQ (8F). Paid LTV formula не меняется.
                 </p>
+                {(entryCompare.free_followup_inspections_count ?? 0) > 0 ? (
+                  <p className="mt-1 text-[11px] mo-muted">
+                    Бесплатные осмотры после полной оплаты:{" "}
+                    <strong className="tabular-nums">{entryCompare.free_followup_inspections_count}</strong>
+                    . Не Class D и не дата входа в когорту.
+                  </p>
+                ) : null}
                 {entryCompare.cutover_blocked_reason ? (
                   <p className="mt-1 text-[11px] text-amber-700/90 dark:text-amber-300/90">
                     {entryCompare.cutover_blocked_reason}
@@ -786,6 +795,10 @@ export function AnalyticsPatientsLtvPanel() {
                   D unknown <strong>{depositDqQuery.data.counts.unknown ?? 0}</strong>
                 </span>
                 <span className="mo-muted">
+                  визиты по курсу{" "}
+                  <strong>{depositDqQuery.data.free_followup_inspections_count ?? 0}</strong>
+                </span>
+                <span className="mo-muted">
                   band ≤{depositDqQuery.data.possible_deposit_max}
                 </span>
               </div>
@@ -807,6 +820,7 @@ export function AnalyticsPatientsLtvPanel() {
                     <option value="B">B · Possible deposit</option>
                     <option value="C">C · Clear full</option>
                     <option value="D">D · Unknown</option>
+                    <option value="included">Бесплатный визит по курсу</option>
                   </select>
                   <input
                     className="mo-input text-sm"
@@ -839,7 +853,9 @@ export function AnalyticsPatientsLtvPanel() {
                                   ? "text-amber-800 dark:text-amber-200"
                                   : r.deposit_class === "unknown"
                                     ? "text-red-400"
-                                    : ""
+                                    : r.deposit_class === "free_followup_inspection"
+                                      ? "mo-muted"
+                                      : ""
                               }
                             >
                               {r.deposit_class_label}

@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Literal
 
 from app.models.patient_purchase import PatientPurchase
+from app.services.deposit_dq import is_cashless_purchase
 
 EntryMode = Literal["purchase", "fully_paid"]
 
@@ -66,8 +67,13 @@ def purchase_counts_for_entry(p: PatientPurchase, mode: EntryMode) -> bool:
     raise ValueError(f"unknown entry mode: {mode}")
 
 
+def _without_included_visits(purchases: list[PatientPurchase]) -> list[PatientPurchase]:
+    """Нулевой визит без кассы не якорит Entry. Платная процедура (сумма > 0) остаётся."""
+    return [p for p in purchases if not is_cashless_purchase(p)]
+
+
 def entry_purchases(purchases: list[PatientPurchase], mode: EntryMode) -> list[PatientPurchase]:
-    seq = [p for p in purchases if purchase_counts_for_entry(p, mode)]
+    seq = [p for p in _without_included_visits(purchases) if purchase_counts_for_entry(p, mode)]
     seq.sort(
         key=lambda p: _utc(p.purchased_at) or datetime.max.replace(tzinfo=UTC),
     )
@@ -95,7 +101,7 @@ def entry_purchase_count(purchases: list[PatientPurchase], mode: EntryMode) -> i
         return len(
             [
                 p
-                for p in purchases
+                for p in _without_included_visits(purchases)
                 if (p.status or "").strip() not in ("cancelled", "returned") and p.purchased_at is not None
             ],
         )

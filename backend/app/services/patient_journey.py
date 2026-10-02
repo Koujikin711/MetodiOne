@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -9,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import PatientJourney, PatientJourneyEpisode, PatientJourneyEvent, PatientPurchase
+from app.services.deposit_dq import is_free_followup_inspection
 
 
 def _utc(dt: datetime | None) -> datetime | None:
@@ -75,7 +77,10 @@ async def sync_journey_for_lead(db: AsyncSession, *, company_id: int, lead_id: i
         )
     ).scalars().all()
 
-    c15 = [p for p in purchases if p.product_kind == "course_15" and (p.status or "") != "cancelled"]
+    c15_all = [p for p in purchases if p.product_kind == "course_15" and (p.status or "") != "cancelled"]
+    # Нулевой повторный визит — событие пути, не старт и не завершение курса.
+    c15 = [p for p in c15_all if not is_free_followup_inspection(p, purchases)]
+    await _sync_free_followup_events(db, company_id=company_id, lead_id=lead_id, purchases=purchases)
     if not c15:
         j.course_15_status = "none"
         j.course_15_started_at = None
@@ -137,6 +142,60 @@ async def sync_journey_for_lead(db: AsyncSession, *, company_id: int, lead_id: i
     j.updated_at = datetime.now(UTC)
     await db.flush()
     return j
+
+
+async def _sync_free_followup_events(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    lead_id: int,
+    purchases: list[PatientPurchase],
+) -> None:
+    """Идемпотентно: один event на контрольный осмотр. Деньги не пишет."""
+    included = [p for p in purchases if p.id is not None and is_free_followup_inspection(p, purchases)]
+    want = {int(p.id): p for p in included}
+    existing = (
+        await db.execute(
+            select(PatientJourneyEvent).where(
+                PatientJourneyEvent.company_id == company_id,
+                PatientJourneyEvent.lead_id == lead_id,
+                PatientJourneyEvent.event_type.in_(("free_followup_inspection", "course_included_visit")),
+            ),
+        )
+    ).scalars().all()
+    seen: dict[int, PatientJourneyEvent] = {}
+    for ev in existing:
+        pid = None
+        try:
+            payload = json.loads(ev.payload or "{}")
+            if payload.get("purchase_id") is not None:
+                pid = int(payload["purchase_id"])
+        except (TypeError, ValueError):
+            pid = None
+        if pid is None or pid not in want or pid in seen:
+            await db.delete(ev)
+            continue
+        seen[pid] = ev
+    for pid, p in want.items():
+        occurred = _utc(p.purchased_at) or datetime.now(UTC)
+        payload = json.dumps(
+            {"purchase_id": pid, "label": "Бесплатный контрольный осмотр"},
+            ensure_ascii=False,
+        )
+        if pid in seen:
+            seen[pid].event_type = "free_followup_inspection"
+            seen[pid].occurred_at = occurred
+            seen[pid].payload = payload
+            continue
+        db.add(
+            PatientJourneyEvent(
+                company_id=company_id,
+                lead_id=lead_id,
+                event_type="free_followup_inspection",
+                occurred_at=occurred,
+                payload=payload,
+            ),
+        )
 
 
 async def _sync_episodes(

@@ -18,6 +18,7 @@ from app.services.patient_journey_paths import (
     empty_path_analytics,
     transition_product_key,
 )
+from app.services.deposit_dq import is_cashless_purchase
 from app.services.patient_ltv import compute_lead_ltv
 
 
@@ -96,8 +97,12 @@ async def build_ltv_cohort_report(
 
     cohort_leads: list[int] = []
     first_at: dict[int, datetime] = {}
+    anchored_by_lead: dict[int, list[PatientPurchase]] = {}
     for lid, pur_list in by_lead.items():
-        times = [p.purchased_at for p in pur_list if p.purchased_at is not None]
+        # Нулевой визит без кассы не сдвигает дату входа и не входит в окна.
+        anchored = [p for p in pur_list if not is_cashless_purchase(p)]
+        anchored_by_lead[lid] = anchored
+        times = [p.purchased_at for p in anchored if p.purchased_at is not None]
         if not times:
             continue
         norm = [_utc(t) for t in times]
@@ -177,7 +182,7 @@ async def build_ltv_cohort_report(
     rows_out: list[dict] = []
 
     for lid in cohort_leads:
-        pur_list = by_lead[lid]
+        pur_list = anchored_by_lead[lid]
         pay_list = []
         for p in pur_list:
             pay_list.extend(pays_by_purchase.get(int(p.id), []))
@@ -232,7 +237,7 @@ async def build_ltv_cohort_report(
     facts_list: list[LeadJourneyFacts] = []
     for lid in cohort_leads:
         pur_list = sorted(
-            by_lead[lid],
+            anchored_by_lead[lid],
             key=lambda p: _utc(p.purchased_at) if p.purchased_at else datetime.max.replace(tzinfo=UTC),
         )
         j = jmap.get(lid)

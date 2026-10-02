@@ -111,6 +111,7 @@ def test_window_counts_only_current_partial_and_shifted_full():
         ],
     }
     diff = cohort_entry_diff(by_lead, cohort_from=SEPT_FROM, cohort_to=SEPT_TO)
+    # Нулевой августовский визит лида 11 не задаёт CURRENT-вход: оба режима видят сентябрь.
     assert diff["entry_only_under_current"] == 1
-    assert diff["entry_only_under_target"] == 1
-    assert diff["first_at_changed_patients"] == 3
+    assert diff["entry_only_under_target"] == 0
+    assert diff["first_at_changed_patients"] == 2
