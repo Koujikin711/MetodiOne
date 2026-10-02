@@ -15,6 +15,7 @@ type Manager = {
   new_leads_today: number;
   bookings_today: number;
   revenue_today: number | string;
+  online_seconds_today?: number;
 };
 
 type Dashboard = {
@@ -40,6 +41,15 @@ type DayClose = {
 
 function money(v: number | string) {
   return Number(v || 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 });
+}
+
+function formatOnline(seconds: number | undefined): string {
+  const sec = Math.max(0, Math.floor(seconds || 0));
+  if (sec < 60) return sec > 0 ? "< 1 мин" : "—";
+  const hours = Math.floor(sec / 3600);
+  const minutes = Math.floor((sec % 3600) / 60);
+  if (hours <= 0) return `${minutes} мин`;
+  return `${hours} ч ${minutes} мин`;
 }
 
 export function RopDashboardPage() {
@@ -98,6 +108,7 @@ export function RopDashboardPage() {
               <tr>
                 <th className="px-3 py-2">Менеджер</th>
                 <th className="px-3 py-2">Статус</th>
+                <th className="px-3 py-2">Время в сети</th>
                 <th className="px-3 py-2">Активные</th>
                 <th className="px-3 py-2">Новые</th>
                 <th className="px-3 py-2">Удачно</th>
@@ -113,6 +124,7 @@ export function RopDashboardPage() {
                       {m.is_online ? "В сети" : "Не в сети"}
                     </span>
                   </td>
+                  <td className="px-3 py-2 tabular-nums">{formatOnline(m.online_seconds_today)}</td>
                   <td className="px-3 py-2 tabular-nums">{m.active_leads}</td>
                   <td className="px-3 py-2 tabular-nums">{m.new_leads_today}</td>
                   <td className="px-3 py-2 tabular-nums">{m.bookings_today}</td>
@@ -121,7 +133,7 @@ export function RopDashboardPage() {
               ))}
               {!managers.length && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center mo-muted">
+                  <td colSpan={7} className="px-3 py-6 text-center mo-muted">
                     Нет менеджеров на воронке
                   </td>
                 </tr>

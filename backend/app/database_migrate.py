@@ -1813,6 +1813,41 @@ async def ensure_user_last_seen_at(conn: AsyncConnection, database_url: str) -> 
         )
 
 
+async def ensure_user_presence_days(conn: AsyncConnection, database_url: str) -> None:
+    """Дневной счётчик времени в сети для дашборда РОП."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS user_presence_days (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    day DATE NOT NULL,
+                    seconds INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE(user_id, day)
+                )"""
+            )
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS user_presence_days (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    day DATE NOT NULL,
+                    seconds INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE(user_id, day)
+                )"""
+            )
+        )
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS idx_user_presence_days_company_day ON user_presence_days (company_id, day)")
+    )
+
+
 async def ensure_service_catalog_tables(conn: AsyncConnection, database_url: str) -> None:
     low = database_url.lower()
     sqlite = "sqlite" in low

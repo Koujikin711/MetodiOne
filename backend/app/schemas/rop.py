@@ -19,6 +19,7 @@ class RopManagerPresence(BaseModel):
     new_leads_today: int = 0
     bookings_today: int = 0
     revenue_today: Decimal = Decimal("0")
+    online_seconds_today: int = 0
 
 
 class RopDashboard(BaseModel):

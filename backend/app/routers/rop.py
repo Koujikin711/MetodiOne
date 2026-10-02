@@ -31,6 +31,7 @@ from app.models import (
     TaskStatus,
     User,
     UserPipelineAssignment,
+    UserPresenceDay,
     UserRole,
 )
 from app.schemas.rop import (
@@ -59,6 +60,7 @@ from app.schemas.rop import (
     RopStatsStage,
 )
 from app.services.audit import write_audit_event
+from app.services.presence_time import online_seconds_so_far, presence_gap_seconds
 from app.services.clinic_roles import can_access_rop
 from app.services.lead_sales_stages import ARCHIVE_STAGE_NAME
 from app.services.sales_kpi_weighted import _norm_kpi_label, load_plan_items
@@ -277,7 +279,30 @@ async def presence_heartbeat(
     user = await db.get(User, current_user.id)
     if user is None:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
-    user.last_seen_at = datetime.now(UTC)
+    now = datetime.now(UTC)
+    gap = presence_gap_seconds(user.last_seen_at, now, window=ONLINE_WINDOW)
+    user.last_seen_at = now
+    if gap and user.company_id is not None:
+        day = now.astimezone(_booking_tz()).date()
+        row = (
+            await db.execute(
+                select(UserPresenceDay).where(
+                    UserPresenceDay.user_id == int(user.id),
+                    UserPresenceDay.day == day,
+                )
+            )
+        ).scalars().first()
+        if row is None:
+            db.add(
+                UserPresenceDay(
+                    company_id=int(user.company_id),
+                    user_id=int(user.id),
+                    day=day,
+                    seconds=gap,
+                )
+            )
+        else:
+            row.seconds = int(row.seconds or 0) + gap
     await db.flush()
     return {"ok": "true"}
 
@@ -381,23 +406,42 @@ async def rop_dashboard(
             continue
         rev_map[int(mid)] = rev_map.get(int(mid), Decimal("0")) + Decimal(str(amt or 0))
 
+    presence_rows = (
+        await db.execute(
+            select(UserPresenceDay.user_id, UserPresenceDay.seconds).where(
+                UserPresenceDay.company_id == company_id,
+                UserPresenceDay.day == day,
+                UserPresenceDay.user_id.in_(manager_ids or [0]),
+            )
+        )
+    ).all() if manager_ids else []
+    presence_map = {int(uid): int(sec or 0) for uid, sec in presence_rows}
+
     items: list[RopManagerPresence] = []
     for mid in manager_ids:
         u = by_id.get(mid)
         if u is None:
             continue
+        online = _is_online(u.last_seen_at, now=now)
         items.append(
             RopManagerPresence(
                 user_id=mid,
                 full_name=_display_name(u),
                 email=u.email,
-                is_online=_is_online(u.last_seen_at, now=now),
+                is_online=online,
                 last_seen_at=u.last_seen_at,
                 accepts_new_leads=bool(u.accepts_new_leads),
                 active_leads=active_map.get(mid, 0),
                 new_leads_today=new_map.get(mid, 0),
                 bookings_today=book_map.get(mid, 0),
                 revenue_today=rev_map.get(mid, Decimal("0")),
+                online_seconds_today=online_seconds_so_far(
+                    stored=presence_map.get(mid, 0),
+                    last_seen_at=u.last_seen_at,
+                    now=now,
+                    is_online=online,
+                    window=ONLINE_WINDOW,
+                ),
             )
         )
     items.sort(key=lambda x: (not x.is_online, x.full_name.lower()))

@@ -155,6 +155,19 @@ class User(Base):
     )
 
 
+class UserPresenceDay(Base):
+    """Сколько секунд пользователь был в сети за календарный день клиники."""
+
+    __tablename__ = "user_presence_days"
+    __table_args__ = (UniqueConstraint("user_id", "day", name="uq_user_presence_day"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    seconds: Mapped[int] = mapped_column(default=0)
+
+
 class UserPipelineAssignment(Base):
     __tablename__ = "user_pipeline_assignments"
 

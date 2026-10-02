@@ -49,6 +49,7 @@ from app.database_migrate import (
     ensure_fix_redistribute_keep_booking_sellers,
     ensure_clinic_staff_roles,
     ensure_user_last_seen_at,
+    ensure_user_presence_days,
     ensure_extra_services_tables,
     ensure_chat_thread_unique_external,
     ensure_curator_journal_tables,
@@ -165,6 +166,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_user_accepts_new_leads(conn, db_url)
                 await ensure_user_daily_archive_leads_quota(conn, db_url)
                 await ensure_user_last_seen_at(conn, db_url)
+                await ensure_user_presence_days(conn, db_url)
                 await ensure_lead_archived_from_stage(conn, db_url)
                 await ensure_settle_completed_booking_debts(conn, db_url)
                 await ensure_fix_kurs_direction_and_session_pay(conn, db_url)
@@ -572,6 +574,9 @@ async def lifespan(_: FastAPI):
             await ensure_clinic_staff_roles(conn, settings.database_url)
         async with engine.connect() as conn:
             await ensure_user_last_seen_at(conn, settings.database_url)
+        async with engine.connect() as conn:
+            await ensure_user_presence_days(conn, settings.database_url)
+            await conn.commit()
         await seed_pipelines_and_stages()
         await seed_test_admin()
         await seed_super_owner()
