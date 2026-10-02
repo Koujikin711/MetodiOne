@@ -307,17 +307,17 @@ export function SpecialistModal({
               <p className="mt-2 text-xs text-red-400">Конец должен быть позже начала.</p>
             )}
             <p className="mt-3 text-xs lux-caption">Рабочие дни</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <div className="mt-1.5 grid grid-cols-7 gap-1">
               {WEEKDAY_LABELS.map((label, d) => (
                 <button
                   key={d}
                   type="button"
                   onClick={() => toggleWeekday(d)}
                   className={[
-                    "rounded-lg border px-2.5 py-1 text-xs font-medium transition",
+                    "h-9 rounded-lg border text-xs font-medium transition",
                     workWeekdays.includes(d)
                       ? "border-indigo-500/50 bg-[var(--mo-accent-soft)] text-[var(--mo-accent-hover)]"
-                      : "border-[var(--mo-border-strong)]/60 bg-white/80 mo-muted line-through opacity-70",
+                      : "border-[var(--mo-border)] bg-transparent mo-muted",
                   ].join(" ")}
                 >
                   {label}
@@ -342,38 +342,38 @@ export function SpecialistModal({
               </span>
             </label>
             {courseStreamsEnabled && (
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                <label className="text-xs mo-muted">
-                  Длина потока (дн.)
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <label className="text-center text-xs mo-muted">
+                  <span className="block min-h-8 leading-4">Длина, дни</span>
                   <input
                     type="number"
                     min={5}
                     max={90}
                     value={courseStreamMaxDays}
                     onChange={(e) => setCourseStreamMaxDays(Number(e.target.value))}
-                    className="mo-input mt-1 w-full tabular-nums"
+                    className="mo-input mt-1 w-full text-center tabular-nums"
                   />
                 </label>
-                <label className="text-xs mo-muted">
-                  Мин. день для 2‑го потока
+                <label className="text-center text-xs mo-muted">
+                  <span className="block min-h-8 leading-4">Мин. день</span>
                   <input
                     type="number"
                     min={1}
                     max={60}
                     value={courseStreamMinDay}
                     onChange={(e) => setCourseStreamMinDay(Number(e.target.value))}
-                    className="mo-input mt-1 w-full tabular-nums"
+                    className="mo-input mt-1 w-full text-center tabular-nums"
                   />
                 </label>
-                <label className="text-xs mo-muted">
-                  Перерыв (дн.)
+                <label className="text-center text-xs mo-muted">
+                  <span className="block min-h-8 leading-4">Перерыв, дни</span>
                   <input
                     type="number"
                     min={1}
                     max={60}
                     value={courseStreamGapDays}
                     onChange={(e) => setCourseStreamGapDays(Number(e.target.value))}
-                    className="mo-input mt-1 w-full tabular-nums"
+                    className="mo-input mt-1 w-full text-center tabular-nums"
                   />
                 </label>
               </div>
@@ -391,7 +391,7 @@ export function SpecialistModal({
             <p className="mt-0.5 text-xs mo-muted">
               Несколько направлений. Повторный клик по выбранному делает его основным; по основному — снимает.
             </p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
               {activeDirections.map((d) => {
                 const selected = directionIds.includes(d.id);
                 const isPrimary = selected && directionIds[0] === d.id;
@@ -401,15 +401,19 @@ export function SpecialistModal({
                     type="button"
                     onClick={() => toggleDirection(d.id)}
                     className={[
-                      "rounded-lg border px-2.5 py-1 text-xs font-medium transition",
+                      "flex h-9 items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-medium transition",
                       selected
-                        ? "border-indigo-500/50 bg-indigo-500/15 text-[var(--mo-text)]"
-                        : "border-[var(--mo-border-strong)]/60 bg-white/80 mo-muted opacity-70",
+                        ? "border-indigo-500/50 bg-[var(--mo-accent-soft)] text-[var(--mo-text)]"
+                        : "border-[var(--mo-border)] bg-transparent mo-muted",
                     ].join(" ")}
                     title={isPrimary ? "Основное направление" : selected ? "Нажмите, чтобы снять" : "Добавить"}
                   >
-                    {d.name}
-                    {isPrimary ? " · осн." : ""}
+                    <span className="truncate">{d.name}</span>
+                    {isPrimary ? (
+                      <span className="shrink-0 rounded-md bg-[var(--mo-accent)]/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--mo-accent-hover)]">
+                        осн.
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}
@@ -424,33 +428,34 @@ export function SpecialistModal({
             )}
           </div>
 
-          <label className="block text-sm mo-muted">
-            Специализация
-            <input
-              value={specialization}
-              onChange={(e) => setSpecialization(e.target.value)}
-              className="mo-input mt-1 w-full"
-              placeholder="Необязательно"
-            />
-          </label>
-
-          <label className="block text-sm mo-muted">
-            Телефон
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="mo-input mt-1 w-full"
-              placeholder="Необязательно"
-            />
-          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-sm mo-muted">
+              Специализация
+              <input
+                value={specialization}
+                onChange={(e) => setSpecialization(e.target.value)}
+                className="mo-input mt-1 w-full"
+                placeholder="Необязательно"
+              />
+            </label>
+            <label className="block text-sm mo-muted">
+              Телефон
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="mo-input mt-1 w-full"
+                placeholder="Необязательно"
+              />
+            </label>
+          </div>
 
           <div className="flex flex-col gap-2 pt-2">
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting || isDeleting}
-                className="flex-1 rounded-xl border border-[var(--mo-border-strong)] py-2.5 text-sm font-medium mo-muted transition hover:bg-[var(--mo-accent-soft)]"
+                className="h-11 rounded-xl border border-[var(--mo-border-strong)] text-sm font-medium mo-muted transition hover:bg-[var(--mo-accent-soft)]"
               >
                 Отмена
               </button>
@@ -463,7 +468,7 @@ export function SpecialistModal({
                   !workWeekdays.length ||
                   !directionIds.length
                 }
-                className="flex-1 btn-primary"
+                className="h-11 btn-primary"
               >
                 {isSubmitting ? "Сохранение…" : "Сохранить"}
               </button>
@@ -473,7 +478,7 @@ export function SpecialistModal({
                 type="button"
                 disabled={isSubmitting || isDeleting}
                 onClick={onDelete}
-                className="w-full rounded-xl border border-red-500/40 py-2.5 text-sm font-medium text-red-400 transition hover:bg-red-500/10"
+                className="h-11 w-full rounded-xl border border-red-500/40 text-sm font-medium text-red-400 transition hover:bg-red-500/10"
               >
                 {isDeleting ? "Удаление…" : "Удалить специалиста"}
               </button>
