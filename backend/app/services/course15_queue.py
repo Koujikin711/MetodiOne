@@ -345,20 +345,21 @@ async def build_course15_queue(
                 continue
 
         state: Course15QueueState = info["state"]
-        counts[state] = counts.get(state, 0) + 1
-
         started, ended = course15_term_from_last_payment(last_paid_by_lead.get(lid))
 
         next_c = next_by_lead.get(lid)
         last_c = last_cb_by_lead.get(lid) or chat_last.get(lid)
         pending = pending_by_lead.get(lid)
+        handed_off = bool(pending) and state in ACTIVE_QUEUE_STATES
         attn, attn_reason = requires_attention(state=state, next_contact_at=next_c, now=now)
-        if pending and state in ACTIVE_QUEUE_STATES:
+        if handed_off:
             attn = False
             attn_reason = f"{program_label(pending)} ждёт оплату админа"
             counts["pending_admin"] += 1
-        elif attn:
-            counts["requires_attention"] += 1
+        else:
+            counts[state] = counts.get(state, 0) + 1
+            if attn:
+                counts["requires_attention"] += 1
 
         rows.append(
             {

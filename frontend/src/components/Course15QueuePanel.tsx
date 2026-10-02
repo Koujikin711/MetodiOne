@@ -68,7 +68,7 @@ export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
         body: JSON.stringify(body),
       }),
     onSuccess: () => {
-      toast.success("Отправлено админу. Оплату вносит админ в KPI → Курсы / протоколы");
+      toast.success("Подтверждено. Строка ушла из очереди, оплату вносит админ");
       void qc.invalidateQueries({ queryKey: ["curator-journal", "course15-queue"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -100,7 +100,8 @@ export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
             <h2 className="text-base font-semibold text-[var(--mo-text)]">Курс 15 — очередь перехода</h2>
             <p className="mt-1 max-w-2xl text-xs mo-muted">
               Имя из онлайн-записи, телефон отдельно. Начало — последняя оплата, окончание —
-              через 15 дней. В списке выбирается, что пациент берёт дальше: Курс или Протокол.
+              через 15 дней. После выбора Курс или Протокол строка уходит из этого списка.
+              Когда админ подтвердит оплату, она исчезает и из «У админа».
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
