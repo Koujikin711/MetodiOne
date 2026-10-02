@@ -3917,6 +3917,14 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   grid-column: 1 / -1;
 }
 
+.expenses-payees {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem 0.65rem;
+  align-items: start;
+}
+
 .expenses-form__actions {
   margin-top: 0.75rem;
   padding-top: 0.65rem;
@@ -6279,7 +6287,7 @@ li.is-overdue {
 
 .kpi-sale-pays {
   display: grid;
-  grid-template-columns: minmax(5.5rem, 1fr) minmax(6.2rem, 0.85fr) minmax(5.5rem, 1fr) minmax(6.2rem, 0.85fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.45rem 0.5rem;
   align-items: end;
 }

@@ -1629,18 +1629,18 @@ export function KpiPage() {
                   }
                 }}
               />
-              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
-                Стоимость
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="decimal"
-                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                  value={saleForm.service_amount}
-                  onChange={(e) => setSaleForm((s) => ({ ...s, service_amount: e.target.value }))}
-                />
-              </label>
               <div className="kpi-sale-pays col-span-2 lg:col-span-4">
+                <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                  Стоимость
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="decimal"
+                    className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                    value={saleForm.service_amount}
+                    onChange={(e) => setSaleForm((s) => ({ ...s, service_amount: e.target.value }))}
+                  />
+                </label>
                 <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                   Первый платёж
                   <input

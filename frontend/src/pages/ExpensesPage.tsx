@@ -287,7 +287,8 @@ export function ExpensesPage() {
             {selectOrCustom(brief, [...catalog.brief_categories], setBrief, "Кратко")}
             {selectOrCustom(detail, [...catalog.detail_categories], setDetail, "Подробно")}
             {selectOrCustom(product, [...catalog.products], setProduct, "Товар / услуга")}
-            <label className="expenses-field expenses-field--span">
+            <div className="expenses-payees">
+            <label className="expenses-field">
               <span className="expenses-field__label">Основание</span>
               <input
                 className="mo-input expenses-field__control"
@@ -355,6 +356,7 @@ export function ExpensesPage() {
               />
               <span className="expenses-field__hint">Кто передал. Даже если это тот же человек — пишите отдельно</span>
             </label>
+            </div>
           </div>
           <div className="expenses-form__actions">
             <button
