@@ -89,14 +89,24 @@ export function RopDashboardPage() {
           {" · "}
           {dashQuery.data?.date}
         </p>
-        <button
-          type="button"
-          className="mo-btn-primary text-sm"
-          disabled={dayCloseMutation.isPending}
-          onClick={() => dayCloseMutation.mutate()}
-        >
-          Итоги дня
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="mo-btn-primary text-sm"
+            disabled={dashQuery.isFetching}
+            onClick={() => qc.invalidateQueries({ queryKey: ["rop-dashboard", pipelineId] })}
+          >
+            {dashQuery.isFetching ? "Обновление…" : "Обновить"}
+          </button>
+          <button
+            type="button"
+            className="mo-btn-primary text-sm"
+            disabled={dayCloseMutation.isPending}
+            onClick={() => dayCloseMutation.mutate()}
+          >
+            Итоги дня
+          </button>
+        </div>
       </div>
 
       {dashQuery.isLoading ? (
@@ -177,13 +187,6 @@ export function RopDashboardPage() {
         </div>
       )}
 
-      <button
-        type="button"
-        className="self-start text-sm mo-muted underline"
-        onClick={() => qc.invalidateQueries({ queryKey: ["rop-dashboard", pipelineId] })}
-      >
-        Обновить
-      </button>
     </div>
   );
 }
