@@ -44,13 +44,14 @@ function formatDateShort(isoDate: string): string {
 export function ExpensesPage() {
   const qc = useQueryClient();
   const [yearMonth, setYearMonth] = useState(defaultYearMonth);
+  const [search, setSearch] = useState("");
   const year = Number(yearMonth.slice(0, 4));
   const month = Number(yearMonth.slice(5, 7));
 
   const listQuery = useQuery({
     queryKey: ["finance-expenses", year, month],
     queryFn: () =>
-      apiFetch<ExpenseRow[]>(`/api/finance/expenses?year=${year}&month=${month}&limit=300`, {
+      apiFetch<ExpenseRow[]>(`/api/finance/expenses?year=${year}&month=${month}&limit=1000`, {
         timeoutMs: 25_000,
       }),
     retry: 1,
@@ -70,7 +71,39 @@ export function ExpensesPage() {
 
   const catalog = EXPENSE_CATALOG;
   const rows = listQuery.data ?? [];
-  const total = useMemo(() => rows.reduce((s, r) => s + Number(r.expense || 0), 0), [rows]);
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase().replace(/ё/g, "е");
+    if (!term) return rows;
+    const digits = term.replace(/\D/g, "");
+    return rows.filter((r) => {
+      const blob = [
+        formatDateShort(r.txn_date),
+        r.txn_date,
+        String(r.expense ?? ""),
+        money(r.expense),
+        r.bank,
+        r.basis,
+        r.counterparty,
+        r.phone,
+        r.via_person,
+        r.product_service,
+        r.article,
+        r.detail_category,
+        r.brief_category,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .replace(/ё/g, "е");
+      if (blob.includes(term)) return true;
+      if (digits.length >= 3) {
+        const phone = (r.phone || "").replace(/\D/g, "");
+        if (phone.includes(digits)) return true;
+      }
+      return false;
+    });
+  }, [rows, search]);
+  const total = useMemo(() => filtered.reduce((s, r) => s + Number(r.expense || 0), 0), [filtered]);
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -246,8 +279,19 @@ export function ExpensesPage() {
         <section className="expenses-month">
           <div className="expenses-month__head">
             <h2 className="expenses-month__title">За месяц</h2>
+            <input
+              className="mo-input expenses-month__search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Поиск: кому, телефон, сумма, статья"
+              aria-label="Поиск расхода"
+            />
             <span className="expenses-month__total tabular-nums">
-              {listQuery.isLoading ? "Итого: …" : `Итого: ${money(total)} ${APP_CURRENCY}`}
+              {listQuery.isLoading
+                ? "Итого: …"
+                : search.trim()
+                  ? `Найдено ${filtered.length} · ${money(total)} ${APP_CURRENCY}`
+                  : `Итого: ${money(total)} ${APP_CURRENCY}`}
             </span>
           </div>
           {listQuery.isLoading ? (
@@ -267,10 +311,12 @@ export function ExpensesPage() {
             </div>
           ) : rows.length === 0 ? (
             <p className="expenses-month__empty">Пока нет расходов за этот месяц.</p>
+          ) : filtered.length === 0 ? (
+            <p className="expenses-month__empty">Ничего не найдено.</p>
           ) : (
             <>
               <ul className="expenses-month__cards md:hidden">
-                {rows.map((r) => (
+                {filtered.map((r) => (
                   <li key={r.id} className="expenses-month__card">
                     <div className="expenses-month__card-top">
                       <div className="min-w-0">
@@ -345,7 +391,7 @@ export function ExpensesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((r) => (
+                    {filtered.map((r) => (
                       <tr key={r.id}>
                         <td className="tabular-nums whitespace-nowrap">{formatDateShort(r.txn_date)}</td>
                         <td className="tabular-nums whitespace-nowrap font-semibold">{money(r.expense)}</td>

@@ -3960,6 +3960,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--mo-text);
 }
 
+.expenses-month__search {
+  flex: 1 1 14rem;
+  min-width: 12rem;
+  max-width: 24rem;
+  height: 2.25rem;
+}
+
 .expenses-month__total {
   font-size: 0.8125rem;
   font-weight: 600;
