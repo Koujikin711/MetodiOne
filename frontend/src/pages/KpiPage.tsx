@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -17,6 +17,7 @@ import { formatMoney } from "@/lib/money";
 import type {
   Lead,
   SalesKpiCompanyReport,
+  SalesKpiDebtorPayment,
   SalesKpiDebtorsReport,
   SalesKpiManualSale,
   SalesKpiPaymentJournalRow,
@@ -296,6 +297,46 @@ function formatSaleDt(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function paymentKindLabel(kind: string): string {
+  if (kind === "first") return "первый";
+  if (kind === "topup") return "доплата";
+  return "оплата";
+}
+
+function daysSincePayment(iso: string): number | null {
+  const stamp = new Date(iso).getTime();
+  if (Number.isNaN(stamp)) return null;
+  return Math.max(0, Math.floor((Date.now() - stamp) / 86_400_000));
+}
+
+function DebtorReceipts({ payments }: { payments: SalesKpiDebtorPayment[] }) {
+  if (!payments.length) {
+    return <p className="text-[12px] mo-muted">Поступлений ещё нет.</p>;
+  }
+  const last = payments[0];
+  const ago = daysSincePayment(last.paid_at);
+  return (
+    <div className="space-y-1">
+      <p className="text-[11px] mo-muted">
+        Последнее: {formatSaleDt(last.paid_at)} · {formatMoney(num(last.amount))}
+        {ago != null ? ` · ${ago} дн. назад` : ""}
+      </p>
+      <ul className="space-y-0.5">
+        {payments.map((payment, index) => (
+          <li key={`${payment.paid_at}-${index}`} className="flex justify-between gap-3 text-[12px]">
+            <span className="text-[var(--mo-text)]">
+              {formatSaleDt(payment.paid_at)} · {paymentKindLabel(payment.kind)}
+            </span>
+            <span className="tabular-nums font-medium text-[var(--mo-text)]">
+              {formatMoney(num(payment.amount))}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function clinicTodayYmd(): string {
@@ -2138,6 +2179,11 @@ export function KpiPage() {
                       <p className="truncate text-[11px] mo-muted">
                         {r.source === "booking" ? "Запись" : "Курс"} · {r.indicator_name}
                       </p>
+                      <p className="truncate text-[11px] mo-muted">
+                        {(r.payments ?? [])[0]
+                          ? `${formatSaleDt((r.payments ?? [])[0].paid_at)} · ${formatMoney(num((r.payments ?? [])[0].amount))}`
+                          : "поступлений нет"}
+                      </p>
                     </div>
                     <div className="shrink-0 text-right">
                       <span className="block text-sm font-semibold tabular-nums kpi-actual-value">
@@ -2192,6 +2238,10 @@ export function KpiPage() {
                           {formatMoney(num(r.debt_amount))}
                         </span>
                       </div>
+                      <div className="border-t border-[var(--mo-border)] pt-1.5">
+                        <p className="mb-1 font-semibold text-[var(--mo-text)]">Поступления</p>
+                        <DebtorReceipts payments={r.payments ?? []} />
+                      </div>
                     </div>
                   ) : (
                     <div className="flex justify-between gap-2 border-t border-[var(--mo-border)]/60 px-3 py-1.5 text-[11px] mo-muted">
@@ -2230,14 +2280,41 @@ export function KpiPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredDebtors.map((r) => (
-                  <tr key={`${r.source}-${r.source_id}`} className={r.promise_overdue ? "is-overdue" : undefined}>
+                {filteredDebtors.map((r) => {
+                  const key = `${r.source}-${r.source_id}`;
+                  const open = expandedDebtorKey === key;
+                  const lastPay = (r.payments ?? [])[0];
+                  return (
+                  <Fragment key={key}>
+                  <tr className={r.promise_overdue ? "is-overdue" : undefined}>
                     <td className="py-2 pr-3">{r.source === "booking" ? "Запись" : "Курс/протокол"}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">
                       {r.sold_at ? formatSaleDt(r.sold_at) : "—"}
                     </td>
-                    <td className="py-2 pr-3">{r.client_name}</td>
-                    <td className="py-2 pr-3">{r.client_phone}</td>
+                    <td className="py-2 pr-3">
+                      <button
+                        type="button"
+                        className="text-left font-medium text-[var(--mo-text)] underline-offset-2 hover:underline"
+                        aria-expanded={open}
+                        onClick={() => setExpandedDebtorKey(open ? null : key)}
+                      >
+                        {r.client_name}
+                      </button>
+                      <p className="text-[11px] mo-muted">
+                        {lastPay
+                          ? `${formatSaleDt(lastPay.paid_at)} · ${formatMoney(num(lastPay.amount))}`
+                          : "поступлений нет"}
+                      </p>
+                    </td>
+                    <td className="py-2 pr-3">
+                      {r.client_phone ? (
+                        <a className="tabular-nums text-[var(--mo-text)] underline-offset-2 hover:underline" href={`tel:${r.client_phone}`}>
+                          {r.client_phone}
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td className="py-2 pr-3">{r.indicator_name}</td>
                     <td className="py-2 pr-3">{r.manager_name ?? "—"}</td>
                     <td className="py-2 pr-3">{formatMoney(num(r.service_amount))}</td>
@@ -2262,7 +2339,17 @@ export function KpiPage() {
                       />
                     </td>
                   </tr>
-                ))}
+                  {open ? (
+                    <tr>
+                      <td colSpan={10} className="bg-[var(--mo-surface)]/50 px-3 py-2">
+                        <p className="mb-1 text-[12px] font-semibold text-[var(--mo-text)]">Поступления</p>
+                        <DebtorReceipts payments={r.payments ?? []} />
+                      </td>
+                    </tr>
+                  ) : null}
+                  </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

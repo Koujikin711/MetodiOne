@@ -8,3 +8,4 @@ from app.models.curator_journal import *  # noqa: F403
 from app.models.marketing_meta import *  # noqa: F403
 from app.models.patient_purchase import *  # noqa: F403
 from app.models.patient_journey import *  # noqa: F403
+from app.models.payroll import *  # noqa: F403

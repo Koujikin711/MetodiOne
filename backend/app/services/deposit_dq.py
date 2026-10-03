@@ -391,6 +391,7 @@ async def build_deposit_dq_report(
                 "D": CLASS_D,
                 "F": CLASS_FOLLOWUP,
                 "followup": CLASS_FOLLOWUP,
+                "included": CLASS_FOLLOWUP,
                 CLASS_A: CLASS_A,
                 CLASS_B: CLASS_B,
                 CLASS_C: CLASS_C,
@@ -446,7 +447,7 @@ async def build_deposit_dq_report(
                 "purchased_at": _utc(o.purchased_at),
                 "status": o.status,
             }
-            for o in siblings
+            for o in course_siblings
             if int(o.id) != int(p.id)
         ]
 

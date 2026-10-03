@@ -24,8 +24,11 @@ from app.models import (
 )
 from app.routers import sales_kpi_board
 from app.services.debtor_collection import (
+    booking_debtor_receipts,
+    manual_debtor_receipts,
     promise_is_overdue,
     promise_needs_call,
+    receipt_amount_from_audit_details,
     sort_debtors_for_calls,
 )
 
@@ -195,6 +198,10 @@ def test_note_does_not_change_debt_and_sorts_the_missed_promise(tmp_path: Path):
         assert rows[0]["promise_overdue"] is True
         assert rows[0]["debt_amount"] in ("16500", "16500.00", 16500, 16500.0)
         assert again.json()["total_debt"] in ("18500", "18500.00", 18500, 18500.0)
+        older = rows[0]
+        assert len(older["payments"]) == 1
+        assert older["payments"][0]["kind"] == "first"
+        assert older["payments"][0]["amount"] in ("500", "500.00", 500, 500.0)
 
         denied = TestClient(_app(session_maker, ids["company"], ids["owner"], UserRole.manager))
         blocked = denied.put(
@@ -204,3 +211,50 @@ def test_note_does_not_change_debt_and_sorts_the_missed_promise(tmp_path: Path):
         assert blocked.status_code == 403
     finally:
         asyncio.run(engine.dispose())
+
+
+class _Pay:
+    def __init__(self, amount: str, is_first: bool, paid_at: datetime) -> None:
+        self.amount = Decimal(amount)
+        self.is_first = is_first
+        self.paid_at = paid_at
+
+
+def test_manual_receipts_keep_each_payment_and_fill_the_gap() -> None:
+    sold = datetime(2026, 8, 31, 12, tzinfo=UTC)
+    later = datetime(2026, 9, 15, 10, tzinfo=UTC)
+    rows = manual_debtor_receipts(
+        [
+            _Pay("5000", True, sold),
+            _Pay("3019", False, later),
+        ],
+        paid_amount=Decimal("8019"),
+        sold_at=sold,
+    )
+    assert [(row[1], row[2]) for row in rows] == [
+        (Decimal("3019"), "topup"),
+        (Decimal("5000"), "first"),
+    ]
+
+
+def test_booking_receipt_uses_add_payment_then_falls_back_to_snapshot() -> None:
+    when = datetime(2026, 9, 7, 10, tzinfo=UTC)
+    amount = receipt_amount_from_audit_details(
+        "prev_paid=0; add_payment=900; new_paid=900; payment_method=cash"
+    )
+    assert amount == Decimal("900")
+    assert receipt_amount_from_audit_details("prev_paid=900; add_payment=None; new_paid=900") is None
+    from_audit = booking_debtor_receipts(
+        [(when, "prev_paid=0; add_payment=900; new_paid=900")],
+        paid_amount=Decimal("900"),
+        paid_at=when,
+        start_at=when,
+    )
+    assert from_audit == [(when, Decimal("900"), "topup")]
+    snapshot = booking_debtor_receipts(
+        [],
+        paid_amount=Decimal("900"),
+        paid_at=when,
+        start_at=when,
+    )
+    assert snapshot == [(when, Decimal("900"), "receipt")]

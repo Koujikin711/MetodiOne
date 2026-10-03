@@ -11,11 +11,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings as app_settings
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
-from app.models import FinanceCompanySettings, FinanceOsvRow, Pipeline, User, UserRole
+from app.models import (
+    BookingSpecialist,
+    FinanceCompanySettings,
+    FinanceOsvRow,
+    PayrollAdjustment,
+    EmployeeNameTerm,
+    Pipeline,
+    User,
+    UserRole,
+)
 from app.schemas.finance_v2 import (
     FinanceDdsReportRead,
     FinanceExpenseCatalogRead,
     FinanceExpenseCreate,
+    FinancePayrollAdjustmentWrite,
     FinancePayrollReport,
     FinancePayrollRow,
     FinanceStaffCard,
@@ -339,35 +349,164 @@ async def payroll_sheet(
         for manager in report.managers:
             bonus_by_id[int(manager.manager_id)] = Decimal(str(manager.bonus or 0))
 
+    from dataclasses import replace
+
+    from app.services.payroll_facts import load_payroll_facts
+    from app.services.payroll_rules import accrue, payroll_name_on, payroll_profile
+
+    year_month = f"{year:04d}-{month:02d}"
+    specs = (
+        await db.execute(
+            select(
+                BookingSpecialist.crm_user_id,
+                BookingSpecialist.specialization,
+                BookingSpecialist.full_name,
+            ).where(
+                BookingSpecialist.company_id == company_id,
+                BookingSpecialist.crm_user_id.is_not(None),
+            )
+        )
+    ).all()
+    spec_by_user = {
+        int(uid): (spec or "")
+        for uid, spec, _name in specs
+        if uid is not None
+    }
+    adjustments = {
+        int(row.user_id): row
+        for row in (
+            await db.execute(
+                select(PayrollAdjustment).where(
+                    PayrollAdjustment.company_id == company_id,
+                    PayrollAdjustment.year_month == year_month,
+                )
+            )
+        ).scalars().all()
+    }
+    facts_by_user = await load_payroll_facts(
+        db,
+        company_id=company_id,
+        day_from=day_from,
+        day_to=day_to,
+        user_ids=set(by_id),
+    )
+    month_end = date(year, month, monthrange(year, month)[1])
+    name_history: dict[int, list[tuple[date, str]]] = defaultdict(list)
+    for term in (
+        await db.execute(
+            select(EmployeeNameTerm).where(EmployeeNameTerm.company_id == company_id)
+        )
+    ).scalars().all():
+        name_history[int(term.user_id)].append((term.effective_on, term.full_name))
+
     out: list[FinancePayrollRow] = []
     seen = set(by_id) | set(advances) | set(bonus_by_id)
     for uid in seen:
         user = by_id.get(uid)
         if user is None:
             continue
-        salary = Decimal(str(user.base_salary)) if user.base_salary is not None else None
-        bonus = bonus_by_id.get(uid, Decimal("0"))
+        role = user.role.value if hasattr(user.role, "value") else str(user.role)
+        spec = spec_by_user.get(uid, "")
+        profile = payroll_profile(role, spec)
+        card_salary = Decimal(str(user.base_salary)) if user.base_salary is not None else None
+        facts = replace(facts_by_user.get(uid), kpi_bonus=bonus_by_id.get(uid, Decimal("0")))
+        accrued = accrue(profile, facts, card_salary=card_salary)
+        salary = accrued.base_salary
+        bonus = accrued.bonus
         paid = advances.get(uid, Decimal("0"))
-        if salary is None and bonus == 0 and paid == 0:
+        adj = adjustments.get(uid)
+        adjustment = Decimal(str(adj.amount or 0)) if adj is not None else Decimal("0")
+        reason = (adj.reason or "") if adj is not None else ""
+        if (
+            profile == "card"
+            and salary is None
+            and bonus == 0
+            and paid == 0
+            and adjustment == 0
+            and accrued.debt == 0
+        ):
             continue
-        remainder = (salary or Decimal("0")) + bonus - paid
+        remainder = (salary or Decimal("0")) + bonus + adjustment - paid
         out.append(
             FinancePayrollRow(
                 user_id=uid,
-                full_name=(user.full_name or "").strip(),
+                full_name=payroll_name_on(
+                    name_history.get(uid, []),
+                    month_end,
+                    (user.full_name or "").strip(),
+                ),
+                expert_title=(spec or "").strip(),
                 phone=user.phone,
                 payout_bank=user.payout_bank,
                 base_salary=salary,
                 bonus=bonus,
+                debt=accrued.debt,
+                debt_label=accrued.debt_label,
+                formula=accrued.formula,
+                adjustment=adjustment,
+                adjustment_reason=reason,
                 advances=paid,
                 remainder=remainder,
             )
         )
     out.sort(key=lambda row: row.full_name.casefold())
     return FinancePayrollReport(
-        year_month=f"{year:04d}-{month:02d}",
+        year_month=year_month,
         pipeline_name=pipeline_name,
         rows=out,
+    )
+
+
+@router.put("/payroll/adjustment", response_model=FinancePayrollRow)
+async def save_payroll_adjustment(
+    body: FinancePayrollAdjustmentWrite,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    year: int = Query(..., ge=2020, le=2100),
+    month: int = Query(..., ge=1, le=12),
+) -> FinancePayrollRow:
+    """Ручная правка начисления. Остальные колонки ведомости не пересчитывает в ответе целиком."""
+    _assert_expenses_access(current_user)
+    await assert_finance_access(db, current_user)
+    user = await db.get(User, body.user_id)
+    if user is None or user.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")
+    year_month = f"{year:04d}-{month:02d}"
+    row = (
+        await db.execute(
+            select(PayrollAdjustment).where(
+                PayrollAdjustment.company_id == company_id,
+                PayrollAdjustment.user_id == body.user_id,
+                PayrollAdjustment.year_month == year_month,
+            )
+        )
+    ).scalar_one_or_none()
+    reason = (body.reason or "").strip() or None
+    if row is None:
+        row = PayrollAdjustment(
+            company_id=company_id,
+            user_id=body.user_id,
+            year_month=year_month,
+            amount=body.amount,
+            reason=reason,
+        )
+        db.add(row)
+    else:
+        row.amount = body.amount
+        row.reason = reason
+        row.updated_at = datetime.now(UTC)
+    await db.flush()
+    salary = Decimal(str(user.base_salary)) if user.base_salary is not None else None
+    return FinancePayrollRow(
+        user_id=int(user.id),
+        full_name=(user.full_name or "").strip(),
+        phone=user.phone,
+        payout_bank=user.payout_bank,
+        base_salary=salary,
+        adjustment=Decimal(str(body.amount or 0)),
+        adjustment_reason=reason or "",
+        remainder=(salary or Decimal("0")) + Decimal(str(body.amount or 0)),
     )
 
 

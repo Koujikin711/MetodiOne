@@ -52,6 +52,8 @@ from app.database_migrate import (
     ensure_user_presence_days,
     ensure_debtor_collection_notes,
     ensure_user_pay_profile,
+    ensure_payroll_adjustments,
+    ensure_employee_name_terms,
     ensure_extra_services_tables,
     ensure_chat_thread_unique_external,
     ensure_curator_journal_tables,
@@ -171,6 +173,8 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_user_presence_days(conn, db_url)
                 await ensure_debtor_collection_notes(conn, db_url)
                 await ensure_user_pay_profile(conn, db_url)
+                await ensure_payroll_adjustments(conn, db_url)
+                await ensure_employee_name_terms(conn, db_url)
                 await ensure_lead_archived_from_stage(conn, db_url)
                 await ensure_settle_completed_booking_debts(conn, db_url)
                 await ensure_fix_kurs_direction_and_session_pay(conn, db_url)
@@ -582,6 +586,8 @@ async def lifespan(_: FastAPI):
             await ensure_user_presence_days(conn, settings.database_url)
             await ensure_debtor_collection_notes(conn, settings.database_url)
             await ensure_user_pay_profile(conn, settings.database_url)
+            await ensure_payroll_adjustments(conn, settings.database_url)
+            await ensure_employee_name_terms(conn, settings.database_url)
             await conn.commit()
         await seed_pipelines_and_stages()
         await seed_test_admin()

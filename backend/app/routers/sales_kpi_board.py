@@ -19,6 +19,7 @@ from app.models import (
     BookingDirection,
     BookingSpecialist,
     DebtorCollectionNote,
+    SystemAuditEvent,
     FinanceOsvRow,
     Lead,
     ManagerDeskSale,
@@ -37,7 +38,9 @@ from app.models import (
 )
 from app.services.crm_space import company_is_sales_mode
 from app.services.debtor_collection import (
+    booking_debtor_receipts,
     clinic_today,
+    manual_debtor_receipts,
     promise_is_overdue,
     sort_debtors_for_calls,
 )
@@ -50,6 +53,7 @@ from app.schemas.sales_kpi import (
     SalesKpiCompanyServiceStat,
     SalesKpiDebtorNoteOut,
     SalesKpiDebtorNotePut,
+    SalesKpiDebtorPayment,
     SalesKpiDebtorRow,
     SalesKpiDebtorsReport,
     SalesKpiDirectionMeta,
@@ -428,6 +432,43 @@ async def _load_sale_payments(
     out: dict[int, list[SalesKpiManualSalePayment]] = {int(i): [] for i in sale_ids}
     for row in rows:
         out.setdefault(int(row.sale_id), []).append(row)
+    return out
+
+
+def _debtor_payment_models(
+    rows: list[tuple[datetime, Decimal, str]],
+) -> list[SalesKpiDebtorPayment]:
+    return [
+        SalesKpiDebtorPayment(paid_at=paid_at, amount=amount, kind=kind)
+        for paid_at, amount, kind in rows
+    ]
+
+
+async def _booking_payment_events(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    appointment_ids: list[int],
+) -> dict[int, list[tuple[datetime, str | None]]]:
+    if not appointment_ids:
+        return {}
+    events = (
+        await db.execute(
+            select(SystemAuditEvent)
+            .where(
+                SystemAuditEvent.company_id == company_id,
+                SystemAuditEvent.entity_type == "booking_appointment",
+                SystemAuditEvent.entity_id.in_(appointment_ids),
+                SystemAuditEvent.action == "appointment_payment_updated",
+            )
+            .order_by(SystemAuditEvent.id.asc()),
+        )
+    ).scalars().all()
+    out: dict[int, list[tuple[datetime, str | None]]] = {int(i): [] for i in appointment_ids}
+    for event in events:
+        if event.entity_id is None:
+            continue
+        out.setdefault(int(event.entity_id), []).append((event.created_at, event.details))
     return out
 
 
@@ -1462,10 +1503,14 @@ async def debtors_report(
         for uid, full_name, email in urows:
             name_map[int(uid)] = str(full_name or email or f"#{uid}")
 
+    booking_ids = [int(appt.id) for appt, _dname, _lead_mgr in booking_q]
     booking_refunds = await _booking_refund_totals_by_appointment(
         db,
         company_id,
-        [int(appt.id) for appt, _dname, _lead_mgr in booking_q],
+        booking_ids,
+    )
+    booking_events = await _booking_payment_events(
+        db, company_id=company_id, appointment_ids=booking_ids,
     )
     for appt, dname, lead_mgr in booking_q:
         sa = Decimal(str(appt.service_amount or 0))
@@ -1489,6 +1534,14 @@ async def debtors_report(
                 paid_amount=pa,
                 debt_amount=debt,
                 status="debt",
+                payments=_debtor_payment_models(
+                    booking_debtor_receipts(
+                        booking_events.get(int(appt.id), []),
+                        paid_amount=pa,
+                        paid_at=appt.paid_at,
+                        start_at=appt.start_at,
+                    ),
+                ),
             ),
         )
 
@@ -1510,6 +1563,14 @@ async def debtors_report(
                 paid_amount=pa,
                 debt_amount=max(sa - pa, Decimal("0")),
                 status="debt",
+                payments=_debtor_payment_models(
+                    booking_debtor_receipts(
+                        [],
+                        paid_amount=pa,
+                        paid_at=sale.sold_at,
+                        start_at=sale.sold_at,
+                    ),
+                ),
             ),
         )
 
@@ -1544,6 +1605,13 @@ async def debtors_report(
                 paid_amount=pa,
                 debt_amount=max(sa - pa, Decimal("0")),
                 status="debt",
+                payments=_debtor_payment_models(
+                    manual_debtor_receipts(
+                        payments,
+                        paid_amount=pa,
+                        sold_at=sale.sold_at,
+                    ),
+                ),
             ),
         )
 

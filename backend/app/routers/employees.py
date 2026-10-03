@@ -2,7 +2,7 @@ import html
 import logging
 import secrets
 import string
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
 from urllib.parse import urlparse, urlunparse
@@ -24,6 +24,7 @@ from app.database import get_db
 from app.models import (
     BookingDirection,
     BookingSpecialist,
+    EmployeeNameTerm,
     Integration,
     IntegrationProvider,
     Pipeline,
@@ -35,6 +36,7 @@ from app.routers.booking import resolve_default_booking_direction_id
 from app.services.booking_directions import ensure_specialist_direction_link
 from app.services.audit import write_audit_event
 from app.services.chief_expert_access import assert_owner_admin_or_chief_expert, assert_owner_or_chief_expert
+from app.services.debtor_collection import clinic_today
 from app.services.green_api_send import send_green_text_async
 from app.services.mail import send_email
 
@@ -689,6 +691,48 @@ def _validate_pipelines_for_role(role: UserRole, pipeline_ids: list[int]) -> Non
         )
 
 
+async def _remember_employee_name(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    user_id: int,
+    previous_name: str,
+    new_name: str,
+) -> None:
+    """Старая фамилия остаётся на прошлых месяцах. Новая считается с сегодняшнего дня."""
+    today = clinic_today()
+    rows = (
+        await db.execute(
+            select(EmployeeNameTerm).where(
+                EmployeeNameTerm.company_id == company_id,
+                EmployeeNameTerm.user_id == user_id,
+            )
+        )
+    ).scalars().all()
+    by_day = {row.effective_on: row for row in rows}
+    if previous_name and not any(day < today for day in by_day):
+        db.add(
+            EmployeeNameTerm(
+                company_id=company_id,
+                user_id=user_id,
+                full_name=previous_name,
+                effective_on=date(2000, 1, 1),
+            )
+        )
+    current = by_day.get(today)
+    if current is None:
+        db.add(
+            EmployeeNameTerm(
+                company_id=company_id,
+                user_id=user_id,
+                full_name=new_name,
+                effective_on=today,
+            )
+        )
+    else:
+        current.full_name = new_name
+
+
 @router.patch("/{employee_id}", response_model=PatchEmployeeContactResult)
 async def patch_employee_contact(
     employee_id: int,
@@ -801,7 +845,15 @@ async def patch_employee_contact(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректное ФИО")
         if name != (target.full_name or "").strip():
             changed = True
+            previous_name = (target.full_name or "").strip()
             target.full_name = name
+            await _remember_employee_name(
+                db,
+                company_id=company_id,
+                user_id=int(target.id),
+                previous_name=previous_name,
+                new_name=name,
+            )
             if target.role == UserRole.expert:
                 spec = (
                     await db.execute(

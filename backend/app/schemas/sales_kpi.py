@@ -297,6 +297,14 @@ class SalesKpiLeadSearchOut(BaseModel):
     note: str
     items: list[SalesKpiLeadSearchItem]
 
+class SalesKpiDebtorPayment(BaseModel):
+    """Одно поступление: когда пришли деньги и сколько."""
+
+    paid_at: datetime
+    amount: Decimal
+    kind: str = "receipt"
+
+
 class SalesKpiDebtorRow(BaseModel):
     source: str  # booking | manual
     source_id: int
@@ -313,6 +321,7 @@ class SalesKpiDebtorRow(BaseModel):
     comment: str | None = None
     promised_on: date | None = None
     promise_overdue: bool = False
+    payments: list[SalesKpiDebtorPayment] = Field(default_factory=list)
 
 
 class SalesKpiDebtorNotePut(BaseModel):

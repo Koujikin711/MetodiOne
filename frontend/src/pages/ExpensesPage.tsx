@@ -20,10 +20,16 @@ type StaffCard = {
 type PayrollRow = {
   user_id: number;
   full_name: string;
+  expert_title?: string;
   phone: string | null;
   payout_bank: string | null;
   base_salary: string | number | null;
   bonus: string | number;
+  debt: string | number;
+  debt_label: string;
+  formula: string;
+  adjustment: string | number;
+  adjustment_reason: string;
   advances: string | number;
   remainder: string | number;
 };
@@ -58,6 +64,97 @@ function defaultYearMonth() {
 function money(v: number | string | null | undefined) {
   const n = Number(v || 0);
   return n.toLocaleString("ru-RU", { maximumFractionDigits: 2, signDisplay: "auto" });
+}
+
+function PayrollLine({
+  row,
+  year,
+  month,
+  onSaved,
+}: {
+  row: PayrollRow;
+  year: number;
+  month: number;
+  onSaved: () => void;
+}) {
+  const [amount, setAmount] = useState(row.adjustment == null ? "" : String(row.adjustment));
+  const [reason, setReason] = useState(row.adjustment_reason || "");
+  const [fullName, setFullName] = useState(row.full_name);
+  const save = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/finance/payroll/adjustment?year=${year}&month=${month}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          user_id: row.user_id,
+          amount: Number(amount || 0),
+          reason,
+        }),
+      }),
+    onSuccess: () => onSaved(),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const saveName = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/employees/${row.user_id}/profile`, {
+        method: "POST",
+        body: JSON.stringify({ full_name: fullName.trim() }),
+      }),
+    onSuccess: () => onSaved(),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const unchanged =
+    Number(amount || 0) === Number(row.adjustment || 0) &&
+    reason.trim() === (row.adjustment_reason || "").trim();
+  return (
+    <tr>
+      <td>
+        <input
+          className="mo-input min-w-40"
+          value={fullName}
+          aria-label={`ФИО ${row.full_name}`}
+          onChange={(e) => setFullName(e.target.value)}
+          onBlur={() => {
+            const next = fullName.trim();
+            if (next.length >= 2 && next !== row.full_name.trim()) saveName.mutate();
+          }}
+        />
+        {row.expert_title ? <div className="text-[11px] text-[var(--mo-text)]">{row.expert_title}</div> : null}
+        {row.formula ? <div className="text-[11px] mo-muted">{row.formula}</div> : null}
+      </td>
+      <td className="tabular-nums">{row.phone || "—"}</td>
+      <td>{row.payout_bank || "—"}</td>
+      <td className="tabular-nums">{row.base_salary == null ? "—" : money(row.base_salary)}</td>
+      <td className="tabular-nums">{money(row.bonus)}</td>
+      <td className="tabular-nums" title={row.debt_label || undefined}>
+        {Number(row.debt || 0) === 0 && !row.debt_label ? "—" : money(row.debt)}
+      </td>
+      <td>
+        <input
+          className="mo-input w-24 tabular-nums"
+          inputMode="decimal"
+          value={amount}
+          aria-label={`Корректировка ${row.full_name}`}
+          onChange={(e) => setAmount(e.target.value)}
+          onBlur={() => {
+            if (!unchanged) save.mutate();
+          }}
+        />
+      </td>
+      <td>
+        <input
+          className="mo-input min-w-36"
+          value={reason}
+          aria-label={`Причина корректировки ${row.full_name}`}
+          onChange={(e) => setReason(e.target.value)}
+          onBlur={() => {
+            if (!unchanged) save.mutate();
+          }}
+        />
+      </td>
+      <td className="tabular-nums">{money(row.advances)}</td>
+      <td className="tabular-nums">{money(row.remainder)}</td>
+    </tr>
+  );
 }
 
 /** 07.09.26 */
@@ -380,7 +477,7 @@ export function ExpensesPage() {
               </span>
             </div>
             <p className="mb-2 text-xs mo-muted">
-              Оклад берётся из карточки сотрудника. Авансы — расходы со статьёй ФОТ за этот месяц. Выплата отсюда не создаётся.
+              ФИО меняется в строке ведомости и больше ни на что не влияет. Формула под фамилией только для чтения. Подарочный сеанс массажа и ТМС — нулевая цена или слово «подарок» — в бонус не входит. Долг из выплаты не вычитается. Корректировка пишется вручную. Авансы — расходы со статьёй ФОТ.
             </p>
             {payrollQuery.isLoading ? <p className="text-sm mo-muted">Загрузка…</p> : null}
             {payrollQuery.isError ? (
@@ -391,29 +488,30 @@ export function ExpensesPage() {
             ) : null}
             {(payrollQuery.data?.rows.length ?? 0) > 0 ? (
               <div className="overflow-x-auto">
-                <table className="kpi-data-table min-w-[720px] text-sm">
+                <table className="kpi-data-table min-w-[1100px] text-sm">
                   <thead>
                     <tr>
                       <th>Сотрудник</th>
                       <th>Телефон</th>
                       <th>Выплата</th>
                       <th>Оклад</th>
-                      <th>Бонус KPI</th>
+                      <th>Начисление</th>
+                      <th>Долг</th>
+                      <th>Корректировка</th>
+                      <th>Причина</th>
                       <th>Авансы</th>
-                      <th>Остаток</th>
+                      <th>К выплате</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(payrollQuery.data?.rows ?? []).map((row) => (
-                      <tr key={row.user_id}>
-                        <td>{row.full_name}</td>
-                        <td className="tabular-nums">{row.phone || "—"}</td>
-                        <td>{row.payout_bank || "—"}</td>
-                        <td className="tabular-nums">{row.base_salary == null ? "—" : money(row.base_salary)}</td>
-                        <td className="tabular-nums">{money(row.bonus)}</td>
-                        <td className="tabular-nums">{money(row.advances)}</td>
-                        <td className="tabular-nums">{money(row.remainder)}</td>
-                      </tr>
+                      <PayrollLine
+                        key={row.user_id}
+                        row={row}
+                        year={year}
+                        month={month}
+                        onSaved={() => void payrollQuery.refetch()}
+                      />
                     ))}
                   </tbody>
                 </table>

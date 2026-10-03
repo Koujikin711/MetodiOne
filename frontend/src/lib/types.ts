@@ -1084,6 +1084,12 @@ export interface SalesKpiManualSale {
   payments?: SalesKpiManualSalePayment[];
 }
 
+export interface SalesKpiDebtorPayment {
+  paid_at: string;
+  amount: string | number;
+  kind: "first" | "topup" | "receipt" | string;
+}
+
 export interface SalesKpiDebtorRow {
   source: "booking" | "manual" | string;
   source_id: number;
@@ -1100,6 +1106,7 @@ export interface SalesKpiDebtorRow {
   comment?: string | null;
   promised_on?: string | null;
   promise_overdue?: boolean;
+  payments?: SalesKpiDebtorPayment[];
 }
 
 export interface SalesKpiDebtorsReport {

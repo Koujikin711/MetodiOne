@@ -132,12 +132,24 @@ class FinanceStaffCard(BaseModel):
 class FinancePayrollRow(BaseModel):
     user_id: int
     full_name: str
+    expert_title: str = ""
     phone: str | None = None
     payout_bank: str | None = None
     base_salary: Decimal | None = None
     bonus: Decimal = Decimal("0")
+    debt: Decimal = Decimal("0")
+    debt_label: str = ""
+    formula: str = ""
+    adjustment: Decimal = Decimal("0")
+    adjustment_reason: str = ""
     advances: Decimal = Decimal("0")
     remainder: Decimal = Decimal("0")
+
+
+class FinancePayrollAdjustmentWrite(BaseModel):
+    user_id: int
+    amount: Decimal = Decimal("0")
+    reason: str = ""
 
 
 class FinancePayrollReport(BaseModel):

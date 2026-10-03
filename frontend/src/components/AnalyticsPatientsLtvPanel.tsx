@@ -207,13 +207,44 @@ const ORIGIN_LABELS: Record<string, string> = {
   other_previous_path: "другой предыдущий путь",
 };
 
-const LTV_WINDOW_LABELS: Record<string, string> = {
-  d0: "D0",
-  d30: "D30",
-  d90: "D90",
-  d180: "D180",
-  d365: "D365",
+const LTV_WINDOW_STORY: { key: string; title: string; hint: string }[] = [
+  { key: "d0", title: "В день покупки", hint: "Касса в первый день" },
+  { key: "d30", title: "30 дней", hint: "Всё за первый месяц" },
+  { key: "d90", title: "90 дней", hint: "Включая предыдущие дни" },
+  { key: "d180", title: "Полгода", hint: "Накоплено с первого дня" },
+  { key: "d365", title: "Год", hint: "Накоплено с первого дня" },
+];
+
+const COURSE15_STORY: Record<string, { title: string; hint: string; tone: "ok" | "warn" | "bad" | "muted" }> = {
+  clear_full: { title: "Оплачено полностью", hint: "Сумма и оплата совпали", tone: "ok" },
+  clear_partial: { title: "Аванс", hint: "Внесли меньше стоимости", tone: "warn" },
+  technically_full_possible_deposit: {
+    title: "Похоже на депозит",
+    hint: "Сумма до 500 и она закрыта",
+    tone: "warn",
+  },
+  unknown: { title: "Ошибка суммы", hint: "Стоимость не записана", tone: "bad" },
+  free_followup_inspection: {
+    title: "Бесплатный осмотр",
+    hint: "После оплаченной программы",
+    tone: "muted",
+  },
 };
+
+function course15Meaning(depositClass: string): string {
+  switch (depositClass) {
+    case "clear_full":
+      return "Договор закрыт. Следующий приём с нулевой ценой может быть бесплатным осмотром.";
+    case "clear_partial":
+      return "Это аванс, не полная оплата. Бесплатный осмотр не открывается.";
+    case "technically_full_possible_deposit":
+      return "Оплата совпала с суммой, но сумма небольшая. Похоже на депозит, не на курс.";
+    case "free_followup_inspection":
+      return "Бесплатный осмотр. В кассу и в дату первой покупки не входит.";
+    default:
+      return "Сумма не записана, а полной оплаты курса раньше не было. Это ошибка данных.";
+  }
+}
 
 function OriginBlock({
   entries,
@@ -329,7 +360,7 @@ function PatientLtvDrawer({
         <div className="flex items-start justify-between gap-3 border-b border-[var(--mo-border)] px-4 py-3">
           <div>
             <h3 className="text-base font-semibold text-[var(--mo-text)]">{patientName}</h3>
-            <p className="text-xs mo-muted">Patient LTV · Lead #{leadId}</p>
+            <p className="text-xs mo-muted">Карточка пациента · #{leadId}</p>
           </div>
           <div className="flex items-center gap-2">
             <Link
@@ -354,13 +385,13 @@ function PatientLtvDrawer({
             <>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {[
-                  ["Paid LTV", money(d.paid_ltv)],
-                  ["Sales Value", money(d.sales_value)],
-                  ["Refunds", money(d.refunds_total)],
+                  ["Касса", money(d.paid_ltv)],
+                  ["Сумма услуг", money(d.sales_value)],
+                  ["Возвраты", money(d.refunds_total)],
                   ["Остаток", money(d.outstanding)],
-                  ["Дебиторка", money(d.operational_debt ?? 0)],
+                  ["Долг", money(d.operational_debt ?? 0)],
                   ["Покупок", String(d.purchase_count)],
-                  ["Lifetime", d.lifetime_days != null ? `${d.lifetime_days} дн.` : "—"],
+                  ["Дней с клиникой", d.lifetime_days != null ? `${d.lifetime_days}` : "—"],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-lg border border-[var(--mo-border)]/60 px-3 py-2">
                     <div className="text-[11px] mo-muted">{label}</div>
@@ -371,7 +402,7 @@ function PatientLtvDrawer({
 
               <h4 className="mb-2 mt-4 text-sm font-semibold">Хронология покупок</h4>
               <p className="mb-3 text-[11px] mo-muted">
-                Purchase Events. Платежи и возвраты — внутри покупки, не отдельные покупки.
+                Платежи и возвраты лежат внутри покупки и отдельно не считаются.
               </p>
               {purchasesSorted.length === 0 ? (
                 <p className="text-xs mo-muted">Нет покупок</p>
@@ -474,7 +505,7 @@ export function AnalyticsPatientsLtvPanel() {
       await apiFetch("/api/analytics/ltv/sync", { method: "POST" });
     },
     onSuccess: () => {
-      toast.success("Продажа привязана, ledger обновлён");
+      toast.success("Продажа привязана к пациенту");
       void qc.invalidateQueries({ queryKey: ["analytics-ltv-cohort"] });
       void qc.invalidateQueries({ queryKey: ["analytics-ltv-program-unresolved"] });
       void qc.invalidateQueries({ queryKey: ["analytics-ltv-deposit-dq"] });
@@ -606,27 +637,32 @@ export function AnalyticsPatientsLtvPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="mo-section flex flex-wrap items-end gap-3 p-4">
-        <label className="text-sm mo-muted">
-          Когорта по первой покупке — с
-          <DateField className="mt-1" value={dateFrom} onChange={setDateFrom} aria-label="Когорта с" />
-        </label>
-        <label className="text-sm mo-muted">
-          по
-          <DateField className="mt-1" value={dateTo} onChange={setDateTo} aria-label="Когорта по" />
-        </label>
-        <button
-          type="button"
-          className="btn-secondary px-3 py-2 text-sm"
-          disabled={syncMutation.isPending}
-          onClick={() => syncMutation.mutate()}
-        >
-          Синхронизировать ledger
-        </button>
-        <p className="pb-2 text-xs mo-muted max-w-md">
-          Период = когорта по дате первой покупки. Universal Journey = хронология всех Purchase
-          Events. Курс 15 / МК — program context, не gate.
-        </p>
+      <div className="ltv-toolbar mo-section">
+        <div>
+          <h2 className="text-base font-semibold">Пациенты этого периода</h2>
+          <p className="mt-1 max-w-xl text-sm mo-muted">
+            Сюда попадают люди, у которых первая покупка была в выбранные даты. Деньги ниже — это
+            касса: сколько уже оплатили, без долга.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-sm mo-muted">
+            С
+            <DateField className="mt-1" value={dateFrom} onChange={setDateFrom} aria-label="Период с" />
+          </label>
+          <label className="text-sm mo-muted">
+            по
+            <DateField className="mt-1" value={dateTo} onChange={setDateTo} aria-label="Период по" />
+          </label>
+          <button
+            type="button"
+            className="btn-secondary px-3 py-2 text-sm"
+            disabled={syncMutation.isPending}
+            onClick={() => syncMutation.mutate()}
+          >
+            {syncMutation.isPending ? "Обновляем…" : "Обновить данные"}
+          </button>
+        </div>
       </div>
 
       {cohortQuery.isLoading ? <p className="lux-caption px-1">Загрузка LTV…</p> : null}
@@ -636,18 +672,19 @@ export function AnalyticsPatientsLtvPanel() {
 
       {data ? (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="ltv-kpis">
             {[
-              ["Пациентов", String(data.patients)],
-              ["Средний Paid LTV", money(data.avg_paid_ltv)],
-              ["Средняя сумма продаж", money(data.avg_sales_value)],
-              ["Повторная покупка", pct(data.repeat_purchase_rate)],
-              ["Покупок на пациента", Number(data.purchases_per_patient).toFixed(2)],
-              ["Средний lifetime (дн.)", Number(data.avg_lifetime_days).toFixed(0)],
-            ].map(([label, value]) => (
-              <div key={label} className="mo-section p-3">
-                <div className="text-[11px] mo-muted">{label}</div>
-                <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+              ["Пациентов", String(data.patients), "Первая покупка в этом периоде"],
+              ["Касса на пациента", money(data.avg_paid_ltv), "Сколько в среднем уже оплатили"],
+              ["Сумма услуг", money(data.avg_sales_value), "Оформлено, даже если долг ещё открыт"],
+              ["Купили ещё раз", pct(data.repeat_purchase_rate), "Две покупки и больше"],
+              ["Покупок на человека", Number(data.purchases_per_patient).toFixed(1), "В среднем по пациенту"],
+              ["Дней с клиникой", Number(data.avg_lifetime_days).toFixed(0), "От первой покупки до последней"],
+            ].map(([label, value, hint]) => (
+              <div key={label} className="ltv-kpi">
+                <div className="ltv-kpi__label">{label}</div>
+                <div className="ltv-kpi__value">{value}</div>
+                <div className="ltv-kpi__hint">{hint}</div>
               </div>
             ))}
           </div>
@@ -655,48 +692,43 @@ export function AnalyticsPatientsLtvPanel() {
           {entryCompare ? (
             <div className="mo-section space-y-3 p-4">
               <div>
-                <h3 className="text-sm font-semibold">LTV Entry — CURRENT vs TARGET</h3>
-                <p className="mt-1 text-xs mo-muted">
-                  Design preview (Phase 8A). Production ={" "}
-                  <strong>{entryCompare.production_entry_mode}</strong>. Fully-paid cutover
-                  заблокирован до Deposit DQ (8F). Paid LTV formula не меняется.
+                <h3 className="text-base font-semibold">Если считать только полную оплату</h3>
+                <p className="mt-1 max-w-2xl text-sm mo-muted">
+                  Рабочий отчёт считает пациента с первой покупки, даже если он внёс только часть.
+                  Справа — как выглядели бы те же цифры, если брать только закрытые договоры. Отчёт
+                  на это не переключён: суммы до 500 иногда оказываются депозитом, а не курсом.
                 </p>
-                {(entryCompare.free_followup_inspections_count ?? 0) > 0 ? (
-                  <p className="mt-1 text-[11px] mo-muted">
-                    Бесплатные осмотры после полной оплаты:{" "}
-                    <strong className="tabular-nums">{entryCompare.free_followup_inspections_count}</strong>
-                    . Не Class D и не дата входа в когорту.
-                  </p>
-                ) : null}
-                {entryCompare.cutover_blocked_reason ? (
-                  <p className="mt-1 text-[11px] text-amber-700/90 dark:text-amber-300/90">
-                    {entryCompare.cutover_blocked_reason}
-                  </p>
-                ) : null}
+                <p className="mt-2 text-sm mo-muted">
+                  Бесплатные осмотры в периоде:{" "}
+                  <strong className="tabular-nums text-[var(--mo-text)]">
+                    {entryCompare.free_followup_inspections_count ?? 0}
+                  </strong>
+                  . Они не входят в кассу и не сдвигают дату первой покупки.
+                </p>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-left text-xs">
+                <table className="ltv-compare w-full min-w-[640px] text-left text-sm">
                   <thead>
                     <tr className="mo-muted">
-                      <th className="py-1 pr-2 font-medium">Метрика</th>
-                      <th className="py-1 pr-2 font-medium">CURRENT (purchase)</th>
-                      <th className="py-1 pr-2 font-medium">TARGET (fully_paid)</th>
-                      <th className="py-1 font-medium">Δ</th>
+                      <th className="py-2 pr-3 font-medium">Что смотрим</th>
+                      <th className="py-2 pr-3 font-medium">С первой покупки</th>
+                      <th className="py-2 pr-3 font-medium">Только полная оплата</th>
+                      <th className="py-2 font-medium">Разница</th>
                     </tr>
                   </thead>
                   <tbody className="tabular-nums">
                     {(
                       [
                         ["Пациентов", "patients", "int"],
-                        ["Avg Paid LTV", "avg_paid_ltv", "money"],
-                        ["Повторная покупка", "repeat_purchase_rate", "pct"],
-                        ["Покупок / пациент", "purchases_per_patient", "num2"],
-                        ["Avg lifetime", "avg_lifetime_days", "num0"],
-                        ["D0", "d0", "money_win"],
-                        ["D30", "d30", "money_win"],
-                        ["D90", "d90", "money_win"],
-                        ["D180", "d180", "money_win"],
-                        ["D365", "d365", "money_win"],
+                        ["Касса на пациента", "avg_paid_ltv", "money"],
+                        ["Купили ещё раз", "repeat_purchase_rate", "pct"],
+                        ["Покупок на человека", "purchases_per_patient", "num2"],
+                        ["Дней с клиникой", "avg_lifetime_days", "num0"],
+                        ["В день покупки", "d0", "money_win"],
+                        ["За 30 дней", "d30", "money_win"],
+                        ["За 90 дней", "d90", "money_win"],
+                        ["За полгода", "d180", "money_win"],
+                        ["За год", "d365", "money_win"],
                       ] as const
                     ).map(([label, key, kind]) => {
                       const cur =
@@ -736,74 +768,73 @@ export function AnalyticsPatientsLtvPanel() {
                   </tbody>
                 </table>
               </div>
-              <p className="text-[11px] mo-muted">
-                В этом периоде first_purchase_at отличается у{" "}
-                <strong className="tabular-nums">
+              <p className="text-sm mo-muted">
+                Дата первой покупки сдвинулась бы у{" "}
+                <strong className="tabular-nums text-[var(--mo-text)]">
                   {entryCompare.diff.first_at_changed_patients}
                 </strong>{" "}
-                пациентов · только CURRENT:{" "}
-                <strong className="tabular-nums">
+                пациентов. Только в текущем отчёте:{" "}
+                <strong className="tabular-nums text-[var(--mo-text)]">
                   {entryCompare.diff.entry_only_under_current}
-                </strong>{" "}
-                · только TARGET:{" "}
-                <strong className="tabular-nums">
+                </strong>
+                . Только при полной оплате:{" "}
+                <strong className="tabular-nums text-[var(--mo-text)]">
                   {entryCompare.diff.entry_only_under_target}
                 </strong>
-                {" · "}patients Δ{" "}
-                <strong className="tabular-nums">{entryCompare.diff.patients_delta}</strong>
+                .
               </p>
             </div>
           ) : entryCompareQuery.isLoading ? (
-            <p className="lux-caption px-1">Сравнение Entry modes…</p>
+            <p className="lux-caption px-1">Считаем сравнение…</p>
           ) : null}
 
-          <div className="mo-section space-y-3 p-4">
+          <div className="mo-section space-y-4 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold">Deposit DQ — Курс 15 (Phase 8F)</h3>
-                <p className="mt-1 max-w-2xl text-xs mo-muted">
-                  Read-only классификация A/B/C/D перед fully-paid Entry cutover. Без auto-fix и
-                  без hardcode цены (300 ≠ 1300). Band B — только флаг внимания.
+                <h3 className="text-base font-semibold">Как оплачен Курс 15</h3>
+                <p className="mt-1 max-w-2xl text-sm mo-muted">
+                  Сравниваем сумму, которую записал администратор, с тем, сколько внесли. Цену из
+                  прайса не подставляем. Суммы до {depositDqQuery.data?.possible_deposit_max ?? "500"}{" "}
+                  отмечаем отдельно: это может быть депозит, а не курс.
                 </p>
               </div>
               <button
                 type="button"
-                className="text-sm text-[var(--mo-accent-hover)] underline"
+                className="btn-secondary px-3 py-2 text-sm"
                 onClick={() => setShowDepositDq((v) => !v)}
               >
-                {showDepositDq ? "Скрыть" : "Показать"}
+                {showDepositDq ? "Скрыть список" : "Показать пациентов"}
               </button>
             </div>
             {depositDqQuery.data ? (
-              <div className="flex flex-wrap gap-3 text-xs tabular-nums">
-                <span>
-                  Всего <strong>{depositDqQuery.data.total_in_scope}</strong>
-                </span>
-                <span>
-                  A partial <strong>{depositDqQuery.data.counts.clear_partial ?? 0}</strong>
-                </span>
-                <span className="text-amber-800 dark:text-amber-200">
-                  B possible deposit{" "}
-                  <strong>
-                    {depositDqQuery.data.counts.technically_full_possible_deposit ?? 0}
-                  </strong>
-                </span>
-                <span>
-                  C clear full <strong>{depositDqQuery.data.counts.clear_full ?? 0}</strong>
-                </span>
-                <span>
-                  D unknown <strong>{depositDqQuery.data.counts.unknown ?? 0}</strong>
-                </span>
-                <span className="mo-muted">
-                  визиты по курсу{" "}
-                  <strong>{depositDqQuery.data.free_followup_inspections_count ?? 0}</strong>
-                </span>
-                <span className="mo-muted">
-                  band ≤{depositDqQuery.data.possible_deposit_max}
-                </span>
+              <div className="ltv-pay-grid">
+                {(
+                  [
+                    ["clear_full", depositDqQuery.data.counts.clear_full ?? 0],
+                    ["clear_partial", depositDqQuery.data.counts.clear_partial ?? 0],
+                    [
+                      "technically_full_possible_deposit",
+                      depositDqQuery.data.counts.technically_full_possible_deposit ?? 0,
+                    ],
+                    ["unknown", depositDqQuery.data.counts.unknown ?? 0],
+                    [
+                      "free_followup_inspection",
+                      depositDqQuery.data.free_followup_inspections_count ?? 0,
+                    ],
+                  ] as const
+                ).map(([key, count]) => {
+                  const story = COURSE15_STORY[key];
+                  return (
+                    <div key={key} className={`ltv-pay ltv-pay--${story.tone}`}>
+                      <div className="ltv-pay__label">{story.title}</div>
+                      <div className="ltv-pay__value">{count}</div>
+                      <div className="ltv-pay__hint">{story.hint}</div>
+                    </div>
+                  );
+                })}
               </div>
             ) : depositDqQuery.isLoading ? (
-              <p className="lux-caption">Загрузка Deposit DQ…</p>
+              <p className="lux-caption">Считаем оплаты Курса 15…</p>
             ) : depositDqQuery.isError ? (
               <p className="text-sm text-red-400">{(depositDqQuery.error as Error).message}</p>
             ) : null}
@@ -815,12 +846,12 @@ export function AnalyticsPatientsLtvPanel() {
                     value={depositClassFilter}
                     onChange={(e) => setDepositClassFilter(e.target.value)}
                   >
-                    <option value="">Все классы</option>
-                    <option value="A">A · Clear partial</option>
-                    <option value="B">B · Possible deposit</option>
-                    <option value="C">C · Clear full</option>
-                    <option value="D">D · Unknown</option>
-                    <option value="included">Бесплатный визит по курсу</option>
+                    <option value="">Все записи</option>
+                    <option value="C">Оплачено полностью</option>
+                    <option value="A">Аванс</option>
+                    <option value="B">Похоже на депозит</option>
+                    <option value="D">Ошибка суммы</option>
+                    <option value="included">Бесплатный осмотр</option>
                   </select>
                   <input
                     className="mo-input text-sm"
@@ -830,47 +861,30 @@ export function AnalyticsPatientsLtvPanel() {
                   />
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[900px] text-left text-xs">
+                  <table className="w-full min-w-[760px] text-left text-sm">
                     <thead>
                       <tr className="mo-muted">
-                        <th className="py-1 pr-2 font-medium">Класс</th>
-                        <th className="py-1 pr-2 font-medium">Пациент</th>
-                        <th className="py-1 pr-2 font-medium">Продукт</th>
-                        <th className="py-1 pr-2 font-medium">Service</th>
-                        <th className="py-1 pr-2 font-medium">Paid</th>
-                        <th className="py-1 pr-2 font-medium">Источник</th>
-                        <th className="py-1 pr-2 font-medium">Менеджер</th>
-                        <th className="py-1 font-medium">Evidence</th>
+                        <th className="py-2 pr-3 font-medium">Статус</th>
+                        <th className="py-2 pr-3 font-medium">Пациент</th>
+                        <th className="py-2 pr-3 font-medium">Стоимость</th>
+                        <th className="py-2 pr-3 font-medium">Оплачено</th>
+                        <th className="py-2 pr-3 font-medium">Дата</th>
+                        <th className="py-2 font-medium">Что это значит</th>
                       </tr>
                     </thead>
                     <tbody>
                       {depositDqQuery.data.rows.map((r) => (
                         <tr key={r.purchase_id} className="border-t border-[var(--mo-border)]/60 align-top">
-                          <td className="py-1.5 pr-2 whitespace-nowrap">
-                            <span
-                              className={
-                                r.deposit_class === "technically_full_possible_deposit"
-                                  ? "text-amber-800 dark:text-amber-200"
-                                  : r.deposit_class === "unknown"
-                                    ? "text-red-400"
-                                    : r.deposit_class === "free_followup_inspection"
-                                      ? "mo-muted"
-                                      : ""
-                              }
-                            >
-                              {r.deposit_class_label}
+                          <td className="py-2 pr-3 whitespace-nowrap">
+                            <span className={`ltv-tag ltv-tag--${COURSE15_STORY[r.deposit_class]?.tone ?? "muted"}`}>
+                              {COURSE15_STORY[r.deposit_class]?.title ?? r.deposit_class_label}
                             </span>
-                            {r.target_entry_would_pass ? (
-                              <div className="text-[10px] mo-muted">TARGET Entry: да</div>
-                            ) : (
-                              <div className="text-[10px] mo-muted">TARGET Entry: нет</div>
-                            )}
                           </td>
-                          <td className="py-1.5 pr-2">
+                          <td className="py-2 pr-3">
                             {r.lead_id ? (
                               <button
                                 type="button"
-                                className="text-left underline"
+                                className="text-left font-medium underline"
                                 onClick={() =>
                                   setDrawer({ leadId: r.lead_id!, name: r.patient_name })
                                 }
@@ -880,64 +894,47 @@ export function AnalyticsPatientsLtvPanel() {
                             ) : (
                               r.patient_name
                             )}
-                            <div className="mo-muted">
+                            <div className="text-xs mo-muted">
                               {r.patient_phone || "—"}
-                              {r.lead_id != null ? ` · #${r.lead_id}` : " · unresolved"}
+                              {r.lead_id == null ? " · не привязан" : ""}
                             </div>
                           </td>
-                          <td className="py-1.5 pr-2">{r.product_label}</td>
-                          <td className="py-1.5 pr-2 tabular-nums">{money(r.service_amount)}</td>
-                          <td className="py-1.5 pr-2 tabular-nums">{money(r.paid_amount)}</td>
-                          <td className="py-1.5 pr-2">
-                            {r.source_type}
-                            {r.kpi_sale_id != null ? ` · KPI #${r.kpi_sale_id}` : null}
-                            {r.booking_id != null ? ` · booking #${r.booking_id}` : null}
-                            <div className="mo-muted">
-                              {r.purchased_at
-                                ? new Date(r.purchased_at).toLocaleDateString("ru-RU")
-                                : "—"}
-                              {" · "}
-                              payments {r.payments_count}
-                            </div>
+                          <td className="py-2 pr-3 tabular-nums">{money(r.service_amount)}</td>
+                          <td className="py-2 pr-3 tabular-nums">{money(r.paid_amount)}</td>
+                          <td className="py-2 pr-3">
+                            {r.purchased_at
+                              ? new Date(r.purchased_at).toLocaleDateString("ru-RU")
+                              : "—"}
+                            <div className="text-xs mo-muted">{r.manager_name || ""}</div>
                           </td>
-                          <td className="py-1.5 pr-2">{r.manager_name || "—"}</td>
-                          <td className="py-1.5 max-w-[18rem]">
-                            <ul className="list-disc space-y-0.5 pl-3 mo-muted">
-                              {r.evidence_reasons.map((ev) => (
-                                <li key={ev}>{ev}</li>
-                              ))}
-                              {r.related_course15.length ? (
-                                <li>
-                                  related Course15:{" "}
-                                  {r.related_course15
-                                    .map(
-                                      (x) =>
-                                        `#${x.purchase_id} ${x.service_amount}/${x.paid_amount}`,
-                                    )
-                                    .join("; ")}
-                                </li>
-                              ) : null}
-                            </ul>
+                          <td className="py-2 max-w-[22rem] text-sm mo-muted">
+                            {course15Meaning(r.deposit_class)}
                           </td>
                         </tr>
                       ))}
                       {!depositDqQuery.data.rows.length ? (
                         <tr>
-                          <td colSpan={8} className="py-3 mo-muted">
-                            Нет строк по фильтру
+                          <td colSpan={6} className="py-3 mo-muted">
+                            Нет записей по этому фильтру
                           </td>
                         </tr>
                       ) : null}
                     </tbody>
                   </table>
                 </div>
-                <p className="text-[11px] mo-muted">{depositDqQuery.data.note}</p>
+                <p className="text-sm mo-muted">
+                  Список только для просмотра. Суммы в карточках продаж не меняются.
+                </p>
               </>
             ) : null}
           </div>
 
           <div className="mo-section p-4">
-            <h3 className="mb-2 text-sm font-semibold">Покрытие данных</h3>
+            <h3 className="mb-1 text-base font-semibold">Продажи без карточки пациента</h3>
+            <p className="mb-3 text-sm mo-muted">
+              Эти деньги есть в кассе компании, но не привязаны к человеку, поэтому в средний чек
+              пациента не входят. Телефон сам по себе карточку не склеивает.
+            </p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
               <span>
                 Покрытие{" "}
@@ -963,9 +960,9 @@ export function AnalyticsPatientsLtvPanel() {
                 </button>
               ) : null}
             </div>
-            <p className="mt-2 text-[11px] mo-muted">
-              {data.coverage?.note ||
-                "Непривязанные = без lead_id. Не входят в Patient LTV. Автослияние по телефону запрещено."}
+            <p className="mt-2 text-sm mo-muted">
+              Привязано — продажи с карточкой пациента. Не привязано — продажи, которые ещё нужно
+              открыть и указать пациента вручную.
             </p>
             {showUnresolved && (data.unresolved_rows ?? []).length > 0 ? (
               <div className="mt-3 overflow-x-auto">
@@ -1014,30 +1011,47 @@ export function AnalyticsPatientsLtvPanel() {
           </div>
 
           <div className="mo-section p-4">
-            <h3 className="mb-2 text-sm font-semibold">Рост LTV</h3>
-            <div className="flex flex-wrap gap-3 text-sm">
-              {Object.entries(data.ltv_windows ?? {}).map(([k, v]) => (
-                <div key={k} className="rounded-lg border border-[var(--mo-border)] px-3 py-2">
-                  <span className="mo-muted uppercase">{LTV_WINDOW_LABELS[k] ?? k}</span>
-                  <div className="font-semibold tabular-nums">{money(v)}</div>
-                </div>
-              ))}
+            <h3 className="mb-1 text-base font-semibold">Как растёт касса</h3>
+            <p className="mb-3 max-w-2xl text-sm mo-muted">
+              Средняя оплата на пациента. Каждое следующее окно включает предыдущие: «год» — это всё
+              с первого дня, а не только последний месяц.
+            </p>
+            <div className="ltv-windows">
+              {LTV_WINDOW_STORY.map((w) => {
+                const value = Number(data.ltv_windows?.[w.key] ?? 0);
+                const cap = Math.max(
+                  ...LTV_WINDOW_STORY.map((item) => Number(data.ltv_windows?.[item.key] ?? 0)),
+                  1,
+                );
+                const width = Math.max(6, Math.round((value / cap) * 100));
+                return (
+                  <div key={w.key} className="ltv-window">
+                    <div className="ltv-window__title">{w.title}</div>
+                    <div className="ltv-window__value">{money(value)}</div>
+                    <div className="ltv-window__bar" aria-hidden>
+                      <span style={{ width: `${width}%` }} />
+                    </div>
+                    <div className="ltv-window__hint">{w.hint}</div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           <div className="mo-section p-4">
-            <h3 className="mb-1 text-sm font-semibold">Первый продукт</h3>
-            <p className="mb-2 text-xs mo-muted">
-              По реальной первой покупке когорты. Курс 15, Курс и Протокол — по виду, остальные
-              услуги — по имени.
+            <h3 className="mb-1 text-base font-semibold">С чего начинают</h3>
+            <p className="mb-3 text-sm mo-muted">
+              Первая услуга пациента в этом периоде. Курс 15, Курс и Протокол названы по виду
+              программы, остальные — как в записи.
             </p>
             <StatGrid entries={j?.first_product} labels={FIRST_PRODUCT_LABELS} />
           </div>
 
           <div className="mo-section overflow-x-auto p-4">
-            <h3 className="mb-1 text-sm font-semibold">Переходы между продуктами</h3>
-            <p className="mb-2 text-xs mo-muted">
-              Соседние Purchase Events. Доля = переходы A→B / все A→*. Без нового calculation layer.
+            <h3 className="mb-1 text-base font-semibold">Что берут следом</h3>
+            <p className="mb-3 text-sm mo-muted">
+              Следующая покупка после предыдущей. Доля — сколько людей с этой услуги пошли именно
+              сюда. Нужны хотя бы две покупки.
             </p>
             {topTransitions.length > 0 ? (
               <div className="mb-3 flex flex-wrap gap-2">
@@ -1096,10 +1110,10 @@ export function AnalyticsPatientsLtvPanel() {
           </div>
 
           <div className="mo-section p-4">
-            <h3 className="mb-1 text-sm font-semibold">Program Journey · Курс / Протокол</h3>
-            <p className="mb-3 text-xs mo-muted">
-              Связанные продажи входят в Patient Journey. Непривязанные KPI — Data Quality gap, не
-              «ноль продаж». Телефон = подсказка, не auto-merge.
+            <h3 className="mb-1 text-base font-semibold">Курс и протокол: привязка к пациенту</h3>
+            <p className="mb-3 text-sm mo-muted">
+              Продажа из KPI попадает в путь пациента, только если её открыли и указали человека.
+              Совпадение телефона — подсказка, карточки сами не склеиваются.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-[var(--mo-border)] px-3 py-2 text-sm">
@@ -1117,25 +1131,25 @@ export function AnalyticsPatientsLtvPanel() {
                 {prog?.classification?.main_course ? (
                   <div className="mt-2 text-[11px] mo-muted space-y-0.5">
                     <div>
-                      High confidence:{" "}
+                      Совпало уверенно:{" "}
                       <strong className="tabular-nums text-[var(--mo-text)]">
                         {prog.classification.main_course.high_confidence ?? 0}
                       </strong>
                     </div>
                     <div>
-                      Review required:{" "}
+                      Нужна проверка:{" "}
                       <strong className="tabular-nums text-[var(--mo-text)]">
                         {prog.classification.main_course.review_required ?? 0}
                       </strong>
                     </div>
                     <div>
-                      Ambiguous:{" "}
+                      Несколько пациентов:{" "}
                       <strong className="tabular-nums text-[var(--mo-text)]">
                         {prog.classification.main_course.ambiguous ?? 0}
                       </strong>
                     </div>
                     <div>
-                      No candidate:{" "}
+                      Нет подходящего:{" "}
                       <strong className="tabular-nums text-[var(--mo-text)]">
                         {prog.classification.main_course.no_candidate ?? 0}
                       </strong>
@@ -1158,25 +1172,25 @@ export function AnalyticsPatientsLtvPanel() {
                 {prog?.classification?.protocol ? (
                   <div className="mt-2 text-[11px] mo-muted space-y-0.5">
                     <div>
-                      High confidence:{" "}
+                      Совпало уверенно:{" "}
                       <strong className="tabular-nums text-[var(--mo-text)]">
                         {prog.classification.protocol.high_confidence ?? 0}
                       </strong>
                     </div>
                     <div>
-                      Review required:{" "}
+                      Нужна проверка:{" "}
                       <strong className="tabular-nums text-[var(--mo-text)]">
                         {prog.classification.protocol.review_required ?? 0}
                       </strong>
                     </div>
                     <div>
-                      Ambiguous:{" "}
+                      Несколько пациентов:{" "}
                       <strong className="tabular-nums text-[var(--mo-text)]">
                         {prog.classification.protocol.ambiguous ?? 0}
                       </strong>
                     </div>
                     <div>
-                      No candidate:{" "}
+                      Нет подходящего:{" "}
                       <strong className="tabular-nums text-[var(--mo-text)]">
                         {prog.classification.protocol.no_candidate ?? 0}
                       </strong>
@@ -1205,8 +1219,8 @@ export function AnalyticsPatientsLtvPanel() {
                       <th className="px-2 py-1">Клиент</th>
                       <th className="px-2 py-1">Продукт</th>
                       <th className="px-2 py-1">Дата</th>
-                      <th className="px-2 py-1 text-right">Sales</th>
-                      <th className="px-2 py-1 text-right">Paid</th>
+                      <th className="px-2 py-1 text-right">Сумма</th>
+                      <th className="px-2 py-1 text-right">Оплачено</th>
                       <th className="px-2 py-1">Менеджер</th>
                       <th className="px-2 py-1">Подсказка</th>
                       <th className="px-2 py-1">Действия</th>
@@ -1234,10 +1248,10 @@ export function AnalyticsPatientsLtvPanel() {
                                 {conf === "high_confidence" && r.suggested_lead ? (
                                   <div>
                                     <div className="font-medium text-emerald-600/90 dark:text-emerald-400/90">
-                                      High confidence (не auto-link)
+                                      Совпало уверенно, само не привяжется
                                     </div>
                                     <div>
-                                      Возможный пациент: {r.suggested_lead.lead_name} — Lead #
+                                      Возможный пациент: {r.suggested_lead.lead_name} — №
                                       {r.suggested_lead.lead_id}
                                     </div>
                                   </div>
@@ -1245,10 +1259,10 @@ export function AnalyticsPatientsLtvPanel() {
                                 {conf === "review_required" && r.suggested_lead ? (
                                   <div>
                                     <div className="font-medium text-amber-600 dark:text-amber-400">
-                                      Review required
+                                      Нужна проверка
                                     </div>
                                     <div>
-                                      {r.suggested_lead.lead_name} — Lead #{r.suggested_lead.lead_id}
+                                      {r.suggested_lead.lead_name} — №{r.suggested_lead.lead_id}
                                     </div>
                                     <div className="text-amber-700/90 dark:text-amber-300/90">
                                       {ev?.warning ||
@@ -1290,7 +1304,7 @@ export function AnalyticsPatientsLtvPanel() {
                                   to={`/leads/${r.suggested_lead.lead_id}`}
                                   className="text-[var(--mo-accent-hover)] hover:underline"
                                 >
-                                  Открыть Lead
+                                  Открыть карточку
                                 </Link>
                                 <button
                                   type="button"
@@ -1313,16 +1327,16 @@ export function AnalyticsPatientsLtvPanel() {
                               disabled={linkLeadMutation.isPending}
                               onClick={() => {
                                 const raw = window.prompt(
-                                  "Lead ID для явной привязки (без phone auto-merge):",
+                                  "Номер карточки пациента:",
                                 );
                                 const leadId = Number(raw || 0);
                                 if (!leadId) return;
                                 linkLeadMutation.mutate({ saleId: r.sale_id, leadId });
                               }}
                             >
-                              Найти / указать Lead
+                              Указать номер карточки
                             </button>
-                            <span className="mo-muted">Оставить unresolved</span>
+                            <span className="mo-muted">Пока не привязывать</span>
                           </div>
                         </td>
                       </tr>
@@ -1337,11 +1351,10 @@ export function AnalyticsPatientsLtvPanel() {
           </div>
 
           <div className="mo-section p-4">
-            <h3 className="mb-1 text-sm font-semibold">Путь после Курса 15</h3>
-            <p className="mb-2 text-xs mo-muted">
-              Program Journey (аналитика). МК — event; «не зафиксирован» ≠ отсутствие визита.
-              «Нет Курса и Протокола» не отменяет массаж, ТМС и другие услуги — они в переходах
-              выше. Не gate для LTV.
+            <h3 className="mb-1 text-base font-semibold">Куда идут после Курса 15</h3>
+            <p className="mb-3 text-sm mo-muted">
+              Мастер-класс считается, только если его отдельно отметили. Массаж и ТМС здесь не
+              прячутся: они в блоке «Что берут следом».
             </p>
             <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4 text-sm">
               <div>
@@ -1361,18 +1374,18 @@ export function AnalyticsPatientsLtvPanel() {
           </div>
 
           <div className="mo-section p-4">
-            <h3 className="mb-1 text-sm font-semibold">Конверсии</h3>
-            <p className="mb-2 text-xs mo-muted">
-              Только Курс, Протокол и МК. Массаж и ТМС здесь не считаются — они в переходах выше.
+            <h3 className="mb-1 text-base font-semibold">Переходы на курс и протокол</h3>
+            <p className="mb-3 text-sm mo-muted">
+              Только Курс, Протокол и мастер-класс. Массаж и ТМС смотрите выше.
             </p>
             <StatGrid entries={j?.conversions} labels={CONV_LABELS} />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="mo-section p-4">
-              <h3 className="mb-1 text-sm font-semibold">Вход в Курс</h3>
-              <p className="mb-2 text-[11px] mo-muted">
-                Origin по связанным покупкам. Непривязанные KPI сюда не входят.
+              <h3 className="mb-1 text-base font-semibold">Откуда приходят на Курс</h3>
+              <p className="mb-2 text-sm mo-muted">
+                Только продажи, уже привязанные к пациенту.
               </p>
               <OriginBlock
                 entries={j?.main_course_origin}
@@ -1382,10 +1395,9 @@ export function AnalyticsPatientsLtvPanel() {
               />
             </div>
             <div className="mo-section p-4">
-              <h3 className="mb-1 text-sm font-semibold">Вход в Протоколы</h3>
-              <p className="mb-2 text-[11px] mo-muted">
-                Protocol может быть первой покупкой или после любой услуги — не только после Курса
-                15.
+              <h3 className="mb-1 text-base font-semibold">Откуда приходят на Протокол</h3>
+              <p className="mb-2 text-sm mo-muted">
+                Протокол может быть первой покупкой или идти после любой услуги.
               </p>
               <OriginBlock
                 entries={j?.protocol_origin}
@@ -1397,6 +1409,12 @@ export function AnalyticsPatientsLtvPanel() {
           </div>
 
           <div className="mo-section overflow-x-auto p-0">
+            <div className="px-4 pt-4">
+              <h3 className="text-base font-semibold">Список пациентов</h3>
+              <p className="mt-1 mb-2 text-sm mo-muted">
+                Касса — уже оплачено. Сумма услуг — на какую сумму оформили. Долг в кассу не входит.
+              </p>
+            </div>
             <table className="w-full min-w-[1100px] text-sm">
               <thead>
                 <tr className="border-b border-[var(--mo-border)] text-left text-xs mo-muted">
@@ -1404,9 +1422,9 @@ export function AnalyticsPatientsLtvPanel() {
                   <th className="px-3 py-2">Первая покупка</th>
                   <th className="px-3 py-2">Последняя покупка</th>
                   <th className="px-3 py-2">Дата последней покупки</th>
-                  <th className="px-3 py-2 text-right">Paid LTV</th>
-                  <th className="px-3 py-2 text-right">Sales Value</th>
-                  <th className="px-3 py-2 text-right">Refunds</th>
+                  <th className="px-3 py-2 text-right">Касса</th>
+                  <th className="px-3 py-2 text-right">Сумма услуг</th>
+                  <th className="px-3 py-2 text-right">Возвраты</th>
                   <th
                     className="px-3 py-2 text-right"
                     title="Математический остаток по активному обязательству. Не дебиторка."
@@ -1415,19 +1433,19 @@ export function AnalyticsPatientsLtvPanel() {
                   </th>
                   <th
                     className="px-3 py-2 text-right"
-                    title="Операционная дебиторка. Refund ≠ automatic debt."
+                    title="Сколько пациент ещё должен по открытым услугам."
                   >
-                    Дебиторка
+                    Долг
                   </th>
                   <th className="px-3 py-2 text-right">Покупок</th>
-                  <th className="px-3 py-2 text-right">Lifetime</th>
+                  <th className="px-3 py-2 text-right">Дней</th>
                 </tr>
               </thead>
               <tbody>
                 {(data.patients_rows ?? []).length === 0 ? (
                   <tr>
                     <td colSpan={11} className="px-3 py-6 text-center mo-muted">
-                      Нет пациентов с первой покупкой в когорте. Нажмите «Синхронизировать ledger».
+                      В этом периоде нет пациентов с первой покупкой. Нажмите «Обновить данные».
                     </td>
                   </tr>
                 ) : (

@@ -1841,6 +1841,74 @@ async def ensure_user_pay_profile(conn: AsyncConnection, database_url: str) -> N
         )
 
 
+async def ensure_payroll_adjustments(conn: AsyncConnection, database_url: str) -> None:
+    """Ручная корректировка строки ведомости."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS payroll_adjustments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    year_month VARCHAR(7) NOT NULL,
+                    amount NUMERIC(14, 2) DEFAULT 0,
+                    reason TEXT,
+                    updated_at TIMESTAMP,
+                    UNIQUE(company_id, user_id, year_month)
+                )"""
+            )
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS payroll_adjustments (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    year_month VARCHAR(7) NOT NULL,
+                    amount NUMERIC(14, 2) DEFAULT 0,
+                    reason TEXT,
+                    updated_at TIMESTAMPTZ,
+                    UNIQUE(company_id, user_id, year_month)
+                )"""
+            )
+        )
+
+
+async def ensure_employee_name_terms(conn: AsyncConnection, database_url: str) -> None:
+    """История ФИО на карточке: смена фамилии не переписывает прошлые месяцы ведомости."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS employee_name_terms (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    full_name VARCHAR(255) NOT NULL,
+                    effective_on DATE NOT NULL,
+                    UNIQUE(company_id, user_id, effective_on)
+                )"""
+            )
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS employee_name_terms (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    full_name VARCHAR(255) NOT NULL,
+                    effective_on DATE NOT NULL,
+                    UNIQUE(company_id, user_id, effective_on)
+                )"""
+            )
+        )
+
+
 async def ensure_user_last_seen_at(conn: AsyncConnection, database_url: str) -> None:
     """Колонка users.last_seen_at — онлайн-статус для дашборда РОП."""
     low = database_url.lower()
