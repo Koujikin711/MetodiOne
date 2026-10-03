@@ -1190,7 +1190,7 @@ html {
   border-top: 1px solid var(--mo-sidebar-border);
   box-shadow: none;
   transition: padding var(--mo-sidebar-duration) var(--mo-sidebar-ease);
-  padding: 0.35rem 0 0.25rem;
+  padding: 0.5rem 0.35rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
   margin-top: auto;
 }
 
@@ -1205,7 +1205,7 @@ html {
 }
 
 .shell-sidebar.is-expanded .shell-sidebar-logout {
-  @apply mx-1.5 flex-row gap-1.5 px-2 py-1.5;
+  @apply mx-1.5 flex w-[calc(100%-0.75rem)] flex-row gap-1.5 px-2 py-1.5;
 }
 
 .shell-sidebar.is-collapsed .shell-sidebar-logout {
@@ -6038,6 +6038,68 @@ fieldset.extra-services-field {
 
 .kpi-data-table tbody tr:hover td {
   background: color-mix(in srgb, var(--mo-accent-soft) 55%, transparent);
+}
+
+.payroll-sheet-wrap {
+  overflow-x: auto;
+  padding-bottom: 1.25rem;
+}
+
+.payroll-sheet.kpi-data-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.payroll-sheet.kpi-data-table thead th,
+.payroll-sheet.kpi-data-table tbody td {
+  padding: 0.7rem 1rem;
+  vertical-align: top;
+}
+
+.payroll-sheet.kpi-data-table thead th.payroll-num,
+.payroll-sheet.kpi-data-table tbody td.payroll-num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  min-width: 6.5rem;
+}
+
+.payroll-sheet.kpi-data-table tbody td.payroll-phone {
+  white-space: nowrap;
+  min-width: 8.5rem;
+}
+
+.payroll-sheet.kpi-data-table tbody td.payroll-person {
+  min-width: 18rem;
+  max-width: 22rem;
+}
+
+.payroll-sheet .payroll-name {
+  width: 100%;
+  min-width: 0;
+}
+
+.payroll-sheet .payroll-adjust {
+  width: 6.5rem;
+}
+
+.payroll-sheet .payroll-reason {
+  width: 12rem;
+}
+
+.payroll-sheet .payroll-role,
+.payroll-sheet .payroll-formula {
+  margin-top: 0.2rem;
+  max-width: 20rem;
+  line-height: 1.35;
+  white-space: normal;
+  font-size: 11px;
+}
+
+.payroll-sheet .payroll-formula {
+  color: var(--mo-muted, #8b97ab);
 }
 
 .kpi-sales-board {

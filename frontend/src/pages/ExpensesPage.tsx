@@ -107,9 +107,9 @@ function PayrollLine({
     reason.trim() === (row.adjustment_reason || "").trim();
   return (
     <tr>
-      <td>
+      <td className="payroll-person">
         <input
-          className="mo-input min-w-40"
+          className="mo-input payroll-name"
           value={fullName}
           aria-label={`ФИО ${row.full_name}`}
           onChange={(e) => setFullName(e.target.value)}
@@ -118,19 +118,19 @@ function PayrollLine({
             if (next.length >= 2 && next !== row.full_name.trim()) saveName.mutate();
           }}
         />
-        {row.expert_title ? <div className="text-[11px] text-[var(--mo-text)]">{row.expert_title}</div> : null}
-        {row.formula ? <div className="text-[11px] mo-muted">{row.formula}</div> : null}
+        {row.expert_title ? <div className="payroll-role">{row.expert_title}</div> : null}
+        {row.formula ? <div className="payroll-formula">{row.formula}</div> : null}
       </td>
-      <td className="tabular-nums">{row.phone || "—"}</td>
+      <td className="payroll-phone tabular-nums">{row.phone || "—"}</td>
       <td>{row.payout_bank || "—"}</td>
-      <td className="tabular-nums">{row.base_salary == null ? "—" : money(row.base_salary)}</td>
-      <td className="tabular-nums">{money(row.bonus)}</td>
-      <td className="tabular-nums" title={row.debt_label || undefined}>
+      <td className="payroll-num">{row.base_salary == null ? "—" : money(row.base_salary)}</td>
+      <td className="payroll-num">{money(row.bonus)}</td>
+      <td className="payroll-num" title={row.debt_label || undefined}>
         {Number(row.debt || 0) === 0 && !row.debt_label ? "—" : money(row.debt)}
       </td>
       <td>
         <input
-          className="mo-input w-24 tabular-nums"
+          className="mo-input payroll-adjust tabular-nums"
           inputMode="decimal"
           value={amount}
           aria-label={`Корректировка ${row.full_name}`}
@@ -142,7 +142,7 @@ function PayrollLine({
       </td>
       <td>
         <input
-          className="mo-input min-w-36"
+          className="mo-input payroll-reason"
           value={reason}
           aria-label={`Причина корректировки ${row.full_name}`}
           onChange={(e) => setReason(e.target.value)}
@@ -151,8 +151,8 @@ function PayrollLine({
           }}
         />
       </td>
-      <td className="tabular-nums">{money(row.advances)}</td>
-      <td className="tabular-nums">{money(row.remainder)}</td>
+      <td className="payroll-num">{money(row.advances)}</td>
+      <td className="payroll-num">{money(row.remainder)}</td>
     </tr>
   );
 }
@@ -487,20 +487,20 @@ export function ExpensesPage() {
               <p className="text-sm mo-muted">За этот месяц нечего показать: нет оклада, бонуса и авансов.</p>
             ) : null}
             {(payrollQuery.data?.rows.length ?? 0) > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="kpi-data-table min-w-[1100px] text-sm">
+              <div className="payroll-sheet-wrap">
+                <table className="kpi-data-table payroll-sheet text-sm">
                   <thead>
                     <tr>
                       <th>Сотрудник</th>
                       <th>Телефон</th>
                       <th>Выплата</th>
-                      <th>Оклад</th>
-                      <th>Начисление</th>
-                      <th>Долг</th>
+                      <th className="payroll-num">Оклад</th>
+                      <th className="payroll-num">Начисление</th>
+                      <th className="payroll-num">Долг</th>
                       <th>Корректировка</th>
                       <th>Причина</th>
-                      <th>Авансы</th>
-                      <th>К выплате</th>
+                      <th className="payroll-num">Авансы</th>
+                      <th className="payroll-num">К выплате</th>
                     </tr>
                   </thead>
                   <tbody>
