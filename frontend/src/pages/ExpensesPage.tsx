@@ -152,7 +152,7 @@ function PayrollLine({
         />
       </td>
       <td className="payroll-num">{money(row.advances)}</td>
-      <td className="payroll-num">{money(row.remainder)}</td>
+      <td className="payroll-num payroll-pay">{money(row.remainder)}</td>
     </tr>
   );
 }
@@ -476,8 +476,8 @@ export function ExpensesPage() {
                   : "Бонус из KPI"}
               </span>
             </div>
-            <p className="mb-2 text-xs mo-muted">
-              ФИО меняется в строке ведомости и больше ни на что не влияет. Формула под фамилией только для чтения. Подарочный сеанс массажа и ТМС — нулевая цена или слово «подарок» — в бонус не входит. Долг из выплаты не вычитается. Корректировка пишется вручную. Авансы — расходы со статьёй ФОТ.
+            <p className="payroll-note">
+              Фамилия правится в строке. Формула только для чтения. Подарок массажа и ТМС в бонус не входит.
             </p>
             {payrollQuery.isLoading ? <p className="text-sm mo-muted">Загрузка…</p> : null}
             {payrollQuery.isError ? (
@@ -489,6 +489,18 @@ export function ExpensesPage() {
             {(payrollQuery.data?.rows.length ?? 0) > 0 ? (
               <div className="payroll-sheet-wrap">
                 <table className="kpi-data-table payroll-sheet text-sm">
+                  <colgroup>
+                    <col className="payroll-col-person" />
+                    <col className="payroll-col-phone" />
+                    <col className="payroll-col-bank" />
+                    <col className="payroll-col-num" />
+                    <col className="payroll-col-num" />
+                    <col className="payroll-col-num" />
+                    <col className="payroll-col-adjust" />
+                    <col className="payroll-col-reason" />
+                    <col className="payroll-col-num" />
+                    <col className="payroll-col-num" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Сотрудник</th>
