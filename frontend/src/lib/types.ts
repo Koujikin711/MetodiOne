@@ -1093,6 +1093,7 @@ export interface SalesKpiDebtorPayment {
 export interface SalesKpiDebtorRow {
   source: "booking" | "manual" | string;
   source_id: number;
+  lead_id?: number | null;
   sold_at: string | null;
   client_name: string;
   client_phone: string;
@@ -1107,6 +1108,44 @@ export interface SalesKpiDebtorRow {
   promised_on?: string | null;
   promise_overdue?: boolean;
   payments?: SalesKpiDebtorPayment[];
+}
+
+export interface LeadCardManager {
+  at: string | null;
+  manager_name: string;
+  note: string;
+}
+
+export interface LeadCardVisit {
+  start_at: string;
+  service: string;
+  specialist_name: string | null;
+  status: string;
+  service_amount: string | number;
+  paid_amount: string | number;
+}
+
+export interface LeadCardSale {
+  sold_at: string;
+  name: string;
+  manager_name: string | null;
+  service_amount: string | number;
+  paid_amount: string | number;
+  debt_amount: string | number;
+  status: string;
+}
+
+export interface LeadCard {
+  lead_id: number;
+  name: string;
+  phone: string | null;
+  source: string | null;
+  stage_name: string | null;
+  created_at: string | null;
+  manager_name: string | null;
+  managers: LeadCardManager[];
+  visits: LeadCardVisit[];
+  sales: LeadCardSale[];
 }
 
 export interface SalesKpiDebtorsReport {

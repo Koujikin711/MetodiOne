@@ -2779,3 +2779,180 @@ async def list_lead_audit(
         )
         for evt, usr in rows
     ]
+
+
+class LeadCardManager(BaseModel):
+    at: datetime | None = None
+    manager_name: str
+    note: str
+
+
+class LeadCardVisit(BaseModel):
+    start_at: datetime
+    service: str
+    specialist_name: str | None = None
+    status: str
+    service_amount: Decimal
+    paid_amount: Decimal
+
+
+class LeadCardSale(BaseModel):
+    sold_at: datetime
+    name: str
+    manager_name: str | None = None
+    service_amount: Decimal
+    paid_amount: Decimal
+    debt_amount: Decimal
+    status: str
+
+
+class LeadCardRead(BaseModel):
+    lead_id: int
+    name: str
+    phone: str | None = None
+    source: str | None = None
+    stage_name: str | None = None
+    created_at: datetime | None = None
+    manager_name: str | None = None
+    managers: list[LeadCardManager] = Field(default_factory=list)
+    visits: list[LeadCardVisit] = Field(default_factory=list)
+    sales: list[LeadCardSale] = Field(default_factory=list)
+
+
+@router.get("/{lead_id}/card", response_model=LeadCardRead)
+async def lead_patient_card(
+    lead_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> LeadCardRead:
+    """Полная карточка: первое касание, менеджеры, приёмы, курс и протокол."""
+    from app.models import BookingDirection, BookingSpecialist, SalesKpiManualSale, SalesKpiPlanItem
+    from app.services.lead_card import SALE_STATUS, VISIT_STATUS, build_manager_steps
+
+    lead = await db.get(Lead, lead_id)
+    if lead is None or lead.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await db.refresh(lead, ["stage"])
+    await _assert_expert_lead_access(db, current_user=current_user, lead=lead, company_id=company_id)
+    if is_manager_like(current_user.role):
+        allowed = await _manager_pipeline_ids(db, current_user.id)
+        if (lead.stage.pipeline_id if lead.stage else None) not in allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is outside manager directions")
+        if lead.manager_id is not None and lead.manager_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is assigned to another manager")
+
+    lead_events = (
+        await db.execute(
+            select(LeadAuditEvent.created_at, LeadAuditEvent.details).where(
+                LeadAuditEvent.company_id == company_id,
+                LeadAuditEvent.lead_id == lead_id,
+                LeadAuditEvent.action == "manager_reassigned",
+            ),
+        )
+    ).all()
+    system_events = (
+        await db.execute(
+            select(SystemAuditEvent.created_at, SystemAuditEvent.details).where(
+                SystemAuditEvent.company_id == company_id,
+                SystemAuditEvent.entity_type == "lead",
+                SystemAuditEvent.entity_id == lead_id,
+                SystemAuditEvent.action == "manager_reassigned",
+            ),
+        )
+    ).all()
+    steps = build_manager_steps(
+        lead.created_at,
+        int(lead.manager_id) if lead.manager_id is not None else None,
+        [(at, details) for at, details in (*lead_events, *system_events)],
+    )
+    name_ids = {mid for _at, mid, _note in steps}
+    if lead.manager_id is not None:
+        name_ids.add(int(lead.manager_id))
+    names: dict[int, str] = {}
+    if name_ids:
+        for uid, full_name, email in (
+            await db.execute(select(User.id, User.full_name, User.email).where(User.id.in_(list(name_ids))))
+        ).all():
+            names[int(uid)] = str(full_name or email or f"#{uid}")
+
+    visits_q = (
+        await db.execute(
+            select(
+                BookingAppointment.start_at,
+                BookingAppointment.service_title,
+                BookingAppointment.status,
+                BookingAppointment.service_amount,
+                BookingAppointment.paid_amount,
+                BookingDirection.name,
+                BookingSpecialist.full_name,
+            )
+            .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+            .join(BookingSpecialist, BookingSpecialist.id == BookingAppointment.specialist_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.lead_id == lead_id,
+            )
+            .order_by(BookingAppointment.start_at.asc())
+            .limit(300),
+        )
+    ).all()
+
+    sales_q = (
+        await db.execute(
+            select(
+                SalesKpiManualSale.sold_at,
+                SalesKpiManualSale.service_amount,
+                SalesKpiManualSale.paid_amount,
+                SalesKpiManualSale.status,
+                SalesKpiPlanItem.name,
+                User.full_name,
+                User.email,
+            )
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .join(User, User.id == SalesKpiManualSale.manager_user_id)
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.lead_id == lead_id,
+            )
+            .order_by(SalesKpiManualSale.sold_at.asc()),
+        )
+    ).all()
+
+    current_name = names.get(int(lead.manager_id)) if lead.manager_id is not None else None
+    return LeadCardRead(
+        lead_id=int(lead.id),
+        name=lead.name,
+        phone=lead.phone,
+        source=lead.source,
+        stage_name=lead.stage.name if lead.stage else None,
+        created_at=lead.created_at,
+        manager_name=current_name,
+        managers=[
+            LeadCardManager(at=at, manager_name=names.get(mid, f"#{mid}"), note=note)
+            for at, mid, note in steps
+        ],
+        visits=[
+            LeadCardVisit(
+                start_at=start_at,
+                service=str(title or direction or "Услуга"),
+                specialist_name=str(spec) if spec else None,
+                status=VISIT_STATUS.get(str(st or ""), str(st or "")),
+                service_amount=Decimal(str(sa or 0)),
+                paid_amount=Decimal(str(pa or 0)),
+            )
+            for start_at, title, st, sa, pa, direction, spec in visits_q
+        ],
+        sales=[
+            LeadCardSale(
+                sold_at=sold_at,
+                name=str(item_name),
+                manager_name=str(full_name or email or ""),
+                service_amount=Decimal(str(sa or 0)),
+                paid_amount=Decimal(str(pa or 0)),
+                debt_amount=max(Decimal(str(sa or 0)) - Decimal(str(pa or 0)), Decimal("0")),
+                status=SALE_STATUS.get(str(sale_status or ""), str(sale_status or "")),
+            )
+            for sold_at, sa, pa, sale_status, item_name, full_name, email in sales_q
+        ],
+    )

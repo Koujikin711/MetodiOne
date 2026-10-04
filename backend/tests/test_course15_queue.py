@@ -10,6 +10,7 @@ from app.services.course15_queue import (
     ACTIVE_QUEUE_STATES,
     COURSE15_TERM_DAYS,
     classify_course15_queue_state,
+    course15_row_sort_key,
     course15_term_from_last_payment,
     next_program_purchase_counts,
     requires_attention,
@@ -170,3 +171,14 @@ def test_requires_attention_waiting_and_overdue_contact():
     future = datetime.now(UTC) + timedelta(days=1)
     ok3, _ = requires_attention(state="active", next_contact_at=future)
     assert not ok3
+
+
+def test_course15_rows_sort_by_start_newest_first():
+    rows = [
+        {"started_at": datetime(2026, 4, 30, tzinfo=UTC), "patient_name": "А"},
+        {"started_at": None, "patient_name": "Б"},
+        {"started_at": datetime(2026, 9, 28, tzinfo=UTC), "patient_name": "В"},
+        {"started_at": datetime(2026, 8, 1, tzinfo=UTC), "patient_name": "Г"},
+    ]
+    rows.sort(key=course15_row_sort_key)
+    assert [r["patient_name"] for r in rows] == ["В", "Г", "А", "Б"]

@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/money";
 import { AnalyticsServicesCharts } from "@/components/analytics/AnalyticsServicesCharts";
 import { AnalyticsPatientsLtvPanel } from "@/components/AnalyticsPatientsLtvPanel";
 import { DateField } from "@/components/DateField";
+import { MonthYearPicker } from "@/components/MonthYearPicker";
 import type {
   AnalyticsOverviewRead,
   DetailedAnalyticsRead,
@@ -103,6 +104,18 @@ function AnalyticsTable({ children, minWidth = 480 }: { children: ReactNode; min
   );
 }
 
+function currentYearMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthEdges(yearMonth: string): { from: string; to: string } {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const last = new Date(y, m, 0).getDate();
+  const mm = String(m).padStart(2, "0");
+  return { from: `${y}-${mm}-01`, to: `${y}-${mm}-${String(last).padStart(2, "0")}` };
+}
+
 function analyticsErrorText(message: string): string {
   if (/date_from|date_to/i.test(message) || /дат/i.test(message)) {
     return "Выберите даты «С» и «По» — без них период не считается.";
@@ -115,6 +128,7 @@ export function AnalyticsPage() {
   const [dimension, setDimension] = useState<AnalyticsDimension>("managers");
   const [mode, setMode] = useState<"overview" | "full" | "detailed">("overview");
   const [period, setPeriod] = useState<"day" | "month" | "custom">("day");
+  const [yearMonth, setYearMonth] = useState(currentYearMonth);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [pipelineId, setPipelineId] = useState<number | "all">("all");
@@ -134,12 +148,17 @@ export function AnalyticsPage() {
     const p = new URLSearchParams();
     p.set("period", period);
     if (pipelineId !== "all") p.set("pipeline_id", String(pipelineId));
+    if (period === "month") {
+      const edges = monthEdges(yearMonth);
+      p.set("date_from", edges.from);
+      p.set("date_to", edges.to);
+    }
     if (period === "custom") {
       if (dateFrom) p.set("date_from", dateFrom);
       if (dateTo) p.set("date_to", dateTo);
     }
     return p.toString();
-  }, [period, dateFrom, dateTo, pipelineId]);
+  }, [period, yearMonth, dateFrom, dateTo, pipelineId]);
 
   const pipelinesQuery = useQuery({
     queryKey: ["pipelines-for-analytics"],
@@ -161,12 +180,17 @@ export function AnalyticsPage() {
     const p = new URLSearchParams();
     p.set("pipeline_id", String(servicesPipelineId));
     p.set("period", period);
+    if (period === "month") {
+      const edges = monthEdges(yearMonth);
+      p.set("date_from", edges.from);
+      p.set("date_to", edges.to);
+    }
     if (period === "custom") {
       if (dateFrom) p.set("date_from", dateFrom);
       if (dateTo) p.set("date_to", dateTo);
     }
     return p.toString();
-  }, [servicesPipelineId, period, dateFrom, dateTo]);
+  }, [servicesPipelineId, period, yearMonth, dateFrom, dateTo]);
 
   const fullQuery = useQuery({
     queryKey: ["analytics-full", qs],
@@ -201,12 +225,11 @@ export function AnalyticsPage() {
           if (/403|401|доступ|Unauthorized|Forbidden/i.test(msg)) throw err;
         }
         const ym =
-          period === "custom" && dateFrom
-            ? dateFrom.slice(0, 7)
-            : (() => {
-                const d = new Date();
-                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-              })();
+          period === "month"
+            ? yearMonth
+            : period === "custom" && dateFrom
+              ? dateFrom.slice(0, 7)
+              : currentYearMonth();
         if (servicesPipelineId == null) throw err;
         const cr = await apiFetch<{
           pipeline_id: number;
@@ -281,6 +304,11 @@ export function AnalyticsPage() {
   const htmlReportHref = useMemo(() => {
     const p = new URLSearchParams();
     p.set("period", period);
+    if (period === "month") {
+      const edges = monthEdges(yearMonth);
+      p.set("date_from", edges.from);
+      p.set("date_to", edges.to);
+    }
     if (period === "custom") {
       if (dateFrom) p.set("date_from", dateFrom);
       if (dateTo) p.set("date_to", dateTo);
@@ -289,7 +317,7 @@ export function AnalyticsPage() {
     if (servicesLiveEmpty) p.set("snapshot", "1");
     const q = p.toString();
     return `/reports/services-analytics.html${q ? `?${q}` : ""}`;
-  }, [period, dateFrom, dateTo, servicesPipelineId, servicesLiveEmpty]);
+  }, [period, yearMonth, dateFrom, dateTo, servicesPipelineId, servicesLiveEmpty]);
 
   return (
     <div className="analytics-page mo-fill-page">
@@ -359,6 +387,12 @@ export function AnalyticsPage() {
               <option value="custom">Свой период</option>
             </select>
           </label>
+          {period === "month" ? (
+            <label className="analytics-toolbar-field">
+              <span>Месяц</span>
+              <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
+            </label>
+          ) : null}
           <label className="analytics-toolbar-field">
             <span>Воронка</span>
             <select

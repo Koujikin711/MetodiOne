@@ -71,21 +71,6 @@ def _norm_person(value: str | None) -> str:
     return " ".join((value or "").replace("ё", "е").replace("Ё", "Е").casefold().split())
 
 
-_COMPANY_DEBT_MONTHS = 18
-
-
-def _previous_months(year: int, month: int, count: int) -> list[tuple[int, int]]:
-    out: list[tuple[int, int]] = []
-    y, m = year, month
-    for _ in range(count):
-        m -= 1
-        if m == 0:
-            y -= 1
-            m = 12
-        out.append((y, m))
-    return out
-
-
 def _fot_advances(rows, by_id: dict[int, User], name_to_id: dict[str, int]) -> dict[int, Decimal]:
     advances: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
     for row in rows:
@@ -373,7 +358,7 @@ async def payroll_sheet(
     from dataclasses import replace
 
     from app.services.payroll_facts import load_payroll_facts
-    from app.services.payroll_rules import accrue, company_balance, payroll_name_on, payroll_profile
+    from app.services.payroll_rules import accrue, carried_company_debt, payroll_name_on, payroll_profile
 
     year_month = f"{year:04d}-{month:02d}"
     specs = (
@@ -420,68 +405,17 @@ async def payroll_sheet(
     ).scalars().all():
         name_history[int(term.user_id)].append((term.effective_on, term.full_name))
 
-    prior_pairs: dict[int, list[tuple[Decimal, Decimal]]] = defaultdict(list)
-    lookback = _previous_months(year, month, _COMPANY_DEBT_MONTHS)
-    if lookback:
-        oldest_y, oldest_m = lookback[-1]
-        oldest_from = date(oldest_y, oldest_m, 1)
-        past_fot = (
-            await db.execute(
-                select(FinanceOsvRow).where(
-                    FinanceOsvRow.company_id == company_id,
-                    FinanceOsvRow.txn_date >= oldest_from,
-                    FinanceOsvRow.txn_date < day_from,
-                    FinanceOsvRow.expense > 0,
-                )
+    debt_history: dict[int, list[tuple[str, Decimal | None]]] = defaultdict(list)
+    for debt_row in (
+        await db.execute(
+            select(PayrollAdjustment).where(
+                PayrollAdjustment.company_id == company_id,
+                PayrollAdjustment.company_debt.is_not(None),
+                PayrollAdjustment.year_month <= year_month,
             )
-        ).scalars().all()
-        fot_by_month: dict[tuple[int, int], list] = defaultdict(list)
-        for row in past_fot:
-            fot_by_month[(row.txn_date.year, row.txn_date.month)].append(row)
-        past_adj_rows = (
-            await db.execute(
-                select(PayrollAdjustment).where(
-                    PayrollAdjustment.company_id == company_id,
-                    PayrollAdjustment.year_month.in_([f"{py:04d}-{pm:02d}" for py, pm in lookback]),
-                )
-            )
-        ).scalars().all()
-        adj_by_month: dict[str, dict[int, Decimal]] = defaultdict(dict)
-        for row in past_adj_rows:
-            adj_by_month[row.year_month][int(row.user_id)] = Decimal(str(row.amount or 0))
-        from app.routers.sales_kpi_board import _build_sales_report
-        from app.services.sales_kpi_weighted import parse_year_month
-
-        for py, pm in lookback:
-            p_from = date(py, pm, 1)
-            p_to = date(py, pm, monthrange(py, pm)[1])
-            paid_map = _fot_advances(fot_by_month.get((py, pm), []), by_id, name_to_id)
-            bonus_map: dict[int, Decimal] = {}
-            if pipe is not None:
-                past_report = await _build_sales_report(
-                    db,
-                    company_id=company_id,
-                    pipe=pipe,
-                    ym=parse_year_month(f"{py:04d}-{pm:02d}"),
-                )
-                for manager in past_report.managers:
-                    bonus_map[int(manager.manager_id)] = Decimal(str(manager.bonus or 0))
-            past_facts = await load_payroll_facts(
-                db,
-                company_id=company_id,
-                day_from=p_from,
-                day_to=p_to,
-                user_ids=set(by_id),
-            )
-            ym_key = f"{py:04d}-{pm:02d}"
-            for uid, user in by_id.items():
-                role = user.role.value if hasattr(user.role, "value") else str(user.role)
-                profile = payroll_profile(role, spec_by_user.get(uid, ""))
-                card_salary = Decimal(str(user.base_salary)) if user.base_salary is not None else None
-                facts = replace(past_facts.get(uid), kpi_bonus=bonus_map.get(uid, Decimal("0")))
-                accrued_past = accrue(profile, facts, card_salary=card_salary)
-                earned = (accrued_past.base_salary or Decimal("0")) + accrued_past.bonus + adj_by_month.get(ym_key, {}).get(uid, Decimal("0"))
-                prior_pairs[uid].append((earned, paid_map.get(uid, Decimal("0"))))
+        )
+    ).scalars().all():
+        debt_history[int(debt_row.user_id)].append((debt_row.year_month, debt_row.company_debt))
 
     out: list[FinancePayrollRow] = []
     seen = set(by_id) | set(advances) | set(bonus_by_id)
@@ -505,14 +439,20 @@ async def payroll_sheet(
         card_salary = Decimal(str(user.base_salary)) if user.base_salary is not None else None
         facts = replace(facts_by_user.get(uid), kpi_bonus=bonus_by_id.get(uid, Decimal("0")))
         accrued = accrue(profile, facts, card_salary=card_salary)
+        adj = adjustments.get(uid)
         salary = accrued.base_salary
         bonus = accrued.bonus
         paid = advances.get(uid, Decimal("0"))
-        adj = adjustments.get(uid)
+        if adj is not None and adj.base_salary_manual is not None:
+            salary = Decimal(str(adj.base_salary_manual))
+        if adj is not None and adj.bonus_manual is not None:
+            bonus = Decimal(str(adj.bonus_manual))
+        if adj is not None and adj.advances_manual is not None:
+            paid = Decimal(str(adj.advances_manual))
         adjustment = Decimal(str(adj.amount or 0)) if adj is not None else Decimal("0")
         reason = (adj.reason or "") if adj is not None else ""
         payroll_only = (user.email or "").endswith("@staff.internal")
-        debt = company_balance(prior_pairs.get(uid, []))
+        debt = carried_company_debt(debt_history.get(uid, []), year_month)
         if (
             not payroll_only
             and profile == "card"
@@ -538,7 +478,7 @@ async def payroll_sheet(
                 base_salary=salary,
                 bonus=bonus,
                 debt=debt,
-                debt_label="Минус — сотрудник должен компании. Без минуса — компания должна сотруднику.",
+                debt_label="Вписывается вручную. Минус — сотрудник должен компании. Авансы берутся из расходов ФОТ.",
                 formula=accrued.formula,
                 adjustment=adjustment,
                 adjustment_reason=reason,
@@ -654,31 +594,49 @@ async def save_payroll_adjustment(
             )
         )
     ).scalar_one_or_none()
-    reason = (body.reason or "").strip() or None
+    sent = body.model_fields_set
+    reason = (body.reason or "").strip() or None if body.reason is not None else None
     if row is None:
         row = PayrollAdjustment(
             company_id=company_id,
             user_id=body.user_id,
             year_month=year_month,
-            amount=body.amount,
-            reason=reason,
+            amount=body.amount if body.amount is not None else Decimal("0"),
+            reason=reason if "reason" in sent else None,
+            company_debt=body.company_debt if "company_debt" in sent else None,
+            base_salary_manual=body.base_salary if "base_salary" in sent else None,
+            bonus_manual=body.bonus if "bonus" in sent else None,
+            advances_manual=body.advances if "advances" in sent else None,
         )
         db.add(row)
     else:
-        row.amount = body.amount
-        row.reason = reason
+        if "amount" in sent and body.amount is not None:
+            row.amount = body.amount
+        if "reason" in sent:
+            row.reason = reason
+        if "company_debt" in sent:
+            row.company_debt = body.company_debt
+        if "base_salary" in sent:
+            row.base_salary_manual = body.base_salary
+        if "bonus" in sent:
+            row.bonus_manual = body.bonus
+        if "advances" in sent:
+            row.advances_manual = body.advances
         row.updated_at = datetime.now(UTC)
     await db.flush()
     salary = Decimal(str(user.base_salary)) if user.base_salary is not None else None
+    saved_amount = Decimal(str(row.amount or 0))
+    saved_debt = Decimal(str(row.company_debt or 0))
     return FinancePayrollRow(
         user_id=int(user.id),
         full_name=(user.full_name or "").strip(),
         phone=user.phone,
         payout_bank=user.payout_bank,
         base_salary=salary,
-        adjustment=Decimal(str(body.amount or 0)),
-        adjustment_reason=reason or "",
-        remainder=(salary or Decimal("0")) + Decimal(str(body.amount or 0)),
+        debt=saved_debt,
+        adjustment=saved_amount,
+        adjustment_reason=row.reason or "",
+        remainder=(salary or Decimal("0")) + saved_amount + saved_debt,
     )
 
 

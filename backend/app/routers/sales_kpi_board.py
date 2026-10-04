@@ -1524,6 +1524,7 @@ async def debtors_report(
             SalesKpiDebtorRow(
                 source="booking",
                 source_id=int(appt.id),
+                lead_id=int(appt.lead_id) if appt.lead_id is not None else None,
                 sold_at=appt.start_at,
                 client_name=appt.patient_name,
                 client_phone=appt.patient_phone,
@@ -1595,6 +1596,7 @@ async def debtors_report(
             SalesKpiDebtorRow(
                 source="manual",
                 source_id=int(sale.id),
+                lead_id=int(sale.lead_id) if sale.lead_id is not None else None,
                 sold_at=sale.sold_at,
                 client_name=sale.client_name,
                 client_phone=sale.client_phone,

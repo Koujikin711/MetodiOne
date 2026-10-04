@@ -308,6 +308,7 @@ class SalesKpiDebtorPayment(BaseModel):
 class SalesKpiDebtorRow(BaseModel):
     source: str  # booking | manual
     source_id: int
+    lead_id: int | None = None
     sold_at: datetime | None = None
     client_name: str
     client_phone: str

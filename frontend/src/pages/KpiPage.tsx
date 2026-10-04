@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { AccessDenied } from "@/components/AccessDenied";
+import { DebtorPatientCard } from "@/components/DebtorPatientCard";
 import { DateField } from "@/components/DateField";
 import { KpiLeadPicker, type KpiLeadPick } from "@/components/KpiLeadPicker";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
@@ -18,6 +19,7 @@ import type {
   Lead,
   SalesKpiCompanyReport,
   SalesKpiDebtorPayment,
+  SalesKpiDebtorRow,
   SalesKpiDebtorsReport,
   SalesKpiManualSale,
   SalesKpiPaymentJournalRow,
@@ -435,6 +437,7 @@ export function KpiPage() {
   const [payDraft, setPayDraft] = useState<Record<number, string>>({});
   const [payDates, setPayDates] = useState<Record<number, string>>({});
   const [expandedDebtorKey, setExpandedDebtorKey] = useState<string | null>(null);
+  const [patientCard, setPatientCard] = useState<SalesKpiDebtorRow | null>(null);
   const [debtorManager, setDebtorManager] = useState<string | null>(null);
 
   const pipelinesQuery = useQuery({
@@ -2168,14 +2171,15 @@ export function KpiPage() {
                     .filter(Boolean)
                     .join(" ")}
                 >
-                  <button
-                    type="button"
-                    className="flex w-full items-start justify-between gap-2 px-3 py-2.5 text-left"
-                    aria-expanded={open}
-                    onClick={() => setExpandedDebtorKey(open ? null : key)}
-                  >
+                  <div className="flex w-full items-start justify-between gap-2 px-3 py-2.5 text-left">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
+                      <button
+                        type="button"
+                        className="truncate text-sm font-semibold text-[var(--mo-text)] underline-offset-2 hover:underline"
+                        onClick={() => setPatientCard(r)}
+                      >
+                        {r.client_name}
+                      </button>
                       <p className="truncate text-[11px] mo-muted">
                         {r.source === "booking" ? "Запись" : "Курс"} · {r.indicator_name}
                       </p>
@@ -2185,13 +2189,18 @@ export function KpiPage() {
                           : "поступлений нет"}
                       </p>
                     </div>
-                    <div className="shrink-0 text-right">
+                    <button
+                      type="button"
+                      className="shrink-0 text-right"
+                      aria-expanded={open}
+                      onClick={() => setExpandedDebtorKey(open ? null : key)}
+                    >
                       <span className="block text-sm font-semibold tabular-nums kpi-actual-value">
                         {formatMoney(num(r.debt_amount))}
                       </span>
                       <span className="mt-0.5 block text-[10px] mo-muted">{open ? "Скрыть ▲" : "Подробнее ▼"}</span>
-                    </div>
-                  </button>
+                    </button>
+                  </div>
                   {open ? (
                     <div className="space-y-1.5 border-t border-[var(--mo-border)] bg-[var(--mo-surface)]/40 px-3 py-2.5 text-[12px]">
                       <div className="flex justify-between gap-2">
@@ -2295,16 +2304,20 @@ export function KpiPage() {
                       <button
                         type="button"
                         className="text-left font-medium text-[var(--mo-text)] underline-offset-2 hover:underline"
-                        aria-expanded={open}
-                        onClick={() => setExpandedDebtorKey(open ? null : key)}
+                        onClick={() => setPatientCard(r)}
                       >
                         {r.client_name}
                       </button>
-                      <p className="text-[11px] mo-muted">
+                      <button
+                        type="button"
+                        className="mt-0.5 block text-left text-[11px] mo-muted underline-offset-2 hover:underline"
+                        aria-expanded={open}
+                        onClick={() => setExpandedDebtorKey(open ? null : key)}
+                      >
                         {lastPay
                           ? `${formatSaleDt(lastPay.paid_at)} · ${formatMoney(num(lastPay.amount))}`
                           : "поступлений нет"}
-                      </p>
+                      </button>
                     </td>
                     <td className="py-2 pr-3">
                       {r.client_phone ? (
@@ -2369,6 +2382,7 @@ export function KpiPage() {
       {planQuery.isError ? (
         <p className="text-sm text-red-300">{(planQuery.error as Error).message}</p>
       ) : null}
+      {patientCard ? <DebtorPatientCard row={patientCard} onClose={() => setPatientCard(null)} /> : null}
     </div>
   );
 }

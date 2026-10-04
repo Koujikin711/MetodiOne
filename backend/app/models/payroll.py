@@ -23,6 +23,12 @@ class PayrollAdjustment(Base):
     year_month: Mapped[str] = mapped_column(String(7), index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Вписанный долг компании. Пусто — ещё не задавали, берётся последняя запись.
+    company_debt: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # Пусто — графа считается сама. Число — то, что вписали в этой строке за месяц.
+    base_salary_manual: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    bonus_manual: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    advances_manual: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 

@@ -383,7 +383,7 @@
       pipelineEl.value = want || current || String(pipes[0].id);
       const pid = pipelineEl.value;
       const params = new URLSearchParams({ pipeline_id: pid, period });
-      if (period === "custom") {
+      if (period === "custom" || (period === "month" && dateFromEl.value && dateToEl.value)) {
         params.set("date_from", dateFromEl.value);
         params.set("date_to", dateToEl.value);
       }
@@ -395,7 +395,7 @@
       } catch (e) {
         // Пока Amvera без нового эндпоинта — берём company-report за месяц.
         const ym = (() => {
-          if (period === "custom" && dateFromEl.value) return dateFromEl.value.slice(0, 7);
+          if ((period === "custom" || period === "month") && dateFromEl.value) return dateFromEl.value.slice(0, 7);
           const n = new Date();
           return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
         })();

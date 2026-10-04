@@ -148,8 +148,12 @@ class FinancePayrollRow(BaseModel):
 
 class FinancePayrollAdjustmentWrite(BaseModel):
     user_id: int
-    amount: Decimal = Decimal("0")
-    reason: str = ""
+    amount: Decimal | None = None
+    reason: str | None = None
+    company_debt: Decimal | None = None
+    base_salary: Decimal | None = None
+    bonus: Decimal | None = None
+    advances: Decimal | None = None
 
 
 class FinancePayrollReport(BaseModel):

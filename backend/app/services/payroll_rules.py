@@ -131,6 +131,22 @@ def _procedure_bonus(facts: PayrollFacts) -> Decimal:
     )
 
 
+def carried_company_debt(
+    rows: list[tuple[str, Decimal | None]],
+    year_month: str,
+) -> Decimal:
+    """Последний вписанный долг на этот месяц или раньше. Пустые строки не считаются."""
+    best_ym = ""
+    best: Decimal | None = None
+    for ym, amount in rows:
+        if amount is None or ym > year_month:
+            continue
+        if best is None or ym > best_ym:
+            best = Decimal(amount)
+            best_ym = ym
+    return best if best is not None else Decimal("0")
+
+
 def company_balance(months: list[tuple[Decimal, Decimal]]) -> Decimal:
     """Сальдо за прошлые месяцы: начислено минус выплаченный ФОТ.
 

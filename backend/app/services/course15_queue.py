@@ -131,6 +131,15 @@ def classify_course15_queue_state(
     }
 
 
+def course15_row_sort_key(row: dict) -> tuple:
+    """Начало по убыванию. Пустая дата не всплывает наверх."""
+    started = row.get("started_at")
+    name = (row.get("patient_name") or "").casefold()
+    if started is None or not hasattr(started, "timestamp"):
+        return (1, 0.0, name)
+    return (0, -float(started.timestamp()), name)
+
+
 def course15_term_from_last_payment(last_paid_at: datetime | None) -> tuple[datetime | None, datetime | None]:
     """Начало = последняя оплата. Окончание = эта дата + 15 дней."""
     start = _utc(last_paid_at)
@@ -392,16 +401,8 @@ async def build_course15_queue(
             },
         )
 
-    # waiting first, then active, then attention, then name
-    order = {"waiting_next_step": 0, "active": 1, "converted_to_course": 2, "converted_to_protocol": 3}
-    rows.sort(
-        key=lambda r: (
-            1 if r.get("pending_program") else 0,
-            0 if r["requires_attention"] else 1,
-            order.get(r["state"], 9),
-            (r["patient_name"] or "").casefold(),
-        ),
-    )
+    # По дате начала: более позднее сверху, без даты — внизу.
+    rows.sort(key=course15_row_sort_key)
 
     return {
         "predicate": COURSE15_NEXT_PROGRAM_PREDICATE,

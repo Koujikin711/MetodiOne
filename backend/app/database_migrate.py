@@ -1875,6 +1875,25 @@ async def ensure_payroll_adjustments(conn: AsyncConnection, database_url: str) -
                 )"""
             )
         )
+        await conn.execute(text("ALTER TABLE payroll_adjustments ADD COLUMN IF NOT EXISTS company_debt NUMERIC(14, 2)"))
+        await conn.execute(
+            text("ALTER TABLE payroll_adjustments ADD COLUMN IF NOT EXISTS base_salary_manual NUMERIC(14, 2)")
+        )
+        await conn.execute(text("ALTER TABLE payroll_adjustments ADD COLUMN IF NOT EXISTS bonus_manual NUMERIC(14, 2)"))
+        await conn.execute(
+            text("ALTER TABLE payroll_adjustments ADD COLUMN IF NOT EXISTS advances_manual NUMERIC(14, 2)")
+        )
+    if sqlite:
+        r = await conn.execute(text("PRAGMA table_info(payroll_adjustments)"))
+        cols = {row[1] for row in r.fetchall()}
+        for col, ddl in (
+            ("company_debt", "ALTER TABLE payroll_adjustments ADD COLUMN company_debt NUMERIC(14, 2)"),
+            ("base_salary_manual", "ALTER TABLE payroll_adjustments ADD COLUMN base_salary_manual NUMERIC(14, 2)"),
+            ("bonus_manual", "ALTER TABLE payroll_adjustments ADD COLUMN bonus_manual NUMERIC(14, 2)"),
+            ("advances_manual", "ALTER TABLE payroll_adjustments ADD COLUMN advances_manual NUMERIC(14, 2)"),
+        ):
+            if col not in cols:
+                await conn.execute(text(ddl))
 
 
 async def ensure_employee_name_terms(conn: AsyncConnection, database_url: str) -> None:

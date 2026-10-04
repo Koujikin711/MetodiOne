@@ -6,6 +6,7 @@ from decimal import Decimal
 from app.services.payroll_rules import (
     PayrollFacts,
     accrue,
+    carried_company_debt,
     company_balance,
     is_free_gift_session,
     payroll_name_on,
@@ -90,6 +91,17 @@ def test_osteopath_is_thirty_percent_of_own_sessions():
     line = accrue("osteopath", PayrollFacts(own_osteopath_paid=Decimal("1000")), card_salary=Decimal("999"))
     assert line.base_salary == Decimal("0")
     assert line.bonus == Decimal("300.00")
+
+
+def test_carried_company_debt_uses_last_typed_amount():
+    rows = [
+        ("2026-08", Decimal("1000")),
+        ("2026-09", None),
+        ("2026-11", Decimal("4000")),
+    ]
+    assert carried_company_debt(rows, "2026-10") == Decimal("1000")
+    assert carried_company_debt(rows, "2026-11") == Decimal("4000")
+    assert carried_company_debt([("2026-09", Decimal("0"))], "2026-10") == Decimal("0")
 
 
 def test_company_balance_is_unpaid_salary_not_patient_debt():

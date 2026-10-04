@@ -66,10 +66,17 @@ function money(v: number | string | null | undefined) {
   return n.toLocaleString("ru-RU", { maximumFractionDigits: 2, signDisplay: "auto" });
 }
 
-function companyDebtText(v: number | string | null | undefined) {
-  const n = Number(v || 0);
-  const digits = Math.abs(n).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
-  return n < 0 ? `−${digits}` : digits;
+function parseMoneyInput(raw: string): number {
+  const t = raw.trim().replace(/\s/g, "").replace(",", ".").replace("−", "-");
+  if (!t || t === "-" || t === ".") return 0;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function moneyInput(v: number | string | null | undefined): string {
+  if (v == null || v === "") return "";
+  const n = Number(v);
+  return Number.isFinite(n) ? String(n) : "";
 }
 
 function PayrollLine({
@@ -87,16 +94,41 @@ function PayrollLine({
 }) {
   const [amount, setAmount] = useState(row.adjustment == null ? "" : String(row.adjustment));
   const [reason, setReason] = useState(row.adjustment_reason || "");
+  const [debt, setDebt] = useState(() => (Number(row.debt || 0) ? String(row.debt) : ""));
+  const [salary, setSalary] = useState(moneyInput(row.base_salary));
+  const [bonus, setBonus] = useState(moneyInput(row.bonus));
+  const [advances, setAdvances] = useState(moneyInput(row.advances));
+  const [phone, setPhone] = useState(row.phone || "");
+  const [bank, setBank] = useState(row.payout_bank || "");
   const [fullName, setFullName] = useState(row.full_name);
+  const parsedDebt = parseMoneyInput(debt);
+  const parsedSalary = parseMoneyInput(salary);
+  const parsedBonus = parseMoneyInput(bonus);
+  const parsedAdvances = parseMoneyInput(advances);
   const save = useMutation({
-    mutationFn: () =>
-      apiFetch(`/api/finance/payroll/adjustment?year=${year}&month=${month}`, {
+    mutationFn: () => {
+      const body: Record<string, unknown> = {
+        user_id: row.user_id,
+        amount: Number(amount || 0),
+        reason,
+        company_debt: parsedDebt,
+      };
+      if (parsedSalary !== Number(row.base_salary || 0)) body.base_salary = parsedSalary;
+      if (parsedBonus !== Number(row.bonus || 0)) body.bonus = parsedBonus;
+      if (parsedAdvances !== Number(row.advances || 0)) body.advances = parsedAdvances;
+      return apiFetch(`/api/finance/payroll/adjustment?year=${year}&month=${month}`, {
         method: "PUT",
-        body: JSON.stringify({
-          user_id: row.user_id,
-          amount: Number(amount || 0),
-          reason,
-        }),
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: () => onSaved(),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const saveContact = useMutation({
+    mutationFn: (body: { phone?: string; payout_bank?: string }) =>
+      apiFetch(`/api/employees/${row.user_id}/profile`, {
+        method: "POST",
+        body: JSON.stringify(body),
       }),
     onSuccess: () => onSaved(),
     onError: (e: Error) => toast.error(e.message),
@@ -132,12 +164,73 @@ function PayrollLine({
           Убрать
         </button>
       </td>
-      <td className="payroll-phone tabular-nums">{row.phone || "—"}</td>
-      <td>{row.payout_bank || "—"}</td>
-      <td className="payroll-num">{row.base_salary == null ? "—" : money(row.base_salary)}</td>
-      <td className="payroll-num">{money(row.bonus)}</td>
-      <td className={Number(row.debt || 0) < 0 ? "payroll-num payroll-debt-minus" : "payroll-num"} title={row.debt_label || undefined}>
-        {companyDebtText(row.debt)}
+      <td className="payroll-phone">
+        <input
+          className="mo-input payroll-adjust tabular-nums"
+          value={phone}
+          inputMode="tel"
+          aria-label={`Телефон ${row.full_name}`}
+          onChange={(e) => setPhone(e.target.value)}
+          onBlur={() => {
+            const next = phone.replace(/\D/g, "");
+            const prev = (row.phone || "").replace(/\D/g, "");
+            if (next === prev) return;
+            if (next.length < 7) {
+              toast.error("Телефон короче 7 цифр");
+              return;
+            }
+            saveContact.mutate({ phone: next });
+          }}
+        />
+      </td>
+      <td>
+        <input
+          className="mo-input payroll-adjust"
+          value={bank}
+          aria-label={`Выплата ${row.full_name}`}
+          onChange={(e) => setBank(e.target.value)}
+          onBlur={() => {
+            const next = bank.trim();
+            if (next !== (row.payout_bank || "").trim()) saveContact.mutate({ payout_bank: next });
+          }}
+        />
+      </td>
+      <td className="payroll-num">
+        <input
+          className="mo-input payroll-adjust tabular-nums"
+          inputMode="decimal"
+          value={salary}
+          aria-label={`Оклад ${row.full_name}`}
+          onChange={(e) => setSalary(e.target.value)}
+          onBlur={() => {
+            if (parsedSalary !== Number(row.base_salary || 0)) save.mutate();
+          }}
+        />
+      </td>
+      <td className="payroll-num">
+        <input
+          className="mo-input payroll-adjust tabular-nums"
+          inputMode="decimal"
+          value={bonus}
+          aria-label={`Начисление ${row.full_name}`}
+          onChange={(e) => setBonus(e.target.value)}
+          onBlur={() => {
+            if (parsedBonus !== Number(row.bonus || 0)) save.mutate();
+          }}
+        />
+      </td>
+      <td className={parsedDebt < 0 ? "payroll-num payroll-debt-minus" : "payroll-num"} title={row.debt_label || undefined}>
+        <input
+          className="mo-input payroll-adjust tabular-nums"
+          inputMode="decimal"
+          value={debt}
+          placeholder="0"
+          aria-label={`Долг от компании ${row.full_name}`}
+          onChange={(e) => setDebt(e.target.value)}
+          onBlur={() => {
+            if (parsedDebt !== Number(row.debt || 0)) save.mutate();
+          }}
+        />
       </td>
       <td>
         <input
@@ -162,8 +255,21 @@ function PayrollLine({
           }}
         />
       </td>
-      <td className="payroll-num">{money(row.advances)}</td>
-      <td className="payroll-num payroll-pay">{money(row.remainder)}</td>
+      <td className="payroll-num">
+        <input
+          className="mo-input payroll-adjust tabular-nums"
+          inputMode="decimal"
+          value={advances}
+          aria-label={`Авансы ${row.full_name}`}
+          onChange={(e) => setAdvances(e.target.value)}
+          onBlur={() => {
+            if (parsedAdvances !== Number(row.advances || 0)) save.mutate();
+          }}
+        />
+      </td>
+      <td className="payroll-num payroll-pay">
+        {money(parsedSalary + parsedBonus + Number(amount || 0) + parsedDebt - parsedAdvances)}
+      </td>
     </tr>
   );
 }
@@ -545,7 +651,7 @@ export function ExpensesPage() {
               </span>
             </div>
             <p className="payroll-note">
-              Фамилия правится в строке. Формула только для чтения. Долг от компании: минус — сотрудник должен компании, без минуса — компания должна сотруднику.
+              Графы строки правятся вручную. «К выплате» — сумма оклада, начисления, долга и корректировки минус авансы. Долг: минус — сотрудник должен компании, без минуса — компания должна сотруднику. Пока аванс не вписан, он берётся из расходов за этот месяц (ФОТ или зарплата).
             </p>
             {payrollQuery.isLoading ? <p className="text-sm mo-muted">Загрузка…</p> : null}
             {payrollQuery.isError ? (
@@ -586,7 +692,7 @@ export function ExpensesPage() {
                   <tbody>
                     {(payrollQuery.data?.rows ?? []).map((row) => (
                       <PayrollLine
-                        key={row.user_id}
+                        key={`${row.user_id}-${year}-${month}`}
                         row={row}
                         year={year}
                         month={month}

@@ -132,12 +132,19 @@ def _period_bounds(period: str, date_from: str | None, date_to: str | None) -> t
         return _as_utc(start_local, end_local)
 
     if period == "month":
-        first = datetime(now_local.year, now_local.month, 1, tzinfo=tz)
+        year, month = now_local.year, now_local.month
+        if date_from:
+            try:
+                picked = datetime.strptime(date_from[:10], "%Y-%m-%d")
+            except ValueError as e:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный формат дат") from e
+            year, month = picked.year, picked.month
+        first = datetime(year, month, 1, tzinfo=tz)
         start_local = (first - timedelta(days=1)).replace(hour=18, minute=0, second=0, microsecond=0)
-        if now_local.month == 12:
-            next_month = datetime(now_local.year + 1, 1, 1, tzinfo=tz)
+        if month == 12:
+            next_month = datetime(year + 1, 1, 1, tzinfo=tz)
         else:
-            next_month = datetime(now_local.year, now_local.month + 1, 1, tzinfo=tz)
+            next_month = datetime(year, month + 1, 1, tzinfo=tz)
         last_day = next_month - timedelta(days=1)
         end_local = last_day.replace(hour=17, minute=0, second=0, microsecond=0)
         return _as_utc(start_local, end_local)
@@ -1477,11 +1484,18 @@ def _services_calendar_bounds(
         return start_local.astimezone(UTC), end_local.astimezone(UTC), d0, d0
 
     if period == "month":
-        start_local = datetime(now_local.year, now_local.month, 1, tzinfo=tz)
-        if now_local.month == 12:
-            end_local = datetime(now_local.year + 1, 1, 1, tzinfo=tz)
+        year, month = now_local.year, now_local.month
+        if date_from:
+            try:
+                picked = datetime.strptime(date_from[:10], "%Y-%m-%d").date()
+            except ValueError as e:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный формат дат") from e
+            year, month = picked.year, picked.month
+        start_local = datetime(year, month, 1, tzinfo=tz)
+        if month == 12:
+            end_local = datetime(year + 1, 1, 1, tzinfo=tz)
         else:
-            end_local = datetime(now_local.year, now_local.month + 1, 1, tzinfo=tz)
+            end_local = datetime(year, month + 1, 1, tzinfo=tz)
         last = (end_local - timedelta(days=1)).date().isoformat()
         return (
             start_local.astimezone(UTC),

@@ -182,7 +182,7 @@ export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
               <tr className="border-b border-[var(--mo-border)] text-[11px] uppercase tracking-wide mo-muted">
                 <th className="px-3 py-2 font-medium">Пациент</th>
                 <th className="px-3 py-2 font-medium">Статус</th>
-                <th className="px-3 py-2 font-medium" title="Дата последней оплаты">
+                <th className="px-3 py-2 font-medium" title="Дата последней оплаты. Сверху более позднее начало">
                   Начало
                 </th>
                 <th className="px-3 py-2 font-medium" title="15 дней после последней оплаты">
