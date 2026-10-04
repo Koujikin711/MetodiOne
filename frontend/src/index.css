@@ -2793,6 +2793,25 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   box-shadow: inset 0 2px 6px rgba(44, 37, 32, 0.04);
 }
 
+/* Стрелка списка чуть дальше от правого края, во всех полях select */
+select.mo-input {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 2.35rem;
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 0.9rem 0.9rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M6 8l4 4 4-4' stroke='%2364758b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+:root[data-theme="dark"] select.mo-input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M6 8l4 4 4-4' stroke='%23cbd5e1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.mo-month-picker-trigger {
+  padding-right: 1rem;
+}
+
 input[type="date"],
 input[type="time"],
 input[type="datetime-local"],
@@ -6042,11 +6061,11 @@ fieldset.extra-services-field {
 
 .payroll-sheet-wrap {
   overflow-x: auto;
-  padding-bottom: 0.75rem;
+  padding: 0 1.15rem 0.45rem;
 }
 
 .payroll-note {
-  margin: 0 0 0.65rem;
+  margin: 0.35rem 1.15rem 0.28rem;
   font-size: 12px;
   line-height: 1.35;
   color: var(--mo-text-muted, #8b97ab);
@@ -6069,8 +6088,18 @@ fieldset.extra-services-field {
 
 .payroll-sheet.kpi-data-table thead th,
 .payroll-sheet.kpi-data-table tbody td {
-  padding: 0.38rem 0.42rem;
+  padding: 0.14rem 0.7rem;
   vertical-align: top;
+}
+
+.payroll-sheet.kpi-data-table thead th:first-child,
+.payroll-sheet.kpi-data-table tbody td:first-child {
+  padding-left: 0.35rem;
+}
+
+.payroll-sheet.kpi-data-table thead th:last-child,
+.payroll-sheet.kpi-data-table tbody td:last-child {
+  padding-right: 0.45rem;
 }
 
 .payroll-sheet.kpi-data-table thead th {
@@ -6092,7 +6121,7 @@ fieldset.extra-services-field {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   min-width: 0;
-  padding-top: 0.55rem;
+  padding-top: 0.22rem;
 }
 
 .payroll-sheet.kpi-data-table tbody td.payroll-pay {
@@ -6102,8 +6131,8 @@ fieldset.extra-services-field {
 .payroll-sheet.kpi-data-table tbody td.payroll-phone {
   white-space: nowrap;
   min-width: 0;
-  padding-top: 0.55rem;
-  font-size: 0.8rem;
+  padding-top: 0.22rem;
+  font-size: 0.78rem;
 }
 
 .payroll-sheet.kpi-data-table tbody td.payroll-person {
@@ -6116,20 +6145,22 @@ fieldset.extra-services-field {
 .payroll-sheet .payroll-reason {
   width: 100%;
   min-width: 0;
-  border-radius: 0.45rem;
-  padding: 0.18rem 0.45rem;
-  font-size: 0.82rem;
-  line-height: 1.25;
+  border-radius: 0.4rem;
+  padding: 0.08rem 0.55rem;
+  font-size: 0.78rem;
+  line-height: 1.2;
   box-shadow: none;
 }
 
 .payroll-sheet .payroll-role,
 .payroll-sheet .payroll-formula {
-  margin-top: 0.12rem;
+  margin-top: 0.02rem;
+  padding-left: 0.55rem;
+  padding-right: 0.35rem;
   max-width: none;
-  line-height: 1.25;
+  line-height: 1.15;
   white-space: normal;
-  font-size: 10.5px;
+  font-size: 10px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -7155,18 +7186,12 @@ li.is-overdue {
 }
 
 @media (min-width: 900px) {
-  .ltv-kpis {
+  .ltv-kpis,
+  .ltv-windows {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .ltv-pay-grid,
-  .ltv-windows {
+  .ltv-pay-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1200px) {
-  .ltv-kpis {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 

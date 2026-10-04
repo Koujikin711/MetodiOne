@@ -174,6 +174,12 @@ async def login(
         candidates = list(result.scalars().all())
 
     matches = [u for u in candidates if verify_password(body.password, u.hashed_password)]
+    if matches and all((u.email or "").endswith("@staff.internal") for u in matches):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Этот сотрудник только в ведомости и не входит в систему",
+        )
+    matches = [u for u in matches if not (u.email or "").endswith("@staff.internal")]
     if body.company_id is not None:
         matches = [u for u in matches if u.company_id == body.company_id]
 

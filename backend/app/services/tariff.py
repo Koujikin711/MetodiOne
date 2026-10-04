@@ -8,7 +8,13 @@ from app.models import Integration, User
 
 async def count_company_active_users(db: AsyncSession, company_id: int) -> int:
     r = await db.execute(
-        select(func.count()).select_from(User).where(User.company_id == company_id, User.is_active.is_(True)),
+        select(func.count())
+        .select_from(User)
+        .where(
+            User.company_id == company_id,
+            User.is_active.is_(True),
+            User.email.notlike("%@staff.internal"),
+        ),
     )
     return int(r.scalar_one() or 0)
 

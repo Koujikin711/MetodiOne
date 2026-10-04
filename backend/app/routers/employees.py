@@ -67,6 +67,7 @@ class EmployeeRead(BaseModel):
     last_seen_at: datetime | None = None
     base_salary: Decimal | None = None
     payout_bank: str | None = None
+    payroll_only: bool = False
 
 
 class InviteEmployeeBody(BaseModel):
@@ -153,6 +154,7 @@ async def _employee_read(db: AsyncSession, u: User) -> EmployeeRead:
         last_seen_at=u.last_seen_at,
         base_salary=u.base_salary,
         payout_bank=u.payout_bank,
+        payroll_only=(u.email or "").endswith("@staff.internal"),
     )
 
 
@@ -176,6 +178,7 @@ def _employee_read_cached(
         last_seen_at=u.last_seen_at,
         base_salary=u.base_salary,
         payout_bank=u.payout_bank,
+        payroll_only=(u.email or "").endswith("@staff.internal"),
     )
 
 
@@ -511,6 +514,94 @@ async def list_employees(
         )
         for u in users
     ]
+
+
+_PAYROLL_ROLES = {
+    UserRole.manager,
+    UserRole.curator,
+    UserRole.administrator,
+    UserRole.expert,
+    UserRole.accountant,
+    UserRole.rop,
+    UserRole.admin,
+}
+
+
+class PayrollEmployeeCreate(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=255)
+    role: UserRole
+    specialization: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=32)
+
+
+@router.post("/for-payroll", response_model=EmployeeRead, status_code=status.HTTP_201_CREATED)
+async def create_payroll_employee(
+    body: PayrollEmployeeCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> EmployeeRead:
+    """Сотрудник только для ведомости: без логина, письма и колонки в записи."""
+    await assert_owner_or_chief_expert(db, current_user)
+    if body.role not in _PAYROLL_ROLES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Эту роль в ведомость не добавляют")
+    name = body.full_name.strip()
+    spec = (body.specialization or "").strip()
+    if body.role == UserRole.expert and len(spec) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Укажите специальность: от неё зависит формула ведомости",
+        )
+    phone = _norm_phone(body.phone or "")
+    if body.phone and body.phone.strip() and len(phone) < 7:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Проверьте телефон")
+    if phone:
+        taken = await _user_with_phone_except(db, phone, company_id, except_user_id=None)
+        if taken is not None and taken.is_active:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Телефон уже занят")
+    user = User(
+        company_id=company_id,
+        email=f"payroll-{secrets.token_hex(8)}@staff.internal",
+        phone=phone or None,
+        full_name=name,
+        role=body.role,
+        hashed_password=hash_password(secrets.token_urlsafe(24)),
+        invite_token=None,
+        is_active=True,
+        accepts_new_leads=False,
+    )
+    db.add(user)
+    await db.flush()
+    if body.role == UserRole.expert:
+        direction_id = await resolve_default_booking_direction_id(db, company_id)
+        if direction_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Нет направления записи, чтобы сохранить специальность",
+            )
+        db.add(
+            BookingSpecialist(
+                company_id=company_id,
+                full_name=name,
+                direction_id=direction_id,
+                phone=phone or None,
+                specialization=spec,
+                is_active=False,
+                crm_user_id=user.id,
+            )
+        )
+        await db.flush()
+    await write_audit_event(
+        db,
+        entity_type="employee",
+        entity_id=user.id,
+        action="payroll_employee_created",
+        current_user=current_user,
+        details=f"full_name={name}; role={body.role.value}; specialization={spec}",
+    )
+    employee = await _employee_read(db, user)
+    await db.commit()
+    return employee
 
 
 @router.post("/invite", response_model=InviteEmployeeResult, status_code=status.HTTP_201_CREATED)

@@ -417,8 +417,10 @@ async def payroll_sheet(
         adj = adjustments.get(uid)
         adjustment = Decimal(str(adj.amount or 0)) if adj is not None else Decimal("0")
         reason = (adj.reason or "") if adj is not None else ""
+        payroll_only = (user.email or "").endswith("@staff.internal")
         if (
-            profile == "card"
+            not payroll_only
+            and profile == "card"
             and salary is None
             and bonus == 0
             and paid == 0

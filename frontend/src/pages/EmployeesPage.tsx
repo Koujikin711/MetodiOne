@@ -17,6 +17,7 @@ export interface Employee {
   role: UserRole;
   pipeline_ids: number[];
   specialization?: string | null;
+  payroll_only?: boolean;
   base_salary?: string | number | null;
   payout_bank?: string | null;
   is_online?: boolean;
@@ -123,6 +124,11 @@ export function EmployeesPage() {
   });
 
   const [open, setOpen] = useState(false);
+  const [payrollOpen, setPayrollOpen] = useState(false);
+  const [payrollName, setPayrollName] = useState("");
+  const [payrollRole, setPayrollRole] = useState<UserRole>("expert");
+  const [payrollSpec, setPayrollSpec] = useState("Невролог");
+  const [payrollPhone, setPayrollPhone] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -374,6 +380,27 @@ export function EmployeesPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const payrollMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<Employee>("/api/employees/for-payroll", {
+        method: "POST",
+        body: JSON.stringify({
+          full_name: payrollName.trim(),
+          role: payrollRole,
+          specialization: payrollRole === "expert" ? payrollSpec.trim() : null,
+          phone: payrollPhone.trim() || null,
+        }),
+      }),
+    onSuccess: () => {
+      setPayrollOpen(false);
+      setPayrollName("");
+      setPayrollPhone("");
+      void qc.invalidateQueries({ queryKey: ["employees"] });
+      toast.success("Сотрудник добавлен в ведомость");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   function togglePipeline(id: number) {
     setPipelineIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
@@ -513,11 +540,16 @@ export function EmployeesPage() {
         <PageHeader
           className="mb-0"
           title="Сотрудники"
-          description="Приглашение создаёт логин (email/телефон) и временный пароль."
+          description="Приглашение даёт логин. «В ведомость» — только фамилия для расчёта зарплаты, без входа в систему."
           actions={
-            <button type="button" onClick={() => setOpen(true)} className="btn-primary">
-              Пригласить сотрудника
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setPayrollOpen(true)} className="btn-secondary">
+                В ведомость
+              </button>
+              <button type="button" onClick={() => setOpen(true)} className="btn-primary">
+                Пригласить сотрудника
+              </button>
+            </div>
           }
         />
       </div>
@@ -752,16 +784,18 @@ export function EmployeesPage() {
                       e.is_online ? "is-online" : "is-offline",
                     ].join(" ")}
                   >
-                    {e.is_online ? "В сети" : "Не в сети"}
+                    {e.payroll_only ? "Ведомость" : e.is_online ? "В сети" : "Не в сети"}
                   </span>
                 </div>
                 <div className="mt-1 text-sm lux-caption">
-                  {e.email}
+                  {e.payroll_only ? "Только ведомость" : e.email}
                   {e.phone ? ` · ${e.phone}` : ""}
                   {e.role === "expert" && e.specialization ? ` · ${e.specialization}` : ""}
                 </div>
                 <div className="mt-2 inline-flex max-w-full">
-                  <span className="employee-pipelines-tag truncate">Воронки: {pipelineNames}</span>
+                  <span className="employee-pipelines-tag truncate">
+                    {e.payroll_only ? "Без логина и без записи" : `Воронки: ${pipelineNames}`}
+                  </span>
                 </div>
               </div>
 
@@ -1007,6 +1041,84 @@ export function EmployeesPage() {
                 className="btn-primary w-full disabled:opacity-60"
               >
                 {saveEmployeeMutation.isPending ? "Сохранение…" : "Сохранить"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {payrollOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-xl rounded-2xl crm-modal-panel border p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="lux-subheading">Добавить в ведомость</h2>
+              <button type="button" onClick={() => setPayrollOpen(false)} className="mo-modal-close">
+                Закрыть
+              </button>
+            </div>
+            <p className="mt-2 text-sm mo-muted">
+              Фамилия попадёт в расчёт зарплаты. Логин, пароль и колонка в записи не создаются.
+            </p>
+            <div className="mt-4 grid gap-3">
+              <label className="text-sm mo-muted">
+                ФИО
+                <input
+                  value={payrollName}
+                  onChange={(e) => setPayrollName(e.target.value)}
+                  className="mo-input mt-1 w-full"
+                />
+              </label>
+              <label className="text-sm mo-muted">
+                Роль
+                <select
+                  value={payrollRole}
+                  onChange={(e) => setPayrollRole(e.target.value as UserRole)}
+                  className="mo-input mt-1 w-full"
+                >
+                  <option value="expert">Эксперт</option>
+                  <option value="manager">Менеджер</option>
+                  <option value="curator">Куратор</option>
+                  <option value="administrator">Администратор</option>
+                  <option value="admin">Админ воронки</option>
+                  <option value="accountant">Бухгалтер</option>
+                  <option value="rop">РОП</option>
+                </select>
+              </label>
+              {payrollRole === "expert" ? (
+                <label className="text-sm mo-muted">
+                  Специальность
+                  <input
+                    value={payrollSpec}
+                    onChange={(e) => setPayrollSpec(e.target.value)}
+                    list="payroll-spec-list"
+                    className="mo-input mt-1 w-full"
+                  />
+                  <datalist id="payroll-spec-list">
+                    <option value="Невролог" />
+                    <option value="Эндокринолог" />
+                    <option value="Невролог курса 15" />
+                    <option value="Массажист" />
+                    <option value="Логомассажист" />
+                    <option value="Остеопат" />
+                    <option value="Нутрициолог" />
+                  </datalist>
+                </label>
+              ) : null}
+              <label className="text-sm mo-muted">
+                Телефон, если есть
+                <input
+                  value={payrollPhone}
+                  onChange={(e) => setPayrollPhone(e.target.value)}
+                  className="mo-input mt-1 w-full"
+                />
+              </label>
+              <button
+                type="button"
+                className="btn-primary w-full disabled:opacity-60"
+                disabled={payrollMutation.isPending || payrollName.trim().length < 2 || (payrollRole === "expert" && payrollSpec.trim().length < 2)}
+                onClick={() => payrollMutation.mutate()}
+              >
+                {payrollMutation.isPending ? "Добавление…" : "Добавить в ведомость"}
               </button>
             </div>
           </div>
