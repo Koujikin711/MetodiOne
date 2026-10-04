@@ -6083,6 +6083,7 @@ fieldset.extra-services-field {
 .payroll-sheet col.payroll-col-phone { width: 11%; }
 .payroll-sheet col.payroll-col-bank { width: 6%; }
 .payroll-sheet col.payroll-col-num { width: 7.4%; }
+.payroll-sheet col.payroll-col-debt { width: 9%; }
 .payroll-sheet col.payroll-col-adjust { width: 8%; }
 .payroll-sheet col.payroll-col-reason { width: 12%; }
 
@@ -6109,6 +6110,16 @@ fieldset.extra-services-field {
   text-transform: uppercase;
   color: var(--mo-text-muted, #8b97ab);
   white-space: nowrap;
+}
+
+.payroll-sheet.kpi-data-table thead th.payroll-debt {
+  white-space: normal;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+}
+
+.payroll-sheet.kpi-data-table tbody td.payroll-debt-minus {
+  color: #f0a8a8;
 }
 
 .payroll-sheet.kpi-data-table tbody td {
@@ -6174,6 +6185,21 @@ fieldset.extra-services-field {
 
 .payroll-sheet .payroll-formula {
   color: var(--mo-text-muted, #8b97ab);
+}
+
+.payroll-remove {
+  margin-top: 0.15rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mo-text-muted, #8b97ab);
+  font-size: 11px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.payroll-remove:hover {
+  color: #f0a8a8;
 }
 
 .kpi-sales-board {

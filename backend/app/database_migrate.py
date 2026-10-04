@@ -1909,6 +1909,34 @@ async def ensure_employee_name_terms(conn: AsyncConnection, database_url: str) -
         )
 
 
+async def ensure_payroll_sheet_hides(conn: AsyncConnection, database_url: str) -> None:
+    """Кого убрали с ведомости. Карточка сотрудника и логин остаются."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS payroll_sheet_hides (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    UNIQUE(company_id, user_id)
+                )"""
+            )
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS payroll_sheet_hides (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    UNIQUE(company_id, user_id)
+                )"""
+            )
+        )
+
+
 async def ensure_user_last_seen_at(conn: AsyncConnection, database_url: str) -> None:
     """Колонка users.last_seen_at — онлайн-статус для дашборда РОП."""
     low = database_url.lower()

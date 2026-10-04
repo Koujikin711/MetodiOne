@@ -131,8 +131,20 @@ def _procedure_bonus(facts: PayrollFacts) -> Decimal:
     )
 
 
+def company_balance(months: list[tuple[Decimal, Decimal]]) -> Decimal:
+    """Сальдо за прошлые месяцы: начислено минус выплаченный ФОТ.
+
+    Плюс, без знака: компания должна сотруднику.
+    Минус: сотрудник должен компании.
+    """
+    total = Decimal("0")
+    for earned, paid in months:
+        total += Decimal(earned) - Decimal(paid)
+    return total
+
+
 def accrue(profile: str, facts: PayrollFacts, *, card_salary: Decimal | None) -> PayrollAccrual:
-    """Начисление за месяц. Долг в выплату не вычитается: это база или остаток дебиторки."""
+    """Начисление за месяц. Колонка долга — долг компании, её считает ведомость."""
     if profile == "neurologist":
         bonus = _procedure_bonus(facts)
         return PayrollAccrual(
@@ -192,8 +204,8 @@ def accrue(profile: str, facts: PayrollFacts, *, card_salary: Decimal | None) ->
         return PayrollAccrual(
             Decimal("2000"),
             _q(bonus),
-            _q(facts.open_debt),
-            "Долг по его курсам",
+            Decimal("0"),
+            "",
             "2 000 + бонус KPI, если первые оплаты курсов больше 26 000",
         )
     if profile == "curator":
@@ -201,8 +213,8 @@ def accrue(profile: str, facts: PayrollFacts, *, card_salary: Decimal | None) ->
         return PayrollAccrual(
             Decimal("2000"),
             _q(collected * CURATOR_DEBT_SHARE),
-            collected,
-            "Собрано дебиторки за месяц",
+            Decimal("0"),
+            "",
             "2 000 + 2% от доплат по курсам и протоколам",
         )
     if profile == "administrator":
@@ -218,7 +230,7 @@ def accrue(profile: str, facts: PayrollFacts, *, card_salary: Decimal | None) ->
     return PayrollAccrual(
         card_salary,
         _q(facts.kpi_bonus),
-        _q(facts.open_debt),
-        "Долг по его курсам" if facts.open_debt else "",
+        Decimal("0"),
+        "",
         "Оклад с карточки",
     )

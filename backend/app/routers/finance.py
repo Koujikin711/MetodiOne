@@ -16,6 +16,7 @@ from app.models import (
     FinanceCompanySettings,
     FinanceOsvRow,
     PayrollAdjustment,
+    PayrollSheetHide,
     EmployeeNameTerm,
     Pipeline,
     User,
@@ -68,6 +69,38 @@ _PAY_ROLES = frozenset(
 
 def _norm_person(value: str | None) -> str:
     return " ".join((value or "").replace("ё", "е").replace("Ё", "Е").casefold().split())
+
+
+_COMPANY_DEBT_MONTHS = 18
+
+
+def _previous_months(year: int, month: int, count: int) -> list[tuple[int, int]]:
+    out: list[tuple[int, int]] = []
+    y, m = year, month
+    for _ in range(count):
+        m -= 1
+        if m == 0:
+            y -= 1
+            m = 12
+        out.append((y, m))
+    return out
+
+
+def _fot_advances(rows, by_id: dict[int, User], name_to_id: dict[str, int]) -> dict[int, Decimal]:
+    advances: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
+    for row in rows:
+        article = (row.article or "").casefold()
+        brief = (row.brief_category or "").casefold()
+        if "фот" not in article and "зарплат" not in brief and "зарплат" not in article:
+            continue
+        amount = Decimal(str(row.expense or 0))
+        if row.employee_user_id and int(row.employee_user_id) in by_id:
+            advances[int(row.employee_user_id)] += amount
+            continue
+        matched = name_to_id.get(_norm_person(row.counterparty))
+        if matched is not None:
+            advances[matched] += amount
+    return advances
 
 
 def _settings_read(row: FinanceCompanySettings | None) -> FinanceSettingsRead:
@@ -313,19 +346,7 @@ async def payroll_sheet(
             )
         )
     ).scalars().all()
-    advances: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
-    for row in fot_rows:
-        article = (row.article or "").casefold()
-        brief = (row.brief_category or "").casefold()
-        if "фот" not in article and "зарплат" not in brief and "зарплат" not in article:
-            continue
-        amount = Decimal(str(row.expense or 0))
-        if row.employee_user_id and int(row.employee_user_id) in by_id:
-            advances[int(row.employee_user_id)] += amount
-            continue
-        matched = name_to_id.get(_norm_person(row.counterparty))
-        if matched is not None:
-            advances[matched] += amount
+    advances = _fot_advances(fot_rows, by_id, name_to_id)
 
     bonus_by_id: dict[int, Decimal] = {}
     pipeline_name: str | None = None
@@ -352,7 +373,7 @@ async def payroll_sheet(
     from dataclasses import replace
 
     from app.services.payroll_facts import load_payroll_facts
-    from app.services.payroll_rules import accrue, payroll_name_on, payroll_profile
+    from app.services.payroll_rules import accrue, company_balance, payroll_name_on, payroll_profile
 
     year_month = f"{year:04d}-{month:02d}"
     specs = (
@@ -399,9 +420,82 @@ async def payroll_sheet(
     ).scalars().all():
         name_history[int(term.user_id)].append((term.effective_on, term.full_name))
 
+    prior_pairs: dict[int, list[tuple[Decimal, Decimal]]] = defaultdict(list)
+    lookback = _previous_months(year, month, _COMPANY_DEBT_MONTHS)
+    if lookback:
+        oldest_y, oldest_m = lookback[-1]
+        oldest_from = date(oldest_y, oldest_m, 1)
+        past_fot = (
+            await db.execute(
+                select(FinanceOsvRow).where(
+                    FinanceOsvRow.company_id == company_id,
+                    FinanceOsvRow.txn_date >= oldest_from,
+                    FinanceOsvRow.txn_date < day_from,
+                    FinanceOsvRow.expense > 0,
+                )
+            )
+        ).scalars().all()
+        fot_by_month: dict[tuple[int, int], list] = defaultdict(list)
+        for row in past_fot:
+            fot_by_month[(row.txn_date.year, row.txn_date.month)].append(row)
+        past_adj_rows = (
+            await db.execute(
+                select(PayrollAdjustment).where(
+                    PayrollAdjustment.company_id == company_id,
+                    PayrollAdjustment.year_month.in_([f"{py:04d}-{pm:02d}" for py, pm in lookback]),
+                )
+            )
+        ).scalars().all()
+        adj_by_month: dict[str, dict[int, Decimal]] = defaultdict(dict)
+        for row in past_adj_rows:
+            adj_by_month[row.year_month][int(row.user_id)] = Decimal(str(row.amount or 0))
+        from app.routers.sales_kpi_board import _build_sales_report
+        from app.services.sales_kpi_weighted import parse_year_month
+
+        for py, pm in lookback:
+            p_from = date(py, pm, 1)
+            p_to = date(py, pm, monthrange(py, pm)[1])
+            paid_map = _fot_advances(fot_by_month.get((py, pm), []), by_id, name_to_id)
+            bonus_map: dict[int, Decimal] = {}
+            if pipe is not None:
+                past_report = await _build_sales_report(
+                    db,
+                    company_id=company_id,
+                    pipe=pipe,
+                    ym=parse_year_month(f"{py:04d}-{pm:02d}"),
+                )
+                for manager in past_report.managers:
+                    bonus_map[int(manager.manager_id)] = Decimal(str(manager.bonus or 0))
+            past_facts = await load_payroll_facts(
+                db,
+                company_id=company_id,
+                day_from=p_from,
+                day_to=p_to,
+                user_ids=set(by_id),
+            )
+            ym_key = f"{py:04d}-{pm:02d}"
+            for uid, user in by_id.items():
+                role = user.role.value if hasattr(user.role, "value") else str(user.role)
+                profile = payroll_profile(role, spec_by_user.get(uid, ""))
+                card_salary = Decimal(str(user.base_salary)) if user.base_salary is not None else None
+                facts = replace(past_facts.get(uid), kpi_bonus=bonus_map.get(uid, Decimal("0")))
+                accrued_past = accrue(profile, facts, card_salary=card_salary)
+                earned = (accrued_past.base_salary or Decimal("0")) + accrued_past.bonus + adj_by_month.get(ym_key, {}).get(uid, Decimal("0"))
+                prior_pairs[uid].append((earned, paid_map.get(uid, Decimal("0"))))
+
     out: list[FinancePayrollRow] = []
     seen = set(by_id) | set(advances) | set(bonus_by_id)
+    hidden = {
+        int(uid)
+        for uid in (
+            await db.execute(
+                select(PayrollSheetHide.user_id).where(PayrollSheetHide.company_id == company_id)
+            )
+        ).scalars().all()
+    }
     for uid in seen:
+        if uid in hidden:
+            continue
         user = by_id.get(uid)
         if user is None:
             continue
@@ -418,6 +512,7 @@ async def payroll_sheet(
         adjustment = Decimal(str(adj.amount or 0)) if adj is not None else Decimal("0")
         reason = (adj.reason or "") if adj is not None else ""
         payroll_only = (user.email or "").endswith("@staff.internal")
+        debt = company_balance(prior_pairs.get(uid, []))
         if (
             not payroll_only
             and profile == "card"
@@ -425,10 +520,10 @@ async def payroll_sheet(
             and bonus == 0
             and paid == 0
             and adjustment == 0
-            and accrued.debt == 0
+            and debt == 0
         ):
             continue
-        remainder = (salary or Decimal("0")) + bonus + adjustment - paid
+        remainder = (salary or Decimal("0")) + bonus + adjustment + debt - paid
         out.append(
             FinancePayrollRow(
                 user_id=uid,
@@ -442,8 +537,8 @@ async def payroll_sheet(
                 payout_bank=user.payout_bank,
                 base_salary=salary,
                 bonus=bonus,
-                debt=accrued.debt,
-                debt_label=accrued.debt_label,
+                debt=debt,
+                debt_label="Минус — сотрудник должен компании. Без минуса — компания должна сотруднику.",
                 formula=accrued.formula,
                 adjustment=adjustment,
                 adjustment_reason=reason,
@@ -457,6 +552,81 @@ async def payroll_sheet(
         pipeline_name=pipeline_name,
         rows=out,
     )
+
+
+@router.delete("/payroll/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_payroll_member(
+    user_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> None:
+    """Убрать человека с ведомости. Логин сотрудника не закрывается."""
+    _assert_expenses_access(current_user)
+    await assert_finance_access(db, current_user)
+    user = await db.get(User, user_id)
+    if user is None or user.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")
+    exists = (
+        await db.execute(
+            select(PayrollSheetHide.id).where(
+                PayrollSheetHide.company_id == company_id,
+                PayrollSheetHide.user_id == user_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if exists is None:
+        db.add(PayrollSheetHide(company_id=company_id, user_id=user_id))
+    if (user.email or "").endswith("@staff.internal"):
+        user.is_active = False
+    await db.flush()
+
+
+@router.get("/payroll/hidden")
+async def hidden_payroll_members(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[dict]:
+    """Кого сняли с ведомости и ещё можно вернуть."""
+    _assert_expenses_access(current_user)
+    await assert_finance_access(db, current_user)
+    rows = (
+        await db.execute(
+            select(User.id, User.full_name)
+            .join(PayrollSheetHide, PayrollSheetHide.user_id == User.id)
+            .where(
+                PayrollSheetHide.company_id == company_id,
+                User.company_id == company_id,
+                User.is_active.is_(True),
+            )
+            .order_by(User.full_name.asc())
+        )
+    ).all()
+    return [{"user_id": int(uid), "full_name": (name or "").strip()} for uid, name in rows]
+
+
+@router.post("/payroll/members/{user_id}/restore", status_code=status.HTTP_204_NO_CONTENT)
+async def restore_payroll_member(
+    user_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> None:
+    """Вернуть человека на ведомость."""
+    _assert_expenses_access(current_user)
+    await assert_finance_access(db, current_user)
+    row = (
+        await db.execute(
+            select(PayrollSheetHide).where(
+                PayrollSheetHide.company_id == company_id,
+                PayrollSheetHide.user_id == user_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is not None:
+        await db.delete(row)
+    await db.flush()
 
 
 @router.put("/payroll/adjustment", response_model=FinancePayrollRow)

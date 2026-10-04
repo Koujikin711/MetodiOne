@@ -66,16 +66,24 @@ function money(v: number | string | null | undefined) {
   return n.toLocaleString("ru-RU", { maximumFractionDigits: 2, signDisplay: "auto" });
 }
 
+function companyDebtText(v: number | string | null | undefined) {
+  const n = Number(v || 0);
+  const digits = Math.abs(n).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
+  return n < 0 ? `−${digits}` : digits;
+}
+
 function PayrollLine({
   row,
   year,
   month,
   onSaved,
+  onRemove,
 }: {
   row: PayrollRow;
   year: number;
   month: number;
   onSaved: () => void;
+  onRemove: () => void;
 }) {
   const [amount, setAmount] = useState(row.adjustment == null ? "" : String(row.adjustment));
   const [reason, setReason] = useState(row.adjustment_reason || "");
@@ -120,13 +128,16 @@ function PayrollLine({
         />
         {row.expert_title ? <div className="payroll-role">{row.expert_title}</div> : null}
         {row.formula ? <div className="payroll-formula">{row.formula}</div> : null}
+        <button type="button" className="payroll-remove" onClick={onRemove}>
+          Убрать
+        </button>
       </td>
       <td className="payroll-phone tabular-nums">{row.phone || "—"}</td>
       <td>{row.payout_bank || "—"}</td>
       <td className="payroll-num">{row.base_salary == null ? "—" : money(row.base_salary)}</td>
       <td className="payroll-num">{money(row.bonus)}</td>
-      <td className="payroll-num" title={row.debt_label || undefined}>
-        {Number(row.debt || 0) === 0 && !row.debt_label ? "—" : money(row.debt)}
+      <td className={Number(row.debt || 0) < 0 ? "payroll-num payroll-debt-minus" : "payroll-num"} title={row.debt_label || undefined}>
+        {companyDebtText(row.debt)}
       </td>
       <td>
         <input
@@ -170,6 +181,11 @@ export function ExpensesPage() {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"journal" | "payroll">("journal");
   const [employeeId, setEmployeeId] = useState("");
+  const [payrollAddOpen, setPayrollAddOpen] = useState(false);
+  const [payrollName, setPayrollName] = useState("");
+  const [payrollRole, setPayrollRole] = useState("manager");
+  const [payrollSpec, setPayrollSpec] = useState("Невролог");
+  const [payrollPhone, setPayrollPhone] = useState("");
   const year = Number(yearMonth.slice(0, 4));
   const month = Number(yearMonth.slice(5, 7));
 
@@ -200,6 +216,55 @@ export function ExpensesPage() {
     queryKey: ["finance-payroll", year, month],
     queryFn: () => apiFetch<PayrollReport>(`/api/finance/payroll?year=${year}&month=${month}`),
     enabled: view === "payroll",
+  });
+  const addPayrollMutation = useMutation({
+    mutationFn: () =>
+      apiFetch("/api/employees/for-payroll", {
+        method: "POST",
+        body: JSON.stringify({
+          full_name: payrollName.trim(),
+          role: payrollRole,
+          specialization: payrollRole === "expert" ? payrollSpec.trim() : null,
+          phone: payrollPhone.trim() || null,
+        }),
+      }),
+    onSuccess: () => {
+      toast.success("Сотрудник добавлен в ведомость");
+      setPayrollAddOpen(false);
+      setPayrollName("");
+      setPayrollPhone("");
+      void qc.invalidateQueries({ queryKey: ["finance-payroll"] });
+      void qc.invalidateQueries({ queryKey: ["finance-staff"] });
+      void qc.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const removePayrollMutation = useMutation({
+    mutationFn: (userId: number) =>
+      apiFetch(`/api/finance/payroll/members/${userId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast.success("Убран с ведомости");
+      void qc.invalidateQueries({ queryKey: ["finance-payroll"] });
+      void qc.invalidateQueries({ queryKey: ["finance-payroll-hidden"] });
+      void qc.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const hiddenPayrollQuery = useQuery({
+    queryKey: ["finance-payroll-hidden"],
+    queryFn: () => apiFetch<{ user_id: number; full_name: string }[]>("/api/finance/payroll/hidden"),
+    enabled: view === "payroll" && payrollAddOpen,
+  });
+  const restorePayrollMutation = useMutation({
+    mutationFn: (userId: number) =>
+      apiFetch(`/api/finance/payroll/members/${userId}/restore`, { method: "POST" }),
+    onSuccess: () => {
+      toast.success("Сотрудник снова в ведомости");
+      setPayrollAddOpen(false);
+      void qc.invalidateQueries({ queryKey: ["finance-payroll"] });
+      void qc.invalidateQueries({ queryKey: ["finance-payroll-hidden"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
   const [phone, setPhone] = useState("");
   const [viaPerson, setViaPerson] = useState("");
@@ -470,6 +535,9 @@ export function ExpensesPage() {
           <section className="expenses-month">
             <div className="expenses-month__head">
               <h2 className="expenses-month__title">Ведомость</h2>
+              <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={() => setPayrollAddOpen(true)}>
+                Добавить
+              </button>
               <span className="expenses-month__total tabular-nums">
                 {payrollQuery.data?.pipeline_name
                   ? `Бонус из KPI · ${payrollQuery.data.pipeline_name}`
@@ -477,7 +545,7 @@ export function ExpensesPage() {
               </span>
             </div>
             <p className="payroll-note">
-              Фамилия правится в строке. Формула только для чтения. Подарок массажа и ТМС в бонус не входит.
+              Фамилия правится в строке. Формула только для чтения. Долг от компании: минус — сотрудник должен компании, без минуса — компания должна сотруднику.
             </p>
             {payrollQuery.isLoading ? <p className="text-sm mo-muted">Загрузка…</p> : null}
             {payrollQuery.isError ? (
@@ -495,7 +563,7 @@ export function ExpensesPage() {
                     <col className="payroll-col-bank" />
                     <col className="payroll-col-num" />
                     <col className="payroll-col-num" />
-                    <col className="payroll-col-num" />
+                    <col className="payroll-col-debt" />
                     <col className="payroll-col-adjust" />
                     <col className="payroll-col-reason" />
                     <col className="payroll-col-num" />
@@ -508,7 +576,7 @@ export function ExpensesPage() {
                       <th>Выплата</th>
                       <th className="payroll-num">Оклад</th>
                       <th className="payroll-num">Начисление</th>
-                      <th className="payroll-num">Долг</th>
+                      <th className="payroll-num payroll-debt">Долг от компании</th>
                       <th>Корректировка</th>
                       <th>Причина</th>
                       <th className="payroll-num">Авансы</th>
@@ -523,10 +591,100 @@ export function ExpensesPage() {
                         year={year}
                         month={month}
                         onSaved={() => void payrollQuery.refetch()}
+                        onRemove={() => {
+                          if (!window.confirm(`Убрать ${row.full_name} с ведомости?`)) return;
+                          removePayrollMutation.mutate(row.user_id);
+                        }}
                       />
                     ))}
                   </tbody>
                 </table>
+              </div>
+            ) : null}
+            {payrollAddOpen ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+                <div className="w-full max-w-md rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-5 shadow-2xl">
+                  <h3 className="text-base font-semibold">Добавить в ведомость</h3>
+                  <p className="mt-1 text-sm mo-muted">
+                    Человек появится в расчёте зарплаты. Логин для входа не создаётся.
+                  </p>
+                  {(hiddenPayrollQuery.data?.length ?? 0) > 0 ? (
+                    <div className="mt-3">
+                      <div className="text-sm mo-muted">Вернуть на ведомость</div>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {(hiddenPayrollQuery.data ?? []).map((person) => (
+                          <button
+                            key={person.user_id}
+                            type="button"
+                            className="btn-secondary px-3 py-1.5 text-sm"
+                            onClick={() => restorePayrollMutation.mutate(person.user_id)}
+                          >
+                            {person.full_name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="mt-3 grid gap-3">
+                    <label className="text-sm mo-muted">
+                      ФИО
+                      <input className="mo-input mt-1" value={payrollName} onChange={(e) => setPayrollName(e.target.value)} />
+                    </label>
+                    <label className="text-sm mo-muted">
+                      Роль
+                      <select className="mo-input mt-1" value={payrollRole} onChange={(e) => setPayrollRole(e.target.value)}>
+                        <option value="manager">Менеджер</option>
+                        <option value="curator">Куратор</option>
+                        <option value="administrator">Администратор</option>
+                        <option value="expert">Эксперт</option>
+                        <option value="accountant">Бухгалтер</option>
+                        <option value="rop">РОП</option>
+                        <option value="admin">Админ воронки</option>
+                      </select>
+                    </label>
+                    {payrollRole === "expert" ? (
+                      <label className="text-sm mo-muted">
+                        Специальность
+                        <input
+                          className="mo-input mt-1"
+                          value={payrollSpec}
+                          onChange={(e) => setPayrollSpec(e.target.value)}
+                          list="payroll-sheet-specs"
+                        />
+                        <datalist id="payroll-sheet-specs">
+                          <option value="Невролог" />
+                          <option value="Эндокринолог" />
+                          <option value="Невролог курса 15" />
+                          <option value="Массажист" />
+                          <option value="Логомассажист" />
+                          <option value="Остеопат" />
+                          <option value="Нутрициолог" />
+                        </datalist>
+                      </label>
+                    ) : null}
+                    <label className="text-sm mo-muted">
+                      Телефон, если есть
+                      <input className="mo-input mt-1" value={payrollPhone} onChange={(e) => setPayrollPhone(e.target.value)} />
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="btn-primary flex-1 disabled:opacity-60"
+                        disabled={
+                          addPayrollMutation.isPending ||
+                          payrollName.trim().length < 2 ||
+                          (payrollRole === "expert" && payrollSpec.trim().length < 2)
+                        }
+                        onClick={() => addPayrollMutation.mutate()}
+                      >
+                        {addPayrollMutation.isPending ? "Добавление…" : "Добавить"}
+                      </button>
+                      <button type="button" className="btn-secondary" onClick={() => setPayrollAddOpen(false)}>
+                        Закрыть
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : null}
           </section>

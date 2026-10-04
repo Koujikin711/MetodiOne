@@ -6,6 +6,7 @@ from decimal import Decimal
 from app.services.payroll_rules import (
     PayrollFacts,
     accrue,
+    company_balance,
     is_free_gift_session,
     payroll_name_on,
     payroll_profile,
@@ -91,6 +92,13 @@ def test_osteopath_is_thirty_percent_of_own_sessions():
     assert line.bonus == Decimal("300.00")
 
 
+def test_company_balance_is_unpaid_salary_not_patient_debt():
+    owed = company_balance([(Decimal("2000"), Decimal("0")), (Decimal("2500"), Decimal("2000"))])
+    assert owed == Decimal("2500")
+    overpaid = company_balance([(Decimal("2000"), Decimal("3500"))])
+    assert overpaid == Decimal("-1500")
+
+
 def test_manager_bonus_waits_for_first_payments_and_debt_stays_visible():
     low = accrue(
         "manager",
@@ -104,7 +112,7 @@ def test_manager_bonus_waits_for_first_payments_and_debt_stays_visible():
     )
     assert low.base_salary == Decimal("2000")
     assert low.bonus == Decimal("0.00")
-    assert low.debt == Decimal("1500.00")
+    assert low.debt == Decimal("0")
     assert high.bonus == Decimal("800.00")
 
 
@@ -114,7 +122,7 @@ def test_curator_admin_and_nutritionist():
     food = accrue("nutritionist", PayrollFacts(), card_salary=Decimal("1"))
     assert curator.base_salary == Decimal("2000")
     assert curator.bonus == Decimal("100.00")
-    assert curator.debt == Decimal("5000.00")
+    assert curator.debt == Decimal("0")
     assert admin.base_salary == Decimal("3500")
     assert admin.bonus == Decimal("200.00")
     assert food.base_salary == Decimal("4000")
