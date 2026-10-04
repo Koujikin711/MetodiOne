@@ -11,6 +11,8 @@ from app.services.protocol_queue import (
     PROTOCOL_DURATION_DAYS,
     classify_protocol_episodes,
     cluster_unlinked_protocols,
+    protocol_period_covers,
+    protocol_row_sort_key,
     protocol_sale_ids_already_linked,
     purchase_closed_by_kpi_sale,
     requires_attention,
@@ -183,3 +185,21 @@ def test_different_names_stay_separate_protocol_series():
     second.client_phone = "992900000001"
     groups = cluster_unlinked_protocols([(first, ""), (second, "")])
     assert len(groups) == 2
+
+
+def test_newest_protocol_sorts_first():
+    rows = [
+        {"started_at": datetime(2026, 8, 13, tzinfo=UTC), "patient_name": "Старый", "sequence_no": 1},
+        {"started_at": datetime(2026, 10, 4, tzinfo=UTC), "patient_name": "Новый", "sequence_no": 1},
+        {"started_at": None, "patient_name": "Пустой", "sequence_no": 1},
+    ]
+    rows.sort(key=protocol_row_sort_key)
+    assert [r["patient_name"] for r in rows] == ["Новый", "Старый", "Пустой"]
+
+
+def test_booking_inside_existing_protocol_is_not_a_second_one():
+    existing = _p(id=1, at=datetime(2026, 10, 1, tzinfo=UTC))
+    inside = datetime(2026, 10, 10, tzinfo=UTC)
+    later = datetime(2026, 11, 15, tzinfo=UTC)
+    assert protocol_period_covers([existing], inside) is True
+    assert protocol_period_covers([existing], later) is False

@@ -112,8 +112,8 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
               Протоколы — срок {data?.duration_days ?? 30} дней
             </h2>
             <p className="mt-1 max-w-2xl text-xs mo-muted">
-              Кто уже купил Протокол. Срок 30 дней с даты продажи. Без привязки к карточке
-              человек тоже виден — по имени из продажи.
+              Кто уже купил Протокол: продажа в KPI или запись на протокол попадает сюда сама.
+              Сверху — самые свежие. Срок 30 дней с даты продажи.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">

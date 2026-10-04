@@ -225,7 +225,7 @@ function PayrollLine({
           inputMode="decimal"
           value={debt}
           placeholder="0"
-          aria-label={`Долг от компании ${row.full_name}`}
+          aria-label={`долг- и долг+ ${row.full_name}`}
           onChange={(e) => setDebt(e.target.value)}
           onBlur={() => {
             if (parsedDebt !== Number(row.debt || 0)) save.mutate();
@@ -682,7 +682,11 @@ export function ExpensesPage() {
                       <th>Выплата</th>
                       <th className="payroll-num">Оклад</th>
                       <th className="payroll-num">Начисление</th>
-                      <th className="payroll-num payroll-debt">Долг от компании</th>
+                      <th className="payroll-num payroll-debt" title="долг− — сотрудник должен компании. долг+ — компания должна сотруднику.">
+                        долг−
+                        <br />
+                        долг+
+                      </th>
                       <th>Корректировка</th>
                       <th>Причина</th>
                       <th className="payroll-num">Авансы</th>

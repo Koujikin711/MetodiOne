@@ -16,6 +16,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
+    BookingAppointment,
+    BookingDirection,
     ChatThread,
     Lead,
     LeadWaitingCallback,
@@ -41,6 +43,35 @@ PROTOCOL_ENDING_SOON_DAYS_DEFAULT = 7
 PROTOCOL_PREDICATE = "purchase_linked"
 
 ACTIVE_QUEUE_STATES = frozenset({"active", "ending_soon", "ended_waiting_next"})
+
+
+def protocol_row_sort_key(row: dict) -> tuple:
+    """Сначала недавно купленные. Без даты — внизу."""
+    started = row.get("started_at")
+    name = (row.get("patient_name") or "").casefold()
+    seq = int(row.get("sequence_no") or 0)
+    if started is None or not hasattr(started, "timestamp"):
+        return (1, 0.0, name, seq)
+    return (0, -float(started.timestamp()), name, seq)
+
+
+def protocol_period_covers(purchases: list[PatientPurchase], at: datetime | None) -> bool:
+    """У пациента уже есть протокол, в чей 30-дневный срок попадает эта дата."""
+    moment = _utc(at)
+    if moment is None:
+        return False
+    for purchase in purchases:
+        if (purchase.product_kind or "") != "protocol":
+            continue
+        if (purchase.status or "").strip() in ("cancelled", "returned", "refused"):
+            continue
+        start = _utc(purchase.purchased_at)
+        if start is None:
+            continue
+        end = start + timedelta(days=PROTOCOL_DURATION_DAYS)
+        if start - timedelta(days=1) <= moment <= end + timedelta(days=1):
+            return True
+    return False
 
 
 def _utc(dt: datetime | None) -> datetime | None:
@@ -285,6 +316,42 @@ async def build_protocol_queue(
             by_lead[int(sale.lead_id)].append(synthetic)
         else:
             unlinked.append((synthetic, str(mgr_name or "").strip()))
+
+    booking_rows = (
+        await db.execute(
+            select(BookingAppointment, BookingDirection.name)
+            .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.lead_id.is_not(None),
+                BookingAppointment.status.notin_(("cancelled",)),
+            ),
+        )
+    ).all()
+    for appt, direction_name in booking_rows:
+        title = str(appt.service_title or direction_name or "")
+        if classify_product_kind(title) != "protocol" and classify_product_kind(direction_name) != "protocol":
+            continue
+        lid = int(appt.lead_id)
+        if protocol_period_covers(by_lead.get(lid, []), appt.start_at):
+            continue
+        by_lead[lid].append(
+            PatientPurchase(
+                id=-(10**9 + int(appt.id)),
+                company_id=company_id,
+                lead_id=lid,
+                source_type="booking_appointment",
+                source_id=int(appt.id),
+                product_kind="protocol",
+                product_name=title or "Протокол",
+                service_amount=appt.service_amount or 0,
+                paid_amount=appt.paid_amount or 0,
+                status="active",
+                purchased_at=appt.start_at,
+                client_name=appt.patient_name,
+                client_phone=appt.patient_phone,
+            ),
+        )
 
     now = datetime.now(UTC)
     # (lead_id, episode_info)
@@ -532,21 +599,7 @@ async def build_protocol_queue(
                 },
             )
 
-    order = {
-        "ended_waiting_next": 0,
-        "ending_soon": 1,
-        "active": 2,
-        "next_protocol_sold": 3,
-    }
-    rows.sort(
-        key=lambda r: (
-            0 if r["requires_attention"] else 1,
-            order.get(r["state"], 9),
-            r["days_remaining"],
-            (r["patient_name"] or "").casefold(),
-            r["sequence_no"],
-        ),
-    )
+    rows.sort(key=protocol_row_sort_key)
 
     return {
         "predicate": PROTOCOL_PREDICATE,
