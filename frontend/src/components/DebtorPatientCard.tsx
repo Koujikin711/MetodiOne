@@ -62,8 +62,8 @@ export function DebtorPatientCard({
         </div>
 
         {leadId == null ? (
-          <p className="mt-3 text-sm text-[var(--mo-text)]">
-            Этот долг не привязан к лиду. Полная история с первого касания откроется после привязки.
+          <p className="mt-3 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-3 py-2.5 text-sm leading-relaxed text-[var(--mo-text)]">
+            Продажа ещё не связана с карточкой пациента. Приёмов и смены менеджера здесь нет. Они появятся, когда продажу свяжут с человеком в CRM.
           </p>
         ) : cardQuery.isLoading ? (
           <p className="mt-3 text-sm mo-muted">Загрузка карточки…</p>
@@ -72,19 +72,19 @@ export function DebtorPatientCard({
         ) : card ? (
           <div className="mt-4 space-y-4 text-sm">
             <section>
-              <h3 className="mb-1 font-semibold text-[var(--mo-text)]">Первое касание</h3>
+              <h3 className="mb-1 font-semibold text-[var(--mo-text)]">Первое обращение</h3>
               <p className="text-[var(--mo-text)]">
                 {when(card.created_at)}
                 {card.source ? ` · ${card.source}` : ""}
                 {card.stage_name ? ` · ${card.stage_name}` : ""}
               </p>
-              <p className="mo-muted">Сейчас менеджер: {card.manager_name || "не назначен"}</p>
+              <p className="mo-muted">Сейчас ведёт: {card.manager_name || "не назначен"}</p>
             </section>
 
             <section>
               <h3 className="mb-1 font-semibold text-[var(--mo-text)]">Менеджеры</h3>
               {card.managers.length === 0 ? (
-                <p className="mo-muted">Смен менеджера в истории нет.</p>
+                <p className="mo-muted">Менеджер не менялся.</p>
               ) : (
                 <ul className="space-y-1">
                   {card.managers.map((m, i) => (
@@ -99,7 +99,7 @@ export function DebtorPatientCard({
             <section>
               <h3 className="mb-1 font-semibold text-[var(--mo-text)]">Приёмы</h3>
               {card.visits.length === 0 ? (
-                <p className="mo-muted">Записей на этого пациента нет.</p>
+                <p className="mo-muted">Записей пока нет.</p>
               ) : (
                 <ul className="space-y-1.5">
                   {card.visits.map((v, i) => (
@@ -121,7 +121,7 @@ export function DebtorPatientCard({
             <section>
               <h3 className="mb-1 font-semibold text-[var(--mo-text)]">Курс и протокол</h3>
               {card.sales.length === 0 ? (
-                <p className="mo-muted">Продаж курса или протокола, привязанных к этому лиду, нет.</p>
+                <p className="mo-muted">Курса и протокола в карточке пока нет.</p>
               ) : (
                 <ul className="space-y-1.5">
                   {card.sales.map((s, i) => (
@@ -143,22 +143,35 @@ export function DebtorPatientCard({
           </div>
         ) : null}
 
-        <section className="mt-4 border-t border-[var(--mo-border)] pt-3 text-sm">
-          <h3 className="mb-1 font-semibold text-[var(--mo-text)]">Этот долг</h3>
-          <p className="text-[var(--mo-text)]">
-            {row.indicator_name} · {money(row.paid_amount)} из {money(row.service_amount)} · долг {money(row.debt_amount)}
-          </p>
-          <p className="mo-muted">Менеджер строки: {row.manager_name || "—"}</p>
+        <section className="mt-4 rounded-xl border border-[var(--mo-border)] p-3 text-sm">
+          <h3 className="font-semibold text-[var(--mo-text)]">Остаток по этой продаже</h3>
+          <p className="mt-1 font-medium text-[var(--mo-text)]">{row.indicator_name}</p>
+          <dl className="mt-2 grid grid-cols-3 gap-2">
+            <div>
+              <dt className="text-xs mo-muted">Стоимость</dt>
+              <dd className="mt-0.5 tabular-nums text-[var(--mo-text)]">{money(row.service_amount)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs mo-muted">Оплачено</dt>
+              <dd className="mt-0.5 tabular-nums text-[var(--mo-text)]">{money(row.paid_amount)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs mo-muted">Осталось</dt>
+              <dd className="mt-0.5 font-semibold tabular-nums text-[var(--mo-text)]">{money(row.debt_amount)}</dd>
+            </div>
+          </dl>
+          <p className="mt-2 mo-muted">Продажу вёл: {row.manager_name || "не указан"}</p>
           {(row.payments ?? []).length > 0 ? (
-            <ul className="mt-1 space-y-0.5">
+            <ul className="mt-2 space-y-1 border-t border-[var(--mo-border)] pt-2">
               {(row.payments ?? []).map((p, i) => (
-                <li key={`${p.paid_at}-${i}`} className="text-[var(--mo-text)]">
-                  {when(p.paid_at)} · {money(p.amount)}
+                <li key={`${p.paid_at}-${i}`} className="flex justify-between gap-3 text-[var(--mo-text)]">
+                  <span>{when(p.paid_at)}</span>
+                  <span className="tabular-nums">{money(p.amount)}</span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mo-muted">Поступлений по этой строке нет.</p>
+            <p className="mt-2 mo-muted">Оплат по этой продаже пока нет.</p>
           )}
         </section>
       </div>
