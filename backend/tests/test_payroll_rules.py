@@ -11,6 +11,8 @@ from app.services.payroll_rules import (
     is_free_gift_session,
     payroll_name_on,
     payroll_profile,
+    referral_procedure_line,
+    referrer_change_blocked,
     service_line,
 )
 
@@ -158,6 +160,26 @@ def test_manager_bonus_waits_for_first_payments_and_debt_stays_visible():
     assert low.bonus == Decimal("0.00")
     assert low.debt == Decimal("0")
     assert high.bonus == Decimal("800.00")
+
+
+def test_referral_lines_skip_speech_and_courses():
+    assert referral_procedure_line("Массаж") == "massage"
+    assert referral_procedure_line("Логомассаж") is None
+    assert referral_procedure_line("Курс 15") is None
+    assert referral_procedure_line("Остеопатия") == "osteopath"
+    assert referral_procedure_line("ТМС") == "tms"
+    assert referral_procedure_line("Анализы") == "lab"
+    assert referral_procedure_line("Неврология", "Массаж спины") == "massage"
+    assert referral_procedure_line("Массаж", "Логомассаж") is None
+
+
+def test_filled_referrer_stays_unless_owner_or_funnel_admin():
+    assert referrer_change_blocked(None, 1, "administrator") is None
+    assert referrer_change_blocked(2, 2, "administrator") is None
+    assert referrer_change_blocked(2, 3, "administrator") == "Направившего врача менять нельзя"
+    assert referrer_change_blocked(2, 3, "expert") == "Направившего врача менять нельзя"
+    assert referrer_change_blocked(2, 3, "owner") is None
+    assert referrer_change_blocked(2, 3, "admin") is None
 
 
 def test_curator_admin_and_nutritionist():

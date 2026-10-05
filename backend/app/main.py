@@ -52,6 +52,7 @@ from app.database_migrate import (
     ensure_user_presence_days,
     ensure_debtor_collection_notes,
     ensure_user_pay_profile,
+    ensure_booking_referrer,
     ensure_payroll_adjustments,
     ensure_employee_name_terms,
     ensure_payroll_sheet_hides,
@@ -175,6 +176,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_user_presence_days(conn, db_url)
                 await ensure_debtor_collection_notes(conn, db_url)
                 await ensure_user_pay_profile(conn, db_url)
+                await ensure_booking_referrer(conn, db_url)
                 await ensure_payroll_adjustments(conn, db_url)
                 await ensure_employee_name_terms(conn, db_url)
                 await ensure_payroll_sheet_hides(conn, db_url)
@@ -590,6 +592,7 @@ async def lifespan(_: FastAPI):
             await ensure_user_presence_days(conn, settings.database_url)
             await ensure_debtor_collection_notes(conn, settings.database_url)
             await ensure_user_pay_profile(conn, settings.database_url)
+            await ensure_booking_referrer(conn, settings.database_url)
             await ensure_payroll_adjustments(conn, settings.database_url)
             await ensure_employee_name_terms(conn, settings.database_url)
             await ensure_payroll_sheet_hides(conn, settings.database_url)

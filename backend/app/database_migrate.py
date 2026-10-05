@@ -1818,6 +1818,26 @@ async def ensure_clinic_staff_roles(conn: AsyncConnection, database_url: str) ->
             await ac.execute(text(f"ALTER TYPE user_role ADD VALUE '{val}'"))
 
 
+async def ensure_booking_referrer(conn: AsyncConnection, database_url: str) -> None:
+    """Кто направил пациента на остеопатию, ТМС, анализы или массаж."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        r = await conn.execute(text("PRAGMA table_info(booking_appointments)"))
+        cols = {row[1] for row in r.fetchall()}
+        if "referred_by_user_id" not in cols:
+            await conn.execute(
+                text("ALTER TABLE booking_appointments ADD COLUMN referred_by_user_id INTEGER")
+            )
+    else:
+        await conn.execute(
+            text(
+                "ALTER TABLE booking_appointments ADD COLUMN IF NOT EXISTS "
+                "referred_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+            )
+        )
+
+
 async def ensure_user_pay_profile(conn: AsyncConnection, database_url: str) -> None:
     """Оклад и способ выплаты на карточке сотрудника."""
     low = database_url.lower()

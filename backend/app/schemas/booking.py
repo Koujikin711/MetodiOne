@@ -171,6 +171,8 @@ class BookingAppointmentRead(BaseModel):
         description="Способ оплаты: cash | alif | dc",
     )
     responsible_manager_id: int | None
+    referred_by_user_id: int | None = None
+    referred_by_name: str | None = None
     service_title: str | None = None
     direction_name: str | None = None
     specialist_name: str | None = None
@@ -223,6 +225,7 @@ class BookingAppointmentCreate(BaseModel):
         description="Способ оплаты при paid_amount > 0: cash / alif / dc",
     )
     responsible_manager_id: int | None = None
+    referred_by_user_id: int | None = Field(default=None, ge=1)
     extra_phones: list[str] = Field(default_factory=list, max_length=5)
     comment: str | None = Field(None, max_length=2000)
     consecutive_days: int = Field(
@@ -297,11 +300,22 @@ class BookingAppointmentStatusUpdate(BaseModel):
         default=None,
         description="Способ оплаты при доплате остатка на явке: cash / alif / dc",
     )
+    referred_by_user_id: int | None = Field(default=None, ge=1)
 
 
 class BookingAppointmentMove(BaseModel):
     specialist_id: int = Field(..., ge=1)
     start_at: datetime
+
+
+class ReferringDoctorRead(BaseModel):
+    user_id: int
+    full_name: str
+    title: str
+
+
+class BookingReferrerUpdate(BaseModel):
+    referred_by_user_id: int = Field(..., ge=1)
 
 
 class BookingAppointmentPaymentUpdate(BaseModel):
@@ -328,6 +342,7 @@ class BookingAppointmentPaymentUpdate(BaseModel):
         default=False,
         description="Писать оплату в эту запись, даже если пакет копится в другой день",
     )
+    referred_by_user_id: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def _one_of_payment_fields(self) -> "BookingAppointmentPaymentUpdate":

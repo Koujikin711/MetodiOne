@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { isReferralService } from "@/lib/referralService";
 import { canAccessRop } from "@/lib/clinicRoles";
 import { readLeadReturn, type LeadReturnSpot } from "@/lib/leadReturn";
 import { formatMoney } from "@/lib/money";
@@ -19,6 +20,7 @@ import {
 } from "@/lib/bookingTz";
 import { PatientPhone } from "@/components/PatientPhone";
 import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
+import { ReferringDoctorField } from "@/components/ReferringDoctorField";
 import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { auditActionLabel, auditDetailsLabel } from "@/lib/auditLabels";
 import { leadStageChips } from "@/lib/leadStageChips";
@@ -368,17 +370,21 @@ export function LeadDetailPage() {
     onError: (e: Error) => toast.error(e.message || "Не удалось удалить запись"),
   });
 
+  const [referrerDraft, setReferrerDraft] = useState<Record<number, number | null>>({});
+
   const appointmentStatusMutation = useMutation({
     mutationFn: ({
       id,
       status,
       add_payment,
       payment_method,
+      referred_by_user_id,
     }: {
       id: number;
       status: string;
       add_payment?: number;
       payment_method?: "cash" | "alif" | "dc";
+      referred_by_user_id?: number;
     }) =>
       apiFetch(`/api/booking/appointments/${id}/status`, {
         method: "PATCH",
@@ -386,6 +392,7 @@ export function LeadDetailPage() {
           status,
           ...(typeof add_payment === "number" ? { add_payment } : {}),
           ...(payment_method ? { payment_method } : {}),
+          ...(typeof referred_by_user_id === "number" ? { referred_by_user_id } : {}),
         }),
       }),
     onSuccess: (_data, vars) => {
@@ -861,6 +868,20 @@ export function LeadDetailPage() {
                               {(a.comment || "").trim()}
                             </p>
                           ) : null}
+                          <div className="mt-3">
+                            <ReferringDoctorField
+                              appointmentId={a.id}
+                              serviceTitle={a.service_title}
+                              directionName={a.direction_name}
+                              referredByUserId={
+                                a.id in referrerDraft ? referrerDraft[a.id] : a.referred_by_user_id
+                              }
+                              referredByName={a.referred_by_name}
+                              onChange={(userId) =>
+                                setReferrerDraft((prev) => ({ ...prev, [a.id]: userId }))
+                              }
+                            />
+                          </div>
                           {canEditBooking ? (
                             <div className="mt-3">
                               <BookingAttendancePanel
@@ -868,14 +889,29 @@ export function LeadDetailPage() {
                                 disabled={appointmentStatusMutation.isPending}
                                 serviceAmount={Number(a.service_amount ?? 0)}
                                 paidAmount={Number(a.paid_amount ?? 0)}
-                                onStatusChange={(status, add_payment, payment_method) =>
+                                onStatusChange={(status, add_payment, payment_method) => {
+                                  const referred =
+                                    a.id in referrerDraft ? referrerDraft[a.id] : a.referred_by_user_id;
+                                  const paidNow =
+                                    Number(a.paid_amount ?? 0) +
+                                    (typeof add_payment === "number" ? add_payment : 0);
+                                  if (
+                                    status === "completed" &&
+                                    isReferralService(a.service_title, a.direction_name) &&
+                                    paidNow > 0.009 &&
+                                    referred == null
+                                  ) {
+                                    toast.error("Укажите направившего врача");
+                                    return;
+                                  }
                                   appointmentStatusMutation.mutate({
                                     id: a.id,
                                     status,
                                     add_payment,
                                     payment_method,
-                                  })
-                                }
+                                    referred_by_user_id: referred ?? undefined,
+                                  });
+                                }}
                               />
                             </div>
                           ) : null}

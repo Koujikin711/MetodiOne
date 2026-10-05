@@ -773,6 +773,11 @@ class BookingAppointment(Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Невролог или эндокринолог, который направил на остеопатию, ТМС, анализы или массаж.
+    referred_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Текст услуги с формы (без справочника направлений в UI).

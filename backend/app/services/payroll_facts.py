@@ -19,7 +19,12 @@ from app.models import (
     SalesKpiPlanItem,
 )
 from app.services.patient_ltv import classify_product_kind
-from app.services.payroll_rules import PayrollFacts, is_free_gift_session, service_line
+from app.services.payroll_rules import (
+    PayrollFacts,
+    is_free_gift_session,
+    referral_procedure_line,
+    service_line,
+)
 
 
 def _tz() -> ZoneInfo:
@@ -57,9 +62,10 @@ async def load_payroll_facts(
     single = Decimal("0")
     sessions: dict[int, int] = {uid: 0 for uid in user_ids}
     own_osteo: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
-    own_tms: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
-    own_lab: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
-    own_massage: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
+    ref_osteo: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
+    ref_tms: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
+    ref_lab: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
+    ref_massage: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
 
     visits = (
         await db.execute(
@@ -69,6 +75,7 @@ async def load_payroll_facts(
                 BookingAppointment.start_at,
                 BookingAppointment.service_title,
                 BookingAppointment.comment,
+                BookingAppointment.referred_by_user_id,
                 BookingDirection.name,
                 BookingSpecialist.crm_user_id,
             )
@@ -82,7 +89,7 @@ async def load_payroll_facts(
             )
         )
     ).all()
-    for service, paid, start_at, title, comment, direction_name, crm_user_id in visits:
+    for service, paid, start_at, title, comment, referred_by, direction_name, crm_user_id in visits:
         if not _in_month(start_at, tz, day_from, day_to):
             continue
         amount = Decimal(str(paid or 0))
@@ -95,6 +102,16 @@ async def load_payroll_facts(
             continue
         if classify_product_kind(label) == "other_service":
             single += amount
+        ref_line = referral_procedure_line(direction_name, title)
+        rid = int(referred_by) if referred_by is not None else None
+        if rid is not None and rid in user_ids and amount > 0 and ref_line is not None:
+            bucket = {
+                "osteopath": ref_osteo,
+                "tms": ref_tms,
+                "lab": ref_lab,
+                "massage": ref_massage,
+            }[ref_line]
+            bucket[rid] = bucket.get(rid, Decimal("0")) + amount
         uid = int(crm_user_id) if crm_user_id is not None else None
         if uid is None or uid not in user_ids:
             continue
@@ -102,12 +119,6 @@ async def load_payroll_facts(
             sessions[uid] = sessions.get(uid, 0) + 1
         if line == "osteopath":
             own_osteo[uid] = own_osteo.get(uid, Decimal("0")) + amount
-        elif line == "tms":
-            own_tms[uid] = own_tms.get(uid, Decimal("0")) + amount
-        elif line == "lab":
-            own_lab[uid] = own_lab.get(uid, Decimal("0")) + amount
-        elif line == "massage":
-            own_massage[uid] = own_massage.get(uid, Decimal("0")) + amount
 
     referred: dict[int, int] = {uid: 0 for uid in user_ids}
     first_paid: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
@@ -166,10 +177,10 @@ async def load_payroll_facts(
     out: dict[int, PayrollFacts] = {}
     for uid in user_ids:
         out[uid] = PayrollFacts(
-            osteopath_paid=own_osteo.get(uid, Decimal("0")),
-            tms_paid=own_tms.get(uid, Decimal("0")),
-            lab_paid=own_lab.get(uid, Decimal("0")),
-            massage_paid=own_massage.get(uid, Decimal("0")),
+            osteopath_paid=ref_osteo.get(uid, Decimal("0")),
+            tms_paid=ref_tms.get(uid, Decimal("0")),
+            lab_paid=ref_lab.get(uid, Decimal("0")),
+            massage_paid=ref_massage.get(uid, Decimal("0")),
             own_sessions=sessions.get(uid, 0),
             own_osteopath_paid=own_osteo.get(uid, Decimal("0")),
             referred_main_courses=referred.get(uid, 0),

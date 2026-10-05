@@ -67,6 +67,29 @@ def service_line(name: str | None) -> str:
     return "other"
 
 
+_REFERRAL_LINES = frozenset({"osteopath", "tms", "lab", "massage"})
+
+
+def referral_procedure_line(*names: str | None) -> str | None:
+    """Остеопатия, ТМС, анализы, массаж. Логомассаж и курс сюда не входят."""
+    lines = [service_line(name) for name in names if (name or "").strip()]
+    if "speech_massage" in lines:
+        return None
+    for line in lines:
+        if line in _REFERRAL_LINES:
+            return line
+    return None
+
+
+def referrer_change_blocked(current_id: int | None, new_id: int, role: str) -> str | None:
+    """Уже указанного врача не переписывают. Исправить может владелец или админ воронки."""
+    if current_id is None or int(current_id) == int(new_id):
+        return None
+    if role in ("owner", "super_owner", "admin"):
+        return None
+    return "Направившего врача менять нельзя"
+
+
 def payroll_profile(role: str, specialization: str | None = None, *_names: str | None) -> str:
     """Правило ведомости. У эксперта его задаёт специализация, не ФИО.
 
@@ -220,7 +243,7 @@ def accrue(profile: str, facts: PayrollFacts, *, card_salary: Decimal | None) ->
             bonus,
             Decimal("0"),
             "",
-            "5 000 + 3% остеопат + 5% ТМС + 5% анализы + 5% массаж, только свои визиты",
+            "5 000 + 3% остеопат + 5% ТМС + 5% анализы + 5% массаж с оплаченных направлений",
         )
     if profile == "endocrinologist":
         bonus = _procedure_bonus(facts)
@@ -229,7 +252,7 @@ def accrue(profile: str, facts: PayrollFacts, *, card_salary: Decimal | None) ->
             bonus,
             Decimal("0"),
             "",
-            "3 000 + 3% остеопат + 5% ТМС + 5% анализы + 5% массаж, только свои визиты",
+            "3 000 + 3% остеопат + 5% ТМС + 5% анализы + 5% массаж с оплаченных направлений",
         )
     if profile == "neurologist_referral":
         bonus = _q(Decimal(facts.referred_main_courses) * REFERRAL_BONUS)

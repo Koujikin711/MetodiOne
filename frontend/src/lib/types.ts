@@ -656,6 +656,8 @@ export interface BookingAppointment {
   /** Способ оплаты: cash | alif | dc */
   payment_method?: "cash" | "alif" | "dc" | null;
   responsible_manager_id: number | null;
+  referred_by_user_id?: number | null;
+  referred_by_name?: string | null;
   service_title?: string | null;
   direction_name: string | null;
   specialist_name: string | null;

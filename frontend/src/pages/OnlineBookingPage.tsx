@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
+import { ReferringDoctorField } from "@/components/ReferringDoctorField";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { BookingDirectionsPanel } from "@/components/BookingDirectionsPanel";
 import { BookingWeekSpecialistGrid } from "@/components/BookingWeekSpecialistGrid";
@@ -26,6 +27,7 @@ import {
   isHiddenBookingDirectionName,
 } from "@/lib/bookingDirectionKinds";
 import { formatMoney } from "@/lib/money";
+import { isReferralService } from "@/lib/referralService";
 import { BOOKING_TIME_ZONE, addCalendarDaysInBookingTz, datetimeLocalBookingToIsoUtc, formatWeekRangeLabel, weekWorkDayYmds, ymdInBookingTz } from "@/lib/bookingTz";
 import {
   allSpecialistsSelected,
@@ -187,6 +189,7 @@ export function OnlineBookingPage() {
   const [specialistId, setSpecialistId] = useState(0);
   const [serviceDirectionId, setServiceDirectionId] = useState<number | "">("");
   const [serviceTitle, setServiceTitle] = useState("");
+  const [referredByUserId, setReferredByUserId] = useState<number | "">("");
   const [startAt, setStartAt] = useState("");
   const [serviceAmount, setServiceAmount] = useState("");
   const [paidAmount, setPaidAmount] = useState("");
@@ -593,6 +596,7 @@ export function OnlineBookingPage() {
       setComment("");
       setServiceTitle("");
       setServiceDirectionId("");
+      setReferredByUserId("");
       setServiceAmount("");
       setPaidAmount("");
       setPaymentMethod("");
@@ -619,11 +623,13 @@ export function OnlineBookingPage() {
       status,
       add_payment,
       payment_method,
+      referred_by_user_id,
     }: {
       id: number;
       status: string;
       add_payment?: number;
       payment_method?: "cash" | "alif" | "dc";
+      referred_by_user_id?: number;
     }) =>
       apiFetch<BookingAppointment>(`/api/booking/appointments/${id}/status`, {
         method: "PATCH",
@@ -631,6 +637,7 @@ export function OnlineBookingPage() {
           status,
           ...(typeof add_payment === "number" ? { add_payment } : {}),
           ...(payment_method ? { payment_method } : {}),
+          ...(typeof referred_by_user_id === "number" ? { referred_by_user_id } : {}),
         }),
       }),
     onSuccess: (data, { id, status }) => {
@@ -876,11 +883,13 @@ export function OnlineBookingPage() {
     if (isHiddenBookingDirectionName(cur.name)) {
       setServiceDirectionId("");
       setServiceTitle("");
+      setReferredByUserId("");
       return;
     }
     if (!canBookCourses && isAdminOnlyBookingDirectionName(cur.name)) {
       setServiceDirectionId("");
       setServiceTitle("");
+      setReferredByUserId("");
     }
   }, [canBookCourses, serviceDirectionId, directionsQuery.data]);
 
@@ -940,6 +949,31 @@ export function OnlineBookingPage() {
     setServiceAmount(String(fixedServiceAmount));
   }, [fixedServiceAmount, canOverrideKpiPrice]);
 
+  function confirmVisit(
+    a: BookingAppointment,
+    status: string,
+    add_payment?: number,
+    payment_method?: "cash" | "alif" | "dc",
+  ) {
+    const paidNow = Number(a.paid_amount ?? 0) + (typeof add_payment === "number" ? add_payment : 0);
+    if (
+      status === "completed" &&
+      isReferralService(a.service_title, a.direction_name) &&
+      paidNow > 0.009 &&
+      a.referred_by_user_id == null
+    ) {
+      toast.error("Укажите направившего врача");
+      return;
+    }
+    statusMutation.mutate({
+      id: a.id,
+      status,
+      add_payment,
+      payment_method,
+      referred_by_user_id: a.referred_by_user_id ?? undefined,
+    });
+  }
+
   function onAppointmentCompleteToggle(a: BookingAppointment, completed: boolean) {
     if (!completed) {
       statusMutation.mutate({ id: a.id, status: "booked" });
@@ -949,13 +983,22 @@ export function OnlineBookingPage() {
     const paid = Number(a.paid_amount ?? 0);
     // 100% уже оплачено — просто отмечаем явку, без окна доплаты.
     const debt = service > 0 && paid + 0.009 < service ? Math.max(0, service - paid) : 0;
+    if (
+      isReferralService(a.service_title, a.direction_name) &&
+      paid > 0.009 &&
+      a.referred_by_user_id == null
+    ) {
+      setApptDetail(a);
+      toast.error("Укажите направившего врача");
+      return;
+    }
     if (debt > 0.009) {
       // Нужен ввод остатка — открываем карточку записи с панелью явки.
       setApptDetail(a);
       toast("Укажите сумму остатка при явке");
       return;
     }
-    statusMutation.mutate({ id: a.id, status: "completed" });
+    confirmVisit(a, "completed");
   }
 
   function onCalendarAppointmentClick(a: BookingAppointment) {
@@ -1028,6 +1071,7 @@ export function OnlineBookingPage() {
     }
     setServiceDirectionId(dir.id);
     setServiceTitle(dir.name);
+    if (!isReferralService(dir.name, dir.name)) setReferredByUserId("");
   }
 
   function handleMoveAppointment(payload: { appointmentId: number; specialistId: number; minuteOfDay: number }) {
@@ -1195,6 +1239,9 @@ export function OnlineBookingPage() {
       payload.consecutive_days = consecutiveDays;
     } else {
       payload.consecutive_days = 1;
+    }
+    if (typeof referredByUserId === "number") {
+      payload.referred_by_user_id = referredByUserId;
     }
     createMutation.mutate(payload);
   }
@@ -1485,6 +1532,14 @@ export function OnlineBookingPage() {
                     ))}
                   </select>
                 </label>
+                <ReferringDoctorField
+                  serviceTitle={serviceTitle}
+                  directionName={
+                    (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId)?.name
+                  }
+                  referredByUserId={typeof referredByUserId === "number" ? referredByUserId : null}
+                  onChange={(userId) => setReferredByUserId(userId ?? "")}
+                />
                 <label className="block text-sm mo-muted">
                   Специалист
                   <select
@@ -2086,6 +2141,22 @@ export function OnlineBookingPage() {
                   </span>
                 ) : null}
               </div>
+              <div className="mt-3">
+                <ReferringDoctorField
+                  appointmentId={apptDetail.id}
+                  serviceTitle={apptDetail.service_title}
+                  directionName={apptDetail.direction_name}
+                  referredByUserId={apptDetail.referred_by_user_id}
+                  referredByName={apptDetail.referred_by_name}
+                  onChange={(userId, fullName) =>
+                    setApptDetail((cur) =>
+                      cur && cur.id === apptDetail.id
+                        ? { ...cur, referred_by_user_id: userId, referred_by_name: fullName }
+                        : cur,
+                    )
+                  }
+                />
+              </div>
               {canEditBooking ? (
                 <BookingAttendancePanel
                   status={apptDetail.status}
@@ -2093,7 +2164,7 @@ export function OnlineBookingPage() {
                   serviceAmount={Number(apptDetail.service_amount ?? 0)}
                   paidAmount={Number(apptDetail.paid_amount ?? 0)}
                   onStatusChange={(status, add_payment, payment_method) =>
-                    statusMutation.mutate({ id: apptDetail.id, status, add_payment, payment_method })
+                    confirmVisit(apptDetail, status, add_payment, payment_method)
                   }
                 />
               ) : null}

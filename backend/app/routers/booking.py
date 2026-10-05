@@ -14,6 +14,11 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.services.chief_expert_access import is_chief_expert
+from app.services.payroll_rules import (
+    payroll_profile,
+    referral_procedure_line,
+    referrer_change_blocked,
+)
 from app.services.booking_expert_sync import ensure_active_expert_booking_profiles
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
@@ -39,6 +44,8 @@ from app.schemas.booking import (
     BookingAppointmentDetailsUpdate,
     BookingAppointmentRefund,
     BookingAppointmentStatusUpdate,
+    BookingReferrerUpdate,
+    ReferringDoctorRead,
     BookingFreeConsultHint,
     BookingPatientHistoryItem,
     BookingPatientSuggestItem,
@@ -250,6 +257,89 @@ async def _assert_expert_specialist_access(
         )
 
 
+_REFERRER_ROLES = {
+    UserRole.expert,
+    UserRole.administrator,
+    UserRole.admin,
+    UserRole.owner,
+    UserRole.super_owner,
+    UserRole.manager,
+}
+
+
+async def _referring_doctors(db: AsyncSession, company_id: int) -> dict[int, tuple[str, str]]:
+    """user_id → (ФИО, специализация). Только невролог и эндокринолог."""
+    rows = (
+        await db.execute(
+            select(BookingSpecialist, User)
+            .join(User, User.id == BookingSpecialist.crm_user_id)
+            .where(
+                BookingSpecialist.company_id == company_id,
+                BookingSpecialist.is_active.is_(True),
+                BookingSpecialist.crm_user_id.is_not(None),
+                User.company_id == company_id,
+                User.is_active.is_(True),
+            )
+        )
+    ).all()
+    out: dict[int, tuple[str, str]] = {}
+    for spec, user in rows:
+        profile = payroll_profile("expert", spec.specialization)
+        if profile not in ("neurologist", "endocrinologist", "neurologist_referral"):
+            continue
+        title = (spec.specialization or "").strip() or "Врач"
+        out[int(user.id)] = ((user.full_name or spec.full_name or "").strip(), title)
+    return out
+
+
+async def _referrer_name(db: AsyncSession, user_id: int | None) -> str | None:
+    if user_id is None:
+        return None
+    user = await db.get(User, int(user_id))
+    if user is None:
+        return None
+    name = (user.full_name or "").strip()
+    return name or None
+
+
+async def _set_referrer(
+    db: AsyncSession,
+    appt: BookingAppointment,
+    *,
+    user_id: int,
+    current_user: User,
+    company_id: int,
+    direction_name: str | None,
+    service_title: str | None,
+) -> None:
+    if referral_procedure_line(direction_name, service_title) is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Направившего указывают для остеопатии, ТМС, анализов и массажа",
+        )
+    doctors = await _referring_doctors(db, company_id)
+    if int(user_id) not in doctors:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Направить может только невролог или эндокринолог",
+        )
+    role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if role == "expert" and int(user_id) != int(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Врач указывает только себя",
+        )
+    if current_user.role not in _REFERRER_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Направившего врача указывает врач или администратор",
+        )
+    blocked = referrer_change_blocked(appt.referred_by_user_id, int(user_id), role)
+    if blocked:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=blocked)
+    appt.referred_by_user_id = int(user_id)
+
+
 async def _assert_expert_readonly_for_booking(db: AsyncSession, current_user: User) -> None:
     if current_user.role != UserRole.expert:
         return
@@ -397,6 +487,8 @@ async def _booking_appointment_read(
         direction_name=direction_name,
         specialist_name=specialist_name,
         comment=a.comment,
+        referred_by_user_id=getattr(a, "referred_by_user_id", None),
+        referred_by_name=await _referrer_name(db, getattr(a, "referred_by_user_id", None)),
         can_manage_journal=can,
         visit_number=visit_number,
         visit_label=visit_label,
@@ -2246,6 +2338,21 @@ async def create_appointment(
             detail="Укажите телефон пациента (или выберите клиента из CRM с номером)",
         )
 
+    if body.referred_by_user_id is not None:
+        probe = BookingAppointment(company_id=company_id, referred_by_user_id=None)
+        await _set_referrer(
+            db,
+            probe,
+            user_id=int(body.referred_by_user_id),
+            current_user=current_user,
+            company_id=company_id,
+            direction_name=direction.name,
+            service_title=service_title,
+        )
+        referred_by_id = int(probe.referred_by_user_id) if probe.referred_by_user_id else None
+    else:
+        referred_by_id = None
+
     created_appts: list[BookingAppointment] = []
     wa_sent = False
     initial_paid = float(paid_amount_value or 0)
@@ -2304,6 +2411,7 @@ async def create_appointment(
             created_by_user_id=current_user.id,
             comment=((body.comment or "").strip() or None) if idx == 0 else None,
             service_title=service_title,
+            referred_by_user_id=referred_by_id,
             created_at=now,
             updated_at=now,
         )
@@ -2544,6 +2652,59 @@ async def patch_appointment_details(
     )
 
 
+@router.get("/referring-doctors", response_model=list[ReferringDoctorRead])
+async def list_referring_doctors(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[ReferringDoctorRead]:
+    doctors = await _referring_doctors(db, company_id)
+    return [
+        ReferringDoctorRead(user_id=uid, full_name=name or "Врач", title=title)
+        for uid, (name, title) in sorted(doctors.items(), key=lambda item: item[1][0])
+    ]
+
+
+@router.patch("/appointments/{appointment_id}/referrer", response_model=BookingAppointmentRead)
+async def patch_appointment_referrer(
+    appointment_id: int,
+    body: BookingReferrerUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> BookingAppointmentRead:
+    a = await db.get(BookingAppointment, appointment_id)
+    if a is None or a.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+    direction = await db.get(BookingDirection, a.direction_id)
+    await _set_referrer(
+        db,
+        a,
+        user_id=int(body.referred_by_user_id),
+        current_user=current_user,
+        company_id=company_id,
+        direction_name=direction.name if direction else None,
+        service_title=a.service_title,
+    )
+    a.updated_at = datetime.now(UTC)
+    await write_audit_event(
+        db,
+        entity_type="booking_appointment",
+        entity_id=a.id,
+        action="appointment_referrer_updated",
+        current_user=current_user,
+        details=f"referred_by_user_id={a.referred_by_user_id}",
+    )
+    specialist = await db.get(BookingSpecialist, a.specialist_id)
+    return await _booking_appointment_read(
+        db,
+        a,
+        direction_name=direction.name if direction else "",
+        specialist_name=specialist.full_name if specialist else "",
+        viewer=current_user,
+    )
+
+
 @router.patch("/appointments/{appointment_id}/status", response_model=BookingAppointmentRead)
 async def patch_appointment_status(
     appointment_id: int,
@@ -2556,6 +2717,17 @@ async def patch_appointment_status(
     a = await db.get(BookingAppointment, appointment_id)
     if a is None or a.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+    direction = await db.get(BookingDirection, a.direction_id)
+    if body.referred_by_user_id is not None:
+        await _set_referrer(
+            db,
+            a,
+            user_id=int(body.referred_by_user_id),
+            current_user=current_user,
+            company_id=company_id,
+            direction_name=direction.name if direction else None,
+            service_title=a.service_title,
+        )
     if current_user.role == UserRole.expert and a.specialist_id is not None:
         specialist = await db.get(BookingSpecialist, a.specialist_id)
         if specialist is not None:
@@ -2631,6 +2803,16 @@ async def patch_appointment_status(
                     f"prev_paid={prev_paid}; add_payment={add}; new_paid={new_paid}; "
                     f"payment_method={bill_target.payment_method}; debt_was={debt}"
                 ),
+            )
+        paid_now = float(a.paid_amount or 0) if bill_target.id != a.id else float(bill_target.paid_amount or 0)
+        if (
+            paid_now > 0
+            and referral_procedure_line(direction.name if direction else None, a.service_title) is not None
+            and a.referred_by_user_id is None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Укажите направившего врача",
             )
 
     a.status = body.status
@@ -2724,6 +2906,16 @@ async def patch_appointment_payment(
     if direction is None or specialist is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Направление или специалист не найдены")
     session_billing = _course_streams_enabled_for_booking(specialist, direction)
+    if body.referred_by_user_id is not None:
+        await _set_referrer(
+            db,
+            appt,
+            user_id=int(body.referred_by_user_id),
+            current_user=current_user,
+            company_id=company_id,
+            direction_name=direction.name,
+            service_title=appt.service_title,
+        )
 
     # Доплату можно вносить в любой день: кто уже прошёл journal-check
     # (owner / admin / менеджер воронки / главный эксперт).
@@ -2780,6 +2972,18 @@ async def patch_appointment_payment(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Укажите способ оплаты: наличные, Алиф или DC",
         )
+
+    if (
+        new_paid > 0
+        and referral_procedure_line(direction.name, appt.service_title) is not None
+    ):
+        if appt.referred_by_user_id is not None and target.id != appt.id:
+            target.referred_by_user_id = appt.referred_by_user_id
+        if target.referred_by_user_id is None and appt.referred_by_user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Укажите направившего врача",
+            )
 
     target.paid_amount = new_paid
     if body.paid_at is not None:
