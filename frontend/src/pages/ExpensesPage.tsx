@@ -16,7 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import { GripVertical } from "@/components/icons";
@@ -97,6 +97,43 @@ function moneyInput(v: number | string | null | undefined): string {
   return Number.isFinite(n) ? String(n) : "";
 }
 
+function PayrollInfo({ title, formula }: { title: string; formula: string }) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [tip, setTip] = useState<{ top: number; left: number } | null>(null);
+  const text = [title, formula].filter(Boolean).join("\n");
+  if (!text) return null;
+  const show = () => {
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTip({
+      top: rect.bottom + 6,
+      left: Math.max(8, Math.min(rect.left - 8, window.innerWidth - 280)),
+    });
+  };
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className="payroll-info"
+        aria-label="Формула начисления"
+        onMouseEnter={show}
+        onMouseLeave={() => setTip(null)}
+        onFocus={show}
+        onBlur={() => setTip(null)}
+      >
+        i
+      </button>
+      {tip ? (
+        <span className="payroll-info-tip" role="tooltip" style={{ top: tip.top, left: tip.left }}>
+          {title ? <strong>{title}</strong> : null}
+          {formula ? <span>{formula}</span> : null}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 function PayrollLine({
   row,
   year,
@@ -111,7 +148,6 @@ function PayrollLine({
   onRemove: () => void;
 }) {
   const [amount, setAmount] = useState(row.adjustment == null ? "" : String(row.adjustment));
-  const [reason, setReason] = useState(row.adjustment_reason || "");
   const [debt, setDebt] = useState(() => (Number(row.debt || 0) ? String(row.debt) : ""));
   const [salary, setSalary] = useState(moneyInput(row.base_salary));
   const [bonus, setBonus] = useState(moneyInput(row.bonus));
@@ -131,7 +167,7 @@ function PayrollLine({
       const body: Record<string, unknown> = {
         user_id: row.user_id,
         amount: Number(amount || 0),
-        reason,
+        reason: row.adjustment_reason || "",
         company_debt: parsedDebt,
       };
       if (parsedSalary !== Number(row.base_salary || 0)) body.base_salary = parsedSalary;
@@ -163,9 +199,6 @@ function PayrollLine({
     onSuccess: () => onSaved(),
     onError: (e: Error) => toast.error(e.message),
   });
-  const unchanged =
-    Number(amount || 0) === Number(row.adjustment || 0) &&
-    reason.trim() === (row.adjustment_reason || "").trim();
   return (
     <tr
       ref={setNodeRef}
@@ -193,12 +226,11 @@ function PayrollLine({
               if (next.length >= 2 && next !== row.full_name.trim()) saveName.mutate();
             }}
           />
+          <PayrollInfo title={row.expert_title || ""} formula={row.formula || ""} />
+          <button type="button" className="payroll-remove" onClick={onRemove}>
+            Убрать
+          </button>
         </div>
-        {row.expert_title ? <div className="payroll-role">{row.expert_title}</div> : null}
-        {row.formula ? <div className="payroll-formula">{row.formula}</div> : null}
-        <button type="button" className="payroll-remove" onClick={onRemove}>
-          Убрать
-        </button>
       </td>
       <td className="payroll-phone">
         <input
@@ -276,18 +308,7 @@ function PayrollLine({
           aria-label={`Корректировка ${row.full_name}`}
           onChange={(e) => setAmount(e.target.value)}
           onBlur={() => {
-            if (!unchanged) save.mutate();
-          }}
-        />
-      </td>
-      <td>
-        <input
-          className="mo-input payroll-reason"
-          value={reason}
-          aria-label={`Причина корректировки ${row.full_name}`}
-          onChange={(e) => setReason(e.target.value)}
-          onBlur={() => {
-            if (!unchanged) save.mutate();
+            if (Number(amount || 0) !== Number(row.adjustment || 0)) save.mutate();
           }}
         />
       </td>
@@ -735,7 +756,6 @@ export function ExpensesPage() {
                     <col className="payroll-col-num" />
                     <col className="payroll-col-debt" />
                     <col className="payroll-col-adjust" />
-                    <col className="payroll-col-reason" />
                     <col className="payroll-col-num" />
                     <col className="payroll-col-num" />
                   </colgroup>
@@ -752,7 +772,6 @@ export function ExpensesPage() {
                         долг+
                       </th>
                       <th>Корректировка</th>
-                      <th>Причина</th>
                       <th className="payroll-num">Авансы</th>
                       <th className="payroll-num">К выплате</th>
                     </tr>

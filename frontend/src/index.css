@@ -6079,18 +6079,17 @@ fieldset.extra-services-field {
   border-spacing: 0;
 }
 
-.payroll-sheet col.payroll-col-person { width: 20%; }
-.payroll-sheet col.payroll-col-phone { width: 11%; }
-.payroll-sheet col.payroll-col-bank { width: 6%; }
-.payroll-sheet col.payroll-col-num { width: 7.4%; }
-.payroll-sheet col.payroll-col-debt { width: 9%; }
-.payroll-sheet col.payroll-col-adjust { width: 8%; }
-.payroll-sheet col.payroll-col-reason { width: 12%; }
+.payroll-sheet col.payroll-col-person { width: 24%; }
+.payroll-sheet col.payroll-col-phone { width: 13%; }
+.payroll-sheet col.payroll-col-bank { width: 8%; }
+.payroll-sheet col.payroll-col-num { width: 9%; }
+.payroll-sheet col.payroll-col-debt { width: 10%; }
+.payroll-sheet col.payroll-col-adjust { width: 10%; }
 
 .payroll-sheet.kpi-data-table thead th,
 .payroll-sheet.kpi-data-table tbody td {
-  padding: 0.14rem 0.7rem;
-  vertical-align: top;
+  padding: 0.62rem 0.55rem;
+  vertical-align: middle;
 }
 
 .payroll-sheet.kpi-data-table thead th:first-child,
@@ -6104,7 +6103,7 @@ fieldset.extra-services-field {
 }
 
 .payroll-sheet.kpi-data-table thead th {
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -6132,7 +6131,6 @@ fieldset.extra-services-field {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   min-width: 0;
-  padding-top: 0.22rem;
 }
 
 .payroll-sheet.kpi-data-table tbody td.payroll-pay {
@@ -6142,8 +6140,7 @@ fieldset.extra-services-field {
 .payroll-sheet.kpi-data-table tbody td.payroll-phone {
   white-space: nowrap;
   min-width: 0;
-  padding-top: 0.22rem;
-  font-size: 0.78rem;
+  font-size: 0.95rem;
 }
 
 .payroll-sheet.kpi-data-table tbody td.payroll-person {
@@ -6153,8 +6150,8 @@ fieldset.extra-services-field {
 
 .payroll-person-head {
   display: flex;
-  align-items: flex-start;
-  gap: 0.15rem;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .payroll-person-head .payroll-name {
@@ -6167,8 +6164,7 @@ fieldset.extra-services-field {
   align-items: center;
   justify-content: center;
   width: 1rem;
-  height: 1.35rem;
-  margin-top: 0.08rem;
+  height: 1.5rem;
   padding: 0;
   border: 0;
   background: transparent;
@@ -6186,50 +6182,75 @@ fieldset.extra-services-field {
 }
 
 .payroll-sheet .payroll-name,
-.payroll-sheet .payroll-adjust,
-.payroll-sheet .payroll-reason {
+.payroll-sheet .payroll-adjust {
   width: 100%;
   min-width: 0;
-  border-radius: 0.4rem;
-  padding: 0.08rem 0.55rem;
-  font-size: 0.78rem;
-  line-height: 1.2;
+  border-radius: 0.5rem;
+  padding: 0.38rem 0.65rem;
+  font-size: 0.95rem;
+  line-height: 1.35;
   box-shadow: none;
 }
 
-.payroll-sheet .payroll-role,
-.payroll-sheet .payroll-formula {
-  margin-top: 0.02rem;
-  padding-left: 0.55rem;
-  padding-right: 0.35rem;
-  max-width: none;
-  line-height: 1.15;
-  white-space: normal;
-  font-size: 10px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.payroll-sheet .payroll-role {
-  color: var(--mo-text);
-  font-weight: 600;
-}
-
-.payroll-sheet .payroll-formula {
+.payroll-info {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--mo-text-muted, #8b97ab) 55%, transparent);
+  border-radius: 999px;
+  background: transparent;
   color: var(--mo-text-muted, #8b97ab);
+  font-size: 0.72rem;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+}
+
+.payroll-info:hover,
+.payroll-info:focus-visible {
+  color: var(--mo-text);
+  border-color: var(--mo-text);
+}
+
+.payroll-info-tip {
+  position: fixed;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: max-content;
+  max-width: 17rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--mo-border);
+  border-radius: 0.55rem;
+  background: var(--mo-surface-elevated, #1c2433);
+  color: var(--mo-text);
+  font-size: 0.84rem;
+  line-height: 1.35;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+.payroll-info-tip strong {
+  font-weight: 650;
 }
 
 .payroll-remove {
-  margin-top: 0.15rem;
+  flex: 0 0 auto;
+  margin: 0;
   padding: 0;
   border: 0;
   background: none;
   color: var(--mo-text-muted, #8b97ab);
-  font-size: 11px;
+  font-size: 0.78rem;
   line-height: 1.2;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .payroll-remove:hover {
