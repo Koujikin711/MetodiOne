@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -173,7 +174,13 @@ async def login(
         result = await db.execute(select(User).where(User.phone == identifier, User.is_active.is_(True)))
         candidates = list(result.scalars().all())
 
-    matches = [u for u in candidates if verify_password(body.password, u.hashed_password)]
+    # bcrypt (12 раундов) занимает сотни мс и в одном процессе блокирует
+    # все остальные запросы. На единственной реплике это даёт 502 на входе.
+    checked: list[User] = []
+    for candidate in candidates:
+        if await asyncio.to_thread(verify_password, body.password, candidate.hashed_password):
+            checked.append(candidate)
+    matches = checked
     if matches and all((u.email or "").endswith("@staff.internal") for u in matches):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -262,9 +269,10 @@ async def change_password(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
 ) -> Token:
-    if not verify_password(body.old_password, current_user.hashed_password):
+    old_ok = await asyncio.to_thread(verify_password, body.old_password, current_user.hashed_password)
+    if not old_ok:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный текущий пароль")
-    current_user.hashed_password = hash_password(body.new_password)
+    current_user.hashed_password = await asyncio.to_thread(hash_password, body.new_password)
     current_user.must_change_password = False
     await db.flush()
     extra = jwt_claims_for_user(current_user)

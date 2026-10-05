@@ -85,6 +85,28 @@ function formatFetchFailure(url: string, err: unknown): string {
   return `Нет связи с API (${detail}).`;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+/** Повтор только там, где второй запрос не создаст вторую оплату или запись. */
+function canRetryTransient(path: string, method: string): boolean {
+  if (method === "GET" || method === "HEAD") return true;
+  return method === "POST" && path.split("?")[0] === "/api/auth/login";
+}
+
+function isTransientGateway(status: number, text: string, contentType: string | null): boolean {
+  if (status !== 502 && status !== 503 && status !== 504) return false;
+  if (!text.trim()) return true;
+  if (looksLikeHtmlPayload(text, contentType)) return true;
+  const ct = (contentType || "").toLowerCase();
+  return !ct.includes("json");
+}
+
+function gatewayUserMessage(status: number): string {
+  return `Сервер клиники временно недоступен (${status}). Подождите несколько секунд и повторите.`;
+}
+
 export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
   const { timeoutMs: _timeoutOverride, ...fetchInit } = init;
   const headers = new Headers(fetchInit.headers);
@@ -100,33 +122,57 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
 
   const url = resolveApiUrl(path);
   const timeoutMs = requestTimeoutMs(init, isFormData);
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  const method = (fetchInit.method ?? "GET").toUpperCase();
+  const retryTransient = canRetryTransient(path, method);
+  const maxAttempts = retryTransient ? 3 : 1;
 
-  let res: Response;
+  let res!: Response;
   let text = "";
   let data: unknown = null;
-  try {
-    res = await fetch(url, { ...fetchInit, headers, signal: controller.signal });
-    text = await res.text();
-    if (text && !looksLikeHtmlPayload(text, res.headers.get("content-type"))) {
-      try {
-        data = JSON.parse(text) as unknown;
-      } catch {
-        data = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      res = await fetch(url, { ...fetchInit, headers, signal: controller.signal });
+      text = await res.text();
+      data = null;
+      if (text && !looksLikeHtmlPayload(text, res.headers.get("content-type"))) {
+        try {
+          data = JSON.parse(text) as unknown;
+        } catch {
+          data = null;
+        }
       }
+    } catch (e: unknown) {
+      const aborted =
+        (e instanceof DOMException && e.name === "AbortError") ||
+        (e instanceof Error && e.name === "AbortError");
+      if (aborted) {
+        const sec = Math.round(timeoutMs / 1000);
+        throw new Error(`Сервер не ответил за ${sec} с. Попробуйте ещё раз.`);
+      }
+      if (retryTransient && attempt < maxAttempts) {
+        await sleep(attempt === 1 ? 700 : 1600);
+        continue;
+      }
+      throw new Error(formatFetchFailure(url, e));
+    } finally {
+      window.clearTimeout(timeoutId);
     }
-  } catch (e: unknown) {
-    const aborted =
-      (e instanceof DOMException && e.name === "AbortError") ||
-      (e instanceof Error && e.name === "AbortError");
-    if (aborted) {
-      const sec = Math.round(timeoutMs / 1000);
-      throw new Error(`Сервер не ответил за ${sec} с. Попробуйте ещё раз.`);
+
+    if (
+      retryTransient &&
+      attempt < maxAttempts &&
+      isTransientGateway(res.status, text, res.headers.get("content-type"))
+    ) {
+      await sleep(attempt === 1 ? 700 : 1600);
+      continue;
     }
-    throw new Error(formatFetchFailure(url, e));
-  } finally {
-    window.clearTimeout(timeoutId);
+    break;
+  }
+
+  if (isTransientGateway(res.status, text, res.headers.get("content-type"))) {
+    throw new Error(gatewayUserMessage(res.status));
   }
 
   if (text && looksLikeHtmlPayload(text, res.headers.get("content-type"))) {
