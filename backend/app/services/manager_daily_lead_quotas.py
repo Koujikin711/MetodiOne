@@ -1,6 +1,6 @@
-"""Персональные квоты: Мавлуда Алибекзода — 3 новых лида в день.
+"""Новые лиды идут всем менеджерам поровну, включая Мавлуду Алибекзода.
 
-Архив ей идёт как остальным (LEADS_PER_MANAGER), без отдельного лимита 3.
+Отдельного потолка «3 в день» больше нет. Архив — общая дневная квота.
 """
 
 from __future__ import annotations
@@ -8,18 +8,13 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
-from datetime import UTC, datetime
-from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
-from app.models import Lead, User, UserRole
+from app.models import Pipeline, User, UserPipelineAssignment, UserRole
 
 logger = logging.getLogger(__name__)
-
-MAVLUDA_DAILY_NEW_QUOTA = 3
 
 
 def _norm_name(value: str | None) -> str:
@@ -38,28 +33,12 @@ def is_mavluda_alibek(full_name: str | None) -> bool:
     return has_mavluda and has_alibek
 
 
-def _booking_tz() -> ZoneInfo:
-    try:
-        return ZoneInfo(settings.booking_timezone or "Asia/Dushanbe")
-    except Exception:
-        return ZoneInfo("Asia/Dushanbe")
-
-
-def local_day_start_utc(now: datetime | None = None) -> datetime:
-    """Начало текущего календарного дня (Asia/Dushanbe) в UTC."""
-    clock = now or datetime.now(UTC)
-    if clock.tzinfo is None:
-        clock = clock.replace(tzinfo=UTC)
-    local = clock.astimezone(_booking_tz())
-    start_local = local.replace(hour=0, minute=0, second=0, microsecond=0)
-    return start_local.astimezone(UTC)
-
-
 async def apply_mavluda_daily_archive_quota(db: AsyncSession) -> dict[str, int]:
-    """Снимает Мавлуде старый архивный лимит 3.
+    """Мавлуда в общей очереди новых лидов, без личного потолка.
 
-    Автораздачу (accepts_new_leads) не трогает: её включает и выключает кнопка в кабинете РОП.
-    Архив — общая дневная квота. Идемпотентно на каждом старте.
+    Включает автораздачу, ставит её на те же воронки, что и остальных,
+    и снимает с приёмки, если из-за неё очередь её пропускала.
+    Архивный лимит не задаёт. Идемпотентно на каждом старте.
     """
     managers = (
         await db.execute(
@@ -78,42 +57,86 @@ async def apply_mavluda_daily_archive_quota(db: AsyncSession) -> dict[str, int]:
     changed = 0
     if target.daily_archive_leads_quota is not None:
         target.daily_archive_leads_quota = None
-        changed = 1
+        changed += 1
+    if not target.accepts_new_leads:
+        target.accepts_new_leads = True
+        changed += 1
+
+    company_id = int(target.company_id) if target.company_id is not None else None
+    added_pipelines = 0
+    if company_id is not None:
+        intake_pipes = (
+            await db.execute(
+                select(Pipeline).where(
+                    Pipeline.company_id == company_id,
+                    Pipeline.intake_manager_user_id == int(target.id),
+                ),
+            )
+        ).scalars().all()
+        for pipe in intake_pipes:
+            pipe.intake_manager_user_id = None
+            changed += 1
+        existing = {
+            int(row)
+            for row in (
+                await db.execute(
+                    select(UserPipelineAssignment.pipeline_id).where(
+                        UserPipelineAssignment.user_id == int(target.id),
+                        UserPipelineAssignment.company_id == company_id,
+                    ),
+                )
+            ).scalars().all()
+        }
+        peer_pipe_ids = {
+            int(row)
+            for row in (
+                await db.execute(
+                    select(UserPipelineAssignment.pipeline_id)
+                    .join(User, User.id == UserPipelineAssignment.user_id)
+                    .where(
+                        UserPipelineAssignment.company_id == company_id,
+                        User.role == UserRole.manager,
+                        User.is_active.is_(True),
+                        User.id != int(target.id),
+                    ),
+                )
+            ).scalars().all()
+        }
+        if not peer_pipe_ids:
+            peer_pipe_ids = {
+                int(row)
+                for row in (
+                    await db.execute(select(Pipeline.id).where(Pipeline.company_id == company_id))
+                ).scalars().all()
+            }
+        for pid in sorted(peer_pipe_ids):
+            if pid in existing:
+                continue
+            db.add(
+                UserPipelineAssignment(
+                    company_id=company_id,
+                    user_id=int(target.id),
+                    pipeline_id=pid,
+                )
+            )
+            added_pipelines += 1
+            changed += 1
 
     await db.flush()
     if changed:
         logger.info(
-            "mavluda_daily_quota: user_id=%s name=%r archive_quota=%s accepts_new_leads=%s new_quota=%s",
+            "mavluda_daily_quota: user_id=%s name=%r accepts_new_leads=%s added_pipelines=%s",
             target.id,
             target.full_name,
-            target.daily_archive_leads_quota,
             target.accepts_new_leads,
-            MAVLUDA_DAILY_NEW_QUOTA,
+            added_pipelines,
         )
     return {
         "found": 1,
         "updated": changed,
         "user_id": int(target.id),
-        "new_leads_quota": MAVLUDA_DAILY_NEW_QUOTA,
+        "added_pipelines": added_pipelines,
     }
-
-
-async def count_new_leads_today(
-    db: AsyncSession,
-    *,
-    manager_id: int,
-    company_id: int,
-) -> int:
-    """Сколько лидов создано сегодня и назначено менеджеру (новые входящие)."""
-    day_start = local_day_start_utc()
-    cnt = await db.scalar(
-        select(func.count(Lead.id)).where(
-            Lead.company_id == company_id,
-            Lead.manager_id == manager_id,
-            Lead.created_at >= day_start,
-        ),
-    )
-    return int(cnt or 0)
 
 
 async def filter_managers_by_new_leads_quota(
@@ -122,35 +145,13 @@ async def filter_managers_by_new_leads_quota(
     company_id: int,
     manager_ids: list[int],
 ) -> list[int]:
-    """Убирает менеджеров, у кого персональная дневная квота новых лидов уже исчерпана.
-
-    Сейчас: только Мавлуда Алибек* → MAVLUDA_DAILY_NEW_QUOTA (3).
-    Остальные без лимита.
-    """
+    """Все переданные менеджеры остаются в очереди. Личного потолка нет."""
+    del company_id
     if not manager_ids:
         return []
 
     users = (
         await db.execute(select(User).where(User.id.in_(manager_ids)))
     ).scalars().all()
-    by_id = {int(u.id): u for u in users}
-
-    out: list[int] = []
-    for mid in manager_ids:
-        user = by_id.get(int(mid))
-        if user is None:
-            continue
-        if is_mavluda_alibek(user.full_name):
-            already = await count_new_leads_today(
-                db, manager_id=int(mid), company_id=company_id
-            )
-            if already >= MAVLUDA_DAILY_NEW_QUOTA:
-                logger.info(
-                    "mavluda_new_quota: skip user_id=%s today=%s quota=%s",
-                    mid,
-                    already,
-                    MAVLUDA_DAILY_NEW_QUOTA,
-                )
-                continue
-        out.append(int(mid))
-    return out
+    known = {int(u.id) for u in users}
+    return [int(mid) for mid in manager_ids if int(mid) in known]

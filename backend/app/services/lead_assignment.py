@@ -97,7 +97,7 @@ async def assign_manager_for_new_lead(
     if not user_ids:
         return None
 
-    # Персональные дневные квоты новых лидов (Мавлуда → 3/день).
+    # Личного потолка нет: Мавлуда в той же очереди, что и остальные.
     if not force:
         user_ids = await filter_managers_by_new_leads_quota(
             db,
