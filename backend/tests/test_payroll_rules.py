@@ -55,7 +55,39 @@ def test_free_gift_massage_and_tms_are_not_bonus_sessions():
     assert is_free_gift_session(200, 0, "ТМС") is False
 
 
-def test_neurologist_and_endocrinologist_share_procedure_percents():
+def test_payroll_sheet_starts_with_doctors_then_massage_then_managers():
+    from app.services.payroll_rules import payroll_sheet_sort_key
+
+    people = [
+        ("manager", "Алибекзода Мавлуда"),
+        ("neurologist", "Шокирова Мунира"),
+        ("administrator", "Мадина Шакармамадова"),
+        ("neurologist", "Замири Ганчина"),
+        ("massage", "Азизов Мубин"),
+        ("endocrinologist", "Толибзода Аъзамат"),
+        ("massage", "Абдулоева Рухшона"),
+        ("massage", "Абдуллозода Аниса"),
+        ("osteopath", "Каримова Манижа"),
+        ("curator", "Холикова Манижа"),
+        ("manager", "Саидзода Дилнора"),
+    ]
+    names = [name for _, name in sorted(people, key=lambda item: payroll_sheet_sort_key(*item))]
+    assert names == [
+        "Замири Ганчина",
+        "Шокирова Мунира",
+        "Толибзода Аъзамат",
+        "Мадина Шакармамадова",
+        "Абдулоева Рухшона",
+        "Абдуллозода Аниса",
+        "Азизов Мубин",
+        "Каримова Манижа",
+        "Холикова Манижа",
+        "Алибекзода Мавлуда",
+        "Саидзода Дилнора",
+    ]
+
+
+def test_neurologist_and_endocrinologist_use_the_same_percents_on_their_own_cash():
     facts = PayrollFacts(
         osteopath_paid=Decimal("1000"),
         tms_paid=Decimal("200"),

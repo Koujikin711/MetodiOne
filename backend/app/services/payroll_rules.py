@@ -97,6 +97,57 @@ def payroll_profile(role: str, specialization: str | None = None, *_names: str |
     return "card"
 
 
+def payroll_sheet_sort_key(profile: str, full_name: str) -> tuple[int, int, str]:
+    """Порядок ведомости, пока его не перетащили вручную.
+
+    Неврологи (Ганчина, затем Мунира), эндокринолог, админ,
+    массажисты (Рухшона, Аниса, Мубин), затем менеджеры.
+    """
+    name = (full_name or "").casefold().replace("ё", "е")
+    if "рухшон" in name or "анис" in name or "мубин" in name:
+        profile = "massage"
+    if profile in ("neurologist", "neurologist_referral"):
+        band = 0
+        if "ганчин" in name:
+            inner = 0
+        elif "мунир" in name or "шокир" in name:
+            inner = 1
+        else:
+            inner = 9
+    elif profile == "endocrinologist":
+        band = 1
+        inner = 0
+    elif profile == "administrator":
+        band = 2
+        inner = 0
+    elif profile in ("massage", "speech_massage"):
+        band = 3
+        if "рухшон" in name:
+            inner = 0
+        elif "анис" in name:
+            inner = 1
+        elif "мубин" in name:
+            inner = 2
+        else:
+            inner = 9
+    elif profile == "osteopath":
+        band = 4
+        inner = 0
+    elif profile == "nutritionist":
+        band = 5
+        inner = 0
+    elif profile == "curator":
+        band = 6
+        inner = 0
+    elif profile == "manager":
+        band = 7
+        inner = 0
+    else:
+        band = 8
+        inner = 0
+    return (band, inner, name)
+
+
 @dataclass(frozen=True)
 class PayrollFacts:
     osteopath_paid: Decimal = Decimal("0")
@@ -123,6 +174,7 @@ class PayrollAccrual:
 
 
 def _procedure_bonus(facts: PayrollFacts) -> Decimal:
+    """Процент только с кассы визитов этого эксперта, не со всей клиники."""
     return _q(
         facts.osteopath_paid * OSTEOPATH_SHARE
         + facts.tms_paid * PROCEDURE_SHARE
@@ -168,7 +220,7 @@ def accrue(profile: str, facts: PayrollFacts, *, card_salary: Decimal | None) ->
             bonus,
             Decimal("0"),
             "",
-            "5 000 + 3% остеопат + 5% ТМС + 5% анализы + 5% массаж",
+            "5 000 + 3% остеопат + 5% ТМС + 5% анализы + 5% массаж, только свои визиты",
         )
     if profile == "endocrinologist":
         bonus = _procedure_bonus(facts)
@@ -177,7 +229,7 @@ def accrue(profile: str, facts: PayrollFacts, *, card_salary: Decimal | None) ->
             bonus,
             Decimal("0"),
             "",
-            "3 000 + 3% остеопат + 5% ТМС + 5% анализы + 5% массаж",
+            "3 000 + 3% остеопат + 5% ТМС + 5% анализы + 5% массаж, только свои визиты",
         )
     if profile == "neurologist_referral":
         bonus = _q(Decimal(facts.referred_main_courses) * REFERRAL_BONUS)

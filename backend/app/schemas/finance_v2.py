@@ -156,6 +156,10 @@ class FinancePayrollAdjustmentWrite(BaseModel):
     advances: Decimal | None = None
 
 
+class FinancePayrollOrderWrite(BaseModel):
+    user_ids: list[int] = Field(min_length=1)
+
+
 class FinancePayrollReport(BaseModel):
     year_month: str
     pipeline_name: str | None = None

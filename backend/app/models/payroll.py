@@ -32,6 +32,20 @@ class PayrollAdjustment(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
+class PayrollSheetOrder(Base):
+    """Ручной порядок строк ведомости. Пусто — порядок по должности."""
+
+    __tablename__ = "payroll_sheet_order"
+    __table_args__ = (
+        UniqueConstraint("company_id", "user_id", name="uq_payroll_sheet_order"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(default=0)
+
+
 class PayrollSheetHide(Base):
     """Сотрудник снят с ведомости. Вход в систему при этом не закрывается."""
 

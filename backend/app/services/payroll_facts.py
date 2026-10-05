@@ -54,9 +54,12 @@ async def load_payroll_facts(
     start = datetime.combine(day_from, time.min, tzinfo=tz).astimezone(UTC) - timedelta(days=1)
     end = datetime.combine(day_to, time.max, tzinfo=tz).astimezone(UTC) + timedelta(days=1)
 
-    osteopath = tms = lab = massage = single = Decimal("0")
+    single = Decimal("0")
     sessions: dict[int, int] = {uid: 0 for uid in user_ids}
     own_osteo: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
+    own_tms: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
+    own_lab: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
+    own_massage: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
 
     visits = (
         await db.execute(
@@ -90,14 +93,6 @@ async def load_payroll_facts(
         bonus_line = line in ("massage", "speech_massage", "tms")
         if gift and bonus_line:
             continue
-        if line == "osteopath":
-            osteopath += amount
-        elif line == "tms":
-            tms += amount
-        elif line == "lab":
-            lab += amount
-        elif line == "massage":
-            massage += amount
         if classify_product_kind(label) == "other_service":
             single += amount
         uid = int(crm_user_id) if crm_user_id is not None else None
@@ -107,6 +102,12 @@ async def load_payroll_facts(
             sessions[uid] = sessions.get(uid, 0) + 1
         if line == "osteopath":
             own_osteo[uid] = own_osteo.get(uid, Decimal("0")) + amount
+        elif line == "tms":
+            own_tms[uid] = own_tms.get(uid, Decimal("0")) + amount
+        elif line == "lab":
+            own_lab[uid] = own_lab.get(uid, Decimal("0")) + amount
+        elif line == "massage":
+            own_massage[uid] = own_massage.get(uid, Decimal("0")) + amount
 
     referred: dict[int, int] = {uid: 0 for uid in user_ids}
     first_paid: dict[int, Decimal] = {uid: Decimal("0") for uid in user_ids}
@@ -165,10 +166,10 @@ async def load_payroll_facts(
     out: dict[int, PayrollFacts] = {}
     for uid in user_ids:
         out[uid] = PayrollFacts(
-            osteopath_paid=osteopath,
-            tms_paid=tms,
-            lab_paid=lab,
-            massage_paid=massage,
+            osteopath_paid=own_osteo.get(uid, Decimal("0")),
+            tms_paid=own_tms.get(uid, Decimal("0")),
+            lab_paid=own_lab.get(uid, Decimal("0")),
+            massage_paid=own_massage.get(uid, Decimal("0")),
             own_sessions=sessions.get(uid, 0),
             own_osteopath_paid=own_osteo.get(uid, Decimal("0")),
             referred_main_courses=referred.get(uid, 0),

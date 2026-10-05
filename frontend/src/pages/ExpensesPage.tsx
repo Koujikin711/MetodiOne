@@ -1,7 +1,25 @@
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
+import { GripVertical } from "@/components/icons";
 import { apiFetch } from "@/lib/api";
 import { EXPENSE_CATALOG } from "@/lib/expenseCatalog";
 import { APP_CURRENCY } from "@/lib/money";
@@ -105,6 +123,9 @@ function PayrollLine({
   const parsedSalary = parseMoneyInput(salary);
   const parsedBonus = parseMoneyInput(bonus);
   const parsedAdvances = parseMoneyInput(advances);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: row.user_id,
+  });
   const save = useMutation({
     mutationFn: () => {
       const body: Record<string, unknown> = {
@@ -146,18 +167,33 @@ function PayrollLine({
     Number(amount || 0) === Number(row.adjustment || 0) &&
     reason.trim() === (row.adjustment_reason || "").trim();
   return (
-    <tr>
+    <tr
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={isDragging ? "payroll-row-dragging" : undefined}
+    >
       <td className="payroll-person">
-        <input
-          className="mo-input payroll-name"
-          value={fullName}
-          aria-label={`ФИО ${row.full_name}`}
-          onChange={(e) => setFullName(e.target.value)}
-          onBlur={() => {
-            const next = fullName.trim();
-            if (next.length >= 2 && next !== row.full_name.trim()) saveName.mutate();
-          }}
-        />
+        <div className="payroll-person-head">
+          <button
+            type="button"
+            className="payroll-drag"
+            aria-label={`Переместить ${row.full_name}`}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+          <input
+            className="mo-input payroll-name"
+            value={fullName}
+            aria-label={`ФИО ${row.full_name}`}
+            onChange={(e) => setFullName(e.target.value)}
+            onBlur={() => {
+              const next = fullName.trim();
+              if (next.length >= 2 && next !== row.full_name.trim()) saveName.mutate();
+            }}
+          />
+        </div>
         {row.expert_title ? <div className="payroll-role">{row.expert_title}</div> : null}
         {row.formula ? <div className="payroll-formula">{row.formula}</div> : null}
         <button type="button" className="payroll-remove" onClick={onRemove}>
@@ -323,6 +359,34 @@ export function ExpensesPage() {
     queryFn: () => apiFetch<PayrollReport>(`/api/finance/payroll?year=${year}&month=${month}`),
     enabled: view === "payroll",
   });
+  const payrollSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const reorderPayroll = useMutation({
+    mutationFn: (userIds: number[]) =>
+      apiFetch("/api/finance/payroll/order", {
+        method: "PUT",
+        body: JSON.stringify({ user_ids: userIds }),
+      }),
+    onError: (e: Error) => {
+      toast.error(e.message);
+      void qc.invalidateQueries({ queryKey: ["finance-payroll", year, month] });
+    },
+  });
+  const payrollRows = payrollQuery.data?.rows ?? [];
+  const onPayrollDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = payrollRows.findIndex((row) => row.user_id === active.id);
+    const newIndex = payrollRows.findIndex((row) => row.user_id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const next = arrayMove(payrollRows, oldIndex, newIndex);
+    qc.setQueryData<PayrollReport>(["finance-payroll", year, month], (prev) =>
+      prev ? { ...prev, rows: next } : prev,
+    );
+    reorderPayroll.mutate(next.map((row) => row.user_id));
+  };
   const addPayrollMutation = useMutation({
     mutationFn: () =>
       apiFetch("/api/employees/for-payroll", {
@@ -693,21 +757,25 @@ export function ExpensesPage() {
                       <th className="payroll-num">К выплате</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {(payrollQuery.data?.rows ?? []).map((row) => (
-                      <PayrollLine
-                        key={`${row.user_id}-${year}-${month}`}
-                        row={row}
-                        year={year}
-                        month={month}
-                        onSaved={() => void payrollQuery.refetch()}
-                        onRemove={() => {
-                          if (!window.confirm(`Убрать ${row.full_name} с ведомости?`)) return;
-                          removePayrollMutation.mutate(row.user_id);
-                        }}
-                      />
-                    ))}
-                  </tbody>
+                  <DndContext sensors={payrollSensors} collisionDetection={closestCenter} onDragEnd={onPayrollDragEnd}>
+                    <SortableContext items={payrollRows.map((row) => row.user_id)} strategy={verticalListSortingStrategy}>
+                      <tbody>
+                        {payrollRows.map((row) => (
+                          <PayrollLine
+                            key={`${row.user_id}-${year}-${month}`}
+                            row={row}
+                            year={year}
+                            month={month}
+                            onSaved={() => void payrollQuery.refetch()}
+                            onRemove={() => {
+                              if (!window.confirm(`Убрать ${row.full_name} с ведомости?`)) return;
+                              removePayrollMutation.mutate(row.user_id);
+                            }}
+                          />
+                        ))}
+                      </tbody>
+                    </SortableContext>
+                  </DndContext>
                 </table>
               </div>
             ) : null}

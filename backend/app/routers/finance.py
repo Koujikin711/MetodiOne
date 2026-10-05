@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings as app_settings
@@ -17,6 +17,7 @@ from app.models import (
     FinanceOsvRow,
     PayrollAdjustment,
     PayrollSheetHide,
+    PayrollSheetOrder,
     EmployeeNameTerm,
     Pipeline,
     User,
@@ -27,6 +28,7 @@ from app.schemas.finance_v2 import (
     FinanceExpenseCatalogRead,
     FinanceExpenseCreate,
     FinancePayrollAdjustmentWrite,
+    FinancePayrollOrderWrite,
     FinancePayrollReport,
     FinancePayrollRow,
     FinanceStaffCard,
@@ -358,7 +360,13 @@ async def payroll_sheet(
     from dataclasses import replace
 
     from app.services.payroll_facts import load_payroll_facts
-    from app.services.payroll_rules import accrue, carried_company_debt, payroll_name_on, payroll_profile
+    from app.services.payroll_rules import (
+        accrue,
+        carried_company_debt,
+        payroll_name_on,
+        payroll_profile,
+        payroll_sheet_sort_key,
+    )
 
     year_month = f"{year:04d}-{month:02d}"
     specs = (
@@ -418,6 +426,7 @@ async def payroll_sheet(
         debt_history[int(debt_row.user_id)].append((debt_row.year_month, debt_row.company_debt))
 
     out: list[FinancePayrollRow] = []
+    profiles: dict[int, str] = {}
     seen = set(by_id) | set(advances) | set(bonus_by_id)
     hidden = {
         int(uid)
@@ -436,6 +445,7 @@ async def payroll_sheet(
         role = user.role.value if hasattr(user.role, "value") else str(user.role)
         spec = spec_by_user.get(uid, "")
         profile = payroll_profile(role, spec)
+        profiles[uid] = profile
         card_salary = Decimal(str(user.base_salary)) if user.base_salary is not None else None
         facts = replace(facts_by_user.get(uid), kpi_bonus=bonus_by_id.get(uid, Decimal("0")))
         accrued = accrue(profile, facts, card_salary=card_salary)
@@ -486,12 +496,64 @@ async def payroll_sheet(
                 remainder=remainder,
             )
         )
-    out.sort(key=lambda row: row.full_name.casefold())
+    positions = {
+        int(row.user_id): int(row.position)
+        for row in (
+            await db.execute(
+                select(PayrollSheetOrder).where(PayrollSheetOrder.company_id == company_id)
+            )
+        ).scalars().all()
+    }
+
+    def _default_key(row: FinancePayrollRow) -> tuple:
+        return payroll_sheet_sort_key(profiles.get(row.user_id, "card"), row.full_name)
+
+    pinned = [row for row in out if row.user_id in positions]
+    pinned.sort(key=lambda row: positions[row.user_id])
+    fresh = [row for row in out if row.user_id not in positions]
+    fresh.sort(key=_default_key)
+    ordered = list(pinned)
+    for person in fresh:
+        key = _default_key(person)
+        slot = len(ordered)
+        for index, existing in enumerate(ordered):
+            if key < _default_key(existing):
+                slot = index
+                break
+        ordered.insert(slot, person)
+    out = ordered
     return FinancePayrollReport(
         year_month=year_month,
         pipeline_name=pipeline_name,
         rows=out,
     )
+
+
+@router.put("/payroll/order", status_code=status.HTTP_204_NO_CONTENT)
+async def save_payroll_order(
+    body: FinancePayrollOrderWrite,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> None:
+    """Сохранить порядок строк после перетаскивания."""
+    _assert_expenses_access(current_user)
+    await assert_finance_access(db, current_user)
+    user_ids = list(dict.fromkeys(body.user_ids))
+    found = {
+        int(uid)
+        for uid in (
+            await db.execute(
+                select(User.id).where(User.company_id == company_id, User.id.in_(user_ids))
+            )
+        ).scalars().all()
+    }
+    if set(user_ids) - found:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Сотрудник не найден")
+    await db.execute(delete(PayrollSheetOrder).where(PayrollSheetOrder.company_id == company_id))
+    for index, uid in enumerate(user_ids):
+        db.add(PayrollSheetOrder(company_id=company_id, user_id=uid, position=index))
+    await db.flush()
 
 
 @router.delete("/payroll/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
