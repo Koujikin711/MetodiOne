@@ -1849,6 +1849,25 @@ async def booking_patient_suggest(
 
     from app.services.patient_phone_visibility import resolve_phone_fields
 
+    birth_by_lead: dict[int, date] = {}
+    crm_lead_ids = [int(lead.id) for lead, _mgr in lead_rows]
+    if crm_lead_ids:
+        born_rows = (
+            await db.execute(
+                select(BookingAppointment.lead_id, BookingAppointment.patient_birth_date)
+                .where(
+                    BookingAppointment.company_id == company_id,
+                    BookingAppointment.lead_id.in_(crm_lead_ids),
+                    BookingAppointment.patient_birth_date.is_not(None),
+                )
+                .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc()),
+            )
+        ).all()
+        for lid, born in born_rows:
+            if lid is None or born is None:
+                continue
+            birth_by_lead.setdefault(int(lid), born)
+
     for lead, mgr_name in lead_rows:
         if not _lead_matches_suggest_term(lead, term, phone_digits):
             continue
@@ -1893,7 +1912,6 @@ async def booking_patient_suggest(
         )
     ).all()
 
-    birth_by_lead: dict[int, date] = {}
     for row in appt_rows:
         lid, _name, _phone, born = row
         if lid is None or born is None:
