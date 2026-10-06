@@ -509,11 +509,8 @@ const CHAT_BUCKET_TABS: { id: ChatThreadBucket; label: string; hint: string }[] 
   { id: "sold", label: "Проданные", hint: "Закрытые сделки" },
 ];
 
-/** Reply-очередь менеджера (новые лиды — в общем списке, без отдельной вкладки стадии). */
-const REPLY_QUEUE_TABS: { id: ChatThreadBucket; label: string; hint: string }[] = [
-  { id: "awaiting_reply", label: "Ждут ответа", hint: "Клиент написал или новый лид без переписки" },
-  { id: "no_reply", label: "Не ответили", hint: "Вы написали — клиент молчит" },
-];
+/** Отдельно от стадий: кто написал, а ответа ещё нет. */
+const AWAITING_REPLY_HINT = "Написали, им ещё не ответили";
 
 /** Без «Новый лид» и «Архив» — они только в списке диалогов / авто. */
 const SALES_STAGE_TABS: { id: SalesStageKey; label: string; hint: string; color: string }[] = [
@@ -657,10 +654,10 @@ export function ChatPage() {
     userRole === "manager" || userRole === "admin" || userRole === "owner";
   const stageTabs = SALES_STAGE_TABS;
   const [chatBucket, setChatBucket] = useState<ChatThreadBucket>("own");
-  /** null = все стадии, включая «Новый лид» в списке */
+  /** null = все стадии. Со «Ждут ответа» не сочетается. */
   const [salesStageKey, setSalesStageKey] = useState<SalesStageKey | null>(null);
-  /** Ждут ответа / Не ответили — поверх стадий для менеджера. */
-  const [replyQueue, setReplyQueue] = useState<ChatThreadBucket>("awaiting_reply");
+  /** null = не фильтр очереди. Со стадией не сочетается. */
+  const [replyQueue, setReplyQueue] = useState<ChatThreadBucket | null>("awaiting_reply");
   /** Месяц создания лида — по умолчанию текущий. */
   const [chatMonth, setChatMonth] = useState(currentYearMonth);
   const [statusOpen, setStatusOpen] = useState(false);
@@ -692,7 +689,7 @@ export function ChatPage() {
       threadSearchDebounced,
       chatMonth,
       salesChatMode
-        ? `stage:${salesStageKey ?? "all"}|reply:${replyQueue}`
+        ? `stage:${salesStageKey ?? "all"}|reply:${replyQueue ?? "all"}`
         : showManagerChatBuckets
           ? chatBucket
           : "all",
@@ -705,7 +702,7 @@ export function ChatPage() {
       if (showManagerChatBuckets) {
         if (salesChatMode) {
           if (salesStageKey) p.set("stage_key", salesStageKey);
-          p.set("bucket", replyQueue);
+          else if (replyQueue) p.set("bucket", replyQueue);
         } else {
           p.set("bucket", chatBucket);
         }
@@ -1284,6 +1281,7 @@ export function ChatPage() {
                       }
                       onClick={() => {
                         if (salesChatMode) {
+                          setReplyQueue(null);
                           setSalesStageKey((prev) =>
                             prev === (tab.id as SalesStageKey) ? null : (tab.id as SalesStageKey),
                           );
@@ -1320,38 +1318,31 @@ export function ChatPage() {
           ) : null}
 
           {showManagerChatBuckets && salesChatMode ? (
-            <div className="chat-reply-queue mb-2.5 grid shrink-0 grid-cols-2 gap-1.5 max-lg:mb-2 sm:mb-3 sm:gap-2">
-              {REPLY_QUEUE_TABS.map((tab) => {
-                const active = replyQueue === tab.id;
-                const count =
-                  tab.id === "awaiting_reply"
-                    ? bucketCountsQuery.data?.awaiting_reply ?? 0
-                    : bucketCountsQuery.data?.no_reply ?? 0;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    data-reply-queue={tab.id}
-                    data-bucket={tab.id}
-                    title={tab.hint}
-                    onClick={() => setReplyQueue(tab.id)}
-                    className={[
-                      "chat-bucket-tab chat-reply-tab flex min-h-[2.85rem] flex-col items-center justify-center rounded-xl border px-2 py-1.5 text-center transition touch-manipulation sm:min-h-[3.25rem] sm:rounded-2xl",
-                      active ? "is-active" : "",
-                    ].join(" ")}
-                  >
-                    <span className="max-w-full text-[10px] font-semibold leading-tight tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
-                      {tab.label}
-                    </span>
-                    <span
-                      className="mt-0.5 text-base font-bold tabular-nums leading-none text-[var(--mo-text)] sm:mt-1 sm:text-lg"
-                      title={String(count)}
-                    >
-                      {formatCompactCount(count)}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="chat-reply-queue mb-2.5 shrink-0 max-lg:mb-2 sm:mb-3">
+              <button
+                type="button"
+                data-reply-queue="awaiting_reply"
+                data-bucket="awaiting_reply"
+                title={AWAITING_REPLY_HINT}
+                onClick={() => {
+                  setSalesStageKey(null);
+                  setReplyQueue((prev) => (prev === "awaiting_reply" ? null : "awaiting_reply"));
+                }}
+                className={[
+                  "chat-bucket-tab chat-reply-tab flex min-h-[2.85rem] w-full flex-col items-center justify-center rounded-xl border px-2 py-1.5 text-center transition touch-manipulation sm:min-h-[3.25rem] sm:rounded-2xl",
+                  replyQueue === "awaiting_reply" ? "is-active" : "",
+                ].join(" ")}
+              >
+                <span className="max-w-full text-[10px] font-semibold leading-tight tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
+                  Ждут ответа
+                </span>
+                <span
+                  className="mt-0.5 text-base font-bold tabular-nums leading-none text-[var(--mo-text)] sm:mt-1 sm:text-lg"
+                  title={String(bucketCountsQuery.data?.awaiting_reply ?? 0)}
+                >
+                  {formatCompactCount(bucketCountsQuery.data?.awaiting_reply ?? 0)}
+                </span>
+              </button>
             </div>
           ) : null}
 
@@ -1363,7 +1354,7 @@ export function ChatPage() {
           />
           <p className="mb-2 hidden text-[11px] leading-snug mo-muted lg:block">
             {showManagerChatBuckets && salesChatMode
-              ? "Зелёный в списке — ждёт ответа. Повторный клик по стадии снимает фильтр."
+              ? "Стадии и «Ждут ответа» по отдельности. Повторный клик снимает фильтр. Зелёный в списке — клиент написал последним."
               : showManagerChatBuckets
                 ? "Зелёный — ждёт ответа · голубой — первые 3 дня."
                 : "Зелёный — ждёт ответа · голубой — первые 3 дня."}
@@ -1447,12 +1438,8 @@ export function ChatPage() {
                     ? `Нет диалогов${
                         salesStageKey
                           ? ` в «${stageTabs.find((t) => t.id === salesStageKey)?.label ?? salesStageKey}»`
-                          : ""
-                      }${
-                        replyQueue === "awaiting_reply"
-                          ? " · Ждут ответа"
-                          : replyQueue === "no_reply"
-                            ? " · Не ответили"
+                          : replyQueue === "awaiting_reply"
+                            ? " · Ждут ответа"
                             : ""
                       }`
                     : chatBucket === "transferred"
