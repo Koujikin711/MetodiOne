@@ -1075,29 +1075,30 @@ async def thread_bucket_counts(
     if term:
         base = _apply_thread_search(base, term=term)
 
-    # Чат-воронка (стадии) + reply-бакеты для менеджера.
+    # Стадии одним GROUP BY. «Ждут ответа» отдельно. Нижнее «Не ответили» больше не считается.
     out = ChatThreadBucketCounts(list_mode="sales")
-    for key, _name in SALES_STAGE_KEYS:
-        qcnt = _apply_manager_thread_bucket(
-            base,
-            bucket=None,
-            manager_id=current_user.id,
-            company_id=company_id,
-            last_direction_sq=last_direction_sq,
-            stage_key=key,
+    stage_rows = (
+        await db.execute(
+            base.with_only_columns(PipelineStage.name, func.count(ChatThread.id))
+            .group_by(PipelineStage.name)
+            .order_by(None)
         )
-        out.sales_stages[key] = int((await db.execute(qcnt)).scalar_one() or 0)
+    ).all()
+    name_to_key = {name: key for key, name in SALES_STAGE_KEYS}
+    for stage_name, cnt in stage_rows:
+        key = name_to_key.get(str(stage_name or ""))
+        if key:
+            out.sales_stages[key] = int(cnt or 0)
 
-    for reply_bucket in ("awaiting_reply", "no_reply"):
-        qcnt = _apply_manager_thread_bucket(
-            base,
-            bucket=reply_bucket,  # type: ignore[arg-type]
-            manager_id=current_user.id,
-            company_id=company_id,
-            last_direction_sq=last_direction_sq,
-            stage_key=None,
-        )
-        setattr(out, reply_bucket, int((await db.execute(qcnt)).scalar_one() or 0))
+    awaiting = _apply_manager_thread_bucket(
+        base,
+        bucket="awaiting_reply",
+        manager_id=current_user.id,
+        company_id=company_id,
+        last_direction_sq=last_direction_sq,
+        stage_key=None,
+    )
+    out.awaiting_reply = int((await db.execute(awaiting)).scalar_one() or 0)
     return out
 
 

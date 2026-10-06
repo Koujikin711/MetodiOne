@@ -666,6 +666,8 @@ async def list_leads(
     company_id: CurrentCompanyId,
     pipeline_id: int | None = Query(None, ge=1),
     per_stage_limit: int | None = Query(None, ge=1, le=10000),
+    q: str | None = Query(None, max_length=200),
+    limit: int = Query(80, ge=1, le=200),
 ) -> list[LeadRead]:
     """
     Канбан: передайте pipeline_id + per_stage_limit (по умолчанию 500), чтобы не отдавать
@@ -705,12 +707,12 @@ async def list_leads(
         leads = result.scalars().unique().all()
         return await _leads_to_read_with_deals(db, leads, current_user)
 
-    q = select(Lead).options(selectinload(Lead.stage)).where(Lead.company_id == company_id).order_by(Lead.id.desc())
+    stmt = select(Lead).options(selectinload(Lead.stage)).where(Lead.company_id == company_id)
     if is_manager_like(current_user.role):
         allowed = await _manager_pipeline_ids(db, current_user.id)
         if not allowed:
             return []
-        q = q.join(PipelineStage, PipelineStage.id == Lead.status_id).where(
+        stmt = stmt.join(PipelineStage, PipelineStage.id == Lead.status_id).where(
             PipelineStage.company_id == company_id,
             PipelineStage.pipeline_id.in_(allowed),
             manager_lead_visibility(current_user.id),
@@ -719,11 +721,16 @@ async def list_leads(
         allowed = await _expert_pipeline_ids(db, user_id=current_user.id, company_id=company_id)
         if not allowed:
             return []
-        q = q.join(PipelineStage, PipelineStage.id == Lead.status_id).where(
+        stmt = stmt.join(PipelineStage, PipelineStage.id == Lead.status_id).where(
             PipelineStage.company_id == company_id,
             PipelineStage.pipeline_id.in_(allowed),
         )
-    result = await db.execute(q)
+    term = (q or "").strip()
+    if term:
+        like = f"%{term}%"
+        stmt = stmt.where(or_(Lead.name.ilike(like), Lead.phone.ilike(like)))
+    stmt = stmt.order_by(Lead.id.desc()).limit(limit)
+    result = await db.execute(stmt)
     leads = result.scalars().unique().all()
     return await _leads_to_read_with_deals(db, leads, current_user)
 

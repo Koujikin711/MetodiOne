@@ -1485,6 +1485,11 @@ async def ensure_chat_performance_indexes(conn: AsyncConnection, database_url: s
         await conn.execute(
             text("CREATE INDEX IF NOT EXISTS idx_tasks_company_created_status_id ON tasks(company_id, created_by_user_id, status, id)"),
         )
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_status_id_id ON leads(status_id, id)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_manager_id ON leads(manager_id)"))
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_leads_company_created ON leads(company_id, created_at)"),
+        )
         return
 
     if "postgresql" in low or "asyncpg" in low:
@@ -1550,6 +1555,11 @@ async def ensure_chat_performance_indexes(conn: AsyncConnection, database_url: s
         )
         await conn.execute(
             text("CREATE INDEX IF NOT EXISTS idx_tasks_company_created_status_id ON tasks(company_id, created_by_user_id, status, id DESC)"),
+        )
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_status_id_id ON leads(status_id, id DESC)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_leads_manager_id ON leads(manager_id)"))
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_leads_company_created ON leads(company_id, created_at)"),
         )
 
 

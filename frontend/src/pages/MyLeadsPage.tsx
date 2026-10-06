@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
-import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
+import { PatientPhone } from "@/components/PatientPhone";
 import { leadStageChips } from "@/lib/leadStageChips";
 import { apiFetch } from "@/lib/api";
 import type { Lead } from "@/lib/types";
@@ -35,24 +35,21 @@ function stageShort(name: string | null | undefined): string | null {
 
 export function MyLeadsPage() {
   const [q, setQ] = useState("");
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(q.trim()), 250);
+    return () => window.clearTimeout(t);
+  }, [q]);
   const leadsQuery = useQuery({
-    queryKey: ["leads"],
-    queryFn: () => apiFetch<Lead[]>("/api/leads"),
+    queryKey: ["my-leads", debounced],
+    queryFn: () => {
+      const p = new URLSearchParams({ limit: "80" });
+      if (debounced) p.set("q", debounced);
+      return apiFetch<Lead[]>(`/api/leads?${p.toString()}`);
+    },
   });
 
-  const leads = useMemo(() => {
-    const list = leadsQuery.data ?? [];
-    const needle = q.trim().toLowerCase();
-    if (!needle) return list;
-    return list.filter((lead) => {
-      const phone = displayPatientPhone(lead).toLowerCase();
-      return (
-        lead.name.toLowerCase().includes(needle) ||
-        phone.includes(needle) ||
-        (lead.stage_name || "").toLowerCase().includes(needle)
-      );
-    });
-  }, [leadsQuery.data, q]);
+  const leads = leadsQuery.data ?? [];
 
   return (
     <div className="box-border w-full max-w-none overflow-x-hidden pb-8 sm:mx-auto sm:max-w-[720px] sm:space-y-4">
@@ -64,7 +61,6 @@ export function MyLeadsPage() {
           {!leadsQuery.isLoading ? (
             <p className="shrink-0 text-[11px] tabular-nums mo-muted sm:text-sm">
               {leads.length}
-              {q.trim() ? ` / ${(leadsQuery.data ?? []).length}` : ""}
             </p>
           ) : null}
         </div>
