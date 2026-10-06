@@ -29,7 +29,7 @@ import { CrmToolbar } from "@/components/crm/CrmToolbar";
 import { PatientPhone } from "@/components/PatientPhone";
 import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { apiDownloadBlob, apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
-import { leadStageChips } from "@/lib/leadStageChips";
+import { isRefusalStageName, leadStageChips } from "@/lib/leadStageChips";
 import { formatCompactCount } from "@/lib/money";
 import { theme } from "@/lib/theme";
 import { decodeRoleFromToken } from "@/lib/auth";
@@ -1558,6 +1558,17 @@ export function CrmPage() {
         return;
       }
 
+      let refusalReason: string | undefined;
+      if (isRefusalStageName(String(stageName || ""))) {
+        const reason = window.prompt("Причина отказа");
+        if (reason === null) return;
+        if (!reason.trim()) {
+          toast.error("Укажите причину отказа");
+          return;
+        }
+        refusalReason = reason.trim();
+      }
+
       const previous = leads;
       const optimistic = leads.map((l) =>
         l.id === leadId ? { ...l, status_id: newStageId, stage_name: stageName } : l,
@@ -1567,7 +1578,10 @@ export function CrmPage() {
       try {
         const data = await apiFetch<LeadStatusPatchResponse>(`/api/leads/${leadId}/status`, {
           method: "PATCH",
-          body: JSON.stringify({ status_id: newStageId }),
+          body: JSON.stringify({
+            status_id: newStageId,
+            ...(refusalReason ? { refusal_reason: refusalReason } : {}),
+          }),
         });
         void queryClient.invalidateQueries({ queryKey: ["leads"] });
         void queryClient.invalidateQueries({ queryKey: ["leads-table"] });

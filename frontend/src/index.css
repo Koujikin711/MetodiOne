@@ -5248,15 +5248,23 @@ fieldset.extra-services-field {
   box-shadow: none;
 }
 
+.chat-dialogs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
 .chat-month-nav {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  margin-inline: auto;
+  gap: 0.25rem;
+  margin-inline: 0;
   width: fit-content;
   max-width: 100%;
-  padding: 0.2rem;
+  flex: 0 0 auto;
+  padding: 0.15rem;
   border-radius: 999px;
   border: 1px solid var(--mo-border);
   background: color-mix(in srgb, var(--mo-surface-elevated) 88%, transparent);
@@ -5283,10 +5291,10 @@ fieldset.extra-services-field {
 }
 
 .chat-month-nav__label {
-  min-width: 7.5rem;
-  padding: 0 0.35rem;
+  min-width: 6.4rem;
+  padding: 0 0.2rem;
   text-align: center;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.01em;
   text-transform: capitalize;
@@ -5295,16 +5303,8 @@ fieldset.extra-services-field {
 
 .chat-stage-tabs--sales {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.35rem;
-}
-
-.chat-stage-tabs--sales > .chat-bucket-tab:nth-child(-n + 3) {
-  grid-column: span 2;
-}
-
-.chat-stage-tabs--sales > .chat-bucket-tab:nth-child(n + 4) {
-  grid-column: span 3;
 }
 
 .mkt-charts-grid {

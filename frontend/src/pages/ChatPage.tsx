@@ -11,6 +11,7 @@ import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl, resolveMediaUrl } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { isRefusalStageName } from "@/lib/leadStageChips";
 import { formatMoney, formatCompactCount } from "@/lib/money";
 import type {
   ChatMessage,
@@ -531,6 +532,17 @@ const SALES_STAGE_COLORS: Record<SalesStageKey, string> = {
   archive: "#78716c",
 };
 
+function askRefusalReason(): string | null {
+  const reason = window.prompt("Причина отказа");
+  if (reason === null) return null;
+  const trimmed = reason.trim();
+  if (!trimmed) {
+    toast.error("Укажите причину отказа");
+    return null;
+  }
+  return trimmed;
+}
+
 function isWaitingStageName(name: string | null | undefined): boolean {
   const n = (name || "").trim().toLowerCase();
   return n === "в ожидании" || (n.includes("ожид") && !n.includes("ответа"));
@@ -1002,14 +1014,20 @@ export function ChatPage() {
     mutationFn: async ({
       leadId,
       statusId,
+      refusalReason,
     }: {
       leadId: number;
       statusId: number;
       stageName: string;
+      refusalReason?: string;
     }) => {
       return apiFetch<LeadStatusPatchResponse>(`/api/leads/${leadId}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ status_id: statusId, assign_to_me: true }),
+        body: JSON.stringify({
+          status_id: statusId,
+          assign_to_me: true,
+          ...(refusalReason ? { refusal_reason: refusalReason } : {}),
+        }),
       });
     },
     onSuccess: (data, { stageName }) => {
@@ -1217,31 +1235,32 @@ export function ChatPage() {
             showListOnMobile ? "mo-panel-enter flex" : "hidden lg:flex",
           ].join(" ")}
         >
-          <div className="mb-2 text-base font-semibold tracking-tight text-[var(--mo-accent-hover)] max-lg:mb-1.5 max-lg:text-sm">
-            Диалоги
-          </div>
-
-          {showManagerChatBuckets ? (
-            <div className="chat-month-nav mb-2 shrink-0 max-lg:mb-1.5" title="Новые лиды и выданные из архива в этом месяце">
-              <button
-                type="button"
-                className="chat-month-nav__btn"
-                aria-label="Предыдущий месяц"
-                onClick={() => setChatMonth((m) => shiftYearMonth(m, -1))}
-              >
-                {"‹"}
-              </button>
-              <div className="chat-month-nav__label">{formatChatMonthLabel(chatMonth)}</div>
-              <button
-                type="button"
-                className="chat-month-nav__btn"
-                aria-label="Следующий месяц"
-                onClick={() => setChatMonth((m) => shiftYearMonth(m, 1))}
-              >
-                {"›"}
-              </button>
+          <div className="chat-dialogs-head mb-2 max-lg:mb-1.5">
+            <div className="min-w-0 truncate text-base font-semibold tracking-tight text-[var(--mo-accent-hover)] max-lg:text-sm">
+              Диалоги
             </div>
-          ) : null}
+            {showManagerChatBuckets ? (
+              <div className="chat-month-nav shrink-0" title="Новые лиды и выданные из архива в этом месяце">
+                <button
+                  type="button"
+                  className="chat-month-nav__btn"
+                  aria-label="Предыдущий месяц"
+                  onClick={() => setChatMonth((m) => shiftYearMonth(m, -1))}
+                >
+                  {"‹"}
+                </button>
+                <div className="chat-month-nav__label">{formatChatMonthLabel(chatMonth)}</div>
+                <button
+                  type="button"
+                  className="chat-month-nav__btn"
+                  aria-label="Следующий месяц"
+                  onClick={() => setChatMonth((m) => shiftYearMonth(m, 1))}
+                >
+                  {"›"}
+                </button>
+              </div>
+            ) : null}
+          </div>
 
           {showManagerChatBuckets ? (
             <div className="mb-2.5 shrink-0 max-lg:mb-2 sm:mb-3">
@@ -1313,36 +1332,33 @@ export function ChatPage() {
                     </button>
                   );
                 })}
+                {salesChatMode ? (
+                  <button
+                    type="button"
+                    data-reply-queue="awaiting_reply"
+                    data-bucket="awaiting_reply"
+                    title={AWAITING_REPLY_HINT}
+                    onClick={() => {
+                      setSalesStageKey(null);
+                      setReplyQueue((prev) => (prev === "awaiting_reply" ? null : "awaiting_reply"));
+                    }}
+                    className={[
+                      "chat-bucket-tab chat-reply-tab flex min-h-[2.85rem] flex-col items-center justify-center rounded-xl border px-1 py-1 text-center transition touch-manipulation sm:min-h-[3.25rem] sm:rounded-2xl sm:px-1.5 sm:py-1.5",
+                      replyQueue === "awaiting_reply" ? "is-active" : "",
+                    ].join(" ")}
+                  >
+                    <span className="max-w-full truncate text-[9px] font-semibold leading-tight tracking-wide text-[var(--mo-text-muted)] sm:text-[10px]">
+                      Ждут ответа
+                    </span>
+                    <span
+                      className="mt-0.5 text-sm font-bold tabular-nums leading-none text-[var(--mo-text)] sm:mt-1 sm:text-base"
+                      title={String(bucketCountsQuery.data?.awaiting_reply ?? 0)}
+                    >
+                      {formatCompactCount(bucketCountsQuery.data?.awaiting_reply ?? 0)}
+                    </span>
+                  </button>
+                ) : null}
               </div>
-            </div>
-          ) : null}
-
-          {showManagerChatBuckets && salesChatMode ? (
-            <div className="chat-reply-queue mb-2.5 shrink-0 max-lg:mb-2 sm:mb-3">
-              <button
-                type="button"
-                data-reply-queue="awaiting_reply"
-                data-bucket="awaiting_reply"
-                title={AWAITING_REPLY_HINT}
-                onClick={() => {
-                  setSalesStageKey(null);
-                  setReplyQueue((prev) => (prev === "awaiting_reply" ? null : "awaiting_reply"));
-                }}
-                className={[
-                  "chat-bucket-tab chat-reply-tab flex min-h-[2.85rem] w-full flex-col items-center justify-center rounded-xl border px-2 py-1.5 text-center transition touch-manipulation sm:min-h-[3.25rem] sm:rounded-2xl",
-                  replyQueue === "awaiting_reply" ? "is-active" : "",
-                ].join(" ")}
-              >
-                <span className="max-w-full text-[10px] font-semibold leading-tight tracking-wide text-[var(--mo-text-muted)] sm:text-[11px]">
-                  Ждут ответа
-                </span>
-                <span
-                  className="mt-0.5 text-base font-bold tabular-nums leading-none text-[var(--mo-text)] sm:mt-1 sm:text-lg"
-                  title={String(bucketCountsQuery.data?.awaiting_reply ?? 0)}
-                >
-                  {formatCompactCount(bucketCountsQuery.data?.awaiting_reply ?? 0)}
-                </span>
-              </button>
             </div>
           ) : null}
 
@@ -1610,10 +1626,17 @@ export function ChatPage() {
                                 setWaitingModalLeadId(leadId);
                                 return;
                               }
+                              let refusalReason: string | undefined;
+                              if (isRefusalStageName(s.name)) {
+                                const reason = askRefusalReason();
+                                if (!reason) return;
+                                refusalReason = reason;
+                              }
                               setLeadStatusMutation.mutate({
                                 leadId,
                                 statusId: s.id,
                                 stageName: s.name,
+                                refusalReason,
                               });
                             }}
                             className={[

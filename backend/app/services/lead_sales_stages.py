@@ -58,6 +58,12 @@ ARCHIVE_STAGE_NAME = "Архив"
 # Закрытые исходы: из Архива не возвращаем в «Новый лид» (ни раздачей, ни входящим).
 CLOSED_OUTCOME_STAGE_NAMES: frozenset[str] = frozenset({"Удачно", "Отказ"})
 
+
+def is_refusal_stage_name(name: str | None) -> bool:
+    """Отказ клиента. «Не ответили» сюда не входит."""
+    n = (name or "").strip().casefold().replace("ё", "е")
+    return n in {"отказ", "неуспешно", "потерян"} or "отказ" in n
+
 # Склад (Bitrix / старый WhatsApp / GREEN API): без свежей активности → Архив.
 # Не держим десятки тысяч «Новый лид» только из‑за старого входящего в истории.
 WAREHOUSE_RECENT_DAYS = 45

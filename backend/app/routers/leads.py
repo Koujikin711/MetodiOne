@@ -2308,6 +2308,7 @@ async def update_lead_status(
         ARCHIVE_STAGE_NAME,
         AUTO_ONLY_STAGE_NAMES,
         MANAGER_SETTABLE_STAGE_NAMES,
+        is_refusal_stage_name,
     )
 
     target_name = (stage.name or "").strip()
@@ -2373,6 +2374,17 @@ async def update_lead_status(
     elif to_name in ("В обработке", "В работе", "Удачно"):
         lead.archived_from_stage = None
 
+    refusal_reason = (body.refusal_reason or "").strip()
+    if is_refusal_stage_name(to_name):
+        if not refusal_reason:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Укажите причину отказа",
+            )
+        lead.refusal_reason = refusal_reason
+    elif is_refusal_stage_name(from_name):
+        lead.refusal_reason = None
+
     lead.status_id = body.status_id
     await db.flush()
     await _audit_lead(
@@ -2382,6 +2394,7 @@ async def update_lead_status(
         current_user=current_user,
         details=(
             f"Смена стадии: {from_stage.name} -> {stage.name}"
+            + (f", reason={lead.refusal_reason}" if lead.refusal_reason else "")
             + ("; assign_to_me" if body.assign_to_me else "")
         ),
     )

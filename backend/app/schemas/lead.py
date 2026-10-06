@@ -20,6 +20,7 @@ class LeadStatusUpdate(BaseModel):
         default=False,
         description="Взять лид на себя (менеджер из чата / распределение).",
     )
+    refusal_reason: str | None = Field(default=None, max_length=2000)
 
 
 class LeadUpdate(BaseModel):

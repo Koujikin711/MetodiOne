@@ -1,3 +1,8 @@
+export function isRefusalStageName(name: string | null | undefined): boolean {
+  const n = (name || "").trim().toLowerCase().replace(/ё/g, "е");
+  return n === "отказ" || n === "неуспешно" || n === "потерян" || n.includes("отказ");
+}
+
 /** Чипы стадии: Архив + Удачно, или «был Удачно» после раздачи. */
 export function leadStageChips(lead: {
   stage_name?: string | null;

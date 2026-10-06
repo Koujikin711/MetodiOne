@@ -23,7 +23,7 @@ import { BookingAttendancePanel } from "@/components/BookingAttendancePanel";
 import { ReferringDoctorField } from "@/components/ReferringDoctorField";
 import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { auditActionLabel, auditDetailsLabel } from "@/lib/auditLabels";
-import { leadStageChips } from "@/lib/leadStageChips";
+import { isRefusalStageName, leadStageChips } from "@/lib/leadStageChips";
 import type {
   BookingAppointment,
   BookingSpecialist,
@@ -237,10 +237,21 @@ export function LeadDetailPage() {
   });
 
   const setLeadStatusMutation = useMutation({
-    mutationFn: async ({ statusId }: { statusId: number; stageName: string }) =>
+    mutationFn: async ({
+      statusId,
+      refusalReason,
+    }: {
+      statusId: number;
+      stageName: string;
+      refusalReason?: string;
+    }) =>
       apiFetch(`/api/leads/${leadId}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ status_id: statusId, assign_to_me: true }),
+        body: JSON.stringify({
+          status_id: statusId,
+          assign_to_me: true,
+          ...(refusalReason ? { refusal_reason: refusalReason } : {}),
+        }),
       }),
     onSuccess: (_data, vars) => {
       toast.success(`Стадия: ${stageButtonLabel(vars.stageName)}`);
@@ -697,10 +708,14 @@ export function LeadDetailPage() {
                   type="button"
                   disabled={rejectMutation.isPending}
                   onClick={() => {
-                    const reason = window.prompt("Причина отказа (необязательно):");
+                    const reason = window.prompt("Причина отказа");
                     if (reason === null) return;
+                    if (!reason.trim()) {
+                      toast.error("Укажите причину отказа");
+                      return;
+                    }
                     if (!window.confirm("Перевести лид в «Отказ»?")) return;
-                    rejectMutation.mutate(reason);
+                    rejectMutation.mutate(reason.trim());
                   }}
                   className="rounded-xl border border-[var(--mo-danger)]/40 bg-[var(--mo-danger)]/10 px-3 py-3 text-sm font-semibold text-[var(--mo-danger)] transition hover:bg-[var(--mo-danger)]/15 disabled:opacity-50"
                 >
@@ -731,7 +746,21 @@ export function LeadDetailPage() {
                           setWaitingModalOpen(true);
                           return;
                         }
-                        setLeadStatusMutation.mutate({ statusId: s.id, stageName: s.name });
+                        let refusalReason: string | undefined;
+                        if (isRefusalStageName(s.name)) {
+                          const reason = window.prompt("Причина отказа");
+                          if (reason === null) return;
+                          if (!reason.trim()) {
+                            toast.error("Укажите причину отказа");
+                            return;
+                          }
+                          refusalReason = reason.trim();
+                        }
+                        setLeadStatusMutation.mutate({
+                          statusId: s.id,
+                          stageName: s.name,
+                          refusalReason,
+                        });
                       }}
                       className={[
                         "rounded-xl border px-3 py-2 text-sm transition disabled:opacity-50",

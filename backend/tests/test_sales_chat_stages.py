@@ -6,9 +6,17 @@ from app.services.lead_sales_stages import (
     MANAGER_SETTABLE_STAGE_NAMES,
     SALES_STAGE_NAMES,
     classify_lead_stage_name,
+    is_refusal_stage_name,
     resolve_stage_name_aliases,
     sales_stage_name_for_key,
 )
+
+
+def test_refusal_stage_is_not_a_missed_call():
+    assert is_refusal_stage_name("Отказ")
+    assert is_refusal_stage_name("Неуспешно")
+    assert not is_refusal_stage_name("Не ответили")
+    assert not is_refusal_stage_name("В работе")
 
 
 def test_sales_stage_keys():
