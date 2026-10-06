@@ -2,7 +2,7 @@ import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser
@@ -168,7 +168,9 @@ async def login(
         )
         candidates = list(result.scalars().all())
     elif "@" in identifier:
-        result = await db.execute(select(User).where(User.email == identifier, User.is_active.is_(True)))
+        result = await db.execute(
+            select(User).where(func.lower(User.email) == identifier, User.is_active.is_(True))
+        )
         candidates = list(result.scalars().all())
     else:
         result = await db.execute(select(User).where(User.phone == identifier, User.is_active.is_(True)))

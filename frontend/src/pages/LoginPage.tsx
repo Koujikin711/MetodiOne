@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { LayoutDashboard } from "@/components/icons";
@@ -8,12 +8,43 @@ import { apiFetch, setStoredToken } from "@/lib/api";
 import { theme } from "@/lib/theme";
 import type { LoginCompanyChoice, TokenResponse, User, UserRole } from "@/lib/types";
 
+function EyeIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M2.5 12S6 6.5 12 6.5 21.5 12 21.5 12 18 17.5 12 17.5 2.5 12 2.5 12Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="2.6" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3 4.5 20 19.5M9.2 9.4A3 3 0 0 0 12 15a3 3 0 0 0 2.6-1.5M6.2 6.8C4.2 8.2 2.5 12 2.5 12S6 17.5 12 17.5c1.5 0 2.8-.4 4-.9M10.2 6.7C10.8 6.6 11.4 6.5 12 6.5c6 0 9.5 5.5 9.5 5.5s-.7 1.1-2 2.3"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [role, setRole] = useState<UserRole>("manager");
   const [error, setError] = useState<string | null>(null);
@@ -38,15 +69,17 @@ export function LoginPage() {
   }, [searchParams, setSearchParams]);
 
   const mutation = useMutation({
-    mutationFn: async (): Promise<{ mustChangePassword: boolean }> => {
+    mutationFn: async (creds: { email: string; password: string }): Promise<{ mustChangePassword: boolean }> => {
       setError(null);
+      const loginEmail = creds.email.trim();
+      const loginPassword = creds.password;
       if (mode === "login") {
         try {
           const token = await apiFetch<TokenResponse>("/api/auth/login", {
             method: "POST",
             body: JSON.stringify({
-              email,
-              password,
+              email: loginEmail,
+              password: loginPassword,
               company_id: selectedCompanyId,
             }),
           });
@@ -66,11 +99,11 @@ export function LoginPage() {
       }
       await apiFetch<User>("/api/auth/register", {
         method: "POST",
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email: loginEmail, password: loginPassword, role }),
       });
       const token = await apiFetch<TokenResponse>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
       setStoredToken(token.access_token);
       await queryClient.clear();
@@ -80,6 +113,10 @@ export function LoginPage() {
       navigate(mustChangePassword ? "/force-password" : "/app", { replace: true }),
     onError: (e: Error) => {
       const m = e.message || "";
+      if (m === "Incorrect login or password") {
+        setError("Неверный логин или пароль");
+        return;
+      }
       if (mode === "login" && (m.includes("приостановлен") || m.includes("Компания временно"))) {
         setError(
           "Доступ к вашей организации временно приостановлен администратором. Вход в CRM недоступен до возобновления работы компании.",
@@ -124,7 +161,12 @@ export function LoginPage() {
             noValidate
             onSubmit={(e) => {
               e.preventDefault();
-              mutation.mutate();
+              const fd = new FormData(e.currentTarget);
+              const loginEmail = String(fd.get("login") ?? emailRef.current?.value ?? "").trim();
+              const loginPassword = String(fd.get("password") ?? passwordRef.current?.value ?? "");
+              setEmail(loginEmail);
+              setPassword(loginPassword);
+              mutation.mutate({ email: loginEmail, password: loginPassword });
             }}
           >
             <div>
@@ -132,6 +174,7 @@ export function LoginPage() {
                 {mode === "login" ? "Логин или email" : "Email"}
               </label>
               <input
+                ref={emailRef}
                 id="email"
                 name="login"
                 type={mode === "login" ? "text" : "email"}
@@ -144,6 +187,7 @@ export function LoginPage() {
                   setCompanyChoices([]);
                   setSelectedCompanyId(null);
                 }}
+                onInput={(e) => setEmail(e.currentTarget.value)}
                 className={`${theme.input} mt-2`}
               />
             </div>
@@ -151,20 +195,36 @@ export function LoginPage() {
               <label className="text-xs font-semibold uppercase tracking-wider text-[#5c6b7a]" htmlFor="password">
                 Пароль
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                required
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setCompanyChoices([]);
-                  setSelectedCompanyId(null);
-                }}
-                className={`${theme.input} mt-2`}
-              />
+              <div className="relative mt-2">
+                <input
+                  ref={passwordRef}
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  required
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setCompanyChoices([]);
+                    setSelectedCompanyId(null);
+                  }}
+                  onInput={(e) => setPassword(e.currentTarget.value)}
+                  className={`${theme.input} pr-11`}
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[#5c6b7a]"
+                  aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                  aria-pressed={showPassword}
+                  onClick={() => {
+                    setPassword(passwordRef.current?.value ?? password);
+                    setShowPassword((v) => !v);
+                  }}
+                >
+                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
             </div>
             {companyChoices.length > 0 ? (
               <div>
