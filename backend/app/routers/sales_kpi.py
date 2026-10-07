@@ -60,9 +60,11 @@ def _month_bounds(ym: date) -> tuple[datetime, datetime]:
 
 
 def _assert_kpi_access(current_user: CurrentUser) -> None:
-    from app.services.clinic_roles import can_access_company_report, can_access_debtors, can_access_kpi
+    from app.services.clinic_roles import can_access_company_report, can_access_debtors, can_access_kpi, expert_also_curator
 
-    if current_user.role in (UserRole.expert, UserRole.finance_analyst):
+    if current_user.role == UserRole.finance_analyst or (
+        current_user.role == UserRole.expert and not expert_also_curator(current_user)
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Раздел KPI недоступен для этой роли")
     if can_access_kpi(current_user.role) or can_access_company_report(current_user.role) or can_access_debtors(current_user.role):
         return
@@ -104,7 +106,10 @@ async def list_kpi_pipelines(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> list[SalesKpiPipelineMeta]:
-    _assert_kpi_access(current_user)
+    from app.services.clinic_roles import expert_also_curator
+
+    if not expert_also_curator(current_user):
+        _assert_kpi_access(current_user)
     q = (
         select(Pipeline, User.full_name, User.email)
         .join(User, User.id == Pipeline.expert_user_id, isouter=True)

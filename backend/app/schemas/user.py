@@ -39,6 +39,7 @@ class UserMeRead(UserRead):
     desk_sales_enabled: bool = False
     # Менеджер ведёт стадии из чата; канбан — зеркало для владельца (clinic и sales).
     chat_stages_enabled: bool = True
+    also_curator: bool = False
 
 
 class ChangePasswordBody(BaseModel):

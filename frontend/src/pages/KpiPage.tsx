@@ -397,7 +397,7 @@ export function KpiPage() {
   const isOwner = role === "owner" || role === "super_owner" || role === "rop";
   const isAdminOrOwner = isOwner || role === "admin" || role === "administrator";
   const isManager = role === "manager";
-  const isCurator = role === "curator";
+  const isCurator = role === "curator" || (role === "expert" && Boolean(meQuery.data?.also_curator));
   const isAccountant = role === "accountant";
   const meQuery = useCurrentUserMe();
   const salesSpace =
@@ -443,7 +443,7 @@ export function KpiPage() {
   const pipelinesQuery = useQuery({
     queryKey: ["sales-kpi-pipelines"],
     queryFn: () => apiFetch<SalesKpiPipelineMeta[]>("/api/sales-kpi/pipelines"),
-    enabled: role !== "expert",
+    enabled: role !== "expert" || Boolean(meQuery.data?.also_curator),
   });
 
   useEffect(() => {
@@ -453,6 +453,10 @@ export function KpiPage() {
       setPipelineId(list[0].id);
     }
   }, [pipelinesQuery.data, pipelineId]);
+
+  useEffect(() => {
+    if (role === "expert" && meQuery.data?.also_curator) setTab("debtors");
+  }, [role, meQuery.data?.also_curator]);
 
   // Phase 8B: create-from-Lead — ?lead_id= → auto-select, open manual tab
   useEffect(() => {

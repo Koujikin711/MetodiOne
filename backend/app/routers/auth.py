@@ -262,6 +262,7 @@ async def me(
         booking_enabled=not sales,
         desk_sales_enabled=sales,
         chat_stages_enabled=True,
+        also_curator=bool(getattr(current_user, "also_curator", False)),
     )
 
 

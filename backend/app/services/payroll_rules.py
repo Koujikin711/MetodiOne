@@ -234,6 +234,31 @@ def company_balance(months: list[tuple[Decimal, Decimal]]) -> Decimal:
     return total
 
 
+def accrue_with_extra_curator(
+    profile: str,
+    facts: PayrollFacts,
+    *,
+    card_salary: Decimal | None,
+    also_curator: bool,
+) -> PayrollAccrual:
+    """Эксперт и куратор на одной карточке: две формулы, суммы складываются."""
+    primary = accrue(profile, facts, card_salary=card_salary)
+    if not also_curator or profile == "curator":
+        return primary
+    extra = accrue("curator", facts, card_salary=None)
+    if primary.base_salary is None:
+        base = extra.base_salary
+    else:
+        base = _q(primary.base_salary + (extra.base_salary or Decimal("0")))
+    return PayrollAccrual(
+        base,
+        _q(primary.bonus + extra.bonus),
+        primary.debt,
+        primary.debt_label,
+        f"Эксперт: {primary.formula}\nКуратор: {extra.formula}",
+    )
+
+
 def accrue(profile: str, facts: PayrollFacts, *, card_salary: Decimal | None) -> PayrollAccrual:
     """Начисление за месяц. Колонка долга — долг компании, её считает ведомость."""
     if profile == "neurologist":

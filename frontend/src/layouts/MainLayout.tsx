@@ -89,6 +89,7 @@ export function MainLayout() {
   const isRop = role === "rop";
   const isExpert = role === "expert";
   const meQuery = useCurrentUserMe();
+  const alsoCurator = isExpert && Boolean(meQuery.data?.also_curator);
   const isChiefExpert = Boolean(meQuery.data?.is_chief_expert);
   const isExpertElevated = isExpert && isChiefExpert;
   const isManagerLikeNav = isManagerNav || isExpertElevated;
@@ -237,6 +238,7 @@ export function MainLayout() {
               isChiefExpert={isChiefExpert}
               isAdministrator={isAdministrator}
               isCurator={isCurator}
+              alsoCurator={alsoCurator}
               isAccountant={isAccountant}
               isRop={isRop}
               showFinance={showFinance}
@@ -857,6 +859,27 @@ export function MainLayout() {
                     </GradientIconBox>
                     <span className="text-[9px]">Мессенджер</span>
                   </NavLink>
+              {alsoCurator ? (
+                <NavLink
+                  preventScrollReset
+                  to="/curator-journal"
+                  className={mobileBottomNavLinkClass}
+                  title="Журнал куратора"
+                >
+                  <GradientIconBox variant="purple" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <ClipboardList className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Журнал</span>
+                </NavLink>
+              ) : null}
+              {alsoCurator ? (
+                <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title="Дебиторка">
+                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <Target className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Долги</span>
+                </NavLink>
+              ) : null}
 
 <button
                 type="button"

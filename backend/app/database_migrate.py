@@ -1848,6 +1848,20 @@ async def ensure_booking_referrer(conn: AsyncConnection, database_url: str) -> N
         )
 
 
+async def ensure_user_also_curator(conn: AsyncConnection, database_url: str) -> None:
+    """Эксперт может дополнительно быть куратором на той же учётке."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        r = await conn.execute(text("PRAGMA table_info(users)"))
+        cols = {row[1] for row in r.fetchall()}
+        if "also_curator" not in cols:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN also_curator INTEGER NOT NULL DEFAULT 0"))
+        return
+    await conn.execute(
+        text("ALTER TABLE users ADD COLUMN IF NOT EXISTS also_curator BOOLEAN NOT NULL DEFAULT FALSE")
+    )
+
+
 async def ensure_user_pay_profile(conn: AsyncConnection, database_url: str) -> None:
     """Оклад и способ выплаты на карточке сотрудника."""
     low = database_url.lower()

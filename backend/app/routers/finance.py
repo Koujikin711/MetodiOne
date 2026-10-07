@@ -361,7 +361,7 @@ async def payroll_sheet(
 
     from app.services.payroll_facts import load_payroll_facts
     from app.services.payroll_rules import (
-        accrue,
+        accrue_with_extra_curator,
         carried_company_debt,
         payroll_name_on,
         payroll_profile,
@@ -448,7 +448,13 @@ async def payroll_sheet(
         profiles[uid] = profile
         card_salary = Decimal(str(user.base_salary)) if user.base_salary is not None else None
         facts = replace(facts_by_user.get(uid), kpi_bonus=bonus_by_id.get(uid, Decimal("0")))
-        accrued = accrue(profile, facts, card_salary=card_salary)
+        also_curator = role == "expert" and bool(getattr(user, "also_curator", False))
+        accrued = accrue_with_extra_curator(
+            profile,
+            facts,
+            card_salary=card_salary,
+            also_curator=also_curator,
+        )
         adj = adjustments.get(uid)
         salary = accrued.base_salary
         bonus = accrued.bonus

@@ -23,6 +23,12 @@ def is_curator(role: UserRole) -> bool:
     return role == UserRole.curator
 
 
+def expert_also_curator(user) -> bool:
+    """Эксперт, которому на той же учётке включили должность куратора."""
+    role = getattr(user, "role", None)
+    return role == UserRole.expert and bool(getattr(user, "also_curator", False))
+
+
 def can_access_booking(role: UserRole) -> bool:
     return role in (
         UserRole.owner,

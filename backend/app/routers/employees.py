@@ -68,6 +68,7 @@ class EmployeeRead(BaseModel):
     base_salary: Decimal | None = None
     payout_bank: str | None = None
     payroll_only: bool = False
+    also_curator: bool = False
 
 
 class InviteEmployeeBody(BaseModel):
@@ -104,6 +105,7 @@ class PatchEmployeeContactBody(BaseModel):
     booking_direction_id: int | None = None
     base_salary: Decimal | None = Field(default=None, ge=0)
     payout_bank: str | None = Field(default=None, max_length=32)
+    also_curator: bool | None = None
 
 
 class PatchEmployeeContactResult(BaseModel):
@@ -155,6 +157,7 @@ async def _employee_read(db: AsyncSession, u: User) -> EmployeeRead:
         base_salary=u.base_salary,
         payout_bank=u.payout_bank,
         payroll_only=(u.email or "").endswith("@staff.internal"),
+        also_curator=bool(getattr(u, "also_curator", False)),
     )
 
 
@@ -179,6 +182,7 @@ def _employee_read_cached(
         base_salary=u.base_salary,
         payout_bank=u.payout_bank,
         payroll_only=(u.email or "").endswith("@staff.internal"),
+        also_curator=bool(getattr(u, "also_curator", False)),
     )
 
 
@@ -843,6 +847,7 @@ async def patch_employee_contact(
         and body.booking_direction_id is None
         and "base_salary" not in body.model_fields_set
         and "payout_bank" not in body.model_fields_set
+        and "also_curator" not in body.model_fields_set
     ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет данных для обновления")
 
@@ -861,6 +866,16 @@ async def patch_employee_contact(
     changed = False
     new_email = target.email
     new_phone = target.phone
+
+    if "also_curator" in body.model_fields_set and body.also_curator is not None:
+        if target.role != UserRole.expert:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Вторая должность куратора доступна только эксперту",
+            )
+        if bool(target.also_curator) != bool(body.also_curator):
+            changed = True
+            target.also_curator = bool(body.also_curator)
 
     if body.email is not None:
         normalized = body.email.strip().lower()

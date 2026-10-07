@@ -34,6 +34,7 @@ type BuildParams = {
   isChiefExpert: boolean;
   isAdministrator?: boolean;
   isCurator?: boolean;
+  alsoCurator?: boolean;
   isAccountant?: boolean;
   isRop?: boolean;
   showFinance: boolean;
@@ -98,6 +99,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     isChiefExpert,
     isAdministrator = false,
     isCurator = false,
+    alsoCurator = false,
     isAccountant = false,
     isRop = false,
     showFinance,
@@ -640,6 +642,18 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       variant: "tasks",
       iconKey: "users",
     });
+    if (alsoCurator) {
+      items.push(curatorJournalNavItem());
+      items.push({
+        id: "kpi",
+        to: "/kpi",
+        title: "Дебиторка",
+        labelShort: "Долги",
+        labelFull: "Дебиторка курсов",
+        variant: "platform",
+        iconKey: "target",
+      });
+    }
     return items;
   }
 

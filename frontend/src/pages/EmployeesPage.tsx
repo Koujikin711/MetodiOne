@@ -22,6 +22,7 @@ export interface Employee {
   payout_bank?: string | null;
   is_online?: boolean;
   last_seen_at?: string | null;
+  also_curator?: boolean;
 }
 
 interface InviteResult {
@@ -147,6 +148,7 @@ export function EmployeesPage() {
   const [editSalary, setEditSalary] = useState("");
   const [editPayoutBank, setEditPayoutBank] = useState("");
   const [editSpecialization, setEditSpecialization] = useState("");
+  const [editAlsoCurator, setEditAlsoCurator] = useState(false);
   const [editPipelineIds, setEditPipelineIds] = useState<number[]>([]);
 
   const pipelines = pipelinesQuery.data ?? [];
@@ -413,6 +415,7 @@ export function EmployeesPage() {
     setEditSalary(e.base_salary == null || e.base_salary === "" ? "" : String(e.base_salary));
     setEditPayoutBank(e.payout_bank ?? "");
     setEditSpecialization(e.specialization ?? "");
+    setEditAlsoCurator(Boolean(e.also_curator));
     setEditPipelineIds([...e.pipeline_ids]);
   }
 
@@ -446,13 +449,21 @@ export function EmployeesPage() {
       const specChanged =
         editEmployee.role === "expert" &&
         editSpecialization.trim() !== (editEmployee.specialization || "").trim();
+      const alsoCuratorChanged =
+        editEmployee.role === "expert" && editAlsoCurator !== Boolean(editEmployee.also_curator);
       const pipelinesChanged =
         canEditPipelines(editEmployee.role) &&
         (editPipelineIds.length !== editEmployee.pipeline_ids.length ||
           editPipelineIds.some((id) => !editEmployee.pipeline_ids.includes(id)));
 
       const profileChanged =
-        emailChanged || phoneChanged || nameChanged || specChanged || salaryChanged || bankChanged;
+        emailChanged ||
+        phoneChanged ||
+        nameChanged ||
+        specChanged ||
+        salaryChanged ||
+        bankChanged ||
+        alsoCuratorChanged;
 
       if (!profileChanged && !pipelinesChanged) {
         throw new Error("Нет изменений");
@@ -467,6 +478,7 @@ export function EmployeesPage() {
           ...(editEmployee.role === "expert"
             ? {
                 specialization: editSpecialization.trim(),
+                also_curator: editAlsoCurator,
               }
             : {}),
           base_salary: editSalary.trim() ? Number(editSalary) : null,
@@ -778,6 +790,7 @@ export function EmployeesPage() {
                   />
                   <div className="truncate lux-subheading">{e.full_name ?? "—"}</div>
                   <span className="employee-role-badge">{roleLabel(e.role)}</span>
+                  {e.also_curator ? <span className="employee-role-badge">Куратор</span> : null}
                   <span
                     className={[
                       "employee-presence-label",
@@ -893,6 +906,9 @@ export function EmployeesPage() {
                 <h2 className="lux-subheading">Редактировать сотрудника</h2>
                 <p className="mt-1 text-xs lux-caption">
                   <span className="employee-role-badge">{roleLabel(editEmployee.role)}</span>
+                  {editEmployee.role === "expert" && editAlsoCurator ? (
+                    <span className="employee-role-badge">Куратор</span>
+                  ) : null}
                 </p>
               </div>
               <button type="button" onClick={() => setEditEmployee(null)} className="mo-modal-close">
@@ -999,6 +1015,14 @@ export function EmployeesPage() {
                         className="mo-input"
                         placeholder="Например: Невролог"
                       />
+                    </label>
+                    <label className="employee-edit-check sm:col-span-2">
+                      <input
+                        type="checkbox"
+                        checked={editAlsoCurator}
+                        onChange={(ev) => setEditAlsoCurator(ev.target.checked)}
+                      />
+                      <span>Ещё куратор — тот же вход, журнал и долги, в ведомости вторая формула</span>
                     </label>
                   </div>
                 </section>

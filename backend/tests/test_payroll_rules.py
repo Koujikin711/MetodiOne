@@ -182,6 +182,22 @@ def test_filled_referrer_stays_unless_owner_or_funnel_admin():
     assert referrer_change_blocked(2, 3, "admin") is None
 
 
+def test_expert_and_curator_accrue_on_one_card():
+    from app.services.payroll_rules import accrue_with_extra_curator
+
+    facts = PayrollFacts(debt_collected=Decimal("5000"), own_sessions=10)
+    row = accrue_with_extra_curator(
+        "massage",
+        facts,
+        card_salary=None,
+        also_curator=True,
+    )
+    assert row.base_salary == Decimal("5000")
+    assert row.bonus == Decimal("100.00")
+    assert "Эксперт:" in row.formula
+    assert "Куратор:" in row.formula
+
+
 def test_curator_admin_and_nutritionist():
     curator = accrue("curator", PayrollFacts(debt_collected=Decimal("5000")), card_salary=None)
     admin = accrue("administrator", PayrollFacts(single_procedure_paid=Decimal("10000")), card_salary=None)

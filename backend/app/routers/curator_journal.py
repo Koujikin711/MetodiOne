@@ -521,6 +521,7 @@ async def list_curators(
                 User.is_active.is_(True),
                 or_(
                     User.role == UserRole.curator,
+                    User.also_curator.is_(True),
                     User.role.in_(
                         [
                             UserRole.administrator,

@@ -107,9 +107,11 @@ router = APIRouter(prefix="/sales-kpi", tags=["sales-kpi"])
 
 
 def _assert_kpi_access(current_user: CurrentUser) -> None:
-    from app.services.clinic_roles import can_access_company_report, can_access_debtors, can_access_kpi
+    from app.services.clinic_roles import can_access_company_report, can_access_debtors, can_access_kpi, expert_also_curator
 
-    if current_user.role in (UserRole.expert, UserRole.finance_analyst):
+    if current_user.role == UserRole.finance_analyst or (
+        current_user.role == UserRole.expert and not expert_also_curator(current_user)
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Раздел KPI недоступен для этой роли")
     if can_access_kpi(current_user.role) or can_access_company_report(current_user.role) or can_access_debtors(current_user.role):
         return
@@ -133,9 +135,9 @@ def _assert_admin_or_owner(current_user: CurrentUser) -> None:
 
 
 def _assert_debtors_access(current_user: CurrentUser) -> None:
-    from app.services.clinic_roles import can_access_debtors
+    from app.services.clinic_roles import can_access_debtors, expert_also_curator
 
-    if can_access_debtors(current_user.role):
+    if can_access_debtors(current_user.role) or expert_also_curator(current_user):
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Дебиторка недоступна")
 
@@ -1415,7 +1417,10 @@ async def debtors_report(
     pipeline_id: int = Query(..., ge=1),
     year_month: str = Query(..., description="YYYY-MM"),
 ) -> SalesKpiDebtorsReport:
-    _assert_kpi_access(current_user)
+    from app.services.clinic_roles import expert_also_curator
+
+    if not expert_also_curator(current_user):
+        _assert_kpi_access(current_user)
     _assert_debtors_access(current_user)
     pipe = await _load_pipeline(db, company_id, pipeline_id)
     try:
@@ -1617,9 +1622,13 @@ async def debtors_report(
             ),
         )
 
-    from app.services.clinic_roles import debtors_course_protocol_only, is_course_or_protocol_indicator
+    from app.services.clinic_roles import (
+        debtors_course_protocol_only,
+        expert_also_curator,
+        is_course_or_protocol_indicator,
+    )
 
-    if debtors_course_protocol_only(current_user.role):
+    if debtors_course_protocol_only(current_user.role) or expert_also_curator(current_user):
         rows_out = [r for r in rows_out if is_course_or_protocol_indicator(r.indicator_name)]
     rows_out = await _attach_collection_notes(db, company_id, rows_out)
     total = sum((r.debt_amount for r in rows_out), Decimal("0"))
@@ -1690,7 +1699,10 @@ async def save_debtor_note(
     company_id: CurrentCompanyId,
 ) -> SalesKpiDebtorNoteOut:
     """Комментарий и дата «обещал оплатить». Сумму долга не меняет."""
-    _assert_kpi_access(current_user)
+    from app.services.clinic_roles import expert_also_curator
+
+    if not expert_also_curator(current_user):
+        _assert_kpi_access(current_user)
     _assert_debtors_access(current_user)
     if not await _debtor_source_in_company(db, company_id, body.source, body.source_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Долг не найден")
