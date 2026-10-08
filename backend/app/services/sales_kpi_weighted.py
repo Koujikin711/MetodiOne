@@ -206,8 +206,8 @@ async def load_brought_paid_detail(
     company_id: int,
     pipeline_id: int,
     ym: date,
-) -> dict[tuple[int, int, int], Decimal]:
-    """Оплачено по записи: (менеджер, эксперт, услуга). Частичная оплата входит."""
+) -> dict[tuple[int, int, int, Decimal], Decimal]:
+    """Оплачено по записи: (менеджер, эксперт, направление, цена услуги). Частичная оплата входит."""
     start, end = month_bounds(ym)
     filters: list[ColumnElement[bool]] = [
         BookingAppointment.company_id == company_id,
@@ -230,6 +230,7 @@ async def load_brought_paid_detail(
                 BookingAppointment.created_by_user_id,
                 BookingAppointment.specialist_id,
                 BookingAppointment.direction_id,
+                BookingAppointment.service_amount,
                 func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
             )
             .select_from(BookingAppointment)
@@ -241,18 +242,83 @@ async def load_brought_paid_detail(
                 BookingAppointment.created_by_user_id,
                 BookingAppointment.specialist_id,
                 BookingAppointment.direction_id,
+                BookingAppointment.service_amount,
             ),
         )
     ).all()
-    out: dict[tuple[int, int, int], Decimal] = {}
-    for manager_id, specialist_id, direction_id, paid in rows:
+    out: dict[tuple[int, int, int, Decimal], Decimal] = {}
+    for manager_id, specialist_id, direction_id, service_amount, paid in rows:
         if manager_id is None or specialist_id is None or direction_id is None:
             continue
         amount = Decimal(str(paid or 0)).quantize(Decimal("0.01"))
         if amount <= 0:
             continue
-        out[(int(manager_id), int(specialist_id), int(direction_id))] = amount
+        price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
+        key = (int(manager_id), int(specialist_id), int(direction_id), price)
+        out[key] = (out.get(key, Decimal("0")) + amount).quantize(Decimal("0.01"))
     return out
+
+
+async def load_booking_direction_names(
+    db: AsyncSession,
+    *,
+    company_id: int,
+) -> dict[int, str]:
+    rows = (
+        await db.execute(
+            select(BookingDirection.id, BookingDirection.name).where(
+                BookingDirection.company_id == company_id,
+            ),
+        )
+    ).all()
+    return {int(did): str(name or "") for did, name in rows if did is not None}
+
+
+def _labels_same_service(left: str | None, right: str | None) -> bool:
+    """Имя услуги в плане и имя направления записи. Одна замена буквы тоже сходится.
+
+    В каталоге направление называется «Остиопат», в плане — «Остеопат».
+    «Курс» и «Курс 15» дальше одной буквы и не склеиваются.
+    """
+    a = _norm_kpi_label(left)
+    b = _norm_kpi_label(right)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    if abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) == 1
+    if len(a) > len(b):
+        a, b = b, a
+    i = j = skipped = 0
+    while i < len(a) and j < len(b):
+        if a[i] != b[j]:
+            skipped += 1
+            if skipped > 1:
+                return False
+            j += 1
+            continue
+        i += 1
+        j += 1
+    return True
+
+
+def service_direction_ids(name: str, direction_names: dict[int, str] | None) -> list[int]:
+    """Направления записи с тем же именем, что услуга в плане. Кабинет эксперта сюда не входит."""
+    if not direction_names:
+        return []
+    return [int(did) for did, label in direction_names.items() if _labels_same_service(label, name)]
+
+
+def _detail_row(key: tuple) -> tuple[int, int, int, Decimal | None]:
+    if len(key) >= 4:
+        mid, sid, did, amt = key[0], key[1], key[2], key[3]
+        amount = Decimal(str(amt)).quantize(Decimal("0.01")) if amt is not None else None
+        return int(mid), int(sid), int(did), amount
+    mid, sid, did = key
+    return int(mid), int(sid), int(did), None
 
 
 def brought_for_plan_item(
@@ -263,25 +329,49 @@ def brought_for_plan_item(
     direction_id: int | None,
     direction_ids: list[int],
     specialist_ids: list[int],
-    detail: dict[tuple[int, int, int], Decimal],
+    detail: dict,
     manual: dict[tuple[int, str], Decimal],
+    direction_names: dict[int, str] | None = None,
+    unit_price: Decimal | None = None,
 ) -> Decimal:
-    """Сумма, которую менеджер привёл по строке плана. Без полной оплаты и без порога."""
+    """Сумма, которую менеджер привёл по строке плана. Без полной оплаты и без порога.
+
+    direction_id строки — кабинет эксперта (консультация, массаж), не сама услуга.
+    Если услуги явно не выбраны, берём направление с именем услуги либо визит с её ценой.
+    """
     if (source_type or "manual") != "direction":
         return manual.get((manager_id, _norm_kpi_label(name)), Decimal("0"))
-    dirs = [int(d) for d in direction_ids]
-    if direction_id is not None and int(direction_id) not in dirs:
-        dirs.append(int(direction_id))
-    specs = [int(s) for s in specialist_ids]
+    explicit = [int(d) for d in direction_ids]
+    named = service_direction_ids(name, direction_names)
+    specs = {int(s) for s in specialist_ids}
+    price = Decimal(str(unit_price or 0))
     total = Decimal("0")
-    for (mid, sid, did), amount in detail.items():
+    for key, amount in detail.items():
+        mid, sid, did, service_amount = _detail_row(key)
         if mid != manager_id:
             continue
-        if dirs and did not in dirs:
-            continue
-        if specs and sid not in specs:
-            continue
-        if not dirs and not specs:
+        if explicit:
+            if did not in explicit:
+                continue
+            if specs and sid not in specs:
+                continue
+        elif specs:
+            if sid not in specs:
+                continue
+            name_ok = did in named
+            price_ok = (
+                service_amount is not None
+                and price > 0
+                and amounts_match_unit_price(service_amount, price)
+            )
+            if not name_ok and not price_ok:
+                continue
+        elif named:
+            if did not in named:
+                continue
+        elif direction_id is not None and did == int(direction_id):
+            pass
+        else:
             continue
         total += amount
     return total.quantize(Decimal("0.01"))

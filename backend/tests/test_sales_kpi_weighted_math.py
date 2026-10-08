@@ -57,6 +57,41 @@ def test_plan_line_uses_brought_money_for_that_service():
     ) == Decimal("1500.00")
 
 
+def test_direction_item_matches_service_name_not_expert_cabinet():
+    """Кабинет эксперта (консультация/массаж) не обнуляет оплату самой услуги."""
+    detail = {
+        (7, 8, 3, Decimal("1300.00")): Decimal("2600.00"),
+        (7, 8, 6, Decimal("150.00")): Decimal("150.00"),
+        (7, 8, 6, Decimal("1300.00")): Decimal("400.00"),
+        (7, 16, 24, Decimal("500.00")): Decimal("500.00"),
+        (7, 16, 7, Decimal("500.00")): Decimal("150.00"),
+    }
+    names = {3: "Курс 15", 6: "Консультация", 7: "Массаж", 24: "Остиопат"}
+    assert brought_for_plan_item(
+        manager_id=7,
+        source_type="direction",
+        name="Курс 15",
+        direction_id=6,
+        direction_ids=[],
+        specialist_ids=[8],
+        detail=detail,
+        manual={},
+        direction_names=names,
+        unit_price=Decimal("1300"),
+    ) == Decimal("3000.00")
+    assert brought_for_plan_item(
+        manager_id=7,
+        source_type="direction",
+        name="Остеопат",
+        direction_id=7,
+        direction_ids=[],
+        specialist_ids=[16],
+        detail=detail,
+        manual={},
+        direction_names=names,
+    ) == Decimal("500.00")
+
+
 def test_service_earning_is_percent_of_brought_not_full_price():
     """10% от приведённых 400, а не от цены 1000 и не от порога 25%."""
     assert earning_from_brought(Decimal("400"), Decimal("10")) == Decimal("40.00")
