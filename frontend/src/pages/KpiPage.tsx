@@ -24,7 +24,8 @@ import type {
   SalesKpiManualSale,
   SalesKpiPaymentJournalRow,
   SalesKpiPipelineMeta,
-  SalesKpiSalesReport,
+  SalesKpiServiceEarningsReport,
+  SalesKpiServiceRates,
   SalesKpiWeightedPlan,
 } from "@/lib/types";
 
@@ -86,17 +87,6 @@ function saleProductKind(name: string | null | undefined): "course" | "protocol"
   if (n.includes("курс")) return "course";
   return "other";
 }
-
-type PlanDraftItem = {
-  key: string;
-  name: string;
-  plan_qty: string;
-  weight_percent: string;
-  source_type: "direction" | "manual";
-  direction_id: string;
-  specialist_ids: number[];
-  direction_ids: number[];
-};
 
 function SaleRowActionsMenu({
   onReturn,
@@ -413,9 +403,7 @@ export function KpiPage() {
     isCurator ? "debtors" : isAccountant ? "company" : isOwner ? "plan" : "sales",
   );
 
-  const [bonusFund, setBonusFund] = useState("10000");
-  const [planItems, setPlanItems] = useState<PlanDraftItem[]>([]);
-  const [priceDraft, setPriceDraft] = useState<Record<number, string>>({});
+  const [rateDraft, setRateDraft] = useState<Record<string, string>>({});
 
   const [saleForm, setSaleForm] = useState({
     plan_item_id: "",
@@ -509,10 +497,16 @@ export function KpiPage() {
     enabled: Boolean(pipelineId && (isOwner || isAdminOrOwner || isManager) && !isCurator),
   });
 
-  const salesQuery = useQuery({
-    queryKey: ["sales-kpi-sales-report", qs],
-    queryFn: () => apiFetch<SalesKpiSalesReport>(`/api/sales-kpi/sales-report?${qs}`),
-    enabled: Boolean(pipelineId && (tab === "sales" || tab === "plan") && !isCurator),
+  const ratesQuery = useQuery({
+    queryKey: ["sales-kpi-service-rates", qs],
+    queryFn: () => apiFetch<SalesKpiServiceRates>(`/api/sales-kpi/service-rates?${qs}`),
+    enabled: Boolean(pipelineId && isOwner && tab === "plan"),
+  });
+
+  const earningsQuery = useQuery({
+    queryKey: ["sales-kpi-service-earnings", qs],
+    queryFn: () => apiFetch<SalesKpiServiceEarningsReport>(`/api/sales-kpi/service-earnings?${qs}`),
+    enabled: Boolean(pipelineId && tab === "sales" && !isCurator),
   });
 
   const manualQuery = useQuery({
@@ -591,78 +585,36 @@ export function KpiPage() {
   });
 
   useEffect(() => {
-    if (!planQuery.data) return;
-    setBonusFund(String(num(planQuery.data.bonus_fund) || 10000));
-    setPlanItems(
-      planQuery.data.items.map((it, idx) => ({
-        key: `id-${it.id}-${idx}`,
-        name: it.name,
-        plan_qty: String(it.plan_qty || ""),
-        weight_percent: String(num(it.weight_percent) || ""),
-        source_type: salesSpace ? "manual" : it.source_type === "direction" ? "direction" : "manual",
-        direction_id: salesSpace ? "" : it.direction_id != null ? String(it.direction_id) : "",
-        specialist_ids: salesSpace
-          ? []
-          : Array.isArray(it.specialist_ids)
-            ? it.specialist_ids.map(Number)
-            : [],
-        direction_ids: salesSpace
-          ? []
-          : Array.isArray(it.direction_ids)
-            ? it.direction_ids.map(Number)
-            : [],
-      })),
-    );
-    const p: Record<number, string> = {};
-    planQuery.data.directions.forEach((d) => {
-      p[d.direction_id] = String(num(d.unit_price) || "");
-    });
-    setPriceDraft(p);
-  }, [planQuery.data, salesSpace]);
+    if (!ratesQuery.data) return;
+    const next: Record<string, string> = {};
+    for (const row of ratesQuery.data.items) {
+      const n = num(row.manager_percent);
+      next[row.service_key] = n > 0 ? String(n) : "";
+    }
+    setRateDraft(next);
+  }, [ratesQuery.data]);
 
-  const savePlanMutation = useMutation({
+  const saveRatesMutation = useMutation({
     mutationFn: async () => {
       if (!pipelineId) throw new Error("Выберите воронку");
-      const items = planItems
-        .filter((x) => x.name.trim())
-        .map((x, idx) => ({
-          name: x.name.trim(),
-          plan_qty: Number(x.plan_qty || 0),
-          weight_percent: Number(x.weight_percent || 0),
-          source_type: salesSpace ? ("manual" as const) : x.source_type,
-          direction_id:
-            salesSpace || x.source_type !== "direction" ? null : Number(x.direction_id || 0) || null,
-          specialist_ids: salesSpace || x.source_type !== "direction" ? [] : x.specialist_ids,
-          direction_ids: salesSpace || x.source_type !== "direction" ? [] : x.direction_ids,
-          sort_order: idx,
-        }));
-      if (!salesSpace) {
-        for (const it of items) {
-          if (it.source_type === "direction" && !(it.specialist_ids?.length || it.direction_id)) {
-            throw new Error(`Для «${it.name}» привяжите экспертов онлайн-записи`);
-          }
+      const items = (ratesQuery.data?.items ?? []).map((row) => {
+        const raw = (rateDraft[row.service_key] ?? "").trim().replace(",", ".");
+        const percent = raw === "" ? 0 : Number(raw);
+        if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+          throw new Error(`Процент для «${row.name}» — число от 0 до 100`);
         }
-      }
-      await apiFetch<void>("/api/sales-kpi/weighted-plan", {
+        return { service_key: row.service_key, manager_percent: percent };
+      });
+      await apiFetch<void>("/api/sales-kpi/service-rates", {
         method: "PUT",
-        body: JSON.stringify({
-          pipeline_id: pipelineId,
-          year_month: yearMonth,
-          bonus_fund: Number(bonusFund || 10000),
-          items,
-          prices: salesSpace
-            ? []
-            : (planQuery.data?.directions ?? []).map((d) => ({
-                direction_id: d.direction_id,
-                unit_price: Number(priceDraft[d.direction_id] || 0),
-              })),
-        }),
+        body: JSON.stringify({ pipeline_id: pipelineId, items }),
       });
     },
     onSuccess: () => {
-      toast.success("План сохранён");
-      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-weighted-plan"] });
-      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
+      toast.success("Проценты сохранены");
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-service-rates"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-service-earnings"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -867,7 +819,7 @@ export function KpiPage() {
   }
 
   const tabs: { id: TabId; label: string; shortLabel: string; show: boolean }[] = [
-    { id: "plan", label: "План", shortLabel: "План", show: isOwner },
+    { id: "plan", label: "Услуги", shortLabel: "Услуги", show: isOwner },
     {
       id: "sales",
       label: "Продажи",
@@ -883,71 +835,6 @@ export function KpiPage() {
       show: isAdminOrOwner || isCurator,
     },
   ];
-
-  function addPlanIndicator() {
-    setPlanItems((prev) => [
-      ...prev,
-      {
-        key: `new-${Date.now()}`,
-        name: "",
-        plan_qty: "",
-        weight_percent: "",
-        source_type: "manual",
-        direction_id: "",
-        specialist_ids: [],
-        direction_ids: [],
-      },
-    ]);
-  }
-
-  function serviceChecks(row: PlanDraftItem) {
-    if (salesSpace || row.source_type !== "direction") {
-      return <span className="text-xs mo-muted">—</span>;
-    }
-    const dirs = planQuery.data?.directions ?? [];
-    const takenElsewhere = new Set(
-      planItems
-        .filter((x) => x.key !== row.key && x.source_type === "direction")
-        .flatMap((x) => x.direction_ids),
-    );
-    if (dirs.length === 0) {
-      return <span className="text-xs mo-muted">Нет услуг в воронке</span>;
-    }
-    return (
-      <div className="max-h-36 min-w-[180px] space-y-1 overflow-y-auto rounded border border-[var(--mo-border)] p-2">
-        {dirs.map((d) => {
-          const checked = row.direction_ids.includes(d.direction_id);
-          const disabled = !checked && takenElsewhere.has(d.direction_id);
-          return (
-            <label
-              key={d.direction_id}
-              className={`flex items-start gap-2 text-xs ${disabled ? "opacity-40" : ""}`}
-            >
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={checked}
-                disabled={disabled}
-                onChange={(e) => {
-                  const on = e.target.checked;
-                  setPlanItems((prev) =>
-                    prev.map((x) => {
-                      if (x.key !== row.key) return x;
-                      const next = on
-                        ? [...x.direction_ids, d.direction_id]
-                        : x.direction_ids.filter((id) => id !== d.direction_id);
-                      return { ...x, direction_ids: next };
-                    }),
-                  );
-                }}
-              />
-              <span>{d.direction_name}</span>
-            </label>
-          );
-        })}
-      </div>
-    );
-  }
 
   const manualPlanItems = (planQuery.data?.items ?? []).filter((x) => x.source_type === "manual");
   const managers = planQuery.data?.managers ?? [];
@@ -1029,11 +916,7 @@ export function KpiPage() {
         <PageHeader
           className="mb-0"
           title="KPI продаж"
-          description={
-            salesSpace
-              ? "Условия KPI без онлайн-записи: факт из окна «Продажи» (полная оплата) и курсов/протоколов (≥25%). Имя продукта = сфера/услуга в продажах."
-              : "Онлайн-запись — в факт при 100% оплате. Окно «Продажи» — полная оплата тоже в факт. Курсы/протоколы вносит админ — в факт один раз, когда оплата доходит до 25%."
-          }
+          description="У каждой услуги свой процент. Заработок — этот процент от суммы, которую менеджер привёл по ней."
         />
       </header>
 
@@ -1093,417 +976,55 @@ export function KpiPage() {
         <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">План на месяц</h2>
-              <p className="mt-1 hidden text-sm lux-caption sm:block">
-                Один план на всех менеджеров. Сохранили один раз — в следующем месяце подтянется
-                автоматически (продукты, веса, эксперты, услуги, фонд). Для онлайн-записи привяжите экспертов и
-                отметьте услуги, которые входят в продукт: в факт идут только эти услуги у этих экспертов (при 100%
-                оплате). Одна услуга и один эксперт — в одном продукте.
+              <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Услуги</h2>
+              <p className="mt-1 text-sm lux-caption">
+                У каждой услуги свой процент, включая курс и протокол. Пустое поле — ноль.
+                Заработок считается от приведённой суммы, без порога.
               </p>
             </div>
             <button
               type="button"
-              onClick={() => savePlanMutation.mutate()}
-              disabled={savePlanMutation.isPending}
-              className="hidden btn-primary text-sm disabled:opacity-50 sm:inline-flex"
+              onClick={() => saveRatesMutation.mutate()}
+              disabled={saveRatesMutation.isPending}
+              className="btn-primary text-sm disabled:opacity-50"
             >
-              Сохранить план
+              {saveRatesMutation.isPending ? "Сохранение…" : "Сохранить"}
             </button>
           </div>
-
-          <div className="flex items-end gap-2">
-            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs mo-muted sm:max-w-xs sm:text-sm">
-              <span className="sm:hidden">Фонд бонуса (TJS)</span>
-              <span className="hidden sm:inline">Фонд бонуса на менеджера (TJS)</span>
-              <input
-                type="number"
-                min={0}
-                inputMode="decimal"
-                value={bonusFund}
-                onChange={(e) => setBonusFund(e.target.value)}
-                className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-              />
-            </label>
-            <button
-              type="button"
-              className="btn-secondary min-h-11 shrink-0 px-3 text-sm sm:hidden"
-              onClick={addPlanIndicator}
-            >
-              + Продукт
-            </button>
-          </div>
-
-          <div className="space-y-2 sm:hidden">
-            {planItems.map((row) => {
-              const takenElsewhere = new Set(
-                planItems
-                  .filter((x) => x.key !== row.key && x.source_type === "direction")
-                  .flatMap((x) => x.specialist_ids),
-              );
-              return (
-                <article
-                  key={row.key}
-                  className="space-y-1.5 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-2.5"
-                >
-                  <label className="block text-[11px] mo-muted">
-                    Продукт
-                    <input
-                      className="mo-input mt-1 w-full !min-h-11 text-base"
-                      value={row.name}
-                      onChange={(e) =>
-                        setPlanItems((prev) =>
-                          prev.map((x) => (x.key === row.key ? { ...x, name: e.target.value } : x)),
-                        )
-                      }
-                      placeholder="Логопед / Курс 15"
-                    />
-                  </label>
-                  <label className="block text-[11px] mo-muted">
-                    Источник
-                    {salesSpace ? (
-                      <div className="mo-input mt-1 flex !min-h-11 items-center text-base mo-muted">
-                        Окно продаж / курс
-                      </div>
-                    ) : (
-                      <select
-                        className="mo-input mt-1 w-full !min-h-11 text-base"
-                        value={row.source_type}
-                        onChange={(e) =>
-                          setPlanItems((prev) =>
-                            prev.map((x) =>
-                              x.key === row.key
-                                ? {
-                                    ...x,
-                                    source_type: e.target.value === "direction" ? "direction" : "manual",
-                                    specialist_ids:
-                                      e.target.value === "direction" ? x.specialist_ids : [],
-                                    direction_ids:
-                                      e.target.value === "direction" ? x.direction_ids : [],
-                                  }
-                                : x,
-                            ),
-                          )
-                        }
-                      >
-                        <option value="manual">Курс / протокол</option>
-                        <option value="direction">Онлайн-запись</option>
-                      </select>
-                    )}
-                  </label>
-                  {!salesSpace && row.source_type === "direction" ? (
-                    <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-[var(--mo-border)] p-2">
-                      {(planQuery.data?.specialists ?? []).filter((s) => s.is_active).length === 0 ? (
-                        <span className="text-xs mo-muted">Нет экспертов</span>
-                      ) : (
-                        (planQuery.data?.specialists ?? [])
-                          .filter((s) => s.is_active)
-                          .map((s) => {
-                            const checked = row.specialist_ids.includes(s.id);
-                            const disabled = !checked && takenElsewhere.has(s.id);
-                            return (
-                              <label
-                                key={s.id}
-                                className={`flex items-start gap-2 text-xs ${disabled ? "opacity-40" : ""}`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="mt-0.5"
-                                  checked={checked}
-                                  disabled={disabled}
-                                  onChange={(e) => {
-                                    const on = e.target.checked;
-                                    setPlanItems((prev) =>
-                                      prev.map((x) => {
-                                        if (x.key !== row.key) return x;
-                                        const next = on
-                                          ? [...x.specialist_ids, s.id]
-                                          : x.specialist_ids.filter((id) => id !== s.id);
-                                        return {
-                                          ...x,
-                                          specialist_ids: next,
-                                          direction_id: on ? String(s.direction_id) : x.direction_id,
-                                        };
-                                      }),
-                                    );
-                                  }}
-                                />
-                                <span>
-                                  {s.full_name}
-                                  {s.direction_name ? (
-                                    <span className="mo-muted"> · {s.direction_name}</span>
-                                  ) : null}
-                                </span>
-                              </label>
-                            );
-                          })
-                      )}
-                    </div>
-                  ) : null}
-                  {!salesSpace && row.source_type === "direction" ? (
-                    <div>
-                      <div className="mb-1 text-[11px] mo-muted">Услуги в продукте</div>
-                      {serviceChecks(row)}
-                    </div>
-                  ) : null}
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block text-[11px] mo-muted">
-                      План (шт)
-                      <input
-                        type="number"
-                        min={0}
-                        inputMode="numeric"
-                        className="mo-input mt-1 w-full !min-h-11 text-base"
-                        value={row.plan_qty}
-                        onChange={(e) =>
-                          setPlanItems((prev) =>
-                            prev.map((x) => (x.key === row.key ? { ...x, plan_qty: e.target.value } : x)),
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="block text-[11px] mo-muted">
-                      Вес (%)
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        inputMode="numeric"
-                        className="mo-input mt-1 w-full !min-h-11 text-base"
-                        value={row.weight_percent}
-                        onChange={(e) =>
-                          setPlanItems((prev) =>
-                            prev.map((x) =>
-                              x.key === row.key ? { ...x, weight_percent: e.target.value } : x,
-                            ),
-                          )
-                        }
-                      />
-                    </label>
-                  </div>
-                  <button
-                    type="button"
-                    className="text-xs text-rose-500"
-                    onClick={() => setPlanItems((prev) => prev.filter((x) => x.key !== row.key))}
-                  >
-                    Удалить продукт
-                  </button>
-                </article>
-              );
-            })}
-          </div>
-
-          <div className="hidden overflow-x-auto sm:block">
-            <table className="kpi-data-table min-w-[900px] text-sm">
-              <thead>
-                <tr>
-                  <th className="py-2 pr-3">Продукт</th>
-                  <th className="py-2 pr-3">Источник</th>
-                  {!salesSpace ? <th className="py-2 pr-3">Эксперты онлайн-записи</th> : null}
-                  {!salesSpace ? <th className="py-2 pr-3">Услуги в продукте</th> : null}
-                  <th className="py-2 pr-3">План (шт)</th>
-                  <th className="py-2 pr-3">Вес (%)</th>
-                  <th className="py-2 pr-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {planItems.map((row) => {
-                  const takenElsewhere = new Set(
-                    planItems
-                      .filter((x) => x.key !== row.key && x.source_type === "direction")
-                      .flatMap((x) => x.specialist_ids),
-                  );
-                  return (
-                  <tr key={row.key}>
-                    <td className="py-2 pr-3">
-                      <input
-                        className="mo-input w-full min-w-[140px]"
-                        value={row.name}
-                        onChange={(e) =>
-                          setPlanItems((prev) =>
-                            prev.map((x) => (x.key === row.key ? { ...x, name: e.target.value } : x)),
-                          )
-                        }
-                        placeholder="Логопед / Курс 15"
-                      />
-                    </td>
-                    <td className="py-2 pr-3">
-                      {salesSpace ? (
-                        <span className="text-sm mo-muted">Окно продаж / курс</span>
-                      ) : (
-                        <select
-                          className="mo-input"
-                          value={row.source_type}
-                          onChange={(e) =>
-                            setPlanItems((prev) =>
-                              prev.map((x) =>
-                                x.key === row.key
-                                  ? {
-                                      ...x,
-                                      source_type: e.target.value === "direction" ? "direction" : "manual",
-                                      specialist_ids:
-                                        e.target.value === "direction" ? x.specialist_ids : [],
-                                      direction_ids:
-                                        e.target.value === "direction" ? x.direction_ids : [],
-                                    }
-                                  : x,
-                              ),
-                            )
-                          }
-                        >
-                          <option value="manual">Курс / протокол (админ)</option>
-                          <option value="direction">Онлайн-запись</option>
-                        </select>
-                      )}
-                    </td>
-                    {!salesSpace ? (
-                    <td className="py-2 pr-3">
-                      {row.source_type === "direction" ? (
-                        <div className="max-h-36 min-w-[220px] space-y-1 overflow-y-auto rounded border border-[var(--mo-border)] p-2">
-                          {(planQuery.data?.specialists ?? []).filter((s) => s.is_active).length === 0 ? (
-                            <span className="text-xs mo-muted">Нет экспертов в этой воронке</span>
-                          ) : (
-                            (planQuery.data?.specialists ?? [])
-                              .filter((s) => s.is_active)
-                              .map((s) => {
-                                const checked = row.specialist_ids.includes(s.id);
-                                const disabled = !checked && takenElsewhere.has(s.id);
-                                return (
-                                  <label
-                                    key={s.id}
-                                    className={`flex items-start gap-2 text-xs ${disabled ? "opacity-40" : ""}`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      className="mt-0.5"
-                                      checked={checked}
-                                      disabled={disabled}
-                                      onChange={(e) => {
-                                        const on = e.target.checked;
-                                        setPlanItems((prev) =>
-                                          prev.map((x) => {
-                                            if (x.key !== row.key) return x;
-                                            const next = on
-                                              ? [...x.specialist_ids, s.id]
-                                              : x.specialist_ids.filter((id) => id !== s.id);
-                                            return {
-                                              ...x,
-                                              specialist_ids: next,
-                                              direction_id: on ? String(s.direction_id) : x.direction_id,
-                                            };
-                                          }),
-                                        );
-                                      }}
-                                    />
-                                    <span>
-                                      {s.full_name}
-                                      {s.direction_name ? (
-                                        <span className="mo-muted"> · {s.direction_name}</span>
-                                      ) : null}
-                                    </span>
-                                  </label>
-                                );
-                              })
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs mo-muted">—</span>
-                      )}
-                    </td>
-                    ) : null}
-                    {!salesSpace ? <td className="py-2 pr-3">{serviceChecks(row)}</td> : null}
-                    <td className="py-2 pr-3">
-                      <input
-                        type="number"
-                        min={0}
-                        className="mo-input w-24"
-                        value={row.plan_qty}
-                        onChange={(e) =>
-                          setPlanItems((prev) =>
-                            prev.map((x) => (x.key === row.key ? { ...x, plan_qty: e.target.value } : x)),
-                          )
-                        }
-                      />
-                    </td>
-                    <td className="py-2 pr-3">
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        className="mo-input w-24"
-                        value={row.weight_percent}
-                        onChange={(e) =>
-                          setPlanItems((prev) =>
-                            prev.map((x) =>
-                              x.key === row.key ? { ...x, weight_percent: e.target.value } : x,
-                            ),
-                          )
-                        }
-                      />
-                    </td>
-                    <td className="py-2 pr-3">
-                      <button
-                        type="button"
-                        className="btn-secondary text-xs"
-                        onClick={() => setPlanItems((prev) => prev.filter((x) => x.key !== row.key))}
-                      >
-                        Удалить
-                      </button>
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <button
-            type="button"
-            className="btn-secondary hidden min-h-0 w-auto text-sm sm:inline-flex"
-            onClick={addPlanIndicator}
-          >
-            + Продукт
-          </button>
-
-          {!salesSpace && (planQuery.data?.directions.length ?? 0) > 0 ? (
-            <div className="space-y-2 pt-2 sm:pt-4">
-              <h3 className="text-sm font-medium text-[var(--mo-text)]">Цены услуг записи</h3>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {(planQuery.data?.directions ?? []).map((d) => (
-                  <label key={d.direction_id} className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
-                    <span className="truncate">{d.direction_name}</span>
-                    <input
-                      type="number"
-                      min={0}
-                      inputMode="decimal"
-                      className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                      value={priceDraft[d.direction_id] ?? ""}
-                      onChange={(e) =>
-                        setPriceDraft((prev) => ({ ...prev, [d.direction_id]: e.target.value }))
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
+          {ratesQuery.isLoading ? <p className="text-sm lux-caption">Загрузка услуг…</p> : null}
+          {ratesQuery.isError ? (
+            <p className="text-sm text-red-300">{(ratesQuery.error as Error).message}</p>
           ) : null}
-
-          <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-3 py-2 backdrop-blur sm:hidden">
-            <button
-              type="button"
-              onClick={() => savePlanMutation.mutate()}
-              disabled={savePlanMutation.isPending}
-              className="min-h-11 w-full rounded-xl bg-[var(--mo-accent)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {savePlanMutation.isPending ? "Сохранение…" : "Сохранить план"}
-            </button>
+          {!ratesQuery.isLoading && (ratesQuery.data?.items.length ?? 0) === 0 ? (
+            <p className="text-sm lux-caption">В этой воронке нет услуг.</p>
+          ) : null}
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {(ratesQuery.data?.items ?? []).map((row) => (
+              <label key={row.service_key} className="flex flex-col gap-1 text-sm">
+                <span className="truncate font-medium text-[var(--mo-text)]">{row.name}</span>
+                <span className="text-[11px] mo-muted">Процент менеджера</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className="mo-input"
+                  value={rateDraft[row.service_key] ?? ""}
+                  onChange={(e) =>
+                    setRateDraft((prev) => ({ ...prev, [row.service_key]: e.target.value }))
+                  }
+                  placeholder="%"
+                  autoComplete="off"
+                />
+              </label>
+            ))}
           </div>
         </section>
       ) : null}
 
       {tab === "sales" ? (
         <SalesReportSection
-          data={salesQuery.data}
-          loading={salesQuery.isLoading}
-          error={salesQuery.error as Error | null}
+          data={earningsQuery.data}
+          loading={earningsQuery.isLoading}
+          error={earningsQuery.error as Error | null}
           listQuery={listQuery}
         />
       ) : null}
@@ -1522,9 +1043,7 @@ export function KpiPage() {
           <div>
             <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажа курса / протокола</h2>
             <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
-              {salesSpace
-                ? "Без онлайн-записи. Продажа попадает в KPI один раз, в месяц, когда оплата впервые доходит до 25%. Дальнейшие доплаты факт не увеличивают. В дебиторку остаток попадает через месяц после первой оплаты."
-                : "Без онлайн-записи. Продажа попадает в KPI один раз, в месяц, когда оплата впервые доходит до 25%. Дальнейшие доплаты факт не увеличивают. В дебиторку остаток попадает через месяц после первой оплаты."}
+              Процент этой услуги берётся из вкладки «Услуги». В заработок идёт сумма, которую менеджер привёл, без порога. Остаток попадает в дебиторку через месяц после первой оплаты.
             </p>
           </div>
 
@@ -1909,19 +1428,8 @@ export function KpiPage() {
                   ) : s.status === "refused" ? (
                     <span className="kpi-chip kpi-chip--refuse">отказ</span>
                   ) : s.status === "completed" ? (
-                    <>
-                      <span className="kpi-chip kpi-chip--done">завершён</span>
-                      {s.counts_in_kpi ? (
-                        <span className="kpi-chip kpi-chip--fact">в факте</span>
-                      ) : (
-                        <span className="kpi-chip kpi-chip--low">&lt;25%</span>
-                      )}
-                    </>
-                  ) : s.counts_in_kpi ? (
-                    <span className="kpi-chip kpi-chip--fact">в факте</span>
-                  ) : (
-                    <span className="kpi-chip kpi-chip--low">&lt;25%</span>
-                  )}
+                    <span className="kpi-chip kpi-chip--done">завершён</span>
+                  ) : null}
                 </div>
                 {s.status === "active" && num(s.debt_amount) > 0 ? (
                   <div className="mt-2 flex flex-col gap-2">
@@ -2038,19 +1546,8 @@ export function KpiPage() {
                       ) : s.status === "refused" ? (
                         <span className="kpi-chip kpi-chip--refuse">отказ</span>
                       ) : s.status === "completed" ? (
-                        <>
-                          <span className="kpi-chip kpi-chip--done">завершён</span>
-                          {s.counts_in_kpi ? (
-                            <span className="kpi-chip kpi-chip--fact">в факте</span>
-                          ) : (
-                            <span className="kpi-chip kpi-chip--low">&lt;25%</span>
-                          )}
-                        </>
-                      ) : s.counts_in_kpi ? (
-                        <span className="kpi-chip kpi-chip--fact">в факте</span>
-                      ) : (
-                        <span className="kpi-chip kpi-chip--low">&lt;25%</span>
-                      )}
+                        <span className="kpi-chip kpi-chip--done">завершён</span>
+                      ) : null}
                       {s.status_reason ? (
                         <div className="mt-0.5 max-w-[10rem] truncate text-[10px] text-[var(--mo-text-muted)]" title={s.status_reason}>
                           {s.status_reason}
@@ -2380,7 +1877,7 @@ export function KpiPage() {
         </section>
       ) : null}
 
-      {(pipelinesQuery.isLoading || planQuery.isLoading) && tab === "plan" ? (
+      {(pipelinesQuery.isLoading || ratesQuery.isLoading) && tab === "plan" ? (
         <p className="text-sm lux-caption">Загрузка…</p>
       ) : null}
       {planQuery.isError ? (
@@ -2397,28 +1894,19 @@ function SalesReportSection({
   error,
   listQuery = "",
 }: {
-  data: SalesKpiSalesReport | undefined;
+  data: SalesKpiServiceEarningsReport | undefined;
   loading: boolean;
   error: Error | null;
   listQuery?: string;
 }) {
-  if (loading) return <p className="text-sm lux-caption">Загрузка отчёта «Продажи»…</p>;
+  if (loading) return <p className="text-sm lux-caption">Загрузка заработка…</p>;
   if (error) return <p className="text-sm text-red-300">{error.message}</p>;
   if (!data) return null;
-
-  if (!data.items.length) {
-    return (
-      <section className="mo-section p-4">
-        <h2 className="lux-subheading">Продажи</h2>
-        <p className="mt-2 text-sm lux-caption">План на этот месяц ещё не задан. Владелец заполняет вкладку «План».</p>
-      </section>
-    );
-  }
 
   if (!data.managers.length) {
     return (
       <section className="mo-section p-4">
-        <h2 className="lux-subheading">Продажи</h2>
+        <h2 className="lux-subheading">Заработок</h2>
         <p className="mt-2 text-sm lux-caption">
           Нет активных менеджеров на воронке. Назначьте менеджеров — блоки появятся автоматически.
         </p>
@@ -2438,7 +1926,7 @@ function SalesReportSection({
   if (!managers.length) {
     return (
       <section className="mo-section p-4">
-        <h2 className="lux-subheading">Продажи</h2>
+        <h2 className="lux-subheading">Заработок</h2>
         <p className="mt-2 text-sm lux-caption">Ничего не найдено по запросу «{listQuery.trim()}».</p>
       </section>
     );
@@ -2447,76 +1935,71 @@ function SalesReportSection({
   return (
     <div className="kpi-sales-board">
       <section className="mo-section px-3 py-2">
-        <h2 className="text-[15px] font-semibold text-[var(--mo-text)]">Продажи · {data.year_month}</h2>
-        <p className="mt-0.5 text-[11px] lux-caption">Фонд: {formatMoney(num(data.bonus_fund))} на менеджера</p>
+        <h2 className="text-[15px] font-semibold text-[var(--mo-text)]">Заработок · {data.year_month}</h2>
+        <p className="mt-0.5 text-[11px] lux-caption">
+          Процент услуги × сумма, которую менеджер привёл. Итого {formatMoney(num(data.total_earning))}
+        </p>
       </section>
 
       <div className="kpi-sales-grid">
       {managers.map((m) => (
         <section key={m.manager_id} className="kpi-sales-card mo-section">
           <h3 className="kpi-sales-card__name">{m.manager_name}</h3>
-
-          <ul className="kpi-sales-compact lg:hidden">
-            {m.lines.map((line) => (
-              <li key={line.plan_item_id}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="min-w-0 truncate text-[13px] font-semibold leading-tight text-[var(--mo-text)]">
-                    {line.name}
-                  </p>
-                  <span className="shrink-0 text-[12px] font-semibold tabular-nums text-[var(--mo-text)]">
-                    {line.fact_qty}/{line.plan_qty}
-                  </span>
-                </div>
-                <p className="text-[11px] leading-tight tabular-nums mo-muted">
-                  вес {num(line.weight_percent)}% · {pctLabel(line.completion)} · {contribLabel(line.contribution)}
-                </p>
-              </li>
-            ))}
-            <li className="kpi-sales-compact__total">
-              <span>Итого</span>
-              <span className="tabular-nums">{contribLabel(m.total_contribution)}</span>
-              <span className="kpi-actual-value">Бонус {formatMoney(num(m.bonus))}</span>
-            </li>
-          </ul>
-
-          <div className="hidden lg:block">
-            <table className="kpi-data-table w-full text-sm">
-              <thead>
-                <tr>
-                  <th>Продукт</th>
-                  <th>План</th>
-                  <th>Вес %</th>
-                  <th>Факт</th>
-                  <th>Выполн.</th>
-                  <th>Вклад %</th>
-                </tr>
-              </thead>
-              <tbody>
+          {m.lines.length === 0 ? (
+            <p className="text-sm lux-caption">В этом месяце нет услуг. Проценты задаются во вкладке «Услуги».</p>
+          ) : (
+            <>
+              <ul className="kpi-sales-compact lg:hidden">
                 {m.lines.map((line) => (
-                  <tr key={line.plan_item_id}>
-                    <td>{line.name}</td>
-                    <td>{line.plan_qty}</td>
-                    <td>{num(line.weight_percent)}</td>
-                    <td>{line.fact_qty}</td>
-                    <td>{pctLabel(line.completion)}</td>
-                    <td>{contribLabel(line.contribution)}</td>
-                  </tr>
+                  <li key={line.service_key}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="min-w-0 truncate text-[13px] font-semibold leading-tight text-[var(--mo-text)]">
+                        {line.name}
+                      </p>
+                      <span className="shrink-0 text-[12px] font-semibold tabular-nums text-[var(--mo-text)]">
+                        {formatMoney(num(line.earning))}
+                      </span>
+                    </div>
+                    <p className="text-[11px] leading-tight tabular-nums mo-muted">
+                      привёл {formatMoney(num(line.brought))} · {num(line.manager_percent)}%
+                    </p>
+                  </li>
                 ))}
-                <tr className="kpi-matrix-row-highlight">
-                  <td className="font-semibold" colSpan={5}>
-                    ИТОГО
-                  </td>
-                  <td className="font-semibold">{contribLabel(m.total_contribution)}</td>
-                </tr>
-                <tr>
-                  <td className="font-semibold kpi-actual-value" colSpan={5}>
-                    Бонус
-                  </td>
-                  <td className="font-semibold kpi-actual-value">{formatMoney(num(m.bonus))}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                <li className="kpi-sales-compact__total">
+                  <span>Итого</span>
+                  <span className="kpi-actual-value">{formatMoney(num(m.total_earning))}</span>
+                </li>
+              </ul>
+              <div className="hidden lg:block">
+                <table className="kpi-data-table w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th>Услуга</th>
+                      <th>Привёл</th>
+                      <th>%</th>
+                      <th>Заработок</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {m.lines.map((line) => (
+                      <tr key={line.service_key}>
+                        <td>{line.name}</td>
+                        <td>{formatMoney(num(line.brought))}</td>
+                        <td>{num(line.manager_percent)}</td>
+                        <td>{formatMoney(num(line.earning))}</td>
+                      </tr>
+                    ))}
+                    <tr className="kpi-matrix-row-highlight">
+                      <td className="font-semibold" colSpan={3}>
+                        Итого
+                      </td>
+                      <td className="font-semibold kpi-actual-value">{formatMoney(num(m.total_earning))}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </section>
       ))}
       </div>
@@ -2678,7 +2161,7 @@ function CompanyReportSection({
         </div>
 
         <p className="mt-3 text-sm mo-muted">
-          Сумма бонусов менеджеров (из «Продажи»):{" "}
+          Заработок менеджеров по услугам:{" "}
           <span className="font-medium text-[var(--mo-text)]">
             {formatMoney(data.managers_sales_bonus_total)}
           </span>

@@ -433,3 +433,48 @@ class SalesKpiCompanyReport(BaseModel):
     forecast_plan_completion_percent: float | None = None
     forecast_revenue: Decimal | None = None
     forecast_note: str = ""
+
+
+class SalesKpiServiceRate(BaseModel):
+    service_key: str
+    name: str
+    manager_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+
+
+class SalesKpiServiceRateWrite(BaseModel):
+    service_key: str = Field(..., min_length=3, max_length=40)
+    manager_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+
+
+class SalesKpiServiceRatesPut(BaseModel):
+    pipeline_id: int = Field(..., ge=1)
+    items: list[SalesKpiServiceRateWrite] = Field(default_factory=list)
+
+
+class SalesKpiServiceRatesOut(BaseModel):
+    pipeline_id: int
+    items: list[SalesKpiServiceRate]
+
+
+class SalesKpiServiceEarningLine(BaseModel):
+    service_key: str
+    name: str
+    manager_percent: Decimal
+    brought: Decimal
+    earning: Decimal
+
+
+class SalesKpiServiceEarningManager(BaseModel):
+    manager_id: int
+    manager_name: str
+    lines: list[SalesKpiServiceEarningLine]
+    total_brought: Decimal
+    total_earning: Decimal
+
+
+class SalesKpiServiceEarningsReport(BaseModel):
+    pipeline_id: int
+    pipeline_name: str
+    year_month: str
+    managers: list[SalesKpiServiceEarningManager]
+    total_earning: Decimal

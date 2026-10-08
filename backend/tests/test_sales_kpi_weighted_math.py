@@ -8,6 +8,8 @@ from app.services.sales_kpi_weighted import (
     _norm_kpi_label,
     amounts_match_unit_price,
     bonus_amount,
+    brought_for_plan_item,
+    earning_from_brought,
     build_manager_lines,
     completion_ratio,
     contribution,
@@ -28,6 +30,38 @@ def test_sheet_formula_example():
     total = contribution(c1, Decimal("25")) + contribution(c2, Decimal("25"))
     assert Decimal("0.1445") <= total <= Decimal("0.1447")
     assert bonus_amount(total, Decimal("10000")) == Decimal("1446.00")
+
+
+def test_plan_line_uses_brought_money_for_that_service():
+    detail = {(7, 3, 9): Decimal("800.00"), (7, 3, 4): Decimal("100.00"), (8, 3, 9): Decimal("50.00")}
+    manual = {(7, "протокол"): Decimal("1500.00")}
+    assert brought_for_plan_item(
+        manager_id=7,
+        source_type="direction",
+        name="Курс 15",
+        direction_id=None,
+        direction_ids=[9],
+        specialist_ids=[3],
+        detail=detail,
+        manual=manual,
+    ) == Decimal("800.00")
+    assert brought_for_plan_item(
+        manager_id=7,
+        source_type="manual",
+        name="Протокол",
+        direction_id=None,
+        direction_ids=[],
+        specialist_ids=[],
+        detail=detail,
+        manual=manual,
+    ) == Decimal("1500.00")
+
+
+def test_service_earning_is_percent_of_brought_not_full_price():
+    """10% от приведённых 400, а не от цены 1000 и не от порога 25%."""
+    assert earning_from_brought(Decimal("400"), Decimal("10")) == Decimal("40.00")
+    assert earning_from_brought(Decimal("100"), Decimal("0")) == Decimal("0.00")
+    assert earning_from_brought(Decimal("0"), Decimal("15")) == Decimal("0.00")
 
 
 def test_overachievement_capped():

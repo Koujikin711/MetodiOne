@@ -2327,6 +2327,40 @@ async def ensure_service_catalog_tables(conn: AsyncConnection, database_url: str
         )
 
 
+async def ensure_manager_service_percent(conn: AsyncConnection, database_url: str) -> None:
+    """Процент менеджера на услуге: заработок = этот % от приведённой суммы."""
+    low = (database_url or "").lower()
+    sqlite = "sqlite" in low or "aiosqlite" in low
+    pg = "postgresql" in low or "postgres" in low
+    if sqlite:
+        r = await conn.execute(text("PRAGMA table_info(booking_directions)"))
+        cols = {row[1] for row in r.fetchall()}
+        if "manager_percent" not in cols:
+            await conn.execute(
+                text("ALTER TABLE booking_directions ADD COLUMN manager_percent NUMERIC(7, 2) NOT NULL DEFAULT 0"),
+            )
+        r = await conn.execute(text("PRAGMA table_info(sales_kpi_plan_items)"))
+        item_cols = {row[1] for row in r.fetchall()}
+        if item_cols and "manager_percent" not in item_cols:
+            await conn.execute(
+                text("ALTER TABLE sales_kpi_plan_items ADD COLUMN manager_percent NUMERIC(7, 2) NOT NULL DEFAULT 0"),
+            )
+        return
+    if pg:
+        await conn.execute(
+            text(
+                "ALTER TABLE booking_directions ADD COLUMN IF NOT EXISTS manager_percent NUMERIC(7, 2) NOT NULL DEFAULT 0",
+            ),
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE sales_kpi_plan_items ADD COLUMN IF NOT EXISTS manager_percent NUMERIC(7, 2) NOT NULL DEFAULT 0",
+            ),
+        )
+        return
+    return
+
+
 async def ensure_finance_osv_tables(conn: AsyncConnection, database_url: str) -> None:
     low = (database_url or "").lower()
     sqlite = "sqlite" in low or "aiosqlite" in low

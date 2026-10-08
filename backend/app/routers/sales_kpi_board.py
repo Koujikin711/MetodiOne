@@ -69,6 +69,12 @@ from app.schemas.sales_kpi import (
     SalesKpiLeadSearchItem,
     SalesKpiLeadSearchOut,
     SalesKpiSalesReport,
+    SalesKpiServiceEarningLine,
+    SalesKpiServiceEarningManager,
+    SalesKpiServiceEarningsReport,
+    SalesKpiServiceRate,
+    SalesKpiServiceRatesOut,
+    SalesKpiServiceRatesPut,
     SalesKpiSpecialistMeta,
     SalesKpiWeightedPlanOut,
     SalesKpiWeightedPlanPut,
@@ -87,6 +93,10 @@ from app.services.sales_kpi_weighted import (
     load_managers,
     load_manual_facts,
     load_booking_service_facts,
+    load_brought_paid_detail,
+    load_manual_brought_by_label,
+    brought_for_plan_item,
+    earning_from_brought,
     load_plan_item_services,
     load_plan_item_specialists,
     load_plan_items,
@@ -760,6 +770,189 @@ async def put_weighted_plan(
         )
 
     await db.commit()
+
+
+async def _month_plan_items(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> list[SalesKpiPlanItem]:
+    items, _carried = await ensure_plan_carried_forward(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        ym=ym,
+    )
+    return items
+
+
+async def _service_earnings_report(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    pipeline_name: str,
+    ym: date,
+    only_manager: int | None,
+) -> SalesKpiServiceEarningsReport:
+    """Те же услуги, что в плане месяца. Заработок = процент услуги × приведённая сумма."""
+    items = await _month_plan_items(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+    plan_ids = [int(item.id) for item in items]
+    item_services = await load_plan_item_services(db, plan_item_ids=plan_ids)
+    item_specialists = await load_plan_item_specialists(db, plan_item_ids=plan_ids)
+    detail = await load_brought_paid_detail(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
+    manual = await load_manual_brought_by_label(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
+    managers = await load_managers(db, company_id=company_id, pipeline_id=pipeline_id)
+    if only_manager is not None:
+        managers = [(mid, name) for mid, name in managers if mid == only_manager]
+    out_managers: list[SalesKpiServiceEarningManager] = []
+    grand = Decimal("0")
+    for mid, mname in managers:
+        lines: list[SalesKpiServiceEarningLine] = []
+        total_brought = Decimal("0")
+        total_earning = Decimal("0")
+        for item in items:
+            percent = Decimal(str(item.manager_percent or 0))
+            amount = brought_for_plan_item(
+                manager_id=mid,
+                source_type=item.source_type or "manual",
+                name=item.name,
+                direction_id=int(item.direction_id) if item.direction_id is not None else None,
+                direction_ids=item_services.get(int(item.id), []),
+                specialist_ids=item_specialists.get(int(item.id), []),
+                detail=detail,
+                manual=manual,
+            )
+            earn = earning_from_brought(amount, percent)
+            total_brought += amount
+            total_earning += earn
+            lines.append(
+                SalesKpiServiceEarningLine(
+                    service_key=f"p:{int(item.id)}",
+                    name=item.name,
+                    manager_percent=percent,
+                    brought=amount,
+                    earning=earn,
+                ),
+            )
+        grand += total_earning
+        out_managers.append(
+            SalesKpiServiceEarningManager(
+                manager_id=mid,
+                manager_name=mname,
+                lines=lines,
+                total_brought=total_brought.quantize(Decimal("0.01")),
+                total_earning=total_earning.quantize(Decimal("0.01")),
+            ),
+        )
+    return SalesKpiServiceEarningsReport(
+        pipeline_id=pipeline_id,
+        pipeline_name=pipeline_name,
+        year_month=ym.isoformat()[:7],
+        managers=out_managers,
+        total_earning=grand.quantize(Decimal("0.01")),
+    )
+
+
+@router.get("/service-rates", response_model=SalesKpiServiceRatesOut)
+async def get_service_rates(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    pipeline_id: int = Query(..., ge=1),
+    year_month: str = Query(..., description="YYYY-MM"),
+) -> SalesKpiServiceRatesOut:
+    _assert_kpi_access(current_user)
+    _assert_owner(current_user)
+    await _load_pipeline(db, company_id, pipeline_id)
+    try:
+        ym = parse_year_month(year_month)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    items = await _month_plan_items(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+    return SalesKpiServiceRatesOut(
+        pipeline_id=pipeline_id,
+        items=[
+            SalesKpiServiceRate(
+                service_key=f"p:{int(item.id)}",
+                name=item.name,
+                manager_percent=Decimal(str(item.manager_percent or 0)),
+            )
+            for item in items
+        ],
+    )
+
+
+@router.put("/service-rates", status_code=status.HTTP_204_NO_CONTENT)
+async def put_service_rates(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    body: SalesKpiServiceRatesPut,
+) -> None:
+    _assert_kpi_access(current_user)
+    _assert_owner(current_user)
+    await _load_pipeline(db, company_id, body.pipeline_id)
+    for item in body.items:
+        percent = Decimal(str(item.manager_percent or 0)).quantize(Decimal("0.01"))
+        key = (item.service_key or "").strip()
+        if key.startswith("p:"):
+            product = await db.get(SalesKpiPlanItem, int(key[2:]))
+            if product is None or product.company_id != company_id or product.pipeline_id != body.pipeline_id:
+                raise HTTPException(status_code=400, detail=f"Неизвестная услуга: {key}")
+            label = _norm_kpi_label(product.name)
+            siblings = (
+                await db.execute(
+                    select(SalesKpiPlanItem).where(
+                        SalesKpiPlanItem.company_id == company_id,
+                        SalesKpiPlanItem.pipeline_id == body.pipeline_id,
+                    ),
+                )
+            ).scalars().all()
+            for row in siblings:
+                if _norm_kpi_label(row.name) == label:
+                    row.manager_percent = percent
+            continue
+        raise HTTPException(status_code=400, detail=f"Неизвестная услуга: {key}")
+    await db.commit()
+
+
+@router.get("/service-earnings", response_model=SalesKpiServiceEarningsReport)
+async def service_earnings(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    pipeline_id: int = Query(..., ge=1),
+    year_month: str = Query(..., description="YYYY-MM"),
+) -> SalesKpiServiceEarningsReport:
+    _assert_kpi_access(current_user)
+    pipe = await _load_pipeline(db, company_id, pipeline_id)
+    try:
+        ym = parse_year_month(year_month)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    only_manager: int | None = None
+    if current_user.role == UserRole.manager:
+        if not await _is_user_assigned_pipeline(db, company_id, current_user.id, pipeline_id):
+            raise HTTPException(status_code=403, detail="Вы не назначены на эту воронку")
+        only_manager = current_user.id
+    elif current_user.role == UserRole.admin:
+        if not await _is_user_assigned_pipeline(db, company_id, current_user.id, pipeline_id):
+            raise HTTPException(status_code=403, detail="Вы не назначены на эту воронку")
+    return await _service_earnings_report(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        pipeline_name=pipe.name,
+        ym=ym,
+        only_manager=only_manager,
+    )
 
 
 @router.get("/sales-report", response_model=SalesKpiSalesReport)
@@ -1893,23 +2086,15 @@ async def company_report(
             ),
         )
 
-    managers_bonus = Decimal("0")
-    for mid, mname in managers:
-        raw = build_manager_lines(
-            manager_id=mid,
-            manager_name=mname,
-            items=items,
-            direction_facts=direction_facts,
-            specialist_facts=specialist_facts,
-            item_specialists=item_specialists,
-            manual_facts=manual_facts,
-            desk_facts=desk_facts,
-            bonus_fund=bonus_fund,
-            unit_price_by_label=unit_prices,
-            item_direction_ids=item_services,
-            service_facts=service_facts,
-        )
-        managers_bonus += Decimal(str(raw["bonus"]))
+    commission = await _service_earnings_report(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        pipeline_name=pipe.name,
+        ym=ym,
+        only_manager=None,
+    )
+    managers_bonus = commission.total_earning
 
     revenue_booking = Decimal("0")
     debtor_booking = Decimal("0")

@@ -30,6 +30,7 @@ from app.database_migrate import (
     ensure_demo_billing_platform,
     ensure_tariff_constructor_billing,
     ensure_service_catalog_tables,
+    ensure_manager_service_percent,
     ensure_lead_extra_phones_tables,
     ensure_booking_specialist_directions,
     ensure_sales_crm_space_migration,
@@ -164,6 +165,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_demo_billing_platform(conn, db_url)
                 await ensure_tariff_constructor_billing(conn, db_url)
                 await ensure_service_catalog_tables(conn, db_url)
+                await ensure_manager_service_percent(conn, db_url)
                 await ensure_lead_extra_phones_tables(conn, db_url)
                 await ensure_booking_specialist_directions(conn, db_url)
                 await ensure_sales_crm_space_migration(conn, db_url)

@@ -141,6 +141,197 @@ def booking_fact_filters(ym: date) -> list[ColumnElement[bool]]:
     return filters
 
 
+def earning_from_brought(brought: Decimal, percent: Decimal) -> Decimal:
+    """Заработок = процент этой услуги × сумма, которую менеджер по ней привёл."""
+    brought_q = Decimal(str(brought or 0))
+    percent_q = Decimal(str(percent or 0))
+    if brought_q <= 0 or percent_q <= 0:
+        return Decimal("0.00")
+    return (brought_q * percent_q / Decimal("100")).quantize(Decimal("0.01"))
+
+
+async def load_brought_paid_by_service(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> dict[tuple[int, int], Decimal]:
+    """Оплачено по услуге у менеджера, который сам создал запись. Частичная оплата тоже считается."""
+    start, end = month_bounds(ym)
+    filters: list[ColumnElement[bool]] = [
+        BookingAppointment.company_id == company_id,
+        BookingAppointment.start_at >= start,
+        BookingAppointment.start_at < end,
+        BookingAppointment.status != "cancelled",
+        BookingAppointment.paid_amount > 0,
+        User.role == UserRole.manager,
+        or_(
+            BookingAppointment.pipeline_id == pipeline_id,
+            PipelineStage.pipeline_id == pipeline_id,
+        ),
+    ]
+    cutoff = kpi_booking_created_cutoff(ym)
+    if cutoff is not None:
+        filters.append(BookingAppointment.created_at >= cutoff)
+    rows = (
+        await db.execute(
+            select(
+                BookingAppointment.created_by_user_id,
+                BookingAppointment.direction_id,
+                func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
+            )
+            .select_from(BookingAppointment)
+            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .join(User, User.id == BookingAppointment.created_by_user_id)
+            .where(*filters)
+            .group_by(BookingAppointment.created_by_user_id, BookingAppointment.direction_id),
+        )
+    ).all()
+    out: dict[tuple[int, int], Decimal] = {}
+    for manager_id, direction_id, paid in rows:
+        if manager_id is None or direction_id is None:
+            continue
+        amount = Decimal(str(paid or 0)).quantize(Decimal("0.01"))
+        if amount <= 0:
+            continue
+        out[(int(manager_id), int(direction_id))] = amount
+    return out
+
+
+async def load_brought_paid_detail(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> dict[tuple[int, int, int], Decimal]:
+    """Оплачено по записи: (менеджер, эксперт, услуга). Частичная оплата входит."""
+    start, end = month_bounds(ym)
+    filters: list[ColumnElement[bool]] = [
+        BookingAppointment.company_id == company_id,
+        BookingAppointment.start_at >= start,
+        BookingAppointment.start_at < end,
+        BookingAppointment.status != "cancelled",
+        BookingAppointment.paid_amount > 0,
+        User.role == UserRole.manager,
+        or_(
+            BookingAppointment.pipeline_id == pipeline_id,
+            PipelineStage.pipeline_id == pipeline_id,
+        ),
+    ]
+    cutoff = kpi_booking_created_cutoff(ym)
+    if cutoff is not None:
+        filters.append(BookingAppointment.created_at >= cutoff)
+    rows = (
+        await db.execute(
+            select(
+                BookingAppointment.created_by_user_id,
+                BookingAppointment.specialist_id,
+                BookingAppointment.direction_id,
+                func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
+            )
+            .select_from(BookingAppointment)
+            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .join(User, User.id == BookingAppointment.created_by_user_id)
+            .where(*filters)
+            .group_by(
+                BookingAppointment.created_by_user_id,
+                BookingAppointment.specialist_id,
+                BookingAppointment.direction_id,
+            ),
+        )
+    ).all()
+    out: dict[tuple[int, int, int], Decimal] = {}
+    for manager_id, specialist_id, direction_id, paid in rows:
+        if manager_id is None or specialist_id is None or direction_id is None:
+            continue
+        amount = Decimal(str(paid or 0)).quantize(Decimal("0.01"))
+        if amount <= 0:
+            continue
+        out[(int(manager_id), int(specialist_id), int(direction_id))] = amount
+    return out
+
+
+def brought_for_plan_item(
+    *,
+    manager_id: int,
+    source_type: str,
+    name: str,
+    direction_id: int | None,
+    direction_ids: list[int],
+    specialist_ids: list[int],
+    detail: dict[tuple[int, int, int], Decimal],
+    manual: dict[tuple[int, str], Decimal],
+) -> Decimal:
+    """Сумма, которую менеджер привёл по строке плана. Без полной оплаты и без порога."""
+    if (source_type or "manual") != "direction":
+        return manual.get((manager_id, _norm_kpi_label(name)), Decimal("0"))
+    dirs = [int(d) for d in direction_ids]
+    if direction_id is not None and int(direction_id) not in dirs:
+        dirs.append(int(direction_id))
+    specs = [int(s) for s in specialist_ids]
+    total = Decimal("0")
+    for (mid, sid, did), amount in detail.items():
+        if mid != manager_id:
+            continue
+        if dirs and did not in dirs:
+            continue
+        if specs and sid not in specs:
+            continue
+        if not dirs and not specs:
+            continue
+        total += amount
+    return total.quantize(Decimal("0.01"))
+
+
+async def load_manual_brought_by_label(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> dict[tuple[int, str], Decimal]:
+    """Оплаты курса и протокола за месяц. Считается любая сумма, без порога."""
+    start, end = month_bounds(ym)
+    rows = (
+        await db.execute(
+            select(
+                SalesKpiManualSale.manager_user_id,
+                SalesKpiPlanItem.name,
+                func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0),
+            )
+            .select_from(SalesKpiManualSalePayment)
+            .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.status.in_(tuple(MANUAL_SALE_KPI_STATUSES)),
+                SalesKpiManualSalePayment.paid_at >= start,
+                SalesKpiManualSalePayment.paid_at < end,
+                SalesKpiManualSalePayment.amount > 0,
+            )
+            .group_by(SalesKpiManualSale.manager_user_id, SalesKpiPlanItem.name),
+        )
+    ).all()
+    out: dict[tuple[int, str], Decimal] = {}
+    for manager_id, name, paid in rows:
+        if manager_id is None:
+            continue
+        label = _norm_kpi_label(str(name or ""))
+        if not label:
+            continue
+        amount = Decimal(str(paid or 0)).quantize(Decimal("0.01"))
+        if amount <= 0:
+            continue
+        key = (int(manager_id), label)
+        out[key] = (out.get(key, Decimal("0")) + amount).quantize(Decimal("0.01"))
+    return out
+
+
 def manager_expr():
     """Кто получает факт онлайн-записи: только менеджер, который сам создал запись.
 
@@ -282,6 +473,7 @@ async def ensure_plan_carried_forward(
             name=src.name,
             plan_qty=int(src.plan_qty or 0),
             weight_percent=Decimal(str(src.weight_percent or 0)),
+            manager_percent=Decimal(str(src.manager_percent or 0)),
             source_type=src.source_type or "manual",
             direction_id=src.direction_id,
             sort_order=int(src.sort_order or 0),

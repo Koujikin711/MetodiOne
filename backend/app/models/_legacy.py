@@ -315,7 +315,9 @@ class SalesKpiPlanItem(Base):
     name: Mapped[str] = mapped_column(String(255))
     plan_qty: Mapped[int] = mapped_column(default=0)
     weight_percent: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"))
-    # direction — факт из онлайн-записи (100% оплата); manual — курс/протокол без записи (≥25%).
+    # Доля менеджера с суммы, которую он привёл по этой услуге. Порога нет.
+    manager_percent: Mapped[Decimal] = mapped_column(Numeric(7, 2), default=Decimal("0"))
+    # direction — услуга онлайн-записи; manual — курс/протокол без записи.
     source_type: Mapped[str] = mapped_column(String(32), default="manual")
     direction_id: Mapped[int | None] = mapped_column(
         ForeignKey("booking_directions.id", ondelete="SET NULL"),
@@ -689,6 +691,8 @@ class BookingDirection(Base):
     course_stream_max_days: Mapped[int] = mapped_column(default=15)
     course_stream_min_day_for_next: Mapped[int] = mapped_column(default=10)
     course_stream_gap_days: Mapped[int] = mapped_column(default=10)
+    # Доля менеджера с суммы, которую он привёл по этой услуге.
+    manager_percent: Mapped[Decimal] = mapped_column(Numeric(7, 2), default=Decimal("0"))
 
     specialists: Mapped[list["BookingSpecialist"]] = relationship(back_populates="direction")
     appointments: Mapped[list["BookingAppointment"]] = relationship(back_populates="direction")
