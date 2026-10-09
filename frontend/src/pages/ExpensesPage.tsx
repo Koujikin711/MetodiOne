@@ -536,10 +536,6 @@ export function ExpensesPage() {
       toast.error("Укажите сумму расхода");
       return;
     }
-    if (fot && !employeeId) {
-      toast.error("Для статьи ФОТ выберите сотрудника");
-      return;
-    }
     createMutation.mutate();
   }
 
