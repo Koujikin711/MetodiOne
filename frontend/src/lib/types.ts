@@ -1049,6 +1049,7 @@ export interface SalesKpiServiceEarningLine {
   service_key: string;
   name: string;
   manager_percent: string | number;
+  sales_count: number;
   brought: string | number;
   earning: string | number;
 }
@@ -1057,6 +1058,7 @@ export interface SalesKpiServiceEarningManager {
   manager_id: number;
   manager_name: string;
   lines: SalesKpiServiceEarningLine[];
+  total_sales: number;
   total_brought: string | number;
   total_earning: string | number;
 }

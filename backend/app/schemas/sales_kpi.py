@@ -460,6 +460,7 @@ class SalesKpiServiceEarningLine(BaseModel):
     service_key: str
     name: str
     manager_percent: Decimal
+    sales_count: int = 0
     brought: Decimal
     earning: Decimal
 
@@ -468,6 +469,7 @@ class SalesKpiServiceEarningManager(BaseModel):
     manager_id: int
     manager_name: str
     lines: list[SalesKpiServiceEarningLine]
+    total_sales: int = 0
     total_brought: Decimal
     total_earning: Decimal
 

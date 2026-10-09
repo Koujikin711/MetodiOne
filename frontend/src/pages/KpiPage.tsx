@@ -1937,7 +1937,8 @@ function SalesReportSection({
       <section className="mo-section px-3 py-2">
         <h2 className="text-[15px] font-semibold text-[var(--mo-text)]">Заработок · {data.year_month}</h2>
         <p className="mt-0.5 text-[11px] lux-caption">
-          Процент услуги × сумма, которую менеджер привёл. Итого {formatMoney(num(data.total_earning))}
+          Новых — продажи, открытые в этом месяце. Привёл — любая вошедшая сумма минус возврат. Итого{" "}
+          {formatMoney(num(data.total_earning))}
         </p>
       </section>
 
@@ -1961,12 +1962,12 @@ function SalesReportSection({
                       </span>
                     </div>
                     <p className="text-[11px] leading-tight tabular-nums mo-muted">
-                      привёл {formatMoney(num(line.brought))} · {num(line.manager_percent)}%
+                      новых {line.sales_count} · привёл {formatMoney(num(line.brought))} · {num(line.manager_percent)}%
                     </p>
                   </li>
                 ))}
                 <li className="kpi-sales-compact__total">
-                  <span>Итого</span>
+                  <span>Итого · новых {m.total_sales}</span>
                   <span className="kpi-actual-value">{formatMoney(num(m.total_earning))}</span>
                 </li>
               </ul>
@@ -1975,6 +1976,7 @@ function SalesReportSection({
                   <thead>
                     <tr>
                       <th>Услуга</th>
+                      <th>Новых</th>
                       <th>Привёл</th>
                       <th>%</th>
                       <th>Заработок</th>
@@ -1984,15 +1986,16 @@ function SalesReportSection({
                     {m.lines.map((line) => (
                       <tr key={line.service_key}>
                         <td>{line.name}</td>
+                        <td className="tabular-nums">{line.sales_count}</td>
                         <td>{formatMoney(num(line.brought))}</td>
                         <td>{num(line.manager_percent)}</td>
                         <td>{formatMoney(num(line.earning))}</td>
                       </tr>
                     ))}
                     <tr className="kpi-matrix-row-highlight">
-                      <td className="font-semibold" colSpan={3}>
-                        Итого
-                      </td>
+                      <td className="font-semibold">Итого</td>
+                      <td className="font-semibold tabular-nums">{m.total_sales}</td>
+                      <td colSpan={2} />
                       <td className="font-semibold kpi-actual-value">{formatMoney(num(m.total_earning))}</td>
                     </tr>
                   </tbody>

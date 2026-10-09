@@ -97,8 +97,10 @@ from app.services.sales_kpi_weighted import (
     load_booking_brought_refunds,
     load_booking_direction_names,
     load_manual_brought_by_label,
+    load_manual_new_sales_by_label,
     load_manual_refunds_by_label,
     brought_for_plan_item,
+    new_sales_for_plan_item,
     earning_from_brought,
     load_plan_item_services,
     load_plan_item_specialists,
@@ -805,7 +807,7 @@ async def _service_earnings_report(
     plan_ids = [int(item.id) for item in items]
     item_services = await load_plan_item_services(db, plan_item_ids=plan_ids)
     item_specialists = await load_plan_item_specialists(db, plan_item_ids=plan_ids)
-    detail = await load_brought_paid_detail(
+    detail, sale_counts = await load_brought_paid_detail(
         db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
     )
     direction_names = await load_booking_direction_names(db, company_id=company_id)
@@ -821,6 +823,9 @@ async def _service_earnings_report(
     manual_refunds = await load_manual_refunds_by_label(
         db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
     )
+    manual_new = await load_manual_new_sales_by_label(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
     managers = await load_managers(db, company_id=company_id, pipeline_id=pipeline_id)
     if only_manager is not None:
         managers = [(mid, name) for mid, name in managers if mid == only_manager]
@@ -830,8 +835,21 @@ async def _service_earnings_report(
         lines: list[SalesKpiServiceEarningLine] = []
         total_brought = Decimal("0")
         total_earning = Decimal("0")
+        total_sales = 0
         for item in items:
             percent = Decimal(str(item.manager_percent or 0))
+            sales_count = new_sales_for_plan_item(
+                manager_id=mid,
+                source_type=item.source_type or "manual",
+                name=item.name,
+                direction_id=int(item.direction_id) if item.direction_id is not None else None,
+                direction_ids=item_services.get(int(item.id), []),
+                specialist_ids=item_specialists.get(int(item.id), []),
+                sale_counts=sale_counts,
+                manual_counts=manual_new,
+                direction_names=direction_names,
+                unit_price=unit_prices.get(_norm_kpi_label(item.name)),
+            )
             amount = brought_for_plan_item(
                 manager_id=mid,
                 source_type=item.source_type or "manual",
@@ -849,11 +867,13 @@ async def _service_earnings_report(
             earn = earning_from_brought(amount, percent)
             total_brought += amount
             total_earning += earn
+            total_sales += sales_count
             lines.append(
                 SalesKpiServiceEarningLine(
                     service_key=f"p:{int(item.id)}",
                     name=item.name,
                     manager_percent=percent,
+                    sales_count=sales_count,
                     brought=amount,
                     earning=earn,
                 ),
@@ -864,6 +884,7 @@ async def _service_earnings_report(
                 manager_id=mid,
                 manager_name=mname,
                 lines=lines,
+                total_sales=total_sales,
                 total_brought=total_brought.quantize(Decimal("0.01")),
                 total_earning=total_earning.quantize(Decimal("0.01")),
             ),

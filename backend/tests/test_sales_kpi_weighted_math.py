@@ -11,6 +11,7 @@ from app.services.sales_kpi_weighted import (
     brought_booking_manager_id,
     brought_for_plan_item,
     earning_from_brought,
+    new_sales_for_plan_item,
     build_manager_lines,
     completion_ratio,
     contribution,
@@ -141,6 +142,33 @@ def test_service_earning_is_percent_of_brought_not_full_price():
     assert earning_from_brought(Decimal("100"), Decimal("0")) == Decimal("0.00")
     assert earning_from_brought(Decimal("0"), Decimal("15")) == Decimal("0.00")
     assert earning_from_brought(Decimal("-200"), Decimal("10")) == Decimal("-20.00")
+
+
+def test_new_sales_are_opened_this_month_not_later_payments():
+    """Два новых визита «Курс 15». Доплата старого курса в число не входит: её нет в счётчике."""
+    assert new_sales_for_plan_item(
+        manager_id=7,
+        source_type="direction",
+        name="Курс 15",
+        direction_id=6,
+        direction_ids=[],
+        specialist_ids=[8],
+        sale_counts={(7, 8, 3, Decimal("1300.00")): 2, (7, 8, 6, Decimal("150.00")): 4},
+        manual_counts={},
+        direction_names={3: "Курс 15", 6: "Консультация"},
+        unit_price=Decimal("1300"),
+    ) == 2
+    assert new_sales_for_plan_item(
+        manager_id=7,
+        source_type="manual",
+        name="Протокол",
+        direction_id=None,
+        direction_ids=[],
+        specialist_ids=[],
+        sale_counts={(7, 8, 8, Decimal("3000.00")): 1},
+        manual_counts={(7, "протокол"): 2},
+        direction_names={8: "Протокол"},
+    ) == 3
 
 
 def test_brought_is_any_incoming_minus_refund_not_full_price():

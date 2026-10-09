@@ -207,11 +207,11 @@ async def load_brought_paid_detail(
     company_id: int,
     pipeline_id: int,
     ym: date,
-) -> dict[tuple[int, int, int, Decimal], Decimal]:
-    """Сколько зашло по записи: (менеджер, эксперт, направление, цена услуги).
+) -> tuple[dict[tuple[int, int, int, Decimal], Decimal], dict[tuple[int, int, int, Decimal], int]]:
+    """Вошедшие суммы и число новых визитов месяца.
 
-    Это не цена услуги. Берётся любая вошедшая сумма. Возврат, уже снятый с визита,
-    прибавляется обратно: в месяце возврата он вычитается отдельно.
+    Сумма — любая оплата, не цена услуги. Число — визит, который начался в этом
+    месяце и по которому зашли деньги. Отмена не считается продажей.
     Менеджер — ответственный на визите, если это менеджер. Иначе тот, кто создал запись.
     """
     start, end = month_bounds(ym)
@@ -246,6 +246,7 @@ async def load_brought_paid_detail(
                 BookingAppointment.direction_id,
                 BookingAppointment.service_amount,
                 BookingAppointment.paid_amount,
+                BookingAppointment.status,
             )
             .select_from(BookingAppointment)
             .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
@@ -256,7 +257,8 @@ async def load_brought_paid_detail(
         )
     ).all()
     out: dict[tuple[int, int, int, Decimal], Decimal] = {}
-    for appt_id, created_by, created_role, responsible_id, responsible_role, specialist_id, direction_id, service_amount, paid in rows:
+    counts: dict[tuple[int, int, int, Decimal], int] = {}
+    for appt_id, created_by, created_role, responsible_id, responsible_role, specialist_id, direction_id, service_amount, paid, status in rows:
         manager_id = brought_booking_manager_id(created_by, created_role, responsible_id, responsible_role)
         if manager_id is None or specialist_id is None or direction_id is None:
             continue
@@ -268,7 +270,9 @@ async def load_brought_paid_detail(
         price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
         key = (int(manager_id), int(specialist_id), int(direction_id), price)
         out[key] = (out.get(key, Decimal("0")) + amount).quantize(Decimal("0.01"))
-    return out
+        if (status or "").strip() != "cancelled":
+            counts[key] = counts.get(key, 0) + 1
+    return out, counts
 
 
 def _parse_booking_refund_appointment_id(external_key: str | None) -> int | None:
@@ -503,6 +507,35 @@ def brought_for_plan_item(
     return (incoming - refunded).quantize(Decimal("0.01"))
 
 
+def new_sales_for_plan_item(
+    *,
+    manager_id: int,
+    source_type: str,
+    name: str,
+    direction_id: int | None,
+    direction_ids: list[int],
+    specialist_ids: list[int],
+    sale_counts: dict[tuple[int, int, int, Decimal], int],
+    manual_counts: dict[tuple[int, str], int],
+    direction_names: dict[int, str] | None = None,
+    unit_price: Decimal | None = None,
+) -> int:
+    """Новые продажи месяца: визит или курс, открытые в этом месяце. Доплата старой продажи не считается."""
+    counted = _matched_brought(
+        manager_id=manager_id,
+        source_type=source_type,
+        name=name,
+        direction_id=direction_id,
+        direction_ids=direction_ids,
+        specialist_ids=specialist_ids,
+        detail={key: Decimal(qty) for key, qty in sale_counts.items()},
+        manual={key: Decimal(qty) for key, qty in manual_counts.items()},
+        direction_names=direction_names,
+        unit_price=unit_price,
+    )
+    return int(counted)
+
+
 def _matched_brought(
     *,
     manager_id: int,
@@ -632,6 +665,45 @@ async def load_manual_brought_by_label(
             continue
         key = (int(manager_id), label)
         out[key] = (out.get(key, Decimal("0")) + amount).quantize(Decimal("0.01"))
+    return out
+
+
+async def load_manual_new_sales_by_label(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> dict[tuple[int, str], int]:
+    """Курс или протокол, заведённый в этом месяце и с любой вошедшей суммой. Доплата старого курса не считается."""
+    start, end = month_bounds(ym)
+    rows = (
+        await db.execute(
+            select(
+                SalesKpiManualSale.manager_user_id,
+                SalesKpiPlanItem.name,
+                func.count(SalesKpiManualSale.id),
+            )
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.sold_at >= start,
+                SalesKpiManualSale.sold_at < end,
+                SalesKpiManualSale.paid_amount > 0,
+                SalesKpiManualSale.status != "refused",
+            )
+            .group_by(SalesKpiManualSale.manager_user_id, SalesKpiPlanItem.name),
+        )
+    ).all()
+    out: dict[tuple[int, str], int] = {}
+    for manager_id, name, qty in rows:
+        if manager_id is None:
+            continue
+        label = _norm_kpi_label(str(name or ""))
+        if not label:
+            continue
+        out[(int(manager_id), label)] = out.get((int(manager_id), label), 0) + int(qty or 0)
     return out
 
 
