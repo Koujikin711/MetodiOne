@@ -208,9 +208,9 @@ function ManagerCourses({ seeAll }: { seeAll: boolean }) {
 
 export function SalesControlPage() {
   const role = decodeRoleFromToken(getStoredToken());
-  const seeAll = role === "admin";
+  const seeAll = role === "admin" || role === "owner";
   const [section, setSection] = useState<Section>("protocols");
-  if (role !== "manager" && role !== "admin") {
+  if (role !== "manager" && role !== "admin" && role !== "owner") {
     return <AccessDenied message="Контроль продаж открыт менеджеру и админу." />;
   }
   return (

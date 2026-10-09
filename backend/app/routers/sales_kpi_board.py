@@ -1126,8 +1126,8 @@ async def list_my_course_sales(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> list[SalesKpiManualSaleOut]:
-    """Курсы менеджера — только его продажи. Админ воронки видит курсы всех менеджеров."""
-    if current_user.role not in (UserRole.manager, UserRole.admin):
+    """Курсы менеджера — только его продажи. Админ воронки и владелец видят курсы всех менеджеров."""
+    if current_user.role not in (UserRole.manager, UserRole.admin, UserRole.owner):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Раздел для менеджера или админа")
     filters = [SalesKpiManualSale.company_id == company_id]
     if current_user.role == UserRole.manager:
