@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -17,12 +17,16 @@ from app.models import (
     SalesKpiManualSale,
     SalesKpiManualSalePayment,
     SalesKpiPlanItem,
+    User,
 )
 from app.services.patient_ltv import classify_product_kind
 from app.services.payroll_rules import (
     PayrollFacts,
+    _procedure_bonus,
     is_free_gift_session,
+    referral_line_accrual,
     referral_procedure_line,
+    referral_visit_paid,
     service_line,
 )
 
@@ -45,6 +49,107 @@ def _day(dt: datetime | None, tz: ZoneInfo) -> date | None:
 def _in_month(dt: datetime | None, tz: ZoneInfo, day_from: date, day_to: date) -> bool:
     day = _day(dt, tz)
     return day is not None and day_from <= day <= day_to
+
+
+_REFERRAL_LINES = ("osteopath", "tms", "lab", "massage")
+
+
+def _referral_cell() -> dict[str, int | Decimal]:
+    return {"count": 0, "paid_amount": Decimal("0"), "accrual": Decimal("0")}
+
+
+def referral_rows_from_visits(
+    visits: list[tuple[int, str, Decimal | str | int | float | None, Decimal | str | int | float | None, str | None, str | None, str | None]],
+) -> list[dict]:
+    """Сводка «врач × услуга» из уже отфильтрованных по месяцу визитов со статусом «пришёл»."""
+    by_doctor: dict[int, dict] = {}
+    for user_id, full_name, service_amount, paid_amount, title, comment, direction_name in visits:
+        hit = referral_visit_paid(service_amount, paid_amount, direction_name, title, comment)
+        if hit is None:
+            continue
+        line, amount = hit
+        row = by_doctor.get(int(user_id))
+        if row is None:
+            row = {
+                "user_id": int(user_id),
+                "full_name": (full_name or "").strip() or f"Врач {int(user_id)}",
+                "services": {name: _referral_cell() for name in _REFERRAL_LINES},
+            }
+            by_doctor[int(user_id)] = row
+        cell = row["services"][line]
+        cell["count"] = int(cell["count"]) + 1
+        cell["paid_amount"] = Decimal(cell["paid_amount"]) + amount
+    out: list[dict] = []
+    for row in by_doctor.values():
+        services = row["services"]
+        for line, cell in services.items():
+            paid = Decimal(cell["paid_amount"])
+            cell["paid_amount"] = paid
+            cell["accrual"] = referral_line_accrual(line, paid)
+        facts = PayrollFacts(
+            osteopath_paid=Decimal(services["osteopath"]["paid_amount"]),
+            tms_paid=Decimal(services["tms"]["paid_amount"]),
+            lab_paid=Decimal(services["lab"]["paid_amount"]),
+            massage_paid=Decimal(services["massage"]["paid_amount"]),
+        )
+        row["count_total"] = sum(int(services[line]["count"]) for line in _REFERRAL_LINES)
+        row["paid_total"] = sum((Decimal(services[line]["paid_amount"]) for line in _REFERRAL_LINES), Decimal("0"))
+        row["accrual_total"] = _procedure_bonus(facts)
+        out.append(row)
+    out.sort(key=lambda item: (str(item["full_name"]).casefold(), int(item["user_id"])))
+    return out
+
+
+async def load_referral_rows(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    year: int,
+    month: int,
+) -> list[dict]:
+    """Направления месяца: пришёл, оплата больше нуля, в «Направил» указан врач."""
+    tz = _tz()
+    day_from = date(year, month, 1)
+    if month == 12:
+        day_to = date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        day_to = date(year, month + 1, 1) - timedelta(days=1)
+    start = datetime.combine(day_from, time.min, tzinfo=tz).astimezone(UTC) - timedelta(days=1)
+    end = datetime.combine(day_to, time.max, tzinfo=tz).astimezone(UTC) + timedelta(days=1)
+    visits = (
+        await db.execute(
+            select(
+                BookingAppointment.referred_by_user_id,
+                User.full_name,
+                BookingAppointment.service_amount,
+                BookingAppointment.paid_amount,
+                BookingAppointment.service_title,
+                BookingAppointment.comment,
+                BookingDirection.name,
+                BookingAppointment.start_at,
+            )
+            .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+            .join(User, User.id == BookingAppointment.referred_by_user_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.status == "completed",
+                BookingAppointment.referred_by_user_id.is_not(None),
+                BookingAppointment.start_at >= start,
+                BookingAppointment.start_at <= end,
+                or_(
+                    BookingAppointment.pipeline_id == pipeline_id,
+                    BookingAppointment.pipeline_id.is_(None),
+                ),
+            )
+        )
+    ).all()
+    packed: list[tuple] = []
+    for user_id, full_name, service, paid, title, comment, direction_name, start_at in visits:
+        if user_id is None or not _in_month(start_at, tz, day_from, day_to):
+            continue
+        packed.append((int(user_id), full_name or "", service, paid, title, comment, direction_name))
+    return referral_rows_from_visits(packed)
 
 
 async def load_payroll_facts(

@@ -37,6 +37,7 @@ from app.models import (
     UserRole,
 )
 from app.services.crm_space import company_is_sales_mode
+from app.services.payroll_facts import load_referral_rows
 from app.services.debtor_collection import (
     booking_debtor_receipts,
     clinic_today,
@@ -51,6 +52,8 @@ from app.schemas.sales_kpi import (
     SalesKpiCompanyPlanLine,
     SalesKpiCompanyReport,
     SalesKpiCompanyServiceStat,
+    SalesKpiReferralDoctorRow,
+    SalesKpiReferralServiceCell,
     SalesKpiDebtorNoteOut,
     SalesKpiDebtorNotePut,
     SalesKpiDebtorPayment,
@@ -2598,6 +2601,28 @@ async def company_report(
             or 0
         )
     )
+    referral_raw = await load_referral_rows(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        year=ym.year,
+        month=ym.month,
+    )
+    referral_rows = [
+        SalesKpiReferralDoctorRow(
+            user_id=int(row["user_id"]),
+            full_name=str(row["full_name"]),
+            osteopath=SalesKpiReferralServiceCell(**row["services"]["osteopath"]),
+            tms=SalesKpiReferralServiceCell(**row["services"]["tms"]),
+            lab=SalesKpiReferralServiceCell(**row["services"]["lab"]),
+            massage=SalesKpiReferralServiceCell(**row["services"]["massage"]),
+            count_total=int(row["count_total"]),
+            paid_total=row["paid_total"],
+            accrual_total=row["accrual_total"],
+        )
+        for row in referral_raw
+    ]
+
     refunds_total = (refunds_booking + refunds_manual).quantize(Decimal("0.01"))
     refunds_booking = refunds_booking.quantize(Decimal("0.01"))
     refunds_manual = refunds_manual.quantize(Decimal("0.01"))
@@ -2664,6 +2689,7 @@ async def company_report(
         plan_lines=plan_lines,
         expert_stats=expert_stats,
         service_stats=service_stats,
+        referral_rows=referral_rows,
         managers_sales_bonus_total=managers_bonus.quantize(Decimal("0.01")),
         days_elapsed=days_elapsed,
         days_in_month=days_in_month,

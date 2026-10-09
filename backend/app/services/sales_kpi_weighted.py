@@ -142,8 +142,17 @@ def booking_fact_filters(ym: date) -> list[ColumnElement[bool]]:
     return filters
 
 
+def is_full_payment(service_amount, paid_amount) -> bool:
+    """Полная оплата: заплачено не меньше цены услуги."""
+    service = Decimal(str(service_amount or 0))
+    paid = Decimal(str(paid_amount or 0))
+    if service <= 0:
+        return False
+    return paid >= service
+
+
 def earning_from_brought(brought: Decimal, percent: Decimal) -> Decimal:
-    """Заработок = процент услуги × (вошло − возвраты). Отрицательная сумма уменьшает заработок."""
+    """Заработок = процент услуги × (полная оплата − возвраты)."""
     brought_q = Decimal(str(brought or 0))
     percent_q = Decimal(str(percent or 0))
     if brought_q == 0 or percent_q <= 0:
@@ -208,10 +217,10 @@ async def load_brought_paid_detail(
     pipeline_id: int,
     ym: date,
 ) -> tuple[dict[tuple[int, int, int, Decimal], Decimal], dict[tuple[int, int, int, Decimal], int]]:
-    """Вошедшие суммы и число новых визитов месяца.
+    """Полная оплата и число новых визитов месяца.
 
-    Сумма — любая оплата, не цена услуги. Число — визит, который начался в этом
-    месяце и по которому зашли деньги. Отмена не считается продажей.
+    В сумму входит визит, только когда оплата закрыла цену. Частичная оплата
+    остаётся в числе новых продаж, но не в заработке. Возврат вычитается в своём месяце.
     Менеджер — ответственный на визите, если это менеджер. Иначе тот, кто создал запись.
     """
     start, end = month_bounds(ym)
@@ -262,14 +271,15 @@ async def load_brought_paid_detail(
         manager_id = brought_booking_manager_id(created_by, created_role, responsible_id, responsible_role)
         if manager_id is None or specialist_id is None or direction_id is None:
             continue
-        # paid_amount уже без возврата. Вошедшая сумма = остаток + возвраты по этой записи.
+        # paid_amount уже без возврата. Полная оплата — когда вместе с возвратом закрыта цена.
         refunded = sum((amt for _day, amt in refunds_by_appt.get(int(appt_id), [])), Decimal("0"))
-        amount = (Decimal(str(paid or 0)) + refunded).quantize(Decimal("0.01"))
-        if amount <= 0:
+        gross = (Decimal(str(paid or 0)) + refunded).quantize(Decimal("0.01"))
+        if gross <= 0:
             continue
         price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
         key = (int(manager_id), int(specialist_id), int(direction_id), price)
-        out[key] = (out.get(key, Decimal("0")) + amount).quantize(Decimal("0.01"))
+        if is_full_payment(service_amount, gross):
+            out[key] = (out.get(key, Decimal("0")) + gross).quantize(Decimal("0.01"))
         if (status or "").strip() != "cancelled":
             counts[key] = counts.get(key, 0) + 1
     return out, counts
@@ -596,7 +606,7 @@ async def load_manual_brought_by_label(
     pipeline_id: int,
     ym: date,
 ) -> dict[tuple[int, str], Decimal]:
-    """Любая вошедшая сумма курса и протокола за месяц, без порога и без цены услуги."""
+    """Платежи курса и протокола за месяц, только если продажа оплачена полностью."""
     start, end = month_bounds(ym)
     rows = (
         await db.execute(
@@ -611,6 +621,8 @@ async def load_manual_brought_by_label(
             .where(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.service_amount > 0,
+                SalesKpiManualSale.paid_amount >= SalesKpiManualSale.service_amount,
                 SalesKpiManualSalePayment.paid_at >= start,
                 SalesKpiManualSalePayment.paid_at < end,
                 SalesKpiManualSalePayment.amount > 0,
@@ -645,7 +657,8 @@ async def load_manual_brought_by_label(
                 SalesKpiManualSale.pipeline_id == pipeline_id,
                 SalesKpiManualSale.sold_at >= start,
                 SalesKpiManualSale.sold_at < end,
-                SalesKpiManualSale.paid_amount > 0,
+                SalesKpiManualSale.service_amount > 0,
+                SalesKpiManualSale.paid_amount >= SalesKpiManualSale.service_amount,
                 ~exists(
                     select(SalesKpiManualSalePayment.id).where(
                         SalesKpiManualSalePayment.sale_id == SalesKpiManualSale.id,

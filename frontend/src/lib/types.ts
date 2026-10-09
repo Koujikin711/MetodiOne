@@ -1227,6 +1227,24 @@ export interface SalesKpiCompanyExpertStat {
   creditor_amount: string | number;
 }
 
+export interface SalesKpiReferralServiceCell {
+  count: number;
+  paid_amount: string | number;
+  accrual: string | number;
+}
+
+export interface SalesKpiReferralDoctorRow {
+  user_id: number;
+  full_name: string;
+  osteopath: SalesKpiReferralServiceCell;
+  tms: SalesKpiReferralServiceCell;
+  lab: SalesKpiReferralServiceCell;
+  massage: SalesKpiReferralServiceCell;
+  count_total: number;
+  paid_total: string | number;
+  accrual_total: string | number;
+}
+
 export interface SalesKpiCompanyServiceStat {
   direction_id: number | null;
   direction_name: string;
@@ -1263,6 +1281,8 @@ export interface SalesKpiCompanyReport {
   expert_stats: SalesKpiCompanyExpertStat[];
   /** Отдельная сводка по услугам (Курс / Курс 15 / Протокол …). */
   service_stats?: SalesKpiCompanyServiceStat[];
+  /** Кто сколько раз направил на остеопатию, ТМС, анализы и массаж. */
+  referral_rows?: SalesKpiReferralDoctorRow[];
   managers_sales_bonus_total: string | number;
   days_elapsed?: number;
   days_in_month?: number;

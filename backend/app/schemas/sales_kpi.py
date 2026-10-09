@@ -377,6 +377,26 @@ class SalesKpiCompanyExpertStat(BaseModel):
     creditor_amount: Decimal  # оплачено, визит ещё в будущем
 
 
+class SalesKpiReferralServiceCell(BaseModel):
+    """Сколько раз врач направил на эту услугу и какая оплата вошла в процент."""
+
+    count: int = 0
+    paid_amount: Decimal = Decimal("0")
+    accrual: Decimal = Decimal("0")
+
+
+class SalesKpiReferralDoctorRow(BaseModel):
+    user_id: int
+    full_name: str
+    osteopath: SalesKpiReferralServiceCell
+    tms: SalesKpiReferralServiceCell
+    lab: SalesKpiReferralServiceCell
+    massage: SalesKpiReferralServiceCell
+    count_total: int = 0
+    paid_total: Decimal = Decimal("0")
+    accrual_total: Decimal = Decimal("0")
+
+
 class SalesKpiCompanyServiceStat(BaseModel):
     """Итог по услуге (направлению) за месяц — отдельно от экспертов."""
 
@@ -421,6 +441,8 @@ class SalesKpiCompanyReport(BaseModel):
     expert_stats: list[SalesKpiCompanyExpertStat]
     # Отдельная таблица: Курс / Курс 15 / Протокол / … по всей клинике
     service_stats: list[SalesKpiCompanyServiceStat] = []
+    # Направления врачей: кто сколько раз направил на остеопатию, ТМС, анализы, массаж
+    referral_rows: list[SalesKpiReferralDoctorRow] = []
     managers_sales_bonus_total: Decimal
     # Шкала / прогноз
     days_elapsed: int = 0

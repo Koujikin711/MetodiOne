@@ -162,6 +162,43 @@ def test_manager_bonus_waits_for_first_payments_and_debt_stays_visible():
     assert high.bonus == Decimal("800.00")
 
 
+def test_referral_visit_counts_paid_procedure_and_skips_gifts():
+    from app.services.payroll_facts import referral_rows_from_visits
+    from app.services.payroll_rules import referral_line_accrual, referral_visit_paid
+
+    assert referral_visit_paid(500, 200, "Остеопатия") == ("osteopath", Decimal("200"))
+    assert referral_visit_paid(500, 0, "ТМС") is None
+    assert referral_visit_paid(0, 0, "Массаж", "подарок") is None
+    assert referral_visit_paid(300, 300, "Массаж", "подарочный") is None
+    assert referral_visit_paid(1300, 1300, "Курс 15") is None
+    assert referral_visit_paid(400, 400, "Логомассаж") is None
+    assert referral_line_accrual("osteopath", Decimal("1000")) == Decimal("30.00")
+    assert referral_line_accrual("tms", Decimal("600")) == Decimal("30.00")
+
+    rows = referral_rows_from_visits(
+        [
+            (7, "Ганчина", 1000, 1000, None, None, "Остеопатия"),
+            (7, "Ганчина", 600, 600, "ТМС", None, "Неврология"),
+            (7, "Ганчина", 0, 0, "Массаж", "подарок", "Массаж"),
+            (7, "Ганчина", 400, 0, None, None, "Анализы"),
+            (8, "Мунира", 200, 200, None, None, "Массаж"),
+            (8, "Мунира", 1300, 1300, None, None, "Курс 15"),
+        ]
+    )
+    assert [row["full_name"] for row in rows] == ["Ганчина", "Мунира"]
+    ganchina = rows[0]
+    assert ganchina["services"]["osteopath"]["count"] == 1
+    assert ganchina["services"]["osteopath"]["paid_amount"] == Decimal("1000")
+    assert ganchina["services"]["osteopath"]["accrual"] == Decimal("30.00")
+    assert ganchina["services"]["tms"]["count"] == 1
+    assert ganchina["services"]["lab"]["count"] == 0
+    assert ganchina["services"]["massage"]["count"] == 0
+    assert ganchina["count_total"] == 2
+    assert ganchina["accrual_total"] == Decimal("60.00")
+    assert rows[1]["services"]["massage"]["count"] == 1
+    assert rows[1]["accrual_total"] == Decimal("10.00")
+
+
 def test_referral_lines_skip_speech_and_courses():
     assert referral_procedure_line("Массаж") == "massage"
     assert referral_procedure_line("Логомассаж") is None

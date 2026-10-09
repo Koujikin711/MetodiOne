@@ -24,6 +24,7 @@ import type {
   SalesKpiManualSale,
   SalesKpiPaymentJournalRow,
   SalesKpiPipelineMeta,
+  SalesKpiReferralServiceCell,
   SalesKpiServiceEarningsReport,
   SalesKpiServiceRates,
   SalesKpiWeightedPlan,
@@ -242,6 +243,18 @@ function contribLabel(v: string | number): string {
 function num(v: string | number | null | undefined): number {
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n : 0;
+}
+
+function ReferralCountCell({ cell }: { cell: SalesKpiReferralServiceCell }) {
+  if (!cell.count) {
+    return <td className="py-2 pr-3 mo-muted">0</td>;
+  }
+  return (
+    <td className="py-2 pr-3">
+      <div className="tabular-nums font-medium">{cell.count}</div>
+      <div className="text-xs mo-muted tabular-nums">{formatMoney(num(cell.paid_amount))}</div>
+    </td>
+  );
 }
 
 const KPI_GROUP_OPTIONS = Array.from({ length: 20 }, (_, i) => i + 1);
@@ -1937,7 +1950,7 @@ function SalesReportSection({
       <section className="mo-section px-3 py-2">
         <h2 className="text-[15px] font-semibold text-[var(--mo-text)]">Заработок · {data.year_month}</h2>
         <p className="mt-0.5 text-[11px] lux-caption">
-          Новых — продажи, открытые в этом месяце. Привёл — любая вошедшая сумма минус возврат. Итого{" "}
+          Новых — продажи, открытые в этом месяце. Привёл — полная оплата минус возврат. Итого{" "}
           {formatMoney(num(data.total_earning))}
         </p>
       </section>
@@ -2304,6 +2317,69 @@ function CompanyReportSection({
                   <td className="py-2 pr-3">{formatMoney(e.creditor_amount)}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mo-section p-4">
+        <h3 className="mb-3 text-lg font-semibold text-[var(--mo-text)]">По направлениям</h3>
+        <p className="mb-3 text-sm lux-caption">
+          Визит попадает, если статус «пришёл», дата в этом месяце и оплата больше нуля. В «Направил»
+          стоит этот врач. Число — сколько раз направил, под ним — оплаченная сумма. Подарочный массаж
+          и ТМС не входят. Логомассаж и курсы не входят.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="kpi-data-table min-w-[900px] text-sm">
+            <thead>
+              <tr>
+                <th className="py-2 pr-3">Врач</th>
+                <th className="py-2 pr-3">Остеопатия · 3%</th>
+                <th className="py-2 pr-3">ТМС · 5%</th>
+                <th className="py-2 pr-3">Анализы · 5%</th>
+                <th className="py-2 pr-3">Массаж · 5%</th>
+                <th className="py-2 pr-3">Начисление</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data.referral_rows ?? []).map((row) => (
+                <tr key={row.user_id}>
+                  <td className="py-2 pr-3 font-medium">{row.full_name}</td>
+                  <ReferralCountCell cell={row.osteopath} />
+                  <ReferralCountCell cell={row.tms} />
+                  <ReferralCountCell cell={row.lab} />
+                  <ReferralCountCell cell={row.massage} />
+                  <td className="py-2 pr-3 tabular-nums">{formatMoney(num(row.accrual_total))}</td>
+                </tr>
+              ))}
+              {(data.referral_rows ?? []).length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-3 mo-muted">
+                    За этот месяц направлений нет
+                  </td>
+                </tr>
+              ) : (
+                <tr className="kpi-matrix-row-highlight">
+                  <td className="py-2 pr-3 font-semibold">Итого</td>
+                  <td className="py-2 pr-3 font-semibold tabular-nums">
+                    {(data.referral_rows ?? []).reduce((sum, row) => sum + row.osteopath.count, 0)}
+                  </td>
+                  <td className="py-2 pr-3 font-semibold tabular-nums">
+                    {(data.referral_rows ?? []).reduce((sum, row) => sum + row.tms.count, 0)}
+                  </td>
+                  <td className="py-2 pr-3 font-semibold tabular-nums">
+                    {(data.referral_rows ?? []).reduce((sum, row) => sum + row.lab.count, 0)}
+                  </td>
+                  <td className="py-2 pr-3 font-semibold tabular-nums">
+                    {(data.referral_rows ?? []).reduce((sum, row) => sum + row.massage.count, 0)}
+                  </td>
+                  <td className="py-2 pr-3 font-semibold tabular-nums">
+                    {formatMoney(
+                      (data.referral_rows ?? []).reduce((sum, row) => sum + num(row.accrual_total), 0),
+                    )}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

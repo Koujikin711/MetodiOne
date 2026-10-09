@@ -81,6 +81,35 @@ def referral_procedure_line(*names: str | None) -> str | None:
     return None
 
 
+def referral_visit_paid(
+    service_amount: Decimal | str | int | float | None,
+    paid_amount: Decimal | str | int | float | None,
+    *labels: str | None,
+) -> tuple[str, Decimal] | None:
+    """Оплаченный визит, который входит в процент направившего врача.
+
+    Нужны оплата больше нуля и услуга остеопатии, ТМС, анализов или массажа.
+    Подарочный массаж и ТМС не входят. Логомассаж и курсы не входят.
+    """
+    amount = Decimal(str(paid_amount or 0))
+    if amount <= 0:
+        return None
+    line = referral_procedure_line(*labels)
+    if line is None:
+        return None
+    if line in ("massage", "tms") and is_free_gift_session(service_amount, amount, *labels):
+        return None
+    return line, amount
+
+
+def referral_line_accrual(line: str, paid_amount: Decimal) -> Decimal:
+    """3% с остеопатии, 5% с ТМС, анализов и массажа. База — оплаченная сумма."""
+    share = OSTEOPATH_SHARE if line == "osteopath" else PROCEDURE_SHARE
+    if line not in _REFERRAL_LINES:
+        return Decimal("0")
+    return _q(Decimal(paid_amount) * share)
+
+
 def referrer_change_blocked(current_id: int | None, new_id: int, role: str) -> str | None:
     """Уже указанного врача не переписывают. Исправить может владелец или админ воронки."""
     if current_id is None or int(current_id) == int(new_id):

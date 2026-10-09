@@ -11,6 +11,7 @@ from app.services.sales_kpi_weighted import (
     brought_booking_manager_id,
     brought_for_plan_item,
     earning_from_brought,
+    is_full_payment,
     new_sales_for_plan_item,
     build_manager_lines,
     completion_ratio,
@@ -169,6 +170,13 @@ def test_new_sales_are_opened_this_month_not_later_payments():
         manual_counts={(7, "протокол"): 2},
         direction_names={8: "Протокол"},
     ) == 3
+
+
+def test_full_payment_is_paid_at_least_the_service_price():
+    assert is_full_payment(Decimal("1300"), Decimal("1300"))
+    assert is_full_payment(Decimal("1300"), Decimal("1500"))
+    assert not is_full_payment(Decimal("1300"), Decimal("200"))
+    assert not is_full_payment(Decimal("0"), Decimal("200"))
 
 
 def test_brought_is_any_incoming_minus_refund_not_full_price():
