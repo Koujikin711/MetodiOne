@@ -7,8 +7,9 @@ import calendar
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.config import settings
 from app.models import (
@@ -142,10 +143,10 @@ def booking_fact_filters(ym: date) -> list[ColumnElement[bool]]:
 
 
 def earning_from_brought(brought: Decimal, percent: Decimal) -> Decimal:
-    """Заработок = процент этой услуги × сумма, которую менеджер по ней привёл."""
+    """Заработок = процент услуги × (вошло − возвраты). Отрицательная сумма уменьшает заработок."""
     brought_q = Decimal(str(brought or 0))
     percent_q = Decimal(str(percent or 0))
-    if brought_q <= 0 or percent_q <= 0:
+    if brought_q == 0 or percent_q <= 0:
         return Decimal("0.00")
     return (brought_q * percent_q / Decimal("100")).quantize(Decimal("0.01"))
 
@@ -207,15 +208,24 @@ async def load_brought_paid_detail(
     pipeline_id: int,
     ym: date,
 ) -> dict[tuple[int, int, int, Decimal], Decimal]:
-    """Оплачено по записи: (менеджер, эксперт, направление, цена услуги). Частичная оплата входит."""
+    """Сколько зашло по записи: (менеджер, эксперт, направление, цена услуги).
+
+    Это не цена услуги. Берётся любая вошедшая сумма. Возврат, уже снятый с визита,
+    прибавляется обратно: в месяце возврата он вычитается отдельно.
+    Менеджер — ответственный на визите, если это менеджер. Иначе тот, кто создал запись.
+    """
     start, end = month_bounds(ym)
+    refunds_by_appt = await _booking_refunds_by_appointment(db, company_id=company_id)
+    creator = aliased(User)
+    responsible = aliased(User)
     filters: list[ColumnElement[bool]] = [
         BookingAppointment.company_id == company_id,
         BookingAppointment.start_at >= start,
         BookingAppointment.start_at < end,
-        BookingAppointment.status != "cancelled",
-        BookingAppointment.paid_amount > 0,
-        User.role == UserRole.manager,
+        or_(
+            BookingAppointment.paid_amount > 0,
+            BookingAppointment.id.in_(list(refunds_by_appt)) if refunds_by_appt else BookingAppointment.paid_amount > 0,
+        ),
         or_(
             BookingAppointment.pipeline_id == pipeline_id,
             PipelineStage.pipeline_id == pipeline_id,
@@ -227,36 +237,160 @@ async def load_brought_paid_detail(
     rows = (
         await db.execute(
             select(
+                BookingAppointment.id,
                 BookingAppointment.created_by_user_id,
+                creator.role,
+                BookingAppointment.responsible_manager_id,
+                responsible.role,
                 BookingAppointment.specialist_id,
                 BookingAppointment.direction_id,
                 BookingAppointment.service_amount,
-                func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
+                BookingAppointment.paid_amount,
             )
             .select_from(BookingAppointment)
             .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
             .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
-            .join(User, User.id == BookingAppointment.created_by_user_id)
-            .where(*filters)
-            .group_by(
-                BookingAppointment.created_by_user_id,
-                BookingAppointment.specialist_id,
-                BookingAppointment.direction_id,
-                BookingAppointment.service_amount,
-            ),
+            .join(creator, creator.id == BookingAppointment.created_by_user_id, isouter=True)
+            .join(responsible, responsible.id == BookingAppointment.responsible_manager_id, isouter=True)
+            .where(*filters),
         )
     ).all()
     out: dict[tuple[int, int, int, Decimal], Decimal] = {}
-    for manager_id, specialist_id, direction_id, service_amount, paid in rows:
+    for appt_id, created_by, created_role, responsible_id, responsible_role, specialist_id, direction_id, service_amount, paid in rows:
+        manager_id = brought_booking_manager_id(created_by, created_role, responsible_id, responsible_role)
         if manager_id is None or specialist_id is None or direction_id is None:
             continue
-        amount = Decimal(str(paid or 0)).quantize(Decimal("0.01"))
+        # paid_amount уже без возврата. Вошедшая сумма = остаток + возвраты по этой записи.
+        refunded = sum((amt for _day, amt in refunds_by_appt.get(int(appt_id), [])), Decimal("0"))
+        amount = (Decimal(str(paid or 0)) + refunded).quantize(Decimal("0.01"))
         if amount <= 0:
             continue
         price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
         key = (int(manager_id), int(specialist_id), int(direction_id), price)
         out[key] = (out.get(key, Decimal("0")) + amount).quantize(Decimal("0.01"))
     return out
+
+
+def _parse_booking_refund_appointment_id(external_key: str | None) -> int | None:
+    key = (external_key or "").strip()
+    if not key.startswith("booking_refund:"):
+        return None
+    parts = key.split(":")
+    if len(parts) < 2 or not parts[1].isdigit():
+        return None
+    return int(parts[1])
+
+
+async def _booking_refunds_by_appointment(
+    db: AsyncSession,
+    *,
+    company_id: int,
+) -> dict[int, list[tuple[date, Decimal]]]:
+    """Возвраты записи: id визита → (дата, сумма). В ОСВ сумма лежит со знаком минус."""
+    from app.models.finance_osv import FinanceOsvRow
+
+    rows = (
+        await db.execute(
+            select(FinanceOsvRow.external_key, FinanceOsvRow.txn_date, FinanceOsvRow.expense).where(
+                FinanceOsvRow.company_id == company_id,
+                FinanceOsvRow.source == "booking_refund",
+            ),
+        )
+    ).all()
+    out: dict[int, list[tuple[date, Decimal]]] = {}
+    for external_key, txn_date, expense in rows:
+        appt_id = _parse_booking_refund_appointment_id(external_key)
+        if appt_id is None or txn_date is None:
+            continue
+        amount = abs(Decimal(str(expense or 0))).quantize(Decimal("0.01"))
+        if amount <= 0:
+            continue
+        out.setdefault(appt_id, []).append((txn_date, amount))
+    return out
+
+
+async def load_booking_brought_refunds(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> dict[tuple[int, int, int, Decimal], Decimal]:
+    """Возвраты записи за месяц. Вычитаются из вошедшей суммы той же услуги."""
+    start, end = month_bounds(ym)
+    refunds_by_appt = await _booking_refunds_by_appointment(db, company_id=company_id)
+    month_ids = [
+        appt_id
+        for appt_id, items in refunds_by_appt.items()
+        if any(start.date() <= day < end.date() for day, _amt in items)
+    ]
+    if not month_ids:
+        return {}
+    creator = aliased(User)
+    responsible = aliased(User)
+    rows = (
+        await db.execute(
+            select(
+                BookingAppointment.id,
+                BookingAppointment.created_by_user_id,
+                creator.role,
+                BookingAppointment.responsible_manager_id,
+                responsible.role,
+                BookingAppointment.specialist_id,
+                BookingAppointment.direction_id,
+                BookingAppointment.service_amount,
+            )
+            .select_from(BookingAppointment)
+            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .join(creator, creator.id == BookingAppointment.created_by_user_id, isouter=True)
+            .join(responsible, responsible.id == BookingAppointment.responsible_manager_id, isouter=True)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.id.in_(month_ids),
+                or_(
+                    BookingAppointment.pipeline_id == pipeline_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                ),
+            ),
+        )
+    ).all()
+    out: dict[tuple[int, int, int, Decimal], Decimal] = {}
+    for appt_id, created_by, created_role, responsible_id, responsible_role, specialist_id, direction_id, service_amount in rows:
+        manager_id = brought_booking_manager_id(created_by, created_role, responsible_id, responsible_role)
+        if manager_id is None or specialist_id is None or direction_id is None:
+            continue
+        month_sum = sum(
+            (amt for day, amt in refunds_by_appt.get(int(appt_id), []) if start.date() <= day < end.date()),
+            Decimal("0"),
+        ).quantize(Decimal("0.01"))
+        if month_sum <= 0:
+            continue
+        price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
+        key = (int(manager_id), int(specialist_id), int(direction_id), price)
+        out[key] = (out.get(key, Decimal("0")) + month_sum).quantize(Decimal("0.01"))
+    return out
+
+
+def _is_manager_role(role) -> bool:
+    if role is None:
+        return False
+    value = getattr(role, "value", role)
+    return str(value) == UserRole.manager.value
+
+
+def brought_booking_manager_id(
+    created_by: int | None,
+    created_role,
+    responsible_id: int | None,
+    responsible_role,
+) -> int | None:
+    """Оплата услуги: ответственный менеджер, иначе менеджер, который создал запись."""
+    if responsible_id is not None and _is_manager_role(responsible_role):
+        return int(responsible_id)
+    if created_by is not None and _is_manager_role(created_role):
+        return int(created_by)
+    return None
 
 
 async def load_booking_direction_names(
@@ -333,16 +467,65 @@ def brought_for_plan_item(
     manual: dict[tuple[int, str], Decimal],
     direction_names: dict[int, str] | None = None,
     unit_price: Decimal | None = None,
+    refund_detail: dict | None = None,
+    manual_refunds: dict[tuple[int, str], Decimal] | None = None,
 ) -> Decimal:
-    """Сумма, которую менеджер привёл по строке плана. Без полной оплаты и без порога.
+    """Вошло по услуге минус возвраты. Не цена услуги и не полная оплата.
 
     direction_id строки — кабинет эксперта (консультация, массаж), не сама услуга.
-    Если услуги явно не выбраны, берём направление с именем услуги либо визит с её ценой.
+    Если услуги явно не выбраны, берём вошедшие суммы направления с именем услуги
+    либо визит этого эксперта с её ценой. Курс и протокол: форма и такая же запись.
     """
-    if (source_type or "manual") != "direction":
-        return manual.get((manager_id, _norm_kpi_label(name)), Decimal("0"))
-    explicit = [int(d) for d in direction_ids]
+    incoming = _matched_brought(
+        manager_id=manager_id,
+        source_type=source_type,
+        name=name,
+        direction_id=direction_id,
+        direction_ids=direction_ids,
+        specialist_ids=specialist_ids,
+        detail=detail,
+        manual=manual,
+        direction_names=direction_names,
+        unit_price=unit_price,
+    )
+    refunded = _matched_brought(
+        manager_id=manager_id,
+        source_type=source_type,
+        name=name,
+        direction_id=direction_id,
+        direction_ids=direction_ids,
+        specialist_ids=specialist_ids,
+        detail=refund_detail or {},
+        manual=manual_refunds or {},
+        direction_names=direction_names,
+        unit_price=unit_price,
+    )
+    return (incoming - refunded).quantize(Decimal("0.01"))
+
+
+def _matched_brought(
+    *,
+    manager_id: int,
+    source_type: str,
+    name: str,
+    direction_id: int | None,
+    direction_ids: list[int],
+    specialist_ids: list[int],
+    detail: dict,
+    manual: dict[tuple[int, str], Decimal],
+    direction_names: dict[int, str] | None = None,
+    unit_price: Decimal | None = None,
+) -> Decimal:
     named = service_direction_ids(name, direction_names)
+    if (source_type or "manual") != "direction":
+        total = manual.get((manager_id, _norm_kpi_label(name)), Decimal("0"))
+        if named:
+            for key, amount in detail.items():
+                mid, _sid, did, _service_amount = _detail_row(key)
+                if mid == manager_id and did in named:
+                    total += amount
+        return total.quantize(Decimal("0.01"))
+    explicit = [int(d) for d in direction_ids]
     specs = {int(s) for s in specialist_ids}
     price = Decimal(str(unit_price or 0))
     total = Decimal("0")
@@ -355,19 +538,15 @@ def brought_for_plan_item(
                 continue
             if specs and sid not in specs:
                 continue
-        elif specs:
-            if sid not in specs:
-                continue
+        elif named or specs:
             name_ok = did in named
             price_ok = (
-                service_amount is not None
+                sid in specs
+                and service_amount is not None
                 and price > 0
                 and amounts_match_unit_price(service_amount, price)
             )
             if not name_ok and not price_ok:
-                continue
-        elif named:
-            if did not in named:
                 continue
         elif direction_id is not None and did == int(direction_id):
             pass
@@ -384,7 +563,7 @@ async def load_manual_brought_by_label(
     pipeline_id: int,
     ym: date,
 ) -> dict[tuple[int, str], Decimal]:
-    """Оплаты курса и протокола за месяц. Считается любая сумма, без порога."""
+    """Любая вошедшая сумма курса и протокола за месяц, без порога и без цены услуги."""
     start, end = month_bounds(ym)
     rows = (
         await db.execute(
@@ -399,10 +578,88 @@ async def load_manual_brought_by_label(
             .where(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
-                SalesKpiManualSale.status.in_(tuple(MANUAL_SALE_KPI_STATUSES)),
                 SalesKpiManualSalePayment.paid_at >= start,
                 SalesKpiManualSalePayment.paid_at < end,
                 SalesKpiManualSalePayment.amount > 0,
+            )
+            .group_by(SalesKpiManualSale.manager_user_id, SalesKpiPlanItem.name),
+        )
+    ).all()
+    out: dict[tuple[int, str], Decimal] = {}
+    for manager_id, name, paid in rows:
+        if manager_id is None:
+            continue
+        label = _norm_kpi_label(str(name or ""))
+        if not label:
+            continue
+        amount = Decimal(str(paid or 0)).quantize(Decimal("0.01"))
+        if amount <= 0:
+            continue
+        key = (int(manager_id), label)
+        out[key] = (out.get(key, Decimal("0")) + amount).quantize(Decimal("0.01"))
+
+    # Продажа месяца без строк журнала: оплата всё равно считается в месяц заведения.
+    legacy_rows = (
+        await db.execute(
+            select(
+                SalesKpiManualSale.manager_user_id,
+                SalesKpiPlanItem.name,
+                SalesKpiManualSale.paid_amount,
+            )
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.sold_at >= start,
+                SalesKpiManualSale.sold_at < end,
+                SalesKpiManualSale.paid_amount > 0,
+                ~exists(
+                    select(SalesKpiManualSalePayment.id).where(
+                        SalesKpiManualSalePayment.sale_id == SalesKpiManualSale.id,
+                    ),
+                ),
+            ),
+        )
+    ).all()
+    for manager_id, name, paid in legacy_rows:
+        if manager_id is None:
+            continue
+        label = _norm_kpi_label(str(name or ""))
+        if not label:
+            continue
+        amount = Decimal(str(paid or 0)).quantize(Decimal("0.01"))
+        if amount <= 0:
+            continue
+        key = (int(manager_id), label)
+        out[key] = (out.get(key, Decimal("0")) + amount).quantize(Decimal("0.01"))
+    return out
+
+
+async def load_manual_refunds_by_label(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+) -> dict[tuple[int, str], Decimal]:
+    """Возврат курса или протокола в месяц returned_at. Вычитается из вошедшей суммы."""
+    start, end = month_bounds(ym)
+    rows = (
+        await db.execute(
+            select(
+                SalesKpiManualSale.manager_user_id,
+                SalesKpiPlanItem.name,
+                func.coalesce(func.sum(SalesKpiManualSale.paid_amount), 0),
+            )
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.status == "returned",
+                SalesKpiManualSale.returned_at.is_not(None),
+                SalesKpiManualSale.returned_at >= start,
+                SalesKpiManualSale.returned_at < end,
+                SalesKpiManualSale.paid_amount > 0,
             )
             .group_by(SalesKpiManualSale.manager_user_id, SalesKpiPlanItem.name),
         )

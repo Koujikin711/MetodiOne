@@ -8,6 +8,7 @@ from app.services.sales_kpi_weighted import (
     _norm_kpi_label,
     amounts_match_unit_price,
     bonus_amount,
+    brought_booking_manager_id,
     brought_for_plan_item,
     earning_from_brought,
     build_manager_lines,
@@ -92,11 +93,84 @@ def test_direction_item_matches_service_name_not_expert_cabinet():
     ) == Decimal("500.00")
 
 
+def test_course_line_includes_form_payments_and_booking_payments():
+    """Протокол из формы и оплата той же услуги в записи складываются."""
+    detail = {
+        (7, 8, 8, Decimal("3000.00")): Decimal("2400.00"),
+        (7, 8, 3, Decimal("1300.00")): Decimal("1300.00"),
+    }
+    assert brought_for_plan_item(
+        manager_id=7,
+        source_type="manual",
+        name="Протокол",
+        direction_id=None,
+        direction_ids=[],
+        specialist_ids=[],
+        detail=detail,
+        manual={(7, "протокол"): Decimal("100.00")},
+        direction_names={8: "Протокол", 3: "Курс 15"},
+    ) == Decimal("2500.00")
+
+
+def test_marked_service_counts_every_payment_of_that_name():
+    """Оплата услуги считается, даже если эксперт не отмечен в строке плана."""
+    detail = {(7, 99, 3, Decimal("1300.00")): Decimal("500.00")}
+    assert brought_for_plan_item(
+        manager_id=7,
+        source_type="direction",
+        name="Курс 15",
+        direction_id=6,
+        direction_ids=[],
+        specialist_ids=[8],
+        detail=detail,
+        manual={},
+        direction_names={3: "Курс 15", 6: "Консультация"},
+        unit_price=Decimal("1300"),
+    ) == Decimal("500.00")
+
+
+def test_booking_payment_goes_to_responsible_manager():
+    assert brought_booking_manager_id(1, "admin", 7, "manager") == 7
+    assert brought_booking_manager_id(7, "manager", None, None) == 7
+    assert brought_booking_manager_id(1, "admin", 4, "expert") is None
+
+
 def test_service_earning_is_percent_of_brought_not_full_price():
-    """10% от приведённых 400, а не от цены 1000 и не от порога 25%."""
+    """10% от вошедших 400, а не от цены 1000. Возврат уменьшает заработок."""
     assert earning_from_brought(Decimal("400"), Decimal("10")) == Decimal("40.00")
     assert earning_from_brought(Decimal("100"), Decimal("0")) == Decimal("0.00")
     assert earning_from_brought(Decimal("0"), Decimal("15")) == Decimal("0.00")
+    assert earning_from_brought(Decimal("-200"), Decimal("10")) == Decimal("-20.00")
+
+
+def test_brought_is_any_incoming_minus_refund_not_full_price():
+    """Зашло 500 из 1300, возврат 100. В заработок 400, не вся цена."""
+    detail = {(7, 8, 3, Decimal("1300.00")): Decimal("500.00")}
+    refunds = {(7, 8, 3, Decimal("1300.00")): Decimal("100.00")}
+    assert brought_for_plan_item(
+        manager_id=7,
+        source_type="direction",
+        name="Курс 15",
+        direction_id=6,
+        direction_ids=[],
+        specialist_ids=[8],
+        detail=detail,
+        manual={},
+        direction_names={3: "Курс 15", 6: "Консультация"},
+        unit_price=Decimal("1300"),
+        refund_detail=refunds,
+    ) == Decimal("400.00")
+    assert brought_for_plan_item(
+        manager_id=7,
+        source_type="manual",
+        name="Протокол",
+        direction_id=None,
+        direction_ids=[],
+        specialist_ids=[],
+        detail={},
+        manual={(7, "протокол"): Decimal("1000.00")},
+        manual_refunds={(7, "протокол"): Decimal("300.00")},
+    ) == Decimal("700.00")
 
 
 def test_overachievement_capped():

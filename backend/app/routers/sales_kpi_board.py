@@ -94,8 +94,10 @@ from app.services.sales_kpi_weighted import (
     load_manual_facts,
     load_booking_service_facts,
     load_brought_paid_detail,
+    load_booking_brought_refunds,
     load_booking_direction_names,
     load_manual_brought_by_label,
+    load_manual_refunds_by_label,
     brought_for_plan_item,
     earning_from_brought,
     load_plan_item_services,
@@ -810,7 +812,13 @@ async def _service_earnings_report(
     unit_prices = await load_kpi_unit_prices_by_label(
         db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
     )
+    refund_detail = await load_booking_brought_refunds(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
     manual = await load_manual_brought_by_label(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
+    manual_refunds = await load_manual_refunds_by_label(
         db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
     )
     managers = await load_managers(db, company_id=company_id, pipeline_id=pipeline_id)
@@ -835,6 +843,8 @@ async def _service_earnings_report(
                 manual=manual,
                 direction_names=direction_names,
                 unit_price=unit_prices.get(_norm_kpi_label(item.name)),
+                refund_detail=refund_detail,
+                manual_refunds=manual_refunds,
             )
             earn = earning_from_brought(amount, percent)
             total_brought += amount
