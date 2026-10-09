@@ -46,6 +46,7 @@ import { SalesQuoteCalculatorPage } from "@/pages/SalesQuoteCalculatorPage";
 import { SalesVisitTrackerPage } from "@/pages/SalesVisitTrackerPage";
 import { ExtraServicesPage } from "@/pages/ExtraServicesPage";
 import { CuratorJournalPage } from "@/pages/CuratorJournalPage";
+import { SalesControlPage } from "@/pages/SalesControlPage";
 import { RopLayout } from "@/pages/rop/RopLayout";
 import { RopDashboardPage } from "@/pages/rop/RopDashboardPage";
 import { RopStatsPage } from "@/pages/rop/RopStatsPage";
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="/booking" element={<BookingOrSalesEntry />} />
             <Route path="/extra-services" element={<ExtraServicesPage />} />
             <Route path="/curator-journal" element={<CuratorJournalPage />} />
+            <Route path="/sales-control" element={<SalesControlPage />} />
             <Route path="/sales" element={<ManagerSalesPage />} />
             <Route path="/quote" element={<SalesQuoteCalculatorPage />} />
             <Route path="/tracker" element={<SalesVisitTrackerPage />} />

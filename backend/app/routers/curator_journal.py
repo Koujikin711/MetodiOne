@@ -19,6 +19,7 @@ from app.models.curator_journal import (
     CuratorJournalComplaint,
     CuratorJournalEntry,
     CuratorMembershipPause,
+    CuratorProgramRequest,
 )
 from app.schemas.curator_journal import (
     COMPLAINT_CATEGORIES,
@@ -66,6 +67,47 @@ router = APIRouter(prefix="/curator-journal", tags=["curator-journal"])
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+async def _assert_manager_owns_protocol_patient(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    user_id: int,
+    lead_id: int | None,
+    sale_id: int | None,
+) -> None:
+    """Менеджер отправляет админу только своего пациента."""
+    if lead_id is not None:
+        lead = await db.get(Lead, int(lead_id))
+        if lead is None or lead.company_id != company_id or lead.manager_id != user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Это не ваш пациент")
+        return
+    if sale_id is not None:
+        sale = await db.get(SalesKpiManualSale, int(sale_id))
+        if sale is None or sale.company_id != company_id or int(sale.manager_user_id) != user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Это не ваша продажа")
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Это не ваш пациент")
+
+
+async def _assert_manager_owns_protocol_request(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    user_id: int,
+    request_id: int,
+) -> None:
+    row = await db.get(CuratorProgramRequest, int(request_id))
+    if row is None or row.company_id != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Заявки у админа нет")
+    await _assert_manager_owns_protocol_patient(
+        db,
+        company_id=company_id,
+        user_id=user_id,
+        lead_id=int(row.lead_id) if row.lead_id is not None else None,
+        sale_id=int(row.sale_id) if row.sale_id is not None else None,
+    )
 
 
 def _norm_phone(raw: str | None) -> str:
@@ -433,9 +475,13 @@ async def protocol_term_queue(
     ),
     q: str | None = Query(None, max_length=120),
 ) -> ProtocolQueueOut:
-    """Протоколы: 30-дневный срок + next sale. Без daily Дневник/Фото/Жалоба."""
-    assert_journal_access(user)
-    from app.services.protocol_queue import build_protocol_queue
+    """Протоколы: 30-дневный срок + next sale. Без daily Дневник/Фото/Жалоба.
+
+    Менеджер видит только своих пациентов. Куратор и админ — всю очередь.
+    """
+    if user.role != UserRole.manager:
+        assert_journal_access(user)
+    from app.services.protocol_queue import build_protocol_queue, scope_protocol_queue_to_manager
 
     raw = await build_protocol_queue(
         db,
@@ -447,6 +493,8 @@ async def protocol_term_queue(
     from app.services.curator_program_request import attach_protocol_request_ids
 
     await attach_protocol_request_ids(db, company_id=company_id, rows=raw["rows"])
+    if user.role == UserRole.manager:
+        raw = scope_protocol_queue_to_manager(raw, int(user.id))
     return ProtocolQueueOut(
         predicate=raw["predicate"],
         duration_days=raw["duration_days"],
@@ -466,7 +514,12 @@ async def request_next_protocol(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ProgramRequestOut:
     """Куратор отправляет человека на следующий Протокол. Уведомление — заявка у админа в KPI."""
-    assert_journal_access(user)
+    if user.role == UserRole.manager:
+        await _assert_manager_owns_protocol_patient(
+            db, company_id=company_id, user_id=int(user.id), lead_id=body.lead_id, sale_id=body.sale_id,
+        )
+    else:
+        assert_journal_access(user)
     from app.services.curator_program_request import create_next_protocol_request, program_label
 
     row = await create_next_protocol_request(
@@ -500,7 +553,12 @@ async def withdraw_next_protocol(
     company_id: CurrentCompanyId,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
-    assert_journal_access(user)
+    if user.role == UserRole.manager:
+        await _assert_manager_owns_protocol_request(
+            db, company_id=company_id, user_id=int(user.id), request_id=request_id,
+        )
+    else:
+        assert_journal_access(user)
     from app.services.curator_program_request import withdraw_next_protocol_request
 
     await withdraw_next_protocol_request(db, company_id=company_id, request_id=request_id)

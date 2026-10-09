@@ -349,6 +349,7 @@ class ProtocolQueueRowOut(BaseModel):
     days_remaining: int
     previous_protocols_label: str
     previous_protocols: list[ProtocolQueuePreviousOut] = Field(default_factory=list)
+    manager_user_id: int | None = None
     manager_name: str | None = None
     responsible_name: str | None = None
     last_contact_at: datetime | None = None

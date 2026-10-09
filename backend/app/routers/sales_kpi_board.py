@@ -141,6 +141,21 @@ def _assert_owner(current_user: CurrentUser) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец компании")
 
 
+def _assert_can_record_own_payment(current_user: CurrentUser, sale: SalesKpiManualSale) -> None:
+    """Админ вносит любую оплату. Менеджер — только по своей продаже."""
+    if current_user.role == UserRole.manager:
+        if int(sale.manager_user_id) != int(current_user.id):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Это не ваша продажа")
+        return
+    _assert_admin_or_owner(current_user)
+
+
+def _is_course_product(name: str | None) -> bool:
+    from app.services.patient_ltv import classify_product_kind
+
+    return classify_product_kind(name) in ("main_course", "course_15")
+
+
 def _assert_admin_or_owner(current_user: CurrentUser) -> None:
     if current_user.role not in (
         UserRole.owner,
@@ -1105,6 +1120,40 @@ async def list_manual_sales(
     return out
 
 
+@router.get("/my-courses", response_model=list[SalesKpiManualSaleOut])
+async def list_my_course_sales(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[SalesKpiManualSaleOut]:
+    """Курсы менеджера — только его продажи. Админ воронки видит курсы всех менеджеров."""
+    if current_user.role not in (UserRole.manager, UserRole.admin):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Раздел для менеджера или админа")
+    filters = [SalesKpiManualSale.company_id == company_id]
+    if current_user.role == UserRole.manager:
+        filters.append(SalesKpiManualSale.manager_user_id == int(current_user.id))
+    rows = (
+        await db.execute(
+            select(SalesKpiManualSale, SalesKpiPlanItem.name, User.full_name, User.email)
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .join(User, User.id == SalesKpiManualSale.manager_user_id)
+            .where(*filters)
+            .order_by(SalesKpiManualSale.sold_at.desc(), SalesKpiManualSale.id.desc())
+        )
+    ).all()
+    course_rows = [(sale, item_name, full_name, email) for sale, item_name, full_name, email in rows if _is_course_product(str(item_name))]
+    payments_by_sale = await _load_sale_payments(db, [int(sale.id) for sale, *_ in course_rows])
+    return [
+        _manual_sale_out(
+            sale,
+            plan_item_name=str(item_name),
+            manager_name=str(full_name or email or f"#{sale.manager_user_id}"),
+            payments=payments_by_sale.get(int(sale.id), []),
+        )
+        for sale, item_name, full_name, email in course_rows
+    ]
+
+
 @router.get("/manual-sales/payments", response_model=list[SalesKpiManualPaymentJournalRow])
 async def manual_payment_journal(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -1398,10 +1447,10 @@ async def patch_manual_sale_payment(
     body: SalesKpiManualSalePaymentPatch,
 ) -> SalesKpiManualSaleOut:
     _assert_kpi_access(current_user)
-    _assert_admin_or_owner(current_user)
     sale = await db.get(SalesKpiManualSale, sale_id)
     if sale is None or sale.company_id != company_id:
         raise HTTPException(status_code=404, detail="Продажа не найдена")
+    _assert_can_record_own_payment(current_user, sale)
     if sale.status == "returned":
         raise HTTPException(status_code=400, detail="По возвращённой продаже нельзя менять оплату")
     if sale.status != "active":

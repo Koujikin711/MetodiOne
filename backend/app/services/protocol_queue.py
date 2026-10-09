@@ -213,6 +213,33 @@ def cluster_unlinked_protocols(
     return [groups[key] for key in order] + singles
 
 
+def scope_protocol_queue_to_manager(report: dict, manager_user_id: int) -> dict:
+    """Оставляет протоколы пациентов этого менеджера и пересчитывает счётчики."""
+    uid = int(manager_user_id)
+    rows = [
+        row
+        for row in report.get("rows") or []
+        if row.get("manager_user_id") is not None and int(row["manager_user_id"]) == uid
+    ]
+    counts = {
+        "active": 0,
+        "ending_soon": 0,
+        "ended_waiting_next": 0,
+        "next_protocol_sold": 0,
+        "requires_attention": 0,
+    }
+    for row in rows:
+        state = row.get("state")
+        if state in counts:
+            counts[state] += 1
+        if row.get("requires_attention"):
+            counts["requires_attention"] += 1
+    scoped = dict(report)
+    scoped["rows"] = rows
+    scoped["counts"] = counts
+    return scoped
+
+
 def next_sale_label(state: ProtocolQueueState) -> str:
     if state == "next_protocol_sold":
         return "Следующий Протокол куплен"
@@ -292,6 +319,7 @@ async def build_protocol_queue(
         )
     ).all()
     unlinked: list[tuple[PatientPurchase, str]] = []
+    sale_manager_ids: dict[int, int | None] = {}
     for sale, item_name, mgr_name in sale_rows:
         if classify_product_kind(item_name) != "protocol":
             continue
@@ -312,6 +340,7 @@ async def build_protocol_queue(
             client_name=sale.client_name,
             client_phone=sale.client_phone,
         )
+        sale_manager_ids[int(sale.id)] = int(sale.manager_user_id) if sale.manager_user_id else None
         if sale.lead_id is not None:
             by_lead[int(sale.lead_id)].append(synthetic)
         else:
@@ -520,6 +549,7 @@ async def build_protocol_queue(
                 "days_remaining": days_rem,
                 "previous_protocols_label": prev_label,
                 "previous_protocols": info["previous_protocols"],
+                "manager_user_id": int(lead.manager_id) if lead.manager_id else None,
                 "manager_name": mgr_map.get(int(lead.manager_id)) if lead.manager_id else None,
                 "responsible_name": mgr_map.get(int(lead.manager_id)) if lead.manager_id else None,
                 "last_contact_at": last_c,
@@ -588,6 +618,7 @@ async def build_protocol_queue(
                     "days_remaining": days_rem,
                     "previous_protocols_label": prev_label,
                     "previous_protocols": info["previous_protocols"],
+                    "manager_user_id": sale_manager_ids.get(int(synthetic.source_id or 0)),
                     "manager_name": mgr_name or None,
                     "responsible_name": mgr_name or None,
                     "last_contact_at": None,

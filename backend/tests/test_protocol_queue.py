@@ -16,6 +16,7 @@ from app.services.protocol_queue import (
     protocol_sale_ids_already_linked,
     purchase_closed_by_kpi_sale,
     requires_attention,
+    scope_protocol_queue_to_manager,
 )
 
 
@@ -195,6 +196,22 @@ def test_newest_protocol_sorts_first():
     ]
     rows.sort(key=protocol_row_sort_key)
     assert [r["patient_name"] for r in rows] == ["Новый", "Старый", "Пустой"]
+
+
+def test_manager_protocol_queue_keeps_only_own_patients():
+    report = {
+        "rows": [
+            {"manager_user_id": 7, "state": "active", "requires_attention": False, "patient_name": "Свой"},
+            {"manager_user_id": 8, "state": "ending_soon", "requires_attention": True, "patient_name": "Чужой"},
+            {"manager_user_id": None, "state": "active", "requires_attention": False, "patient_name": "Без менеджера"},
+        ],
+        "counts": {"active": 2, "ending_soon": 1, "requires_attention": 1},
+    }
+    scoped = scope_protocol_queue_to_manager(report, 7)
+    assert [row["patient_name"] for row in scoped["rows"]] == ["Свой"]
+    assert scoped["counts"]["active"] == 1
+    assert scoped["counts"]["ending_soon"] == 0
+    assert scoped["counts"]["requires_attention"] == 0
 
 
 def test_booking_inside_existing_protocol_is_not_a_second_one():
