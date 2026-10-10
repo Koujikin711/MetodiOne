@@ -585,6 +585,12 @@ async def _ensure_default_company(session: AsyncSession) -> int:
 async def lifespan(_: FastAPI):
     _install_asyncio_dns_exception_handler()
     try:
+        # Отдельная транзакция: если длинная миграция откатится, колонка всё равно останется.
+        async with engine.begin() as conn:
+            await ensure_user_also_expert(conn, effective_database_url())
+    except Exception:
+        logger.exception("ensure also_expert column failed")
+    try:
         await _run_startup_migrations_with_retry()
     except Exception as exc:
         # Не валим весь API (Amvera 503): /health и /health/db должны отвечать.
@@ -770,8 +776,9 @@ async def integrity_error_handler(_request: Request, exc: IntegrityError) -> JSO
 async def unhandled_api_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """API 500 as JSON with a short reason (helps debug Amvera without log access)."""
     logger.exception("unhandled error on %s %s", request.method, request.url.path)
-    raw = str(exc) or exc.__class__.__name__
-    detail = raw.replace("\n", " ")[:300]
+    orig = getattr(exc, "orig", None)
+    raw = str(orig or exc) or exc.__class__.__name__
+    detail = " ".join(raw.split())[:300]
     if "password" in detail.lower() or "secret" in detail.lower():
         detail = exc.__class__.__name__
     return JSONResponse(
