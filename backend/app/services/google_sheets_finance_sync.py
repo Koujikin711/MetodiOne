@@ -130,5 +130,10 @@ async def run_finance_sheets_sync_tick(db: AsyncSession) -> int:
                 logger.info("osv sheet push company=%s rows=%s", settings.company_id, pushed)
                 synced += 1
         except Exception as exc:
-            logger.warning("osv sheet push company=%s failed: %s", settings.company_id, exc)
+            logger.warning(
+                "osv sheet push company=%s failed: %s: %s",
+                settings.company_id,
+                type(exc).__name__,
+                exc,
+            )
     return synced

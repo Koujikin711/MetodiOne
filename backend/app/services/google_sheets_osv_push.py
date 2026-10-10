@@ -760,8 +760,8 @@ async def push_pending_osv_rows(
         grid = await _sheet_rows(token, spreadsheet_id, _a1(sheet_name, "A1:ZZ20000"))
     if not pending:
         if sheet_gid is not None:
+            await _sort_sheet_from_october(token, spreadsheet_id, sheet_name, grid)
             await _paint_row_spans(token, spreadsheet_id, sheet_gid, crm_row_spans(grid))
-            await _sort_sheet_from_october(token, spreadsheet_id, sheet_gid, sheet_name, grid)
         return 0
     header_idx, _col_map = find_osv_header_row(grid)
     if header_idx is None:
@@ -788,8 +788,8 @@ async def push_pending_osv_rows(
     missing = [row for row in pending if str(row.external_key) not in present]
     if not missing:
         if sheet_gid is not None:
+            await _sort_sheet_from_october(token, spreadsheet_id, sheet_name, grid)
             await _paint_row_spans(token, spreadsheet_id, sheet_gid, crm_row_spans(grid))
-            await _sort_sheet_from_october(token, spreadsheet_id, sheet_gid, sheet_name, grid)
         return 0
 
     last = header_idx
@@ -811,7 +811,6 @@ async def push_pending_osv_rows(
     if sheet_gid is None:
         sheet_gid = await _sheet_gid(token, spreadsheet_id, sheet_name)
     written = (start - 1, start - 1 + len(values))
-    await _paint_row_spans(token, spreadsheet_id, sheet_gid, [*crm_row_spans(grid), written])
     if only_key is None:
         insert_at = start - 1
         while len(grid) < insert_at:
@@ -822,17 +821,35 @@ async def push_pending_osv_rows(
                 grid[idx] = row
             else:
                 grid.append(row)
-        await _sort_sheet_from_october(token, spreadsheet_id, sheet_gid, sheet_name, grid)
+        await _sort_sheet_from_october(token, spreadsheet_id, sheet_name, grid)
+    await _paint_row_spans(token, spreadsheet_id, sheet_gid, [*crm_row_spans(grid), written])
     return len(values)
 
 
-_SORT_KEY_COL = 52
+def ordered_october_rows(
+    grid: list[list[Any]],
+    start: int,
+    end: int,
+    date_idx: int,
+    width: int,
+) -> list[list[str]] | None:
+    """Строки среза в календарном порядке. None, если даты уже идут подряд."""
+    keys = chronological_sort_keys(grid, start, end, date_idx)
+    if keys is None:
+        return None
+    indexes = sorted(range(start, end), key=lambda index: keys[index - start])
+    ordered: list[list[str]] = []
+    for index in indexes:
+        line = [str(cell or "") for cell in (grid[index] if index < len(grid) else [])]
+        if len(line) < width:
+            line.extend([""] * (width - len(line)))
+        ordered.append(line[:width])
+    return ordered
 
 
 async def _sort_sheet_from_october(
     token: str,
     spreadsheet_id: str,
-    sheet_gid: int,
     sheet_name: str,
     grid: list[list[Any]],
 ) -> None:
@@ -848,57 +865,19 @@ async def _sort_sheet_from_october(
     if bounds is None:
         return
     start, end = bounds
-    keys = chronological_sort_keys(grid, start, end, date_idx)
-    if keys is None:
+    key_idx = _header_index(headers, "external_key")
+    width = max(19, (key_idx + 1) if key_idx is not None else 19)
+    width = min(width, 26)
+    ordered = ordered_october_rows(grid, start, end, date_idx, width)
+    if ordered is None:
         return
-    column = _col_letter(_SORT_KEY_COL)
     await _write_values(
         token,
         spreadsheet_id,
-        _a1(sheet_name, f"{column}{start + 1}:{column}{end}"),
-        [[key] for key in keys],
+        _a1(sheet_name, f"A{start + 1}:{_col_letter(width - 1)}{end}"),
+        ordered,
     )
-    url = f"{_GOOGLE_SHEETS_API}/{quote(spreadsheet_id)}:batchUpdate"
-    request = {
-        "requests": [
-            {
-                "sortRange": {
-                    "range": {
-                        "sheetId": sheet_gid,
-                        "startRowIndex": start,
-                        "endRowIndex": end,
-                        "startColumnIndex": 0,
-                        "endColumnIndex": _SORT_KEY_COL + 1,
-                    },
-                    "sortSpecs": [
-                        {"dimensionIndex": _SORT_KEY_COL, "sortOrder": "ASCENDING"},
-                    ],
-                }
-            }
-        ]
-    }
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            url,
-            headers={"Authorization": f"Bearer {token}"},
-            json=request,
-        )
-    if response.status_code == 403:
-        raise RuntimeError(
-            "Нет права записи в Google-таблицу. Откройте её сервисному аккаунту как редактору.",
-        )
-    response.raise_for_status()
-    clear_url = (
-        f"{_GOOGLE_SHEETS_API}/{quote(spreadsheet_id)}/values/"
-        f"{quote(_a1(sheet_name, f'{column}{start + 1}:{column}{end}'), safe='')}:clear"
-    )
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        cleared = await client.post(clear_url, headers={"Authorization": f"Bearer {token}"})
-    if cleared.status_code == 403:
-        raise RuntimeError(
-            "Нет права записи в Google-таблицу. Откройте её сервисному аккаунту как редактору.",
-        )
-    cleared.raise_for_status()
+    grid[start:end] = ordered
 
 
 async def _apply_recorded_dates(
@@ -1034,7 +1013,7 @@ async def _aligned_sheet_rows(token: str, spreadsheet_id: str, sheet_name: str) 
         "&includeGridData=true"
         "&fields=sheets(properties(sheetId,title),data(startRow,rowData(values(formattedValue))))"
     )
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.get(url, headers={"Authorization": f"Bearer {token}"})
     response.raise_for_status()
     payload = response.json() if isinstance(response.json(), dict) else {}
@@ -1092,7 +1071,7 @@ async def _write_values(token: str, spreadsheet_id: str, rng: str, values: list[
         f"{_GOOGLE_SHEETS_API}/{quote(spreadsheet_id)}/values/{quote(rng, safe='')}"
         "?valueInputOption=USER_ENTERED"
     )
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.put(
             url,
             headers={"Authorization": f"Bearer {token}"},

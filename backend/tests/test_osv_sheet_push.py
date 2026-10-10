@@ -10,6 +10,7 @@ from app.services.google_sheets_osv_push import (
     chronological_sort_keys,
     crm_row_spans,
     october_sort_bounds,
+    ordered_october_rows,
     format_osv_amount,
     is_sheet_sync_day,
     format_osv_date,
@@ -204,6 +205,10 @@ def test_october_block_is_ordered_by_calendar_and_september_stays():
     order = sorted(range(3, 7), key=lambda index: keys[index - 3])
     assert [grid[index][0] for index in order] == ["1 окт.", "2 окт.", "5 окт.", "10 окт."]
     assert grid[2][0] == "25 сент."
+    ordered = ordered_october_rows(grid, 3, 7, 0, 6)
+    assert ordered is not None
+    assert [row[0] for row in ordered] == ["1 окт.", "2 окт.", "5 окт.", "10 окт."]
+    assert ordered[0][5].startswith("crm:booking_pay:1")
 
 
 def test_already_sequential_dates_are_not_resorted():
