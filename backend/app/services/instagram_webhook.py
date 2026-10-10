@@ -227,6 +227,59 @@ def _is_meta_dashboard_test_mid(mid: str) -> bool:
     return (not m) or m in {"test_message_id", "test_mid"} or m.startswith("test_")
 
 
+def _referral_from_event(evt: dict[str, Any]) -> dict[str, Any] | None:
+    """Рекламный referral: отдельным событием, внутри message или внутри postback."""
+    ref = evt.get("referral")
+    if isinstance(ref, dict):
+        return ref
+    message = evt.get("message") if isinstance(evt.get("message"), dict) else {}
+    ref = message.get("referral")
+    if isinstance(ref, dict):
+        return ref
+    postback = evt.get("postback") if isinstance(evt.get("postback"), dict) else {}
+    ref = postback.get("referral")
+    if isinstance(ref, dict):
+        return ref
+    return None
+
+
+def _is_ad_referral(ref: dict[str, Any] | None) -> bool:
+    if not isinstance(ref, dict):
+        return False
+    source = str(ref.get("source") or "").strip().upper()
+    if source == "ADS" or str(ref.get("ad_id") or "").strip():
+        return True
+    ctx = ref.get("ads_context_data")
+    return isinstance(ctx, dict) and bool(ctx)
+
+
+def ad_open_note(evt: dict[str, Any]) -> str | None:
+    """Текст для карточки, если человек открыл чат с рекламы и ещё ничего не написал."""
+    ref = _referral_from_event(evt)
+    if not _is_ad_referral(ref):
+        return None
+    message = evt.get("message") if isinstance(evt.get("message"), dict) else {}
+    if str(message.get("text") or "").strip() or message.get("attachments"):
+        return None
+    assert ref is not None
+    postback = evt.get("postback") if isinstance(evt.get("postback"), dict) else {}
+    button = str(postback.get("title") or "").strip()
+    ctx = ref.get("ads_context_data") if isinstance(ref.get("ads_context_data"), dict) else {}
+    ad_title = str(ctx.get("ad_title") or "").strip()
+    lines = ["Открыл чат с рекламы."]
+    if button:
+        lines.append(f"Кнопка: {button}")
+    if ad_title:
+        lines.append(ad_title)
+    return "\n".join(lines)
+
+
+def ad_open_dedupe_key(sender_id: str, evt: dict[str, Any]) -> str:
+    ref = _referral_from_event(evt) or {}
+    ad_id = str(ref.get("ad_id") or "").strip() or "open"
+    return f"ig-ref:{sender_id}:{ad_id}"[:512]
+
+
 async def handle_instagram_webhook(
     db: AsyncSession,
     *,
@@ -339,18 +392,24 @@ async def handle_instagram_webhook(
                     if await _audit_message_mid(db, company_id=company_id, mid=mid):
                         continue
                 text = str(message.get("text") or "").strip()
-                if not text and not message.get("attachments"):
+                open_note = ad_open_note(msg_evt)
+                if not text and not message.get("attachments") and not open_note:
                     continue
                 sender = msg_evt.get("sender") or {}
                 sid = str(sender.get("id") or "").strip()
                 if not sid:
                     continue
+                if open_note:
+                    ref_key = ad_open_dedupe_key(sid, msg_evt)
+                    if await _audit_message_mid(db, company_id=company_id, mid=ref_key):
+                        continue
+                    mid = ref_key
                 display = None
                 if not _is_meta_dashboard_test_mid(mid) and sid not in {"12334", "123", "0"}:
                     display = await fetch_ig_user_display_name(sid, page_token)
                 name = display or (f"Meta тест {sid}" if _is_meta_dashboard_test_mid(mid) or sid in {"12334", "123"} else f"Instagram {sid[:8]}…")
                 ext = f"ig:{sid}"
-                body = text or "[вложение]"
+                body = text or ("[вложение]" if message.get("attachments") else open_note or "")
                 lead = await create_lead_fn(
                     db,
                     integ=integ,
