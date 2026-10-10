@@ -35,8 +35,11 @@ _HEADER_ALIASES: dict[str, str] = {
     "товар": "product_service",
     "услуга": "product_service",
     "статья": "article",
+    "статьи": "article",
     "подробно": "detail_category",
     "кратко": "brief_category",
+    "через": "via_person",
+    "этап": "service_period",
     "ост факт": "balance_hint",
     "som": "balance_hint",
 }
@@ -170,14 +173,27 @@ def find_osv_header_row(rows: list[list[Any]], *, scan_limit: int = 30) -> tuple
     return best_idx, best_map
 
 
+def _crm_key_index(headers: list[str]) -> int | None:
+    for i, h in enumerate(headers):
+        if normalize_header(h) in {"crm ключ", "ключ crm"}:
+            return i
+    return None
+
+
 def parse_osv_grid(rows: list[list[Any]]) -> list[dict[str, Any]]:
     header_idx, col_map = find_osv_header_row(rows)
     if header_idx is None or not col_map:
         return []
+    key_idx = _crm_key_index([str(c or "") for c in rows[header_idx]])
     out: list[dict[str, Any]] = []
     for line in rows[header_idx + 1 :]:
         if not any(str(c or "").strip() for c in line):
             continue
+        # Строку, которую CRM сама дописала, не импортируем второй раз.
+        if key_idx is not None and key_idx < len(line):
+            marker = str(line[key_idx] or "").strip()
+            if marker.startswith("crm:") or marker.startswith("booking_refund:"):
+                continue
         data: dict[str, Any] = {}
         for i, field in col_map.items():
             if i < len(line):

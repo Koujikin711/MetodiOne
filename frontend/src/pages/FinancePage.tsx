@@ -134,7 +134,7 @@ function FinancePageInner() {
         <PageHeader
           className="mb-0"
           title="Финансы"
-          description="Укажите ссылку на Google-таблицу с листом ОСВ — система сама читает её и обновляет отчёты. ДДС и ОПиУ строятся автоматически."
+          description="Оплаты визитов, курсов и расходы из CRM сами дописываются в Google-таблицу ОСВ. Строки, которые уже набраны в таблице, не затираются. ДДС и ОПиУ строятся по этим данным."
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <select
@@ -171,8 +171,8 @@ function FinancePageInner() {
         <div className="finance-panel">
           <h2 className="lux-subheading">Google Таблица ОСВ</h2>
           <p className="mt-1 text-xs mo-muted">
-            Вставьте ссылку на вашу таблицу с колонками Дата, Выручка, Расход, Банк, Статья и т.д. Расшарьте таблицу
-            на сервисный аккаунт CRM
+            Вставьте ссылку на таблицу ОСВ. Новые оплаты и расходы дописываются в конец листа. Расшарьте таблицу
+            на редактирование сервисному аккаунту CRM
             {settingsQuery.data?.service_account_email ? (
               <>
                 : <span className="font-mono text-[11px]">{settingsQuery.data.service_account_email}</span>

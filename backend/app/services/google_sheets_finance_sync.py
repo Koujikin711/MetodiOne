@@ -121,4 +121,13 @@ async def run_finance_sheets_sync_tick(db: AsyncSession) -> int:
                 synced += 1
         except Exception as exc:
             logger.warning("finance sheets sync company=%s failed: %s", settings.company_id, exc)
+        try:
+            from app.services.google_sheets_osv_push import push_pending_osv_rows
+
+            pushed = await push_pending_osv_rows(db, int(settings.company_id))
+            if pushed:
+                logger.info("osv sheet push company=%s rows=%s", settings.company_id, pushed)
+                synced += 1
+        except Exception as exc:
+            logger.warning("osv sheet push company=%s failed: %s", settings.company_id, exc)
     return synced

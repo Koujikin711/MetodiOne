@@ -30,7 +30,9 @@ _TRANSIENT_HTTPX = (
 )
 
 _GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-_GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly"
+# Чтение и запись: оплаты и расходы CRM дописываются в лист ОСВ.
+# Таблицу нужно расшарить сервисному аккаунту с правом редактора.
+_GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 _GOOGLE_SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets"
 _SOURCE_NAME = "GOOGLE SHEETS"
 _SHEET_ID_RE = re.compile(r"/spreadsheets/d/([a-zA-Z0-9-_]+)")

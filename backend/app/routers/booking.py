@@ -20,6 +20,7 @@ from app.services.payroll_rules import (
     referrer_change_blocked,
 )
 from app.services.booking_expert_sync import ensure_active_expert_booking_profiles
+from app.services.google_sheets_osv_push import bank_label, booking_pay_key, push_pending_osv_rows, save_osv_movement
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import get_db
 from app.models import (
@@ -2417,6 +2418,27 @@ async def create_appointment(
         )
         db.add(appt)
         await db.flush()
+        if slot_paid > 0:
+            paid = Decimal(str(slot_paid)).quantize(Decimal("0.01"))
+            patient = body.patient_name.strip()
+            service = service_title or "Онлайн-запись"
+            await save_osv_movement(
+                db,
+                company_id=company_id,
+                external_key=booking_pay_key(int(appt.id), 0, paid),
+                source="booking_payment",
+                txn_date=datetime.now(ZoneInfo(settings.booking_timezone)).date(),
+                revenue=paid,
+                bank=bank_label(body.payment_method),
+                basis=f"{patient} — {service}"[:255],
+                counterparty=patient,
+                phone=stored_phone,
+                via_person=(current_user.full_name or current_user.email or "").strip() or None,
+                product_service=service,
+                article="Поступления",
+                detail_category=direction.name,
+                brief_category="Выручка",
+            )
         await write_audit_event(
             db,
             entity_type="booking_appointment",
@@ -2986,6 +3008,32 @@ async def patch_appointment_payment(
             )
 
     target.paid_amount = new_paid
+    paid_delta = (Decimal(str(new_paid)) - Decimal(str(prev_paid))).quantize(Decimal("0.01"))
+    if paid_delta > 0:
+        if body.paid_at is not None:
+            raw_paid = body.paid_at
+            txn_day = raw_paid.date() if isinstance(raw_paid, datetime) else raw_paid
+        else:
+            txn_day = datetime.now(ZoneInfo(settings.booking_timezone)).date()
+        patient = (target.patient_name or "").strip() or "Пациент"
+        service = (target.service_title or "").strip() or "Онлайн-запись"
+        await save_osv_movement(
+            db,
+            company_id=company_id,
+            external_key=booking_pay_key(int(target.id), prev_paid, new_paid),
+            source="booking_payment",
+            txn_date=txn_day,
+            revenue=paid_delta,
+            bank=bank_label(body.payment_method or target.payment_method),
+            basis=f"{patient} — {service}"[:255],
+            counterparty=patient,
+            phone=(target.patient_phone or "").strip() or None,
+            via_person=(current_user.full_name or current_user.email or "").strip() or None,
+            product_service=service,
+            article="Поступления",
+            detail_category=direction.name,
+            brief_category="Выручка",
+        )
     if body.paid_at is not None:
         raw = body.paid_at
         if isinstance(raw, datetime):
@@ -3107,6 +3155,7 @@ async def refund_appointment(
     patient = (appt.patient_name or "").strip() or "Пациент"
     phone = (appt.patient_phone or "").strip() or None
     basis = f"{patient} — возврат {txn_date.isoformat()}"
+    refund_key = f"booking_refund:{appointment_id}:{uuid.uuid4().hex[:12]}"
 
     db.add(
         FinanceOsvRow(
@@ -3124,10 +3173,16 @@ async def refund_appointment(
             detail_category=None,
             brief_category="Возврат",
             source="booking_refund",
-            external_key=f"booking_refund:{appointment_id}:{uuid.uuid4().hex[:12]}",
+            external_key=refund_key,
         )
     )
     await db.flush()
+    try:
+        await push_pending_osv_rows(db, company_id, only_key=refund_key)
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).warning("osv refund push failed: %s", exc)
 
     direction = await db.get(BookingDirection, appt.direction_id)
     specialist = await db.get(BookingSpecialist, appt.specialist_id)

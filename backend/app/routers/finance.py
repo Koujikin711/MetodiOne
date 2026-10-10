@@ -741,5 +741,15 @@ async def create_expense(
     )
     db.add(row)
     await db.flush()
+    row.external_key = f"crm:expense:{row.id}"
+    await db.flush()
+    try:
+        from app.services.google_sheets_osv_push import push_pending_osv_rows
+
+        await push_pending_osv_rows(db, company_id, only_key=row.external_key)
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).warning("osv expense push failed: %s", exc)
     await db.refresh(row)
     return FinanceOsvRowRead.model_validate(row)

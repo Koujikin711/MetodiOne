@@ -1425,6 +1425,31 @@ async def create_manual_sale(
     from app.services.course_flow_from_kpi import sync_course_flows_from_kpi
 
     await sync_course_flows_from_kpi(db, company_id=company_id, sale_id=int(sale.id))
+    from app.services.google_sheets_osv_push import bank_label, save_osv_movement
+
+    await db.flush()
+    via = (current_user.full_name or current_user.email or "").strip() or None
+    for pay in payments:
+        amount = Decimal(str(pay.amount or 0))
+        if amount <= 0:
+            continue
+        pay_day = pay.paid_at.date() if pay.paid_at is not None else date.today()
+        await save_osv_movement(
+            db,
+            company_id=company_id,
+            external_key=f"crm:kpi_pay:{pay.id}",
+            source="kpi_payment",
+            txn_date=pay_day,
+            revenue=amount,
+            bank=bank_label(None),
+            basis=f"{sale.client_name} — {item.name}"[:255],
+            counterparty=sale.client_name,
+            phone=sale.client_phone,
+            via_person=via,
+            product_service=item.name,
+            article="Поступления",
+            brief_category="Выручка",
+        )
     await db.commit()
     await db.refresh(sale)
     for p in payments:
@@ -1485,6 +1510,27 @@ async def patch_manual_sale_payment(
         created_by_user_id=current_user.id,
     )
     db.add(pay)
+    await db.flush()
+    from app.services.google_sheets_osv_push import bank_label, save_osv_movement
+
+    pay_day = pay.paid_at.date() if pay.paid_at is not None else date.today()
+    plan_item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    await save_osv_movement(
+        db,
+        company_id=company_id,
+        external_key=f"crm:kpi_pay:{pay.id}",
+        source="kpi_payment",
+        txn_date=pay_day,
+        revenue=add_amount,
+        bank=bank_label(None),
+        basis=f"{sale.client_name} — доплата"[:255],
+        counterparty=sale.client_name,
+        phone=sale.client_phone,
+        via_person=(current_user.full_name or current_user.email or "").strip() or None,
+        product_service=plan_item.name if plan_item else None,
+        article="Поступления",
+        brief_category="Выручка",
+    )
     await db.commit()
     await db.refresh(sale)
     await db.refresh(pay)

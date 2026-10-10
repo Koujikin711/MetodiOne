@@ -295,6 +295,15 @@ async def run_finance_integrate(db: AsyncSession, company_id: int) -> dict[str, 
 
     gmail_imported, gmail_skipped, gmail_ok, gmail_email = await sync_gmail_to_osv(db, company_id)
     crm_imported, crm_skipped = await sync_crm_to_osv(db, company_id)
+    pushed_to_sheet = 0
+    push_error: str | None = None
+    if (settings.osv_sheet_url or "").strip():
+        try:
+            from app.services.google_sheets_osv_push import push_pending_osv_rows
+
+            pushed_to_sheet = await push_pending_osv_rows(db, company_id)
+        except Exception as exc:
+            push_error = str(exc)
 
     settings.updated_at = datetime.now(UTC)
 
@@ -318,6 +327,10 @@ async def run_finance_integrate(db: AsyncSession, company_id: int) -> dict[str, 
         msg_parts.append("Gmail: не подключён")
 
     msg_parts.append(f"CRM: +{crm_imported}")
+    if pushed_to_sheet:
+        msg_parts.append(f"в таблицу дописано: {pushed_to_sheet}")
+    elif push_error:
+        msg_parts.append(f"запись в таблицу: {push_error}")
     skipped = gmail_skipped + crm_skipped
     if skipped:
         msg_parts.append(f"дублей пропущено: {skipped}")
