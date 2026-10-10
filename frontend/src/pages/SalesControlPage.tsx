@@ -115,60 +115,60 @@ function ManagerCourses({ seeAll }: { seeAll: boolean }) {
   }, [query.data, q]);
 
   return (
-    <section className="mo-section space-y-3 p-3 sm:p-4">
-      <div>
-        <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Курсы</h2>
-        <p className="mt-1 text-sm lux-caption">
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-4 shadow-[var(--mo-shadow-luxury)]">
+        <h2 className="text-base font-semibold text-[var(--mo-text)]">Курсы</h2>
+        <p className="mt-1 max-w-2xl text-xs mo-muted">
           {seeAll
             ? "Все курсы менеджеров. Сумма, оплата и долг — как в KPI. Доплату можно записать здесь."
             : "Курсы, где вы указаны менеджером продажи. Сумма, оплата и долг — как в KPI. Доплату можно записать здесь."}
         </p>
+        <label className="mt-3 block text-xs mo-muted">
+          Поиск
+          <input
+            className="mo-input mt-1 min-w-[14rem]"
+            value={q}
+            placeholder="Имя, телефон, курс"
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </label>
       </div>
-      <label className="flex max-w-md flex-col gap-1 text-xs mo-muted">
-        Поиск
-        <input
-          className="mo-input"
-          value={q}
-          placeholder="Имя, телефон, курс"
-          onChange={(e) => setQ(e.target.value)}
-        />
-      </label>
-      {query.isLoading ? <p className="text-sm lux-caption">Загрузка курсов…</p> : null}
+      {query.isLoading ? <p className="lux-caption px-1">Загрузка курсов…</p> : null}
       {query.isError ? <p className="text-sm text-red-400">{(query.error as Error).message}</p> : null}
       {!query.isLoading && rows.length === 0 ? (
-        <p className="text-sm mo-muted">{seeAll ? "Курсов нет." : "Курсов, проданных вами, нет."}</p>
+        <p className="px-1 text-sm mo-muted">{seeAll ? "Курсов нет." : "Курсов, проданных вами, нет."}</p>
       ) : null}
       {rows.length > 0 ? (
-        <div className="mo-table-scroll rounded-2xl border border-[var(--mo-border)]">
-          <table className="kpi-data-table min-w-[980px] text-sm">
+        <div className="mo-table-scroll rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]">
+          <table className="w-full min-w-[1100px] text-left text-sm">
             <thead>
-              <tr>
-                <th>Дата</th>
-                <th>Курс</th>
-                <th>Поток</th>
-                <th>Этап</th>
-                {seeAll ? <th>Менеджер</th> : null}
-                <th>Пациент</th>
-                <th>Телефон</th>
-                <th>Сумма</th>
-                <th>Оплачено</th>
-                <th>Долг</th>
-                <th>Оплата</th>
+              <tr className="border-b border-[var(--mo-border)] text-[11px] uppercase tracking-wide mo-muted">
+                <th className="px-3 py-2 font-medium">Дата</th>
+                <th className="px-3 py-2 font-medium">Курс</th>
+                <th className="px-3 py-2 font-medium">Поток</th>
+                <th className="px-3 py-2 font-medium">Этап</th>
+                {seeAll ? <th className="px-3 py-2 font-medium">Менеджер</th> : null}
+                <th className="px-3 py-2 font-medium">Пациент</th>
+                <th className="px-3 py-2 font-medium">Телефон</th>
+                <th className="px-3 py-2 font-medium">Сумма</th>
+                <th className="px-3 py-2 font-medium">Оплачено</th>
+                <th className="px-3 py-2 font-medium">Долг</th>
+                <th className="px-3 py-2 font-medium">Оплата</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((s) => (
-                <tr key={s.id}>
-                  <td className="whitespace-nowrap tabular-nums">{formatSaleDt(s.sold_at)}</td>
-                  <td>{s.plan_item_name}</td>
-                  <td className="whitespace-nowrap">{s.group_no ? `Поток ${s.group_no}` : "—"}</td>
-                  <td className="whitespace-nowrap">{s.stream_no ? `Этап ${s.stream_no}` : "—"}</td>
-                  {seeAll ? <td>{s.manager_name}</td> : null}
-                  <td className="font-medium">{s.client_name}</td>
-                  <td className="tabular-nums">{s.client_phone || "—"}</td>
-                  <td className="tabular-nums whitespace-nowrap">{formatMoney(num(s.service_amount))}</td>
-                  <td className="tabular-nums whitespace-nowrap">{formatMoney(num(s.paid_amount))}</td>
-                  <td>
+                <tr key={s.id} className="border-b border-[var(--mo-border)]">
+                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">{formatSaleDt(s.sold_at)}</td>
+                  <td className="px-3 py-2">{s.plan_item_name}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{s.group_no ? `Поток ${s.group_no}` : "—"}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{s.stream_no ? `Этап ${s.stream_no}` : "—"}</td>
+                  {seeAll ? <td className="px-3 py-2">{s.manager_name}</td> : null}
+                  <td className="px-3 py-2 font-medium">{s.client_name}</td>
+                  <td className="px-3 py-2 tabular-nums">{s.client_phone || "—"}</td>
+                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">{formatMoney(num(s.service_amount))}</td>
+                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">{formatMoney(num(s.paid_amount))}</td>
+                  <td className="px-3 py-2">
                     <span className={["kpi-debt", num(s.debt_amount) <= 0 ? "is-zero" : ""].filter(Boolean).join(" ")}>
                       {formatMoney(num(s.debt_amount))}
                     </span>
@@ -176,7 +176,7 @@ function ManagerCourses({ seeAll }: { seeAll: boolean }) {
                     {s.status === "refused" ? <div className="text-[10px] mo-muted">отказ</div> : null}
                     {s.status === "completed" ? <div className="text-[10px] mo-muted">завершён</div> : null}
                   </td>
-                  <td>
+                  <td className="px-3 py-2">
                     {s.status === "active" && num(s.debt_amount) > 0 ? (
                       <CoursePay
                         draft={payDraft[s.id] ?? ""}
@@ -202,7 +202,7 @@ function ManagerCourses({ seeAll }: { seeAll: boolean }) {
           </table>
         </div>
       ) : null}
-    </section>
+    </div>
   );
 }
 
