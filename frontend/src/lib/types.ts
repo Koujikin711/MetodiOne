@@ -30,6 +30,7 @@ export interface UserMe extends User {
   /** Менеджер ведёт стадии в чате; канбан зеркалит. */
   chat_stages_enabled?: boolean;
   also_curator?: boolean;
+  also_expert?: boolean;
 }
 
 export interface ManagerDeskSale {

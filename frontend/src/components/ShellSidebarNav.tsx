@@ -30,6 +30,7 @@ type Props = {
   isAdministrator?: boolean;
   isCurator?: boolean;
   alsoCurator?: boolean;
+  alsoExpert?: boolean;
   isAccountant?: boolean;
   isRop?: boolean;
   showFinance: boolean;
@@ -55,6 +56,7 @@ export function ShellSidebarNav({
   isAdministrator = false,
   isCurator = false,
   alsoCurator = false,
+  alsoExpert = false,
   isAccountant = false,
   isRop = false,
   showFinance,
@@ -79,6 +81,7 @@ export function ShellSidebarNav({
         isAdministrator,
         isCurator,
         alsoCurator,
+        alsoExpert,
         isAccountant,
         isRop,
         showFinance,
@@ -102,6 +105,7 @@ export function ShellSidebarNav({
       isAdministrator,
       isCurator,
       alsoCurator,
+      alsoExpert,
       isAccountant,
       isRop,
       showFinance,

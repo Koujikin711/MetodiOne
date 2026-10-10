@@ -138,6 +138,8 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole, name="user_role"), default=UserRole.manager)
     # Эксперт с этим флагом остаётся экспертом и дополнительно работает как куратор.
     also_curator: Mapped[bool] = mapped_column(default=False)
+    # Админ с этим флагом остаётся админом и дополнительно открывает окно эксперта.
+    also_expert: Mapped[bool] = mapped_column(default=False)
     is_active: Mapped[bool] = mapped_column(default=True)
     must_change_password: Mapped[bool] = mapped_column(default=False)
     # False — не участвует в round-robin / least_loaded / дневной раздаче из Архива.

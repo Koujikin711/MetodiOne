@@ -98,7 +98,9 @@ async def expert_reports(
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
 ) -> ExpertReportsResponse:
-    if current_user.role not in (UserRole.owner, UserRole.expert):
+    from app.services.clinic_roles import admin_also_expert
+
+    if current_user.role not in (UserRole.owner, UserRole.expert) and not admin_also_expert(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Expert only")
 
     company_id = int(current_user.company_id)
@@ -112,6 +114,8 @@ async def expert_reports(
     pipes_q = select(Pipeline).order_by(Pipeline.id.asc())
     if current_user.role == UserRole.expert:
         pipes_q = pipes_q.where(Pipeline.expert_user_id == current_user.id)
+    elif admin_also_expert(current_user):
+        pipes_q = pipes_q.where(Pipeline.company_id == company_id)
     pipes = (await db.execute(pipes_q)).scalars().all()
 
     items: list[PipelineExpertReport] = []

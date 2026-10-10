@@ -69,6 +69,7 @@ class EmployeeRead(BaseModel):
     payout_bank: str | None = None
     payroll_only: bool = False
     also_curator: bool = False
+    also_expert: bool = False
 
 
 class InviteEmployeeBody(BaseModel):
@@ -106,6 +107,7 @@ class PatchEmployeeContactBody(BaseModel):
     base_salary: Decimal | None = Field(default=None, ge=0)
     payout_bank: str | None = Field(default=None, max_length=32)
     also_curator: bool | None = None
+    also_expert: bool | None = None
 
 
 class PatchEmployeeContactResult(BaseModel):
@@ -158,6 +160,7 @@ async def _employee_read(db: AsyncSession, u: User) -> EmployeeRead:
         payout_bank=u.payout_bank,
         payroll_only=(u.email or "").endswith("@staff.internal"),
         also_curator=bool(getattr(u, "also_curator", False)),
+        also_expert=bool(getattr(u, "also_expert", False)),
     )
 
 
@@ -183,6 +186,7 @@ def _employee_read_cached(
         payout_bank=u.payout_bank,
         payroll_only=(u.email or "").endswith("@staff.internal"),
         also_curator=bool(getattr(u, "also_curator", False)),
+        also_expert=bool(getattr(u, "also_expert", False)),
     )
 
 
@@ -848,6 +852,7 @@ async def patch_employee_contact(
         and "base_salary" not in body.model_fields_set
         and "payout_bank" not in body.model_fields_set
         and "also_curator" not in body.model_fields_set
+        and "also_expert" not in body.model_fields_set
     ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет данных для обновления")
 
@@ -876,6 +881,16 @@ async def patch_employee_contact(
         if bool(target.also_curator) != bool(body.also_curator):
             changed = True
             target.also_curator = bool(body.also_curator)
+
+    if "also_expert" in body.model_fields_set and body.also_expert is not None:
+        if target.role not in (UserRole.admin, UserRole.administrator):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Окно эксперта на той же учётке доступно админу",
+            )
+        if bool(getattr(target, "also_expert", False)) != bool(body.also_expert):
+            changed = True
+            target.also_expert = bool(body.also_expert)
 
     if body.email is not None:
         normalized = body.email.strip().lower()

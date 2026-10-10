@@ -40,6 +40,7 @@ class UserMeRead(UserRead):
     # Менеджер ведёт стадии из чата; канбан — зеркало для владельца (clinic и sales).
     chat_stages_enabled: bool = True
     also_curator: bool = False
+    also_expert: bool = False
 
 
 class ChangePasswordBody(BaseModel):

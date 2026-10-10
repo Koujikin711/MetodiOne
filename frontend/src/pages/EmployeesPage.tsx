@@ -23,6 +23,7 @@ export interface Employee {
   is_online?: boolean;
   last_seen_at?: string | null;
   also_curator?: boolean;
+  also_expert?: boolean;
 }
 
 interface InviteResult {
@@ -149,6 +150,7 @@ export function EmployeesPage() {
   const [editPayoutBank, setEditPayoutBank] = useState("");
   const [editSpecialization, setEditSpecialization] = useState("");
   const [editAlsoCurator, setEditAlsoCurator] = useState(false);
+  const [editAlsoExpert, setEditAlsoExpert] = useState(false);
   const [editPipelineIds, setEditPipelineIds] = useState<number[]>([]);
 
   const pipelines = pipelinesQuery.data ?? [];
@@ -416,6 +418,7 @@ export function EmployeesPage() {
     setEditPayoutBank(e.payout_bank ?? "");
     setEditSpecialization(e.specialization ?? "");
     setEditAlsoCurator(Boolean(e.also_curator));
+    setEditAlsoExpert(Boolean(e.also_expert));
     setEditPipelineIds([...e.pipeline_ids]);
   }
 
@@ -451,6 +454,9 @@ export function EmployeesPage() {
         editSpecialization.trim() !== (editEmployee.specialization || "").trim();
       const alsoCuratorChanged =
         editEmployee.role === "expert" && editAlsoCurator !== Boolean(editEmployee.also_curator);
+      const alsoExpertChanged =
+        (editEmployee.role === "admin" || editEmployee.role === "administrator") &&
+        editAlsoExpert !== Boolean(editEmployee.also_expert);
       const pipelinesChanged =
         canEditPipelines(editEmployee.role) &&
         (editPipelineIds.length !== editEmployee.pipeline_ids.length ||
@@ -463,7 +469,8 @@ export function EmployeesPage() {
         specChanged ||
         salaryChanged ||
         bankChanged ||
-        alsoCuratorChanged;
+        alsoCuratorChanged ||
+        alsoExpertChanged;
 
       if (!profileChanged && !pipelinesChanged) {
         throw new Error("Нет изменений");
@@ -480,6 +487,9 @@ export function EmployeesPage() {
                 specialization: editSpecialization.trim(),
                 also_curator: editAlsoCurator,
               }
+            : {}),
+          ...(editEmployee.role === "admin" || editEmployee.role === "administrator"
+            ? { also_expert: editAlsoExpert }
             : {}),
           base_salary: editSalary.trim() ? Number(editSalary) : null,
           payout_bank: editPayoutBank.trim() || null,
@@ -791,6 +801,7 @@ export function EmployeesPage() {
                   <div className="truncate lux-subheading">{e.full_name ?? "—"}</div>
                   <span className="employee-role-badge">{roleLabel(e.role)}</span>
                   {e.also_curator ? <span className="employee-role-badge">Куратор</span> : null}
+                  {e.also_expert ? <span className="employee-role-badge">Эксперт</span> : null}
                   <span
                     className={[
                       "employee-presence-label",
@@ -909,6 +920,9 @@ export function EmployeesPage() {
                   {editEmployee.role === "expert" && editAlsoCurator ? (
                     <span className="employee-role-badge">Куратор</span>
                   ) : null}
+                  {(editEmployee.role === "admin" || editEmployee.role === "administrator") && editAlsoExpert ? (
+                    <span className="employee-role-badge">Эксперт</span>
+                  ) : null}
                 </p>
               </div>
               <button type="button" onClick={() => setEditEmployee(null)} className="mo-modal-close">
@@ -1002,6 +1016,20 @@ export function EmployeesPage() {
                     : "Отправить пароль ещё раз"}
                 </button>
               </section>
+
+              {editEmployee.role === "admin" || editEmployee.role === "administrator" ? (
+                <section className="employee-edit-section">
+                  <h3 className="employee-edit-section__title">Окно эксперта</h3>
+                  <label className="employee-edit-check">
+                    <input
+                      type="checkbox"
+                      checked={editAlsoExpert}
+                      onChange={(ev) => setEditAlsoExpert(ev.target.checked)}
+                    />
+                    <span>Ещё эксперт — тот же вход, в меню пункт «Окно эксперта»</span>
+                  </label>
+                </section>
+              ) : null}
 
               {editEmployee.role === "expert" ? (
                 <section className="employee-edit-section">

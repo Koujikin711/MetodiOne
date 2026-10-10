@@ -35,6 +35,7 @@ type BuildParams = {
   isAdministrator?: boolean;
   isCurator?: boolean;
   alsoCurator?: boolean;
+  alsoExpert?: boolean;
   isAccountant?: boolean;
   isRop?: boolean;
   showFinance: boolean;
@@ -79,6 +80,18 @@ function extraServicesNavItem(): ShellSidebarNavItem {
   };
 }
 
+function expertWindowNavItem(): ShellSidebarNavItem {
+  return {
+    id: "reports",
+    to: "/reports",
+    title: "Окно эксперта",
+    labelShort: "Эксперт",
+    labelFull: "Окно эксперта",
+    variant: "blue",
+    iconKey: "bar-chart",
+  };
+}
+
 function curatorJournalNavItem(): ShellSidebarNavItem {
   return {
     id: "curator-journal",
@@ -100,6 +113,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     isAdministrator = false,
     isCurator = false,
     alsoCurator = false,
+    alsoExpert = false,
     isAccountant = false,
     isRop = false,
     showFinance,
@@ -309,6 +323,9 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         variant: "purple",
         iconKey: "bar-chart",
       });
+    }
+    if (alsoExpert && bookingEnabled && showNavForFeature("reports")) {
+      items.push(expertWindowNavItem());
     }
     return items;
   }
@@ -560,16 +577,8 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "bar-chart",
       });
     }
-    if (isChiefExpert && bookingEnabled && showNavForFeature("reports")) {
-      items.push({
-        id: "reports",
-        to: "/reports",
-        title: "Отчёты",
-        labelShort: "Отчёты",
-        labelFull: "Отчёты",
-        variant: "analytics",
-        iconKey: "bar-chart",
-      });
+    if ((isChiefExpert || alsoExpert) && bookingEnabled && showNavForFeature("reports")) {
+      items.push(expertWindowNavItem());
     }
     if (showNavForFeature("employees")) {
       items.push({

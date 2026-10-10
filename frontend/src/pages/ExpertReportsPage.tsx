@@ -30,7 +30,7 @@ export function ExpertReportsPage() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Отчёты</h1>
         <p className="text-sm lux-caption">
-          Воронка(и), где вы назначены экспертом. Данные по лидам и онлайн‑записи за период.
+          Лиды и онлайн-запись за период. Админ с доступом эксперта видит воронки своей клиники.
         </p>
       </header>
 

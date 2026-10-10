@@ -90,6 +90,8 @@ export function MainLayout() {
   const isExpert = role === "expert";
   const meQuery = useCurrentUserMe();
   const alsoCurator = isExpert && Boolean(meQuery.data?.also_curator);
+  const alsoExpert =
+    (role === "admin" || role === "administrator") && Boolean(meQuery.data?.also_expert);
   const isChiefExpert = Boolean(meQuery.data?.is_chief_expert);
   const isExpertElevated = isExpert && isChiefExpert;
   const isManagerLikeNav = isManagerNav || isExpertElevated;
@@ -239,6 +241,7 @@ export function MainLayout() {
               isAdministrator={isAdministrator}
               isCurator={isCurator}
               alsoCurator={alsoCurator}
+              alsoExpert={alsoExpert}
               isAccountant={isAccountant}
               isRop={isRop}
               showFinance={showFinance}
@@ -500,6 +503,14 @@ export function MainLayout() {
                   <span className="text-[9px]">Онлайн</span>
                 </NavLink>
               </NavIf>
+              {alsoExpert ? (
+                <NavLink preventScrollReset to="/reports" className={mobileBottomNavLinkClass} title="Окно эксперта">
+                  <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
+                    <BarChart3 className="h-4 w-4" />
+                  </GradientIconBox>
+                  <span className="text-[9px]">Эксперт</span>
+                </NavLink>
+              ) : null}
               {showKpi ? (
                 <NavIf show={showNavForFeature("kpi")}>
                   <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title={navLex.navKpiTitle}>
@@ -674,6 +685,24 @@ export function MainLayout() {
                   </span>
                 </NavLink>
               </NavIf>
+              {isChiefExpert || alsoExpert ? (
+                <NavLink
+                  preventScrollReset
+                  to="/reports"
+                  className={managerChatFirst ? salesMobileBottomNavLinkClass : mobileBottomNavLinkClass}
+                  title="Окно эксперта"
+                >
+                  <GradientIconBox
+                    variant="blue"
+                    className={managerChatFirst ? "h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" : "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4"}
+                  >
+                    <BarChart3 className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
+                  </GradientIconBox>
+                  <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
+                    Эксперт
+                  </span>
+                </NavLink>
+              ) : null}
               <NavIf show={bookingEnabled && showNavForFeature("booking")}>
                 <NavLink
                   preventScrollReset

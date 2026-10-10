@@ -263,6 +263,7 @@ async def me(
         desk_sales_enabled=sales,
         chat_stages_enabled=True,
         also_curator=bool(getattr(current_user, "also_curator", False)),
+        also_expert=bool(getattr(current_user, "also_expert", False)),
     )
 
 

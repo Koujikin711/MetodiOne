@@ -53,6 +53,7 @@ from app.database_migrate import (
     ensure_user_presence_days,
     ensure_debtor_collection_notes,
     ensure_user_also_curator,
+    ensure_user_also_expert,
     ensure_user_pay_profile,
     ensure_booking_referrer,
     ensure_payroll_adjustments,
@@ -180,6 +181,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_debtor_collection_notes(conn, db_url)
                 await ensure_user_pay_profile(conn, db_url)
                 await ensure_user_also_curator(conn, db_url)
+                await ensure_user_also_expert(conn, db_url)
                 await ensure_booking_referrer(conn, db_url)
                 await ensure_payroll_adjustments(conn, db_url)
                 await ensure_employee_name_terms(conn, db_url)
@@ -251,6 +253,7 @@ async def ensure_canonical_pipeline_stages() -> None:
             from app.services.manager_new_leads_block import apply_blocked_managers_new_leads_policy
             from app.services.manager_daily_lead_quotas import apply_mavluda_daily_archive_quota
             from app.services.manager_mulkiya_leads import apply_mulkiya_receives_new_leads
+            from app.services.ganjina_also_expert import apply_ganjina_also_expert
             from app.services.protocol_reassign import reassign_protocols_from_inactive_managers
 
             n = await ensure_all_pipelines_chat_stages(session)
@@ -259,16 +262,18 @@ async def ensure_canonical_pipeline_stages() -> None:
             mavluda = await apply_mavluda_daily_archive_quota(session)
             mulkiya = await apply_mulkiya_receives_new_leads(session)
             protocols_moved = await reassign_protocols_from_inactive_managers(session)
+            ganjina = await apply_ganjina_also_expert(session)
             await session.commit()
             logger.info(
                 "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s; "
-                "new_leads_block=%s; mavluda_quota=%s; mulkiya_leads=%s; protocols_from_inactive=%s",
+                "new_leads_block=%s; mavluda_quota=%s; mulkiya_leads=%s; protocols_from_inactive=%s; ganjina_expert=%s",
                 n,
                 backfilled,
                 blocked,
                 mavluda,
                 mulkiya,
                 protocols_moved,
+                ganjina,
             )
     except Exception:
         logger.exception("ensure_canonical_pipeline_stages failed; continuing startup")
@@ -600,6 +605,7 @@ async def lifespan(_: FastAPI):
             await ensure_debtor_collection_notes(conn, settings.database_url)
             await ensure_user_pay_profile(conn, settings.database_url)
             await ensure_user_also_curator(conn, settings.database_url)
+            await ensure_user_also_expert(conn, settings.database_url)
             await ensure_booking_referrer(conn, settings.database_url)
             await ensure_payroll_adjustments(conn, settings.database_url)
             await ensure_employee_name_terms(conn, settings.database_url)

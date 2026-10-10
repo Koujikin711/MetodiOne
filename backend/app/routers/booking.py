@@ -1672,6 +1672,10 @@ async def booking_viewer_context(
     current_user: CurrentUser,
 ) -> BookingViewerContext:
     """Главный эксперт воронки видит номер сеанса вместо времени; остальные — у #ID MetodiOne на карточке."""
+    from app.services.clinic_roles import admin_also_expert
+
+    if admin_also_expert(current_user):
+        return BookingViewerContext(is_chief_expert=False, show_session_instead_of_time=True)
     if current_user.role != UserRole.expert:
         return BookingViewerContext(is_chief_expert=False, show_session_instead_of_time=False)
     chief_pids = await _expert_chief_pipeline_ids(db, current_user)
