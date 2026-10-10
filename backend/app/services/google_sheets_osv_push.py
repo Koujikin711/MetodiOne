@@ -123,8 +123,9 @@ def clinic_day(moment: datetime | None, tz: ZoneInfo) -> date | None:
     return moment.astimezone(tz).date()
 
 
-def is_october_payment(day: date | None) -> bool:
-    return day is not None and day.year == 2026 and day.month == 10
+def is_sheet_sync_day(day: date | None) -> bool:
+    """В лист попадает операция, сохранённая с 1 октября 2026 и в любой день после."""
+    return day is not None and day >= SHEET_REVENUE_FROM
 
 
 def cash_receipt_day(*, created_at: datetime | None, tz: ZoneInfo) -> date | None:
@@ -138,7 +139,7 @@ def should_append_to_sheet(
     revenue: Decimal | int | float | str = 0,
     expense: Decimal | int | float | str = 0,
 ) -> bool:
-    """Выручка с 1 октября дописывается. Расход по 5 октября уже набран руками."""
+    """Выручка с 1 октября и дальше дописывается. Расход по 5 октября уже набран руками."""
     day = _as_date(txn_date)
     if day is None:
         return False
@@ -453,7 +454,7 @@ def payload_from_row(row: FinanceOsvRow) -> dict[str, Any]:
 
 
 async def backfill_october_revenue(db: AsyncSession, company_id: int) -> tuple[dict[str, date], set[str]]:
-    """Кладёт в журнал оплаты октября и возвращает даты для листа плюс ключи, которые надо убрать.
+    """Кладёт в журнал оплаты с 1 октября и дальше. Возвращает даты для листа и ключи, которые надо убрать.
 
     Дата строки — день, когда операцию сохранили. Сентябрь не дописывается и уже набранные сентябрьские строки не меняются.
     """
@@ -493,7 +494,6 @@ async def backfill_october_revenue(db: AsyncSession, company_id: int) -> tuple[d
                 SalesKpiManualSalePayment.company_id == company_id,
                 SalesKpiManualSalePayment.amount > 0,
                 SalesKpiManualSalePayment.created_at >= datetime(2026, 10, 1, tzinfo=tz).astimezone(UTC),
-                SalesKpiManualSalePayment.created_at < datetime(2026, 11, 1, tzinfo=tz).astimezone(UTC),
             )
         )
     ).all()
@@ -508,7 +508,7 @@ async def backfill_october_revenue(db: AsyncSession, company_id: int) -> tuple[d
     loaded_ids = {int(appt.id) for appt, *_rest in appt_rows}
     for appt, direction_name, manager_name, cashier_name in appt_rows:
         day = cash_receipt_day(created_at=appt.created_at, tz=tz)
-        if not is_october_payment(day):
+        if not is_sheet_sync_day(day):
             continue
         paid = Decimal(str(appt.paid_amount or 0)).quantize(Decimal("0.01"))
         if paid <= 0:
@@ -538,7 +538,7 @@ async def backfill_october_revenue(db: AsyncSession, company_id: int) -> tuple[d
 
     for pay, sale, item_name, manager_name in kpi_rows:
         day = cash_receipt_day(created_at=pay.created_at, tz=tz)
-        if not is_october_payment(day):
+        if not is_sheet_sync_day(day):
             continue
         amount = Decimal(str(pay.amount or 0)).quantize(Decimal("0.01"))
         if amount <= 0:
@@ -604,7 +604,7 @@ async def backfill_october_revenue(db: AsyncSession, company_id: int) -> tuple[d
         created_by_id = {int(appt_id): created_at for appt_id, created_at in extra}
         for appt_id, rows in orphans.items():
             day = cash_receipt_day(created_at=created_by_id.get(appt_id), tz=tz)
-            if is_october_payment(day):
+            if is_sheet_sync_day(day):
                 for stored in rows:
                     marker = str(stored.external_key or "")
                     date_by_key[marker] = day

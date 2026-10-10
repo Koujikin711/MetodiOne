@@ -9,7 +9,7 @@ from app.services.google_sheets_osv_push import (
     cash_receipt_day,
     crm_row_spans,
     format_osv_amount,
-    is_october_payment,
+    is_sheet_sync_day,
     format_osv_date,
     hex_to_sheet_color,
     rows_appended_in_hand_period,
@@ -161,6 +161,8 @@ def test_old_refunds_are_not_appended_under_october_rows():
     assert should_append_to_sheet(date(2026, 10, 5), expense=50) is False
     assert should_append_to_sheet(date(2026, 10, 5), revenue=100) is True
     assert should_append_to_sheet(date(2026, 10, 6), expense=50) is True
+    assert should_append_to_sheet(date(2026, 11, 2), revenue=100) is True
+    assert should_append_to_sheet(date(2026, 11, 2), expense=50) is True
     grid = [
         ["", "", "", "ВЫРУЧКА", "РАСХОД"],
         ["Дата", "Договор", "Этап", "SOM", "SOM", "Банк", "CRM ключ"],
@@ -176,10 +178,12 @@ def test_sheet_date_is_when_the_record_was_saved_not_the_visit_day():
     saved = datetime(2026, 10, 8, 4, 30, tzinfo=UTC)
     day = cash_receipt_day(created_at=saved, tz=tz)
     assert day == date(2026, 10, 8)
-    assert is_october_payment(day) is True
+    assert is_sheet_sync_day(day) is True
     september = cash_receipt_day(created_at=datetime(2026, 9, 30, 18, 0, tzinfo=UTC), tz=tz)
     assert september == date(2026, 9, 30)
-    assert is_october_payment(september) is False
+    assert is_sheet_sync_day(september) is False
+    assert is_sheet_sync_day(date(2026, 11, 8)) is True
+    assert is_sheet_sync_day(date(2027, 1, 3)) is True
 
 
 def test_crm_rows_share_one_color_span():
