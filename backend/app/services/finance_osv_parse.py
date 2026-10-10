@@ -17,6 +17,7 @@ _HEADER_ALIASES: dict[str, str] = {
     "маблаги партном": "partner_amount",
     "детализация": "partner_amount",
     "детализац": "partner_amount",
+    "договор": "partner_amount",
     "период оказания услуги": "service_period",
     "выручка": "revenue",
     "выручка - som": "revenue",

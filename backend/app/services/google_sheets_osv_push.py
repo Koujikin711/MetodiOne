@@ -8,16 +8,28 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import httpx
-from sqlalchemy import delete, or_, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
-from app.models import FinanceCompanySettings, FinanceOsvRow
+from app.config import settings as app_settings
+from app.models import (
+    BookingAppointment,
+    BookingDirection,
+    FinanceCompanySettings,
+    FinanceOsvRow,
+    SalesKpiManualSale,
+    SalesKpiManualSalePayment,
+    SalesKpiPlanItem,
+    User,
+)
 from app.services.finance_osv_parse import find_osv_header_row, normalize_header, parse_date
 from app.services.google_sheets_finance_sync import _resolve_sheet_name
 from app.services.google_sheets_sync import (
@@ -32,9 +44,10 @@ logger = logging.getLogger(__name__)
 
 _RU_MONTHS = ("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сент", "окт", "ноя", "дек")
 
-# Лист «ОСВ» руками заполнен по 5 октября 2026 включительно.
-# Более ранние возвраты и оплаты в конец не дописываем: они встают под свежими строками.
+# Расходы на листе руками набраны по 5 октября 2026. Выручки за октябрь в листе нет:
+# её дописываем с 1 октября. Более ранние месяцы уже лежат в таблице.
 HAND_TYPED_THROUGH = date(2026, 10, 5)
+SHEET_REVENUE_FROM = date(2026, 10, 1)
 
 _FIELD_HEADERS: dict[str, tuple[str, ...]] = {
     "txn_date": ("дата", "date"),
@@ -50,7 +63,7 @@ _FIELD_HEADERS: dict[str, tuple[str, ...]] = {
     "detail_category": ("подробно",),
     "brief_category": ("кратко",),
     "service_period": ("этап", "период оказания услуги"),
-    "partner_amount": ("детализация", "детализац", "маблаги партном"),
+    "partner_amount": ("детализация", "детализац", "договор", "маблаги партном"),
     "external_key": ("crm ключ", "ключ crm"),
 }
 
@@ -84,13 +97,29 @@ def booking_pay_key(appointment_id: int, prev_paid: Decimal | int | float | str,
     return f"crm:booking_pay:{appointment_id}:{money_cents(prev_paid)}:{money_cents(new_paid)}"
 
 
-def should_append_to_sheet(txn_date: date | datetime | None) -> bool:
-    """В лист попадают только движения позже последнего дня, набранного руками."""
+def _as_date(txn_date: date | datetime | None) -> date | None:
     if isinstance(txn_date, datetime):
-        txn_date = txn_date.date()
-    if not isinstance(txn_date, date):
+        return txn_date.date()
+    if isinstance(txn_date, date):
+        return txn_date
+    return None
+
+
+def should_append_to_sheet(
+    txn_date: date | datetime | None,
+    *,
+    revenue: Decimal | int | float | str = 0,
+    expense: Decimal | int | float | str = 0,
+) -> bool:
+    """Выручка с 1 октября дописывается. Расход по 5 октября уже набран руками."""
+    day = _as_date(txn_date)
+    if day is None:
         return False
-    return txn_date > HAND_TYPED_THROUGH
+    rev = Decimal(str(revenue or 0))
+    exp = Decimal(str(expense or 0))
+    if exp > 0 and rev == 0:
+        return day > HAND_TYPED_THROUGH
+    return day >= SHEET_REVENUE_FROM
 
 
 def rows_appended_in_hand_period(grid: list[list[Any]]) -> list[int]:
@@ -110,7 +139,7 @@ def rows_appended_in_hand_period(grid: list[list[Any]]) -> list[int]:
             continue
         raw_date = line[date_idx] if date_idx is not None and date_idx < len(line) else ""
         parsed = parse_date(raw_date)
-        if parsed is None or not should_append_to_sheet(parsed):
+        if parsed is None or parsed < SHEET_REVENUE_FROM:
             found.append(offset)
     return found
 
@@ -345,6 +374,162 @@ def payload_from_row(row: FinanceOsvRow) -> dict[str, Any]:
     }
 
 
+async def backfill_october_revenue(db: AsyncSession, company_id: int) -> int:
+    """Кладёт в журнал оплаты визитов и курсов с 1 октября, если их там ещё нет.
+
+    В листе за октябрь руками набраны только расходы. Сумма визита пишется одной строкой:
+    «Договор» — цена услуги, SOM под «ВЫРУЧКА» — принятые деньги.
+    """
+    tz = ZoneInfo(app_settings.booking_timezone or "Asia/Dushanbe")
+    start_utc = datetime(
+        SHEET_REVENUE_FROM.year,
+        SHEET_REVENUE_FROM.month,
+        SHEET_REVENUE_FROM.day,
+        tzinfo=tz,
+    ).astimezone(UTC)
+    manager = aliased(User)
+    cashier = aliased(User)
+    appt_rows = (
+        await db.execute(
+            select(BookingAppointment, BookingDirection.name, manager.full_name, cashier.full_name)
+            .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+            .outerjoin(manager, manager.id == BookingAppointment.responsible_manager_id)
+            .outerjoin(cashier, cashier.id == BookingAppointment.created_by_user_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.paid_amount > 0,
+                or_(
+                    BookingAppointment.paid_at >= start_utc,
+                    and_(
+                        BookingAppointment.paid_at.is_(None),
+                        BookingAppointment.start_at >= start_utc,
+                    ),
+                ),
+            )
+        )
+    ).all()
+    kpi_rows = (
+        await db.execute(
+            select(
+                SalesKpiManualSalePayment,
+                SalesKpiManualSale,
+                SalesKpiPlanItem.name,
+                User.full_name,
+            )
+            .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .outerjoin(User, User.id == SalesKpiManualSale.manager_user_id)
+            .where(
+                SalesKpiManualSalePayment.company_id == company_id,
+                SalesKpiManualSalePayment.amount > 0,
+                SalesKpiManualSalePayment.paid_at >= start_utc,
+            )
+        )
+    ).all()
+
+    candidates: list[FinanceOsvRow] = []
+    keys: list[str] = []
+
+    def remember(row: FinanceOsvRow) -> None:
+        if not row.external_key:
+            return
+        keys.append(row.external_key)
+        candidates.append(row)
+
+    for appt, direction_name, manager_name, cashier_name in appt_rows:
+        moment = appt.paid_at or appt.start_at
+        if moment is None:
+            continue
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=UTC)
+        day = moment.astimezone(tz).date()
+        if day < SHEET_REVENUE_FROM:
+            continue
+        paid = Decimal(str(appt.paid_amount or 0)).quantize(Decimal("0.01"))
+        if paid <= 0:
+            continue
+        price = Decimal(str(appt.service_amount or 0)).quantize(Decimal("0.01"))
+        service = (appt.service_title or direction_name or "").strip() or "Онлайн-запись"
+        remember(
+            FinanceOsvRow(
+                company_id=company_id,
+                txn_date=day,
+                revenue=paid,
+                expense=Decimal("0"),
+                partner_amount=price if price > 0 else None,
+                bank=bank_label(appt.payment_method),
+                basis=_clip(cashier_name, 255),
+                counterparty=_clip(appt.patient_name, 255),
+                phone=_clip(appt.patient_phone, 64),
+                via_person=_clip(manager_name, 128),
+                product_service=_clip(service, 255),
+                article="Поступления",
+                detail_category="Медицина",
+                brief_category="Выручка",
+                source="booking_payment",
+                external_key=booking_pay_key(int(appt.id), 0, paid),
+            )
+        )
+
+    for pay, sale, item_name, manager_name in kpi_rows:
+        moment = pay.paid_at
+        if moment is None:
+            continue
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=UTC)
+        day = moment.astimezone(tz).date()
+        if day < SHEET_REVENUE_FROM:
+            continue
+        amount = Decimal(str(pay.amount or 0)).quantize(Decimal("0.01"))
+        if amount <= 0:
+            continue
+        price = Decimal(str(sale.service_amount or 0)).quantize(Decimal("0.01"))
+        remember(
+            FinanceOsvRow(
+                company_id=company_id,
+                txn_date=day,
+                revenue=amount,
+                expense=Decimal("0"),
+                partner_amount=price if price > 0 else None,
+                bank="ДС",
+                basis=None,
+                counterparty=_clip(sale.client_name, 255),
+                phone=_clip(sale.client_phone, 64),
+                via_person=_clip(manager_name, 128),
+                product_service=_clip(str(item_name or ""), 255),
+                article="Поступления",
+                detail_category="Медицина",
+                brief_category="Выручка",
+                source="kpi_payment",
+                external_key=f"crm:kpi_pay:{pay.id}",
+            )
+        )
+
+    if not keys:
+        return 0
+    existing = set(
+        (
+            await db.execute(
+                select(FinanceOsvRow.external_key).where(
+                    FinanceOsvRow.company_id == company_id,
+                    FinanceOsvRow.external_key.in_(keys),
+                )
+            )
+        ).scalars().all()
+    )
+    added = 0
+    for row in candidates:
+        if row.external_key in existing:
+            continue
+        existing.add(row.external_key)
+        db.add(row)
+        added += 1
+    if added:
+        await db.flush()
+        logger.info("osv october revenue backfill company=%s rows=%s", company_id, added)
+    return added
+
+
 async def push_pending_osv_rows(
     db: AsyncSession,
     company_id: int,
@@ -369,11 +554,13 @@ async def push_pending_osv_rows(
     )
     if only_key:
         query = query.where(FinanceOsvRow.external_key == only_key)
+    elif spreadsheet_id:
+        await backfill_october_revenue(db, company_id)
     rows = (await db.execute(query.order_by(FinanceOsvRow.txn_date, FinanceOsvRow.id))).scalars().all()
     pending = [
         row
         for row in rows
-        if row.external_key and should_append_to_sheet(row.txn_date)
+        if row.external_key and should_append_to_sheet(row.txn_date, revenue=row.revenue, expense=row.expense)
     ]
     if only_key is not None and not pending:
         return 0

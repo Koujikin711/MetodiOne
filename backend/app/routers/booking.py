@@ -3167,10 +3167,9 @@ async def refund_appointment(
     appt.paid_amount = float(new_paid)
 
     via = (current_user.full_name or current_user.email or "Администратор").strip()
-    service_label = (appt.service_title or "").strip() or "Онлайн-запись"
     patient = (appt.patient_name or "").strip() or "Пациент"
     phone = (appt.patient_phone or "").strip() or None
-    basis = f"{patient} — возврат {txn_date.isoformat()}"
+    basis = f"Возврат {patient}"
     refund_key = f"booking_refund:{appointment_id}:{uuid.uuid4().hex[:12]}"
 
     db.add(
@@ -3184,10 +3183,10 @@ async def refund_appointment(
             counterparty=patient[:255],
             phone=(phone[:64] if phone else None),
             via_person=via[:128],
-            product_service=service_label[:255],
+            product_service="Возвраты",
             article="Поступления",
-            detail_category=None,
-            brief_category="Возврат",
+            detail_category="Медицина Возврат",
+            brief_category="Выручка",
             source="booking_refund",
             external_key=refund_key,
         )

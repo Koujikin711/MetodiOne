@@ -124,10 +124,38 @@ def test_parse_skips_rows_written_by_crm():
     assert parsed[0]["expense"] == Decimal("50")
 
 
+def test_contract_price_lands_in_dogovor_column():
+    row = sheet_row_values(
+        ["Дата", "Договор", "Этап", "SOM", "SOM", "Банк", "Товар/услуга", "Статья", "Подробно", "Кратко"],
+        {
+            "txn_date": date(2026, 10, 6),
+            "partner_amount": Decimal("250"),
+            "revenue": Decimal("50"),
+            "expense": 0,
+            "bank": "ДС",
+            "product_service": "Массаж",
+            "article": "Поступления",
+            "detail_category": "Медицина",
+            "brief_category": "Выручка",
+        },
+        "crm:booking_pay:1:0:5000",
+        above=["", "", "", "ВЫРУЧКА", "РАСХОД"],
+    )
+    assert row[0] == "6 окт."
+    assert row[1] == "250,00"
+    assert row[3] == "50,00"
+    assert row[4] == ""
+    assert row[6] == "Массаж"
+    assert row[7] == "Поступления"
+    assert row[8] == "Медицина"
+    assert row[9] == "Выручка"
+
+
 def test_old_refunds_are_not_appended_under_october_rows():
-    assert should_append_to_sheet(date(2026, 9, 23)) is False
-    assert should_append_to_sheet(date(2026, 10, 5)) is False
-    assert should_append_to_sheet(date(2026, 10, 6)) is True
+    assert should_append_to_sheet(date(2026, 9, 23), revenue=300) is False
+    assert should_append_to_sheet(date(2026, 10, 5), expense=50) is False
+    assert should_append_to_sheet(date(2026, 10, 5), revenue=100) is True
+    assert should_append_to_sheet(date(2026, 10, 6), expense=50) is True
     grid = [
         ["", "", "", "ВЫРУЧКА", "РАСХОД"],
         ["Дата", "Договор", "Этап", "SOM", "SOM", "Банк", "CRM ключ"],
