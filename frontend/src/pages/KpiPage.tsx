@@ -987,7 +987,7 @@ export function KpiPage() {
 
       {tab === "plan" && isOwner ? (
         <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Услуги</h2>
               <p className="mt-1 text-sm lux-caption">
@@ -999,7 +999,7 @@ export function KpiPage() {
               type="button"
               onClick={() => saveRatesMutation.mutate()}
               disabled={saveRatesMutation.isPending}
-              className="btn-primary text-sm disabled:opacity-50"
+              className="btn-primary shrink-0 text-sm disabled:opacity-50"
             >
               {saveRatesMutation.isPending ? "Сохранение…" : "Сохранить"}
             </button>
@@ -1011,15 +1011,23 @@ export function KpiPage() {
           {!ratesQuery.isLoading && (ratesQuery.data?.items.length ?? 0) === 0 ? (
             <p className="text-sm lux-caption">В этой воронке нет услуг.</p>
           ) : null}
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {(ratesQuery.data?.items.length ?? 0) > 0 ? (
+            <p className="text-[11px] font-medium mo-muted">Процент менеджера</p>
+          ) : null}
+          <div
+            className="kpi-rate-row grid gap-2"
+            style={{
+              gridTemplateColumns: `repeat(${Math.max(ratesQuery.data?.items.length ?? 1, 1)}, minmax(0, 1fr))`,
+            }}
+          >
             {(ratesQuery.data?.items ?? []).map((row) => (
-              <label key={row.service_key} className="flex flex-col gap-1 text-sm">
-                <span className="truncate font-medium text-[var(--mo-text)]">{row.name}</span>
-                <span className="text-[11px] mo-muted">Процент менеджера</span>
+              <label key={row.service_key} className="flex min-w-0 flex-col gap-1 text-sm">
+                <span className="truncate text-xs font-medium text-[var(--mo-text)]">{row.name}</span>
                 <input
                   type="text"
                   inputMode="decimal"
                   className="mo-input"
+                  aria-label={`Процент менеджера: ${row.name}`}
                   value={rateDraft[row.service_key] ?? ""}
                   onChange={(e) =>
                     setRateDraft((prev) => ({ ...prev, [row.service_key]: e.target.value }))

@@ -6549,6 +6549,35 @@ li.is-overdue {
   font-size: 0.64rem;
 }
 
+@media (max-width: 639px) {
+  .kpi-pay-pack {
+    display: grid;
+    grid-template-columns: minmax(4.2rem, 1fr) minmax(8.4rem, 8.8rem) auto;
+    width: 100%;
+    max-width: 100%;
+    gap: 0.35rem;
+  }
+
+  .kpi-pay-pack__sum {
+    grid-column: 1 / -1;
+    font-size: 0.95rem;
+  }
+
+  .kpi-pay-pack__input {
+    width: 100%;
+    font-size: 0.75rem !important;
+  }
+
+  .kpi-pay-pack .date-field {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .kpi-pay-pack .date-field .mo-input {
+    font-size: 0.75rem;
+  }
+}
+
 .mo-chart-card {
   border: 1px solid var(--mo-border);
   border-radius: 1rem;
