@@ -15,7 +15,7 @@ from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import httpx
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -97,12 +97,39 @@ def booking_pay_key(appointment_id: int, prev_paid: Decimal | int | float | str,
     return f"crm:booking_pay:{appointment_id}:{money_cents(prev_paid)}:{money_cents(new_paid)}"
 
 
+def _booking_id_from_key(key: str) -> int | None:
+    parts = key.split(":")
+    if len(parts) < 3 or parts[0] != "crm" or parts[1] != "booking_pay":
+        return None
+    try:
+        return int(parts[2])
+    except ValueError:
+        return None
+
+
 def _as_date(txn_date: date | datetime | None) -> date | None:
     if isinstance(txn_date, datetime):
         return txn_date.date()
     if isinstance(txn_date, date):
         return txn_date
     return None
+
+
+def clinic_day(moment: datetime | None, tz: ZoneInfo) -> date | None:
+    if moment is None:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return moment.astimezone(tz).date()
+
+
+def is_october_payment(day: date | None) -> bool:
+    return day is not None and day.year == 2026 and day.month == 10
+
+
+def cash_receipt_day(*, created_at: datetime | None, tz: ZoneInfo) -> date | None:
+    """День, когда операцию сохранили в программе. День визита сюда не входит."""
+    return clinic_day(created_at, tz)
 
 
 def should_append_to_sheet(
@@ -425,19 +452,13 @@ def payload_from_row(row: FinanceOsvRow) -> dict[str, Any]:
     }
 
 
-async def backfill_october_revenue(db: AsyncSession, company_id: int) -> int:
-    """Кладёт в журнал оплаты визитов и курсов с 1 октября, если их там ещё нет.
+async def backfill_october_revenue(db: AsyncSession, company_id: int) -> tuple[dict[str, date], set[str]]:
+    """Кладёт в журнал оплаты октября и возвращает даты для листа плюс ключи, которые надо убрать.
 
-    В листе за октябрь руками набраны только расходы. Сумма визита пишется одной строкой:
-    «Договор» — цена услуги, SOM под «ВЫРУЧКА» — принятые деньги.
+    Дата строки — день, когда операцию сохранили. Сентябрь не дописывается и уже набранные сентябрьские строки не меняются.
     """
     tz = ZoneInfo(app_settings.booking_timezone or "Asia/Dushanbe")
-    start_utc = datetime(
-        SHEET_REVENUE_FROM.year,
-        SHEET_REVENUE_FROM.month,
-        SHEET_REVENUE_FROM.day,
-        tzinfo=tz,
-    ).astimezone(UTC)
+    start_utc = datetime(2026, 9, 1, tzinfo=tz).astimezone(UTC)
     manager = aliased(User)
     cashier = aliased(User)
     appt_rows = (
@@ -451,10 +472,8 @@ async def backfill_october_revenue(db: AsyncSession, company_id: int) -> int:
                 BookingAppointment.paid_amount > 0,
                 or_(
                     BookingAppointment.paid_at >= start_utc,
-                    and_(
-                        BookingAppointment.paid_at.is_(None),
-                        BookingAppointment.start_at >= start_utc,
-                    ),
+                    BookingAppointment.created_at >= start_utc,
+                    BookingAppointment.start_at >= start_utc,
                 ),
             )
         )
@@ -473,28 +492,23 @@ async def backfill_october_revenue(db: AsyncSession, company_id: int) -> int:
             .where(
                 SalesKpiManualSalePayment.company_id == company_id,
                 SalesKpiManualSalePayment.amount > 0,
-                SalesKpiManualSalePayment.paid_at >= start_utc,
+                SalesKpiManualSalePayment.created_at >= datetime(2026, 10, 1, tzinfo=tz).astimezone(UTC),
+                SalesKpiManualSalePayment.created_at < datetime(2026, 11, 1, tzinfo=tz).astimezone(UTC),
             )
         )
     ).all()
 
     candidates: list[FinanceOsvRow] = []
-    keys: list[str] = []
 
     def remember(row: FinanceOsvRow) -> None:
         if not row.external_key:
             return
-        keys.append(row.external_key)
         candidates.append(row)
 
+    loaded_ids = {int(appt.id) for appt, *_rest in appt_rows}
     for appt, direction_name, manager_name, cashier_name in appt_rows:
-        moment = appt.paid_at or appt.start_at
-        if moment is None:
-            continue
-        if moment.tzinfo is None:
-            moment = moment.replace(tzinfo=UTC)
-        day = moment.astimezone(tz).date()
-        if day < SHEET_REVENUE_FROM:
+        day = cash_receipt_day(created_at=appt.created_at, tz=tz)
+        if not is_october_payment(day):
             continue
         paid = Decimal(str(appt.paid_amount or 0)).quantize(Decimal("0.01"))
         if paid <= 0:
@@ -523,13 +537,8 @@ async def backfill_october_revenue(db: AsyncSession, company_id: int) -> int:
         )
 
     for pay, sale, item_name, manager_name in kpi_rows:
-        moment = pay.paid_at
-        if moment is None:
-            continue
-        if moment.tzinfo is None:
-            moment = moment.replace(tzinfo=UTC)
-        day = moment.astimezone(tz).date()
-        if day < SHEET_REVENUE_FROM:
+        day = cash_receipt_day(created_at=pay.created_at, tz=tz)
+        if not is_october_payment(day):
             continue
         amount = Decimal(str(pay.amount or 0)).quantize(Decimal("0.01"))
         if amount <= 0:
@@ -556,29 +565,92 @@ async def backfill_october_revenue(db: AsyncSession, company_id: int) -> int:
             )
         )
 
-    if not keys:
-        return 0
-    existing = set(
-        (
+    date_by_key = {str(row.external_key): row.txn_date for row in candidates if row.external_key}
+    desired = set(date_by_key)
+    stored_rows = (
+        await db.execute(
+            select(FinanceOsvRow).where(
+                FinanceOsvRow.company_id == company_id,
+                FinanceOsvRow.external_key.like("crm:booking_pay:%"),
+            )
+        )
+    ).scalars().all()
+    drop_keys: set[str] = set()
+    redated = 0
+    orphans: dict[int, list[FinanceOsvRow]] = {}
+    for stored in stored_rows:
+        key = str(stored.external_key or "")
+        appt_id = _booking_id_from_key(key)
+        if appt_id is None:
+            continue
+        if appt_id not in loaded_ids:
+            orphans.setdefault(appt_id, []).append(stored)
+            continue
+        if key in desired:
+            if stored.txn_date != date_by_key[key]:
+                stored.txn_date = date_by_key[key]
+                redated += 1
+            continue
+        drop_keys.add(key)
+        await db.delete(stored)
+    if orphans:
+        extra = (
             await db.execute(
-                select(FinanceOsvRow.external_key).where(
-                    FinanceOsvRow.company_id == company_id,
-                    FinanceOsvRow.external_key.in_(keys),
+                select(BookingAppointment.id, BookingAppointment.created_at).where(
+                    BookingAppointment.id.in_(list(orphans)),
                 )
             )
-        ).scalars().all()
-    )
+        ).all()
+        created_by_id = {int(appt_id): created_at for appt_id, created_at in extra}
+        for appt_id, rows in orphans.items():
+            day = cash_receipt_day(created_at=created_by_id.get(appt_id), tz=tz)
+            if is_october_payment(day):
+                for stored in rows:
+                    marker = str(stored.external_key or "")
+                    date_by_key[marker] = day
+                    if stored.txn_date != day:
+                        stored.txn_date = day
+                        redated += 1
+                continue
+            for stored in rows:
+                drop_keys.add(str(stored.external_key or ""))
+                await db.delete(stored)
+    stored_kpi = (
+        await db.execute(
+            select(FinanceOsvRow).where(
+                FinanceOsvRow.company_id == company_id,
+                FinanceOsvRow.external_key.like("crm:kpi_pay:%"),
+            )
+        )
+    ).scalars().all()
+    for stored in stored_kpi:
+        key = str(stored.external_key or "")
+        if key in desired:
+            if stored.txn_date != date_by_key[key]:
+                stored.txn_date = date_by_key[key]
+                redated += 1
+            continue
+        drop_keys.add(key)
+        await db.delete(stored)
+    existing = {str(row.external_key) for row in stored_rows}
+    existing.update(str(row.external_key) for row in stored_kpi)
     added = 0
     for row in candidates:
-        if row.external_key in existing:
+        if row.external_key in existing or row.external_key in drop_keys:
             continue
-        existing.add(row.external_key)
+        existing.add(str(row.external_key))
         db.add(row)
         added += 1
-    if added:
+    if added or drop_keys or redated:
         await db.flush()
-        logger.info("osv october revenue backfill company=%s rows=%s", company_id, added)
-    return added
+        logger.info(
+            "osv october revenue backfill company=%s added=%s redated=%s removed=%s",
+            company_id,
+            added,
+            len(date_by_key),
+            len(drop_keys),
+        )
+    return date_by_key, drop_keys
 
 
 async def push_pending_osv_rows(
@@ -603,10 +675,12 @@ async def push_pending_osv_rows(
         FinanceOsvRow.company_id == company_id,
         _PUSH_KEY_SQL,
     )
+    date_by_key: dict[str, date] = {}
+    drop_keys: set[str] = set()
     if only_key:
         query = query.where(FinanceOsvRow.external_key == only_key)
     elif spreadsheet_id:
-        await backfill_october_revenue(db, company_id)
+        date_by_key, drop_keys = await backfill_october_revenue(db, company_id)
     rows = (await db.execute(query.order_by(FinanceOsvRow.txn_date, FinanceOsvRow.id))).scalars().all()
     pending = [
         row
@@ -631,6 +705,16 @@ async def push_pending_osv_rows(
             )
             dropped = set(drop_idxs)
             grid = [line for index, line in enumerate(grid) if index not in dropped]
+        if await _apply_recorded_dates(
+            token,
+            spreadsheet_id,
+            sheet_gid,
+            sheet_name,
+            grid,
+            date_by_key,
+            drop_keys,
+        ):
+            sheet_gid, grid = await _aligned_sheet_rows(token, spreadsheet_id, sheet_name)
     else:
         grid = await _sheet_rows(token, spreadsheet_id, _a1(sheet_name, "A1:ZZ20000"))
     if not pending:
@@ -686,6 +770,75 @@ async def push_pending_osv_rows(
     written = (start - 1, start - 1 + len(values))
     await _paint_row_spans(token, spreadsheet_id, sheet_gid, [*crm_row_spans(grid), written])
     return len(values)
+
+
+async def _apply_recorded_dates(
+    token: str,
+    spreadsheet_id: str,
+    sheet_gid: int,
+    sheet_name: str,
+    grid: list[list[Any]],
+    date_by_key: dict[str, date],
+    drop_keys: set[str],
+) -> bool:
+    """Ставит в листе день сохранения операции и убирает строки не из октября."""
+    if not date_by_key and not drop_keys:
+        return False
+    header_idx, _col_map = find_osv_header_row(grid)
+    if header_idx is None:
+        return False
+    headers = [str(cell or "") for cell in grid[header_idx]]
+    date_idx = _header_index(headers, "txn_date")
+    key_idx = _header_index(headers, "external_key")
+    if date_idx is None or key_idx is None:
+        return False
+    updates: list[tuple[int, str]] = []
+    delete_idxs: list[int] = []
+    for index, line in enumerate(grid):
+        marker = str(line[key_idx] or "").strip() if key_idx < len(line) else ""
+        if not marker:
+            continue
+        if marker in drop_keys:
+            delete_idxs.append(index)
+            continue
+        day = date_by_key.get(marker)
+        if day is None:
+            continue
+        text = format_osv_date(day)
+        current = str(line[date_idx] or "").strip() if date_idx < len(line) else ""
+        if current != text:
+            updates.append((index, text))
+    if updates:
+        await _write_dates(token, spreadsheet_id, sheet_name, date_idx, updates)
+    if delete_idxs:
+        await _delete_row_indexes(token, spreadsheet_id, sheet_gid, delete_idxs)
+    return bool(updates or delete_idxs)
+
+
+async def _write_dates(
+    token: str,
+    spreadsheet_id: str,
+    sheet_name: str,
+    date_idx: int,
+    updates: list[tuple[int, str]],
+) -> None:
+    column = _col_letter(date_idx)
+    data = [
+        {"range": _a1(sheet_name, f"{column}{index + 1}"), "values": [[text]]}
+        for index, text in updates
+    ]
+    url = f"{_GOOGLE_SHEETS_API}/{quote(spreadsheet_id)}/values:batchUpdate"
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            json={"valueInputOption": "USER_ENTERED", "data": data},
+        )
+    if response.status_code == 403:
+        raise RuntimeError(
+            "Нет права записи в Google-таблицу. Откройте её сервисному аккаунту как редактору.",
+        )
+    response.raise_for_status()
 
 
 async def _sheet_gid(token: str, spreadsheet_id: str, title: str) -> int:

@@ -1,12 +1,15 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from app.services.finance_osv_parse import parse_osv_grid
 from app.services.google_sheets_osv_push import (
     bank_label,
     booking_pay_key,
+    cash_receipt_day,
     crm_row_spans,
     format_osv_amount,
+    is_october_payment,
     format_osv_date,
     hex_to_sheet_color,
     rows_appended_in_hand_period,
@@ -166,6 +169,17 @@ def test_old_refunds_are_not_appended_under_october_rows():
         ["6 окт.", "", "", "100,00", "", "ДС", "crm:booking_pay:1:0:10000"],
     ]
     assert rows_appended_in_hand_period(grid) == [3]
+
+
+def test_sheet_date_is_when_the_record_was_saved_not_the_visit_day():
+    tz = ZoneInfo("Asia/Dushanbe")
+    saved = datetime(2026, 10, 8, 4, 30, tzinfo=UTC)
+    day = cash_receipt_day(created_at=saved, tz=tz)
+    assert day == date(2026, 10, 8)
+    assert is_october_payment(day) is True
+    september = cash_receipt_day(created_at=datetime(2026, 9, 30, 18, 0, tzinfo=UTC), tz=tz)
+    assert september == date(2026, 9, 30)
+    assert is_october_payment(september) is False
 
 
 def test_crm_rows_share_one_color_span():

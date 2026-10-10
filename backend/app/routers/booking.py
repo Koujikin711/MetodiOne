@@ -3049,11 +3049,7 @@ async def patch_appointment_payment(
         if mid is not None:
             target.responsible_manager_id = mid
     if paid_delta > 0:
-        if body.paid_at is not None:
-            raw_paid = body.paid_at
-            txn_day = raw_paid.date() if isinstance(raw_paid, datetime) else raw_paid
-        else:
-            txn_day = datetime.now(ZoneInfo(settings.booking_timezone)).date()
+        txn_day = datetime.now(ZoneInfo(settings.booking_timezone)).date()
         patient = (target.patient_name or "").strip() or "Пациент"
         service = (target.service_title or "").strip() or "Онлайн-запись"
         cashier = (current_user.full_name or current_user.email or "").strip() or None
@@ -3162,7 +3158,7 @@ async def refund_appointment(
         )
 
     tz = ZoneInfo(settings.booking_timezone)
-    txn_date = body.txn_date or datetime.now(tz).date()
+    txn_date = datetime.now(tz).date()
     new_paid = (paid - refund_amt).quantize(Decimal("0.01"))
     appt.paid_amount = float(new_paid)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 import calendar
 from typing import Annotated
@@ -12,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, delete, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.database import AsyncSessionLocal, get_db
 from app.models import (
@@ -1434,7 +1436,7 @@ async def create_manual_sale(
         amount = Decimal(str(pay.amount or 0))
         if amount <= 0:
             continue
-        pay_day = pay.paid_at.date() if pay.paid_at is not None else date.today()
+        pay_day = datetime.now(ZoneInfo(settings.booking_timezone)).date()
         await save_osv_movement(
             db,
             company_id=company_id,
@@ -1516,7 +1518,7 @@ async def patch_manual_sale_payment(
     await db.flush()
     from app.services.google_sheets_osv_push import bank_label, save_osv_movement
 
-    pay_day = pay.paid_at.date() if pay.paid_at is not None else date.today()
+    pay_day = datetime.now(ZoneInfo(settings.booking_timezone)).date()
     plan_item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
     sale_manager = await db.get(User, sale.manager_user_id)
     cashier = (current_user.full_name or current_user.email or "").strip() or None
