@@ -1428,7 +1428,8 @@ async def create_manual_sale(
     from app.services.google_sheets_osv_push import bank_label, save_osv_movement
 
     await db.flush()
-    via = (current_user.full_name or current_user.email or "").strip() or None
+    cashier = (current_user.full_name or current_user.email or "").strip() or None
+    manager_name = (manager.full_name or "").strip() or cashier
     for pay in payments:
         amount = Decimal(str(pay.amount or 0))
         if amount <= 0:
@@ -1441,13 +1442,15 @@ async def create_manual_sale(
             source="kpi_payment",
             txn_date=pay_day,
             revenue=amount,
+            partner_amount=Decimal(str(sale.service_amount or 0)),
             bank=bank_label(None),
-            basis=f"{sale.client_name} — {item.name}"[:255],
+            basis=cashier,
             counterparty=sale.client_name,
             phone=sale.client_phone,
-            via_person=via,
+            via_person=manager_name,
             product_service=item.name,
             article="Поступления",
+            detail_category="Медицина",
             brief_category="Выручка",
         )
     await db.commit()
@@ -1515,6 +1518,9 @@ async def patch_manual_sale_payment(
 
     pay_day = pay.paid_at.date() if pay.paid_at is not None else date.today()
     plan_item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    sale_manager = await db.get(User, sale.manager_user_id)
+    cashier = (current_user.full_name or current_user.email or "").strip() or None
+    manager_name = ((sale_manager.full_name or "").strip() if sale_manager else "") or cashier
     await save_osv_movement(
         db,
         company_id=company_id,
@@ -1522,13 +1528,15 @@ async def patch_manual_sale_payment(
         source="kpi_payment",
         txn_date=pay_day,
         revenue=add_amount,
+        partner_amount=Decimal(str(sale.service_amount or 0)),
         bank=bank_label(None),
-        basis=f"{sale.client_name} — доплата"[:255],
+        basis=cashier,
         counterparty=sale.client_name,
         phone=sale.client_phone,
-        via_person=(current_user.full_name or current_user.email or "").strip() or None,
+        via_person=manager_name,
         product_service=plan_item.name if plan_item else None,
         article="Поступления",
+        detail_category="Медицина",
         brief_category="Выручка",
     )
     await db.commit()

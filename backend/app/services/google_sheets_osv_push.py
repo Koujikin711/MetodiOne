@@ -30,7 +30,7 @@ from app.services.google_sheets_sync import (
 
 logger = logging.getLogger(__name__)
 
-_RU_MONTHS = ("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+_RU_MONTHS = ("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сент", "окт", "ноя", "дек")
 
 _FIELD_HEADERS: dict[str, tuple[str, ...]] = {
     "txn_date": ("дата", "date"),
@@ -46,6 +46,7 @@ _FIELD_HEADERS: dict[str, tuple[str, ...]] = {
     "detail_category": ("подробно",),
     "brief_category": ("кратко",),
     "service_period": ("этап", "период оказания услуги"),
+    "partner_amount": ("детализация", "детализац", "маблаги партном"),
     "external_key": ("crm ключ", "ключ crm"),
 }
 
@@ -95,40 +96,101 @@ def _header_index(headers: list[str], field: str) -> int | None:
     return None
 
 
-def sheet_row_values(headers: list[str], payload: dict[str, Any], external_key: str) -> list[str]:
+def sheet_phone(raw: str | None) -> str:
+    digits = re.sub(r"\D+", "", raw or "")
+    if digits.startswith("992") and len(digits) > 9:
+        digits = digits[3:]
+    return digits
+
+
+def som_amount_indexes(headers: list[str], above: list[Any] | None) -> tuple[int | None, int | None]:
+    """Левая SOM под «ВЫРУЧКА», правая SOM под «РАСХОД». Колонку «Ост факт» не трогаем."""
+    som = [i for i, header in enumerate(headers) if normalize_header(header) in {"som", "сом"}]
+    if not som:
+        return _header_index(headers, "revenue"), _header_index(headers, "expense")
+    above_row = list(above or [])
+
+    def label_at(needles: tuple[str, ...]) -> int | None:
+        for i, cell in enumerate(above_row):
+            name = normalize_header(str(cell or ""))
+            if any(needle in name for needle in needles):
+                return i
+        return None
+
+    rev_at = label_at(("выручка",))
+    exp_at = label_at(("расход",))
+    bal_at = label_at(("ост факт", "остаток"))
+
+    def pick(start: int | None, end: int | None) -> int | None:
+        for idx in som:
+            if start is not None and idx < start:
+                continue
+            if end is not None and idx >= end:
+                continue
+            return idx
+        return None
+
+    revenue_idx = pick(rev_at, exp_at) if rev_at is not None else som[0]
+    if exp_at is not None:
+        end = bal_at if bal_at is not None and bal_at > exp_at else None
+        expense_idx = pick(exp_at, end)
+    elif len(som) > 1:
+        expense_idx = som[1]
+    else:
+        expense_idx = None
+    return revenue_idx, expense_idx
+
+
+def sheet_row_values(
+    headers: list[str],
+    payload: dict[str, Any],
+    external_key: str,
+    *,
+    above: list[Any] | None = None,
+) -> list[str]:
     key_idx = _header_index(headers, "external_key")
     width = len(headers) if key_idx is not None else len(headers) + 1
     if key_idx is None:
         key_idx = len(headers)
-    row = [""] * width
+    row = [""] * max(width, key_idx + 1)
 
-    def put(field: str, text: str) -> None:
-        idx = _header_index(headers, field)
+    def put_at(idx: int | None, text: str) -> None:
         if idx is None or not text:
             return
+        if idx >= len(row):
+            row.extend([""] * (idx + 1 - len(row)))
         row[idx] = text
+
+    def put(field: str, text: str) -> None:
+        put_at(_header_index(headers, field), text)
 
     txn = payload.get("txn_date")
     if isinstance(txn, date):
         put("txn_date", format_osv_date(txn))
     elif txn:
         put("txn_date", str(txn))
-    put("revenue", format_osv_amount(payload.get("revenue")))
-    put("expense", format_osv_amount(payload.get("expense")))
-    for field in (
-        "bank",
-        "basis",
-        "counterparty",
-        "phone",
-        "via_person",
-        "product_service",
-        "article",
-        "detail_category",
-        "brief_category",
-        "service_period",
-    ):
-        put(field, str(payload.get(field) or "").strip())
-    row[key_idx] = external_key
+
+    revenue = Decimal(str(payload.get("revenue") or 0))
+    expense = Decimal(str(payload.get("expense") or 0))
+    # Возврат в программе лежит отрицательным расходом, в таблице это минус к выручке.
+    if expense < 0 and revenue == 0:
+        revenue = expense
+        expense = Decimal("0")
+    revenue_idx, expense_idx = som_amount_indexes(headers, above)
+    put_at(revenue_idx, format_osv_amount(revenue))
+    put_at(expense_idx, format_osv_amount(expense))
+    put("partner_amount", format_osv_amount(payload.get("partner_amount")))
+    put("bank", str(payload.get("bank") or "").strip())
+    put("basis", str(payload.get("basis") or "").strip())
+    put("counterparty", str(payload.get("counterparty") or "").strip())
+    put("phone", sheet_phone(str(payload.get("phone") or "")))
+    put("via_person", str(payload.get("via_person") or "").strip())
+    put("product_service", str(payload.get("product_service") or "").strip())
+    put("article", str(payload.get("article") or "").strip())
+    put("detail_category", str(payload.get("detail_category") or "").strip())
+    put("brief_category", str(payload.get("brief_category") or "").strip())
+    put("service_period", str(payload.get("service_period") or "").strip())
+    put_at(key_idx, external_key)
     return row
 
 
@@ -164,6 +226,7 @@ async def save_osv_movement(
     txn_date: date,
     revenue: Decimal = Decimal("0"),
     expense: Decimal = Decimal("0"),
+    partner_amount: Decimal | None = None,
     bank: str | None = None,
     basis: str | None = None,
     counterparty: str | None = None,
@@ -190,6 +253,7 @@ async def save_osv_movement(
                 txn_date=txn_date,
                 revenue=revenue,
                 expense=expense,
+                partner_amount=partner_amount if partner_amount and partner_amount > 0 else None,
                 bank=_clip(bank, 64),
                 basis=_clip(basis, 255),
                 counterparty=_clip(counterparty, 255),
@@ -215,6 +279,7 @@ def payload_from_row(row: FinanceOsvRow) -> dict[str, Any]:
         "txn_date": row.txn_date,
         "revenue": row.revenue,
         "expense": row.expense,
+        "partner_amount": row.partner_amount,
         "bank": row.bank,
         "basis": row.basis,
         "counterparty": row.counterparty,
@@ -291,7 +356,11 @@ async def push_pending_osv_rows(
         if any(str(cell or "").strip() for cell in line):
             last = i
     start = last + 2
-    values = [sheet_row_values(headers, payload_from_row(row), str(row.external_key)) for row in missing]
+    above = list(grid[header_idx - 1]) if header_idx > 0 else None
+    values = [
+        sheet_row_values(headers, payload_from_row(row), str(row.external_key), above=above)
+        for row in missing
+    ]
     await _write_values(
         token,
         spreadsheet_id,

@@ -15,6 +15,8 @@ _HEADER_ALIASES: dict[str, str] = {
     "дата": "txn_date",
     "date": "txn_date",
     "маблаги партном": "partner_amount",
+    "детализация": "partner_amount",
+    "детализац": "partner_amount",
     "период оказания услуги": "service_period",
     "выручка": "revenue",
     "выручка - som": "revenue",
@@ -180,10 +182,58 @@ def _crm_key_index(headers: list[str]) -> int | None:
     return None
 
 
+def _label_index(row: list[Any], needles: tuple[str, ...]) -> int | None:
+    for i, cell in enumerate(row):
+        name = normalize_header(str(cell or ""))
+        if any(needle in name for needle in needles):
+            return i
+    return None
+
+
+def apply_som_amount_columns(rows: list[list[Any]], header_idx: int, col_map: dict[int, str]) -> dict[int, str]:
+    """В листе клиники две колонки называются SOM: под «ВЫРУЧКА» и под «РАСХОД»."""
+    headers = [str(cell or "") for cell in rows[header_idx]]
+    som_idxs = [i for i, header in enumerate(headers) if normalize_header(header) in {"som", "сом"}]
+    if not som_idxs:
+        return col_map
+    above = list(rows[header_idx - 1]) if header_idx > 0 else []
+    rev_at = _label_index(above, ("выручка",))
+    exp_at = _label_index(above, ("расход",))
+    bal_at = _label_index(above, ("ост факт", "остаток"))
+
+    def pick(start: int | None, end: int | None) -> int | None:
+        for idx in som_idxs:
+            if start is not None and idx < start:
+                continue
+            if end is not None and idx >= end:
+                continue
+            if col_map.get(idx) in {"revenue", "expense"}:
+                return idx
+            return idx
+        return None
+
+    mapped = dict(col_map)
+    if rev_at is not None:
+        idx = pick(rev_at, exp_at)
+        if idx is not None:
+            mapped[idx] = "revenue"
+    elif "revenue" not in mapped.values() and som_idxs:
+        mapped[som_idxs[0]] = "revenue"
+    if exp_at is not None:
+        end = bal_at if bal_at is not None and (exp_at is None or bal_at > exp_at) else None
+        idx = pick(exp_at, end)
+        if idx is not None:
+            mapped[idx] = "expense"
+    elif "expense" not in mapped.values() and len(som_idxs) > 1:
+        mapped[som_idxs[1]] = "expense"
+    return mapped
+
+
 def parse_osv_grid(rows: list[list[Any]]) -> list[dict[str, Any]]:
     header_idx, col_map = find_osv_header_row(rows)
     if header_idx is None or not col_map:
         return []
+    col_map = apply_som_amount_columns(rows, header_idx, col_map)
     key_idx = _crm_key_index([str(c or "") for c in rows[header_idx]])
     out: list[dict[str, Any]] = []
     for line in rows[header_idx + 1 :]:

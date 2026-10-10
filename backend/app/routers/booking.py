@@ -2422,6 +2422,13 @@ async def create_appointment(
             paid = Decimal(str(slot_paid)).quantize(Decimal("0.01"))
             patient = body.patient_name.strip()
             service = service_title or "Онлайн-запись"
+            cashier = (current_user.full_name or current_user.email or "").strip() or None
+            manager_name = cashier
+            if resolved_manager_id is not None:
+                mgr = await db.get(User, int(resolved_manager_id))
+                if mgr is not None and (mgr.full_name or "").strip():
+                    manager_name = mgr.full_name.strip()
+            price = Decimal(str(slot_service_amount or 0)).quantize(Decimal("0.01"))
             await save_osv_movement(
                 db,
                 company_id=company_id,
@@ -2429,14 +2436,15 @@ async def create_appointment(
                 source="booking_payment",
                 txn_date=datetime.now(ZoneInfo(settings.booking_timezone)).date(),
                 revenue=paid,
+                partner_amount=price if price > 0 else None,
                 bank=bank_label(body.payment_method),
-                basis=f"{patient} — {service}"[:255],
+                basis=cashier,
                 counterparty=patient,
                 phone=stored_phone,
-                via_person=(current_user.full_name or current_user.email or "").strip() or None,
+                via_person=manager_name,
                 product_service=service,
                 article="Поступления",
-                detail_category=direction.name,
+                detail_category="Медицина",
                 brief_category="Выручка",
             )
         await write_audit_event(
@@ -3009,31 +3017,6 @@ async def patch_appointment_payment(
 
     target.paid_amount = new_paid
     paid_delta = (Decimal(str(new_paid)) - Decimal(str(prev_paid))).quantize(Decimal("0.01"))
-    if paid_delta > 0:
-        if body.paid_at is not None:
-            raw_paid = body.paid_at
-            txn_day = raw_paid.date() if isinstance(raw_paid, datetime) else raw_paid
-        else:
-            txn_day = datetime.now(ZoneInfo(settings.booking_timezone)).date()
-        patient = (target.patient_name or "").strip() or "Пациент"
-        service = (target.service_title or "").strip() or "Онлайн-запись"
-        await save_osv_movement(
-            db,
-            company_id=company_id,
-            external_key=booking_pay_key(int(target.id), prev_paid, new_paid),
-            source="booking_payment",
-            txn_date=txn_day,
-            revenue=paid_delta,
-            bank=bank_label(body.payment_method or target.payment_method),
-            basis=f"{patient} — {service}"[:255],
-            counterparty=patient,
-            phone=(target.patient_phone or "").strip() or None,
-            via_person=(current_user.full_name or current_user.email or "").strip() or None,
-            product_service=service,
-            article="Поступления",
-            detail_category=direction.name,
-            brief_category="Выручка",
-        )
     if body.paid_at is not None:
         raw = body.paid_at
         if isinstance(raw, datetime):
@@ -3065,6 +3048,39 @@ async def patch_appointment_payment(
                 lead.manager_id = mid
         if mid is not None:
             target.responsible_manager_id = mid
+    if paid_delta > 0:
+        if body.paid_at is not None:
+            raw_paid = body.paid_at
+            txn_day = raw_paid.date() if isinstance(raw_paid, datetime) else raw_paid
+        else:
+            txn_day = datetime.now(ZoneInfo(settings.booking_timezone)).date()
+        patient = (target.patient_name or "").strip() or "Пациент"
+        service = (target.service_title or "").strip() or "Онлайн-запись"
+        cashier = (current_user.full_name or current_user.email or "").strip() or None
+        manager_name = cashier
+        if target.responsible_manager_id is not None:
+            mgr = await db.get(User, int(target.responsible_manager_id))
+            if mgr is not None and (mgr.full_name or "").strip():
+                manager_name = mgr.full_name.strip()
+        price = Decimal(str(target.service_amount or 0)).quantize(Decimal("0.01"))
+        await save_osv_movement(
+            db,
+            company_id=company_id,
+            external_key=booking_pay_key(int(target.id), prev_paid, new_paid),
+            source="booking_payment",
+            txn_date=txn_day,
+            revenue=paid_delta,
+            partner_amount=price if price > 0 else None,
+            bank=bank_label(body.payment_method or target.payment_method),
+            basis=cashier,
+            counterparty=patient,
+            phone=(target.patient_phone or "").strip() or None,
+            via_person=manager_name,
+            product_service=service,
+            article="Поступления",
+            detail_category="Медицина",
+            brief_category="Выручка",
+        )
     await db.flush()
     await write_audit_event(
         db,
