@@ -1,7 +1,7 @@
 const SPOT_KEY = "metodi.leadReturn";
 const SECTION_KEY = "metodi.journalSection";
 
-export type JournalSection = "course15" | "course" | "protocols";
+export type JournalSection = "course15" | "course";
 
 export type LeadReturnSpot = {
   path: string;
@@ -11,7 +11,7 @@ export type LeadReturnSpot = {
 };
 
 function isJournalSection(value: unknown): value is JournalSection {
-  return value === "course15" || value === "course" || value === "protocols";
+  return value === "course15" || value === "course";
 }
 
 export function leadIdFromPath(pathname: string): number | null {

@@ -18,7 +18,6 @@ import { canAccessCuratorJournal } from "@/lib/clinicRoles";
 import { readJournalSection, rememberJournalSection, type JournalSection } from "@/lib/leadReturn";
 import { Course15QueuePanel } from "@/components/Course15QueuePanel";
 import { DateField } from "@/components/DateField";
-import { ProtocolQueuePanel } from "@/components/ProtocolQueuePanel";
 import { Pencil, Search, Trash2 } from "@/components/icons";
 
 type DiaryStatus = "pending" | "done" | "missed";
@@ -510,9 +509,7 @@ export function CuratorJournalPage() {
           <p className="mo-page-sub">
             {section === "course15"
               ? "Курс 15 — контроль следующего шага"
-              : section === "protocols"
-                ? "Протоколы — срок 30 дней и следующая продажа"
-                : "Курс — успеваемость потока"}
+              : "Курс — успеваемость потока"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -539,7 +536,6 @@ export function CuratorJournalPage() {
           [
             ["course15", "Курс 15"],
             ["course", "Курс"],
-            ["protocols", "Протоколы"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -559,7 +555,6 @@ export function CuratorJournalPage() {
       </div>
 
       {section === "course15" ? <Course15QueuePanel enabled={allowed} /> : null}
-      {section === "protocols" ? <ProtocolQueuePanel enabled={allowed} /> : null}
 
       {section === "course" ? (
         <>
