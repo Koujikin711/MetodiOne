@@ -7,7 +7,9 @@ from app.services.google_sheets_osv_push import (
     booking_pay_key,
     format_osv_amount,
     format_osv_date,
+    rows_appended_in_hand_period,
     sheet_row_values,
+    should_append_to_sheet,
 )
 
 
@@ -120,6 +122,20 @@ def test_parse_skips_rows_written_by_crm():
     parsed = parse_osv_grid(grid)
     assert len(parsed) == 1
     assert parsed[0]["expense"] == Decimal("50")
+
+
+def test_old_refunds_are_not_appended_under_october_rows():
+    assert should_append_to_sheet(date(2026, 9, 23)) is False
+    assert should_append_to_sheet(date(2026, 10, 5)) is False
+    assert should_append_to_sheet(date(2026, 10, 6)) is True
+    grid = [
+        ["", "", "", "ВЫРУЧКА", "РАСХОД"],
+        ["Дата", "Договор", "Этап", "SOM", "SOM", "Банк", "CRM ключ"],
+        ["5 окт.", "", "", "", "50,00", "ДС", ""],
+        ["23 сент.", "", "", "-300,00", "", "ДС", "booking_refund:3943:abc"],
+        ["6 окт.", "", "", "100,00", "", "ДС", "crm:booking_pay:1:0:10000"],
+    ]
+    assert rows_appended_in_hand_period(grid) == [3]
 
 
 def test_bank_and_date_labels():

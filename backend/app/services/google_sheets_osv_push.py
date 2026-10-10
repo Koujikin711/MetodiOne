@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from urllib.parse import quote
@@ -18,7 +18,7 @@ from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import FinanceCompanySettings, FinanceOsvRow
-from app.services.finance_osv_parse import find_osv_header_row, normalize_header
+from app.services.finance_osv_parse import find_osv_header_row, normalize_header, parse_date
 from app.services.google_sheets_finance_sync import _resolve_sheet_name
 from app.services.google_sheets_sync import (
     _GOOGLE_SHEETS_API,
@@ -31,6 +31,10 @@ from app.services.google_sheets_sync import (
 logger = logging.getLogger(__name__)
 
 _RU_MONTHS = ("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сент", "окт", "ноя", "дек")
+
+# Лист «ОСВ» руками заполнен по 5 октября 2026 включительно.
+# Более ранние возвраты и оплаты в конец не дописываем: они встают под свежими строками.
+HAND_TYPED_THROUGH = date(2026, 10, 5)
 
 _FIELD_HEADERS: dict[str, tuple[str, ...]] = {
     "txn_date": ("дата", "date"),
@@ -78,6 +82,37 @@ def money_cents(value: Decimal | int | float | str) -> int:
 
 def booking_pay_key(appointment_id: int, prev_paid: Decimal | int | float | str, new_paid: Decimal | int | float | str) -> str:
     return f"crm:booking_pay:{appointment_id}:{money_cents(prev_paid)}:{money_cents(new_paid)}"
+
+
+def should_append_to_sheet(txn_date: date | datetime | None) -> bool:
+    """В лист попадают только движения позже последнего дня, набранного руками."""
+    if isinstance(txn_date, datetime):
+        txn_date = txn_date.date()
+    if not isinstance(txn_date, date):
+        return False
+    return txn_date > HAND_TYPED_THROUGH
+
+
+def rows_appended_in_hand_period(grid: list[list[Any]]) -> list[int]:
+    """Номера строк листа, которые программа дописала за дни, уже набранные руками."""
+    header_idx, _col_map = find_osv_header_row(grid)
+    if header_idx is None:
+        return []
+    headers = [str(cell or "") for cell in grid[header_idx]]
+    key_idx = _header_index(headers, "external_key")
+    date_idx = _header_index(headers, "txn_date")
+    if key_idx is None:
+        return []
+    found: list[int] = []
+    for offset, line in enumerate(grid[header_idx + 1 :], start=header_idx + 1):
+        marker = str(line[key_idx] or "").strip() if key_idx < len(line) else ""
+        if not (marker.startswith("crm:") or marker.startswith("booking_refund:")):
+            continue
+        raw_date = line[date_idx] if date_idx is not None and date_idx < len(line) else ""
+        parsed = parse_date(raw_date)
+        if parsed is None or not should_append_to_sheet(parsed):
+            found.append(offset)
+    return found
 
 
 def bank_label(method: str | None) -> str:
@@ -335,13 +370,32 @@ async def push_pending_osv_rows(
     if only_key:
         query = query.where(FinanceOsvRow.external_key == only_key)
     rows = (await db.execute(query.order_by(FinanceOsvRow.txn_date, FinanceOsvRow.id))).scalars().all()
-    pending = [row for row in rows if row.external_key]
-    if not pending:
+    pending = [
+        row
+        for row in rows
+        if row.external_key and should_append_to_sheet(row.txn_date)
+    ]
+    if only_key is not None and not pending:
         return 0
 
     token = await _google_access_token()
     sheet_name = await _resolve_sheet_name(token, spreadsheet_id, settings.osv_sheet_name)
-    grid = await _sheet_rows(token, spreadsheet_id, _a1(sheet_name, "A1:ZZ20000"))
+    if only_key is None:
+        sheet_gid, grid = await _aligned_sheet_rows(token, spreadsheet_id, sheet_name)
+        drop_idxs = rows_appended_in_hand_period(grid)
+        if drop_idxs:
+            await _delete_row_indexes(token, spreadsheet_id, sheet_gid, drop_idxs)
+            logger.info(
+                "osv sheet removed hand-period rows company=%s n=%s",
+                company_id,
+                len(drop_idxs),
+            )
+            dropped = set(drop_idxs)
+            grid = [line for index, line in enumerate(grid) if index not in dropped]
+    else:
+        grid = await _sheet_rows(token, spreadsheet_id, _a1(sheet_name, "A1:ZZ20000"))
+    if not pending:
+        return 0
     header_idx, _col_map = find_osv_header_row(grid)
     if header_idx is None:
         raise RuntimeError(f"На листе «{sheet_name}» нет строки заголовков ОСВ")
@@ -385,6 +439,68 @@ async def push_pending_osv_rows(
         values,
     )
     return len(values)
+
+
+async def _aligned_sheet_rows(token: str, spreadsheet_id: str, sheet_name: str) -> tuple[int, list[list[str]]]:
+    """Строки листа с настоящими номерами: пустые строки не схлопываются."""
+    rng = _a1(sheet_name, "A1:AZ8000")
+    url = (
+        f"{_GOOGLE_SHEETS_API}/{quote(spreadsheet_id)}"
+        f"?ranges={quote(rng, safe='')}"
+        "&includeGridData=true"
+        "&fields=sheets(properties(sheetId,title),data(startRow,rowData(values(formattedValue))))"
+    )
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+    response.raise_for_status()
+    payload = response.json() if isinstance(response.json(), dict) else {}
+    for sheet in payload.get("sheets") or []:
+        props = sheet.get("properties") if isinstance(sheet, dict) else None
+        if not isinstance(props, dict) or str(props.get("title") or "").strip() != sheet_name:
+            continue
+        data_blocks = sheet.get("data") or []
+        block = data_blocks[0] if data_blocks else {}
+        start = int(block.get("startRow") or 0)
+        rows: list[list[str]] = [[] for _ in range(start)]
+        for raw_row in block.get("rowData") or []:
+            cells: list[str] = []
+            if isinstance(raw_row, dict):
+                for cell in raw_row.get("values") or []:
+                    text = cell.get("formattedValue") if isinstance(cell, dict) else ""
+                    cells.append(str(text or ""))
+            rows.append(cells)
+        return int(props["sheetId"]), rows
+    raise RuntimeError(f"Лист «{sheet_name}» не найден")
+
+
+async def _delete_row_indexes(token: str, spreadsheet_id: str, sheet_gid: int, indexes: list[int]) -> None:
+    requests = [
+        {
+            "deleteDimension": {
+                "range": {
+                    "sheetId": sheet_gid,
+                    "dimension": "ROWS",
+                    "startIndex": idx,
+                    "endIndex": idx + 1,
+                }
+            }
+        }
+        for idx in sorted(set(indexes), reverse=True)
+    ]
+    if not requests:
+        return
+    url = f"{_GOOGLE_SHEETS_API}/{quote(spreadsheet_id)}:batchUpdate"
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            json={"requests": requests},
+        )
+    if response.status_code == 403:
+        raise RuntimeError(
+            "Нет права записи в Google-таблицу. Откройте её сервисному аккаунту как редактору.",
+        )
+    response.raise_for_status()
 
 
 async def _write_values(token: str, spreadsheet_id: str, rng: str, values: list[list[str]]) -> None:
