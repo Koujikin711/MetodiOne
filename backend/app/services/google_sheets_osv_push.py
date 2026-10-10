@@ -14,7 +14,7 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import FinanceCompanySettings, FinanceOsvRow
@@ -50,8 +50,12 @@ _FIELD_HEADERS: dict[str, tuple[str, ...]] = {
     "external_key": ("crm ключ", "ключ crm"),
 }
 
+# В лист пишем только новые кассовые строки. Сводку «вся оплата визита одной строкой»
+# (crm:appt / crm:deal) не пишем: эти деньги в таблице уже набраны руками.
 _PUSH_KEY_SQL = or_(
-    FinanceOsvRow.external_key.like("crm:%"),
+    FinanceOsvRow.external_key.like("crm:booking_pay:%"),
+    FinanceOsvRow.external_key.like("crm:kpi_pay:%"),
+    FinanceOsvRow.external_key.like("crm:expense:%"),
     FinanceOsvRow.external_key.like("booking_refund:%"),
 )
 
@@ -215,6 +219,19 @@ def _clip(value: str | None, limit: int) -> str | None:
     if not text:
         return None
     return text[:limit]
+
+
+async def drop_bulk_crm_mirrors(db: AsyncSession, company_id: int) -> None:
+    """Убирает старую выгрузку «весь визит одной строкой», чтобы она не задвоила лист и отчёты."""
+    await db.execute(
+        delete(FinanceOsvRow).where(
+            FinanceOsvRow.company_id == company_id,
+            or_(
+                FinanceOsvRow.external_key.like("crm:appt:%"),
+                FinanceOsvRow.external_key.like("crm:deal:%"),
+            ),
+        )
+    )
 
 
 async def save_osv_movement(

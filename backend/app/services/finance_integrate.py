@@ -294,7 +294,9 @@ async def run_finance_integrate(db: AsyncSession, company_id: int) -> dict[str, 
             sheets_error = str(exc)
 
     gmail_imported, gmail_skipped, gmail_ok, gmail_email = await sync_gmail_to_osv(db, company_id)
-    crm_imported, crm_skipped = await sync_crm_to_osv(db, company_id)
+    from app.services.google_sheets_osv_push import drop_bulk_crm_mirrors
+
+    await drop_bulk_crm_mirrors(db, company_id)
     pushed_to_sheet = 0
     push_error: str | None = None
     if (settings.osv_sheet_url or "").strip():
@@ -326,12 +328,11 @@ async def run_finance_integrate(db: AsyncSession, company_id: int) -> dict[str, 
     else:
         msg_parts.append("Gmail: не подключён")
 
-    msg_parts.append(f"CRM: +{crm_imported}")
     if pushed_to_sheet:
         msg_parts.append(f"в таблицу дописано: {pushed_to_sheet}")
     elif push_error:
         msg_parts.append(f"запись в таблицу: {push_error}")
-    skipped = gmail_skipped + crm_skipped
+    skipped = gmail_skipped
     if skipped:
         msg_parts.append(f"дублей пропущено: {skipped}")
 
@@ -343,7 +344,7 @@ async def run_finance_integrate(db: AsyncSession, company_id: int) -> dict[str, 
         "osv_sheet_name": sheets_sheet or settings.osv_sheet_name,
         "imported_from_sheets": sheets_imported,
         "imported_from_gmail": gmail_imported,
-        "imported_from_crm": crm_imported,
+        "imported_from_crm": 0,
         "skipped_duplicates": skipped,
         "osv_rows_count": len(total),
         "message": ". ".join(msg_parts),

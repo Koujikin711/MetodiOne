@@ -122,8 +122,9 @@ async def run_finance_sheets_sync_tick(db: AsyncSession) -> int:
         except Exception as exc:
             logger.warning("finance sheets sync company=%s failed: %s", settings.company_id, exc)
         try:
-            from app.services.google_sheets_osv_push import push_pending_osv_rows
+            from app.services.google_sheets_osv_push import drop_bulk_crm_mirrors, push_pending_osv_rows
 
+            await drop_bulk_crm_mirrors(db, int(settings.company_id))
             pushed = await push_pending_osv_rows(db, int(settings.company_id))
             if pushed:
                 logger.info("osv sheet push company=%s rows=%s", settings.company_id, pushed)
