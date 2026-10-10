@@ -46,11 +46,11 @@ export function RopLayout() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-3 py-4 sm:px-6">
+    <div className="mo-page">
       <div className="mo-admin-page-head flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-[var(--mo-text)]">Кабинет РОП</h1>
-          <p className="mt-0.5 text-sm mo-muted">Отдел продаж: менеджеры, лиды, выручка</p>
+          <h1 className="mo-page-title">Кабинет РОП</h1>
+          <p className="mo-page-sub">Отдел продаж: менеджеры, лиды, выручка</p>
         </div>
         <label className="text-sm mo-muted">
           Воронка

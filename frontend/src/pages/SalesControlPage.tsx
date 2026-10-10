@@ -139,7 +139,7 @@ function ManagerCourses({ seeAll }: { seeAll: boolean }) {
         <p className="text-sm mo-muted">{seeAll ? "Курсов нет." : "Курсов, проданных вами, нет."}</p>
       ) : null}
       {rows.length > 0 ? (
-        <div className="overflow-x-auto">
+        <div className="mo-table-scroll rounded-2xl border border-[var(--mo-border)]">
           <table className="kpi-data-table min-w-[980px] text-sm">
             <thead>
               <tr>

@@ -112,7 +112,7 @@ export function RopDashboardPage() {
       {dashQuery.isLoading ? (
         <p className="text-sm mo-muted">Загрузка…</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[var(--mo-border)]">
+        <div className="mo-table-scroll rounded-xl border border-[var(--mo-border)]">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="bg-[var(--mo-surface)] text-xs mo-muted">
               <tr>

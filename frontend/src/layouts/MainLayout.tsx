@@ -291,7 +291,7 @@ export function MainLayout() {
               : "",
             location.pathname.startsWith("/chat") ||
             location.pathname.startsWith("/crm") ||
-            location.pathname.startsWith("/sales") ||
+            (location.pathname === "/sales" || location.pathname.startsWith("/sales/")) ||
             location.pathname.startsWith("/messenger") ||
             location.pathname.startsWith("/tasks") ||
             location.pathname.startsWith("/analytics") ||
@@ -306,7 +306,7 @@ export function MainLayout() {
                     ? "lg:px-6"
                     : location.pathname.startsWith("/crm")
                       ? "sm:!px-6 lg:!px-8 sm:!py-2 sm:!pb-2 lg:!py-2 lg:!pb-2 max-lg:!h-[100dvh] max-lg:!max-h-[100dvh] max-lg:!px-3"
-                      : location.pathname.startsWith("/sales")
+                      : (location.pathname === "/sales" || location.pathname.startsWith("/sales/"))
                         ? "sm:!px-3 lg:!px-4 sm:!py-2 sm:!pb-2 lg:!py-2 lg:!pb-2"
                         : "",
                 ]
@@ -330,7 +330,7 @@ export function MainLayout() {
             className={
               location.pathname.startsWith("/chat") ||
               location.pathname.startsWith("/crm") ||
-              location.pathname.startsWith("/sales") ||
+              (location.pathname === "/sales" || location.pathname.startsWith("/sales/")) ||
               location.pathname.startsWith("/messenger") ||
               location.pathname.startsWith("/tasks") ||
               location.pathname.startsWith("/analytics") ||
@@ -345,7 +345,7 @@ export function MainLayout() {
                     location.pathname.startsWith("/crm") || location.pathname.startsWith("/extra-services")
                       ? "min-h-0 flex-1 overflow-hidden [&>*]:min-h-0 [&>*]:flex-1"
                       : "",
-                    location.pathname.startsWith("/sales") ? "min-h-0 flex-1 [&>*]:min-h-0 [&>*]:flex-1" : "",
+                    (location.pathname === "/sales" || location.pathname.startsWith("/sales/")) ? "min-h-0 flex-1 [&>*]:min-h-0 [&>*]:flex-1" : "",
                   ]
                     .filter(Boolean)
                     .join(" ")

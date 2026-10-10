@@ -218,7 +218,7 @@ export function MarketingPage() {
   }
 
   return (
-    <div className="marketing-page mx-auto flex w-full max-w-6xl flex-col gap-3 sm:gap-4">
+    <div className="marketing-page mo-page">
       <PageHeader
         title="Маркетинг"
         description="Два IG-аккаунта: Ganjina Zamiri и MetodiClinic"

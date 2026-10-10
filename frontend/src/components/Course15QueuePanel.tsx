@@ -176,7 +176,7 @@ export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
       ) : null}
 
       {rows.length > 0 ? (
-        <div className="overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]">
+        <div className="mo-table-scroll rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]">
           <table className="w-full min-w-[960px] text-left text-sm">
             <thead>
               <tr className="border-b border-[var(--mo-border)] text-[11px] uppercase tracking-wide mo-muted">

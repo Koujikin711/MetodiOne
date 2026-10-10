@@ -503,7 +503,7 @@ export function CuratorJournalPage() {
   const flow = monthQuery.data?.flow || flowsQuery.data?.find((f) => f.id === selectedFlowId);
 
   return (
-    <div className="curator-journal-page mx-auto flex w-full max-w-[1600px] flex-col gap-4">
+    <div className="curator-journal-page mo-page">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="mo-page-title">Журнал куратора</h1>

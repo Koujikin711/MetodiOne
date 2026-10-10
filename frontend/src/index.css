@@ -3700,6 +3700,21 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   @apply mx-auto w-full max-w-none space-y-5 pb-10;
 }
 
+/* Широкие таблицы: вверх-вниз и влево-вправо в одном блоке. */
+.mo-table-scroll {
+  overflow: auto;
+  max-height: min(70dvh, calc(100dvh - 14rem));
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mo-table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--mo-surface);
+}
+
 /* Страницы на всю оставшуюся ширину/высоту shell (чат, аналитика, …) */
 .mo-fill-page {
   display: flex;
