@@ -201,6 +201,47 @@ def crm_row_spans(grid: list[list[Any]]) -> list[tuple[int, int]]:
     return spans
 
 
+def october_sort_bounds(grid: list[list[Any]], header_idx: int, date_idx: int) -> tuple[int, int] | None:
+    """Срез с первой октябрьской строки до последней заполненной. Более ранние месяцы не входят."""
+    start: int | None = None
+    last = header_idx
+    for index, line in enumerate(grid):
+        if index <= header_idx:
+            continue
+        if any(str(cell or "").strip() for cell in line):
+            last = index
+        raw = line[date_idx] if date_idx < len(line) else ""
+        parsed = parse_date(raw)
+        if start is None and parsed is not None and parsed >= SHEET_REVENUE_FROM:
+            start = index
+    if start is None or last < start:
+        return None
+    return start, last + 1
+
+
+def chronological_sort_keys(
+    grid: list[list[Any]],
+    start: int,
+    end: int,
+    date_idx: int,
+) -> list[int] | None:
+    """Ключи порядка для строк [start, end). None, если даты уже идут по календарю."""
+    last_ord = 0
+    keys: list[int] = []
+    dated: list[date] = []
+    for index in range(start, end):
+        line = grid[index] if index < len(grid) else []
+        raw = line[date_idx] if date_idx < len(line) else ""
+        parsed = parse_date(raw)
+        if parsed is not None:
+            last_ord = parsed.toordinal()
+            dated.append(parsed)
+        keys.append(last_ord * 1_000_000 + index)
+    if len(dated) < 2 or dated == sorted(dated):
+        return None
+    return keys
+
+
 def rows_appended_in_hand_period(grid: list[list[Any]]) -> list[int]:
     """Номера строк листа, которые программа дописала за дни, уже набранные руками."""
     header_idx, _col_map = find_osv_header_row(grid)
@@ -720,6 +761,7 @@ async def push_pending_osv_rows(
     if not pending:
         if sheet_gid is not None:
             await _paint_row_spans(token, spreadsheet_id, sheet_gid, crm_row_spans(grid))
+            await _sort_sheet_from_october(token, spreadsheet_id, sheet_gid, sheet_name, grid)
         return 0
     header_idx, _col_map = find_osv_header_row(grid)
     if header_idx is None:
@@ -747,6 +789,7 @@ async def push_pending_osv_rows(
     if not missing:
         if sheet_gid is not None:
             await _paint_row_spans(token, spreadsheet_id, sheet_gid, crm_row_spans(grid))
+            await _sort_sheet_from_october(token, spreadsheet_id, sheet_gid, sheet_name, grid)
         return 0
 
     last = header_idx
@@ -769,7 +812,93 @@ async def push_pending_osv_rows(
         sheet_gid = await _sheet_gid(token, spreadsheet_id, sheet_name)
     written = (start - 1, start - 1 + len(values))
     await _paint_row_spans(token, spreadsheet_id, sheet_gid, [*crm_row_spans(grid), written])
+    if only_key is None:
+        insert_at = start - 1
+        while len(grid) < insert_at:
+            grid.append([])
+        for offset, row in enumerate(values):
+            idx = insert_at + offset
+            if idx < len(grid):
+                grid[idx] = row
+            else:
+                grid.append(row)
+        await _sort_sheet_from_october(token, spreadsheet_id, sheet_gid, sheet_name, grid)
     return len(values)
+
+
+_SORT_KEY_COL = 52
+
+
+async def _sort_sheet_from_october(
+    token: str,
+    spreadsheet_id: str,
+    sheet_gid: int,
+    sheet_name: str,
+    grid: list[list[Any]],
+) -> None:
+    """Ставит октябрь и следующие дни по календарю. Январь–сентябрь не двигает."""
+    header_idx, _col_map = find_osv_header_row(grid)
+    if header_idx is None:
+        return
+    headers = [str(cell or "") for cell in grid[header_idx]]
+    date_idx = _header_index(headers, "txn_date")
+    if date_idx is None:
+        return
+    bounds = october_sort_bounds(grid, header_idx, date_idx)
+    if bounds is None:
+        return
+    start, end = bounds
+    keys = chronological_sort_keys(grid, start, end, date_idx)
+    if keys is None:
+        return
+    column = _col_letter(_SORT_KEY_COL)
+    await _write_values(
+        token,
+        spreadsheet_id,
+        _a1(sheet_name, f"{column}{start + 1}:{column}{end}"),
+        [[key] for key in keys],
+    )
+    url = f"{_GOOGLE_SHEETS_API}/{quote(spreadsheet_id)}:batchUpdate"
+    request = {
+        "requests": [
+            {
+                "sortRange": {
+                    "range": {
+                        "sheetId": sheet_gid,
+                        "startRowIndex": start,
+                        "endRowIndex": end,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": _SORT_KEY_COL + 1,
+                    },
+                    "sortSpecs": [
+                        {"dimensionIndex": _SORT_KEY_COL, "sortOrder": "ASCENDING"},
+                    ],
+                }
+            }
+        ]
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            json=request,
+        )
+    if response.status_code == 403:
+        raise RuntimeError(
+            "Нет права записи в Google-таблицу. Откройте её сервисному аккаунту как редактору.",
+        )
+    response.raise_for_status()
+    clear_url = (
+        f"{_GOOGLE_SHEETS_API}/{quote(spreadsheet_id)}/values/"
+        f"{quote(_a1(sheet_name, f'{column}{start + 1}:{column}{end}'), safe='')}:clear"
+    )
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        cleared = await client.post(clear_url, headers={"Authorization": f"Bearer {token}"})
+    if cleared.status_code == 403:
+        raise RuntimeError(
+            "Нет права записи в Google-таблицу. Откройте её сервисному аккаунту как редактору.",
+        )
+    cleared.raise_for_status()
 
 
 async def _apply_recorded_dates(

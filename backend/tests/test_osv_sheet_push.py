@@ -7,7 +7,9 @@ from app.services.google_sheets_osv_push import (
     bank_label,
     booking_pay_key,
     cash_receipt_day,
+    chronological_sort_keys,
     crm_row_spans,
+    october_sort_bounds,
     format_osv_amount,
     is_sheet_sync_day,
     format_osv_date,
@@ -184,6 +186,36 @@ def test_sheet_date_is_when_the_record_was_saved_not_the_visit_day():
     assert is_sheet_sync_day(september) is False
     assert is_sheet_sync_day(date(2026, 11, 8)) is True
     assert is_sheet_sync_day(date(2027, 1, 3)) is True
+
+
+def test_october_block_is_ordered_by_calendar_and_september_stays():
+    grid = [
+        ["", "", "", "ВЫРУЧКА", "РАСХОД"],
+        ["Дата", "Договор", "Этап", "SOM", "SOM", "CRM ключ"],
+        ["25 сент.", "", "", "", "50,00", ""],
+        ["5 окт.", "", "", "", "900,00", ""],
+        ["1 окт.", "150,00", "", "150,00", "", "crm:booking_pay:1:0:15000"],
+        ["10 окт.", "200,00", "", "200,00", "", "crm:booking_pay:2:0:20000"],
+        ["2 окт.", "300,00", "", "300,00", "", "crm:booking_pay:3:0:30000"],
+    ]
+    assert october_sort_bounds(grid, header_idx=1, date_idx=0) == (3, 7)
+    keys = chronological_sort_keys(grid, 3, 7, 0)
+    assert keys is not None
+    order = sorted(range(3, 7), key=lambda index: keys[index - 3])
+    assert [grid[index][0] for index in order] == ["1 окт.", "2 окт.", "5 окт.", "10 окт."]
+    assert grid[2][0] == "25 сент."
+
+
+def test_already_sequential_dates_are_not_resorted():
+    grid = [
+        ["Дата"],
+        ["25 сент."],
+        ["1 окт."],
+        ["2 окт."],
+        ["5 окт."],
+        ["10 окт."],
+    ]
+    assert chronological_sort_keys(grid, 2, 6, 0) is None
 
 
 def test_crm_rows_share_one_color_span():
