@@ -198,6 +198,14 @@ def test_newest_protocol_sorts_first():
     assert [r["patient_name"] for r in rows] == ["Новый", "Старый", "Пустой"]
 
 
+def test_inactive_manager_protocols_go_round_robin_to_active():
+    from app.services.protocol_reassign import assign_round_robin
+
+    plan = assign_round_robin([30, 10, 20], [2, 5])
+    assert plan == {10: 2, 20: 5, 30: 2}
+    assert assign_round_robin([1], []) == {}
+
+
 def test_manager_protocol_queue_keeps_only_own_patients():
     report = {
         "rows": [

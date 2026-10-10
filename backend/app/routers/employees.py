@@ -1253,6 +1253,10 @@ async def terminate_employee(
 
     target.is_active = False
     target.invite_token = None
+    if target.role == UserRole.manager:
+        from app.services.protocol_reassign import reassign_protocols_from_inactive_managers
+
+        await reassign_protocols_from_inactive_managers(db)
     await db.execute(
         delete(UserPipelineAssignment).where(
             UserPipelineAssignment.user_id == target.id,
