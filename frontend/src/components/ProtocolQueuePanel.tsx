@@ -38,6 +38,13 @@ type ProtocolQueue = {
   rows: ProtocolRow[];
 };
 
+function protocolStateColor(state: string): string {
+  if (state === "active") return "text-emerald-400";
+  if (state === "ending_soon") return "text-amber-300";
+  if (state === "ended_waiting_next") return "text-red-400";
+  return "";
+}
+
 function fmtDt(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -176,21 +183,17 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
 
       {rows.length > 0 ? (
         <div className="mo-table-scroll rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]">
-          <table className="w-full min-w-[1100px] text-left text-sm">
+          <table className="w-full min-w-[860px] text-left text-sm">
             <thead>
               <tr className="border-b border-[var(--mo-border)] text-[11px] uppercase tracking-wide mo-muted">
                 <th className="px-3 py-2 font-medium">Пациент</th>
                 <th className="px-3 py-2 font-medium">Протокол</th>
                 <th className="px-3 py-2 font-medium">Статус</th>
                 <th className="px-3 py-2 font-medium">Начало</th>
-                <th className="px-3 py-2 font-medium">Ожид. конец</th>
                 <th className="px-3 py-2 font-medium">Осталось</th>
                 <th className="px-3 py-2 font-medium">Предыдущие</th>
                 <th className="px-3 py-2 font-medium">Менеджер</th>
                 <th className="px-3 py-2 font-medium">Посл. контакт</th>
-                <th className="px-3 py-2 font-medium">След. контакт</th>
-                <th className="px-3 py-2 font-medium">След. продажа</th>
-                <th className="px-3 py-2 font-medium">Внимание</th>
                 <th className="px-3 py-2 font-medium">Админу</th>
               </tr>
             </thead>
@@ -199,10 +202,7 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
                 <tr
                   key={`${r.lead_id}-${r.sequence_no}-${r.purchase_id ?? ""}`}
                   data-lead-row={r.lead_id ?? undefined}
-                  className={[
-                    "border-b border-[var(--mo-border)]/50",
-                    r.requires_attention ? "bg-amber-500/5" : "",
-                  ].join(" ")}
+                  className="border-b border-[var(--mo-border)]/50"
                 >
                   <td className="px-3 py-2.5">
                     {r.lead_id ? (
@@ -224,26 +224,16 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
                     #{r.sequence_no}
                     <span className="mo-muted"> / {r.protocols_count}</span>
                   </td>
-                  <td className="px-3 py-2.5 text-xs font-medium">{r.state_label}</td>
+                  <td className={["px-3 py-2.5 text-xs font-medium", protocolStateColor(r.state)].filter(Boolean).join(" ")}>
+                    {r.state_label}
+                  </td>
                   <td className="px-3 py-2.5 tabular-nums text-xs">{fmtDt(r.started_at)}</td>
-                  <td className="px-3 py-2.5 tabular-nums text-xs">{fmtDt(r.expected_end_at)}</td>
                   <td className="px-3 py-2.5 tabular-nums text-xs">
                     {r.days_remaining < 0 ? `${r.days_remaining} дн.` : `${r.days_remaining} дн.`}
                   </td>
                   <td className="px-3 py-2.5 text-xs tabular-nums">{r.previous_protocols_label}</td>
                   <td className="px-3 py-2.5 text-xs">{r.manager_name || "—"}</td>
                   <td className="px-3 py-2.5 tabular-nums text-xs">{fmtDt(r.last_contact_at)}</td>
-                  <td className="px-3 py-2.5 tabular-nums text-xs">{fmtDt(r.next_contact_at)}</td>
-                  <td className="px-3 py-2.5 text-xs">{r.next_sale_status}</td>
-                  <td className="px-3 py-2.5 text-xs">
-                    {r.requires_attention ? (
-                      <span className="text-amber-700 dark:text-amber-300" title={r.attention_reason || ""}>
-                        да
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
                   <td className="px-3 py-2.5 text-xs">
                     <select
                       className="mo-input min-w-[9.5rem] py-1 text-xs"
