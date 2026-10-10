@@ -122,6 +122,57 @@ def should_append_to_sheet(
     return day >= SHEET_REVENUE_FROM
 
 
+# Цвета строк листа: дата оранжевая, договор и этап жёлтые, выручка голубая,
+# расход и остальные поля зелёные, остаток персиковый. «Основание» без заливки.
+_ROW_FILL_HEX: dict[int, str] = {
+    0: "F1C232",
+    1: "FFF2CC",
+    2: "FFF2CC",
+    3: "D0E0E3",
+    4: "CCFFCC",
+    5: "CCFFCC",
+    7: "CCFFCC",
+    8: "CCFFCC",
+    9: "CCFFCC",
+    10: "CCFFCC",
+    11: "CCFFCC",
+    12: "CCFFCC",
+    13: "CCFFCC",
+    14: "F7CAAC",
+}
+
+
+def hex_to_sheet_color(value: str) -> dict[str, float]:
+    raw = value.removeprefix("#")
+    if len(raw) == 8:
+        raw = raw[2:]
+    red = int(raw[0:2], 16) / 255
+    green = int(raw[2:4], 16) / 255
+    blue = int(raw[4:6], 16) / 255
+    return {"red": red, "green": green, "blue": blue}
+
+
+def crm_row_spans(grid: list[list[Any]]) -> list[tuple[int, int]]:
+    """Сплошные диапазоны строк, которые дописала программа. Конец не входит в диапазон."""
+    indexes = [
+        index
+        for index, line in enumerate(grid)
+        if any(str(cell or "").strip().startswith(("crm:", "booking_refund:")) for cell in line)
+    ]
+    if not indexes:
+        return []
+    spans: list[tuple[int, int]] = []
+    start = previous = indexes[0]
+    for index in indexes[1:]:
+        if index == previous + 1:
+            previous = index
+            continue
+        spans.append((start, previous + 1))
+        start = previous = index
+    spans.append((start, previous + 1))
+    return spans
+
+
 def rows_appended_in_hand_period(grid: list[list[Any]]) -> list[int]:
     """Номера строк листа, которые программа дописала за дни, уже набранные руками."""
     header_idx, _col_map = find_osv_header_row(grid)
@@ -567,6 +618,7 @@ async def push_pending_osv_rows(
 
     token = await _google_access_token()
     sheet_name = await _resolve_sheet_name(token, spreadsheet_id, settings.osv_sheet_name)
+    sheet_gid: int | None = None
     if only_key is None:
         sheet_gid, grid = await _aligned_sheet_rows(token, spreadsheet_id, sheet_name)
         drop_idxs = rows_appended_in_hand_period(grid)
@@ -582,6 +634,8 @@ async def push_pending_osv_rows(
     else:
         grid = await _sheet_rows(token, spreadsheet_id, _a1(sheet_name, "A1:ZZ20000"))
     if not pending:
+        if sheet_gid is not None:
+            await _paint_row_spans(token, spreadsheet_id, sheet_gid, crm_row_spans(grid))
         return 0
     header_idx, _col_map = find_osv_header_row(grid)
     if header_idx is None:
@@ -607,6 +661,8 @@ async def push_pending_osv_rows(
 
     missing = [row for row in pending if str(row.external_key) not in present]
     if not missing:
+        if sheet_gid is not None:
+            await _paint_row_spans(token, spreadsheet_id, sheet_gid, crm_row_spans(grid))
         return 0
 
     last = header_idx
@@ -625,7 +681,66 @@ async def push_pending_osv_rows(
         _a1(sheet_name, f"A{start}"),
         values,
     )
+    if sheet_gid is None:
+        sheet_gid = await _sheet_gid(token, spreadsheet_id, sheet_name)
+    written = (start - 1, start - 1 + len(values))
+    await _paint_row_spans(token, spreadsheet_id, sheet_gid, [*crm_row_spans(grid), written])
     return len(values)
+
+
+async def _sheet_gid(token: str, spreadsheet_id: str, title: str) -> int:
+    url = f"{_GOOGLE_SHEETS_API}/{quote(spreadsheet_id)}/?fields=sheets(properties(sheetId,title))"
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        response = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+    response.raise_for_status()
+    payload = response.json() if isinstance(response.json(), dict) else {}
+    for sheet in payload.get("sheets") or []:
+        props = sheet.get("properties") if isinstance(sheet, dict) else None
+        if isinstance(props, dict) and str(props.get("title") or "").strip() == title:
+            return int(props["sheetId"])
+    raise RuntimeError(f"Лист «{title}» не найден")
+
+
+async def _paint_row_spans(
+    token: str,
+    spreadsheet_id: str,
+    sheet_gid: int,
+    spans: list[tuple[int, int]],
+) -> None:
+    requests = []
+    for start, end in spans:
+        if end <= start:
+            continue
+        for column, hex_color in _ROW_FILL_HEX.items():
+            requests.append(
+                {
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": sheet_gid,
+                            "startRowIndex": start,
+                            "endRowIndex": end,
+                            "startColumnIndex": column,
+                            "endColumnIndex": column + 1,
+                        },
+                        "cell": {"userEnteredFormat": {"backgroundColor": hex_to_sheet_color(hex_color)}},
+                        "fields": "userEnteredFormat.backgroundColor",
+                    }
+                }
+            )
+    if not requests:
+        return
+    url = f"{_GOOGLE_SHEETS_API}/{quote(spreadsheet_id)}:batchUpdate"
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            json={"requests": requests},
+        )
+    if response.status_code == 403:
+        raise RuntimeError(
+            "Нет права записи в Google-таблицу. Откройте её сервисному аккаунту как редактору.",
+        )
+    response.raise_for_status()
 
 
 async def _aligned_sheet_rows(token: str, spreadsheet_id: str, sheet_name: str) -> tuple[int, list[list[str]]]:

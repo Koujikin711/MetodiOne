@@ -5,8 +5,10 @@ from app.services.finance_osv_parse import parse_osv_grid
 from app.services.google_sheets_osv_push import (
     bank_label,
     booking_pay_key,
+    crm_row_spans,
     format_osv_amount,
     format_osv_date,
+    hex_to_sheet_color,
     rows_appended_in_hand_period,
     sheet_row_values,
     should_append_to_sheet,
@@ -164,6 +166,20 @@ def test_old_refunds_are_not_appended_under_october_rows():
         ["6 окт.", "", "", "100,00", "", "ДС", "crm:booking_pay:1:0:10000"],
     ]
     assert rows_appended_in_hand_period(grid) == [3]
+
+
+def test_crm_rows_share_one_color_span():
+    grid = [
+        ["Дата", "CRM ключ"],
+        ["5 окт.", ""],
+        ["1 окт.", "crm:booking_pay:1:0:100"],
+        ["1 окт.", "crm:booking_pay:2:0:200"],
+        ["2 окт.", ""],
+        ["2 окт.", "crm:kpi_pay:3"],
+    ]
+    assert crm_row_spans(grid) == [(2, 4), (5, 6)]
+    color = hex_to_sheet_color("F1C232")
+    assert color["red"] > color["blue"]
 
 
 def test_bank_and_date_labels():
