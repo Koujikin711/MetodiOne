@@ -319,7 +319,7 @@ async def create_integration(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
                     "Не удалось определить адрес API для автоподключения WhatsApp. "
-                    "На сервере задайте public_api_base_url (например https://ваш-проект.amvera.io) "
+                    "На сервере задайте public_api_base_url (например https://ваш-проект.mia0.amvera.tech) "
                     "или откройте CRM с того же домена, что и бэкенд."
                 ),
             )
@@ -513,7 +513,7 @@ async def _green_webhook_apply(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
                 "Задайте PUBLIC_API_BASE_URL на сервере Amvera "
-                "(например https://metodi-one-koujikin.amvera.io) и пересохраните интеграцию."
+                "(например https://metodi-one-koujikin.mia0.amvera.tech) и пересохраните интеграцию."
             ),
         )
     webhook_url = f"{pub.rstrip('/')}/api/integrations/webhook/{row.id}"
