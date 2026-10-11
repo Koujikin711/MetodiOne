@@ -1,9 +1,11 @@
+---
 meta:
   environment: docker
   toolchain:
     name: docker
-
+    version: latest
+build: {}
 run:
   containerPort: 8000
-  # Постоянное хранилище: медиа чата (голосовые, фото) в /app/data/chat_media
+  servicePort: 80
   persistenceMount: /app/data
