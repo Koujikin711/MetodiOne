@@ -50,6 +50,8 @@ type BuildParams = {
   showExtraServices?: boolean;
   /** Журнал куратора для admin (в manager-like nav) */
   showCuratorJournal?: boolean;
+  /** Только роль manager: пункт «Сотрудники» не показываем. */
+  hideEmployees?: boolean;
   showNavForFeature: (feature: string) => boolean;
   navLex: {
     navKanban: string;
@@ -126,6 +128,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     chatStagesEnabled: _chatStagesEnabled = true,
     showExtraServices = false,
     showCuratorJournal = false,
+    hideEmployees = false,
     showNavForFeature,
     navLex,
   } = params;
@@ -580,7 +583,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     if ((isChiefExpert || alsoExpert) && bookingEnabled && showNavForFeature("reports")) {
       items.push(expertWindowNavItem());
     }
-    if (showNavForFeature("employees")) {
+    if (showNavForFeature("employees") && !hideEmployees) {
       items.push({
         id: "employees",
         to: "/employees",

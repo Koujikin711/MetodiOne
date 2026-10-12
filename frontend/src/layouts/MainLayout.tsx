@@ -254,6 +254,7 @@ export function MainLayout() {
               chatStagesEnabled={chatStagesEnabled}
               showExtraServices={showExtraServices}
               showCuratorJournal={role === "admin"}
+              hideEmployees={role === "manager"}
               showNavForFeature={showNavForFeature}
             />
           </nav>

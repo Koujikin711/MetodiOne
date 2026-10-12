@@ -48,6 +48,9 @@ def warn_stage(deadline: datetime, now: datetime) -> str | None:
     """30 и 15 минут до часа, затем сам час. None — предупреждать ещё рано."""
     local_now = _local(now)
     local_deadline = _local(deadline)
+    # Вчерашние и более старые не держат полосу на каждой странице.
+    if local_deadline.date() < local_now.date():
+        return None
     if local_now >= local_deadline:
         return "due"
     left = local_deadline - local_now

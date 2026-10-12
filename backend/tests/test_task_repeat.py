@@ -34,6 +34,8 @@ def test_warning_stages_are_30_then_15_then_the_hour() -> None:
     assert warn_stage(deadline, deadline - timedelta(minutes=15)) == "15"
     assert warn_stage(deadline, deadline - timedelta(minutes=1)) == "15"
     assert warn_stage(deadline, deadline) == "due"
+    assert warn_stage(deadline, deadline + timedelta(hours=3)) == "due"
+    assert warn_stage(deadline, deadline + timedelta(days=1)) is None
 
 
 def test_manager_chat_text_names_the_task_and_phone() -> None:

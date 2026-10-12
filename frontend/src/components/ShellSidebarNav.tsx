@@ -43,6 +43,7 @@ type Props = {
   chatStagesEnabled?: boolean;
   showExtraServices?: boolean;
   showCuratorJournal?: boolean;
+  hideEmployees?: boolean;
   showNavForFeature: (feature: string) => boolean;
 };
 
@@ -69,6 +70,7 @@ export function ShellSidebarNav({
   chatStagesEnabled = true,
   showExtraServices = false,
   showCuratorJournal = false,
+  hideEmployees = false,
   showNavForFeature,
 }: Props) {
   const allItems = useMemo(
@@ -94,6 +96,7 @@ export function ShellSidebarNav({
         chatStagesEnabled,
         showExtraServices,
         showCuratorJournal,
+        hideEmployees,
         showNavForFeature,
         navLex: appLexicon,
       }),
@@ -118,6 +121,7 @@ export function ShellSidebarNav({
       chatStagesEnabled,
       showExtraServices,
       showCuratorJournal,
+      hideEmployees,
       showNavForFeature,
     ],
   );
