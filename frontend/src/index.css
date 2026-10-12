@@ -5904,6 +5904,11 @@ fieldset.extra-services-field {
   background: rgba(245, 158, 11, 0.12);
   color: #92400e;
 }
+.task-status--missed {
+  border-color: rgba(244, 63, 94, 0.45);
+  background: rgba(244, 63, 94, 0.12);
+  color: #9f1239;
+}
 :root[data-theme="dark"] .task-status--done {
   color: #6ee7b7;
 }
@@ -5912,6 +5917,9 @@ fieldset.extra-services-field {
 }
 :root[data-theme="dark"] .task-status--pending {
   color: #fcd34d;
+}
+:root[data-theme="dark"] .task-status--missed {
+  color: #fda4af;
 }
 
 /* ── KPI ── */

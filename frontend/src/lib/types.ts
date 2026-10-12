@@ -259,7 +259,7 @@ export interface SystemAuditEvent {
   created_at: string;
 }
 
-export type TaskStatus = "pending" | "in_progress" | "done" | "cancelled";
+export type TaskStatus = "pending" | "in_progress" | "done" | "cancelled" | "missed";
 
 export interface Task {
   id: number;
@@ -274,11 +274,16 @@ export interface Task {
   created_by_role?: UserRole | null;
   description: string | null;
   related_lead_id?: number | null;
+  client_name?: string | null;
+  client_phone?: string | null;
   review_score?: number | null;
   review_comment?: string | null;
   review_by_user_id?: number | null;
   review_at?: string | null;
   is_locked?: boolean;
+  repeats_daily?: boolean;
+  completion_note?: string | null;
+  warn_stage?: "30" | "15" | "due" | null;
 }
 
 export interface TaskAssignee {

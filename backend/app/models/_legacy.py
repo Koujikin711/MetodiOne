@@ -29,6 +29,7 @@ class TaskStatus(str, enum.Enum):
     in_progress = "in_progress"
     done = "done"
     cancelled = "cancelled"
+    missed = "missed"
 
 
 def _utc_now() -> datetime:
@@ -833,6 +834,8 @@ class Task(Base):
     assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Короткая пометка исполнителя, когда задачу отмечают выполненной.
+    completion_note: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # Оценка выполнения задачи по 10-балльной шкале, выставляет постановщик после закрытия.
     review_score: Mapped[int | None] = mapped_column(nullable=True)
     review_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -842,6 +845,8 @@ class Task(Base):
         ForeignKey("leads.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Задача эксперта повторяется каждый день в тот же местный час.
+    repeats_daily: Mapped[bool] = mapped_column(default=False)
 
     assignee: Mapped["User | None"] = relationship(back_populates="tasks", foreign_keys=[assigned_to])
     created_by: Mapped["User | None"] = relationship(foreign_keys=[created_by_user_id])

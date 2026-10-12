@@ -54,6 +54,8 @@ from app.database_migrate import (
     ensure_debtor_collection_notes,
     ensure_user_also_curator,
     ensure_user_also_expert,
+    ensure_task_repeats_daily,
+    ensure_task_status_missed,
     ensure_user_pay_profile,
     ensure_booking_referrer,
     ensure_payroll_adjustments,
@@ -182,6 +184,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_user_pay_profile(conn, db_url)
                 await ensure_user_also_curator(conn, db_url)
                 await ensure_user_also_expert(conn, db_url)
+                await ensure_task_repeats_daily(conn, db_url)
                 await ensure_booking_referrer(conn, db_url)
                 await ensure_payroll_adjustments(conn, db_url)
                 await ensure_employee_name_terms(conn, db_url)
@@ -588,6 +591,7 @@ async def lifespan(_: FastAPI):
         # Отдельная транзакция: если длинная миграция откатится, колонка всё равно останется.
         async with engine.begin() as conn:
             await ensure_user_also_expert(conn, effective_database_url())
+            await ensure_task_repeats_daily(conn, effective_database_url())
     except Exception:
         logger.exception("ensure also_expert column failed")
     try:
@@ -598,6 +602,8 @@ async def lifespan(_: FastAPI):
     try:
         # enum-миграции PostgreSQL нельзя выполнять внутри begin-транзакции.
         # Для надёжности запускаем каждую миграцию на отдельном "свежем" connection.
+        async with engine.connect() as conn:
+            await ensure_task_status_missed(conn, settings.database_url)
         async with engine.connect() as conn:
             await ensure_owner_role_migration(conn, settings.database_url)
         async with engine.connect() as conn:
@@ -612,6 +618,7 @@ async def lifespan(_: FastAPI):
             await ensure_user_pay_profile(conn, settings.database_url)
             await ensure_user_also_curator(conn, settings.database_url)
             await ensure_user_also_expert(conn, settings.database_url)
+            await ensure_task_repeats_daily(conn, settings.database_url)
             await ensure_booking_referrer(conn, settings.database_url)
             await ensure_payroll_adjustments(conn, settings.database_url)
             await ensure_employee_name_terms(conn, settings.database_url)

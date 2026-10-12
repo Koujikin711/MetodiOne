@@ -1862,6 +1862,48 @@ async def ensure_user_also_curator(conn: AsyncConnection, database_url: str) -> 
     )
 
 
+async def ensure_task_status_missed(conn: AsyncConnection, database_url: str) -> None:
+    """Статус «не провёл»: в PostgreSQL это новое значение enum task_status."""
+    low = database_url.lower()
+    if "postgresql" not in low and "asyncpg" not in low:
+        return
+    if conn.in_transaction():
+        return
+    ac = conn.execution_options(isolation_level="AUTOCOMMIT")
+    if hasattr(ac, "__await__"):
+        ac = await ac  # type: ignore[assignment]
+    exists = await ac.scalar(
+        text(
+            """
+            SELECT 1
+            FROM pg_enum e
+            JOIN pg_type t ON t.oid = e.enumtypid
+            WHERE t.typname = 'task_status' AND e.enumlabel = 'missed'
+            LIMIT 1
+            """
+        )
+    )
+    if exists is None:
+        await ac.execute(text("ALTER TYPE task_status ADD VALUE 'missed'"))
+
+
+async def ensure_task_repeats_daily(conn: AsyncConnection, database_url: str) -> None:
+    """Задача эксперта может повторяться каждый день в тот же час."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        r = await conn.execute(text("PRAGMA table_info(tasks)"))
+        cols = {row[1] for row in r.fetchall()}
+        if cols and "repeats_daily" not in cols:
+            await conn.execute(text("ALTER TABLE tasks ADD COLUMN repeats_daily INTEGER NOT NULL DEFAULT 0"))
+        if cols and "completion_note" not in cols:
+            await conn.execute(text("ALTER TABLE tasks ADD COLUMN completion_note VARCHAR(200)"))
+        return
+    await conn.execute(
+        text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS repeats_daily BOOLEAN NOT NULL DEFAULT FALSE")
+    )
+    await conn.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completion_note VARCHAR(200)"))
+
+
 async def ensure_user_also_expert(conn: AsyncConnection, database_url: str) -> None:
     """Админ может дополнительно открывать окно эксперта на той же учётке."""
     low = database_url.lower()

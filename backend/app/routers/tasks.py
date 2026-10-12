@@ -11,6 +11,8 @@ from app.database import get_db
 from app.models import Lead, Pipeline, Task, TaskStatus, User, UserRole
 from app.schemas.task import TaskAssigneeRead, TaskCreate, TaskListResponse, TaskRead, TaskReviewUpdate, TaskUpdate
 from app.services.chief_expert_access import is_chief_expert
+from app.services.task_repeat import as_clinic_naive, roll_repeating_tasks, same_hour_tomorrow, warn_stage
+from app.services.task_team_chat import client_name_and_phone, notify_manager_task_in_chat
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -81,13 +83,23 @@ def _ensure_assign_permission(
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
 
 
-def _to_task_read(task: Task, assignee: User | None, creator: User | None) -> TaskRead:
+async def _lead_of(db: AsyncSession, task: Task, company_id: int) -> Lead | None:
+    if task.related_lead_id is None:
+        return None
+    lead = await db.get(Lead, task.related_lead_id)
+    if lead is None or lead.company_id != company_id:
+        return None
+    return lead
+
+
+def _to_task_read(task: Task, assignee: User | None, creator: User | None, lead: Lead | None = None) -> TaskRead:
     assignee_name = None
     if assignee is not None:
         assignee_name = (assignee.full_name or "").strip() or assignee.email
     creator_name = None
     if creator is not None:
         creator_name = (creator.full_name or "").strip() or creator.email
+    client_name, client_phone = client_name_and_phone(task, lead)
     return TaskRead(
         id=task.id,
         title=task.title,
@@ -101,16 +113,20 @@ def _to_task_read(task: Task, assignee: User | None, creator: User | None) -> Ta
         created_by_role=(creator.role if creator else None),
         description=task.description,
         related_lead_id=task.related_lead_id,
+        client_name=client_name,
+        client_phone=client_phone,
         review_score=getattr(task, "review_score", None),
         review_comment=getattr(task, "review_comment", None),
         review_by_user_id=getattr(task, "review_by_user_id", None),
         review_at=getattr(task, "review_at", None),
-        is_locked=task.status in (TaskStatus.done, TaskStatus.cancelled),
+        is_locked=task.status in (TaskStatus.done, TaskStatus.cancelled, TaskStatus.missed),
+        repeats_daily=bool(getattr(task, "repeats_daily", False)),
+        completion_note=(getattr(task, "completion_note", None) or None),
     )
 
 
 def _is_task_closed(task: Task) -> bool:
-    return task.status in (TaskStatus.done, TaskStatus.cancelled)
+    return task.status in (TaskStatus.done, TaskStatus.cancelled, TaskStatus.missed)
 
 
 @router.get("/assignees", response_model=list[TaskAssigneeRead])
@@ -140,6 +156,45 @@ async def list_task_assignees(
     return allowed
 
 
+@router.get("/warnings", response_model=list[TaskRead])
+async def task_warnings(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[TaskRead]:
+    """За 30 и 15 минут до часа и в сам час. Видит только тот, кому задача назначена."""
+    await roll_repeating_tasks(db, company_id)
+    now = datetime.now(UTC)
+    assignee_u = aliased(User)
+    creator_u = aliased(User)
+    rows = (
+        await db.execute(
+            select(Task, assignee_u, creator_u, Lead)
+            .outerjoin(assignee_u, assignee_u.id == Task.assigned_to)
+            .outerjoin(creator_u, creator_u.id == Task.created_by_user_id)
+            .outerjoin(Lead, Lead.id == Task.related_lead_id)
+            .where(
+                Task.company_id == company_id,
+                Task.assigned_to == current_user.id,
+                Task.status == TaskStatus.pending,
+                Task.deadline.is_not(None),
+            )
+            .order_by(Task.deadline.asc())
+        )
+    ).all()
+    items: list[TaskRead] = []
+    for task, assignee, creator, lead in rows:
+        if task.deadline is None:
+            continue
+        stage = warn_stage(task.deadline, now)
+        if stage is None:
+            continue
+        item = _to_task_read(task=task, assignee=assignee, creator=creator, lead=lead)
+        item.warn_stage = stage
+        items.append(item)
+    return items
+
+
 @router.post("", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
 async def create_task(
     body: TaskCreate,
@@ -154,21 +209,39 @@ async def create_task(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="assigned_to user not found")
     expert_can_assign = await _can_expert_assign(current_user, db, company_id)
     _ensure_assign_permission(current_user=current_user, assignee=assignee, expert_can_assign=expert_can_assign)
+    if body.repeats_daily and assignee.role != UserRole.expert:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Повтор каждый день ставится на задачу эксперта",
+        )
+    if body.repeats_daily and body.deadline is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Для повтора укажите час",
+        )
     await _ensure_related_lead_exists(db, body.related_lead_id, company_id)
     task = Task(
         title=body.title,
-        deadline=body.deadline,
+        deadline=as_clinic_naive(body.deadline),
         status=body.status,
         assigned_to=body.assigned_to,
         created_by_user_id=current_user.id,
         description=body.description,
         related_lead_id=body.related_lead_id,
         company_id=company_id,
+        repeats_daily=bool(body.repeats_daily),
     )
     db.add(task)
     await db.flush()
     await db.refresh(task)
-    return _to_task_read(task, assignee=assignee, creator=current_user)
+    await notify_manager_task_in_chat(
+        db,
+        company_id=company_id,
+        creator=current_user,
+        assignee=assignee,
+        task=task,
+    )
+    return _to_task_read(task, assignee=assignee, creator=current_user, lead=await _lead_of(db, task, company_id))
 
 
 @router.get("", response_model=TaskListResponse)
@@ -186,12 +259,14 @@ async def list_tasks(
     offset: int = Query(default=0, ge=0),
     include_total: bool = Query(default=True),
 ) -> TaskListResponse:
+    await roll_repeating_tasks(db, company_id)
     assignee_u = aliased(User)
     creator_u = aliased(User)
     query = (
-        select(Task, assignee_u, creator_u)
+        select(Task, assignee_u, creator_u, Lead)
         .outerjoin(assignee_u, assignee_u.id == Task.assigned_to)
         .outerjoin(creator_u, creator_u.id == Task.created_by_user_id)
+        .outerjoin(Lead, Lead.id == Task.related_lead_id)
         .where(Task.company_id == company_id)
     )
     if current_user.role == UserRole.manager:
@@ -229,10 +304,12 @@ async def list_tasks(
             )
         )
 
-    if journal:
+    if status_filter == TaskStatus.missed.value:
+        query = query.where(Task.status == TaskStatus.missed)
+    elif journal:
         query = query.where(Task.status.in_([TaskStatus.done, TaskStatus.cancelled]))
     else:
-        query = query.where(~Task.status.in_([TaskStatus.done, TaskStatus.cancelled]))
+        query = query.where(Task.status.in_([TaskStatus.pending, TaskStatus.in_progress]))
 
     if status_filter:
         valid_statuses = {s.value for s in TaskStatus}
@@ -260,7 +337,7 @@ async def list_tasks(
     if limit is not None:
         query = query.limit(limit)
     rows = (await db.execute(query)).all()
-    items = [_to_task_read(task=t, assignee=assignee, creator=creator) for t, assignee, creator in rows]
+    items = [_to_task_read(task=t, assignee=assignee, creator=creator, lead=lead) for t, assignee, creator, lead in rows]
     if not include_total:
         total = len(items)
     return TaskListResponse(items=items, total=total)
@@ -289,7 +366,7 @@ async def get_task(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Эксперт получает задачи только от администратора или владельца")
     assignee = await _get_company_user(db, task.assigned_to, company_id)
     creator = await _get_company_user(db, task.created_by_user_id, company_id)
-    return _to_task_read(task, assignee=assignee, creator=creator)
+    return _to_task_read(task, assignee=assignee, creator=creator, lead=await _lead_of(db, task, company_id))
 
 
 @router.patch("/{task_id}", response_model=TaskRead)
@@ -303,12 +380,35 @@ async def update_task(
     task = await db.get(Task, task_id)
     if task is None or task.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    data = body.model_dump(exclude_unset=True)
+    returning = (
+        _is_task_closed(task)
+        and set(data.keys()) == {"status"}
+        and data.get("status") == TaskStatus.pending
+        and current_user.role in (UserRole.owner, UserRole.admin)
+    )
+    if returning:
+        task.status = TaskStatus.pending
+        task.repeats_daily = False
+        task.completion_note = None
+        await db.flush()
+        assignee = await _get_company_user(db, task.assigned_to, company_id)
+        creator = await _get_company_user(db, task.created_by_user_id, company_id)
+        await notify_manager_task_in_chat(
+            db,
+            company_id=company_id,
+            creator=current_user,
+            assignee=assignee,
+            task=task,
+            returned=True,
+        )
+        return _to_task_read(task, assignee=assignee, creator=creator, lead=await _lead_of(db, task, company_id))
     if _is_task_closed(task):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Задача уже в журнале (решена/закрыта) и больше не редактируется",
         )
-    data = body.model_dump(exclude_unset=True)
+    was_repeating = bool(getattr(task, "repeats_daily", False)) and task.deadline is not None
     if current_user.role in (UserRole.manager, UserRole.expert):
         if task.assigned_to != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Можно изменять только свои задачи")
@@ -318,6 +418,7 @@ async def update_task(
         if current_user.role == UserRole.manager and "status" in data and data["status"] not in (
             TaskStatus.done,
             TaskStatus.cancelled,
+            TaskStatus.missed,
         ):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Менеджер может только закрывать свою задачу")
     elif current_user.role == UserRole.admin:
@@ -332,12 +433,32 @@ async def update_task(
         _ensure_assign_permission(current_user=current_user, assignee=assignee, expert_can_assign=expert_can_assign)
     if "related_lead_id" in data:
         await _ensure_related_lead_exists(db, body.related_lead_id, company_id)
+    note = data.pop("completion_note", None)
     for key, value in data.items():
+        if key == "deadline":
+            value = as_clinic_naive(value)
         setattr(task, key, value)
+    if task.status == TaskStatus.done and "completion_note" in body.model_fields_set:
+        text_note = (note or "").strip()
+        task.completion_note = text_note[:200] or None
+    if was_repeating and task.status in (TaskStatus.done, TaskStatus.missed) and task.deadline is not None:
+        db.add(
+            Task(
+                company_id=company_id,
+                title=task.title,
+                deadline=same_hour_tomorrow(task.deadline),
+                status=TaskStatus.pending,
+                assigned_to=task.assigned_to,
+                created_by_user_id=task.created_by_user_id,
+                description=task.description,
+                related_lead_id=task.related_lead_id,
+                repeats_daily=True,
+            )
+        )
     await db.flush()
     assignee = await _get_company_user(db, task.assigned_to, company_id)
     creator = await _get_company_user(db, task.created_by_user_id, company_id)
-    return _to_task_read(task, assignee=assignee, creator=creator)
+    return _to_task_read(task, assignee=assignee, creator=creator, lead=await _lead_of(db, task, company_id))
 
 
 @router.patch("/{task_id}/review", response_model=TaskRead)
@@ -365,7 +486,7 @@ async def review_task(
     await db.flush()
     assignee = await _get_company_user(db, task.assigned_to, company_id)
     creator = await _get_company_user(db, task.created_by_user_id, company_id)
-    return _to_task_read(task, assignee=assignee, creator=creator)
+    return _to_task_read(task, assignee=assignee, creator=creator, lead=await _lead_of(db, task, company_id))
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)

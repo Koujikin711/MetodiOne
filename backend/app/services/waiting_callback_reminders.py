@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Lead, LeadWaitingCallback, Task, TaskStatus, User
 from app.services.audit import write_audit_event
+from app.services.task_team_chat import notify_manager_task_in_chat
 from app.services.whatsapp_automation import (
     _active_green_integration_for_pipeline,
     _chat_id_from_thread_or_phone,
@@ -61,22 +62,31 @@ async def run_waiting_callback_tick(db: AsyncSession) -> int:
             if hours_left < 20
             else f"Завтра ({date_s} в {time_s})"
         )
-        db.add(
-            Task(
-                company_id=row.company_id,
-                title=f"Связаться с клиентом: {row.client_name}",
-                deadline=row.scheduled_at,
-                status=TaskStatus.pending,
-                assigned_to=row.manager_id,
-                created_by_user_id=None,
-                description=(
-                    f"{when_line} нужно связаться с клиентом.\n"
-                    f"Телефон: {row.client_phone or '—'}\n"
-                    f"Боль: {pain}"
-                ),
-                related_lead_id=row.lead_id,
+        task = Task(
+            company_id=row.company_id,
+            title=f"Связаться с клиентом: {row.client_name}",
+            deadline=row.scheduled_at,
+            status=TaskStatus.pending,
+            assigned_to=row.manager_id,
+            created_by_user_id=None,
+            description=(
+                f"{when_line} нужно связаться с клиентом.\n"
+                f"Телефон: {row.client_phone or '—'}\n"
+                f"Боль: {pain}"
             ),
+            related_lead_id=row.lead_id,
         )
+        db.add(task)
+        await db.flush()
+        assignee = await db.get(User, row.manager_id)
+        if row.company_id is not None:
+            await notify_manager_task_in_chat(
+                db,
+                company_id=row.company_id,
+                creator=None,
+                assignee=assignee,
+                task=task,
+            )
         row.manager_notified_at = now
         await write_audit_event(
             db,

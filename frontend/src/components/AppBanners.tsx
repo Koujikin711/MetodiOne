@@ -7,6 +7,7 @@ import { decodeImpersonatorFromToken, decodeRoleFromToken } from "@/lib/auth";
 import { isOnboardingDone } from "@/lib/onboarding";
 import type { BillingStatusRead } from "@/lib/types";
 import { ArchiveEveningAdminBadge } from "@/components/ArchiveEveningAdminBadge";
+import { TaskDueBanner } from "@/components/TaskDueBanner";
 
 function trialDaysLeft(trialEndsAt: string | null): number | null {
   if (!trialEndsAt) return null;
@@ -57,12 +58,13 @@ export function AppBanners() {
       b.billing_status === "payment_pending" ||
       (b.billing_status === "demo_trial" && daysLeft != null && daysLeft <= 3));
 
-  if (!demo && !showOnboardingBanner && impersonatorId == null && !showBillingUrgent && !showArchiveEveningBadge) {
-    return null;
-  }
+  const showOther =
+    demo || showOnboardingBanner || impersonatorId != null || Boolean(showBillingUrgent) || showArchiveEveningBadge;
 
   return (
-    <div className="mb-4 space-y-2 print:hidden">
+    <>
+      <TaskDueBanner />
+      {showOther ? <div className="mb-4 space-y-2 print:hidden">
       {showArchiveEveningBadge ? <ArchiveEveningAdminBadge /> : null}
       {impersonatorId != null ? (
         <div className="mo-section border-[var(--mo-warning)]/35 bg-[var(--mo-surface-elevated)] px-4 py-2 text-center text-xs text-[var(--mo-text)]">
@@ -125,6 +127,7 @@ export function AppBanners() {
           </Link>
         </div>
       ) : null}
-    </div>
+      </div> : null}
+    </>
   );
 }

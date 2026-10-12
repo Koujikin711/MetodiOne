@@ -12,6 +12,7 @@ class TaskCreate(BaseModel):
     assigned_to: int | None = None
     description: str | None = None
     related_lead_id: int | None = None
+    repeats_daily: bool = False
 
 
 class TaskUpdate(BaseModel):
@@ -21,6 +22,7 @@ class TaskUpdate(BaseModel):
     assigned_to: int | None = None
     description: str | None = None
     related_lead_id: int | None = None
+    completion_note: str | None = Field(None, max_length=200)
 
 
 class TaskRead(BaseModel):
@@ -36,11 +38,16 @@ class TaskRead(BaseModel):
     created_by_role: UserRole | None = None
     description: str | None
     related_lead_id: int | None = None
+    client_name: str | None = None
+    client_phone: str | None = None
     review_score: int | None = None
     review_comment: str | None = None
     review_by_user_id: int | None = None
     review_at: datetime | None = None
     is_locked: bool = False
+    repeats_daily: bool = False
+    completion_note: str | None = None
+    warn_stage: str | None = None
 
     model_config = {"from_attributes": True}
 
