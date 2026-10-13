@@ -57,6 +57,59 @@ from app.schemas.lead import LeadRead
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 logger = logging.getLogger(__name__)
 
+
+class WaBridgeAction(BaseModel):
+    action: str = ""
+
+
+@router.get("/wa-bridge")
+async def wa_bridge_status(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    """QR-сессия WhatsApp (Baileys), запасной путь пока Green API не отвечает."""
+    await assert_owner_or_chief_expert(db, current_user)
+    from app.services.wa_bridge_client import fetch_status
+
+    return fetch_status()
+
+
+@router.post("/wa-bridge")
+async def wa_bridge_restart(
+    body: WaBridgeAction,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+) -> dict[str, bool]:
+    await assert_owner_or_chief_expert(db, current_user)
+    if body.action != "restart":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown action")
+    from app.services.wa_bridge_client import restart_bridge
+
+    ok, err = restart_bridge()
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=err or "Мост WhatsApp недоступен")
+    return {"ok": True}
+
+
+@router.post("/wa-bridge/incoming")
+async def wa_bridge_incoming(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    x_wa_bridge_token: Annotated[str | None, Header(alias="X-Wa-Bridge-Token")] = None,
+) -> dict[str, Any]:
+    from app.services.wa_bridge_client import token_matches
+    from app.services.wa_bridge_incoming import handle_bridge_payload
+
+    if not token_matches(x_wa_bridge_token):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bad token")
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    return await handle_bridge_payload(db, payload)
+
 _SECRET_CFG_KEYS = frozenset(
     {
         "api_token",

@@ -1,8 +1,9 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models import TaskStatus, UserRole
+from app.services.task_repeat import normalize_weekdays
 
 
 class TaskCreate(BaseModel):
@@ -13,6 +14,12 @@ class TaskCreate(BaseModel):
     description: str | None = None
     related_lead_id: int | None = None
     repeats_daily: bool = False
+    repeat_weekdays: list[int] = Field(default_factory=list)
+
+    @field_validator("repeat_weekdays")
+    @classmethod
+    def _weekdays(cls, value: list[int]) -> list[int]:
+        return normalize_weekdays(value)
 
 
 class TaskUpdate(BaseModel):
@@ -46,6 +53,7 @@ class TaskRead(BaseModel):
     review_at: datetime | None = None
     is_locked: bool = False
     repeats_daily: bool = False
+    repeat_weekdays: list[int] = Field(default_factory=list)
     completion_note: str | None = None
     warn_stage: str | None = None
 

@@ -3,6 +3,7 @@ import { useEffect, useState, type ComponentType } from "react";
 import toast from "react-hot-toast";
 
 import { apiFetch } from "@/lib/api";
+import { WaQrConnectPanel } from "@/components/integrations/WaQrConnectPanel";
 import type { GreenBroadcastPreviewRead, GreenBroadcastResult, Integration, Pipeline, PipelineStage } from "@/lib/types";
 
 type IntegrationProvider = "green_api" | "telegram" | "google_sheets" | "instagram" | "gmail";
@@ -865,6 +866,7 @@ export function IntegrationSetupPanel() {
         Выберите сервис — откроется пошаговая форма с подсказками. Уже подключённые каналы отображаются в списке ниже:
         их можно изменить, синхронизировать или отключить.
       </p>
+      <WaQrConnectPanel />
 
       {!integrationFormOpen ? (
         <>

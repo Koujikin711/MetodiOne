@@ -17,6 +17,15 @@ ENV/
 
 # Node
 node_modules/
+wa_bridge/node_modules/
+
+# Сессия WhatsApp QR (Baileys) — не коммитить
+**/wa_session_baileys/
+**/wa-incoming/
+**/wa-outgoing/
+**/wa_bridge_state.json
+**/.wa-bridge-token
+**/baileys_wa_version.json
 frontend/dist/
 npm-debug.log*
 .pnpm-debug.log*

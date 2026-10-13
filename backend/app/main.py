@@ -55,6 +55,7 @@ from app.database_migrate import (
     ensure_user_also_curator,
     ensure_user_also_expert,
     ensure_task_repeats_daily,
+    ensure_task_repeat_weekdays,
     ensure_task_status_missed,
     ensure_user_pay_profile,
     ensure_booking_referrer,
@@ -185,6 +186,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_user_also_curator(conn, db_url)
                 await ensure_user_also_expert(conn, db_url)
                 await ensure_task_repeats_daily(conn, db_url)
+                await ensure_task_repeat_weekdays(conn, db_url)
                 await ensure_booking_referrer(conn, db_url)
                 await ensure_payroll_adjustments(conn, db_url)
                 await ensure_employee_name_terms(conn, db_url)
@@ -592,6 +594,7 @@ async def lifespan(_: FastAPI):
         async with engine.begin() as conn:
             await ensure_user_also_expert(conn, effective_database_url())
             await ensure_task_repeats_daily(conn, effective_database_url())
+            await ensure_task_repeat_weekdays(conn, effective_database_url())
     except Exception:
         logger.exception("ensure also_expert column failed")
     try:
@@ -619,6 +622,7 @@ async def lifespan(_: FastAPI):
             await ensure_user_also_curator(conn, settings.database_url)
             await ensure_user_also_expert(conn, settings.database_url)
             await ensure_task_repeats_daily(conn, settings.database_url)
+            await ensure_task_repeat_weekdays(conn, settings.database_url)
             await ensure_booking_referrer(conn, settings.database_url)
             await ensure_payroll_adjustments(conn, settings.database_url)
             await ensure_employee_name_terms(conn, settings.database_url)
@@ -746,7 +750,11 @@ async def lifespan(_: FastAPI):
             logger.error("whatsapp reminder task ended with error: %s", exc)
 
     reminder_task.add_done_callback(_reminder_done)
+    from app.services.wa_bridge_process import start_wa_bridge, stop_wa_bridge
+
+    start_wa_bridge()
     yield
+    stop_wa_bridge()
     stop_event.set()
     reminder_task.cancel()
     deferred_chat_task.cancel()

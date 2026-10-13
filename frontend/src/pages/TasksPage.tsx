@@ -8,6 +8,18 @@ import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import type { Task, TaskAssignee, TaskListResponse, TaskStatus } from "@/lib/types";
 
+const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
+function weekdayCaption(days: number[] | null | undefined) {
+  if (!days?.length) return "";
+  return days
+    .filter((d) => d >= 0 && d <= 6)
+    .slice()
+    .sort((a, b) => a - b)
+    .map((d) => WEEKDAY_LABELS[d])
+    .join(", ");
+}
+
 const STATUS: { key: TaskStatus; label: string }[] = [
   { key: "pending", label: "Ожидает" },
   { key: "in_progress", label: "В работе" },
@@ -46,6 +58,7 @@ export function TasksPage() {
   const [title, setTitle] = useState("");
   const [assignedTo, setAssignedTo] = useState<number | "">("");
   const [deadline, setDeadline] = useState("");
+  const [weekdays, setWeekdays] = useState<number[]>([]);
   const [repeatsDaily, setRepeatsDaily] = useState(false);
   const [doneNoteFor, setDoneNoteFor] = useState<number | null>(null);
   const [doneNote, setDoneNote] = useState("");
@@ -81,7 +94,8 @@ export function TasksPage() {
           title: title.trim(),
           assigned_to: assignedTo || null,
           deadline: deadline || null,
-          repeats_daily: expertSelected && repeatsDaily,
+          repeats_daily: expertSelected && repeatsDaily && weekdays.length === 0,
+          repeat_weekdays: weekdays,
         }),
       }),
     onSuccess: () => {
@@ -89,6 +103,7 @@ export function TasksPage() {
       setTitle("");
       setAssignedTo("");
       setDeadline("");
+      setWeekdays([]);
       setRepeatsDaily(false);
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
       void queryClient.invalidateQueries({ queryKey: ["task-warnings"] });
@@ -178,7 +193,7 @@ export function TasksPage() {
                 toast.error("Выберите исполнителя");
                 return;
               }
-              if (expertSelected && repeatsDaily && !deadline) {
+              if ((weekdays.length > 0 || (expertSelected && repeatsDaily)) && !deadline) {
                 toast.error("Укажите час повтора");
                 return;
               }
@@ -226,12 +241,47 @@ export function TasksPage() {
             <button type="submit" disabled={createM.isPending} className="btn-primary w-full sm:w-auto">
               {createM.isPending ? "…" : "Добавить"}
             </button>
+            <div className="sm:col-span-full">
+              <span className="mo-admin-toolbar-label">Повтор по дням недели</span>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {WEEKDAY_LABELS.map((label, day) => {
+                  const on = weekdays.includes(day);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => {
+                        setRepeatsDaily(false);
+                        setWeekdays((prev) =>
+                          prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort((a, b) => a - b),
+                        );
+                      }}
+                      className={[
+                        "h-9 min-w-9 rounded-lg border px-2 text-xs font-medium transition",
+                        on
+                          ? "border-indigo-500/50 bg-[var(--mo-accent-soft)] text-[var(--mo-accent-hover)]"
+                          : "border-[var(--mo-border)] bg-transparent lux-caption",
+                      ].join(" ")}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-xs lux-caption">
+                Одна задача в выбранные дни, в то же время. Предупреждение за 30 минут, за 15 минут и в сам час.
+              </p>
+            </div>
             {expertSelected ? (
               <label className="flex items-center gap-2 text-sm sm:col-span-full">
                 <input
                   type="checkbox"
                   checked={repeatsDaily}
-                  onChange={(e) => setRepeatsDaily(e.target.checked)}
+                  onChange={(e) => {
+                    setRepeatsDaily(e.target.checked);
+                    if (e.target.checked) setWeekdays([]);
+                  }}
                 />
                 <span>Каждый день в этот час. Предупреждение придёт тому, кому поставлена задача.</span>
               </label>
@@ -308,7 +358,11 @@ export function TasksPage() {
                     <p className="mt-0.5 text-xs lux-caption">
                       {t.assigned_to_name ?? "—"}
                       {dl ? ` · до ${dl}` : ""}
-                      {t.repeats_daily ? " · каждый день в этот час" : ""}
+                      {weekdayCaption(t.repeat_weekdays)
+                        ? ` · ${weekdayCaption(t.repeat_weekdays)}`
+                        : t.repeats_daily
+                          ? " · каждый день в этот час"
+                          : ""}
                       {t.status === "missed" ? " · не провёл" : ""}
                       {t.completion_note ? ` · ${t.completion_note}` : ""}
                     </p>

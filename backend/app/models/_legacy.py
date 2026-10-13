@@ -847,6 +847,8 @@ class Task(Base):
     )
     # Задача эксперта повторяется каждый день в тот же местный час.
     repeats_daily: Mapped[bool] = mapped_column(default=False)
+    # 0 = пн … 6 = вс. Пусто — разовая задача на одну дату.
+    repeat_weekdays: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     assignee: Mapped["User | None"] = relationship(back_populates="tasks", foreign_keys=[assigned_to])
     created_by: Mapped["User | None"] = relationship(foreign_keys=[created_by_user_id])

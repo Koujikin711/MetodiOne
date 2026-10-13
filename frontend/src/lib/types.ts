@@ -282,6 +282,7 @@ export interface Task {
   review_at?: string | null;
   is_locked?: boolean;
   repeats_daily?: boolean;
+  repeat_weekdays?: number[];
   completion_note?: string | null;
   warn_stage?: "30" | "15" | "due" | null;
 }

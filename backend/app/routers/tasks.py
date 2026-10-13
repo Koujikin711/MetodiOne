@@ -11,7 +11,15 @@ from app.database import get_db
 from app.models import Lead, Pipeline, Task, TaskStatus, User, UserRole
 from app.schemas.task import TaskAssigneeRead, TaskCreate, TaskListResponse, TaskRead, TaskReviewUpdate, TaskUpdate
 from app.services.chief_expert_access import is_chief_expert
-from app.services.task_repeat import as_clinic_naive, roll_repeating_tasks, same_hour_tomorrow, warn_stage
+from app.services.task_repeat import (
+    align_weekday_deadline,
+    as_clinic_naive,
+    next_weekday_after,
+    normalize_weekdays,
+    roll_repeating_tasks,
+    same_hour_tomorrow,
+    warn_stage,
+)
 from app.services.task_team_chat import client_name_and_phone, notify_manager_task_in_chat
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -121,6 +129,7 @@ def _to_task_read(task: Task, assignee: User | None, creator: User | None, lead:
         review_at=getattr(task, "review_at", None),
         is_locked=task.status in (TaskStatus.done, TaskStatus.cancelled, TaskStatus.missed),
         repeats_daily=bool(getattr(task, "repeats_daily", False)),
+        repeat_weekdays=normalize_weekdays(getattr(task, "repeat_weekdays", None)),
         completion_note=(getattr(task, "completion_note", None) or None),
     )
 
@@ -209,27 +218,35 @@ async def create_task(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="assigned_to user not found")
     expert_can_assign = await _can_expert_assign(current_user, db, company_id)
     _ensure_assign_permission(current_user=current_user, assignee=assignee, expert_can_assign=expert_can_assign)
-    if body.repeats_daily and assignee.role != UserRole.expert:
+    weekdays = normalize_weekdays(body.repeat_weekdays)
+    repeats_daily = bool(body.repeats_daily) and not weekdays
+    if repeats_daily and assignee.role != UserRole.expert:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Повтор каждый день ставится на задачу эксперта",
         )
-    if body.repeats_daily and body.deadline is None:
+    if (repeats_daily or weekdays) and body.deadline is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Для повтора укажите час",
         )
+    deadline = as_clinic_naive(body.deadline)
+    if weekdays and deadline is not None:
+        snapped = align_weekday_deadline(deadline, weekdays, datetime.now(UTC))
+        if snapped is not None:
+            deadline = snapped
     await _ensure_related_lead_exists(db, body.related_lead_id, company_id)
     task = Task(
         title=body.title,
-        deadline=as_clinic_naive(body.deadline),
+        deadline=deadline,
         status=body.status,
         assigned_to=body.assigned_to,
         created_by_user_id=current_user.id,
         description=body.description,
         related_lead_id=body.related_lead_id,
         company_id=company_id,
-        repeats_daily=bool(body.repeats_daily),
+        repeats_daily=repeats_daily,
+        repeat_weekdays=weekdays or None,
     )
     db.add(task)
     await db.flush()
@@ -390,6 +407,7 @@ async def update_task(
     if returning:
         task.status = TaskStatus.pending
         task.repeats_daily = False
+        task.repeat_weekdays = None
         task.completion_note = None
         await db.flush()
         assignee = await _get_company_user(db, task.assigned_to, company_id)
@@ -408,7 +426,9 @@ async def update_task(
             status_code=status.HTTP_409_CONFLICT,
             detail="Задача уже в журнале (решена/закрыта) и больше не редактируется",
         )
-    was_repeating = bool(getattr(task, "repeats_daily", False)) and task.deadline is not None
+    weekdays = normalize_weekdays(getattr(task, "repeat_weekdays", None))
+    was_weekdays = bool(weekdays) and task.deadline is not None
+    was_repeating = bool(getattr(task, "repeats_daily", False)) and not weekdays and task.deadline is not None
     if current_user.role in (UserRole.manager, UserRole.expert):
         if task.assigned_to != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Можно изменять только свои задачи")
@@ -441,18 +461,19 @@ async def update_task(
     if task.status == TaskStatus.done and "completion_note" in body.model_fields_set:
         text_note = (note or "").strip()
         task.completion_note = text_note[:200] or None
-    if was_repeating and task.status in (TaskStatus.done, TaskStatus.missed) and task.deadline is not None:
+    if (was_weekdays or was_repeating) and task.status in (TaskStatus.done, TaskStatus.missed) and task.deadline is not None:
         db.add(
             Task(
                 company_id=company_id,
                 title=task.title,
-                deadline=same_hour_tomorrow(task.deadline),
+                deadline=next_weekday_after(task.deadline, weekdays) if was_weekdays else same_hour_tomorrow(task.deadline),
                 status=TaskStatus.pending,
                 assigned_to=task.assigned_to,
                 created_by_user_id=task.created_by_user_id,
                 description=task.description,
                 related_lead_id=task.related_lead_id,
-                repeats_daily=True,
+                repeats_daily=was_repeating,
+                repeat_weekdays=weekdays or None,
             )
         )
     await db.flush()
