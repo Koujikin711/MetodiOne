@@ -448,7 +448,7 @@ async def update_task(
     if current_user.role in (UserRole.manager, UserRole.expert):
         if task.assigned_to != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Можно изменять только свои задачи")
-        forbidden = {"title", "deadline", "assigned_to", "description", "related_lead_id"}
+        forbidden = {"title", "deadline", "assigned_to", "description", "related_lead_id", "repeats_daily"}
         if any(k in data for k in forbidden):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Доступно только изменение статуса своей задачи")
         if current_user.role == UserRole.manager and "status" in data and data["status"] not in (
@@ -502,6 +502,9 @@ async def update_task(
         )
     await db.flush()
     assignee = await _get_company_user(db, task.assigned_to, company_id)
+    if assignee is None or assignee.role != UserRole.expert:
+        task.repeats_daily = False
+        await db.flush()
     creator = await _get_company_user(db, task.created_by_user_id, company_id)
     return _to_task_read(task, assignee=assignee, creator=creator, lead=await _lead_of(db, task, company_id))
 

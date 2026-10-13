@@ -225,3 +225,25 @@ class CuratorProgramRequest(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+
+
+class ProtocolFollowup(Base):
+    """Комментарий после разговора о следующем продукте и время следующего созвона."""
+
+    __tablename__ = "protocol_followups"
+    __table_args__ = (
+        UniqueConstraint("company_id", "source", "source_id", name="uq_protocol_followup"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    source: Mapped[str] = mapped_column(String(16))
+    source_id: Mapped[int] = mapped_column(index=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_call_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    updated_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)

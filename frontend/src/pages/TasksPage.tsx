@@ -48,6 +48,26 @@ function statusChip(status: string) {
   return "task-status task-status--pending";
 }
 
+function toDatetimeLocal(iso: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function painLine(description: string | null) {
+  if (!description) return null;
+  for (const line of description.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.toLowerCase().startsWith("боль:")) {
+      const rest = trimmed.slice(trimmed.indexOf(":") + 1).trim();
+      return rest && rest !== "—" ? rest : null;
+    }
+  }
+  return null;
+}
+
 function formatDeadline(iso: string | null) {
   if (!iso) return null;
   const d = new Date(iso);
@@ -75,6 +95,11 @@ export function TasksPage() {
   const [repeatsDaily, setRepeatsDaily] = useState(false);
   const [doneNoteFor, setDoneNoteFor] = useState<number | null>(null);
   const [doneNote, setDoneNote] = useState("");
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editAssignee, setEditAssignee] = useState<number | "">("");
+  const [editDeadline, setEditDeadline] = useState("");
+  const [editRepeats, setEditRepeats] = useState(false);
 
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
@@ -149,6 +174,28 @@ export function TasksPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const editM = useMutation({
+    mutationFn: () =>
+      apiFetch<Task>(`/api/tasks/${editId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: editTitle.trim(),
+          assigned_to: editAssignee || null,
+          deadline: editDeadline || null,
+          repeats_daily: editRepeats,
+        }),
+      }),
+    onSuccess: () => {
+      toast.success("Задача исправлена");
+      setEditId(null);
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      void queryClient.invalidateQueries({ queryKey: ["task-warnings"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const editAssigneeRole = (assigneesQ.data ?? []).find((u) => u.id === editAssignee)?.role;
 
   const items = tasksQ.data?.items ?? [];
 
@@ -334,6 +381,7 @@ export function TasksPage() {
               const closed = t.status === "done" || t.status === "cancelled" || t.status === "missed";
               const mine = myId != null && t.assigned_to === myId;
               const canMiss = !closed && (canReturn || mine);
+              const pain = painLine(t.description);
               return (
                 <li
                   key={t.id}
@@ -393,6 +441,76 @@ export function TasksPage() {
                         {t.client_name ?? "Клиент"}
                         {t.client_phone ? ` · ${t.client_phone}` : ""}
                       </p>
+                    ) : null}
+                    {pain ? <p className="mt-0.5 text-xs text-[var(--mo-text-muted)]">Боль: {pain}</p> : null}
+                    {editId === t.id ? (
+                      <form
+                        className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem_13rem]"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (!editTitle.trim()) {
+                            toast.error("Введите название");
+                            return;
+                          }
+                          if (!editAssignee) {
+                            toast.error("Выберите исполнителя");
+                            return;
+                          }
+                          if (editAssigneeRole === "expert" && editRepeats && !editDeadline) {
+                            toast.error("Укажите час повтора");
+                            return;
+                          }
+                          editM.mutate();
+                        }}
+                      >
+                        <input
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          className="mo-input py-1.5 text-sm"
+                          aria-label="Название задачи"
+                        />
+                        <select
+                          value={editAssignee}
+                          onChange={(e) => {
+                            const next = e.target.value ? Number(e.target.value) : "";
+                            setEditAssignee(next);
+                            const person = (assigneesQ.data ?? []).find((u) => u.id === next);
+                            if (person?.role !== "expert") setEditRepeats(false);
+                          }}
+                          className="mo-input py-1.5 text-sm"
+                          aria-label="Кому"
+                        >
+                          <option value="">—</option>
+                          {(assigneesQ.data ?? []).map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.full_name || u.email}
+                            </option>
+                          ))}
+                        </select>
+                        <DateTimeField value={editDeadline} onChange={setEditDeadline} aria-label="Срок задачи" />
+                        {editAssigneeRole === "expert" ? (
+                          <label className="flex items-center gap-2 text-xs sm:col-span-full">
+                            <input
+                              type="checkbox"
+                              checked={editRepeats}
+                              onChange={(e) => setEditRepeats(e.target.checked)}
+                            />
+                            <span>Каждый день в этот час</span>
+                          </label>
+                        ) : null}
+                        <div className="flex gap-2 sm:col-span-full">
+                          <button type="submit" disabled={editM.isPending} className="btn-primary px-3 py-1.5 text-xs">
+                            {editM.isPending ? "…" : "Сохранить"}
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs underline underline-offset-2"
+                            onClick={() => setEditId(null)}
+                          >
+                            Отмена
+                          </button>
+                        </div>
+                      </form>
                     ) : null}
                     {doneNoteFor === t.id ? (
                       <div className="mt-2 flex w-full flex-wrap items-center gap-2">
@@ -476,6 +594,22 @@ export function TasksPage() {
                         className="text-xs font-medium text-[var(--mo-accent-hover)] transition hover:underline"
                       >
                         Вернуть
+                      </button>
+                    ) : null}
+                    {(role === "owner" || role === "admin") && !closed ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditId(t.id);
+                          setEditTitle(t.title);
+                          setEditAssignee(t.assigned_to ?? "");
+                          setEditDeadline(toDatetimeLocal(t.deadline));
+                          setEditRepeats(Boolean(t.repeats_daily));
+                          setDoneNoteFor(null);
+                        }}
+                        className="text-xs font-medium text-[var(--mo-accent-hover)] transition hover:underline"
+                      >
+                        Изменить
                       </button>
                     ) : null}
                     {(role === "owner" || role === "admin") && (

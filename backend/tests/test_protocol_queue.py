@@ -206,6 +206,17 @@ def test_inactive_manager_protocols_go_round_robin_to_active():
     assert assign_round_robin([1], []) == {}
 
 
+def test_followup_call_is_overdue_only_after_the_clinic_hour():
+    from app.services.protocol_followup import followup_call_overdue, followup_key
+
+    call = datetime(2026, 10, 13, 19, 0)
+    assert followup_call_overdue(call, datetime(2026, 10, 13, 18, 59)) is False
+    assert followup_call_overdue(call, datetime(2026, 10, 13, 19, 0)) is True
+    assert followup_call_overdue(None, datetime(2026, 10, 13, 19, 0)) is False
+    assert followup_key({"lead_id": 4, "purchase_id": 9}) == ("lead", 4)
+    assert followup_key({"lead_id": None, "purchase_id": 9}) == ("sale", 9)
+
+
 def test_manager_protocol_queue_keeps_only_own_patients():
     report = {
         "rows": [

@@ -149,7 +149,6 @@ export function EmployeesPage() {
   const [editSalary, setEditSalary] = useState("");
   const [editPayoutBank, setEditPayoutBank] = useState("");
   const [editSpecialization, setEditSpecialization] = useState("");
-  const [editAlsoCurator, setEditAlsoCurator] = useState(false);
   const [editAlsoExpert, setEditAlsoExpert] = useState(false);
   const [editPipelineIds, setEditPipelineIds] = useState<number[]>([]);
 
@@ -417,7 +416,6 @@ export function EmployeesPage() {
     setEditSalary(e.base_salary == null || e.base_salary === "" ? "" : String(e.base_salary));
     setEditPayoutBank(e.payout_bank ?? "");
     setEditSpecialization(e.specialization ?? "");
-    setEditAlsoCurator(Boolean(e.also_curator));
     setEditAlsoExpert(Boolean(e.also_expert));
     setEditPipelineIds([...e.pipeline_ids]);
   }
@@ -452,10 +450,10 @@ export function EmployeesPage() {
       const specChanged =
         editEmployee.role === "expert" &&
         editSpecialization.trim() !== (editEmployee.specialization || "").trim();
-      const alsoCuratorChanged =
-        editEmployee.role === "expert" && editAlsoCurator !== Boolean(editEmployee.also_curator);
       const alsoExpertChanged =
-        (editEmployee.role === "admin" || editEmployee.role === "administrator") &&
+        (editEmployee.role === "admin" ||
+          editEmployee.role === "administrator" ||
+          editEmployee.role === "expert") &&
         editAlsoExpert !== Boolean(editEmployee.also_expert);
       const pipelinesChanged =
         canEditPipelines(editEmployee.role) &&
@@ -469,7 +467,6 @@ export function EmployeesPage() {
         specChanged ||
         salaryChanged ||
         bankChanged ||
-        alsoCuratorChanged ||
         alsoExpertChanged;
 
       if (!profileChanged && !pipelinesChanged) {
@@ -485,7 +482,7 @@ export function EmployeesPage() {
           ...(editEmployee.role === "expert"
             ? {
                 specialization: editSpecialization.trim(),
-                also_curator: editAlsoCurator,
+                also_expert: editAlsoExpert,
               }
             : {}),
           ...(editEmployee.role === "admin" || editEmployee.role === "administrator"
@@ -917,9 +914,6 @@ export function EmployeesPage() {
                 <h2 className="lux-subheading">Редактировать сотрудника</h2>
                 <p className="mt-1 text-xs lux-caption">
                   <span className="employee-role-badge">{roleLabel(editEmployee.role)}</span>
-                  {editEmployee.role === "expert" && editAlsoCurator ? (
-                    <span className="employee-role-badge">Куратор</span>
-                  ) : null}
                   {(editEmployee.role === "admin" || editEmployee.role === "administrator") && editAlsoExpert ? (
                     <span className="employee-role-badge">Эксперт</span>
                   ) : null}
@@ -1047,10 +1041,10 @@ export function EmployeesPage() {
                     <label className="employee-edit-check sm:col-span-2">
                       <input
                         type="checkbox"
-                        checked={editAlsoCurator}
-                        onChange={(ev) => setEditAlsoCurator(ev.target.checked)}
+                        checked={editAlsoExpert}
+                        onChange={(ev) => setEditAlsoExpert(ev.target.checked)}
                       />
-                      <span>Ещё куратор — тот же вход, журнал и долги, в ведомости вторая формула</span>
+                      <span>Ещё эксперт — тот же вход, в меню пункт «Окно эксперта»</span>
                     </label>
                   </div>
                 </section>

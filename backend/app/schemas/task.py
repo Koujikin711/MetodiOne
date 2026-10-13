@@ -35,6 +35,7 @@ class TaskUpdate(BaseModel):
     assigned_to: int | None = None
     description: str | None = None
     related_lead_id: int | None = None
+    repeats_daily: bool | None = None
     completion_note: str | None = Field(None, max_length=200)
 
 

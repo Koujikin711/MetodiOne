@@ -2169,6 +2169,46 @@ async def ensure_debtor_collection_notes(conn: AsyncConnection, database_url: st
     )
 
 
+async def ensure_protocol_followups(conn: AsyncConnection, database_url: str) -> None:
+    """Комментарий и следующий созвон на строке контроля протоколов."""
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS protocol_followups (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    source VARCHAR(16) NOT NULL,
+                    source_id INTEGER NOT NULL,
+                    comment TEXT,
+                    next_call_at DATETIME,
+                    task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+                    updated_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    updated_at TIMESTAMP,
+                    UNIQUE(company_id, source, source_id)
+                )"""
+            )
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS protocol_followups (
+                    id SERIAL PRIMARY KEY,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    source VARCHAR(16) NOT NULL,
+                    source_id INTEGER NOT NULL,
+                    comment TEXT,
+                    next_call_at TIMESTAMPTZ,
+                    task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+                    updated_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    updated_at TIMESTAMPTZ,
+                    UNIQUE(company_id, source, source_id)
+                )"""
+            )
+        )
+
+
 async def ensure_user_presence_days(conn: AsyncConnection, database_url: str) -> None:
     """Дневной счётчик времени в сети для дашборда РОП."""
     low = database_url.lower()

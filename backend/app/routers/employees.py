@@ -883,10 +883,10 @@ async def patch_employee_contact(
             target.also_curator = bool(body.also_curator)
 
     if "also_expert" in body.model_fields_set and body.also_expert is not None:
-        if target.role not in (UserRole.admin, UserRole.administrator):
+        if target.role not in (UserRole.admin, UserRole.administrator, UserRole.expert):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Окно эксперта на той же учётке доступно админу",
+                detail="Окно эксперта на той же учётке доступно админу и эксперту",
             )
         if bool(getattr(target, "also_expert", False)) != bool(body.also_expert):
             changed = True

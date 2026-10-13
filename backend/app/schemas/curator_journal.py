@@ -360,6 +360,24 @@ class ProtocolQueueRowOut(BaseModel):
     purchase_id: int | None = None
     next_request_id: int | None = None
     next_request_kind: str | None = None
+    followup_comment: str | None = None
+    followup_call_at: datetime | None = None
+    followup_overdue: bool = False
+
+
+class ProtocolFollowupIn(BaseModel):
+    lead_id: int | None = None
+    sale_id: int | None = None
+    comment: str | None = Field(None, max_length=500)
+    next_call_at: datetime | None = None
+
+
+class ProtocolFollowupOut(BaseModel):
+    lead_id: int | None = None
+    sale_id: int | None = None
+    comment: str | None = None
+    next_call_at: datetime | None = None
+    overdue: bool = False
 
 
 class ProtocolNextRequestIn(BaseModel):

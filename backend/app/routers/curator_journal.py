@@ -49,6 +49,8 @@ from app.schemas.curator_journal import (
     MonthJournalOut,
     ProgramRequestCreate,
     ProgramRequestOut,
+    ProtocolFollowupIn,
+    ProtocolFollowupOut,
     ProtocolNextRequestIn,
     ProtocolQueueOut,
     ProtocolQueueRowOut,
@@ -495,6 +497,9 @@ async def protocol_term_queue(
     await attach_protocol_request_ids(db, company_id=company_id, rows=raw["rows"])
     if user.role == UserRole.manager:
         raw = scope_protocol_queue_to_manager(raw, int(user.id))
+    from app.services.protocol_followup import attach_protocol_followups
+
+    await attach_protocol_followups(db, company_id=company_id, rows=raw["rows"])
     return ProtocolQueueOut(
         predicate=raw["predicate"],
         duration_days=raw["duration_days"],
@@ -562,6 +567,43 @@ async def withdraw_next_protocol(
     from app.services.curator_program_request import withdraw_next_protocol_request
 
     await withdraw_next_protocol_request(db, company_id=company_id, request_id=request_id)
+
+
+@router.put("/protocol-queue/followup", response_model=ProtocolFollowupOut)
+async def save_protocol_followup_note(
+    body: ProtocolFollowupIn,
+    user: CurrentUser,
+    company_id: CurrentCompanyId,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ProtocolFollowupOut:
+    """Комментарий после разговора о следующем продукте и время следующего созвона."""
+    if user.role == UserRole.manager:
+        await _assert_manager_owns_protocol_patient(
+            db, company_id=company_id, user_id=int(user.id), lead_id=body.lead_id, sale_id=body.sale_id,
+        )
+    else:
+        assert_journal_access(user)
+    from app.services.protocol_followup import followup_call_overdue, save_protocol_followup
+
+    try:
+        note = await save_protocol_followup(
+            db,
+            company_id=company_id,
+            user=user,
+            lead_id=body.lead_id,
+            sale_id=body.sale_id,
+            comment=body.comment,
+            next_call_at=body.next_call_at,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пациент не найден") from exc
+    return ProtocolFollowupOut(
+        lead_id=body.lead_id,
+        sale_id=body.sale_id,
+        comment=note.comment,
+        next_call_at=note.next_call_at,
+        overdue=followup_call_overdue(note.next_call_at),
+    )
 
 
 @router.get("/curators", response_model=list[CuratorUserOut])

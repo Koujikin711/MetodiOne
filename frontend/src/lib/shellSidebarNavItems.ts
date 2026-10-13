@@ -624,15 +624,19 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       if (showExtraServices) items.push(extraServicesNavItem());
     }
     if (bookingEnabled && showNavForFeature("reports")) {
-      items.push({
-        id: "reports",
-        to: "/reports",
-        title: "Отчёты",
-        labelShort: "Отчёты",
-        labelFull: "Отчёты",
-        variant: "blue",
-        iconKey: "bar-chart",
-      });
+      items.push(
+        alsoExpert
+          ? expertWindowNavItem()
+          : {
+              id: "reports",
+              to: "/reports",
+              title: "Отчёты",
+              labelShort: "Отчёты",
+              labelFull: "Отчёты",
+              variant: "blue",
+              iconKey: "bar-chart",
+            },
+      );
     }
     if (showNavForFeature("chat")) {
       items.push({

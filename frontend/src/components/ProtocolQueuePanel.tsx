@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import { DateTimeField } from "@/components/DateTimeField";
 import { apiFetch } from "@/lib/api";
 
 type ProtocolRow = {
@@ -27,6 +28,9 @@ type ProtocolRow = {
   purchase_id?: number | null;
   next_request_id?: number | null;
   next_request_kind?: "main_course" | "protocol" | null;
+  followup_comment?: string | null;
+  followup_call_at?: string | null;
+  followup_overdue?: boolean;
 };
 
 type ProtocolQueue = {
@@ -43,6 +47,57 @@ function protocolStateColor(state: string): string {
   if (state === "ending_soon") return "text-amber-300";
   if (state === "ended_waiting_next") return "text-red-400";
   return "";
+}
+
+function toDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function FollowupFields({
+  row,
+  pending,
+  onSave,
+}: {
+  row: ProtocolRow;
+  pending: boolean;
+  onSave: (comment: string, nextCallAt: string) => void;
+}) {
+  const savedComment = row.followup_comment ?? "";
+  const savedCall = toDatetimeLocal(row.followup_call_at);
+  const [text, setText] = useState(savedComment);
+  const [callAt, setCallAt] = useState(savedCall);
+  useEffect(() => {
+    setText(savedComment);
+    setCallAt(savedCall);
+  }, [savedComment, savedCall]);
+  return (
+    <div className="debtor-note">
+      <input
+        className="mo-input debtor-note__comment"
+        aria-label="Комментарий после разговора"
+        placeholder="После разговора"
+        value={text}
+        disabled={pending}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          if (text !== savedComment) onSave(text, callAt);
+        }}
+      />
+      <DateTimeField
+        aria-label="Следующий созвон"
+        value={callAt}
+        disabled={pending}
+        onChange={(iso) => {
+          setCallAt(iso);
+          onSave(text, iso);
+        }}
+      />
+    </div>
+  );
 }
 
 function fmtDt(iso: string | null | undefined): string {
@@ -99,6 +154,25 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
     onError: (err: Error) => toast.error(err.message || "Не удалось отправить"),
   });
 
+  const saveFollowup = useMutation({
+    mutationFn: (body: { row: ProtocolRow; comment: string; nextCallAt: string }) =>
+      apiFetch("/api/curator-journal/protocol-queue/followup", {
+        method: "PUT",
+        body: JSON.stringify({
+          lead_id: body.row.lead_id,
+          sale_id: body.row.lead_id ? null : body.row.purchase_id,
+          comment: body.comment.trim() || null,
+          next_call_at: body.nextCallAt || null,
+        }),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["curator-journal", "protocol-queue"] });
+      void qc.invalidateQueries({ queryKey: ["tasks"] });
+      void qc.invalidateQueries({ queryKey: ["task-warnings"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Не удалось сохранить"),
+  });
+
   const withdrawNext = useMutation({
     mutationFn: (requestId: number) =>
       apiFetch(`/api/curator-journal/protocol-queue/next-request/${requestId}`, { method: "DELETE" }),
@@ -120,7 +194,8 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
             </h2>
             <p className="mt-1 max-w-2xl text-xs mo-muted">
               Кто уже купил Протокол: продажа в KPI или запись на протокол попадает сюда сама.
-              Сверху — самые свежие. Срок 30 дней с даты продажи.
+              Сверху — самые свежие. Срок 30 дней с даты продажи. После разговора о следующем
+              продукте оставьте комментарий или время следующего созвона — менеджеру придёт задача.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
@@ -194,6 +269,7 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
                 <th className="px-3 py-2 font-medium">Предыдущие</th>
                 <th className="px-3 py-2 font-medium">Менеджер</th>
                 <th className="px-3 py-2 font-medium">Посл. контакт</th>
+                <th className="px-3 py-2 font-medium">Созвон</th>
                 <th className="px-3 py-2 font-medium">Админу</th>
               </tr>
             </thead>
@@ -234,6 +310,13 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
                   <td className="px-3 py-2.5 text-xs tabular-nums">{r.previous_protocols_label}</td>
                   <td className="px-3 py-2.5 text-xs">{r.manager_name || "—"}</td>
                   <td className="px-3 py-2.5 tabular-nums text-xs">{fmtDt(r.last_contact_at)}</td>
+                  <td className={["px-3 py-2.5", r.followup_overdue ? "text-amber-300" : ""].filter(Boolean).join(" ")}>
+                    <FollowupFields
+                      row={r}
+                      pending={saveFollowup.isPending}
+                      onSave={(comment, nextCallAt) => saveFollowup.mutate({ row: r, comment, nextCallAt })}
+                    />
+                  </td>
                   <td className="px-3 py-2.5 text-xs">
                     <select
                       className="mo-input min-w-[9.5rem] py-1 text-xs"

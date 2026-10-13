@@ -91,7 +91,8 @@ export function MainLayout() {
   const meQuery = useCurrentUserMe();
   const alsoCurator = isExpert && Boolean(meQuery.data?.also_curator);
   const alsoExpert =
-    (role === "admin" || role === "administrator") && Boolean(meQuery.data?.also_expert);
+    (role === "admin" || role === "administrator" || role === "expert") &&
+    Boolean(meQuery.data?.also_expert);
   const isChiefExpert = Boolean(meQuery.data?.is_chief_expert);
   const isExpertElevated = isExpert && isChiefExpert;
   const isManagerLikeNav = isManagerNav || isExpertElevated;
@@ -722,24 +723,43 @@ export function MainLayout() {
                   </span>
                 </NavLink>
               </NavIf>
-              <NavIf show={showNavForFeature("crm")}>
+              {role === "manager" || role === "admin" ? (
                 <NavLink
                   preventScrollReset
-                  to="/crm"
+                  to="/sales-control"
                   className={managerChatFirst ? salesMobileBottomNavLinkClass : mobileBottomNavLinkClass}
-                  title={navLex.navKanbanTitle}
+                  title="Контроль продаж"
                 >
                   <GradientIconBox
-                    variant="crm"
+                    variant="platform"
                     className={managerChatFirst ? "h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" : "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4"}
                   >
-                    <Funnel className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
+                    <ClipboardList className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
                   </GradientIconBox>
                   <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
-                    {navLex.navKanban}
+                    Контроль продаж
                   </span>
                 </NavLink>
-              </NavIf>
+              ) : (
+                <NavIf show={showNavForFeature("crm")}>
+                  <NavLink
+                    preventScrollReset
+                    to="/crm"
+                    className={managerChatFirst ? salesMobileBottomNavLinkClass : mobileBottomNavLinkClass}
+                    title={navLex.navKanbanTitle}
+                  >
+                    <GradientIconBox
+                      variant="crm"
+                      className={managerChatFirst ? "h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" : "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4"}
+                    >
+                      <Funnel className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
+                    </GradientIconBox>
+                    <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
+                      {navLex.navKanban}
+                    </span>
+                  </NavLink>
+                </NavIf>
+              )}
               <NavIf show={showNavForFeature("crm")}>
                 <NavLink
                   preventScrollReset

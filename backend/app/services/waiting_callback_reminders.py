@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Lead, LeadWaitingCallback, Task, TaskStatus, User
 from app.services.audit import write_audit_event
+from app.services.task_repeat import as_clinic_naive
 from app.services.task_team_chat import notify_manager_task_in_chat
 from app.services.whatsapp_automation import (
     _active_green_integration_for_pipeline,
@@ -65,7 +66,7 @@ async def run_waiting_callback_tick(db: AsyncSession) -> int:
         task = Task(
             company_id=row.company_id,
             title=f"Связаться с клиентом: {row.client_name}",
-            deadline=row.scheduled_at,
+            deadline=as_clinic_naive(row.scheduled_at),
             status=TaskStatus.pending,
             assigned_to=row.manager_id,
             created_by_user_id=None,
