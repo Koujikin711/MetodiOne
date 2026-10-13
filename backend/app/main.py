@@ -56,6 +56,7 @@ from app.database_migrate import (
     ensure_user_also_expert,
     ensure_task_repeats_daily,
     ensure_task_repeat_weekdays,
+    ensure_task_repeat_dates,
     ensure_task_status_missed,
     ensure_user_pay_profile,
     ensure_booking_referrer,
@@ -187,6 +188,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_user_also_expert(conn, db_url)
                 await ensure_task_repeats_daily(conn, db_url)
                 await ensure_task_repeat_weekdays(conn, db_url)
+                await ensure_task_repeat_dates(conn, db_url)
                 await ensure_booking_referrer(conn, db_url)
                 await ensure_payroll_adjustments(conn, db_url)
                 await ensure_employee_name_terms(conn, db_url)
@@ -595,6 +597,7 @@ async def lifespan(_: FastAPI):
             await ensure_user_also_expert(conn, effective_database_url())
             await ensure_task_repeats_daily(conn, effective_database_url())
             await ensure_task_repeat_weekdays(conn, effective_database_url())
+            await ensure_task_repeat_dates(conn, effective_database_url())
     except Exception:
         logger.exception("ensure also_expert column failed")
     try:
@@ -623,6 +626,7 @@ async def lifespan(_: FastAPI):
             await ensure_user_also_expert(conn, settings.database_url)
             await ensure_task_repeats_daily(conn, settings.database_url)
             await ensure_task_repeat_weekdays(conn, settings.database_url)
+            await ensure_task_repeat_dates(conn, settings.database_url)
             await ensure_booking_referrer(conn, settings.database_url)
             await ensure_payroll_adjustments(conn, settings.database_url)
             await ensure_employee_name_terms(conn, settings.database_url)

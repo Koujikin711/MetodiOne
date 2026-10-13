@@ -1899,6 +1899,18 @@ async def ensure_task_repeat_weekdays(conn: AsyncConnection, database_url: str) 
     await conn.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS repeat_weekdays JSON"))
 
 
+async def ensure_task_repeat_dates(conn: AsyncConnection, database_url: str) -> None:
+    """Одна задача на несколько конкретных дат календаря, время одно."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        r = await conn.execute(text("PRAGMA table_info(tasks)"))
+        cols = {row[1] for row in r.fetchall()}
+        if cols and "repeat_dates" not in cols:
+            await conn.execute(text("ALTER TABLE tasks ADD COLUMN repeat_dates TEXT"))
+        return
+    await conn.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS repeat_dates JSON"))
+
+
 async def ensure_task_repeats_daily(conn: AsyncConnection, database_url: str) -> None:
     """Задача эксперта может повторяться каждый день в тот же час."""
     low = database_url.lower()

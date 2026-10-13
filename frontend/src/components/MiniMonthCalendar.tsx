@@ -4,6 +4,8 @@ type Props = {
   value: string;
   onChange: (isoDate: string) => void;
   compact?: boolean;
+  /** Если задан, в календаре подсвечены все эти даты, а клик только сообщает день. */
+  selectedDates?: string[];
 };
 
 const weekDays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -13,7 +15,7 @@ function parseYmd(s: string): { y: number; m: number; d: number } {
   return { y, m: m || 1, d: d || 1 };
 }
 
-export function MiniMonthCalendar({ value, onChange, compact = false }: Props) {
+export function MiniMonthCalendar({ value, onChange, compact = false, selectedDates }: Props) {
   const selected = parseYmd(value);
   const [view, setView] = useState(() => ({ y: selected.y, m: selected.m }));
 
@@ -86,11 +88,12 @@ export function MiniMonthCalendar({ value, onChange, compact = false }: Props) {
         {cells.map((c, i) => {
           const iso = c.iso ?? null;
           if (c.day == null || iso == null) return <div key={`e-${i}`} className="mini-cal__empty" />;
-          const selected = iso === value;
+          const selected = selectedDates ? selectedDates.includes(iso) : iso === value;
           return (
             <button
               key={iso}
               type="button"
+              aria-pressed={selectedDates ? selected : undefined}
               onClick={() => onChange(iso)}
               className={[
                 "mini-cal__day",

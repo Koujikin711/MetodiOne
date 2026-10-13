@@ -12,9 +12,12 @@ from app.models import Lead, Pipeline, Task, TaskStatus, User, UserRole
 from app.schemas.task import TaskAssigneeRead, TaskCreate, TaskListResponse, TaskRead, TaskReviewUpdate, TaskUpdate
 from app.services.chief_expert_access import is_chief_expert
 from app.services.task_repeat import (
+    align_concrete_deadline,
     align_weekday_deadline,
     as_clinic_naive,
+    next_concrete_after,
     next_weekday_after,
+    normalize_dates,
     normalize_weekdays,
     roll_repeating_tasks,
     same_hour_tomorrow,
@@ -130,6 +133,7 @@ def _to_task_read(task: Task, assignee: User | None, creator: User | None, lead:
         is_locked=task.status in (TaskStatus.done, TaskStatus.cancelled, TaskStatus.missed),
         repeats_daily=bool(getattr(task, "repeats_daily", False)),
         repeat_weekdays=normalize_weekdays(getattr(task, "repeat_weekdays", None)),
+        repeat_dates=normalize_dates(getattr(task, "repeat_dates", None)),
         completion_note=(getattr(task, "completion_note", None) or None),
     )
 
@@ -219,19 +223,25 @@ async def create_task(
     expert_can_assign = await _can_expert_assign(current_user, db, company_id)
     _ensure_assign_permission(current_user=current_user, assignee=assignee, expert_can_assign=expert_can_assign)
     weekdays = normalize_weekdays(body.repeat_weekdays)
-    repeats_daily = bool(body.repeats_daily) and not weekdays
+    dates = normalize_dates(body.repeat_dates)
+    multi_dates = len(dates) >= 2
+    repeats_daily = bool(body.repeats_daily) and not weekdays and not multi_dates
     if repeats_daily and assignee.role != UserRole.expert:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Повтор каждый день ставится на задачу эксперта",
         )
-    if (repeats_daily or weekdays) and body.deadline is None:
+    if (repeats_daily or weekdays or multi_dates) and body.deadline is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Для повтора укажите час",
         )
     deadline = as_clinic_naive(body.deadline)
-    if weekdays and deadline is not None:
+    if multi_dates and deadline is not None:
+        snapped = align_concrete_deadline(deadline, dates, datetime.now(UTC))
+        if snapped is not None:
+            deadline = snapped
+    elif weekdays and deadline is not None:
         snapped = align_weekday_deadline(deadline, weekdays, datetime.now(UTC))
         if snapped is not None:
             deadline = snapped
@@ -247,6 +257,7 @@ async def create_task(
         company_id=company_id,
         repeats_daily=repeats_daily,
         repeat_weekdays=weekdays or None,
+        repeat_dates=dates if multi_dates else None,
     )
     db.add(task)
     await db.flush()
@@ -408,6 +419,7 @@ async def update_task(
         task.status = TaskStatus.pending
         task.repeats_daily = False
         task.repeat_weekdays = None
+        task.repeat_dates = None
         task.completion_note = None
         await db.flush()
         assignee = await _get_company_user(db, task.assigned_to, company_id)
@@ -427,8 +439,12 @@ async def update_task(
             detail="Задача уже в журнале (решена/закрыта) и больше не редактируется",
         )
     weekdays = normalize_weekdays(getattr(task, "repeat_weekdays", None))
-    was_weekdays = bool(weekdays) and task.deadline is not None
-    was_repeating = bool(getattr(task, "repeats_daily", False)) and not weekdays and task.deadline is not None
+    dates = normalize_dates(getattr(task, "repeat_dates", None))
+    was_dates = len(dates) >= 2 and task.deadline is not None
+    was_weekdays = bool(weekdays) and not was_dates and task.deadline is not None
+    was_repeating = (
+        bool(getattr(task, "repeats_daily", False)) and not weekdays and not was_dates and task.deadline is not None
+    )
     if current_user.role in (UserRole.manager, UserRole.expert):
         if task.assigned_to != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Можно изменять только свои задачи")
@@ -461,12 +477,19 @@ async def update_task(
     if task.status == TaskStatus.done and "completion_note" in body.model_fields_set:
         text_note = (note or "").strip()
         task.completion_note = text_note[:200] or None
-    if (was_weekdays or was_repeating) and task.status in (TaskStatus.done, TaskStatus.missed) and task.deadline is not None:
+    next_deadline = None
+    if was_dates and task.deadline is not None:
+        next_deadline = next_concrete_after(task.deadline, dates)
+    elif was_weekdays and task.deadline is not None:
+        next_deadline = next_weekday_after(task.deadline, weekdays)
+    elif was_repeating and task.deadline is not None:
+        next_deadline = same_hour_tomorrow(task.deadline)
+    if next_deadline is not None and task.status in (TaskStatus.done, TaskStatus.missed):
         db.add(
             Task(
                 company_id=company_id,
                 title=task.title,
-                deadline=next_weekday_after(task.deadline, weekdays) if was_weekdays else same_hour_tomorrow(task.deadline),
+                deadline=next_deadline,
                 status=TaskStatus.pending,
                 assigned_to=task.assigned_to,
                 created_by_user_id=task.created_by_user_id,
@@ -474,6 +497,7 @@ async def update_task(
                 related_lead_id=task.related_lead_id,
                 repeats_daily=was_repeating,
                 repeat_weekdays=weekdays or None,
+                repeat_dates=dates if was_dates else None,
             )
         )
     await db.flush()

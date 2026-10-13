@@ -14,6 +14,10 @@ type Props = {
   /** Шаг минут в списке времени (по умолчанию 15). */
   minuteStep?: 5 | 10 | 15 | 30;
   allowClear?: boolean;
+  /** Несколько конкретных дат в одном календаре. Время одно на все дни. */
+  multiple?: boolean;
+  selectedDates?: string[];
+  onSelectedDatesChange?: (dates: string[]) => void;
 };
 
 const PANEL_W = 340;
@@ -29,6 +33,21 @@ function formatDisplay(value: string): string {
   if (!p) return "";
   const [y, mo, d] = p.date.split("-");
   return `${d}.${mo}.${y}, ${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
+}
+
+function formatMany(dates: string[], hour: number, minute: number): string {
+  const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  const parts = dates.map((iso) => {
+    const [y, mo, d] = iso.split("-");
+    return { y, mo, d };
+  });
+  const first = parts[0];
+  const sameMonth = first != null && parts.every((p) => p.y === first.y && p.mo === first.mo);
+  const body =
+    sameMonth && first
+      ? `${parts.map((p) => p.d).join(", ")}.${first.mo}.${first.y}`
+      : parts.map((p) => `${p.d}.${p.mo}.${p.y}`).join(", ");
+  return `${body}, ${time}`;
 }
 
 function joinLocal(date: string, hour: number, minute: number): string {
@@ -138,8 +157,14 @@ export function DateTimeField({
   "aria-label": ariaLabel,
   minuteStep = 15,
   allowClear = true,
+  multiple = false,
+  selectedDates,
+  onSelectedDatesChange,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const dates = multiple ? (selectedDates ?? []) : [];
+  const datesKey = dates.join("|");
+  const many = multiple && dates.length > 1;
   const [draft, setDraft] = useState(() => formatDisplay(value));
   const [focused, setFocused] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -150,8 +175,12 @@ export function DateTimeField({
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null);
 
   useEffect(() => {
-    if (!focused) setDraft(formatDisplay(value));
-  }, [value, focused]);
+    if (focused && !many) return;
+    const parsedNow = parseLocal(value);
+    const h = parsedNow?.hour ?? 9;
+    const m = parsedNow?.minute ?? 0;
+    setDraft(many ? formatMany(dates, h, m) : formatDisplay(value));
+  }, [value, focused, many, datesKey, dates]);
 
   useLayoutEffect(() => {
     const el = inputRef.current;
@@ -197,7 +226,7 @@ export function DateTimeField({
       if (!el) return;
       const r = el.getBoundingClientRect();
       const gap = 6;
-      const panelH = 320;
+      const panelH = multiple ? 360 : 320;
       let left = r.left;
       left = Math.max(8, Math.min(left, window.innerWidth - PANEL_W - 8));
       let top = r.bottom + gap;
@@ -227,20 +256,46 @@ export function DateTimeField({
   }, [open, selectedLabel]);
 
   function commitDraft(raw: string) {
+    if (many) return;
     const next = parseTypedDateTime(raw);
     if (next) {
       onChange(next);
+      if (multiple) {
+        const day = parseLocal(next)?.date;
+        if (day) onSelectedDatesChange?.([day]);
+      }
       setDraft(formatDisplay(next));
       return;
     }
     setDraft(formatDisplay(value));
   }
 
+  function emitDates(next: string[], h: number, m: number) {
+    const unique = [...new Set(next)].sort();
+    onSelectedDatesChange?.(unique);
+    if (unique.length === 0) {
+      onChange("");
+      return;
+    }
+    onChange(joinLocal(unique[0], h, m));
+  }
+
   function setDate(isoDate: string) {
-    onChange(joinLocal(isoDate, hour, minute));
+    if (!multiple) {
+      onChange(joinLocal(isoDate, hour, minute));
+      onSelectedDatesChange?.([isoDate]);
+      return;
+    }
+    const has = dates.includes(isoDate);
+    emitDates(has ? dates.filter((d) => d !== isoDate) : [...dates, isoDate], hour, minute);
   }
 
   function setTime(h: number, m: number) {
+    const day = dates[0] ?? datePart;
+    if (multiple && dates.length > 0) {
+      onChange(joinLocal(day, h, m));
+      return;
+    }
     onChange(joinLocal(datePart, h, m));
   }
 
@@ -250,7 +305,9 @@ export function DateTimeField({
     const rounded = Math.round(n.getMinutes() / step) * step;
     const h = rounded >= 60 ? n.getHours() + 1 : n.getHours();
     const m = rounded >= 60 ? 0 : rounded;
-    onChange(joinLocal(todayYmd(), Math.min(23, h), m));
+    const today = todayYmd();
+    if (multiple) onSelectedDatesChange?.([today]);
+    onChange(joinLocal(today, Math.min(23, h), m));
     setOpen(false);
   }
 
@@ -265,7 +322,17 @@ export function DateTimeField({
           >
             <div className="date-time-field__body">
               <div className="date-time-field__cal">
-                <MiniMonthCalendar compact value={datePart} onChange={setDate} />
+                <MiniMonthCalendar
+                  compact
+                  value={datePart}
+                  onChange={setDate}
+                  selectedDates={multiple ? dates : undefined}
+                />
+                {multiple ? (
+                  <p className="mt-2 text-[11px] leading-snug text-[var(--mo-text-muted)]">
+                    Несколько дней: нажмите дату ещё раз, чтобы снять.
+                  </p>
+                ) : null}
               </div>
               <div className="date-time-field__times" ref={timeListRef} role="listbox" aria-label="Время">
                 {times.map((t) => {
@@ -297,6 +364,7 @@ export function DateTimeField({
                   type="button"
                   className="date-field__link"
                   onClick={() => {
+                    onSelectedDatesChange?.([]);
                     onChange("");
                     setDraft("");
                     setOpen(false);
@@ -330,8 +398,10 @@ export function DateTimeField({
           type="text"
           inputMode="numeric"
           disabled={disabled}
-          required={required}
+          readOnly={many}
+          required={required && !many}
           aria-label={ariaLabel}
+          title={many ? draft : undefined}
           placeholder="ДД.ММ.ГГГГ, --:--"
           value={draft}
           onChange={(e) => {
@@ -340,9 +410,15 @@ export function DateTimeField({
             const next = maskDateTimeDraft(el.value, draft, cursor);
             caretRef.current = next.caret;
             setDraft(next.text);
-            if (next.text.replace(/\D/g, "").length === 12) {
+            if (!many && next.text.replace(/\D/g, "").length === 12) {
               const iso = parseTypedDateTime(next.text);
-              if (iso) onChange(iso);
+              if (iso) {
+                onChange(iso);
+                if (multiple) {
+                  const day = parseLocal(iso)?.date;
+                  if (day) onSelectedDatesChange?.([day]);
+                }
+              }
             }
           }}
           onFocus={() => setFocused(true)}

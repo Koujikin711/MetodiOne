@@ -1,4 +1,4 @@
-"""Повтор задачи: каждый день или в выбранные дни недели, в тот же час."""
+"""Повтор задачи: каждый день, выбранные дни недели или конкретные даты, в тот же час."""
 
 from __future__ import annotations
 
@@ -94,6 +94,71 @@ def align_weekday_deadline(deadline: datetime, weekdays: list[int], now: datetim
     return moved
 
 
+def normalize_dates(raw: object) -> list[str]:
+    """Конкретные даты YYYY-MM-DD. Меньше двух — это обычный один срок."""
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return []
+        try:
+            raw = json.loads(text)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(raw, (list, tuple)):
+        return []
+    found: list[date] = []
+    seen: set[date] = set()
+    for item in raw:
+        day: date | None = None
+        if isinstance(item, datetime):
+            day = _local(item).date()
+        elif isinstance(item, date):
+            day = item
+        else:
+            text = str(item).strip()[:10]
+            parts = text.split("-")
+            if len(parts) == 3:
+                try:
+                    day = date(int(parts[0]), int(parts[1]), int(parts[2]))
+                except ValueError:
+                    day = None
+        if day is None or day in seen:
+            continue
+        seen.add(day)
+        found.append(day)
+    found.sort()
+    return [day.isoformat() for day in found[:90]]
+
+
+def align_concrete_deadline(deadline: datetime, dates: list[str], now: datetime) -> datetime | None:
+    """Ставит срок на ближайшую выбранную дату. Сегодня остаётся, если оно в списке."""
+    days = [date.fromisoformat(item) for item in normalize_dates(dates)]
+    if len(days) < 2:
+        return None
+    local = _local(deadline)
+    today = _local(now).date()
+    if local.date() in days and local.date() >= today:
+        return None
+    upcoming = [day for day in days if day >= today]
+    target = upcoming[0] if upcoming else days[-1]
+    if target == local.date():
+        return None
+    return local.replace(year=target.year, month=target.month, day=target.day, tzinfo=None)
+
+
+def next_concrete_after(deadline: datetime, dates: list[str]) -> datetime | None:
+    """Следующая выбранная дата после текущего срока, час тот же. None — даты кончились."""
+    days = [date.fromisoformat(item) for item in normalize_dates(dates)]
+    local = _local(deadline)
+    later = [day for day in days if day > local.date()]
+    if not later:
+        return None
+    nxt = later[0]
+    return local.replace(year=nxt.year, month=nxt.month, day=nxt.day, tzinfo=None)
+
+
 def next_weekday_after(deadline: datetime, weekdays: list[int]) -> datetime:
     """Следующий выбранный день после текущего срока, час тот же."""
     days = set(normalize_weekdays(weekdays))
@@ -134,7 +199,11 @@ async def roll_repeating_tasks(db: AsyncSession, company_id: int, now: datetime 
                 Task.company_id == company_id,
                 Task.status == TaskStatus.pending,
                 Task.deadline.is_not(None),
-                or_(Task.repeats_daily.is_(True), Task.repeat_weekdays.is_not(None)),
+                or_(
+                    Task.repeats_daily.is_(True),
+                    Task.repeat_weekdays.is_not(None),
+                    Task.repeat_dates.is_not(None),
+                ),
             )
         )
     ).all()
@@ -142,8 +211,11 @@ async def roll_repeating_tasks(db: AsyncSession, company_id: int, now: datetime 
     for task in rows:
         if task.deadline is None:
             continue
+        concrete = normalize_dates(getattr(task, "repeat_dates", None))
         days = normalize_weekdays(getattr(task, "repeat_weekdays", None))
-        if days:
+        if len(concrete) >= 2:
+            moved = align_concrete_deadline(task.deadline, concrete, moment)
+        elif days:
             moved = align_weekday_deadline(task.deadline, days, moment)
         elif task.repeats_daily:
             moved = roll_to_today(task.deadline, moment)

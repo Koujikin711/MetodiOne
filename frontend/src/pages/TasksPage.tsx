@@ -20,6 +20,18 @@ function weekdayCaption(days: number[] | null | undefined) {
     .join(", ");
 }
 
+function datesCaption(dates: string[] | null | undefined) {
+  if (!dates || dates.length < 2) return "";
+  return dates
+    .map((iso) => {
+      const [y, m, d] = iso.split("-");
+      if (!y || !m || !d) return "";
+      return `${d}.${m}.${y}`;
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
 const STATUS: { key: TaskStatus; label: string }[] = [
   { key: "pending", label: "Ожидает" },
   { key: "in_progress", label: "В работе" },
@@ -58,6 +70,7 @@ export function TasksPage() {
   const [title, setTitle] = useState("");
   const [assignedTo, setAssignedTo] = useState<number | "">("");
   const [deadline, setDeadline] = useState("");
+  const [dates, setDates] = useState<string[]>([]);
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [repeatsDaily, setRepeatsDaily] = useState(false);
   const [doneNoteFor, setDoneNoteFor] = useState<number | null>(null);
@@ -94,8 +107,9 @@ export function TasksPage() {
           title: title.trim(),
           assigned_to: assignedTo || null,
           deadline: deadline || null,
-          repeats_daily: expertSelected && repeatsDaily && weekdays.length === 0,
+          repeats_daily: expertSelected && repeatsDaily && weekdays.length === 0 && dates.length < 2,
           repeat_weekdays: weekdays,
+          repeat_dates: dates.length >= 2 ? dates : [],
         }),
       }),
     onSuccess: () => {
@@ -103,6 +117,7 @@ export function TasksPage() {
       setTitle("");
       setAssignedTo("");
       setDeadline("");
+      setDates([]);
       setWeekdays([]);
       setRepeatsDaily(false);
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -182,7 +197,7 @@ export function TasksPage() {
 
         {canCreate && view === "active" ? (
           <form
-            className="mo-section grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_12rem_14rem_auto] sm:items-end sm:p-5"
+            className="mo-section grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_12rem_minmax(14rem,22rem)_auto] sm:items-end sm:p-5"
             onSubmit={(e) => {
               e.preventDefault();
               if (!title.trim()) {
@@ -193,7 +208,7 @@ export function TasksPage() {
                 toast.error("Выберите исполнителя");
                 return;
               }
-              if ((weekdays.length > 0 || (expertSelected && repeatsDaily)) && !deadline) {
+              if ((dates.length >= 2 || weekdays.length > 0 || (expertSelected && repeatsDaily)) && !deadline) {
                 toast.error("Укажите час повтора");
                 return;
               }
@@ -232,8 +247,14 @@ export function TasksPage() {
             <label className="block">
               <span className="mo-admin-toolbar-label">Срок</span>
               <DateTimeField
+                multiple
                 value={deadline}
+                selectedDates={dates}
                 onChange={setDeadline}
+                onSelectedDatesChange={(next) => {
+                  setDates(next);
+                  if (next.length >= 2) setRepeatsDaily(false);
+                }}
                 className="mt-1"
                 aria-label="Срок задачи"
               />
@@ -358,6 +379,7 @@ export function TasksPage() {
                     <p className="mt-0.5 text-xs lux-caption">
                       {t.assigned_to_name ?? "—"}
                       {dl ? ` · до ${dl}` : ""}
+                      {datesCaption(t.repeat_dates) ? ` · ${datesCaption(t.repeat_dates)}` : ""}
                       {weekdayCaption(t.repeat_weekdays)
                         ? ` · ${weekdayCaption(t.repeat_weekdays)}`
                         : t.repeats_daily
