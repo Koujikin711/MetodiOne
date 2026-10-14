@@ -1554,6 +1554,16 @@ def _can_be_booking_responsible(role: UserRole | None) -> bool:
     return can_be_booking_responsible(role)
 
 
+def chooser_role(role: UserRole | None) -> bool:
+    """Админ и владелец записывают без перевода оплаты на менеджера карточки."""
+    return role in (
+        UserRole.admin,
+        UserRole.administrator,
+        UserRole.owner,
+        UserRole.super_owner,
+    )
+
+
 async def _find_lead_by_phone_for_booking(
     db: AsyncSession,
     *,
@@ -2280,16 +2290,17 @@ async def create_appointment(
             resolved_manager_id = explicit_choice
             if lead.manager_id is None:
                 lead.manager_id = explicit_choice
+        elif chooser:
+            # Карточка остаётся у своего менеджера. Оплата записи ему не идёт.
+            resolved_manager_id = None
         elif lead.manager_id is not None:
             resolved_manager_id = lead.manager_id
-        elif resolved_manager_id is None and current_user.role in (UserRole.manager, UserRole.admin):
+        elif current_user.role == UserRole.manager:
             resolved_manager_id = current_user.id
             lead.manager_id = current_user.id
     else:
-        upsert_responsible = (
-            explicit_choice
-            if explicit_choice is not None
-            else (int(current_user.id) if admin_auto else body.responsible_manager_id)
+        upsert_responsible = explicit_choice if explicit_choice is not None else (
+            None if chooser else body.responsible_manager_id
         )
         lead_id = await _upsert_lead_for_appointment(
             db,
@@ -2311,11 +2322,14 @@ async def create_appointment(
                     resolved_manager_id = explicit_choice
                     if lead.manager_id is None:
                         lead.manager_id = explicit_choice
+                elif chooser:
+                    resolved_manager_id = None
                 elif lead.manager_id is not None:
                     resolved_manager_id = lead.manager_id
-                elif admin_auto:
-                    resolved_manager_id = int(current_user.id)
-                    lead.manager_id = int(current_user.id)
+                elif current_user.role == UserRole.manager:
+                    resolved_manager_id = current_user.id
+                    if lead.manager_id is None:
+                        lead.manager_id = current_user.id
 
     service_amount_value = float(body.service_amount)
     paid_amount_value = float(body.paid_amount or 0)
@@ -2876,7 +2890,7 @@ async def patch_appointment_status(
             if body.payment_method is not None and new_paid > 0:
                 bill_target.payment_method = body.payment_method
             bill_target.updated_at = datetime.now(UTC)
-            if bill_target.responsible_manager_id is None:
+            if bill_target.responsible_manager_id is None and not chooser_role(current_user.role):
                 mid: int | None = None
                 if bill_target.lead_id is not None:
                     lead = await db.get(Lead, int(bill_target.lead_id))
@@ -3099,7 +3113,7 @@ async def patch_appointment_payment(
         target.payment_method = None
     target.updated_at = datetime.now(UTC)
     # Чтобы полная оплата попала в KPI — нужен responsible_manager_id.
-    if target.responsible_manager_id is None:
+    if target.responsible_manager_id is None and not chooser_role(current_user.role):
         mid: int | None = None
         lead = None
         if target.lead_id is not None:

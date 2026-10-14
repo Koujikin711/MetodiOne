@@ -296,7 +296,13 @@ async def _assert_thread_access(db: AsyncSession, thread: ChatThread, current_us
     lead_ok = lead_pipeline_id is not None and lead_pipeline_id in allowed
     if not thread_ok and not lead_ok:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Thread is outside manager directions")
-    if lead and lead.manager_id is not None and lead.manager_id != current_user.id:
+    # Админ открывает чат чужого клиента, карточка при этом остаётся у менеджера.
+    if (
+        lead
+        and lead.manager_id is not None
+        and lead.manager_id != current_user.id
+        and current_user.role not in (UserRole.admin, UserRole.administrator)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Клиент закреплён за другим менеджером",

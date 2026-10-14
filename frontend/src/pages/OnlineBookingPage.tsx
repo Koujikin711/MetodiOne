@@ -1703,7 +1703,7 @@ export function OnlineBookingPage() {
                       value={responsibleChoice}
                       onChange={(e) => setResponsibleChoice(e.target.value)}
                     >
-                      <option value="">Как у карточки клиента</option>
+                      <option value="">Не на счёт менеджера</option>
                       {(responsibleOptionsQuery.data ?? []).map((person) => (
                         <option key={person.id} value={person.id}>
                           {person.name}
@@ -1713,7 +1713,7 @@ export function OnlineBookingPage() {
                     <span className="mt-1 block text-[11px]">
                       {responsibleChoice
                         ? "Эта запись и её оплата пойдут выбранному человеку. Менеджер карточки не меняется."
-                        : "Сейчас запись и деньги встают на менеджера карточки. Выберите человека, чтобы отнести эту услугу ему."}
+                        : "Карточка остаётся у менеджера. Сумма этой записи на его счёт не идёт."}
                     </span>
                   </label>
                 ) : null}
