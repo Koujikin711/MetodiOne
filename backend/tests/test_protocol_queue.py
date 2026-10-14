@@ -11,9 +11,8 @@ from app.services.protocol_queue import (
     PROTOCOL_DURATION_DAYS,
     classify_protocol_episodes,
     cluster_unlinked_protocols,
+    booking_visits_that_start_protocols,
     dedupe_same_source_purchases,
-    first_booking_protocol_lead_ids,
-    lead_already_has_protocol,
     protocol_period_covers,
     protocol_row_sort_key,
     protocol_sale_ids_already_linked,
@@ -244,15 +243,23 @@ def test_booking_inside_existing_protocol_is_not_a_second_one():
     assert protocol_period_covers([existing], later) is False
 
 
-def test_later_booking_does_not_open_another_protocol():
+def test_visit_inside_thirty_days_stays_the_same_protocol():
     existing = _p(id=1, at=datetime(2026, 10, 1, tzinfo=UTC))
-    later = datetime(2026, 12, 1, tzinfo=UTC)
-    assert lead_already_has_protocol([existing]) is True
-    chosen = first_booking_protocol_lead_ids(
-        [(10, later), (10, datetime(2026, 12, 20, tzinfo=UTC)), (11, later)],
-        leads_with_protocol={10},
+    inside = datetime(2026, 10, 10, tzinfo=UTC)
+    chosen = booking_visits_that_start_protocols([(10, inside, 7)], {10: [existing]})
+    assert chosen == []
+
+
+def test_visit_after_thirty_days_opens_the_next_protocol():
+    existing = _p(id=1, at=datetime(2026, 10, 1, tzinfo=UTC))
+    second_window = datetime(2026, 11, 15, tzinfo=UTC)
+    still_second = datetime(2026, 11, 20, tzinfo=UTC)
+    third_window = datetime(2026, 12, 20, tzinfo=UTC)
+    chosen = booking_visits_that_start_protocols(
+        [(10, second_window, 2), (10, still_second, 3), (10, third_window, 4)],
+        {10: [existing]},
     )
-    assert chosen == {11}
+    assert chosen == [(10, 2), (10, 4)]
 
 
 def test_same_sale_is_not_two_protocols():

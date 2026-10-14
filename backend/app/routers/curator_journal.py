@@ -568,7 +568,7 @@ async def protocol_term_queue(
     company_id: CurrentCompanyId,
     db: Annotated[AsyncSession, Depends(get_db)],
     include_converted: bool = Query(
-        False,
+        True,
         description="Включить строки, где следующий Протокол уже куплен",
     ),
     ending_soon_days: int = Query(

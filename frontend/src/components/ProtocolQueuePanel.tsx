@@ -124,7 +124,7 @@ export function ProtocolQueuePanel({
 }) {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
-  const [includeConverted, setIncludeConverted] = useState(false);
+  const [includeConverted, setIncludeConverted] = useState(true);
   const [endingSoonDays, setEndingSoonDays] = useState("7");
 
   const qs = useMemo(() => {
@@ -228,8 +228,8 @@ export function ProtocolQueuePanel({
             </h2>
             <p className="mt-1 max-w-2xl text-xs mo-muted">
               Кто уже купил Протокол: продажа в KPI или запись на протокол попадает сюда сама.
-              Сверху — самые свежие. Срок 30 дней с даты продажи. После разговора о следующем
-              продукте оставьте комментарий или время следующего созвона — менеджеру придёт задача.
+              Номер 2 и 3 — это следующий протокол после 30 дней, не каждый визит внутри срока.
+              В списке сразу все номера. Снимите галочку, если нужны только те, у кого следующий ещё не куплен.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
@@ -276,7 +276,7 @@ export function ProtocolQueuePanel({
               checked={includeConverted}
               onChange={(e) => setIncludeConverted(e.target.checked)}
             />
-            Показать с купленным следующим Протоколом
+            Показать все: 1-й, 2-й и 3-й протокол
           </label>
         </div>
       </div>

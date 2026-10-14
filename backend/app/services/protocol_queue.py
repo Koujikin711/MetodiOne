@@ -99,10 +99,6 @@ def purchase_closed_by_kpi_sale(p: PatientPurchase, closed_sale_ids: set[int]) -
         return False
 
 
-def lead_already_has_protocol(purchases: list[PatientPurchase]) -> bool:
-    return any(protocol_purchase_counts(item) for item in purchases)
-
-
 def dedupe_same_source_purchases(items: list[PatientPurchase]) -> list[PatientPurchase]:
     """Одна продажа или визит не становятся двумя протоколами."""
     seen: set[tuple[str, int]] = set()
@@ -118,22 +114,38 @@ def dedupe_same_source_purchases(items: list[PatientPurchase]) -> list[PatientPu
     return out
 
 
-def first_booking_protocol_lead_ids(
-    visits: list[tuple[int, datetime | None]],
-    *,
-    leads_with_protocol: set[int],
-) -> set[int]:
-    """Визиты «Протокол» не плодят #2, #3. Один старт, и только если пакета ещё нет."""
-    chosen: set[int] = set()
-    ordered = sorted(
-        visits,
-        key=lambda item: (_utc(item[1]) or datetime.max.replace(tzinfo=UTC), int(item[0])),
-    )
-    for lead_id, _at in ordered:
-        lid = int(lead_id)
-        if lid in leads_with_protocol or lid in chosen:
-            continue
-        chosen.add(lid)
+def booking_visits_that_start_protocols(
+    visits: list[tuple[int, datetime | None, int]],
+    purchases_by_lead: dict[int, list[PatientPurchase]],
+) -> list[tuple[int, int]]:
+    """Визит открывает #2 или #3, только если он уже вне 30 дней текущего протокола.
+
+    Несколько визитов внутри одного срока остаются одним номером.
+    """
+    grouped: dict[int, list[tuple[datetime | None, int]]] = defaultdict(list)
+    for lead_id, at, appointment_id in visits:
+        grouped[int(lead_id)].append((at, int(appointment_id)))
+    chosen: list[tuple[int, int]] = []
+    for lid, items in grouped.items():
+        items.sort(key=lambda item: (_utc(item[0]) or datetime.max.replace(tzinfo=UTC), item[1]))
+        running = [item for item in purchases_by_lead.get(lid, []) if protocol_purchase_counts(item)]
+        for at, appointment_id in items:
+            if _utc(at) is None or protocol_period_covers(running, at):
+                continue
+            chosen.append((lid, appointment_id))
+            running.append(
+                PatientPurchase(
+                    id=0,
+                    company_id=0,
+                    lead_id=lid,
+                    source_type="booking_appointment",
+                    source_id=appointment_id,
+                    product_kind="protocol",
+                    product_name="Протокол",
+                    status="active",
+                    purchased_at=at,
+                ),
+            )
     return chosen
 
 
@@ -384,6 +396,45 @@ async def build_protocol_queue(
         else:
             unlinked.append((synthetic, str(mgr_name or "").strip()))
 
+    if by_lead and unlinked:
+        match_ids = list(by_lead.keys())
+        match_leads = (
+            await db.execute(select(Lead).where(Lead.company_id == company_id, Lead.id.in_(match_ids)))
+        ).scalars().all()
+        booking_names = await load_booking_identity_by_lead(db, company_id=company_id, lead_ids=match_ids)
+        key_owner: dict[str, int] = {}
+        ambiguous: set[str] = set()
+
+        def claim(key: str | None, lid: int) -> None:
+            if not key:
+                return
+            prev = key_owner.get(key)
+            if prev is None:
+                key_owner[key] = lid
+                return
+            if prev != lid:
+                ambiguous.add(key)
+
+        for lead in match_leads:
+            lid = int(lead.id)
+            claim(_protocol_client_key(lead.name, lead.phone), lid)
+            shown_name, shown_phone = display_patient_identity(
+                lead_name=lead.name,
+                lead_phone=lead.phone,
+                booking=booking_names.get(lid),
+            )
+            claim(_protocol_client_key(shown_name, shown_phone), lid)
+        kept_unlinked: list[tuple[PatientPurchase, str]] = []
+        for synthetic, mgr_name in unlinked:
+            key = _protocol_client_key(synthetic.client_name, synthetic.client_phone)
+            lid = None if key is None or key in ambiguous else key_owner.get(key)
+            if lid is None:
+                kept_unlinked.append((synthetic, mgr_name))
+                continue
+            synthetic.lead_id = lid
+            by_lead[lid].append(synthetic)
+        unlinked = kept_unlinked
+
     booking_rows = (
         await db.execute(
             select(BookingAppointment, BookingDirection.name)
@@ -401,23 +452,17 @@ async def build_protocol_queue(
         if classify_product_kind(title) != "protocol" and classify_product_kind(direction_name) != "protocol":
             continue
         protocol_visits.append((appt, title or "Протокол"))
-    leads_with_protocol = {
-        lid for lid, items in by_lead.items() if lead_already_has_protocol(items)
+    booking_starts = {
+        (lid, appointment_id)
+        for lid, appointment_id in booking_visits_that_start_protocols(
+            [(int(appt.lead_id), appt.start_at, int(appt.id)) for appt, _title in protocol_visits],
+            by_lead,
+        )
     }
-    booking_starts = first_booking_protocol_lead_ids(
-        [(int(appt.lead_id), appt.start_at) for appt, _title in protocol_visits],
-        leads_with_protocol=leads_with_protocol,
-    )
-    earliest_visit: dict[int, tuple[datetime, BookingAppointment, str]] = {}
     for appt, title in protocol_visits:
         lid = int(appt.lead_id)
-        if lid not in booking_starts:
+        if (lid, int(appt.id)) not in booking_starts:
             continue
-        start = _utc(appt.start_at) or datetime.max.replace(tzinfo=UTC)
-        prev = earliest_visit.get(lid)
-        if prev is None or start < prev[0]:
-            earliest_visit[lid] = (start, appt, title)
-    for lid, (_start, appt, title) in earliest_visit.items():
         by_lead[lid].append(
             PatientPurchase(
                 id=-(10**9 + int(appt.id)),
