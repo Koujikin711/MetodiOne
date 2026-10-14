@@ -1940,6 +1940,38 @@ async def ensure_task_repeat_weekdays(conn: AsyncConnection, database_url: str) 
     await conn.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS repeat_weekdays JSON"))
 
 
+async def ensure_task_repeat_until(conn: AsyncConnection, database_url: str) -> None:
+    """Дата «повторять до». На PostgreSQL один раз переводит старые сроки из ложного UTC в часы клиники."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        r = await conn.execute(text("PRAGMA table_info(tasks)"))
+        cols = {row[1] for row in r.fetchall()}
+        if cols and "repeat_until" not in cols:
+            await conn.execute(text("ALTER TABLE tasks ADD COLUMN repeat_until DATE"))
+        return
+    exists = await conn.scalar(
+        text(
+            """
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'tasks' AND column_name = 'repeat_until'
+            LIMIT 1
+            """
+        )
+    )
+    if exists is not None:
+        return
+    await conn.execute(text("ALTER TABLE tasks ADD COLUMN repeat_until DATE"))
+    await conn.execute(
+        text(
+            """
+            UPDATE tasks
+            SET deadline = (deadline AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Dushanbe'
+            WHERE deadline IS NOT NULL
+            """
+        )
+    )
+
+
 async def ensure_task_repeat_dates(conn: AsyncConnection, database_url: str) -> None:
     """Одна задача на несколько конкретных дат календаря, время одно."""
     low = database_url.lower()

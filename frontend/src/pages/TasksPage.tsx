@@ -52,8 +52,18 @@ function toDatetimeLocal(iso: string | null) {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dushanbe",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(d);
+  const g = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
+  const hour = g("hour") === "24" ? "00" : g("hour");
+  return `${g("year")}-${g("month")}-${g("day")}T${hour}:${g("minute")}`;
 }
 
 function painLine(description: string | null) {
@@ -68,11 +78,40 @@ function painLine(description: string | null) {
   return null;
 }
 
+const clinicTimeOptions: Intl.DateTimeFormatOptions = {
+  timeZone: "Asia/Dushanbe",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+};
+
 function formatDeadline(iso: string | null) {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("ru-RU", {
+    timeZone: "Asia/Dushanbe",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+}
+
+function clinicClock(iso: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("ru-RU", clinicTimeOptions);
+}
+
+function untilCaption(ymd: string) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  return new Intl.DateTimeFormat("ru-RU", { timeZone: "UTC", day: "2-digit", month: "short" }).format(
+    new Date(Date.UTC(y, m - 1, d, 12)),
+  );
 }
 
 export function TasksPage() {
@@ -292,7 +331,7 @@ export function TasksPage() {
               </select>
             </label>
             <label className="block">
-              <span className="mo-admin-toolbar-label">Срок</span>
+              <span className="mo-admin-toolbar-label">{weekdays.length ? "Время, повторять до" : "Срок"}</span>
               <DateTimeField
                 multiple
                 value={deadline}
@@ -338,7 +377,9 @@ export function TasksPage() {
                 })}
               </div>
               <p className="mt-1 text-xs lux-caption">
-                Одна задача в выбранные дни, в то же время. Предупреждение за 30 минут, за 15 минут и в сам час.
+                {weekdays.length
+                  ? "Каждую неделю в эти дни, в выбранное время, до этой даты. После «Готово» или «Не провёл» появляется следующий день."
+                  : "Отметьте дни — задача пойдёт каждую неделю до даты выше, в то же время."}
               </p>
             </div>
             {expertSelected ? (
@@ -378,6 +419,7 @@ export function TasksPage() {
           <ul className="space-y-2.5">
             {items.map((t) => {
               const dl = formatDeadline(t.deadline);
+              const weekly = Boolean(t.repeat_weekdays?.length && t.repeat_until);
               const closed = t.status === "done" || t.status === "cancelled" || t.status === "missed";
               const mine = myId != null && t.assigned_to === myId;
               const canMiss = !closed && (canReturn || mine);
@@ -426,11 +468,15 @@ export function TasksPage() {
                     </p>
                     <p className="mt-0.5 text-xs lux-caption">
                       {t.assigned_to_name ?? "—"}
-                      {dl ? ` · до ${dl}` : ""}
-                      {datesCaption(t.repeat_dates) ? ` · ${datesCaption(t.repeat_dates)}` : ""}
-                      {weekdayCaption(t.repeat_weekdays)
+                      {weekly
+                        ? ` · ${clinicClock(t.deadline)} · ${weekdayCaption(t.repeat_weekdays)} · каждую неделю до ${untilCaption(t.repeat_until ?? "")}`
+                        : dl
+                          ? ` · до ${dl}`
+                          : ""}
+                      {!weekly && datesCaption(t.repeat_dates) ? ` · ${datesCaption(t.repeat_dates)}` : ""}
+                      {!weekly && weekdayCaption(t.repeat_weekdays)
                         ? ` · ${weekdayCaption(t.repeat_weekdays)}`
-                        : t.repeats_daily
+                        : !weekly && t.repeats_daily
                           ? " · каждый день в этот час"
                           : ""}
                       {t.status === "missed" ? " · не провёл" : ""}

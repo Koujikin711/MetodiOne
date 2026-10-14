@@ -28,6 +28,14 @@ def as_clinic_naive(value: datetime | None) -> datetime | None:
     return _local(value).replace(tzinfo=None)
 
 
+def store_clinic(value: datetime | None) -> datetime | None:
+    """Местные часы клиники с поясом +05, чтобы timestamptz не принял их за UTC."""
+    wall = as_clinic_naive(value)
+    if wall is None:
+        return None
+    return wall.replace(tzinfo=_TZ)
+
+
 def roll_to_today(deadline: datetime, now: datetime) -> datetime | None:
     """Если повторный срок остался на прошлом дне — переносит его на сегодня, час тот же."""
     local = _local(deadline)
@@ -159,6 +167,50 @@ def next_concrete_after(deadline: datetime, dates: list[str]) -> datetime | None
     return local.replace(year=nxt.year, month=nxt.month, day=nxt.day, tzinfo=None)
 
 
+def first_open_weekday(clock: datetime, weekdays: list[int], until: date, now: datetime) -> datetime | None:
+    """Ближайший выбранный день от сегодня до даты «до», в час из clock. Сегодня — если час ещё не прошёл."""
+    days = set(normalize_weekdays(weekdays))
+    if not days:
+        return None
+    local_clock = _local(clock)
+    start = _local(now)
+    for add in range(0, 400):
+        cand = start.date() + timedelta(days=add)
+        if cand > until:
+            return None
+        if cand.weekday() not in days:
+            continue
+        moment = local_clock.replace(year=cand.year, month=cand.month, day=cand.day, tzinfo=None)
+        if cand == start.date() and moment.replace(tzinfo=_TZ) <= start:
+            continue
+        return moment
+    return None
+
+
+def next_weekday_within(deadline: datetime, weekdays: list[int], until: date | None) -> datetime | None:
+    """Следующий выбранный день. None — он уже позже даты «до»."""
+    nxt = next_weekday_after(deadline, weekdays)
+    if until is not None and _local(nxt).date() > until:
+        return None
+    return nxt
+
+
+def adopt_far_deadline_as_until(
+    deadline: datetime,
+    weekdays: list[int],
+    until_existing: date | None,
+    now: datetime,
+) -> tuple[datetime | None, date | None]:
+    """Старая задача: дальняя дата при выбранных днях — это конец серии, не единственный визит."""
+    if until_existing is not None or not normalize_weekdays(weekdays):
+        return None, None
+    until = _local(deadline).date()
+    soon = first_open_weekday(deadline, weekdays, until, now)
+    if soon is None or (until - soon.date()).days <= 6:
+        return None, None
+    return soon, until
+
+
 def next_weekday_after(deadline: datetime, weekdays: list[int]) -> datetime:
     """Следующий выбранный день после текущего срока, час тот же."""
     days = set(normalize_weekdays(weekdays))
@@ -216,6 +268,17 @@ async def roll_repeating_tasks(db: AsyncSession, company_id: int, now: datetime 
         if len(concrete) >= 2:
             moved = align_concrete_deadline(task.deadline, concrete, moment)
         elif days:
+            adopted, until = adopt_far_deadline_as_until(
+                task.deadline,
+                days,
+                getattr(task, "repeat_until", None),
+                moment,
+            )
+            if adopted is not None and until is not None:
+                task.repeat_until = until
+                task.deadline = store_clinic(adopted)
+                changed += 1
+                continue
             moved = align_weekday_deadline(task.deadline, days, moment)
         elif task.repeats_daily:
             moved = roll_to_today(task.deadline, moment)
@@ -223,6 +286,6 @@ async def roll_repeating_tasks(db: AsyncSession, company_id: int, now: datetime 
             continue
         if moved is None:
             continue
-        task.deadline = moved
+        task.deadline = store_clinic(moved)
         changed += 1
     return changed

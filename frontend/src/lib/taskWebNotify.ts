@@ -60,7 +60,12 @@ function warnTitle(stage: Task["warn_stage"]) {
 
 function taskBody(task: Task) {
   const time = task.deadline
-    ? new Date(task.deadline).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+    ? new Date(task.deadline).toLocaleTimeString("ru-RU", {
+        timeZone: "Asia/Dushanbe",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      })
     : "";
   const daily = task.repeats_daily ? " · каждый день" : "";
   const client = [task.client_name, task.client_phone].filter(Boolean).join(" · ");

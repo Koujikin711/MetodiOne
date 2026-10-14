@@ -91,6 +91,47 @@ def test_one_date_task_is_not_shifted_onto_weekdays() -> None:
     assert align_weekday_deadline(deadline, [], now) is None
 
 
+def test_fourteen_oclock_stays_fourteen_in_clinic_zone() -> None:
+    from app.services.task_repeat import store_clinic
+
+    stored = store_clinic(datetime(2026, 12, 18, 14, 0))
+    assert stored is not None
+    assert stored.tzinfo is not None
+    assert stored.hour == 14
+    assert stored.utcoffset() is not None
+    assert stored.utcoffset().total_seconds() == 5 * 3600
+
+
+def test_weekly_series_starts_on_the_next_chosen_day_and_stops_at_the_date() -> None:
+    from app.services.task_repeat import first_open_weekday, next_weekday_within
+
+    # Среда 14 октября 2026, 13:00. До 18 декабря, пн/ср/пт, час 14:00 — первая среда сегодня.
+    now = datetime(2026, 10, 14, 13, 0, tzinfo=_TZ)
+    clock = datetime(2026, 12, 18, 14, 0, tzinfo=_TZ)
+    until = clock.date()
+    first = first_open_weekday(clock, [0, 2, 4], until, now)
+    assert first is not None
+    assert first.date().isoformat() == "2026-10-14"
+    assert (first.hour, first.minute) == (14, 0)
+    # Час сегодня уже прошёл — ближайшая пятница.
+    later = datetime(2026, 10, 14, 15, 0, tzinfo=_TZ)
+    skipped = first_open_weekday(clock, [0, 2, 4], until, later)
+    assert skipped is not None
+    assert skipped.date().isoformat() == "2026-10-16"
+    last = datetime(2026, 12, 18, 14, 0)
+    assert next_weekday_within(last, [0, 2, 4], until) is None
+
+
+def test_far_saved_date_becomes_the_end_of_the_week() -> None:
+    from app.services.task_repeat import adopt_far_deadline_as_until
+
+    deadline = datetime(2026, 12, 18, 14, 0, tzinfo=_TZ)
+    now = datetime(2026, 10, 14, 13, 0, tzinfo=_TZ)
+    soon, until = adopt_far_deadline_as_until(deadline, [0, 2, 4], None, now)
+    assert until is not None and until.isoformat() == "2026-12-18"
+    assert soon is not None and soon.date().isoformat() == "2026-10-14"
+
+
 def test_next_chosen_weekday_keeps_the_hour() -> None:
     from datetime import timedelta
 

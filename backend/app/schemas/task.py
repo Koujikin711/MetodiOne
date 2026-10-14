@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -62,6 +62,7 @@ class TaskRead(BaseModel):
     repeats_daily: bool = False
     repeat_weekdays: list[int] = Field(default_factory=list)
     repeat_dates: list[str] = Field(default_factory=list)
+    repeat_until: date | None = None
     completion_note: str | None = None
     warn_stage: str | None = None
 

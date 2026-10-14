@@ -858,6 +858,8 @@ class Task(Base):
     repeat_weekdays: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # Конкретные даты YYYY-MM-DD. Две и больше — одна задача на эти дни, час из deadline.
     repeat_dates: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Последний день недельного повтора. Пусто — повтор без конца.
+    repeat_until: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     assignee: Mapped["User | None"] = relationship(back_populates="tasks", foreign_keys=[assigned_to])
     created_by: Mapped["User | None"] = relationship(foreign_keys=[created_by_user_id])

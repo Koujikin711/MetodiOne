@@ -12,15 +12,16 @@ from app.models import Lead, Pipeline, Task, TaskStatus, User, UserRole
 from app.schemas.task import TaskAssigneeRead, TaskCreate, TaskListResponse, TaskRead, TaskReviewUpdate, TaskUpdate
 from app.services.chief_expert_access import is_chief_expert
 from app.services.task_repeat import (
+    _local,
     align_concrete_deadline,
-    align_weekday_deadline,
-    as_clinic_naive,
+    first_open_weekday,
     next_concrete_after,
-    next_weekday_after,
+    next_weekday_within,
     normalize_dates,
     normalize_weekdays,
     roll_repeating_tasks,
     same_hour_tomorrow,
+    store_clinic,
     warn_stage,
 )
 from app.services.task_team_chat import client_name_and_phone, notify_manager_task_in_chat
@@ -114,7 +115,7 @@ def _to_task_read(task: Task, assignee: User | None, creator: User | None, lead:
     return TaskRead(
         id=task.id,
         title=task.title,
-        deadline=task.deadline,
+        deadline=store_clinic(task.deadline) if task.deadline is not None else None,
         status=task.status,
         assigned_to=task.assigned_to,
         assigned_to_name=assignee_name,
@@ -134,6 +135,7 @@ def _to_task_read(task: Task, assignee: User | None, creator: User | None, lead:
         repeats_daily=bool(getattr(task, "repeats_daily", False)),
         repeat_weekdays=normalize_weekdays(getattr(task, "repeat_weekdays", None)),
         repeat_dates=normalize_dates(getattr(task, "repeat_dates", None)),
+        repeat_until=getattr(task, "repeat_until", None),
         completion_note=(getattr(task, "completion_note", None) or None),
     )
 
@@ -236,15 +238,22 @@ async def create_task(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Для повтора укажите час",
         )
-    deadline = as_clinic_naive(body.deadline)
+    deadline = store_clinic(body.deadline)
+    repeat_until = None
     if multi_dates and deadline is not None:
         snapped = align_concrete_deadline(deadline, dates, datetime.now(UTC))
         if snapped is not None:
-            deadline = snapped
+            deadline = store_clinic(snapped)
     elif weekdays and deadline is not None:
-        snapped = align_weekday_deadline(deadline, weekdays, datetime.now(UTC))
-        if snapped is not None:
-            deadline = snapped
+        until = _local(deadline).date()
+        first = first_open_weekday(deadline, weekdays, until, datetime.now(UTC))
+        if first is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="До этой даты нет выбранного дня недели",
+            )
+        deadline = store_clinic(first)
+        repeat_until = until
     await _ensure_related_lead_exists(db, body.related_lead_id, company_id)
     task = Task(
         title=body.title,
@@ -258,6 +267,7 @@ async def create_task(
         repeats_daily=repeats_daily,
         repeat_weekdays=weekdays or None,
         repeat_dates=dates if multi_dates else None,
+        repeat_until=repeat_until,
     )
     db.add(task)
     await db.flush()
@@ -420,6 +430,7 @@ async def update_task(
         task.repeats_daily = False
         task.repeat_weekdays = None
         task.repeat_dates = None
+        task.repeat_until = None
         task.completion_note = None
         await db.flush()
         assignee = await _get_company_user(db, task.assigned_to, company_id)
@@ -472,7 +483,7 @@ async def update_task(
     note = data.pop("completion_note", None)
     for key, value in data.items():
         if key == "deadline":
-            value = as_clinic_naive(value)
+            value = store_clinic(value)
         setattr(task, key, value)
     if task.status == TaskStatus.done and "completion_note" in body.model_fields_set:
         text_note = (note or "").strip()
@@ -481,7 +492,7 @@ async def update_task(
     if was_dates and task.deadline is not None:
         next_deadline = next_concrete_after(task.deadline, dates)
     elif was_weekdays and task.deadline is not None:
-        next_deadline = next_weekday_after(task.deadline, weekdays)
+        next_deadline = next_weekday_within(task.deadline, weekdays, getattr(task, "repeat_until", None))
     elif was_repeating and task.deadline is not None:
         next_deadline = same_hour_tomorrow(task.deadline)
     if next_deadline is not None and task.status in (TaskStatus.done, TaskStatus.missed):
@@ -489,7 +500,7 @@ async def update_task(
             Task(
                 company_id=company_id,
                 title=task.title,
-                deadline=next_deadline,
+                deadline=store_clinic(next_deadline),
                 status=TaskStatus.pending,
                 assigned_to=task.assigned_to,
                 created_by_user_id=task.created_by_user_id,
@@ -498,6 +509,7 @@ async def update_task(
                 repeats_daily=was_repeating,
                 repeat_weekdays=weekdays or None,
                 repeat_dates=dates if was_dates else None,
+                repeat_until=getattr(task, "repeat_until", None) if was_weekdays else None,
             )
         )
     await db.flush()

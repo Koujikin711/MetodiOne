@@ -284,6 +284,7 @@ export interface Task {
   repeats_daily?: boolean;
   repeat_weekdays?: number[];
   repeat_dates?: string[];
+  repeat_until?: string | null;
   completion_note?: string | null;
   warn_stage?: "30" | "15" | "due" | null;
 }

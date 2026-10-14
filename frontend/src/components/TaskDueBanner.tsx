@@ -16,7 +16,12 @@ function clock(iso: string | null) {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString("ru-RU", {
+    timeZone: "Asia/Dushanbe",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
 }
 
 function stageLabel(stage: Task["warn_stage"]) {
