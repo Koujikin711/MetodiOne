@@ -71,8 +71,14 @@ export function HomeEntry() {
       return <Navigate to="/sales" replace />;
     }
   }
-  if (role === "expert" && meQuery.data?.is_chief_expert) {
-    return <Navigate to="/crm" replace />;
+  if (role === "expert") {
+    if (meQuery.isLoading) {
+      return <p className="px-4 py-10 text-sm lux-caption">Загрузка…</p>;
+    }
+    if (meQuery.data?.is_chief_expert) {
+      return <Navigate to="/crm" replace />;
+    }
+    return <Navigate to="/booking" replace />;
   }
   if (role === "manager" || role === "admin") {
     if (role === "manager") {

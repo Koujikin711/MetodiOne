@@ -623,7 +623,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       });
       if (showExtraServices) items.push(extraServicesNavItem());
     }
-    if (bookingEnabled && showNavForFeature("reports")) {
+    if (!alsoCurator && bookingEnabled && showNavForFeature("reports")) {
       items.push(
         alsoExpert
           ? expertWindowNavItem()
@@ -638,7 +638,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
             },
       );
     }
-    if (showNavForFeature("chat")) {
+    if (!alsoCurator && showNavForFeature("chat")) {
       items.push({
         id: "chat",
         to: "/chat",
@@ -671,15 +671,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     });
     if (alsoCurator) {
       items.push(curatorJournalNavItem());
-      items.push({
-        id: "kpi",
-        to: "/kpi",
-        title: "Дебиторка",
-        labelShort: "Долги",
-        labelFull: "Дебиторка курсов",
-        variant: "platform",
-        iconKey: "target",
-      });
     }
     return items;
   }

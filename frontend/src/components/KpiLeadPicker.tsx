@@ -24,16 +24,25 @@ type Props = {
   /** When set from Lead card / URL — picker locked to this patient until cleared. */
   lockedFromContext?: boolean;
   disabled?: boolean;
+  /** Имя или телефон из соседних полей формы — список появляется без отдельного поиска. */
+  linkedQuery?: string;
 };
 
-export function KpiLeadPicker({ selected, onSelect, lockedFromContext = false, disabled }: Props) {
+export function KpiLeadPicker({
+  selected,
+  onSelect,
+  lockedFromContext = false,
+  disabled,
+  linkedQuery = "",
+}: Props) {
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
+  const active = q.trim() || linkedQuery.trim();
 
   useEffect(() => {
-    const t = window.setTimeout(() => setDebounced(q.trim()), 280);
+    const t = window.setTimeout(() => setDebounced(active), 280);
     return () => window.clearTimeout(t);
-  }, [q]);
+  }, [active]);
 
   const searchQuery = useQuery({
     queryKey: ["sales-kpi-leads-search", debounced],

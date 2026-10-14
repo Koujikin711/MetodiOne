@@ -400,9 +400,9 @@ export function KpiPage() {
   const isOwner = role === "owner" || role === "super_owner" || role === "rop";
   const isAdminOrOwner = isOwner || role === "admin" || role === "administrator";
   const isManager = role === "manager";
+  const meQuery = useCurrentUserMe();
   const isCurator = role === "curator" || (role === "expert" && Boolean(meQuery.data?.also_curator));
   const isAccountant = role === "accountant";
-  const meQuery = useCurrentUserMe();
   const salesSpace =
     meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
 
@@ -1190,7 +1190,15 @@ export function KpiPage() {
                 <input
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.client_name}
-                  onChange={(e) => setSaleForm((s) => ({ ...s, client_name: e.target.value }))}
+                  placeholder="ФИО — список появится ниже"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSaleForm((s) => ({ ...s, client_name: value }));
+                    setSelectedLead((cur) =>
+                      cur && value.trim() && value.trim() !== cur.name ? null : cur,
+                    );
+                    setLeadFromContext(false);
+                  }}
                 />
               </label>
               <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
@@ -1199,12 +1207,33 @@ export function KpiPage() {
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   inputMode="tel"
                   value={saleForm.client_phone}
-                  onChange={(e) => setSaleForm((s) => ({ ...s, client_phone: e.target.value }))}
+                  placeholder="Номер — список появится ниже"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSaleForm((s) => ({ ...s, client_phone: value }));
+                    setSelectedLead((cur) => {
+                      if (!cur) return null;
+                      const typed = value.replace(/\D/g, "").slice(-9);
+                      const saved = (cur.phone || "").replace(/\D/g, "").slice(-9);
+                      if (typed.length >= 4 && saved && typed !== saved) return null;
+                      return cur;
+                    });
+                    setLeadFromContext(false);
+                  }}
                 />
               </label>
               <KpiLeadPicker
                 selected={selectedLead}
                 lockedFromContext={leadFromContext}
+                linkedQuery={
+                  selectedLead
+                    ? ""
+                    : saleForm.client_phone.replace(/\D/g, "").length >= 4
+                      ? saleForm.client_phone.replace(/\D/g, "")
+                      : saleForm.client_name.trim().length >= 2
+                        ? saleForm.client_name.trim()
+                        : ""
+                }
                 onSelect={(lead) => {
                   setSelectedLead(lead);
                   setLeadFromContext(false);

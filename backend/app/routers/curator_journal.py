@@ -51,6 +51,8 @@ from app.schemas.curator_journal import (
     ProgramRequestOut,
     ProtocolFollowupIn,
     ProtocolFollowupOut,
+    ProtocolManagerChangeIn,
+    ProtocolManagerOut,
     ProtocolNextRequestIn,
     ProtocolQueueOut,
     ProtocolQueueRowOut,
@@ -458,6 +460,106 @@ async def course15_waiting_queue(
         counts=raw["counts"],
         rows=[Course15QueueRowOut(**r) for r in raw["rows"]],
     )
+
+
+def _manager_label(user: User) -> str:
+    return (str(user.full_name or "").strip() or str(user.email or "").strip() or f"#{user.id}")
+
+
+@router.get("/protocol-queue/managers", response_model=list[ProtocolManagerOut])
+async def protocol_queue_managers(
+    user: CurrentUser,
+    company_id: CurrentCompanyId,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[ProtocolManagerOut]:
+    """Активные менеджеры компании — список для смены в контроле продаж."""
+    if user.role not in (UserRole.owner, UserRole.admin):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Менять менеджера может админ")
+    rows = (
+        await db.execute(
+            select(User)
+            .where(
+                User.company_id == company_id,
+                User.is_active.is_(True),
+                User.role == UserRole.manager,
+            )
+            .order_by(User.full_name.asc().nulls_last(), User.email.asc()),
+        )
+    ).scalars().all()
+    return [ProtocolManagerOut(id=int(row.id), name=_manager_label(row)) for row in rows]
+
+
+@router.put("/protocol-queue/manager", response_model=ProtocolManagerOut)
+async def change_protocol_queue_manager(
+    body: ProtocolManagerChangeIn,
+    user: CurrentUser,
+    company_id: CurrentCompanyId,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ProtocolManagerOut:
+    """Админ переназначает, кто ведёт пациента в контроле продаж.
+
+    Карточка лида: меняется менеджер карточки, прошлые оплаты записи остаются
+    у прежнего продавца. Строка без карточки: меняется менеджер этой продажи.
+    """
+    if user.role not in (UserRole.owner, UserRole.admin):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Менять менеджера может админ")
+    manager = await db.get(User, int(body.manager_user_id))
+    if (
+        manager is None
+        or manager.company_id != company_id
+        or not manager.is_active
+        or manager.role != UserRole.manager
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите активного менеджера")
+
+    if body.lead_id is not None:
+        lead = await db.get(Lead, int(body.lead_id))
+        if lead is None or lead.company_id != company_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пациент не найден")
+        previous = int(lead.manager_id) if lead.manager_id is not None else None
+        if previous != int(manager.id):
+            from sqlalchemy import update
+
+            from app.models import Task, TaskStatus
+            from app.routers.leads import _audit_lead, _freeze_booking_sellers_on_lead_reassign
+
+            await _freeze_booking_sellers_on_lead_reassign(
+                db,
+                company_id=company_id,
+                lead_id=int(lead.id),
+                from_manager_id=previous,
+            )
+            lead.manager_id = int(manager.id)
+            await _audit_lead(
+                db,
+                lead_id=int(lead.id),
+                action="manager_reassigned",
+                current_user=user,
+                details=f"from_manager_id={previous}, to_manager_id={int(manager.id)}, source=protocol_queue",
+            )
+            if previous is not None:
+                await db.execute(
+                    update(Task)
+                    .where(
+                        Task.company_id == company_id,
+                        Task.related_lead_id == int(lead.id),
+                        Task.assigned_to == previous,
+                        Task.status.in_([TaskStatus.pending, TaskStatus.in_progress]),
+                    )
+                    .values(assigned_to=int(manager.id)),
+                )
+        await db.flush()
+        return ProtocolManagerOut(id=int(manager.id), name=_manager_label(manager))
+
+    if body.sale_id is not None:
+        sale = await db.get(SalesKpiManualSale, int(body.sale_id))
+        if sale is None or sale.company_id != company_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Продажа не найдена")
+        sale.manager_user_id = int(manager.id)
+        await db.flush()
+        return ProtocolManagerOut(id=int(manager.id), name=_manager_label(manager))
+
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет пациента для смены менеджера")
 
 
 @router.get("/protocol-queue", response_model=ProtocolQueueOut)

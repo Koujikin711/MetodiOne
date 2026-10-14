@@ -15,6 +15,7 @@ import { Navigate } from "react-router-dom";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { canAccessCuratorJournal } from "@/lib/clinicRoles";
+import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { readJournalSection, rememberJournalSection, type JournalSection } from "@/lib/leadReturn";
 import { Course15QueuePanel } from "@/components/Course15QueuePanel";
 import { DateField } from "@/components/DateField";
@@ -312,7 +313,9 @@ function flowTitle(f: Flow) {
 
 export function CuratorJournalPage() {
   const role = decodeRoleFromToken(getStoredToken());
-  const allowed = canAccessCuratorJournal(role);
+  const meQuery = useCurrentUserMe();
+  const alsoCurator = role === "expert" && Boolean(meQuery.data?.also_curator);
+  const allowed = canAccessCuratorJournal(role, alsoCurator);
   const canManageFlows =
     role === "owner" || role === "admin" || role === "administrator" || role === "super_owner";
 
@@ -481,8 +484,11 @@ export function CuratorJournalPage() {
     onError: (err: Error) => toast.error(err.message || "Не удалось изменить паузу"),
   });
 
+  if (role === "expert" && meQuery.isLoading) {
+    return <p className="px-4 py-10 text-sm lux-caption">Загрузка…</p>;
+  }
   if (!allowed) {
-    return <Navigate to="/app" replace />;
+    return <Navigate to={role === "expert" ? "/booking" : "/app"} replace />;
   }
 
   function shiftMonth(delta: number) {

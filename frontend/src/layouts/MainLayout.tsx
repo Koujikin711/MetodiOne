@@ -879,7 +879,7 @@ export function MainLayout() {
                   <span className="text-[9px]">Онлайн</span>
                 </NavLink>
               </NavIf>
-              <NavIf show={bookingEnabled && showNavForFeature("reports")}>
+              <NavIf show={!alsoCurator && bookingEnabled && showNavForFeature("reports")}>
                 <NavLink preventScrollReset to="/reports" className={mobileBottomNavLinkClass} title="Отчёты">
                   <GradientIconBox variant="blue" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <BarChart3 className="h-4 w-4" />
@@ -887,7 +887,7 @@ export function MainLayout() {
                   <span className="text-[9px]">Отчёты</span>
                 </NavLink>
               </NavIf>
-              <NavIf show={showNavForFeature("chat")}>
+              <NavIf show={!alsoCurator && showNavForFeature("chat")}>
                 <NavLink preventScrollReset to="/chat" className={mobileBottomNavLinkClass} title="Чаты">
                   <GradientIconBox variant="tasks" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
                     <MessageCircle className="h-4 w-4" />
@@ -922,16 +922,7 @@ export function MainLayout() {
                   <span className="text-[9px]">Журнал</span>
                 </NavLink>
               ) : null}
-              {alsoCurator ? (
-                <NavLink preventScrollReset to="/kpi" className={mobileBottomNavLinkClass} title="Дебиторка">
-                  <GradientIconBox variant="indigo" className="h-9 w-9 [&_svg]:h-4 [&_svg]:w-4">
-                    <Target className="h-4 w-4" />
-                  </GradientIconBox>
-                  <span className="text-[9px]">Долги</span>
-                </NavLink>
-              ) : null}
-
-<button
+              <button
                 type="button"
                 onClick={logout}
                 className={mobileBottomLogoutClass}

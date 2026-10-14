@@ -240,7 +240,11 @@ export function SalesControlPage() {
           </button>
         ))}
       </div>
-      {section === "protocols" ? <ProtocolQueuePanel enabled /> : <ManagerCourses seeAll={seeAll} />}
+      {section === "protocols" ? (
+        <ProtocolQueuePanel enabled canReassign={seeAll} />
+      ) : (
+        <ManagerCourses seeAll={seeAll} />
+      )}
     </div>
   );
 }

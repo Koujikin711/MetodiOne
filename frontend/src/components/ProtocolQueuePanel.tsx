@@ -19,6 +19,7 @@ type ProtocolRow = {
   expected_end_at?: string | null;
   days_remaining: number;
   previous_protocols_label: string;
+  manager_user_id?: number | null;
   manager_name?: string | null;
   last_contact_at?: string | null;
   next_contact_at?: string | null;
@@ -110,7 +111,15 @@ function fmtDt(iso: string | null | undefined): string {
   return `${dd}.${mm}.${yy}`;
 }
 
-export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
+type ManagerOption = { id: number; name: string };
+
+export function ProtocolQueuePanel({
+  enabled,
+  canReassign = false,
+}: {
+  enabled: boolean;
+  canReassign?: boolean;
+}) {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [includeConverted, setIncludeConverted] = useState(false);
@@ -130,6 +139,12 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
     queryKey: ["curator-journal", "protocol-queue", qs],
     enabled,
     queryFn: () => apiFetch<ProtocolQueue>(`/api/curator-journal/protocol-queue${qs}`),
+  });
+
+  const managersQ = useQuery({
+    queryKey: ["protocol-queue-managers"],
+    enabled: enabled && canReassign,
+    queryFn: () => apiFetch<ManagerOption[]>("/api/curator-journal/protocol-queue/managers"),
   });
 
   const data = query.data;
@@ -171,6 +186,23 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
       void qc.invalidateQueries({ queryKey: ["task-warnings"] });
     },
     onError: (err: Error) => toast.error(err.message || "Не удалось сохранить"),
+  });
+
+  const changeManager = useMutation({
+    mutationFn: (body: { row: ProtocolRow; managerUserId: number }) =>
+      apiFetch<ManagerOption>("/api/curator-journal/protocol-queue/manager", {
+        method: "PUT",
+        body: JSON.stringify({
+          lead_id: body.row.lead_id,
+          sale_id: body.row.lead_id ? null : body.row.purchase_id,
+          manager_user_id: body.managerUserId,
+        }),
+      }),
+    onSuccess: () => {
+      toast.success("Менеджер изменён");
+      void qc.invalidateQueries({ queryKey: ["curator-journal", "protocol-queue"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Не удалось сменить менеджера"),
   });
 
   const withdrawNext = useMutation({
@@ -308,7 +340,34 @@ export function ProtocolQueuePanel({ enabled }: { enabled: boolean }) {
                     {r.days_remaining < 0 ? `${r.days_remaining} дн.` : `${r.days_remaining} дн.`}
                   </td>
                   <td className="px-3 py-2.5 text-xs tabular-nums">{r.previous_protocols_label}</td>
-                  <td className="px-3 py-2.5 text-xs">{r.manager_name || "—"}</td>
+                  <td className="px-3 py-2.5 text-xs">
+                    {canReassign ? (
+                      <select
+                        className="mo-input min-w-[9.5rem] py-1 text-xs"
+                        aria-label="Менеджер"
+                        value={r.manager_user_id ?? ""}
+                        disabled={changeManager.isPending || (!r.lead_id && !r.purchase_id)}
+                        onChange={(e) => {
+                          const next = Number(e.target.value);
+                          if (!next || next === r.manager_user_id) return;
+                          changeManager.mutate({ row: r, managerUserId: next });
+                        }}
+                      >
+                        {r.manager_user_id ? null : <option value="">—</option>}
+                        {(managersQ.data ?? []).map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                        {r.manager_user_id &&
+                        !(managersQ.data ?? []).some((m) => m.id === r.manager_user_id) ? (
+                          <option value={r.manager_user_id}>{r.manager_name || "Менеджер"}</option>
+                        ) : null}
+                      </select>
+                    ) : (
+                      r.manager_name || "—"
+                    )}
+                  </td>
                   <td className="px-3 py-2.5 tabular-nums text-xs">{fmtDt(r.last_contact_at)}</td>
                   <td className={["px-3 py-2.5", r.followup_overdue ? "text-amber-300" : ""].filter(Boolean).join(" ")}>
                     <FollowupFields

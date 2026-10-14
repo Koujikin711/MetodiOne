@@ -387,6 +387,17 @@ class ProtocolNextRequestIn(BaseModel):
     program_kind: str = "protocol"
 
 
+class ProtocolManagerChangeIn(BaseModel):
+    lead_id: int | None = Field(default=None, ge=1)
+    sale_id: int | None = Field(default=None, ge=1)
+    manager_user_id: int = Field(..., ge=1)
+
+
+class ProtocolManagerOut(BaseModel):
+    id: int
+    name: str
+
+
 class ProtocolQueueOut(BaseModel):
     predicate: str
     duration_days: int
