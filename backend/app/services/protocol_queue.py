@@ -99,6 +99,44 @@ def purchase_closed_by_kpi_sale(p: PatientPurchase, closed_sale_ids: set[int]) -
         return False
 
 
+def lead_already_has_protocol(purchases: list[PatientPurchase]) -> bool:
+    return any(protocol_purchase_counts(item) for item in purchases)
+
+
+def dedupe_same_source_purchases(items: list[PatientPurchase]) -> list[PatientPurchase]:
+    """Одна продажа или визит не становятся двумя протоколами."""
+    seen: set[tuple[str, int]] = set()
+    out: list[PatientPurchase] = []
+    for item in items:
+        source_id = getattr(item, "source_id", None)
+        if protocol_purchase_counts(item) and source_id is not None:
+            key = (str(item.source_type or ""), int(source_id))
+            if key in seen:
+                continue
+            seen.add(key)
+        out.append(item)
+    return out
+
+
+def first_booking_protocol_lead_ids(
+    visits: list[tuple[int, datetime | None]],
+    *,
+    leads_with_protocol: set[int],
+) -> set[int]:
+    """Визиты «Протокол» не плодят #2, #3. Один старт, и только если пакета ещё нет."""
+    chosen: set[int] = set()
+    ordered = sorted(
+        visits,
+        key=lambda item: (_utc(item[1]) or datetime.max.replace(tzinfo=UTC), int(item[0])),
+    )
+    for lead_id, _at in ordered:
+        lid = int(lead_id)
+        if lid in leads_with_protocol or lid in chosen:
+            continue
+        chosen.add(lid)
+    return chosen
+
+
 def protocol_sale_ids_already_linked(purchases: list[PatientPurchase]) -> set[int]:
     """KPI-продажа уже есть в очереди, если по ней есть покупка с пациентом."""
     return {
@@ -357,13 +395,29 @@ async def build_protocol_queue(
             ),
         )
     ).all()
+    protocol_visits: list[tuple[BookingAppointment, str]] = []
     for appt, direction_name in booking_rows:
         title = str(appt.service_title or direction_name or "")
         if classify_product_kind(title) != "protocol" and classify_product_kind(direction_name) != "protocol":
             continue
+        protocol_visits.append((appt, title or "Протокол"))
+    leads_with_protocol = {
+        lid for lid, items in by_lead.items() if lead_already_has_protocol(items)
+    }
+    booking_starts = first_booking_protocol_lead_ids(
+        [(int(appt.lead_id), appt.start_at) for appt, _title in protocol_visits],
+        leads_with_protocol=leads_with_protocol,
+    )
+    earliest_visit: dict[int, tuple[datetime, BookingAppointment, str]] = {}
+    for appt, title in protocol_visits:
         lid = int(appt.lead_id)
-        if protocol_period_covers(by_lead.get(lid, []), appt.start_at):
+        if lid not in booking_starts:
             continue
+        start = _utc(appt.start_at) or datetime.max.replace(tzinfo=UTC)
+        prev = earliest_visit.get(lid)
+        if prev is None or start < prev[0]:
+            earliest_visit[lid] = (start, appt, title)
+    for lid, (_start, appt, title) in earliest_visit.items():
         by_lead[lid].append(
             PatientPurchase(
                 id=-(10**9 + int(appt.id)),
@@ -372,7 +426,7 @@ async def build_protocol_queue(
                 source_type="booking_appointment",
                 source_id=int(appt.id),
                 product_kind="protocol",
-                product_name=title or "Протокол",
+                product_name=title,
                 service_amount=appt.service_amount or 0,
                 paid_amount=appt.paid_amount or 0,
                 status="active",
@@ -387,7 +441,9 @@ async def build_protocol_queue(
     classified: list[tuple[int, dict]] = []
     for lid, pur_list in by_lead.items():
         for ep in classify_protocol_episodes(
-            pur_list, now=now, ending_soon_days=ending_soon_days,
+            dedupe_same_source_purchases(pur_list),
+            now=now,
+            ending_soon_days=ending_soon_days,
         ):
             if not include_converted and ep["state"] not in ACTIVE_QUEUE_STATES:
                 continue
@@ -561,6 +617,11 @@ async def build_protocol_queue(
             },
         )
 
+    lead_client_keys = {
+        key
+        for row in rows
+        if (key := _protocol_client_key(row.get("patient_name"), row.get("patient_phone")))
+    }
     state_labels = {
         "active": "В сроке",
         "ending_soon": "Скоро конец",
@@ -583,6 +644,9 @@ async def build_protocol_queue(
             synthetic, mgr_name = found
             name = (synthetic.client_name or "").strip() or "—"
             phone = (synthetic.client_phone or "").strip()
+            client_key = _protocol_client_key(name, phone)
+            if client_key and client_key in lead_client_keys:
+                continue
             if term:
                 dig_p = "".join(ch for ch in phone if ch.isdigit())
                 name_ok = term in name.casefold()

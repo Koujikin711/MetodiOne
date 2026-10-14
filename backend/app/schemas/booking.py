@@ -418,3 +418,10 @@ class BookingFreeConsultHint(BaseModel):
 
     eligible: bool = False
     reason: str | None = None
+
+
+class BookingResponsibleOption(BaseModel):
+    """Кого можно выбрать ответственным за запись и оплату услуги."""
+
+    id: int
+    name: str

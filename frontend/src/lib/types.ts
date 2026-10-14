@@ -1086,6 +1086,8 @@ export interface SalesKpiManualSalePayment {
   note: string | null;
   paid_at: string;
   recorded_by_name?: string | null;
+  /** pending — менеджер внёс, админ ещё не подтвердил */
+  confirmation?: "pending" | "confirmed" | "rejected";
 }
 
 export interface SalesKpiPaymentJournalRow {

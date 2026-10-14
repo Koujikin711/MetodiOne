@@ -193,6 +193,7 @@ export function OnlineBookingPage() {
   const [startAt, setStartAt] = useState("");
   const [serviceAmount, setServiceAmount] = useState("");
   const [paidAmount, setPaidAmount] = useState("");
+  const [responsibleChoice, setResponsibleChoice] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod | "">("");
   const [comment, setComment] = useState("");
   const [seriesBookingEnabled, setSeriesBookingEnabled] = useState(false);
@@ -360,6 +361,16 @@ export function OnlineBookingPage() {
       ),
   });
   const freeConsultEligible = Boolean(freeConsultHintQuery.data?.eligible);
+  const canChooseResponsible =
+    currentRole === "admin" ||
+    currentRole === "administrator" ||
+    currentRole === "owner" ||
+    currentRole === "super_owner";
+  const responsibleOptionsQuery = useQuery({
+    queryKey: ["booking-responsible-options"],
+    queryFn: () => apiFetch<Array<{ id: number; name: string }>>("/api/booking/responsible-options"),
+    enabled: canChooseResponsible,
+  });
 
   const [sourceName, setSourceName] = useState("");
   const addSourceMutation = useMutation({
@@ -1228,12 +1239,12 @@ export function OnlineBookingPage() {
       payload.lead_pipeline_id = newLeadPipelineId;
       payload.lead_stage_id = newLeadStageId;
     }
+    if (canChooseResponsible && responsibleChoice) {
+      payload.responsible_manager_id = Number(responsibleChoice);
+    }
     // Менеджер всегда ставится ответственным — иначе полная оплата не попадёт в KPI.
     if (currentRole === "manager" && currentUserId) {
       payload.responsible_manager_id = currentUserId;
-    } else if (currentRole === "manager" && resolvedPaidAmount > 0 && !currentUserId) {
-      toast.error("Не удалось определить ответственного менеджера автоматически");
-      return;
     }
     if (seriesBookingEnabled && consecutiveDays > 1) {
       payload.consecutive_days = consecutiveDays;
@@ -1626,6 +1637,11 @@ export function OnlineBookingPage() {
                       KPI-подсказка: {fixedServiceAmount} — можно поставить свою сумму
                     </span>
                   ) : null}
+                  {freeConsultHintQuery.data?.reason ? (
+                    <span className="mt-1 block text-[11px] text-[var(--mo-text)]">
+                      {freeConsultHintQuery.data.reason}
+                    </span>
+                  ) : null}
                 </label>
                 <label className="block text-sm mo-muted">
                   Оплатил клиент (TJS)
@@ -1677,6 +1693,28 @@ export function OnlineBookingPage() {
                       readOnly
                       className="mt-1 w-full mo-input opacity-90"
                     />
+                  </label>
+                ) : null}
+                {canChooseResponsible ? (
+                  <label className="block text-sm mo-muted">
+                    На чей счёт запись и оплата
+                    <select
+                      className="mt-1 w-full mo-input"
+                      value={responsibleChoice}
+                      onChange={(e) => setResponsibleChoice(e.target.value)}
+                    >
+                      <option value="">Как у карточки клиента</option>
+                      {(responsibleOptionsQuery.data ?? []).map((person) => (
+                        <option key={person.id} value={person.id}>
+                          {person.name}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="mt-1 block text-[11px]">
+                      {responsibleChoice
+                        ? "Эта запись и её оплата пойдут выбранному человеку. Менеджер карточки не меняется."
+                        : "Сейчас запись и деньги встают на менеджера карточки. Выберите человека, чтобы отнести эту услугу ему."}
+                    </span>
                   </label>
                 ) : null}
                 <label className="block text-sm mo-muted">

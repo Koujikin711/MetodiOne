@@ -360,6 +360,8 @@ class ProtocolQueueRowOut(BaseModel):
     purchase_id: int | None = None
     next_request_id: int | None = None
     next_request_kind: str | None = None
+    course_request_id: int | None = None
+    protocol_request_id: int | None = None
     followup_comment: str | None = None
     followup_call_at: datetime | None = None
     followup_overdue: bool = False

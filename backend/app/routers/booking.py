@@ -48,6 +48,7 @@ from app.schemas.booking import (
     BookingReferrerUpdate,
     ReferringDoctorRead,
     BookingFreeConsultHint,
+    BookingResponsibleOption,
     BookingPatientHistoryItem,
     BookingPatientSuggestItem,
     BookingPatientVisitRead,
@@ -2109,6 +2110,40 @@ async def free_consult_hint(
     )
 
 
+@router.get("/responsible-options", response_model=list[BookingResponsibleOption])
+async def list_booking_responsible_options(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> list[BookingResponsibleOption]:
+    """Админ и владелец выбирают, на чей счёт встанет новая запись и её оплата."""
+    if current_user.role not in (
+        UserRole.admin,
+        UserRole.administrator,
+        UserRole.owner,
+        UserRole.super_owner,
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
+    rows = (
+        await db.execute(
+            select(User)
+            .where(User.company_id == company_id, User.is_active.is_(True))
+            .order_by(User.full_name, User.id)
+        )
+    ).scalars().all()
+    out: list[BookingResponsibleOption] = []
+    for user in rows:
+        if not _can_be_booking_responsible(user.role):
+            continue
+        out.append(
+            BookingResponsibleOption(
+                id=int(user.id),
+                name=(user.full_name or "").strip() or user.email or f"#{user.id}",
+            )
+        )
+    return out
+
+
 @router.post("/appointments", response_model=BookingAppointmentRead, status_code=status.HTTP_201_CREATED)
 async def create_appointment(
     body: BookingAppointmentCreate,
@@ -2198,9 +2233,30 @@ async def create_appointment(
 
     lead_id = body.lead_id
     appointment_pipeline_id: int | None = None
-    # Админ не выбирает ответственного: только авто (CRM-менеджер или сам админ).
-    admin_auto = current_user.role == UserRole.admin
-    resolved_manager_id = None if admin_auto else body.responsible_manager_id
+    chooser = current_user.role in (
+        UserRole.admin,
+        UserRole.administrator,
+        UserRole.owner,
+        UserRole.super_owner,
+    )
+    explicit_choice: int | None = None
+    if chooser and body.responsible_manager_id is not None:
+        explicit_choice = int(body.responsible_manager_id)
+        chosen = await db.get(User, explicit_choice)
+        if (
+            chosen is None
+            or chosen.company_id != company_id
+            or not _can_be_booking_responsible(chosen.role)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ответственным может быть менеджер, администратор или админ",
+            )
+    # Без явного выбора админ не ставит себя: запись идёт на менеджера карточки.
+    admin_auto = current_user.role == UserRole.admin and explicit_choice is None
+    resolved_manager_id = (
+        explicit_choice if explicit_choice is not None else (None if admin_auto else body.responsible_manager_id)
+    )
     if resolved_manager_id is not None:
         resp_user = await db.get(User, int(resolved_manager_id))
         if (
@@ -2220,14 +2276,20 @@ async def create_appointment(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Лид не найден")
         await db.refresh(lead, ["stage"])
         appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
-        if lead.manager_id is not None:
+        if explicit_choice is not None:
+            resolved_manager_id = explicit_choice
+            if lead.manager_id is None:
+                lead.manager_id = explicit_choice
+        elif lead.manager_id is not None:
             resolved_manager_id = lead.manager_id
         elif resolved_manager_id is None and current_user.role in (UserRole.manager, UserRole.admin):
             resolved_manager_id = current_user.id
             lead.manager_id = current_user.id
     else:
         upsert_responsible = (
-            int(current_user.id) if admin_auto else body.responsible_manager_id
+            explicit_choice
+            if explicit_choice is not None
+            else (int(current_user.id) if admin_auto else body.responsible_manager_id)
         )
         lead_id = await _upsert_lead_for_appointment(
             db,
@@ -2245,7 +2307,11 @@ async def create_appointment(
                 await db.refresh(lead, ["stage"])
                 if appointment_pipeline_id is None:
                     appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
-                if lead.manager_id is not None:
+                if explicit_choice is not None:
+                    resolved_manager_id = explicit_choice
+                    if lead.manager_id is None:
+                        lead.manager_id = explicit_choice
+                elif lead.manager_id is not None:
                     resolved_manager_id = lead.manager_id
                 elif admin_auto:
                     resolved_manager_id = int(current_user.id)

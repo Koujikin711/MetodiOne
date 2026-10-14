@@ -219,6 +219,12 @@ class SalesKpiManualSalePaymentPatch(BaseModel):
     note: str | None = None
 
 
+class SalesKpiPaymentConfirmIn(BaseModel):
+    """Админ подтверждает, что оплата менеджера действительно прошла."""
+
+    confirmed: bool
+
+
 class SalesKpiManualSalePaymentOut(BaseModel):
     id: int
     amount: Decimal
@@ -226,6 +232,7 @@ class SalesKpiManualSalePaymentOut(BaseModel):
     note: str | None = None
     paid_at: datetime
     recorded_by_name: str | None = None
+    confirmation: Literal["pending", "confirmed", "rejected"] = "confirmed"
 
 
 class SalesKpiManualPaymentJournalRow(BaseModel):

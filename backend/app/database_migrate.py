@@ -1236,6 +1236,22 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
                 "ON sales_kpi_manual_sale_payments(sale_id, id)",
             ),
         )
+        pay_cols = {
+            row[1] for row in (await conn.execute(text("PRAGMA table_info(sales_kpi_manual_sale_payments)"))).fetchall()
+        }
+        if "confirmed_at" not in pay_cols:
+            await conn.execute(text("ALTER TABLE sales_kpi_manual_sale_payments ADD COLUMN confirmed_at DATETIME"))
+            await conn.execute(
+                text("ALTER TABLE sales_kpi_manual_sale_payments ADD COLUMN confirmed_by_user_id INTEGER"),
+            )
+            await conn.execute(text("ALTER TABLE sales_kpi_manual_sale_payments ADD COLUMN rejected_at DATETIME"))
+            await conn.execute(
+                text(
+                    "UPDATE sales_kpi_manual_sale_payments "
+                    "SET confirmed_at = COALESCE(paid_at, created_at, datetime('now')) "
+                    "WHERE confirmed_at IS NULL",
+                ),
+            )
         await conn.execute(
             text(
                 """CREATE TABLE IF NOT EXISTS sales_kpi_plan_item_services (
@@ -1415,6 +1431,31 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
                 "ON sales_kpi_manual_sale_payments(sale_id, id)",
             ),
         )
+        confirmed_exists = (
+            await conn.execute(
+                text(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name = 'sales_kpi_manual_sale_payments' AND column_name = 'confirmed_at'"
+                ),
+            )
+        ).first()
+        if not confirmed_exists:
+            await conn.execute(
+                text("ALTER TABLE sales_kpi_manual_sale_payments ADD COLUMN confirmed_at TIMESTAMPTZ"),
+            )
+            await conn.execute(
+                text("ALTER TABLE sales_kpi_manual_sale_payments ADD COLUMN confirmed_by_user_id INTEGER"),
+            )
+            await conn.execute(
+                text("ALTER TABLE sales_kpi_manual_sale_payments ADD COLUMN rejected_at TIMESTAMPTZ"),
+            )
+            await conn.execute(
+                text(
+                    "UPDATE sales_kpi_manual_sale_payments "
+                    "SET confirmed_at = COALESCE(paid_at, created_at, NOW()) "
+                    "WHERE confirmed_at IS NULL",
+                ),
+            )
         await conn.execute(
             text(
                 """CREATE TABLE IF NOT EXISTS sales_kpi_plan_item_services (

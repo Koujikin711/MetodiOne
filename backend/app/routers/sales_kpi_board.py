@@ -67,6 +67,7 @@ from app.schemas.sales_kpi import (
     SalesKpiManualSaleOut,
     SalesKpiManualSalePaymentOut,
     SalesKpiManualSalePaymentPatch,
+    SalesKpiPaymentConfirmIn,
     SalesKpiManualPaymentJournalRow,
     SalesKpiManualSaleSoldAtPatch,
     SalesKpiManualSaleStatusPatch,
@@ -399,6 +400,14 @@ async def _booking_refund_totals_by_appointment(
     return out
 
 
+def _payment_confirmation(row: SalesKpiManualSalePayment) -> str:
+    if getattr(row, "rejected_at", None) is not None:
+        return "rejected"
+    if getattr(row, "confirmed_at", None) is not None:
+        return "confirmed"
+    return "pending"
+
+
 def _payment_out(
     row: SalesKpiManualSalePayment,
     *,
@@ -411,6 +420,7 @@ def _payment_out(
         note=row.note,
         paid_at=row.paid_at,
         recorded_by_name=recorded_by_name,
+        confirmation=_payment_confirmation(row),  # type: ignore[arg-type]
     )
 
 
@@ -1068,7 +1078,8 @@ async def list_manual_sales(
     year_month: str = Query(..., description="YYYY-MM"),
 ) -> list[SalesKpiManualSaleOut]:
     _assert_kpi_access(current_user)
-    _assert_admin_or_owner(current_user)
+    if current_user.role != UserRole.manager:
+        _assert_admin_or_owner(current_user)
     await _load_pipeline(db, company_id, pipeline_id)
     try:
         ym = parse_year_month(year_month)
@@ -1086,6 +1097,7 @@ async def list_manual_sales(
             .where(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
+                *([SalesKpiManualSale.manager_user_id == int(current_user.id)] if current_user.role == UserRole.manager else []),
                 SalesKpiManualSale.sold_at < end,
                 or_(
                     # В выбранном месяце — все записи (в т.ч. возврат / отказ / завершён).
@@ -1203,6 +1215,8 @@ async def manual_payment_journal(
         pays = payments_by_sale.get(int(sale.id), [])
         covered = Decimal("0")
         for pay in pays:
+            if _payment_confirmation(pay) != "confirmed":
+                continue
             covered += Decimal(str(pay.amount or 0))
             who = actors.get(int(pay.created_by_user_id)) if pay.created_by_user_id else None
             journal.append(
@@ -1269,7 +1283,8 @@ async def search_leads_for_manual_sale(
 ) -> SalesKpiLeadSearchOut:
     """Lead picker search for new KPI sales. Multiple Leads per phone → all shown, no auto-select."""
     _assert_kpi_access(current_user)
-    _assert_admin_or_owner(current_user)
+    if current_user.role != UserRole.manager:
+        _assert_admin_or_owner(current_user)
     from app.services.kpi_lead_search import search_leads_for_kpi_sale
 
     items_raw = await search_leads_for_kpi_sale(db, company_id=company_id, q=q, limit=limit)
@@ -1291,12 +1306,17 @@ async def list_curator_program_requests(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> list[dict]:
-    """Заявки куратора: админ подтверждает и принимает оплату в форме курса/протокола."""
+    """Заявки на курс/протокол. Менеджер заполняет запись, админ видит все."""
     _assert_kpi_access(current_user)
-    _assert_admin_or_owner(current_user)
+    if current_user.role != UserRole.manager:
+        _assert_admin_or_owner(current_user)
     from app.services.curator_program_request import list_pending_requests
 
-    return await list_pending_requests(db, company_id=company_id)
+    rows = await list_pending_requests(db, company_id=company_id)
+    if current_user.role == UserRole.manager:
+        uid = int(current_user.id)
+        rows = [row for row in rows if row.get("manager_user_id") == uid]
+    return rows
 
 
 @router.post("/program-requests/{request_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
@@ -1307,7 +1327,14 @@ async def dismiss_curator_program_request(
     company_id: CurrentCompanyId,
 ) -> None:
     _assert_kpi_access(current_user)
-    _assert_admin_or_owner(current_user)
+    if current_user.role == UserRole.manager:
+        from app.models import CuratorProgramRequest
+
+        row = await db.get(CuratorProgramRequest, request_id)
+        if row is None or row.company_id != company_id or row.manager_user_id != int(current_user.id):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Это не ваша заявка")
+    else:
+        _assert_admin_or_owner(current_user)
     from app.services.curator_program_request import dismiss_program_request
 
     await dismiss_program_request(db, company_id=company_id, request_id=request_id)
@@ -1321,7 +1348,11 @@ async def create_manual_sale(
     body: SalesKpiManualSaleCreate,
 ) -> SalesKpiManualSaleOut:
     _assert_kpi_access(current_user)
-    _assert_admin_or_owner(current_user)
+    manager_fills = current_user.role == UserRole.manager
+    if manager_fills and int(body.manager_user_id) != int(current_user.id):
+        raise HTTPException(status_code=400, detail="Менеджер записывает продажу только на себя")
+    if not manager_fills:
+        _assert_admin_or_owner(current_user)
     await _load_pipeline(db, company_id, body.pipeline_id)
 
     item = await db.get(SalesKpiPlanItem, body.plan_item_id)
@@ -1350,8 +1381,12 @@ async def create_manual_sale(
     link_lead_id = await resolve_kpi_sale_lead_id(db, company_id=company_id, lead_id=body.lead_id)
 
     total_paid = first_paid + second_paid
+    # Сумма менеджера ждёт подтверждения и не входит в выручку, пока админ не скажет «оплата прошла».
+    booked_paid = Decimal("0") if manager_fills else total_paid
+    booked_first = Decimal("0") if manager_fills else first_paid
     first_at = _paid_at_from_input(body.first_paid_at if body.first_paid_at is not None else body.sold_at)
     second_at = _paid_at_from_input(body.second_paid_at)
+    confirmed_at = None if manager_fills else datetime.now(UTC)
 
     sale = SalesKpiManualSale(
         company_id=company_id,
@@ -1364,8 +1399,8 @@ async def create_manual_sale(
         stream_no=int(body.stream_no),
         group_no=int(body.group_no),
         service_amount=body.service_amount,
-        paid_amount=total_paid,
-        first_paid_amount=first_paid,
+        paid_amount=booked_paid,
+        first_paid_amount=booked_first,
         sold_at=first_at,
         status="active",
         note=body.note,
@@ -1383,6 +1418,8 @@ async def create_manual_sale(
             note="Первый платёж",
             paid_at=first_at,
             created_by_user_id=current_user.id,
+            confirmed_at=confirmed_at,
+            confirmed_by_user_id=None if manager_fills else int(current_user.id),
         )
         db.add(pay)
         payments.append(pay)
@@ -1395,6 +1432,8 @@ async def create_manual_sale(
             note="Второй платёж",
             paid_at=second_at,
             created_by_user_id=current_user.id,
+            confirmed_at=confirmed_at,
+            confirmed_by_user_id=None if manager_fills else int(current_user.id),
         )
         db.add(pay2)
         payments.append(pay2)
@@ -1407,7 +1446,7 @@ async def create_manual_sale(
         current_user=current_user,
         details=(
             f"lead_id={link_lead_id!r}; client={sale.client_name!r}; "
-            f"phone={sale.client_phone!r}; service={sale.service_amount}; paid={total_paid}"
+            f"phone={sale.client_phone!r}; service={sale.service_amount}; paid={booked_paid}; claimed={total_paid}"
         ),
     )
     await db.flush()
@@ -1432,7 +1471,7 @@ async def create_manual_sale(
     await db.flush()
     cashier = (current_user.full_name or current_user.email or "").strip() or None
     manager_name = (manager.full_name or "").strip() or cashier
-    for pay in payments:
+    for pay in payments if not manager_fills else []:
         amount = Decimal(str(pay.amount or 0))
         if amount <= 0:
             continue
@@ -1489,17 +1528,32 @@ async def patch_manual_sale_payment(
     add_amount = Decimal(str(body.add_amount))
     service_amount = Decimal(str(sale.service_amount or 0))
     current_paid = Decimal(str(sale.paid_amount or 0))
-    new_paid = current_paid + add_amount
-    if new_paid > service_amount:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Доплата превышает долг: остаток {service_amount - current_paid}",
+    manager_records = current_user.role == UserRole.manager
+    if manager_records:
+        pending = sum(
+            (
+                Decimal(str(row.amount or 0))
+                for row in (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
+                if _payment_confirmation(row) == "pending"
+            ),
+            Decimal("0"),
         )
-
-    sale.paid_amount = new_paid
-    # first_paid_amount — сумма открытия. Порог KPI смотрит накопленную оплату.
-    if getattr(sale, "first_paid_amount", None) is None:
-        sale.first_paid_amount = current_paid
+        if current_paid + pending + add_amount > service_amount:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Доплата превышает долг: остаток {service_amount - current_paid - pending}",
+            )
+    else:
+        new_paid = current_paid + add_amount
+        if new_paid > service_amount:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Доплата превышает долг: остаток {service_amount - current_paid}",
+            )
+        sale.paid_amount = new_paid
+        # first_paid_amount — сумма открытия. Порог KPI смотрит накопленную оплату.
+        if getattr(sale, "first_paid_amount", None) is None:
+            sale.first_paid_amount = current_paid
     sale.updated_at = datetime.now(UTC)
     if body.note is not None and body.note.strip():
         sale.note = body.note.strip()
@@ -1513,9 +1567,27 @@ async def patch_manual_sale_payment(
         note=(body.note.strip() if body.note else None) or "Доплата",
         paid_at=pay_at,
         created_by_user_id=current_user.id,
+        confirmed_at=None if manager_records else datetime.now(UTC),
+        confirmed_by_user_id=None if manager_records else int(current_user.id),
     )
     db.add(pay)
     await db.flush()
+    if manager_records:
+        await db.commit()
+        await db.refresh(sale)
+        payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
+        item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+        manager = await db.get(User, sale.manager_user_id)
+        return _manual_sale_out(
+            sale,
+            plan_item_name=item.name if item else "",
+            manager_name=str(
+                (manager.full_name if manager else None)
+                or (manager.email if manager else None)
+                or f"#{sale.manager_user_id}"
+            ),
+            payments=payments,
+        )
     from app.services.google_sheets_osv_push import bank_label, save_osv_movement
 
     pay_day = datetime.now(ZoneInfo(settings.booking_timezone)).date()
@@ -1545,6 +1617,90 @@ async def patch_manual_sale_payment(
     await db.refresh(sale)
     await db.refresh(pay)
 
+    payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
+    item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    manager = await db.get(User, sale.manager_user_id)
+    return _manual_sale_out(
+        sale,
+        plan_item_name=item.name if item else "",
+        manager_name=str(
+            (manager.full_name if manager else None)
+            or (manager.email if manager else None)
+            or f"#{sale.manager_user_id}"
+        ),
+        payments=payments,
+    )
+
+
+@router.post("/manual-sales/{sale_id}/payments/{payment_id}/confirm", response_model=SalesKpiManualSaleOut)
+async def confirm_manual_sale_payment(
+    sale_id: int,
+    payment_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    body: SalesKpiPaymentConfirmIn,
+) -> SalesKpiManualSaleOut:
+    """Админ отмечает, прошла оплата менеджера или нет. В выручку входит только «прошла»."""
+    _assert_kpi_access(current_user)
+    _assert_admin_or_owner(current_user)
+    sale = await db.get(SalesKpiManualSale, sale_id)
+    if sale is None or sale.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Продажа не найдена")
+    pay = await db.get(SalesKpiManualSalePayment, payment_id)
+    if pay is None or int(pay.sale_id) != int(sale.id) or pay.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Платёж не найден")
+    if pay.confirmed_at is not None:
+        raise HTTPException(status_code=400, detail="Оплата уже подтверждена")
+    if pay.rejected_at is not None:
+        raise HTTPException(status_code=400, detail="По этой сумме уже отмечено, что оплаты не было")
+    now = datetime.now(UTC)
+    if body.confirmed:
+        add_amount = Decimal(str(pay.amount or 0))
+        service_amount = Decimal(str(sale.service_amount or 0))
+        current_paid = Decimal(str(sale.paid_amount or 0))
+        if current_paid + add_amount > service_amount:
+            raise HTTPException(status_code=400, detail="Подтверждённая сумма больше стоимости")
+        sale.paid_amount = current_paid + add_amount
+        if pay.is_first and Decimal(str(sale.first_paid_amount or 0)) == 0:
+            sale.first_paid_amount = add_amount
+        pay.confirmed_at = now
+        pay.confirmed_by_user_id = int(current_user.id)
+        sale.updated_at = now
+        await db.flush()
+        from app.services.google_sheets_osv_push import bank_label, save_osv_movement
+        from app.services.patient_ltv import mirror_manual_sale_purchase
+
+        plan_item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+        sale_manager = await db.get(User, sale.manager_user_id)
+        cashier = (current_user.full_name or current_user.email or "").strip() or None
+        manager_name = ((sale_manager.full_name or "").strip() if sale_manager else "") or cashier
+        if add_amount > 0:
+            await save_osv_movement(
+                db,
+                company_id=company_id,
+                external_key=f"crm:kpi_pay:{pay.id}",
+                source="kpi_payment",
+                txn_date=datetime.now(ZoneInfo(settings.booking_timezone)).date(),
+                revenue=add_amount,
+                partner_amount=Decimal(str(sale.service_amount or 0)),
+                bank=bank_label(None),
+                basis=cashier,
+                counterparty=sale.client_name,
+                phone=sale.client_phone,
+                via_person=manager_name,
+                product_service=plan_item.name if plan_item else None,
+                article="Поступления",
+                detail_category="Медицина",
+                brief_category="Выручка",
+            )
+        if plan_item is not None:
+            await mirror_manual_sale_purchase(db, sale=sale, item_name=plan_item.name)
+    else:
+        pay.rejected_at = now
+        sale.updated_at = now
+    await db.commit()
+    await db.refresh(sale)
     payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
     item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
     manager = await db.get(User, sale.manager_user_id)

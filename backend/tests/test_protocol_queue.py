@@ -11,6 +11,9 @@ from app.services.protocol_queue import (
     PROTOCOL_DURATION_DAYS,
     classify_protocol_episodes,
     cluster_unlinked_protocols,
+    dedupe_same_source_purchases,
+    first_booking_protocol_lead_ids,
+    lead_already_has_protocol,
     protocol_period_covers,
     protocol_row_sort_key,
     protocol_sale_ids_already_linked,
@@ -239,3 +242,25 @@ def test_booking_inside_existing_protocol_is_not_a_second_one():
     later = datetime(2026, 11, 15, tzinfo=UTC)
     assert protocol_period_covers([existing], inside) is True
     assert protocol_period_covers([existing], later) is False
+
+
+def test_later_booking_does_not_open_another_protocol():
+    existing = _p(id=1, at=datetime(2026, 10, 1, tzinfo=UTC))
+    later = datetime(2026, 12, 1, tzinfo=UTC)
+    assert lead_already_has_protocol([existing]) is True
+    chosen = first_booking_protocol_lead_ids(
+        [(10, later), (10, datetime(2026, 12, 20, tzinfo=UTC)), (11, later)],
+        leads_with_protocol={10},
+    )
+    assert chosen == {11}
+
+
+def test_same_sale_is_not_two_protocols():
+    first = _p(id=1, at=datetime(2026, 10, 1, tzinfo=UTC))
+    first.source_id = 45
+    copy = _p(id=2, at=datetime(2026, 10, 2, tzinfo=UTC))
+    copy.source_id = 45
+    kept = dedupe_same_source_purchases([first, copy])
+    episodes = classify_protocol_episodes(kept, now=datetime(2026, 10, 5, tzinfo=UTC))
+    assert [ep["sequence_no"] for ep in episodes] == [1]
+    assert episodes[0]["protocols_count"] == 1

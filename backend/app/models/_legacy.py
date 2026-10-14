@@ -422,7 +422,7 @@ class SalesFieldVisit(Base):
 
 
 class SalesKpiManualSale(Base):
-    """Продажа курса/протокола без онлайн-записи (вносит admin)."""
+    """Продажа курса/протокола. Запись заполняет менеджер, оплату подтверждает админ."""
 
     __tablename__ = "sales_kpi_manual_sales"
 
@@ -472,6 +472,13 @@ class SalesKpiManualSalePayment(Base):
     paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+    # Пусто — менеджер внёс сумму, админ ещё не подтвердил. Старые строки заполнены миграцией.
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    confirmed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class PipelineStage(Base):

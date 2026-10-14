@@ -9,6 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
+    BookingAppointment,
+    BookingDirection,
     CuratorProgramRequest,
     Lead,
     PatientPurchase,
@@ -183,7 +185,7 @@ async def list_pending_requests(
         out.append(
             {
                 "id": int(req.id),
-                "lead_id": int(req.lead_id),
+                "lead_id": int(req.lead_id) if req.lead_id is not None else None,
                 "program_kind": req.program_kind,
                 "program_label": (
             f"{program_label(req.program_kind)} {req.note}".strip()
@@ -264,9 +266,61 @@ async def attach_protocol_request_ids(
         db, company_id=company_id, kinds=frozenset({"protocol", "main_course"}),
     )
     for row in rows:
-        match = next((req for req in reqs if _request_matches_row(req, row)), None)
-        row["next_request_id"] = int(match.id) if match else None
-        row["next_request_kind"] = match.program_kind if match else None
+        matches = [req for req in reqs if _request_matches_row(req, row)]
+        course = next((req for req in matches if req.program_kind == "main_course"), None)
+        protocol = next((req for req in matches if req.program_kind == "protocol"), None)
+        row["course_request_id"] = int(course.id) if course else None
+        row["protocol_request_id"] = int(protocol.id) if protocol else None
+        chosen = protocol or course
+        row["next_request_id"] = int(chosen.id) if chosen else None
+        row["next_request_kind"] = chosen.program_kind if chosen else None
+
+
+async def _lead_has_protocol_episode(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    lead_id: int,
+) -> bool:
+    """Тот же признак, по которому пациент уже стоит в очереди протоколов."""
+    purchase_id = await db.scalar(
+        select(PatientPurchase.id).where(
+            PatientPurchase.company_id == company_id,
+            PatientPurchase.lead_id == int(lead_id),
+            PatientPurchase.product_kind == "protocol",
+            PatientPurchase.status.notin_(("cancelled", "returned", "refused")),
+        ).limit(1),
+    )
+    if purchase_id is not None:
+        return True
+    names = (
+        await db.execute(
+            select(SalesKpiPlanItem.name)
+            .join(SalesKpiManualSale, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.lead_id == int(lead_id),
+                SalesKpiManualSale.status.notin_(("returned", "refused", "cancelled")),
+            ),
+        )
+    ).scalars().all()
+    if any(classify_product_kind(name) == "protocol" for name in names):
+        return True
+    visits = (
+        await db.execute(
+            select(BookingAppointment.service_title, BookingDirection.name)
+            .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.lead_id == int(lead_id),
+                BookingAppointment.status.notin_(("cancelled",)),
+            ),
+        )
+    ).all()
+    return any(
+        classify_product_kind(title) == "protocol" or classify_product_kind(direction) == "protocol"
+        for title, direction in visits
+    )
 
 
 async def create_next_protocol_request(
@@ -294,25 +348,7 @@ async def create_next_protocol_request(
         lead = await db.get(Lead, int(lead_id))
         if lead is None or lead.company_id != company_id:
             raise HTTPException(status_code=404, detail="Пациент не найден")
-        has_protocol = await db.scalar(
-            select(PatientPurchase.id).where(
-                PatientPurchase.company_id == company_id,
-                PatientPurchase.lead_id == int(lead_id),
-                PatientPurchase.product_kind == "protocol",
-            ).limit(1),
-        )
-        if has_protocol is None:
-            has_protocol = await db.scalar(
-                select(SalesKpiManualSale.id)
-                .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
-                .where(
-                    SalesKpiManualSale.company_id == company_id,
-                    SalesKpiManualSale.lead_id == int(lead_id),
-                    SalesKpiPlanItem.name.ilike("%протокол%"),
-                )
-                .limit(1),
-            )
-        if has_protocol is None:
+        if not await _lead_has_protocol_episode(db, company_id=company_id, lead_id=int(lead_id)):
             raise HTTPException(status_code=400, detail="У пациента нет Протокола")
         booking = await load_booking_identity_by_lead(db, company_id=company_id, lead_ids=[int(lead_id)])
         name, phone = display_patient_identity(
@@ -325,7 +361,7 @@ async def create_next_protocol_request(
             (
                 row
                 for row in await _open_protocol_requests(db, company_id=company_id, kinds=open_kinds)
-                if row.lead_id == int(lead_id)
+                if row.lead_id == int(lead_id) and row.program_kind == kind
             ),
             None,
         )
@@ -355,7 +391,9 @@ async def create_next_protocol_request(
             (
                 row
                 for row in await _open_protocol_requests(db, company_id=company_id, kinds=open_kinds)
-                if row.lead_id is None and _person_key(row.patient_name, row.patient_phone) == key
+                if row.lead_id is None
+                and row.program_kind == kind
+                and _person_key(row.patient_name, row.patient_phone) == key
             ),
             None,
         )

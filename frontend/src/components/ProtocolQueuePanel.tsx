@@ -29,6 +29,8 @@ type ProtocolRow = {
   purchase_id?: number | null;
   next_request_id?: number | null;
   next_request_kind?: "main_course" | "protocol" | null;
+  course_request_id?: number | null;
+  protocol_request_id?: number | null;
   followup_comment?: string | null;
   followup_call_at?: string | null;
   followup_overdue?: boolean;
@@ -377,28 +379,42 @@ export function ProtocolQueuePanel({
                     />
                   </td>
                   <td className="px-3 py-2.5 text-xs">
-                    <select
-                      className="mo-input min-w-[9.5rem] py-1 text-xs"
-                      aria-label="Курс или протокол"
-                      value={r.next_request_kind ?? ""}
-                      disabled={
-                        sendNext.isPending ||
-                        withdrawNext.isPending ||
-                        (!r.lead_id && !r.purchase_id)
-                      }
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (v === "main_course" || v === "protocol") {
-                          sendNext.mutate({ ...r, program_kind: v });
-                        } else if (r.next_request_id) {
-                          withdrawNext.mutate(r.next_request_id);
-                        }
-                      }}
-                    >
-                      <option value="">Курс / протокол</option>
-                      <option value="main_course">Курс</option>
-                      <option value="protocol">На {r.sequence_no + 1}-й протокол</option>
-                    </select>
+                    <div className="flex flex-col gap-1">
+                      <label className="flex items-center gap-1.5 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          aria-label="Направить на курс"
+                          checked={Boolean(r.course_request_id)}
+                          disabled={
+                            sendNext.isPending ||
+                            withdrawNext.isPending ||
+                            (!r.lead_id && !r.purchase_id)
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) sendNext.mutate({ ...r, program_kind: "main_course" });
+                            else if (r.course_request_id) withdrawNext.mutate(r.course_request_id);
+                          }}
+                        />
+                        Курс
+                      </label>
+                      <label className="flex items-center gap-1.5 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          aria-label="Направить на протокол"
+                          checked={Boolean(r.protocol_request_id)}
+                          disabled={
+                            sendNext.isPending ||
+                            withdrawNext.isPending ||
+                            (!r.lead_id && !r.purchase_id)
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) sendNext.mutate({ ...r, program_kind: "protocol" });
+                            else if (r.protocol_request_id) withdrawNext.mutate(r.protocol_request_id);
+                          }}
+                        />
+                        На {r.sequence_no + 1}-й протокол
+                      </label>
+                    </div>
                   </td>
                 </tr>
               ))}

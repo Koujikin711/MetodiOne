@@ -82,6 +82,58 @@ function ManualPayPack({
   );
 }
 
+function PaymentDecisions({
+  sale,
+  canConfirm,
+  pending,
+  onDecide,
+}: {
+  sale: SalesKpiManualSale;
+  canConfirm: boolean;
+  pending: boolean;
+  onDecide: (saleId: number, paymentId: number, confirmed: boolean) => void;
+}) {
+  const rows = (sale.payments ?? []).filter((p) => (p.confirmation ?? "confirmed") !== "confirmed");
+  if (!rows.length) return null;
+  return (
+    <div className="mt-1 space-y-1">
+      {rows.map((p) =>
+        p.confirmation === "rejected" ? (
+          <p key={p.id} className="text-[10px] text-[var(--mo-text-muted)]">
+            Оплаты не было · {formatMoney(num(p.amount))}
+          </p>
+        ) : canConfirm ? (
+          <div key={p.id} className="flex flex-col items-start gap-1">
+            <span className="text-[10px] text-amber-200">Ждёт: {formatMoney(num(p.amount))}</span>
+            <span className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                className="btn-primary px-2 py-1 text-[10px]"
+                disabled={pending}
+                onClick={() => onDecide(sale.id, p.id, true)}
+              >
+                Оплата прошла
+              </button>
+              <button
+                type="button"
+                className="btn-secondary px-2 py-1 text-[10px]"
+                disabled={pending}
+                onClick={() => onDecide(sale.id, p.id, false)}
+              >
+                Оплаты не было
+              </button>
+            </span>
+          </div>
+        ) : (
+          <p key={p.id} className="text-[10px] text-amber-200">
+            Ждёт подтверждения админа · {formatMoney(num(p.amount))}
+          </p>
+        ),
+      )}
+    </div>
+  );
+}
+
 function saleProductKind(name: string | null | undefined): "course" | "protocol" | "other" {
   const n = (name || "").toLowerCase().replace(/ё/g, "е");
   if (n.includes("протокол")) return "protocol";
@@ -353,6 +405,68 @@ function clinicTodayYmd(): string {
   }).format(new Date());
 }
 
+function DebtorCollectFields({
+  source,
+  pending,
+  onCollect,
+}: {
+  source: "booking" | "manual";
+  pending: boolean;
+  onCollect: (amount: number, paidAt: string, method: "cash" | "alif" | "dc") => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [paidAt, setPaidAt] = useState(clinicTodayYmd());
+  const [method, setMethod] = useState<"cash" | "alif" | "dc">("cash");
+  return (
+    <div className="mt-2 flex flex-wrap items-end gap-2">
+      <label className="flex flex-col gap-1 text-[11px] mo-muted">
+        Принять
+        <input
+          type="number"
+          min={0}
+          inputMode="decimal"
+          className="mo-input w-24 !min-h-9 text-sm"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          aria-label="Сумма оплаты по долгу"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-[11px] mo-muted">
+        Дата
+        <DateField value={paidAt} onChange={setPaidAt} aria-label="Дата оплаты по долгу" />
+      </label>
+      {source === "booking" ? (
+        <label className="flex flex-col gap-1 text-[11px] mo-muted">
+          Способ
+          <select
+            className="mo-input !min-h-9 text-sm"
+            value={method}
+            onChange={(e) => setMethod(e.target.value as "cash" | "alif" | "dc")}
+            aria-label="Способ оплаты по долгу"
+          >
+            <option value="cash">Наличные</option>
+            <option value="alif">Алиф</option>
+            <option value="dc">DC</option>
+          </select>
+        </label>
+      ) : null}
+      <button
+        type="button"
+        className="btn-primary min-h-9 px-3 text-sm disabled:opacity-50"
+        disabled={pending}
+        onClick={() => {
+          const add = Number(amount);
+          if (!Number.isFinite(add) || add <= 0) return;
+          onCollect(add, paidAt || clinicTodayYmd(), method);
+          setAmount("");
+        }}
+      >
+        Принять оплату
+      </button>
+    </div>
+  );
+}
+
 function DebtorNoteFields({
   comment,
   promisedOn,
@@ -459,9 +573,15 @@ export function KpiPage() {
     if (role === "expert" && meQuery.data?.also_curator) setTab("debtors");
   }, [role, meQuery.data?.also_curator]);
 
+  useEffect(() => {
+    if (!isManager || !meQuery.data?.id) return;
+    const id = String(meQuery.data.id);
+    setSaleForm((s) => (s.manager_user_id === id ? s : { ...s, manager_user_id: id }));
+  }, [isManager, meQuery.data?.id]);
+
   // Phase 8B: create-from-Lead — ?lead_id= → auto-select, open manual tab
   useEffect(() => {
-    if (!isAdminOrOwner) return;
+    if (!isAdminOrOwner && !isManager) return;
     const raw = searchParams.get("lead_id");
     if (!raw) return;
     const lid = Number(raw);
@@ -494,7 +614,7 @@ export function KpiPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot from URL
-  }, [isAdminOrOwner]);
+  }, [isAdminOrOwner, isManager]);
 
   const qs = useMemo(() => {
     if (!pipelineId) return "";
@@ -525,7 +645,7 @@ export function KpiPage() {
   const manualQuery = useQuery({
     queryKey: ["sales-kpi-manual-sales", qs],
     queryFn: () => apiFetch<SalesKpiManualSale[]>(`/api/sales-kpi/manual-sales?${qs}`),
-    enabled: Boolean(pipelineId && isAdminOrOwner && tab === "manual"),
+    enabled: Boolean(pipelineId && (isAdminOrOwner || isManager) && tab === "manual"),
   });
 
   const programRequestsQuery = useQuery({
@@ -543,7 +663,7 @@ export function KpiPage() {
           manager_name?: string | null;
         }[]
       >("/api/sales-kpi/program-requests"),
-    enabled: Boolean(isAdminOrOwner && tab === "manual"),
+    enabled: Boolean((isAdminOrOwner || isManager) && tab === "manual"),
   });
 
   const paymentJournalQuery = useQuery({
@@ -583,6 +703,39 @@ export function KpiPage() {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const debtorCollectMutation = useMutation({
+    mutationFn: async (body: {
+      source: "booking" | "manual";
+      source_id: number;
+      amount: number;
+      paid_at: string;
+      method: "cash" | "alif" | "dc";
+    }) => {
+      if (body.source === "booking") {
+        await apiFetch(`/api/booking/appointments/${body.source_id}/payment`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            add_payment: body.amount,
+            payment_method: body.method,
+            paid_at: body.paid_at,
+            bill_this_appointment: true,
+          }),
+        });
+        return;
+      }
+      await apiFetch(`/api/sales-kpi/manual-sales/${body.source_id}/payment`, {
+        method: "PATCH",
+        body: JSON.stringify({ add_amount: body.amount, paid_at: body.paid_at }),
+      });
+    },
+    onSuccess: () => {
+      toast.success("Оплата принята");
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -663,13 +816,15 @@ export function KpiPage() {
     },
     onSuccess: () => {
       toast.success(
-        selectedLead
-          ? `Продажа добавлена · #${selectedLead.lead_id}`
-          : "Продажа добавлена без привязки к пациенту",
+        isManager
+          ? "Запись сохранена. Оплата ждёт подтверждения админа"
+          : selectedLead
+            ? `Продажа добавлена · #${selectedLead.lead_id}`
+            : "Продажа добавлена без привязки к пациенту",
       );
       setSaleForm({
         plan_item_id: "",
-        manager_user_id: "",
+        manager_user_id: isManager && meQuery.data?.id ? String(meQuery.data.id) : "",
         stream_no: "",
         group_no: "",
         client_name: "",
@@ -763,9 +918,35 @@ export function KpiPage() {
       });
     },
     onSuccess: () => {
-      toast.success("Доплата записана в журнал");
+      toast.success(isManager ? "Доплата ждёт подтверждения админа" : "Доплата записана в журнал");
       setPayDraft({});
       setPayDates({});
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-payment-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const confirmPayMutation = useMutation({
+    mutationFn: async ({
+      saleId,
+      paymentId,
+      confirmed,
+    }: {
+      saleId: number;
+      paymentId: number;
+      confirmed: boolean;
+    }) => {
+      await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${saleId}/payments/${paymentId}/confirm`, {
+        method: "POST",
+        body: JSON.stringify({ confirmed }),
+      });
+    },
+    onSuccess: (_data, vars) => {
+      toast.success(vars.confirmed ? "Оплата подтверждена" : "Отмечено: оплаты не было");
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
@@ -840,7 +1021,7 @@ export function KpiPage() {
       show: (isOwner || isAdminOrOwner || isManager) && !isCurator && !isAccountant,
     },
     { id: "company", label: "Отчёт компании", shortLabel: "Отчёт", show: isOwner || isAccountant },
-    { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: isAdminOrOwner },
+    { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: isAdminOrOwner || isManager },
     {
       id: "debtors",
       label: isCurator ? "Дебиторка курсов / протоколов" : "Дебиторка",
@@ -1059,12 +1240,14 @@ export function KpiPage() {
         />
       ) : null}
 
-      {tab === "manual" && isAdminOrOwner ? (
+      {tab === "manual" && (isAdminOrOwner || isManager) ? (
         <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
           <div>
             <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажа курса / протокола</h2>
             <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
-              Процент этой услуги берётся из вкладки «Услуги». В заработок идёт сумма, которую менеджер привёл, без порога. Остаток попадает в дебиторку через месяц после первой оплаты.
+              {isManager
+                ? "Заполните карточку так же, как раньше это делал админ. Оплата попадёт в выручку только после его подтверждения."
+                : "Карточку можно заполнить самим — оплата сразу идёт в выручку. Если её заполнил менеджер, подтвердите, прошла оплата или нет."}
             </p>
           </div>
 
@@ -1072,7 +1255,9 @@ export function KpiPage() {
             <div className="space-y-2 rounded-xl border border-[var(--mo-border)] p-3">
               <p className="text-sm font-semibold text-[var(--mo-text)]">От куратора — подтвердить и принять оплату</p>
               <p className="text-[11px] mo-muted">
-                Имя из онлайн-записи. Сумму, поток, этап и платежи заполняет админ в форме ниже.
+                {isManager
+                  ? "Заполните продукт, поток, этап и сумму. Админ только подтвердит, прошла ли оплата."
+                  : "Можно заполнить заявку самим. Если её уже заполнил менеджер — подтвердите оплату."}
               </p>
               <ul className="space-y-2">
                 {(programRequestsQuery.data ?? []).map((req) => (
@@ -1094,7 +1279,7 @@ export function KpiPage() {
                         className="btn-primary px-3 py-1.5 text-xs"
                         onClick={() => fillFromCuratorRequest(req)}
                       >
-                        В форму
+                        {isManager ? "Заполнить" : "В форму"}
                       </button>
                       <button
                         type="button"
@@ -1139,6 +1324,7 @@ export function KpiPage() {
                 <select
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.manager_user_id}
+                  disabled={isManager}
                   onChange={(e) => setSaleForm((s) => ({ ...s, manager_user_id: e.target.value }))}
                 >
                   <option value="">—</option>
@@ -1147,6 +1333,11 @@ export function KpiPage() {
                       {m.name}
                     </option>
                   ))}
+                  {isManager &&
+                  meQuery.data?.id &&
+                  !managers.some((m) => m.id === meQuery.data?.id) ? (
+                    <option value={meQuery.data.id}>{meQuery.data.full_name || "Вы"}</option>
+                  ) : null}
                 </select>
               </label>
               <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
@@ -1297,7 +1488,9 @@ export function KpiPage() {
                   />
                 </label>
                 <p className="kpi-sale-pays__hint">
-                  пусто → сегодня; выручка по месяцу даты, KPI менеджера — только 1-й платёж
+                  {isManager
+                    ? "Сумму заполняете вы. В выручку и KPI она попадёт после подтверждения админа."
+                    : "пусто → сегодня; выручка по месяцу даты, KPI менеджера — только 1-й платёж"}
                 </p>
               </div>
               <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:text-sm lg:col-span-4">
@@ -1320,13 +1513,15 @@ export function KpiPage() {
             >
               Добавить продажу
             </button>
-            <button
-              type="button"
-              className="btn-secondary min-h-12 w-full text-base sm:min-h-0 sm:w-auto sm:text-sm"
-              onClick={() => setJournalOpen(true)}
-            >
-              Журнал платежей
-            </button>
+            {isManager ? null : (
+              <button
+                type="button"
+                className="btn-secondary min-h-12 w-full text-base sm:min-h-0 sm:w-auto sm:text-sm"
+                onClick={() => setJournalOpen(true)}
+              >
+                Журнал платежей
+              </button>
+            )}
           </div>
 
           {journalOpen && typeof document !== "undefined"
@@ -1473,6 +1668,14 @@ export function KpiPage() {
                   <span className="tabular-nums">
                     {formatMoney(num(s.paid_amount))} / {formatMoney(num(s.service_amount))}
                   </span>
+                  <PaymentDecisions
+                    sale={s}
+                    canConfirm={isAdminOrOwner}
+                    pending={confirmPayMutation.isPending}
+                    onDecide={(saleId, paymentId, confirmed) =>
+                      confirmPayMutation.mutate({ saleId, paymentId, confirmed })
+                    }
+                  />
                   {s.status === "returned" ? (
                     <span className="kpi-chip kpi-chip--return">возврат</span>
                   ) : s.status === "refused" ? (
@@ -1498,6 +1701,7 @@ export function KpiPage() {
                         })
                       }
                     />
+                    {isAdminOrOwner ? (
                     <SaleRowActionsMenu
                       onReturn={() => {
                         if (window.confirm("Отметить возврат и снять с KPI?")) {
@@ -1507,9 +1711,11 @@ export function KpiPage() {
                       onRefuse={() => askCloseSale(s.id, "refused")}
                       onComplete={() => askCloseSale(s.id, "completed")}
                     />
+                    ) : null}
                   </div>
                 ) : s.status === "active" ? (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {isAdminOrOwner ? (
                     <SaleRowActionsMenu
                       onReturn={() => {
                         if (window.confirm("Отметить возврат и снять с KPI?")) {
@@ -1519,6 +1725,7 @@ export function KpiPage() {
                       onRefuse={() => askCloseSale(s.id, "refused")}
                       onComplete={() => askCloseSale(s.id, "completed")}
                     />
+                    ) : null}
                   </div>
                 ) : s.status_reason ? (
                   <p className="mt-1 text-[11px] text-[var(--mo-text-muted)]">Причина: {s.status_reason}</p>
@@ -1584,7 +1791,17 @@ export function KpiPage() {
                         ) : null}
                       </div>
                     </td>
-                    <td className="tabular-nums whitespace-nowrap">{formatMoney(num(s.paid_amount))}</td>
+                    <td className="tabular-nums whitespace-nowrap">
+                      {formatMoney(num(s.paid_amount))}
+                      <PaymentDecisions
+                        sale={s}
+                        canConfirm={isAdminOrOwner}
+                        pending={confirmPayMutation.isPending}
+                        onDecide={(saleId, paymentId, confirmed) =>
+                          confirmPayMutation.mutate({ saleId, paymentId, confirmed })
+                        }
+                      />
+                    </td>
                     <td>
                       <span className={["kpi-debt", num(s.debt_amount) <= 0 ? "is-zero" : ""].filter(Boolean).join(" ")}>
                         {formatMoney(num(s.debt_amount))}
@@ -1625,7 +1842,7 @@ export function KpiPage() {
                         ) : (
                           <span className="text-[10px] mo-muted">без Lead</span>
                         )}
-                        {s.status === "active" ? (
+                        {s.status === "active" && isAdminOrOwner ? (
                           <SaleRowActionsMenu
                             onReturn={() => {
                               if (window.confirm("Отметить возврат и снять с KPI?")) {
@@ -1661,8 +1878,8 @@ export function KpiPage() {
                 Звонить сегодня: <span className="font-semibold tabular-nums">{callTodayCount}</span>
               </p>
               <p className="mt-1 hidden text-sm lux-caption sm:block">
-                Комментарий и дата «обещал оплатить» пишет куратор. Красным — только если эта дата уже прошла.
-                Сверху те, кому звонить сегодня. Сумма долга от пометки не меняется.
+                Оплату по долгу принимает админ. Комментарий и дата «обещал оплатить» пишет куратор.
+                Красным — только если эта дата уже прошла. Сверху те, кому звонить сегодня.
               </p>
             </div>
             <p className="text-xs mo-muted sm:text-sm">
@@ -1817,6 +2034,21 @@ export function KpiPage() {
                       <p className="mb-1 text-[11px] font-semibold text-[var(--mo-text)]">Сегодня</p>
                     ) : null}
                     <DebtorNoteFields comment={r.comment} promisedOn={r.promised_on} onSave={saveNote} />
+                    {isAdminOrOwner ? (
+                      <DebtorCollectFields
+                        source={r.source === "booking" ? "booking" : "manual"}
+                        pending={debtorCollectMutation.isPending}
+                        onCollect={(amount, paidAt, method) =>
+                          debtorCollectMutation.mutate({
+                            source: r.source === "booking" ? "booking" : "manual",
+                            source_id: r.source_id,
+                            amount,
+                            paid_at: paidAt,
+                            method,
+                          })
+                        }
+                      />
+                    ) : null}
                   </div>
                 </li>
               );
@@ -1901,6 +2133,21 @@ export function KpiPage() {
                           })
                         }
                       />
+                      {isAdminOrOwner ? (
+                        <DebtorCollectFields
+                          source={r.source === "booking" ? "booking" : "manual"}
+                          pending={debtorCollectMutation.isPending}
+                          onCollect={(amount, paidAt, method) =>
+                            debtorCollectMutation.mutate({
+                              source: r.source === "booking" ? "booking" : "manual",
+                              source_id: r.source_id,
+                              amount,
+                              paid_at: paidAt,
+                              method,
+                            })
+                          }
+                        />
+                      ) : null}
                     </td>
                   </tr>
                   {open ? (
