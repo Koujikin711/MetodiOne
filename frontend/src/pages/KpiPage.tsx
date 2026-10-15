@@ -418,7 +418,7 @@ function DebtorCollectFields({
   const [paidAt, setPaidAt] = useState(clinicTodayYmd());
   const [method, setMethod] = useState<"cash" | "alif" | "dc">("cash");
   return (
-    <div className="mt-2 flex flex-wrap items-end gap-2">
+    <div className="debtor-collect">
       <label className="flex flex-col gap-1 text-[11px] mo-muted">
         Принять
         <input
@@ -2056,7 +2056,7 @@ export function KpiPage() {
           </ul>
 
           <div className="hidden overflow-x-auto sm:block">
-            <table className="kpi-data-table min-w-[1180px] text-sm">
+            <table className="kpi-data-table text-sm">
               <thead>
                 <tr>
                   <th className="py-2 pr-3">Источник</th>
@@ -2075,11 +2075,10 @@ export function KpiPage() {
                 {filteredDebtors.map((r) => {
                   const key = `${r.source}-${r.source_id}`;
                   const open = expandedDebtorKey === key;
-                  const lastPay = (r.payments ?? [])[0];
                   return (
                   <Fragment key={key}>
                   <tr className={r.promise_overdue ? "is-overdue" : undefined}>
-                    <td className="py-2 pr-3">{r.source === "booking" ? "Запись" : "Курс/протокол"}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap">{r.source === "booking" ? "Запись" : "Курс/протокол"}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">
                       {r.sold_at ? formatSaleDt(r.sold_at) : "—"}
                     </td>
@@ -2091,18 +2090,8 @@ export function KpiPage() {
                       >
                         {r.client_name}
                       </button>
-                      <button
-                        type="button"
-                        className="mt-0.5 block text-left text-[11px] mo-muted underline-offset-2 hover:underline"
-                        aria-expanded={open}
-                        onClick={() => setExpandedDebtorKey(open ? null : key)}
-                      >
-                        {lastPay
-                          ? `${formatSaleDt(lastPay.paid_at)} · ${formatMoney(num(lastPay.amount))}`
-                          : "поступлений нет"}
-                      </button>
                     </td>
-                    <td className="py-2 pr-3">
+                    <td className="py-2 pr-3 whitespace-nowrap">
                       {r.client_phone ? (
                         <a className="tabular-nums text-[var(--mo-text)] underline-offset-2 hover:underline" href={`tel:${r.client_phone}`}>
                           {r.client_phone}
@@ -2111,50 +2100,66 @@ export function KpiPage() {
                         "—"
                       )}
                     </td>
-                    <td className="py-2 pr-3">{r.indicator_name}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap">{r.indicator_name}</td>
                     <td className="py-2 pr-3">{r.manager_name ?? "—"}</td>
-                    <td className="py-2 pr-3">{formatMoney(num(r.service_amount))}</td>
-                    <td className="py-2 pr-3">{formatMoney(num(r.paid_amount))}</td>
-                    <td className="py-2 pr-3 kpi-actual-value">{formatMoney(num(r.debt_amount))}</td>
-                    <td className="py-2 pr-3">
-                      {r.promise_overdue ? <p className="mb-1 text-[11px] font-semibold text-red-400">Просрочено</p> : null}
+                    <td className="py-2 pr-3 whitespace-nowrap">{formatMoney(num(r.service_amount))}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap">{formatMoney(num(r.paid_amount))}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap kpi-actual-value">{formatMoney(num(r.debt_amount))}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap">
+                      {r.promise_overdue ? (
+                        <span className="mr-2 text-[11px] font-semibold text-red-400">Просрочено</span>
+                      ) : null}
                       {!r.promise_overdue && r.promised_on === clinicToday ? (
-                        <p className="mb-1 text-[11px] font-semibold text-[var(--mo-text)]">Сегодня</p>
+                        <span className="mr-2 text-[11px] font-semibold text-[var(--mo-text)]">Сегодня</span>
                       ) : null}
-                      <DebtorNoteFields
-                        comment={r.comment}
-                        promisedOn={r.promised_on}
-                        onSave={(comment, promisedOn) =>
-                          debtorNoteMutation.mutate({
-                            source: r.source,
-                            source_id: r.source_id,
-                            comment,
-                            promised_on: promisedOn,
-                          })
-                        }
-                      />
-                      {isAdminOrOwner ? (
-                        <DebtorCollectFields
-                          source={r.source === "booking" ? "booking" : "manual"}
-                          pending={debtorCollectMutation.isPending}
-                          onCollect={(amount, paidAt, method) =>
-                            debtorCollectMutation.mutate({
-                              source: r.source === "booking" ? "booking" : "manual",
-                              source_id: r.source_id,
-                              amount,
-                              paid_at: paidAt,
-                              method,
-                            })
-                          }
-                        />
-                      ) : null}
+                      <button
+                        type="button"
+                        className="btn-primary min-h-8 px-3 text-xs"
+                        aria-expanded={open}
+                        onClick={() => setExpandedDebtorKey(open ? null : key)}
+                      >
+                        {open ? "Скрыть" : isAdminOrOwner ? "Принять" : "Заметка"}
+                      </button>
                     </td>
                   </tr>
                   {open ? (
                     <tr>
-                      <td colSpan={10} className="bg-[var(--mo-surface)]/50 px-3 py-2">
-                        <p className="mb-1 text-[12px] font-semibold text-[var(--mo-text)]">Поступления</p>
-                        <DebtorReceipts payments={r.payments ?? []} />
+                      <td colSpan={10} className="bg-[var(--mo-surface)]/50 px-3 py-3">
+                        <div className="debtor-row-panel">
+                          <div className="min-w-[16rem] flex-1">
+                            <p className="mb-1 text-[12px] font-semibold text-[var(--mo-text)]">Поступления</p>
+                            <DebtorReceipts payments={r.payments ?? []} />
+                          </div>
+                          <div className="min-w-0">
+                            <DebtorNoteFields
+                              comment={r.comment}
+                              promisedOn={r.promised_on}
+                              onSave={(comment, promisedOn) =>
+                                debtorNoteMutation.mutate({
+                                  source: r.source,
+                                  source_id: r.source_id,
+                                  comment,
+                                  promised_on: promisedOn,
+                                })
+                              }
+                            />
+                            {isAdminOrOwner ? (
+                              <DebtorCollectFields
+                                source={r.source === "booking" ? "booking" : "manual"}
+                                pending={debtorCollectMutation.isPending}
+                                onCollect={(amount, paidAt, method) =>
+                                  debtorCollectMutation.mutate({
+                                    source: r.source === "booking" ? "booking" : "manual",
+                                    source_id: r.source_id,
+                                    amount,
+                                    paid_at: paidAt,
+                                    method,
+                                  })
+                                }
+                              />
+                            ) : null}
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   ) : null}
