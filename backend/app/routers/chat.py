@@ -1498,12 +1498,25 @@ async def list_messages(
     if thread is None or thread.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
     await _assert_thread_access(db, thread, current_user)
+    if offset == 0:
+        from app.services.green_api_backfill import import_phone_messages_for_thread
+
+        try:
+            await import_phone_messages_for_thread(db, company_id=company_id, thread=thread)
+        except Exception:
+            logger.exception("phone journal import failed thread=%s", thread_id)
     # Последние `limit` сообщений (offset от самых новых), в ответе — по возрастанию времени для UI.
     # Сортировка по created_at, не по id: иначе догрузка/бэкофил истории выглядит «задним числом».
+    body = func.coalesce(ChatMessage.text, "")
     rows = (
         await db.execute(
             select(ChatMessage)
-            .where(ChatMessage.thread_id == thread_id)
+            .where(
+                ChatMessage.thread_id == thread_id,
+                ~body.ilike("%(reactionmessage)%"),
+                ~body.ilike("%(pollupdatemessage)%"),
+                ~body.ilike("%(deletedmessage)%"),
+            )
             .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
             .offset(offset)
             .limit(limit)

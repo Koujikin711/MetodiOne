@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Integration, IntegrationProvider
@@ -302,3 +304,134 @@ async def sync_green_api_backfill(
         await asyncio.sleep(0.12)
 
     return stats
+
+
+_PHONE_SYNC_GAP_SEC = 90.0
+_phone_sync_at: dict[int, float] = {}
+
+
+async def import_phone_messages_for_thread(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    thread,
+) -> int:
+    """Подтянуть из журнала WhatsApp сообщения, набранные в телефоне и ещё не лежащие в CRM."""
+    if getattr(thread, "provider", None) != IntegrationProvider.green_api.value:
+        return 0
+    chat_id = str(getattr(thread, "external_chat_id", None) or "").strip()
+    if not chat_id:
+        return 0
+    now = time.monotonic()
+    tid = int(thread.id)
+    if now - _phone_sync_at.get(tid, 0.0) < _PHONE_SYNC_GAP_SEC:
+        return 0
+    _phone_sync_at[tid] = now
+
+    rows = (
+        await db.execute(
+            select(Integration).where(
+                Integration.company_id == company_id,
+                Integration.provider == IntegrationProvider.green_api,
+                Integration.is_active.is_(True),
+            )
+        )
+    ).scalars().all()
+    if not rows:
+        return 0
+    pipe = getattr(thread, "pipeline_id", None)
+    integ = next((row for row in rows if pipe is not None and int(row.pipeline_id) == int(pipe)), rows[0])
+    cfg = integ.config if isinstance(integ.config, dict) else {}
+    history, err = await fetch_chat_history(cfg, chat_id=chat_id, count=40)
+    if err:
+        logger.info("phone journal thread=%s chat=%s: %s", tid, chat_id, err)
+        return 0
+
+    added = 0
+    for msg in history:
+        if not _is_meaningful_message(msg):
+            continue
+        direction = _msg_direction(msg)
+        if direction not in ("incoming", "outgoing"):
+            continue
+        text, mtype, murl, mmime, mfn = parse_green_journal_message(msg)
+        if not text and not murl:
+            continue
+        msg_id = str(msg.get("idMessage") or "").strip() or None
+        created_at = datetime.fromtimestamp(_msg_ts(msg), tz=UTC) if _msg_ts(msg) else None
+        if direction == "incoming":
+            saved = await add_incoming_message(
+                db,
+                company_id,
+                tid,
+                text,
+                message_type=mtype,
+                media_url=murl,
+                media_mime=mmime,
+                file_name=mfn,
+                provider_message_id=msg_id,
+                created_at=created_at,
+            )
+            ok = saved is not None
+        else:
+            ok = await add_outgoing_message(
+                db,
+                company_id,
+                tid,
+                text,
+                provider_message_id=msg_id,
+                created_at=created_at,
+            )
+        if ok:
+            added += 1
+    if added:
+        thread.updated_at = datetime.now(UTC)
+        await db.flush()
+    return added
+
+
+async def enable_phone_outgoing_webhook_once() -> None:
+    """Один раз включить в Green API приём сообщений, отправленных с телефона."""
+    from app.config import settings
+    from app.database import AsyncSessionLocal
+    from app.services.green_api_settings import green_api_base_from_config, push_green_incoming_webhook
+
+    pub = (settings.public_api_base_url or "").strip().rstrip("/")
+    if not pub:
+        return
+    async with AsyncSessionLocal() as db:
+        rows = (
+            await db.execute(
+                select(Integration).where(
+                    Integration.provider == IntegrationProvider.green_api,
+                    Integration.is_active.is_(True),
+                )
+            )
+        ).scalars().all()
+        changed = False
+        for row in rows:
+            cfg = dict(row.config or {})
+            if cfg.get("phone_outgoing_webhook") == "yes":
+                continue
+            instance_id = str(cfg.get("instance_id") or cfg.get("instanceId") or "").strip()
+            api_token = str(cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance") or "").strip()
+            if not instance_id or not api_token or not row.secret:
+                continue
+            webhook_url = f"{pub}/api/integrations/webhook/{row.id}"
+            ok, err = await asyncio.to_thread(
+                push_green_incoming_webhook,
+                instance_id=instance_id,
+                api_token_instance=api_token,
+                api_base=green_api_base_from_config(cfg),
+                webhook_url=webhook_url,
+                webhook_token=row.secret,
+            )
+            if not ok:
+                logger.warning("phone outgoing webhook integration=%s: %s", row.id, err)
+                continue
+            cfg["phone_outgoing_webhook"] = "yes"
+            row.config = cfg
+            changed = True
+            logger.info("phone outgoing webhook enabled integration=%s", row.id)
+        if changed:
+            await db.commit()

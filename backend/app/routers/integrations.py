@@ -34,6 +34,7 @@ from app.services.green_incoming_media import persist_incoming_green_media_if_ne
 from app.services.instagram_webhook import handle_instagram_webhook, meta_hub_challenge_response
 from app.services.integration_inbound import (
     add_incoming_message as _add_incoming_message,
+    add_outgoing_message as _add_outgoing_message,
     find_incoming_message_by_provider_id as _find_incoming_message_by_provider_id,
     create_lead_from_integration,
     incoming_text_already_stored as _incoming_text_already_stored,
@@ -1279,15 +1280,17 @@ async def integration_webhook(
 
     if integ.provider == IntegrationProvider.green_api:
         # Иначе на каждый stateInstance/outgoingStatus и т.д. создавались бы новые лиды
-        tw = str(payload.get("typeWebhook") or "").strip()
-        # Green API обычно шлёт `incomingMessageReceived`; регистр в редких случаях может отличаться.
-        if tw.lower() != "incomingmessagereceived":
+        tw = str(payload.get("typeWebhook") or "").strip().lower()
+        # Входящие от клиента и сообщения, набранные в телефоне WhatsApp.
+        # outgoingAPIMessageReceived не берём: их CRM уже записал при отправке.
+        if tw not in ("incomingmessagereceived", "outgoingmessagereceived"):
             logger.info(
                 "integration webhook: integration_id=%s green_api skip typeWebhook=%s",
                 integration_id,
                 tw or "(empty)",
             )
             return Response(status_code=204)
+        from_phone = tw == "outgoingmessagereceived"
         # Ожидаем типичный webhook GREEN API: { "typeWebhook": "...", "senderData": {...}, "messageData": {...} }
         sender = payload.get("senderData") or {}
         message_data = payload.get("messageData") or {}
@@ -1311,6 +1314,8 @@ async def integration_webhook(
             )
         source_name = "GREEN API"
         text, mtype, murl, mmime, mfn = parse_green_message_data(message_data)
+        if not (text or "").strip() and not murl:
+            return Response(status_code=204)
         green_msg_id = str(payload.get("idMessage") or "").strip() or None
         ext_chat = chat_id or None
         msg_created_at = None
@@ -1346,6 +1351,21 @@ async def integration_webhook(
             linked = await db.get(Lead, int(thread.lead_id))
             if linked is not None and linked.company_id == company_id:
                 lead = linked
+        if from_phone:
+            await _add_outgoing_message(
+                db,
+                company_id,
+                int(thread.id),
+                text,
+                provider_message_id=green_msg_id,
+                created_at=msg_created_at,
+            )
+            logger.info(
+                "integration webhook: phone outgoing lead_id=%s thread_id=%s",
+                lead.id,
+                thread.id,
+            )
+            return _lead_read(lead)
         if mtype == "text" and text and await _incoming_text_already_stored(
             db,
             company_id=company_id,

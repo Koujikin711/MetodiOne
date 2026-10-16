@@ -125,7 +125,8 @@ def push_green_incoming_webhook(
         "incomingWebhook": "yes",
         "stateWebhook": "yes",
         "outgoingWebhook": "no",
-        "outgoingMessageWebhook": "no",
+        # Сообщения, набранные в телефоне WhatsApp, а не в CRM.
+        "outgoingMessageWebhook": "yes",
         "outgoingAPIMessageWebhook": "no",
         "deviceWebhook": "no",
     }

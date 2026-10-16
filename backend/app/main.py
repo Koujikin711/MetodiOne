@@ -662,6 +662,9 @@ async def lifespan(_: FastAPI):
     async def _deferred_canonical_heavy() -> None:
         try:
             await asyncio.sleep(5)
+            from app.services.green_api_backfill import enable_phone_outgoing_webhook_once
+
+            await enable_phone_outgoing_webhook_once()
             await ensure_canonical_pipeline_heavy_jobs()
         except Exception:
             logger.exception("deferred canonical heavy jobs failed")
