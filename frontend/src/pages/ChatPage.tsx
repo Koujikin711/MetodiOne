@@ -668,9 +668,9 @@ export function ChatPage() {
   const [chatBucket, setChatBucket] = useState<ChatThreadBucket>("own");
   /** null = все стадии. Со «Ждут ответа» не сочетается. */
   const [salesStageKey, setSalesStageKey] = useState<SalesStageKey | null>(null);
-  /** null = не фильтр очереди. Со стадией не сочетается. */
-  const [replyQueue, setReplyQueue] = useState<ChatThreadBucket | null>("awaiting_reply");
-  /** Месяц создания лида — по умолчанию текущий. */
+  /** null = весь месяц, как в WhatsApp: последнее сообщение сверху. */
+  const [replyQueue, setReplyQueue] = useState<ChatThreadBucket | null>(null);
+  /** Месяц последнего сообщения — по умолчанию текущий. */
   const [chatMonth, setChatMonth] = useState(currentYearMonth);
   const [statusOpen, setStatusOpen] = useState(false);
   const [waitingModalLeadId, setWaitingModalLeadId] = useState<number | null>(null);
@@ -1240,7 +1240,7 @@ export function ChatPage() {
               Диалоги
             </div>
             {showManagerChatBuckets ? (
-              <div className="chat-month-nav shrink-0" title="Новые лиды и выданные из архива в этом месяце">
+              <div className="chat-month-nav shrink-0" title="Диалоги, где последнее сообщение в этом месяце">
                 <button
                   type="button"
                   className="chat-month-nav__btn"
@@ -1368,13 +1368,6 @@ export function ChatPage() {
             placeholder="Поиск: имя, телефон, чат…"
             className="mb-2 w-full shrink-0 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3.5 py-2.5 text-sm text-[var(--mo-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] placeholder:mo-muted max-lg:py-2"
           />
-          <p className="mb-2 hidden text-[11px] leading-snug mo-muted lg:block">
-            {showManagerChatBuckets && salesChatMode
-              ? "Стадии и «Ждут ответа» по отдельности. Повторный клик снимает фильтр. Зелёный в списке — клиент написал последним."
-              : showManagerChatBuckets
-                ? "Зелёный — ждёт ответа · голубой — первые 3 дня."
-                : "Зелёный — ждёт ответа · голубой — первые 3 дня."}
-          </p>
           {threadsQuery.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
           {threadsQuery.isError && (
             <p className="text-sm text-[var(--mo-danger)]">{(threadsQuery.error as Error).message}</p>

@@ -726,21 +726,26 @@ def _parse_year_month(year_month: str) -> tuple[datetime, datetime]:
 
 
 def _apply_lead_created_month(query, *, year_month: str | None):
-    """Месяц чата: лид создан в этом месяце или выдан менеджеру из архива в этом месяце."""
+    """Месяц чата — месяц последнего сообщения.
+
+    Клиент сентября, написавший в октябре, переходит в октябрь. Ответ менеджера
+    в октябре тоже оставляет диалог в октябре. Без сообщений — месяц создания
+    карточки или выдачи из архива.
+    """
     if not year_month:
         return query
     start, end = _parse_year_month(year_month)
-    handed_this_month = and_(
-        Lead.reactivated_at.is_not(None),
-        Lead.reactivated_at >= start,
-        Lead.reactivated_at < end,
+    last_message_at = (
+        select(func.max(ChatMessage.created_at))
+        .where(ChatMessage.thread_id == ChatThread.id)
+        .correlate(ChatThread)
+        .scalar_subquery()
     )
+    activity_at = func.coalesce(last_message_at, Lead.reactivated_at, Lead.created_at)
     return query.where(
         Lead.id.is_not(None),
-        or_(
-            and_(Lead.created_at >= start, Lead.created_at < end),
-            handed_this_month,
-        ),
+        activity_at >= start,
+        activity_at < end,
     )
 
 
@@ -1043,7 +1048,7 @@ async def thread_bucket_counts(
     q: str | None = Query(default=None, max_length=120),
     year_month: str | None = Query(
         default=None,
-        description="YYYY-MM — лиды, созданные или выданные из архива в этом месяце",
+        description="YYYY-MM — последнее сообщение в этом месяце",
         pattern=r"^\d{4}-\d{2}$",
     ),
 ) -> ChatThreadBucketCounts:
@@ -1124,7 +1129,7 @@ async def list_threads(
     ),
     year_month: str | None = Query(
         default=None,
-        description="YYYY-MM — лиды, созданные или выданные из архива в этом месяце",
+        description="YYYY-MM — последнее сообщение в этом месяце",
         pattern=r"^\d{4}-\d{2}$",
     ),
     limit: int | None = Query(default=None, ge=1, le=200),
@@ -1247,13 +1252,8 @@ async def list_threads(
     query = _apply_lead_created_month(query, year_month=year_month)
     if term:
         query = _apply_thread_search(query, term=term)
-    # Сначала ждут ответа (входящий или пустой stub), затем по свежести.
-    needs_reply = case(
-        (last_direction_sq == "in", 2),
-        (last_direction_sq.is_(None), 1),
-        else_=0,
-    )
-    query = query.order_by(needs_reply.desc(), ChatThread.updated_at.desc(), ChatThread.id.desc())
+    # Как в WhatsApp: сверху диалог с самым свежим сообщением, ответ менеджера его не опускает.
+    query = query.order_by(ChatThread.updated_at.desc(), ChatThread.id.desc())
     if offset > 0:
         query = query.offset(offset)
     if limit is not None:
