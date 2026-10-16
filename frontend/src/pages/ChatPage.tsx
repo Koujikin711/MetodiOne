@@ -627,7 +627,7 @@ function threadAttention(t: ChatThread): ThreadAttention {
 
 function threadRowClasses(t: ChatThread, selected: boolean) {
   const base =
-    "chat-thread-row flex w-full items-start gap-2.5 rounded-2xl border px-3.5 py-2.5 text-left transition max-lg:px-3 max-lg:py-2";
+    "chat-thread-row flex w-full items-start gap-2 rounded-xl border px-2.5 py-1.5 text-left transition";
   if (selected) return [base, "chat-thread-row--selected"].join(" ");
   const attn = threadAttention(t);
   if (attn === "waiting_reply") return [base, "chat-thread-row--waiting"].join(" ");
@@ -1374,12 +1374,13 @@ export function ChatPage() {
           )}
           <div
             ref={threadsListRef}
-            className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 sm:space-y-2.5"
+            className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-1"
           >
             {displayThreads.map((t) => {
               const unread = t.unread_count ?? 0;
               const manager = (t.manager_name || "").trim();
-              const providerLabel = threadProviderLabel(t.provider);
+              const phoneShown = threadPhoneForDisplay(t) !== "—";
+              const saleLine = saleSummaryLine(t);
               return (
                 <button
                   key={t.id}
@@ -1388,45 +1389,40 @@ export function ChatPage() {
                   className={threadRowClasses(t, t.id === threadId)}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-[var(--mo-text)]">
-                      {threadDisplayTitle(t)}
+                    <div className="flex min-w-0 items-baseline gap-2">
+                      <div className="min-w-0 truncate text-[13px] font-semibold leading-tight text-[var(--mo-text)]">
+                        {threadDisplayTitle(t)}
+                      </div>
+                      {phoneShown ? (
+                        <div className="shrink-0 truncate text-[11px] tabular-nums leading-tight mo-muted">
+                          <PatientPhone
+                            value={{
+                              phone: t.lead_phone,
+                              phone_display: t.lead_phone_display || threadPhoneForDisplay(t),
+                              phone_can_view_full: t.lead_phone_can_view_full,
+                            }}
+                          />
+                        </div>
+                      ) : null}
                     </div>
-                    {threadPhoneForDisplay(t) !== "—" ? (
-                      <div className="mt-0.5 truncate text-xs font-medium text-[var(--mo-text)]/90 tabular-nums max-lg:text-[11px] sm:mt-1">
-                        <PatientPhone
-                          value={{
-                            phone: t.lead_phone,
-                            phone_display: t.lead_phone_display || threadPhoneForDisplay(t),
-                            phone_can_view_full: t.lead_phone_can_view_full,
-                          }}
-                        />
+                    {t.lead_stage_name || manager ? (
+                      <div className="mt-0.5 truncate text-[11px] leading-tight mo-muted">
+                        {t.lead_stage_name ? (
+                          <span className="font-semibold" style={{ color: stageColorForThread(t) }}>
+                            {stageLabelForDisplay(t.lead_stage_name)}
+                          </span>
+                        ) : null}
+                        {t.lead_stage_name && manager ? <span className="mx-1 opacity-50">·</span> : null}
+                        {manager || null}
                       </div>
                     ) : null}
-                    {providerLabel ? (
-                      <div className="mt-0.5 truncate text-[10px] lux-caption max-lg:hidden">
-                        {providerLabel}
-                      </div>
-                    ) : null}
-                    {saleSummaryLine(t) ? (
-                      <div className="mt-1 truncate text-[10px] font-medium text-[var(--mo-accent-hover)] sm:text-[11px]">
-                        {saleSummaryLine(t)}
-                      </div>
-                    ) : null}
-                    {t.lead_stage_name ? (
-                      <div className="mt-1 truncate text-[11px] mo-muted">
-                        Стадия:{" "}
-                        <span className="font-semibold" style={{ color: stageColorForThread(t) }}>
-                          {stageLabelForDisplay(t.lead_stage_name)}
-                        </span>
-                      </div>
-                    ) : null}
-                    {manager ? (
-                      <div className="mt-0.5 truncate text-[11px] mo-muted/80">
-                        Ответственный: {manager}
+                    {saleLine ? (
+                      <div className="mt-0.5 truncate text-[10px] font-medium leading-tight text-[var(--mo-accent-hover)]">
+                        {saleLine}
                       </div>
                     ) : null}
                     {t.is_transferred && chatBucket !== "transferred" ? (
-                      <div className="mt-0.5 text-[10px] font-medium text-[var(--mo-warning)]">Передан вам</div>
+                      <div className="mt-0.5 text-[10px] font-medium leading-tight text-[var(--mo-warning)]">Передан вам</div>
                     ) : null}
                   </div>
                   {unread > 0 ? (
