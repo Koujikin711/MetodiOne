@@ -905,7 +905,7 @@ function stampMsMax(row) {
   return max;
 }
 
-async function handleMessage(msg) {
+async function handleMessage(msg, maxAgeSec = RECENT_WINDOW_SEC) {
   try {
     if (!msg.message) return;
     const remote = msg.key?.remoteJid;
@@ -914,7 +914,7 @@ async function handleMessage(msg) {
     const tsSec = ts > 1e12 ? Math.floor(ts / 1000) : ts;
     if (tsSec) {
       const age = Math.floor(Date.now() / 1000) - tsSec;
-      if (age > RECENT_WINDOW_SEC) return;
+      if (age > maxAgeSec) return;
     }
 
     const content = extractContent(msg.message);
@@ -1092,17 +1092,25 @@ async function startSock() {
       }
     });
 
+    const CATCHUP_WINDOW_SEC = 6 * 60 * 60;
+
     sock.ev.on("messages.upsert", ({ messages, type }) => {
       for (const msg of messages || []) noteMessage(msg);
-      if (type !== "notify") {
+      const live = type === "notify";
+      if (!live) {
         for (const msg of messages || []) markHistoryTouch(msg?.key?.remoteJid);
         wakeHistoryWaiters();
         scheduleYoungImport("append");
-        return;
       }
       for (const msg of messages || []) {
-        if (!liveReleased) holdLive(msg);
-        else handleMessage(msg).catch((e) => console.error("handleMessage:", e.message));
+        if (!liveReleased) {
+          if (live) holdLive(msg);
+          continue;
+        }
+        // «append» — догон, пока сокет был офлайн. Живые notify идут как раньше.
+        // Окно 6 часов закрывает строки, которые Green API в журнал не положил.
+        const maxAge = live ? RECENT_WINDOW_SEC : CATCHUP_WINDOW_SEC;
+        handleMessage(msg, maxAge).catch((e) => console.error("handleMessage:", e.message));
       }
     });
 
@@ -1112,10 +1120,17 @@ async function startSock() {
         noteChat(chat);
         markHistoryTouch(chat?.id);
       }
+      const catchup = [];
       for (const msg of payload?.messages || []) {
         const wa = msg?.key ? msg : msg?.message?.key ? msg.message : null;
         if (wa) noteMessage(wa);
         markHistoryTouch(wa?.key?.remoteJid);
+        if (wa && !wa.key?.fromMe) catchup.push(wa);
+      }
+      catchup.sort((a, b) => stampMs(b?.messageTimestamp) - stampMs(a?.messageTimestamp));
+      for (const wa of catchup.slice(0, 80)) {
+        if (!liveReleased) break;
+        handleMessage(wa, CATCHUP_WINDOW_SEC).catch((e) => console.error("handleMessage:", e.message));
       }
       wakeHistoryWaiters();
       scheduleYoungImport("history");

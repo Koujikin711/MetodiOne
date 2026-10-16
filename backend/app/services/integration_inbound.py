@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, case, select, text
 from sqlalchemy.exc import IntegrityError
@@ -400,6 +400,42 @@ async def upsert_thread(
             return existing
         raise
     return t
+
+
+def normalize_incoming_text(text: str | None) -> str:
+    return " ".join((text or "").split())
+
+
+async def incoming_text_already_stored(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    thread_id: int,
+    text: str,
+    created_at: datetime | None,
+    window_seconds: int = 8,
+) -> bool:
+    """Та же реплика уже лежит в диалоге. Green API и QR-сессия присылают один стикер WhatsApp разными id."""
+    norm = normalize_incoming_text(text)
+    if len(norm) < 2:
+        return False
+    anchor = created_at or datetime.now(UTC)
+    if anchor.tzinfo is None:
+        anchor = anchor.replace(tzinfo=UTC)
+    start = anchor - timedelta(seconds=window_seconds)
+    end = anchor + timedelta(seconds=window_seconds)
+    rows = (
+        await db.execute(
+            select(ChatMessage.text).where(
+                ChatMessage.company_id == company_id,
+                ChatMessage.thread_id == thread_id,
+                ChatMessage.direction == "in",
+                ChatMessage.created_at >= start,
+                ChatMessage.created_at <= end,
+            ).limit(40)
+        )
+    ).scalars().all()
+    return any(normalize_incoming_text(existing) == norm for existing in rows)
 
 
 async def message_exists_by_provider_id(db: AsyncSession, company_id: int, provider_message_id: str | None) -> bool:

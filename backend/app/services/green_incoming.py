@@ -42,6 +42,9 @@ def parse_green_message_data(message_data: dict[str, Any]) -> tuple[str, str, st
         return "", "text", None, None, None
 
     t = str(message_data.get("typeMessage") or "").lower()
+    # Реакция — не реплика. Иначе в чате менеджера появляется «Сообщение WhatsApp (reactionmessage)».
+    if t in ("reactionmessage", "pollupdatemessage", "deletedmessage"):
+        return "", "text", None, None, None
 
     if t in ("textmessage",):
         txt = (message_data.get("textMessageData") or {}).get("textMessage") or ""

@@ -36,6 +36,7 @@ from app.services.integration_inbound import (
     add_incoming_message as _add_incoming_message,
     find_incoming_message_by_provider_id as _find_incoming_message_by_provider_id,
     create_lead_from_integration,
+    incoming_text_already_stored as _incoming_text_already_stored,
     norm_phone as _norm_phone,
     upsert_thread as _upsert_thread,
 )
@@ -1345,18 +1346,27 @@ async def integration_webhook(
             linked = await db.get(Lead, int(thread.lead_id))
             if linked is not None and linked.company_id == company_id:
                 lead = linked
-        incoming_msg = await _add_incoming_message(
+        if mtype == "text" and text and await _incoming_text_already_stored(
             db,
-            company_id,
-            thread.id,
-            text,
-            message_type=mtype,
-            media_url=murl,
-            media_mime=mmime,
-            file_name=mfn,
-            provider_message_id=green_msg_id,
+            company_id=company_id,
+            thread_id=thread.id,
+            text=text,
             created_at=msg_created_at,
-        )
+        ):
+            incoming_msg = await _find_incoming_message_by_provider_id(db, company_id, green_msg_id)
+        else:
+            incoming_msg = await _add_incoming_message(
+                db,
+                company_id,
+                thread.id,
+                text,
+                message_type=mtype,
+                media_url=murl,
+                media_mime=mmime,
+                file_name=mfn,
+                provider_message_id=green_msg_id,
+                created_at=msg_created_at,
+            )
         if incoming_msg is None and green_msg_id:
             incoming_msg = await _find_incoming_message_by_provider_id(db, company_id, green_msg_id)
         await persist_incoming_green_media_if_needed(

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -15,14 +14,13 @@ from app.services.chat_media_store import save_chat_media
 from app.services.integration_inbound import (
     add_incoming_message,
     create_lead_from_integration,
+    incoming_text_already_stored,
     upsert_thread,
 )
 from app.services.wa_bridge_process import data_root
 from app.services.whatsapp_automation import send_welcome_if_first_incoming
 
 logger = logging.getLogger(__name__)
-
-_green_cache: tuple[float, bool] | None = None
 
 
 def _under_data(path: Path) -> bool:
@@ -47,46 +45,6 @@ async def _active_green(db: AsyncSession) -> Integration | None:
             .limit(1)
         )
     ).first()
-
-
-def _green_up(integ: Integration | None) -> bool:
-    """Как greenChannelUp в Qatrai Hayot: живой инстанс забирает чат себе."""
-    global _green_cache
-    now = time.monotonic()
-    if _green_cache is not None:
-        at, up = _green_cache
-        if now - at < (20 if up else 5):
-            return up
-    if integ is None:
-        _green_cache = (now, False)
-        return False
-    cfg = integ.config if isinstance(integ.config, dict) else {}
-    instance_id = str(cfg.get("instance_id") or cfg.get("instanceId") or "").strip()
-    token = str(cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance") or "").strip()
-    if not instance_id or not token:
-        _green_cache = (now, False)
-        return False
-    from urllib import request as urlrequest
-
-    from app.services.green_api_settings import green_api_base_from_config
-
-    base = green_api_base_from_config(cfg).rstrip("/")
-    url = f"{base}/waInstance{instance_id}/getStateInstance/{token}"
-    up = False
-    try:
-        req = urlrequest.Request(url, method="GET")
-        with urlrequest.urlopen(req, timeout=4) as resp:
-            import json
-
-            data = json.loads(resp.read().decode("utf-8") or "{}")
-        state = ""
-        if isinstance(data, dict):
-            state = str(data.get("stateInstance") or data.get("state") or "")
-        up = state in {"authorized", "sleepMode", "starting"}
-    except Exception:
-        up = False
-    _green_cache = (now, up)
-    return up
 
 
 def _phone(chat_id: str) -> str | None:
@@ -122,12 +80,16 @@ async def handle_bridge_payload(db: AsyncSession, body: dict) -> dict:
         return {"ok": True}
 
     integ = await _active_green(db)
-    if _green_up(integ):
-        return {"ok": True, "skipped": "green"}
     if integ is None or integ.company_id is None:
         return {"ok": True, "skipped": "no-integration"}
 
     chat_id = str(body.get("chatId") or "").strip()
+    # Пока Green API авторизован, часть реплик доходит только до телефона и QR-сессии.
+    # Раньше такие строки отбрасывались. Группы и чаты без номера в диалог менеджера не кладём.
+    if chat_id.endswith("@g.us") or chat_id.endswith("@broadcast") or chat_id.endswith("@newsletter"):
+        return {"ok": True, "skipped": "group"}
+    if not chat_id.endswith("@c.us"):
+        return {"ok": True, "skipped": "no-phone"}
     message_id = str(body.get("messageId") or "").strip() or None
     if not chat_id:
         return {"ok": True, "empty": True}
@@ -174,6 +136,15 @@ async def handle_bridge_payload(db: AsyncSession, body: dict) -> dict:
         linked = await db.get(Lead, int(thread.lead_id))
         if linked is not None and linked.company_id == company_id:
             lead = linked
+
+    if message_type == "text" and text and await incoming_text_already_stored(
+        db,
+        company_id=company_id,
+        thread_id=thread.id,
+        text=text,
+        created_at=created_at,
+    ):
+        return {"ok": True, "skipped": "duplicate"}
 
     msg = await add_incoming_message(
         db,

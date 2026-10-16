@@ -521,7 +521,20 @@ export function IntegrationSetupPanel() {
     const c = (it.config ?? {}) as Record<string, unknown>;
     const templates =
       c.templates && typeof c.templates === "object" ? (c.templates as Record<string, unknown>) : {};
-    const pick = (k: string) => (typeof templates[k] === "string" ? String(templates[k]) : "");
+    const defaults: Record<string, string> = {
+      greeting: "Здравствуйте, {name}! Спасибо за сообщение.",
+      confirm: "Вы записаны на {date} в {time}. Ответственный менеджер: {manager}.",
+      reminder_24h: "Напоминание: ваша запись {date} в {time}.",
+      reminder_2h: "Через 2 часа запись: {date} в {time}.",
+      reactivation: "Мы давно не общались. Готовы снова помочь вам.",
+      waiting_callback:
+        "Здравствуйте, {name}! Напоминаем: сегодня в {time} ({date}) с вами свяжется менеджер {manager}.",
+    };
+    const pick = (k: string) => {
+      const stored = templates[k];
+      if (typeof stored === "string" && stored.trim()) return stored;
+      return defaults[k] || "";
+    };
     setTplGreeting(pick("greeting"));
     setTplConfirm(pick("confirm"));
     setTplReminder24h(pick("reminder_24h"));
@@ -1301,7 +1314,8 @@ export function IntegrationSetupPanel() {
                 <div className="rounded-xl border border-[var(--mo-border)]/60 bg-[var(--mo-surface)] p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--mo-text-muted)]">Шаблоны сообщений</p>
                   <p className="mt-1 text-[11px] text-[var(--mo-text-muted)]">
-                    Переменные: {"{name}"}, {"{date}"}, {"{time}"}, {"{manager}"}, {"{pain}"}
+                    Подтверждение уходит клиенту при создании записи. Напоминание за 24 часа и за 2 часа — само,
+                    один раз на запись. Пустое поле снова ставит стандартный текст. Переменные: {"{name}"}, {"{date}"}, {"{time}"}, {"{manager}"}, {"{pain}"}
                   </p>
                   <div className="mt-2 grid gap-2">
                     <label className="text-sm text-[var(--mo-text-muted)]">
