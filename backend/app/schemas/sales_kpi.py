@@ -266,6 +266,8 @@ class SalesKpiManualSaleOut(BaseModel):
     client_name: str
     client_phone: str
     lead_id: int | None = None
+    lead_manager_user_id: int | None = None
+    lead_manager_name: str | None = None
     stream_no: int | None = None
     group_no: int | None = None
     service_amount: Decimal
@@ -285,6 +287,16 @@ class SalesKpiManualSaleLinkLeadPatch(BaseModel):
     """Ручная привязка owner к Lead. Без phone auto-merge."""
 
     lead_id: int = Field(..., ge=1)
+
+
+class SalesKpiManualSaleManagerPatch(BaseModel):
+    """Кому пойдут новые оплаты курса или протокола.
+
+    Уже внесённые платежи остаются у прежнего менеджера. Карточка клиента не двигается.
+    """
+
+    manager_user_id: int | None = Field(default=None, ge=1)
+    use_lead_manager: bool = False
 
 
 class SalesKpiLeadSearchItem(BaseModel):

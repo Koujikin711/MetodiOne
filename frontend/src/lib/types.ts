@@ -1116,6 +1116,9 @@ export interface SalesKpiManualSale {
   client_phone: string;
   /** Явная привязка к Lead (без phone auto-merge) */
   lead_id?: number | null;
+  /** Менеджер карточки клиента, если продажа привязана к лиду */
+  lead_manager_user_id?: number | null;
+  lead_manager_name?: string | null;
   /** Номер потока (Поток 1…10) */
   stream_no?: number | null;
   /** Номер группы (Группа 1…20) */

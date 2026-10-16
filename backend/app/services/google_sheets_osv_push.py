@@ -15,7 +15,7 @@ from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import httpx
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -530,7 +530,14 @@ async def backfill_october_revenue(db: AsyncSession, company_id: int) -> tuple[d
             )
             .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
             .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
-            .outerjoin(User, User.id == SalesKpiManualSale.manager_user_id)
+            .outerjoin(
+                User,
+                User.id == func.coalesce(
+                    SalesKpiManualSalePayment.manager_user_id,
+                    SalesKpiManualSale.opened_manager_user_id,
+                    SalesKpiManualSale.manager_user_id,
+                ),
+            )
             .where(
                 SalesKpiManualSalePayment.company_id == company_id,
                 SalesKpiManualSalePayment.amount > 0,

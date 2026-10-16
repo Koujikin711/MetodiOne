@@ -1215,6 +1215,16 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
                     "WHERE first_paid_amount = 0 AND paid_amount > 0",
                 ),
             )
+        if "opened_manager_user_id" not in cols:
+            await conn.execute(
+                text("ALTER TABLE sales_kpi_manual_sales ADD COLUMN opened_manager_user_id INTEGER"),
+            )
+            await conn.execute(
+                text(
+                    "UPDATE sales_kpi_manual_sales SET opened_manager_user_id = manager_user_id "
+                    "WHERE opened_manager_user_id IS NULL",
+                ),
+            )
         await conn.execute(
             text(
                 """CREATE TABLE IF NOT EXISTS sales_kpi_manual_sale_payments (
@@ -1250,6 +1260,18 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
                     "UPDATE sales_kpi_manual_sale_payments "
                     "SET confirmed_at = COALESCE(paid_at, created_at, datetime('now')) "
                     "WHERE confirmed_at IS NULL",
+                ),
+            )
+        if "manager_user_id" not in pay_cols:
+            await conn.execute(
+                text("ALTER TABLE sales_kpi_manual_sale_payments ADD COLUMN manager_user_id INTEGER"),
+            )
+            await conn.execute(
+                text(
+                    "UPDATE sales_kpi_manual_sale_payments SET manager_user_id = ("
+                    "SELECT s.manager_user_id FROM sales_kpi_manual_sales s "
+                    "WHERE s.id = sales_kpi_manual_sale_payments.sale_id"
+                    ") WHERE manager_user_id IS NULL",
                 ),
             )
         await conn.execute(
@@ -1412,6 +1434,27 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
         )
         await conn.execute(
             text(
+                "ALTER TABLE sales_kpi_manual_sales "
+                "ADD COLUMN IF NOT EXISTS opened_manager_user_id INTEGER",
+            ),
+        )
+        opened_filled = (
+            await conn.execute(
+                text(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name = 'sales_kpi_manual_sales' AND column_name = 'opened_manager_user_id'"
+                ),
+            )
+        ).first()
+        if opened_filled:
+            await conn.execute(
+                text(
+                    "UPDATE sales_kpi_manual_sales SET opened_manager_user_id = manager_user_id "
+                    "WHERE opened_manager_user_id IS NULL",
+                ),
+            )
+        await conn.execute(
+            text(
                 """CREATE TABLE IF NOT EXISTS sales_kpi_manual_sale_payments (
                     id SERIAL PRIMARY KEY,
                     company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
@@ -1454,6 +1497,25 @@ async def ensure_sales_kpi_plans(conn: AsyncConnection, database_url: str) -> No
                     "UPDATE sales_kpi_manual_sale_payments "
                     "SET confirmed_at = COALESCE(paid_at, created_at, NOW()) "
                     "WHERE confirmed_at IS NULL",
+                ),
+            )
+        pay_manager_exists = (
+            await conn.execute(
+                text(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name = 'sales_kpi_manual_sale_payments' AND column_name = 'manager_user_id'"
+                ),
+            )
+        ).first()
+        if not pay_manager_exists:
+            await conn.execute(
+                text("ALTER TABLE sales_kpi_manual_sale_payments ADD COLUMN manager_user_id INTEGER"),
+            )
+            await conn.execute(
+                text(
+                    "UPDATE sales_kpi_manual_sale_payments AS p SET manager_user_id = s.manager_user_id "
+                    "FROM sales_kpi_manual_sales AS s "
+                    "WHERE s.id = p.sale_id AND p.manager_user_id IS NULL",
                 ),
             )
         await conn.execute(

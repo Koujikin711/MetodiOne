@@ -151,6 +151,13 @@ def is_full_payment(service_amount, paid_amount) -> bool:
     return paid >= service
 
 
+def protocol_brought_waits_for_full_price(product_name: str | None) -> bool:
+    """Протокол входит в «Привёл» только после полной оплаты. Курс — каждым этапом."""
+    from app.services.patient_ltv import classify_product_kind
+
+    return classify_product_kind(product_name) == "protocol"
+
+
 def earning_from_brought(brought: Decimal, percent: Decimal) -> Decimal:
     """Заработок = процент услуги × (полная оплата − возвраты)."""
     brought_q = Decimal(str(brought or 0))
@@ -606,14 +613,25 @@ async def load_manual_brought_by_label(
     pipeline_id: int,
     ym: date,
 ) -> dict[tuple[int, str], Decimal]:
-    """Платежи курса и протокола за месяц, только если продажа оплачена полностью."""
+    """Курс: каждый подтверждённый этап в месяц оплаты.
+
+    Протокол: только когда цена закрыта. Если принесли больше цены, в «Привёл»
+    входит вся оплата этого месяца, не обрезанная до цены.
+    """
     start, end = month_bounds(ym)
+    credited = func.coalesce(
+        SalesKpiManualSalePayment.manager_user_id,
+        SalesKpiManualSale.opened_manager_user_id,
+        SalesKpiManualSale.manager_user_id,
+    )
     rows = (
         await db.execute(
             select(
-                SalesKpiManualSale.manager_user_id,
+                credited,
                 SalesKpiPlanItem.name,
-                func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0),
+                SalesKpiManualSalePayment.amount,
+                SalesKpiManualSale.paid_amount,
+                SalesKpiManualSale.service_amount,
             )
             .select_from(SalesKpiManualSalePayment)
             .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
@@ -622,17 +640,19 @@ async def load_manual_brought_by_label(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
                 SalesKpiManualSale.service_amount > 0,
-                SalesKpiManualSale.paid_amount >= SalesKpiManualSale.service_amount,
                 SalesKpiManualSalePayment.paid_at >= start,
                 SalesKpiManualSalePayment.paid_at < end,
                 SalesKpiManualSalePayment.amount > 0,
-            )
-            .group_by(SalesKpiManualSale.manager_user_id, SalesKpiPlanItem.name),
+                SalesKpiManualSalePayment.confirmed_at.is_not(None),
+                SalesKpiManualSalePayment.rejected_at.is_(None),
+            ),
         )
     ).all()
     out: dict[tuple[int, str], Decimal] = {}
-    for manager_id, name, paid in rows:
+    for manager_id, name, paid, sale_paid, sale_service in rows:
         if manager_id is None:
+            continue
+        if protocol_brought_waits_for_full_price(str(name or "")) and not is_full_payment(sale_service, sale_paid):
             continue
         label = _norm_kpi_label(str(name or ""))
         if not label:
@@ -647,9 +667,13 @@ async def load_manual_brought_by_label(
     legacy_rows = (
         await db.execute(
             select(
-                SalesKpiManualSale.manager_user_id,
+                func.coalesce(
+                    SalesKpiManualSale.opened_manager_user_id,
+                    SalesKpiManualSale.manager_user_id,
+                ),
                 SalesKpiPlanItem.name,
                 SalesKpiManualSale.paid_amount,
+                SalesKpiManualSale.service_amount,
             )
             .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
             .where(
@@ -658,7 +682,7 @@ async def load_manual_brought_by_label(
                 SalesKpiManualSale.sold_at >= start,
                 SalesKpiManualSale.sold_at < end,
                 SalesKpiManualSale.service_amount > 0,
-                SalesKpiManualSale.paid_amount >= SalesKpiManualSale.service_amount,
+                SalesKpiManualSale.paid_amount > 0,
                 ~exists(
                     select(SalesKpiManualSalePayment.id).where(
                         SalesKpiManualSalePayment.sale_id == SalesKpiManualSale.id,
@@ -667,8 +691,10 @@ async def load_manual_brought_by_label(
             ),
         )
     ).all()
-    for manager_id, name, paid in legacy_rows:
+    for manager_id, name, paid, sale_service in legacy_rows:
         if manager_id is None:
+            continue
+        if protocol_brought_waits_for_full_price(str(name or "")) and not is_full_payment(sale_service, paid):
             continue
         label = _norm_kpi_label(str(name or ""))
         if not label:
@@ -693,7 +719,10 @@ async def load_manual_new_sales_by_label(
     rows = (
         await db.execute(
             select(
-                SalesKpiManualSale.manager_user_id,
+                func.coalesce(
+                    SalesKpiManualSale.opened_manager_user_id,
+                    SalesKpiManualSale.manager_user_id,
+                ),
                 SalesKpiPlanItem.name,
                 func.count(SalesKpiManualSale.id),
             )
@@ -706,7 +735,13 @@ async def load_manual_new_sales_by_label(
                 SalesKpiManualSale.paid_amount > 0,
                 SalesKpiManualSale.status != "refused",
             )
-            .group_by(SalesKpiManualSale.manager_user_id, SalesKpiPlanItem.name),
+            .group_by(
+                func.coalesce(
+                    SalesKpiManualSale.opened_manager_user_id,
+                    SalesKpiManualSale.manager_user_id,
+                ),
+                SalesKpiPlanItem.name,
+            ),
         )
     ).all()
     out: dict[tuple[int, str], int] = {}
@@ -729,12 +764,57 @@ async def load_manual_refunds_by_label(
 ) -> dict[tuple[int, str], Decimal]:
     """Возврат курса или протокола в месяц returned_at. Вычитается из вошедшей суммы."""
     start, end = month_bounds(ym)
+    refund_manager = func.coalesce(
+        SalesKpiManualSalePayment.manager_user_id,
+        SalesKpiManualSale.opened_manager_user_id,
+        SalesKpiManualSale.manager_user_id,
+    )
     rows = (
         await db.execute(
             select(
-                SalesKpiManualSale.manager_user_id,
+                refund_manager,
                 SalesKpiPlanItem.name,
-                func.coalesce(func.sum(SalesKpiManualSale.paid_amount), 0),
+                func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0),
+            )
+            .select_from(SalesKpiManualSale)
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .join(
+                SalesKpiManualSalePayment,
+                SalesKpiManualSalePayment.sale_id == SalesKpiManualSale.id,
+            )
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.status == "returned",
+                SalesKpiManualSale.returned_at.is_not(None),
+                SalesKpiManualSale.returned_at >= start,
+                SalesKpiManualSale.returned_at < end,
+                SalesKpiManualSalePayment.amount > 0,
+            )
+            .group_by(refund_manager, SalesKpiPlanItem.name),
+        )
+    ).all()
+    out: dict[tuple[int, str], Decimal] = {}
+    for manager_id, name, paid in rows:
+        if manager_id is None:
+            continue
+        label = _norm_kpi_label(str(name or ""))
+        if not label:
+            continue
+        amount = Decimal(str(paid or 0)).quantize(Decimal("0.01"))
+        if amount <= 0:
+            continue
+        key = (int(manager_id), label)
+        out[key] = (out.get(key, Decimal("0")) + amount).quantize(Decimal("0.01"))
+    legacy = (
+        await db.execute(
+            select(
+                func.coalesce(
+                    SalesKpiManualSale.opened_manager_user_id,
+                    SalesKpiManualSale.manager_user_id,
+                ),
+                SalesKpiPlanItem.name,
+                SalesKpiManualSale.paid_amount,
             )
             .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
             .where(
@@ -745,12 +825,15 @@ async def load_manual_refunds_by_label(
                 SalesKpiManualSale.returned_at >= start,
                 SalesKpiManualSale.returned_at < end,
                 SalesKpiManualSale.paid_amount > 0,
-            )
-            .group_by(SalesKpiManualSale.manager_user_id, SalesKpiPlanItem.name),
+                ~exists(
+                    select(SalesKpiManualSalePayment.id).where(
+                        SalesKpiManualSalePayment.sale_id == SalesKpiManualSale.id,
+                    ),
+                ),
+            ),
         )
     ).all()
-    out: dict[tuple[int, str], Decimal] = {}
-    for manager_id, name, paid in rows:
+    for manager_id, name, paid in legacy:
         if manager_id is None:
             continue
         label = _norm_kpi_label(str(name or ""))
@@ -1368,7 +1451,10 @@ async def load_manual_facts(
         await db.execute(
             select(
                 SalesKpiManualSale.id,
-                SalesKpiManualSale.manager_user_id,
+                func.coalesce(
+                    SalesKpiManualSale.opened_manager_user_id,
+                    SalesKpiManualSale.manager_user_id,
+                ),
                 SalesKpiManualSale.plan_item_id,
                 SalesKpiManualSale.service_amount,
                 SalesKpiManualSale.paid_amount,

@@ -276,6 +276,59 @@ function SaleRowActionsMenu({
   );
 }
 
+function SaleManagerCell({
+  sale,
+  managers,
+  pending,
+  onPick,
+  onUseLead,
+}: {
+  sale: SalesKpiManualSale;
+  managers: { id: number; name: string }[];
+  pending: boolean;
+  onPick: (managerId: number) => void;
+  onUseLead: () => void;
+}) {
+  const known = managers.some((m) => m.id === sale.manager_user_id);
+  const cardId = sale.lead_manager_user_id ?? null;
+  const differs = cardId != null && cardId !== sale.manager_user_id;
+  return (
+    <div className="flex min-w-[9.5rem] flex-col gap-1">
+      <select
+        className="mo-input min-w-[9.5rem] py-1 text-xs"
+        aria-label={`Менеджер продажи ${sale.client_name}`}
+        value={sale.manager_user_id}
+        disabled={pending}
+        onChange={(e) => {
+          const next = Number(e.target.value);
+          if (!next || next === sale.manager_user_id) return;
+          onPick(next);
+        }}
+      >
+        {managers.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.name}
+          </option>
+        ))}
+        {!known ? <option value={sale.manager_user_id}>{sale.manager_name}</option> : null}
+      </select>
+      <span className="text-[10px] leading-snug mo-muted">Прошлые оплаты остаются. Новые пойдут выбранному.</span>
+      {differs ? (
+        <button
+          type="button"
+          className="text-left text-[10px] leading-snug text-[var(--mo-accent-hover)] underline"
+          disabled={pending}
+          onClick={onUseLead}
+        >
+          На карточку: {sale.lead_manager_name || "менеджер лида"}
+        </button>
+      ) : cardId ? (
+        <span className="text-[10px] leading-snug mo-muted">как у карточки</span>
+      ) : null}
+    </div>
+  );
+}
+
 function defaultYearMonth(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -906,6 +959,25 @@ export function KpiPage() {
       toast.success("Lead привязан");
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["analytics-ltv-cohort"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const changeSaleManager = useMutation({
+    mutationFn: async (body: { id: number; managerId?: number; useLead?: boolean }) => {
+      await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${body.id}/manager`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          manager_user_id: body.managerId ?? null,
+          use_lead_manager: Boolean(body.useLead),
+        }),
+      });
+    },
+    onSuccess: () => {
+      toast.success("Менеджер сменён. Прошлые оплаты остаются у прежнего.");
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-service-earnings"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1663,7 +1735,19 @@ export function KpiPage() {
                       : "—"}
                   </span>
                 </div>
-                <p className="mt-1 text-[11px] text-[var(--mo-text-muted)]">{s.manager_name}</p>
+                <div className="mt-1">
+                  {isAdminOrOwner ? (
+                    <SaleManagerCell
+                      sale={s}
+                      managers={managers}
+                      pending={changeSaleManager.isPending}
+                      onPick={(managerId) => changeSaleManager.mutate({ id: s.id, managerId })}
+                      onUseLead={() => changeSaleManager.mutate({ id: s.id, useLead: true })}
+                    />
+                  ) : (
+                    <p className="text-[11px] text-[var(--mo-text-muted)]">{s.manager_name}</p>
+                  )}
+                </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-[var(--mo-text)]">
                   <span className="tabular-nums">
                     {formatMoney(num(s.paid_amount))} / {formatMoney(num(s.service_amount))}
@@ -1765,7 +1849,19 @@ export function KpiPage() {
                     <td>{s.plan_item_name}</td>
                     <td className="whitespace-nowrap">{groupLabel(s.group_no)}</td>
                     <td className="whitespace-nowrap">{streamLabel(s.stream_no)}</td>
-                    <td>{s.manager_name}</td>
+                    <td>
+                      {isAdminOrOwner ? (
+                        <SaleManagerCell
+                          sale={s}
+                          managers={managers}
+                          pending={changeSaleManager.isPending}
+                          onPick={(managerId) => changeSaleManager.mutate({ id: s.id, managerId })}
+                          onUseLead={() => changeSaleManager.mutate({ id: s.id, useLead: true })}
+                        />
+                      ) : (
+                        s.manager_name
+                      )}
+                    </td>
                     <td className="font-medium">{s.client_name}</td>
                     <td className="tabular-nums">{s.client_phone}</td>
                     <td className="tabular-nums whitespace-nowrap">
@@ -2239,7 +2335,7 @@ function SalesReportSection({
       <section className="mo-section px-3 py-2">
         <h2 className="text-[15px] font-semibold text-[var(--mo-text)]">Заработок · {data.year_month}</h2>
         <p className="mt-0.5 text-[11px] lux-caption">
-          Новых — продажи, открытые в этом месяце. Привёл — полная оплата минус возврат. Итого{" "}
+          Новых — курс открыт один раз. Привёл по курсу — каждый этап в свой месяц. По протоколу — после полной оплаты, и если принёс больше цены, в сумму входит вся оплата. По остальным услугам — полная оплата минус возврат. Итого{" "}
           {formatMoney(num(data.total_earning))}
         </p>
       </section>

@@ -392,3 +392,13 @@ def test_selected_services_ignore_name_price():
         service_facts={(1, 9, 4): 3, (1, 8, 4): 5, (1, 9, 6): 9},
     )
     assert raw["lines"][0]["fact_qty"] == 3
+
+
+def test_protocol_brought_waits_until_the_price_is_closed():
+    from app.services.sales_kpi_weighted import protocol_brought_waits_for_full_price
+
+    assert protocol_brought_waits_for_full_price("Протокол") is True
+    assert protocol_brought_waits_for_full_price("Курс") is False
+    assert protocol_brought_waits_for_full_price("Курс 15") is False
+    assert is_full_payment(3000, 1000) is False
+    assert is_full_payment(3000, 3500) is True

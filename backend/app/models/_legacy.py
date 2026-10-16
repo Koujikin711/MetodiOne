@@ -451,6 +451,11 @@ class SalesKpiManualSale(Base):
     status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    # Кто открыл продажу. Смена менеджера в журнале это поле не двигает.
+    opened_manager_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
@@ -471,6 +476,11 @@ class SalesKpiManualSalePayment(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    # Кому засчитана эта оплата. Смена менеджера продажи старые строки не переписывает.
+    manager_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
     # Пусто — менеджер внёс сумму, админ ещё не подтвердил. Старые строки заполнены миграцией.
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

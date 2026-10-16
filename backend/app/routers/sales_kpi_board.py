@@ -12,6 +12,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, delete, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.config import settings
 from app.core.deps import CurrentCompanyId, CurrentUser
@@ -64,6 +65,7 @@ from app.schemas.sales_kpi import (
     SalesKpiDirectionMeta,
     SalesKpiManualSaleCreate,
     SalesKpiManualSaleLinkLeadPatch,
+    SalesKpiManualSaleManagerPatch,
     SalesKpiManualSaleOut,
     SalesKpiManualSalePaymentOut,
     SalesKpiManualSalePaymentPatch,
@@ -430,6 +432,8 @@ def _manual_sale_out(
     plan_item_name: str,
     manager_name: str,
     payments: list[SalesKpiManualSalePayment] | None = None,
+    lead_manager_user_id: int | None = None,
+    lead_manager_name: str | None = None,
 ) -> SalesKpiManualSaleOut:
     sa = Decimal(str(sale.service_amount or 0))
     pa = Decimal(str(sale.paid_amount or 0))
@@ -447,6 +451,8 @@ def _manual_sale_out(
         client_name=sale.client_name,
         client_phone=sale.client_phone,
         lead_id=int(sale.lead_id) if getattr(sale, "lead_id", None) is not None else None,
+        lead_manager_user_id=lead_manager_user_id,
+        lead_manager_name=lead_manager_name,
         stream_no=int(stream_raw) if stream_raw is not None else None,
         group_no=int(group_raw) if group_raw is not None else None,
         service_amount=sa,
@@ -1089,11 +1095,25 @@ async def list_manual_sales(
     # Окно лечения 3 месяца: июнь при просмотре сентября → sold_at >= June 1.
     horizon_start, _ = month_bounds(shift_year_month(ym, -3))
 
+    lead_manager = aliased(User)
     rows = (
         await db.execute(
-            select(SalesKpiManualSale, SalesKpiPlanItem.name, User.full_name, User.email)
+            select(
+                SalesKpiManualSale,
+                SalesKpiPlanItem.name,
+                User.full_name,
+                User.email,
+                Lead.manager_id,
+                lead_manager.full_name,
+                lead_manager.email,
+            )
             .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
             .join(User, User.id == SalesKpiManualSale.manager_user_id)
+            .outerjoin(
+                Lead,
+                and_(Lead.id == SalesKpiManualSale.lead_id, Lead.company_id == company_id),
+            )
+            .outerjoin(lead_manager, lead_manager.id == Lead.manager_id)
             .where(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
@@ -1122,13 +1142,17 @@ async def list_manual_sales(
     sale_ids = [int(sale.id) for sale, *_ in rows]
     payments_by_sale = await _load_sale_payments(db, sale_ids)
     out: list[SalesKpiManualSaleOut] = []
-    for sale, item_name, full_name, email in rows:
+    for sale, item_name, full_name, email, lead_mid, lead_name, lead_email in rows:
         out.append(
             _manual_sale_out(
                 sale,
                 plan_item_name=str(item_name),
                 manager_name=str(full_name or email or f"#{sale.manager_user_id}"),
                 payments=payments_by_sale.get(int(sale.id), []),
+                lead_manager_user_id=int(lead_mid) if lead_mid is not None else None,
+                lead_manager_name=(
+                    str(lead_name or lead_email or f"#{lead_mid}") if lead_mid is not None else None
+                ),
             ),
         )
     return out
@@ -1393,6 +1417,7 @@ async def create_manual_sale(
         pipeline_id=body.pipeline_id,
         plan_item_id=body.plan_item_id,
         manager_user_id=body.manager_user_id,
+        opened_manager_user_id=body.manager_user_id,
         client_name=body.client_name.strip(),
         client_phone=body.client_phone.strip(),
         lead_id=link_lead_id,
@@ -1418,6 +1443,7 @@ async def create_manual_sale(
             note="Первый платёж",
             paid_at=first_at,
             created_by_user_id=current_user.id,
+            manager_user_id=int(sale.manager_user_id),
             confirmed_at=confirmed_at,
             confirmed_by_user_id=None if manager_fills else int(current_user.id),
         )
@@ -1432,6 +1458,7 @@ async def create_manual_sale(
             note="Второй платёж",
             paid_at=second_at,
             created_by_user_id=current_user.id,
+            manager_user_id=int(sale.manager_user_id),
             confirmed_at=confirmed_at,
             confirmed_by_user_id=None if manager_fills else int(current_user.id),
         )
@@ -1567,6 +1594,7 @@ async def patch_manual_sale_payment(
         note=(body.note.strip() if body.note else None) or "Доплата",
         paid_at=pay_at,
         created_by_user_id=current_user.id,
+        manager_user_id=int(sale.manager_user_id),
         confirmed_at=None if manager_records else datetime.now(UTC),
         confirmed_by_user_id=None if manager_records else int(current_user.id),
     )
@@ -1672,7 +1700,8 @@ async def confirm_manual_sale_payment(
         from app.services.patient_ltv import mirror_manual_sale_purchase
 
         plan_item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
-        sale_manager = await db.get(User, sale.manager_user_id)
+        credit_id = int(pay.manager_user_id or sale.manager_user_id)
+        sale_manager = await db.get(User, credit_id)
         cashier = (current_user.full_name or current_user.email or "").strip() or None
         manager_name = ((sale_manager.full_name or "").strip() if sale_manager else "") or cashier
         if add_amount > 0:
@@ -1813,6 +1842,90 @@ async def link_manual_sale_lead(
             or f"#{sale.manager_user_id}"
         ),
         payments=payments,
+    )
+
+
+@router.patch("/manual-sales/{sale_id}/manager", response_model=SalesKpiManualSaleOut)
+async def patch_manual_sale_manager(
+    sale_id: int,
+    body: SalesKpiManualSaleManagerPatch,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> SalesKpiManualSaleOut:
+    """Админ меняет, кому пойдут новые оплаты. Уже внесённые остаются у прежнего менеджера."""
+    _assert_kpi_access(current_user)
+    _assert_admin_or_owner(current_user)
+    sale = await db.get(SalesKpiManualSale, sale_id)
+    if sale is None or sale.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Продажа не найдена")
+
+    target_id: int | None = None
+    if body.use_lead_manager:
+        if sale.lead_id is None:
+            raise HTTPException(status_code=400, detail="У продажи нет карточки клиента")
+        lead = await db.get(Lead, int(sale.lead_id))
+        if lead is None or lead.company_id != company_id or lead.manager_id is None:
+            raise HTTPException(status_code=400, detail="У карточки нет менеджера")
+        target_id = int(lead.manager_id)
+    elif body.manager_user_id is not None:
+        target_id = int(body.manager_user_id)
+    else:
+        raise HTTPException(status_code=400, detail="Выберите менеджера")
+
+    manager = await db.get(User, target_id)
+    if (
+        manager is None
+        or manager.company_id != company_id
+        or not manager.is_active
+        or manager.role != UserRole.manager
+    ):
+        detail = (
+            "Менеджер карточки уже не работает. Выберите нового в списке."
+            if body.use_lead_manager
+            else "Укажите действующего менеджера"
+        )
+        raise HTTPException(status_code=400, detail=detail)
+    if not body.use_lead_manager and not await _is_user_assigned_pipeline(
+        db, company_id, int(manager.id), int(sale.pipeline_id),
+    ):
+        raise HTTPException(status_code=400, detail="Менеджер не назначен на эту воронку")
+
+    before = int(sale.manager_user_id)
+    if before != int(manager.id):
+        from app.services.audit import write_audit_event
+
+        sale.manager_user_id = int(manager.id)
+        sale.updated_at = datetime.now(UTC)
+        await write_audit_event(
+            db,
+            entity_type="kpi_manual_sale",
+            entity_id=int(sale.id),
+            action="manager_changed",
+            current_user=current_user,
+            details=f"manager_user_id: {before} → {int(manager.id)}; client={sale.client_name!r}",
+        )
+        await db.commit()
+        await db.refresh(sale)
+
+    item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
+    lead_mid: int | None = None
+    lead_name: str | None = None
+    if sale.lead_id is not None:
+        lead = await db.get(Lead, int(sale.lead_id))
+        if lead is not None and lead.company_id == company_id and lead.manager_id is not None:
+            card = await db.get(User, int(lead.manager_id))
+            lead_mid = int(lead.manager_id)
+            if card is not None:
+                lead_name = str(card.full_name or card.email or f"#{card.id}")
+    return _manual_sale_out(
+        sale,
+        plan_item_name=item.name if item else "",
+        manager_name=str(manager.full_name or manager.email or f"#{manager.id}"),
+        payments=payments,
+        lead_manager_user_id=lead_mid,
+        lead_manager_name=lead_name,
     )
 
 
