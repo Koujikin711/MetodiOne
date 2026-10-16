@@ -461,7 +461,7 @@ function MessageBody({ m }: { m: ChatMessage }) {
     );
   }
 
-  return <>{m.text}</>;
+  return <span className="chat-msg-text">{m.text}</span>;
 }
 
 function MicIcon({ className }: { className?: string }) {
@@ -640,6 +640,7 @@ export function ChatPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const threadsListRef = useRef<HTMLDivElement>(null);
@@ -803,6 +804,12 @@ export function ChatPage() {
   }
 
   const [text, setText] = useState("");
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [text]);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceFinishing, setVoiceFinishing] = useState(false);
@@ -1777,9 +1784,21 @@ export function ChatPage() {
                   >
                     <PaperclipIcon className="h-5 w-5" />
                   </button>
-                  <input
+                  <textarea
+                    ref={composerRef}
+                    rows={1}
                     value={text}
-                    onChange={(e) => setText(e.target.value)}
+                    onChange={(e) => {
+                      setText(e.target.value);
+                      const el = e.target;
+                      el.style.height = "auto";
+                      el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" || e.shiftKey) return;
+                      e.preventDefault();
+                      e.currentTarget.form?.requestSubmit();
+                    }}
                     placeholder={
                       voiceFinishing
                         ? "Отправка голосового…"
@@ -1792,7 +1811,7 @@ export function ChatPage() {
                             : "Сообщение…"
                     }
                     readOnly={isRecording || voiceFinishing}
-                    className="mo-input min-w-0 flex-1 rounded-full py-2.5 read-only:opacity-80"
+                    className="chat-composer__input mo-input min-w-0 flex-1 read-only:opacity-80"
                   />
                   {canSendMessage && !isRecording ? (
                     <button

@@ -5497,6 +5497,22 @@ fieldset.extra-services-field {
     radial-gradient(ellipse 80% 50% at 50% 0%, color-mix(in srgb, var(--mo-accent) 6%, transparent), transparent 70%);
 }
 
+.chat-composer__input {
+  resize: none;
+  overflow-y: auto;
+  min-height: 2.75rem;
+  max-height: 10rem;
+  line-height: 1.35;
+  border-radius: 1.25rem;
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-msg-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .chat-msg {
   @apply max-w-[min(88%,26rem)] px-3.5 py-2 text-[0.9375rem] leading-relaxed break-words;
   border-radius: 1.05rem;
