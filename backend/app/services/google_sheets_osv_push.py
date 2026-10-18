@@ -733,7 +733,11 @@ async def push_pending_osv_rows(
     pending = [
         row
         for row in rows
-        if row.external_key and should_append_to_sheet(row.txn_date, revenue=row.revenue, expense=row.expense)
+        if (
+            row.external_key
+            and (row.expense_confirm or "") not in ("pending", "rejected")
+            and should_append_to_sheet(row.txn_date, revenue=row.revenue, expense=row.expense)
+        )
     ]
     if only_key is not None and not pending:
         return 0

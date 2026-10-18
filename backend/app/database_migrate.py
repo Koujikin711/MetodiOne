@@ -2699,6 +2699,21 @@ async def ensure_finance_osv_tables(conn: AsyncConnection, database_url: str) ->
                 text(f"ALTER TABLE finance_company_settings ADD COLUMN IF NOT EXISTS {col} {ddl_pg}"),
             )
 
+    confirm_cols = (
+        ("expense_confirm", "VARCHAR(16)", "VARCHAR(16)"),
+        ("expense_confirmed_by_user_id", "INTEGER", "INTEGER"),
+    )
+    for col, ddl_sqlite, ddl_pg in confirm_cols:
+        if sqlite:
+            r = await conn.execute(text("PRAGMA table_info(finance_osv_rows)"))
+            cols = {row[1] for row in r.fetchall()}
+            if col not in cols:
+                await conn.execute(text(f"ALTER TABLE finance_osv_rows ADD COLUMN {col} {ddl_sqlite}"))
+        elif pg:
+            await conn.execute(
+                text(f"ALTER TABLE finance_osv_rows ADD COLUMN IF NOT EXISTS {col} {ddl_pg}"),
+            )
+
 
 async def ensure_lead_extra_phones_tables(conn: AsyncConnection, database_url: str) -> None:
     low = database_url.lower()

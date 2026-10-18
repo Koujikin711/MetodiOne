@@ -15,6 +15,7 @@ from app.models import (
     BookingSpecialist,
     FinanceCompanySettings,
     FinanceOsvRow,
+    osv_row_counts_in_books,
     PayrollAdjustment,
     PayrollSheetHide,
     PayrollSheetOrder,
@@ -54,6 +55,17 @@ def _assert_expenses_access(user) -> None:
     if can_access_expenses(user.role):
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к расходам")
+
+
+OWNER_EXPENSE_CONFIRM_FROM = Decimal("500")
+
+
+def _owner_confirms_expenses(user) -> bool:
+    return user.role in (UserRole.owner, UserRole.super_owner)
+
+
+def _expense_waits_for_owner(amount: Decimal, user) -> bool:
+    return amount > OWNER_EXPENSE_CONFIRM_FROM and not _owner_confirms_expenses(user)
 
 
 _PAY_ROLES = frozenset(
@@ -330,6 +342,7 @@ async def payroll_sheet(
                 FinanceOsvRow.txn_date >= day_from,
                 FinanceOsvRow.txn_date <= day_to,
                 FinanceOsvRow.expense > 0,
+                osv_row_counts_in_books(),
             )
         )
     ).scalars().all()
@@ -738,18 +751,53 @@ async def create_expense(
         source="manual",
         external_key=None,
         employee_user_id=body.employee_user_id,
+        expense_confirm="pending" if _expense_waits_for_owner(Decimal(str(body.expense)), current_user) else None,
     )
     db.add(row)
     await db.flush()
     row.external_key = f"crm:expense:{row.id}"
     await db.flush()
-    try:
-        from app.services.google_sheets_osv_push import push_pending_osv_rows
+    if row.expense_confirm != "pending":
+        try:
+            from app.services.google_sheets_osv_push import push_pending_osv_rows
 
-        await push_pending_osv_rows(db, company_id, only_key=row.external_key)
-    except Exception as exc:
-        import logging
+            await push_pending_osv_rows(db, company_id, only_key=row.external_key)
+        except Exception as exc:
+            import logging
 
-        logging.getLogger(__name__).warning("osv expense push failed: %s", exc)
+            logging.getLogger(__name__).warning("osv expense push failed: %s", exc)
+    await db.refresh(row)
+    return FinanceOsvRowRead.model_validate(row)
+
+
+@router.post("/expenses/{expense_id}/confirm", response_model=FinanceOsvRowRead)
+async def confirm_expense(
+    expense_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    confirmed: bool = Query(...),
+) -> FinanceOsvRowRead:
+    """Расход больше 500 сомони подтверждает или отклоняет только владелец."""
+    if not _owner_confirms_expenses(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Подтверждает владелец")
+    await assert_finance_access(db, current_user)
+    row = await db.get(FinanceOsvRow, expense_id)
+    if row is None or row.company_id != company_id or Decimal(str(row.expense or 0)) <= 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Расход не найден")
+    if row.expense_confirm != "pending":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Этот расход уже решён")
+    row.expense_confirm = "confirmed" if confirmed else "rejected"
+    row.expense_confirmed_by_user_id = int(current_user.id)
+    await db.flush()
+    if confirmed:
+        try:
+            from app.services.google_sheets_osv_push import push_pending_osv_rows
+
+            await push_pending_osv_rows(db, company_id, only_key=row.external_key)
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning("osv expense push failed: %s", exc)
     await db.refresh(row)
     return FinanceOsvRowRead.model_validate(row)

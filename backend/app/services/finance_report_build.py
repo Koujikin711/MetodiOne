@@ -10,7 +10,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import FinanceOsvRow
+from app.models import FinanceOsvRow, osv_row_counts_in_books
 from app.schemas.finance_v2 import (
     FinanceDdsReportRead,
     FinanceOpiuReportRead,
@@ -87,7 +87,7 @@ async def load_osv_summary(
     month: int | None = None,
     limit: int = 500,
 ) -> FinanceOsvSummaryRead:
-    q = select(FinanceOsvRow).where(FinanceOsvRow.company_id == company_id)
+    q = select(FinanceOsvRow).where(FinanceOsvRow.company_id == company_id, osv_row_counts_in_books())
     if year is not None:
         q = q.where(
             FinanceOsvRow.txn_date >= date(year, 1, 1),
@@ -118,6 +118,7 @@ async def build_dds_report(db: AsyncSession, *, company_id: int, year: int) -> F
                 FinanceOsvRow.company_id == company_id,
                 FinanceOsvRow.txn_date >= date(year, 1, 1),
                 FinanceOsvRow.txn_date <= date(year, 12, 31),
+                osv_row_counts_in_books(),
             ),
         )
     ).scalars().all()
@@ -188,6 +189,7 @@ async def build_opiu_report(db: AsyncSession, *, company_id: int, year: int) -> 
                 FinanceOsvRow.company_id == company_id,
                 FinanceOsvRow.txn_date >= date(year, 1, 1),
                 FinanceOsvRow.txn_date <= date(year, 12, 31),
+                osv_row_counts_in_books(),
             ),
         )
     ).scalars().all()

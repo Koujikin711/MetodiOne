@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, UniqueConstraint
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, UniqueConstraint, or_
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models._legacy import Base, _utc_now
@@ -40,4 +40,18 @@ class FinanceOsvRow(Base):
         nullable=True,
         index=True,
     )
+    # NULL и confirmed — расход уже в журнале. pending / rejected — больше 500, ждёт владельца.
+    expense_confirm: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    expense_confirmed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+
+
+def osv_row_counts_in_books():
+    """Старые строки без отметки остаются в учёте. Ждущие и отклонённые — нет."""
+    return or_(
+        FinanceOsvRow.expense_confirm.is_(None),
+        FinanceOsvRow.expense_confirm == "confirmed",
+    )

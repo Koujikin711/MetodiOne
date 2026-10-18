@@ -23,6 +23,7 @@ class FinanceOsvRowRead(BaseModel):
     source: str
     external_key: str | None = None
     employee_user_id: int | None = None
+    expense_confirm: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

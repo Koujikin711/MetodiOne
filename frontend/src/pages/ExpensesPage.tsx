@@ -20,7 +20,8 @@ import { FormEvent, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import { GripVertical } from "@/components/icons";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getStoredToken } from "@/lib/api";
+import { decodeRoleFromToken } from "@/lib/auth";
 import { EXPENSE_CATALOG } from "@/lib/expenseCatalog";
 import { APP_CURRENCY } from "@/lib/money";
 import { DateField } from "@/components/DateField";
@@ -72,6 +73,7 @@ type ExpenseRow = {
   detail_category: string | null;
   brief_category: string | null;
   source: string;
+  expense_confirm?: string | null;
 };
 
 function defaultYearMonth() {
@@ -338,8 +340,43 @@ function formatDateShort(isoDate: string): string {
   return `${m[3]}.${m[2]}.${m[1]!.slice(-2)}`;
 }
 
+function expenseCounts(row: ExpenseRow): boolean {
+  return row.expense_confirm !== "pending" && row.expense_confirm !== "rejected";
+}
+
+function ExpenseConfirm({
+  row,
+  isOwner,
+  pending,
+  onDecide,
+}: {
+  row: ExpenseRow;
+  isOwner: boolean;
+  pending: boolean;
+  onDecide: (confirmed: boolean) => void;
+}) {
+  if (row.expense_confirm === "pending") {
+    if (!isOwner) return <span className="text-[11px] text-amber-300">Ждёт владельца</span>;
+    return (
+      <span className="flex flex-wrap gap-1">
+        <button type="button" className="btn-primary btn-table" disabled={pending} onClick={() => onDecide(true)}>
+          Подтвердить
+        </button>
+        <button type="button" className="btn-secondary btn-table" disabled={pending} onClick={() => onDecide(false)}>
+          Отклонить
+        </button>
+      </span>
+    );
+  }
+  if (row.expense_confirm === "rejected") return <span className="text-[11px] text-[var(--mo-danger,#ef4444)]">Отклонён</span>;
+  if (row.expense_confirm === "confirmed") return <span className="text-[11px] text-[var(--mo-text-muted)]">Подтверждён</span>;
+  return <span className="text-[11px] text-[var(--mo-text-muted)]">—</span>;
+}
+
 export function ExpensesPage() {
   const qc = useQueryClient();
+  const role = decodeRoleFromToken(getStoredToken());
+  const isOwner = role === "owner" || role === "super_owner";
   const [yearMonth, setYearMonth] = useState(defaultYearMonth);
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"journal" | "payroll">("journal");
@@ -494,7 +531,10 @@ export function ExpensesPage() {
       return false;
     });
   }, [rows, search]);
-  const total = useMemo(() => filtered.reduce((s, r) => s + Number(r.expense || 0), 0), [filtered]);
+  const total = useMemo(
+    () => filtered.reduce((s, r) => s + (expenseCounts(r) ? Number(r.expense || 0) : 0), 0),
+    [filtered],
+  );
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -516,13 +556,25 @@ export function ExpensesPage() {
           via_person: viaPerson || null,
         }),
       }),
-    onSuccess: () => {
-      toast.success("Расход сохранён");
+    onSuccess: (row) => {
+      toast.success(row.expense_confirm === "pending" ? "Ждёт подтверждения владельца" : "Расход сохранён");
       setExpense("");
       setBasis("");
       setCounterparty("");
       setEmployeeId("");
       setPhone("");
+      void qc.invalidateQueries({ queryKey: ["finance-expenses"] });
+      void qc.invalidateQueries({ queryKey: ["finance-payroll"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const confirmMutation = useMutation({
+    mutationFn: (body: { id: number; confirmed: boolean }) =>
+      apiFetch<ExpenseRow>(`/api/finance/expenses/${body.id}/confirm?confirmed=${body.confirmed ? "true" : "false"}`, {
+        method: "POST",
+      }),
+    onSuccess: (row) => {
+      toast.success(row.expense_confirm === "confirmed" ? "Расход подтверждён" : "Расход отклонён");
       void qc.invalidateQueries({ queryKey: ["finance-expenses"] });
       void qc.invalidateQueries({ queryKey: ["finance-payroll"] });
     },
@@ -630,6 +682,11 @@ export function ExpensesPage() {
                 onChange={(e) => setExpense(e.target.value)}
                 required
               />
+              {Number(expense) > 500 && !isOwner ? (
+                <span className="mt-1 block text-[11px] text-[var(--mo-text-muted)]">
+                  Больше 500 сомони попадёт в журнал после подтверждения владельца.
+                </span>
+              ) : null}
             </label>
             {selectOrCustom(bank, [...catalog.banks], setBank, "Банк")}
             {selectOrCustom(article, [...catalog.articles], setArticle, "Статья")}
@@ -937,7 +994,15 @@ export function ExpensesPage() {
                           {r.brief_category ? <span>{r.brief_category}</span> : null}
                         </div>
                       </div>
-                      <div className="expenses-month__card-sum tabular-nums">{money(r.expense)}</div>
+                      <div className="text-right">
+                        <div className="expenses-month__card-sum tabular-nums">{money(r.expense)}</div>
+                        <ExpenseConfirm
+                          row={r}
+                          isOwner={isOwner}
+                          pending={confirmMutation.isPending}
+                          onDecide={(confirmed) => confirmMutation.mutate({ id: r.id, confirmed })}
+                        />
+                      </div>
                     </div>
                     <div className="expenses-month__card-grid">
                       {r.basis ? (
@@ -996,6 +1061,7 @@ export function ExpensesPage() {
                       <th>Статья</th>
                       <th>Подробно</th>
                       <th>Кратко</th>
+                      <th>Подтверждение</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1012,6 +1078,14 @@ export function ExpensesPage() {
                         <td>{r.article || "—"}</td>
                         <td>{r.detail_category || "—"}</td>
                         <td>{r.brief_category || "—"}</td>
+                        <td>
+                          <ExpenseConfirm
+                            row={r}
+                            isOwner={isOwner}
+                            pending={confirmMutation.isPending}
+                            onDecide={(confirmed) => confirmMutation.mutate({ id: r.id, confirmed })}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
