@@ -88,7 +88,7 @@ export function ManagerDeskPage() {
                       to="/tasks"
                       className="block rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-3 py-2 hover:border-[var(--mo-accent)]/40"
                     >
-                      <div className="text-sm font-medium text-[#1e3348]">{task.title}</div>
+                      <div className="text-sm font-medium text-[var(--mo-text)]">{task.title}</div>
                     </Link>
                   </li>
                 ))}
@@ -111,18 +111,18 @@ export function ManagerDeskPage() {
 
         <Card title="Чат — ждут ответа" subtitle="Быстрый доступ к диалогам (обновление по WebSocket)">
           <div className="max-h-[min(62vh,520px)] space-y-2 overflow-y-auto pr-1">
-            {awaitingThreadsQuery.isLoading && <p className="text-sm text-[#5c6b7a]">Загрузка…</p>}
+            {awaitingThreadsQuery.isLoading && <p className="text-sm text-[var(--mo-text-muted)]">Загрузка…</p>}
             {(awaitingThreadsQuery.data ?? []).map((t) => (
               <Link
                 key={t.id}
                 to={`/chat?lead_id=${t.lead_id ?? ""}`}
                 className="flex items-center justify-between gap-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 hover:border-[var(--mo-accent)]/40"
               >
-                <span className="truncate text-sm font-medium text-[#1e3348]">
+                <span className="truncate text-sm font-medium text-[var(--mo-text)]">
                   {t.lead_name || t.title || `#${t.id}`}
                 </span>
                 {(t.unread_count ?? 0) > 0 ? (
-                  <span className="shrink-0 rounded-full bg-[#2d6a5a] px-2 py-0.5 text-[11px] font-bold text-[var(--mo-text)]">
+                  <span className="shrink-0 rounded-full bg-[#2d6a5a] px-2 py-0.5 text-[11px] font-bold text-white">
                     {t.unread_count}
                   </span>
                 ) : null}

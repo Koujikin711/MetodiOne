@@ -143,12 +143,12 @@ export function LoginPage() {
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#e8f0f7] text-[#2f5f85] shadow-sm">
             <LayoutDashboard className="h-8 w-8" />
           </div>
-          <h1 className="mt-6 text-3xl font-semibold tracking-tight text-[#1e3348]">MetodiOne</h1>
-          <p className="mt-2 max-w-xs text-sm text-[#5c6b7a]">
+          <h1 className="mt-6 text-3xl font-semibold tracking-tight text-[var(--mo-text)]">MetodiOne</h1>
+          <p className="mt-2 max-w-xs text-sm text-[var(--mo-text-muted)]">
             {mode === "login" ? "Войдите в рабочую панель" : "Создайте аккаунт для доступа"}
           </p>
           {mode === "login" ? (
-            <p className="mt-2 max-w-sm text-[11px] leading-relaxed text-[#8a7f6e]">
+            <p className="mt-2 max-w-sm text-[11px] leading-relaxed text-[var(--mo-text-muted)]">
               Клиника: <span className="font-medium">admin</span> / пароль клиники. Продажи:{" "}
               <span className="font-medium">admin</span> / D711711 — только продажи и KPI, без онлайн-записи.
             </p>
@@ -170,7 +170,7 @@ export function LoginPage() {
             }}
           >
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-[#5c6b7a]" htmlFor="email">
+              <label className="text-xs font-semibold uppercase tracking-wider text-[var(--mo-text-muted)]" htmlFor="email">
                 {mode === "login" ? "Логин или email" : "Email"}
               </label>
               <input
@@ -192,7 +192,7 @@ export function LoginPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-[#5c6b7a]" htmlFor="password">
+              <label className="text-xs font-semibold uppercase tracking-wider text-[var(--mo-text-muted)]" htmlFor="password">
                 Пароль
               </label>
               <div className="relative mt-2">
@@ -214,7 +214,7 @@ export function LoginPage() {
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[#5c6b7a]"
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[var(--mo-text-muted)]"
                   aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
                   aria-pressed={showPassword}
                   onClick={() => {
@@ -228,7 +228,7 @@ export function LoginPage() {
             </div>
             {companyChoices.length > 0 ? (
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-[#5c6b7a]" htmlFor="company">
+                <label className="text-xs font-semibold uppercase tracking-wider text-[var(--mo-text-muted)]" htmlFor="company">
                   Пространство CRM
                 </label>
                 <select
@@ -249,7 +249,7 @@ export function LoginPage() {
             ) : null}
             {mode === "register" ? (
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-[#5c6b7a]" htmlFor="role">
+                <label className="text-xs font-semibold uppercase tracking-wider text-[var(--mo-text-muted)]" htmlFor="role">
                   Роль
                 </label>
                 <select
@@ -274,7 +274,7 @@ export function LoginPage() {
           </form>
           <button
             type="button"
-            className="mt-4 w-full text-center text-sm text-[#5c6b7a] underline-offset-2 hover:underline"
+            className="mt-4 w-full text-center text-sm text-[var(--mo-text-muted)] underline-offset-2 hover:underline"
             onClick={() => {
               setMode((m) => (m === "login" ? "register" : "login"));
               setError(null);

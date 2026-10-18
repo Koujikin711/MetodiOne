@@ -44,8 +44,8 @@ export function ForcePasswordPage() {
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#e8f0f7] text-[#2f5f85] shadow-sm">
             <LayoutDashboard className="h-8 w-8" />
           </div>
-          <h1 className="mt-6 text-2xl font-semibold tracking-tight text-[#1e3348]">Смена пароля</h1>
-          <p className="mt-2 max-w-sm text-sm text-[#5c6b7a]">
+          <h1 className="mt-6 text-2xl font-semibold tracking-tight text-[var(--mo-text)]">Смена пароля</h1>
+          <p className="mt-2 max-w-sm text-sm text-[var(--mo-text-muted)]">
             По политике безопасности нужно задать новый пароль, прежде чем открывать остальные разделы.
           </p>
         </div>
@@ -60,7 +60,7 @@ export function ForcePasswordPage() {
             }}
           >
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-[#5c6b7a]" htmlFor="old-pw">
+              <label className="text-xs font-semibold uppercase tracking-wider text-[var(--mo-text-muted)]" htmlFor="old-pw">
                 Текущий пароль
               </label>
               <input
@@ -73,7 +73,7 @@ export function ForcePasswordPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-[#5c6b7a]" htmlFor="new-pw">
+              <label className="text-xs font-semibold uppercase tracking-wider text-[var(--mo-text-muted)]" htmlFor="new-pw">
                 Новый пароль
               </label>
               <input
@@ -86,7 +86,7 @@ export function ForcePasswordPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-[#5c6b7a]" htmlFor="new-pw2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-[var(--mo-text-muted)]" htmlFor="new-pw2">
                 Повтор нового пароля
               </label>
               <input

@@ -44,17 +44,17 @@ export function BillingTariffPage() {
 
   if (companyId == null) {
     return (
-      <div className="mo-section mx-auto max-w-lg p-8 text-center text-[#5c6b7a]">
+      <div className="mo-section mx-auto max-w-lg p-8 text-center text-[var(--mo-text-muted)]">
         Не выбрана компания в контексте. Войдите заново или переключите компанию.
       </div>
     );
   }
 
   if (q.isLoading) {
-    return <p className="text-sm text-[#5c6b7a]">Загрузка…</p>;
+    return <p className="text-sm text-[var(--mo-text-muted)]">Загрузка…</p>;
   }
   if (q.isError || !q.data) {
-    return <p className="text-sm text-[#9b3d3d]">{(q.error as Error)?.message ?? "Не удалось загрузить статус"}</p>;
+    return <p className="text-sm text-[var(--mo-danger)]">{(q.error as Error)?.message ?? "Не удалось загрузить статус"}</p>;
   }
 
   const s = q.data;
@@ -98,7 +98,7 @@ export function BillingTariffPage() {
       {s.billing_status === "demo_expired" ? (
         <div className="mo-section border-[#c9b07a]/50 bg-[#faf5eb] text-sm">
           <p className="font-semibold text-[#1e3348]">Демо-период завершён</p>
-          <p className="mt-2 text-[#5c6b7a]">
+          <p className="mt-2 text-[var(--mo-text-muted)]">
             Выберите тариф ниже, чтобы продолжить работу в MetodiOne. После выбора с вами свяжется администратор
             платформы для подтверждения оплаты и включения доступа.
           </p>
@@ -107,9 +107,9 @@ export function BillingTariffPage() {
 
       {s.billing_status === "payment_pending" ? (
         <div className="mo-section border-[var(--mo-accent)]/30 bg-[var(--mo-accent-soft)] text-sm">
-          <p className="font-semibold text-[#1e3348]">Ожидается подтверждение оплаты</p>
-          <p className="mt-2 text-[#5c6b7a]">
-            Выбран тариф: <span className="font-medium text-[#1e3348]">{s.pending_tariff_plan_name ?? "—"}</span>. Доступ к
+          <p className="font-semibold text-[var(--mo-text)]">Ожидается подтверждение оплаты</p>
+          <p className="mt-2 text-[var(--mo-text-muted)]">
+            Выбран тариф: <span className="font-medium text-[var(--mo-text)]">{s.pending_tariff_plan_name ?? "—"}</span>. Доступ к
             CRM возобновится после проверки оплаты администратором. При необходимости вы можете выбрать другой тариф
             ниже (заявка обновится).
           </p>

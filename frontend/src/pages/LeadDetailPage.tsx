@@ -1167,7 +1167,7 @@ export function LeadDetailPage() {
               <p className="mt-4 text-sm lux-caption">Ищем свободные слоты…</p>
             ) : null}
             {moveAvailableDaysQuery.isError && (
-              <p className="mt-4 text-sm text-[#6b1d2f]">
+              <p className="mt-4 text-sm text-[var(--mo-danger)]">
                 {(moveAvailableDaysQuery.error as Error).message ?? "Не удалось загрузить свободные слоты"}
               </p>
             )}
