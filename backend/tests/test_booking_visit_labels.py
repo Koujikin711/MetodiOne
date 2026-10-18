@@ -4,6 +4,7 @@ from app.services.booking_visit_labels import (
     CourseStreamSettings,
     _labels_for_client_group,
     compute_course_stream_labels,
+    visit_person_key,
 )
 
 
@@ -45,6 +46,20 @@ def test_gap_after_min_day_starts_new_stream():
     assert out[1].visit_label == "1:1"
     assert out[2].visit_label == "1:2"
     assert out[3].visit_label == "2:1"
+
+
+def test_same_phone_different_people_are_not_one_chain():
+    def norm(phone):
+        digits = "".join(ch for ch in (phone or "") if ch.isdigit())
+        return digits or None
+
+    phone = "+992900000111"
+    ali = visit_person_key(lead_id=None, patient_name="Махмудов Али", phone=phone, norm_phone=norm)
+    haticha = visit_person_key(lead_id=None, patient_name="Махмудова Хатича", phone=phone, norm_phone=norm)
+    assert ali != haticha
+    same = visit_person_key(lead_id=5, patient_name="Другое имя", phone=phone, norm_phone=norm)
+    again = visit_person_key(lead_id=5, patient_name="Махмудов Али", phone="другой", norm_phone=norm)
+    assert same == again
 
 
 def test_no_show_does_not_advance_stream_only_completed_count():

@@ -1,6 +1,7 @@
 """Номера визитов и потоки курсов (формат поток:день, например 1:10).
 
 День в потоке — порядковый номер сеанса (1, 2, 3…), а не календарный день с начала курса.
+Цепочка одного человека: карточка лида, если она есть, иначе имя. Общий телефон разных людей не склеивает сеансы.
 В цепочку засчитываются только записи со статусом completed (клиент получил услугу).
 Записи booked получают плановый номер; no_show и cancelled не увеличивают счётчик.
 """
@@ -98,22 +99,35 @@ def compute_simple_visit_numbers(appointments: list[tuple[int, datetime]]) -> di
     return out
 
 
-def visit_group_key(
-    phone: str | None,
-    specialist_id: int,
+def visit_person_key(
     *,
+    lead_id: int | None,
+    patient_name: str | None,
+    phone: str | None,
     norm_phone,
-    direction_id: int | None = None,
-    use_direction: bool = False,
-) -> tuple[str, int]:
+) -> str:
+    """Сеанс считается по человеку. Карточка, если она есть, иначе имя. Телефон не склеивает разных людей."""
+    if lead_id is not None:
+        return f"lead:{int(lead_id)}"
+    name = " ".join((patient_name or "").strip().casefold().split())
+    if name:
+        return f"name:{name}"
     digits = norm_phone(phone) or ""
     if len(digits) >= 9:
         digits = digits[-9:]
-    elif not digits:
-        digits = (phone or "").strip().lower()
+    return f"phone:{digits}" if digits else "anon"
+
+
+def visit_group_key(
+    person_key: str,
+    specialist_id: int,
+    *,
+    direction_id: int | None = None,
+    use_direction: bool = False,
+) -> tuple[str, int]:
     if use_direction and direction_id is not None:
-        return (digits, int(direction_id))
-    return (digits, int(specialist_id))
+        return (person_key, int(direction_id))
+    return (person_key, int(specialist_id))
 
 
 def course_stream_settings_from_direction(d: BookingDirection) -> CourseStreamSettings:
@@ -208,6 +222,8 @@ async def visit_labels_for_ids(
                 BookingAppointment.specialist_id,
                 BookingAppointment.direction_id,
                 BookingAppointment.patient_phone,
+                BookingAppointment.patient_name,
+                BookingAppointment.lead_id,
                 BookingAppointment.start_at,
                 BookingAppointment.status,
             )
@@ -223,16 +239,21 @@ async def visit_labels_for_ids(
     completed_groups: dict[tuple[str, int], list[tuple[int, datetime]]] = defaultdict(list)
     booked_groups: dict[tuple[str, int], list[tuple[int, datetime]]] = defaultdict(list)
     group_meta: dict[tuple[str, int], tuple[bool, CourseStreamSettings]] = {}
-    for aid, sid, did, phone, start, status in rows:
+    for aid, sid, did, phone, patient_name, lead_id, start, status in rows:
         did_int = int(did) if did is not None else None
         d_cfg = dir_cfg.get(did_int, CourseStreamSettings()) if did_int else CourseStreamSettings()
         s_cfg = spec_cfg.get(int(sid), CourseStreamSettings())
         use_dir = bool(d_cfg.enabled)
         cfg = d_cfg if use_dir else s_cfg
-        key = visit_group_key(
-            phone,
-            int(sid),
+        person = visit_person_key(
+            lead_id=int(lead_id) if lead_id is not None else None,
+            patient_name=patient_name,
+            phone=phone,
             norm_phone=norm_phone,
+        )
+        key = visit_group_key(
+            person,
+            int(sid),
             direction_id=did_int,
             use_direction=use_dir,
         )
