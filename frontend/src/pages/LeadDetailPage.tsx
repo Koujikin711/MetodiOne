@@ -223,6 +223,7 @@ export function LeadDetailPage() {
     queryFn: () => apiFetch<BookingViewerContext>("/api/booking/viewer-context"),
   });
   const canEditBooking = role !== "expert" || Boolean(bookingViewerQuery.data?.is_chief_expert);
+  const canMarkAttendance = canEditBooking && role !== "manager";
   const homeLink = role === "manager" || role === "admin" ? "/my-leads" : "/app";
   const homeLabel = role === "manager" || role === "admin" ? "Мои лиды" : "На главную";
 
@@ -911,7 +912,7 @@ export function LeadDetailPage() {
                               }
                             />
                           </div>
-                          {canEditBooking ? (
+                          {canMarkAttendance ? (
                             <div className="mt-3">
                               <BookingAttendancePanel
                                 status={a.status}

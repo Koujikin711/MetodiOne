@@ -212,6 +212,7 @@ export function OnlineBookingPage() {
     queryFn: () => apiFetch<BookingViewerContext>("/api/booking/viewer-context"),
   });
   const canEditBooking = !isExpert || Boolean(bookingViewerQuery.data?.is_chief_expert);
+  const canMarkAttendance = canEditBooking && currentRole !== "manager";
   const canEditDirectionStreams =
     currentRole === "owner" || currentRole === "admin" || currentRole === "administrator";
   /** Возврат оплаты: admin / administrator / owner. */
@@ -1357,8 +1358,8 @@ export function OnlineBookingPage() {
                 showSessionInsteadOfTime={showSessionInsteadOfTime}
                 canEditNotes={canEditBooking}
                 onAppointmentNoteClick={canEditBooking ? onAppointmentNoteClick : undefined}
-                canToggleComplete={canEditBooking}
-                onAppointmentCompleteToggle={canEditBooking ? onAppointmentCompleteToggle : undefined}
+                canToggleComplete={canMarkAttendance}
+                onAppointmentCompleteToggle={canMarkAttendance ? onAppointmentCompleteToggle : undefined}
               />
               {gridAppointmentsQuery.isLoading && (
                 <p className="mt-3 text-sm lux-caption">Загрузка записей…</p>
@@ -2036,7 +2037,7 @@ export function OnlineBookingPage() {
                       )}
                     </td>
                     <td className="booking-journal-col-status">
-                      {canEditBooking ? (
+                      {canMarkAttendance ? (
                         <select
                           value={a.status}
                           onChange={(e) => {
@@ -2195,7 +2196,7 @@ export function OnlineBookingPage() {
                   }
                 />
               </div>
-              {canEditBooking ? (
+              {canMarkAttendance ? (
                 <BookingAttendancePanel
                   status={apptDetail.status}
                   disabled={statusMutation.isPending}
