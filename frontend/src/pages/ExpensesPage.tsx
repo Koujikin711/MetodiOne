@@ -74,6 +74,7 @@ type ExpenseRow = {
   brief_category: string | null;
   source: string;
   expense_confirm?: string | null;
+  employee_user_id?: number | null;
 };
 
 function defaultYearMonth() {
@@ -344,17 +345,58 @@ function expenseCounts(row: ExpenseRow): boolean {
   return row.expense_confirm !== "pending" && row.expense_confirm !== "rejected";
 }
 
+type ExpenseDraft = {
+  txn_date: string;
+  expense: string;
+  bank: string;
+  basis: string;
+  counterparty: string;
+  phone: string;
+  via_person: string;
+  product_service: string;
+  article: string;
+  detail_category: string;
+  brief_category: string;
+  employee_user_id: string;
+  counts: boolean;
+};
+
+function draftFromRow(row: ExpenseRow): ExpenseDraft {
+  return {
+    txn_date: (row.txn_date || "").slice(0, 10),
+    expense: moneyInput(row.expense),
+    bank: row.bank || "",
+    basis: row.basis || "",
+    counterparty: row.counterparty || "",
+    phone: row.phone || "",
+    via_person: row.via_person || "",
+    product_service: row.product_service || "",
+    article: row.article || "",
+    detail_category: row.detail_category || "",
+    brief_category: row.brief_category || "Расход",
+    employee_user_id: row.employee_user_id ? String(row.employee_user_id) : "",
+    counts: expenseCounts(row),
+  };
+}
+
 function ExpenseConfirm({
   row,
   isOwner,
   pending,
   onDecide,
+  onEdit,
 }: {
   row: ExpenseRow;
   isOwner: boolean;
   pending: boolean;
   onDecide: (confirmed: boolean) => void;
+  onEdit?: () => void;
 }) {
+  const edit = isOwner && onEdit ? (
+    <button type="button" className="btn-secondary btn-table" onClick={onEdit}>
+      Править
+    </button>
+  ) : null;
   if (row.expense_confirm === "pending") {
     if (!isOwner) return <span className="text-[11px] text-amber-300">Ждёт владельца</span>;
     return (
@@ -365,12 +407,113 @@ function ExpenseConfirm({
         <button type="button" className="btn-secondary btn-table" disabled={pending} onClick={() => onDecide(false)}>
           Отклонить
         </button>
+        {edit}
       </span>
     );
   }
-  if (row.expense_confirm === "rejected") return <span className="text-[11px] text-[var(--mo-danger,#ef4444)]">Отклонён</span>;
-  if (row.expense_confirm === "confirmed") return <span className="text-[11px] text-[var(--mo-text-muted)]">Подтверждён</span>;
-  return <span className="text-[11px] text-[var(--mo-text-muted)]">—</span>;
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {row.expense_confirm === "rejected" ? (
+        <span className="text-[11px] text-[var(--mo-danger,#ef4444)]">Отклонён</span>
+      ) : row.expense_confirm === "confirmed" ? (
+        <span className="text-[11px] text-[var(--mo-text-muted)]">Подтверждён</span>
+      ) : (
+        <span className="text-[11px] text-[var(--mo-text-muted)]">—</span>
+      )}
+      {edit}
+    </span>
+  );
+}
+
+function ExpenseEditForm({
+  draft,
+  staff,
+  pending,
+  onChange,
+  onSave,
+  onClose,
+}: {
+  draft: ExpenseDraft;
+  staff: StaffCard[];
+  pending: boolean;
+  onChange: (next: ExpenseDraft) => void;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  const set = (patch: Partial<ExpenseDraft>) => onChange({ ...draft, ...patch });
+  return (
+    <div className="grid gap-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
+      <div className="grid gap-2 sm:grid-cols-4">
+        <label className="text-[11px] text-[var(--mo-text-muted)]">
+          Дата
+          <input className="mo-input mt-1" type="date" value={draft.txn_date} onChange={(e) => set({ txn_date: e.target.value })} />
+        </label>
+        <label className="text-[11px] text-[var(--mo-text-muted)]">
+          Сумма
+          <input className="mo-input mt-1" inputMode="decimal" value={draft.expense} onChange={(e) => set({ expense: e.target.value })} />
+        </label>
+        <label className="text-[11px] text-[var(--mo-text-muted)]">
+          Банк
+          <input className="mo-input mt-1" value={draft.bank} onChange={(e) => set({ bank: e.target.value })} />
+        </label>
+        <label className="text-[11px] text-[var(--mo-text-muted)]">
+          Статья
+          <input className="mo-input mt-1" value={draft.article} onChange={(e) => set({ article: e.target.value })} />
+        </label>
+        <label className="text-[11px] text-[var(--mo-text-muted)]">
+          Основание
+          <input className="mo-input mt-1" value={draft.basis} onChange={(e) => set({ basis: e.target.value })} />
+        </label>
+        <label className="text-[11px] text-[var(--mo-text-muted)]">
+          Кому
+          <input className="mo-input mt-1" value={draft.counterparty} onChange={(e) => set({ counterparty: e.target.value })} />
+        </label>
+        <label className="text-[11px] text-[var(--mo-text-muted)]">
+          Телефон
+          <input className="mo-input mt-1" value={draft.phone} onChange={(e) => set({ phone: e.target.value })} />
+        </label>
+        <label className="text-[11px] text-[var(--mo-text-muted)]">
+          Через кого
+          <input className="mo-input mt-1" value={draft.via_person} onChange={(e) => set({ via_person: e.target.value })} />
+        </label>
+        <label className="text-[11px] text-[var(--mo-text-muted)]">
+          Товар / услуга
+          <input className="mo-input mt-1" value={draft.product_service} onChange={(e) => set({ product_service: e.target.value })} />
+        </label>
+        <label className="text-[11px] text-[var(--mo-text-muted)]">
+          Подробно
+          <input className="mo-input mt-1" value={draft.detail_category} onChange={(e) => set({ detail_category: e.target.value })} />
+        </label>
+        <label className="text-[11px] text-[var(--mo-text-muted)]">
+          Кратко
+          <input className="mo-input mt-1" value={draft.brief_category} onChange={(e) => set({ brief_category: e.target.value })} />
+        </label>
+        <label className="text-[11px] text-[var(--mo-text-muted)]">
+          Сотрудник
+          <select className="mo-input mt-1" value={draft.employee_user_id} onChange={(e) => set({ employee_user_id: e.target.value })}>
+            <option value="">Не выбран</option>
+            {staff.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.full_name || `#${person.id}`}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <label className="flex items-center gap-2 text-sm text-[var(--mo-text)]">
+        <input type="checkbox" checked={draft.counts} onChange={(e) => set({ counts: e.target.checked })} />
+        Входит в итог месяца
+      </label>
+      <div className="flex gap-2">
+        <button type="button" className="btn-primary btn-table" disabled={pending} onClick={onSave}>
+          {pending ? "Сохранение…" : "Сохранить"}
+        </button>
+        <button type="button" className="btn-secondary btn-table" onClick={onClose}>
+          Закрыть
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function ExpensesPage() {
@@ -580,6 +723,41 @@ export function ExpensesPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<ExpenseDraft | null>(null);
+  const updateMutation = useMutation({
+    mutationFn: (body: { id: number; draft: ExpenseDraft }) =>
+      apiFetch<ExpenseRow>(`/api/finance/expenses/${body.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          txn_date: body.draft.txn_date,
+          expense: Number(String(body.draft.expense).replace(",", ".")),
+          bank: body.draft.bank || null,
+          basis: body.draft.basis || null,
+          counterparty: body.draft.counterparty || null,
+          phone: body.draft.phone || null,
+          via_person: body.draft.via_person || null,
+          product_service: body.draft.product_service || null,
+          article: body.draft.article || null,
+          detail_category: body.draft.detail_category || null,
+          brief_category: body.draft.brief_category || "Расход",
+          employee_user_id: body.draft.employee_user_id ? Number(body.draft.employee_user_id) : null,
+          counts: body.draft.counts,
+        }),
+      }),
+    onSuccess: () => {
+      toast.success("Расход исправлен");
+      setEditId(null);
+      setEditDraft(null);
+      void qc.invalidateQueries({ queryKey: ["finance-expenses"] });
+      void qc.invalidateQueries({ queryKey: ["finance-payroll"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const openEdit = (row: ExpenseRow) => {
+    setEditId(row.id);
+    setEditDraft(draftFromRow(row));
+  };
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -1001,9 +1179,25 @@ export function ExpensesPage() {
                           isOwner={isOwner}
                           pending={confirmMutation.isPending}
                           onDecide={(confirmed) => confirmMutation.mutate({ id: r.id, confirmed })}
+                          onEdit={() => openEdit(r)}
                         />
                       </div>
                     </div>
+                    {editId === r.id && editDraft ? (
+                      <div className="mt-2">
+                        <ExpenseEditForm
+                          draft={editDraft}
+                          staff={staffQuery.data ?? []}
+                          pending={updateMutation.isPending}
+                          onChange={setEditDraft}
+                          onSave={() => updateMutation.mutate({ id: r.id, draft: editDraft })}
+                          onClose={() => {
+                            setEditId(null);
+                            setEditDraft(null);
+                          }}
+                        />
+                      </div>
+                    ) : null}
                     <div className="expenses-month__card-grid">
                       {r.basis ? (
                         <div>
@@ -1084,9 +1278,27 @@ export function ExpensesPage() {
                             isOwner={isOwner}
                             pending={confirmMutation.isPending}
                             onDecide={(confirmed) => confirmMutation.mutate({ id: r.id, confirmed })}
+                            onEdit={() => openEdit(r)}
                           />
                         </td>
                       </tr>
+                      {editId === r.id && editDraft ? (
+                        <tr>
+                          <td colSpan={12}>
+                            <ExpenseEditForm
+                              draft={editDraft}
+                              staff={staffQuery.data ?? []}
+                              pending={updateMutation.isPending}
+                              onChange={setEditDraft}
+                              onSave={() => updateMutation.mutate({ id: r.id, draft: editDraft })}
+                              onClose={() => {
+                                setEditId(null);
+                                setEditDraft(null);
+                              }}
+                            />
+                          </td>
+                        </tr>
+                      ) : null}
                     ))}
                   </tbody>
                 </table>

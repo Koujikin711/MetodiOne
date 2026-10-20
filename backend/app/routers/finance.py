@@ -28,6 +28,7 @@ from app.schemas.finance_v2 import (
     FinanceDdsReportRead,
     FinanceExpenseCatalogRead,
     FinanceExpenseCreate,
+    FinanceExpenseUpdate,
     FinancePayrollAdjustmentWrite,
     FinancePayrollOrderWrite,
     FinancePayrollReport,
@@ -791,6 +792,67 @@ async def confirm_expense(
     row.expense_confirmed_by_user_id = int(current_user.id)
     await db.flush()
     if confirmed:
+        try:
+            from app.services.google_sheets_osv_push import push_pending_osv_rows
+
+            await push_pending_osv_rows(db, company_id, only_key=row.external_key)
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning("osv expense push failed: %s", exc)
+    await db.refresh(row)
+    return FinanceOsvRowRead.model_validate(row)
+
+
+def _clean(value: str | None) -> str | None:
+    cleaned = (value or "").strip()
+    return cleaned or None
+
+
+@router.patch("/expenses/{expense_id}", response_model=FinanceOsvRowRead)
+async def update_expense(
+    expense_id: int,
+    body: FinanceExpenseUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> FinanceOsvRowRead:
+    """Владелец правит уже записанный расход: сумму, дату, статью и входит ли он в итог."""
+    if not _owner_confirms_expenses(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Правит владелец")
+    await assert_finance_access(db, current_user)
+    row = await db.get(FinanceOsvRow, expense_id)
+    if row is None or row.company_id != company_id or Decimal(str(row.expense or 0)) == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Расход не найден")
+    if body.employee_user_id is not None:
+        person = await db.get(User, body.employee_user_id)
+        if person is None or person.company_id != company_id or not person.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Сотрудник не найден")
+    amount = Decimal(str(body.expense))
+    row.txn_date = body.txn_date
+    row.expense = amount
+    row.bank = _clean(body.bank)
+    row.basis = _clean(body.basis)
+    row.counterparty = _clean(body.counterparty)
+    row.phone = _clean(body.phone)
+    row.via_person = _clean(body.via_person)
+    row.product_service = _clean(body.product_service)
+    row.article = _clean(body.article)
+    row.detail_category = _clean(body.detail_category)
+    row.brief_category = _clean(body.brief_category) or "Расход"
+    row.employee_user_id = body.employee_user_id
+    if body.counts:
+        if amount > OWNER_EXPENSE_CONFIRM_FROM:
+            row.expense_confirm = "confirmed"
+            row.expense_confirmed_by_user_id = int(current_user.id)
+        else:
+            row.expense_confirm = None
+            row.expense_confirmed_by_user_id = None
+    else:
+        row.expense_confirm = "rejected"
+        row.expense_confirmed_by_user_id = int(current_user.id)
+    await db.flush()
+    if row.expense_confirm != "rejected":
         try:
             from app.services.google_sheets_osv_push import push_pending_osv_rows
 

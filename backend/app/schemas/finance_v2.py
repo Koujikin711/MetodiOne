@@ -180,3 +180,9 @@ class FinanceExpenseCreate(BaseModel):
     article: str | None = Field(default=None, max_length=128)
     detail_category: str | None = Field(default=None, max_length=128)
     brief_category: str | None = Field(default="Расход", max_length=64)
+
+
+class FinanceExpenseUpdate(FinanceExpenseCreate):
+    """Правка уже записанного расхода. counts=false снимает сумму с итога."""
+
+    counts: bool = True
