@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
+from app.services.chat_media_store import ensure_chat_media_room, is_no_space_error
 from app.services.wa_bridge_process import bridge_token, data_root
+
+logger = logging.getLogger(__name__)
 
 
 def bridge_base() -> str:
@@ -125,11 +129,28 @@ def send_file(
     mime: str | None = None,
 ) -> tuple[bool, str | None, str | None, bool]:
     root = data_root()
-    root.mkdir(parents=True, exist_ok=True)
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        if is_no_space_error(exc):
+            logger.warning("wa outgoing dir not created: %s", exc)
+            return False, "Недостаточно места на диске для файла", None, False
+        raise
     safe = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in (filename or "file"))[:80] or "file"
     target = root / "wa-outgoing" / safe
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(file_bytes)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        ensure_chat_media_room(len(file_bytes) + 16 * 1024 * 1024)
+        target.write_bytes(file_bytes)
+    except OSError as exc:
+        if not is_no_space_error(exc):
+            raise
+        try:
+            target.unlink(missing_ok=True)
+        except OSError:
+            pass
+        logger.warning("wa outgoing file not saved: %s", exc)
+        return False, "Недостаточно места на диске для файла", None, False
     kind = "image" if (mime or "").startswith("image/") else "file"
     if (mime or "").startswith("audio/"):
         kind = "audio"

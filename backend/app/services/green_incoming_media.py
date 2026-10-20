@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ChatMessage, ChatThread, Integration, IntegrationProvider
 from app.services.audio_prepare import prepare_incoming_audio_for_playback
-from app.services.chat_media_store import local_media_exists, save_chat_media
+from app.services.chat_media_store import is_no_space_error, local_media_exists, save_chat_media
 from app.services.green_media_fetch import download_green_incoming_media, fetch_url_bytes
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,9 @@ async def _store_message_media(
     if _should_transcode_audio(message_type or msg.message_type, mime, file_name):
         out_bytes, out_name, out_mime = await prepare_incoming_audio_for_playback(content, file_name, mime)
     stored = save_chat_media(msg.id, out_name, out_bytes, mime=out_mime)
+    if not stored:
+        logger.warning("incoming chat media skipped msg_id=%s (disk full)", msg.id)
+        return False
     msg.media_url = stored
     if out_mime:
         msg.media_mime = out_mime
@@ -93,13 +96,21 @@ async def persist_incoming_green_media(
         logger.info("incoming green media not downloaded msg_id=%s chat=%s", msg.id, chat_id)
         return False
 
-    await _store_message_media(
-        msg,
-        content=content,
-        file_name=file_name,
-        mime=mime,
-        message_type=message_type or msg.message_type,
-    )
+    try:
+        stored = await _store_message_media(
+            msg,
+            content=content,
+            file_name=file_name,
+            mime=mime,
+            message_type=message_type or msg.message_type,
+        )
+    except OSError as exc:
+        if not is_no_space_error(exc):
+            raise
+        logger.warning("incoming green media disk full msg_id=%s chat=%s: %s", msg.id, chat_id, exc)
+        return False
+    if not stored:
+        return False
     await db.flush()
     return True
 
@@ -290,14 +301,24 @@ async def persist_incoming_green_media_if_needed(
     mt = (message_type or "text").strip().lower()
     if mt not in _MEDIA_TYPES and not download_url:
         return
-    await persist_incoming_green_media(
-        db,
-        msg=msg,
-        config=config,
-        chat_id=chat_id,
-        id_message=id_message,
-        download_url=download_url,
-        file_name=file_name,
-        media_mime=media_mime,
-        message_type=mt,
-    )
+    try:
+        await persist_incoming_green_media(
+            db,
+            msg=msg,
+            config=config,
+            chat_id=chat_id,
+            id_message=id_message,
+            download_url=download_url,
+            file_name=file_name,
+            media_mime=media_mime,
+            message_type=mt,
+        )
+    except OSError as exc:
+        if not is_no_space_error(exc):
+            raise
+        logger.warning(
+            "incoming green media disk full msg_id=%s chat=%s: %s",
+            getattr(msg, "id", None),
+            chat_id,
+            exc,
+        )

@@ -681,7 +681,9 @@ async def _send_green_file_message(
     db.add(msg)
     touch_thread_on_message(thread, "out")
     await db.flush()
-    msg.media_url = save_outgoing_chat_media(msg.id, filename, file_bytes)
+    stored_media = save_outgoing_chat_media(msg.id, filename, file_bytes)
+    if stored_media:
+        msg.media_url = stored_media
     if thread.company_id is not None:
         await advance_new_lead_after_manager_reply(
             db, company_id=int(thread.company_id), lead_id=thread.lead_id,

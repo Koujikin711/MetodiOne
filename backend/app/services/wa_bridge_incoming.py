@@ -162,14 +162,16 @@ async def handle_bridge_payload(db: AsyncSession, body: dict) -> dict:
         if _under_data(disk) and disk.is_file():
             blob = disk.read_bytes()
             if 0 < len(blob) <= 20 * 1024 * 1024:
-                msg.media_url = save_chat_media(
+                stored = save_chat_media(
                     msg.id,
                     str(body.get("fileName") or disk.name),
                     blob,
                     mime=str(body.get("mimeType") or "") or None,
                 )
-                msg.media_mime = str(body.get("mimeType") or "") or None
-                await db.flush()
+                if stored:
+                    msg.media_url = stored
+                    msg.media_mime = str(body.get("mimeType") or "") or None
+                    await db.flush()
     if lead.id is not None:
         try:
             await send_welcome_if_first_incoming(
