@@ -85,6 +85,14 @@ class ExtraServiceReportByClient(BaseModel):
     payout_total: Decimal
 
 
+class ExtraServiceReportByPayment(BaseModel):
+    payment_method: str
+    count: int
+    amount_total: Decimal
+    keep_total: Decimal
+    payout_total: Decimal
+
+
 class ExtraServiceReportOut(BaseModel):
     count: int
     amount_total: Decimal
@@ -92,3 +100,4 @@ class ExtraServiceReportOut(BaseModel):
     payout_total: Decimal
     by_type: list[ExtraServiceReportByType]
     by_client: list[ExtraServiceReportByClient]
+    by_payment: list[ExtraServiceReportByPayment] = []

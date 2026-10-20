@@ -59,6 +59,13 @@ type ExtraServiceReport = {
     keep_total: number | string;
     payout_total: number | string;
   }>;
+  by_payment?: Array<{
+    payment_method: string;
+    count: number;
+    amount_total: number | string;
+    keep_total: number | string;
+    payout_total: number | string;
+  }>;
 };
 
 const TABS: { id: Exclude<TabId, "settings">; label: string; shortLabel: string }[] = [
@@ -732,6 +739,36 @@ export function ExtraServicesPage() {
                   <div className="extra-services-kpi__value">{formatMoney(reportQuery.data.payout_total)}</div>
                 </div>
               </div>
+
+              <section className="extra-services-report-block">
+                <h2 className="extra-services-report-block__title">По кассам</h2>
+                <div className="extra-services-report-table-wrap">
+                  <table className="mo-table extra-services-report-table min-w-[520px]">
+                    <thead>
+                      <tr>
+                        <th>Касса</th>
+                        <th>Кол-во</th>
+                        <th>Сумма</th>
+                        <th>Клиника</th>
+                        <th>Партнёр</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(reportQuery.data.by_payment ?? []).map((r) => (
+                        <tr key={r.payment_method}>
+                          <td className="font-medium">{r.payment_method}</td>
+                          <td className="tabular-nums">{r.count}</td>
+                          <td className="tabular-nums whitespace-nowrap">{formatMoney(r.amount_total)}</td>
+                          <td className="tabular-nums whitespace-nowrap kpi-actual-value">
+                            {formatMoney(r.keep_total)}
+                          </td>
+                          <td className="tabular-nums whitespace-nowrap">{formatMoney(r.payout_total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
 
               <section className="extra-services-report-block">
                 <h2 className="extra-services-report-block__title">По услугам</h2>

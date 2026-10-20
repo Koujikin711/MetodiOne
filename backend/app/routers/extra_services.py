@@ -15,6 +15,7 @@ from app.database import get_db
 from app.models import ExtraServiceSale, ExtraServiceType, User, UserRole
 from app.schemas.extra_services import (
     ExtraServiceReportByClient,
+    ExtraServiceReportByPayment,
     ExtraServiceReportByType,
     ExtraServiceReportOut,
     ExtraServiceSaleCreate,
@@ -27,6 +28,8 @@ from app.schemas.extra_services import (
 router = APIRouter(prefix="/extra-services", tags=["extra-services"])
 
 _MONEY = Decimal("0.01")
+# Кассы формы «Доп услуги». В отчёте они всегда видны, даже с нулём.
+_CASHBOX_PRESETS = ("Касса", "ДС", "Алиф", "Эсхата")
 # Только главный (owner) и администратор (admin / administrator).
 _ACCESS_ROLES = (
     UserRole.owner,
@@ -47,6 +50,50 @@ def _assert_settings(user: CurrentUser) -> None:
 
 def _money(v: Decimal | float | int | str) -> Decimal:
     return Decimal(str(v)).quantize(_MONEY, rounding=ROUND_HALF_UP)
+
+
+def _cashbox_label(raw: str | None) -> str:
+    text = (raw or "").strip()
+    if not text:
+        return "Не указано"
+    for preset in _CASHBOX_PRESETS:
+        if text.casefold() == preset.casefold():
+            return preset
+    return text
+
+
+def cashbox_report_rows(
+    rows: list[tuple[str | None, int, Decimal | float | int | str, Decimal | float | int | str, Decimal | float | int | str]],
+) -> list[ExtraServiceReportByPayment]:
+    """Сводит оплаты по кассе. Касса, ДС, Алиф и Эсхата остаются в списке с нулём."""
+    found: dict[str, list] = {}
+    for raw_name, count, amount, keep, payout in rows:
+        label = _cashbox_label(raw_name)
+        bucket = found.setdefault(label, [0, Decimal("0"), Decimal("0"), Decimal("0")])
+        bucket[0] += int(count or 0)
+        bucket[1] += _money(amount or 0)
+        bucket[2] += _money(keep or 0)
+        bucket[3] += _money(payout or 0)
+    for preset in _CASHBOX_PRESETS:
+        found.setdefault(preset, [0, Decimal("0.00"), Decimal("0.00"), Decimal("0.00")])
+
+    def sort_key(label: str) -> tuple:
+        if label in _CASHBOX_PRESETS:
+            return (0, _CASHBOX_PRESETS.index(label), "")
+        if label == "Не указано":
+            return (2, 0, "")
+        return (1, 0, label.casefold())
+
+    return [
+        ExtraServiceReportByPayment(
+            payment_method=label,
+            count=int(bucket[0]),
+            amount_total=_money(bucket[1]),
+            keep_total=_money(bucket[2]),
+            payout_total=_money(bucket[3]),
+        )
+        for label, bucket in sorted(found.items(), key=lambda item: sort_key(item[0]))
+    ]
 
 
 def _validate_percents(keep: Decimal, payout: Decimal) -> None:
@@ -440,6 +487,23 @@ async def report(
         for r in by_client_rows
     ]
 
+    by_payment_rows = (
+        await db.execute(
+            select(
+                ExtraServiceSale.payment_method,
+                func.count(ExtraServiceSale.id),
+                func.coalesce(func.sum(ExtraServiceSale.amount), 0),
+                func.coalesce(func.sum(ExtraServiceSale.keep_amount), 0),
+                func.coalesce(func.sum(ExtraServiceSale.payout_amount), 0),
+            )
+            .where(and_(*filters))
+            .group_by(ExtraServiceSale.payment_method),
+        )
+    ).all()
+    by_payment = cashbox_report_rows(
+        [(r[0], int(r[1] or 0), r[2] or 0, r[3] or 0, r[4] or 0) for r in by_payment_rows],
+    )
+
     return ExtraServiceReportOut(
         count=count,
         amount_total=amount_total,
@@ -447,4 +511,5 @@ async def report(
         payout_total=payout_total,
         by_type=by_type,
         by_client=by_client,
+        by_payment=by_payment,
     )

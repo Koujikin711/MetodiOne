@@ -16,7 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, Fragment, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import { GripVertical } from "@/components/icons";
@@ -1260,7 +1260,8 @@ export function ExpensesPage() {
                   </thead>
                   <tbody>
                     {filtered.map((r) => (
-                      <tr key={r.id}>
+                      <Fragment key={r.id}>
+                      <tr>
                         <td className="tabular-nums whitespace-nowrap">{formatDateShort(r.txn_date)}</td>
                         <td className="tabular-nums whitespace-nowrap font-semibold">{money(r.expense)}</td>
                         <td>{r.bank || "—"}</td>
@@ -1299,6 +1300,7 @@ export function ExpensesPage() {
                           </td>
                         </tr>
                       ) : null}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
