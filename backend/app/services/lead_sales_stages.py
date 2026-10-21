@@ -15,8 +15,12 @@ from app.models import (
     Deal,
     Integration,
     Lead,
+    LeadAuditEvent,
+    PatientPurchase,
     Pipeline,
     PipelineStage,
+    SalesKpiManualSale,
+    SystemAuditEvent,
 )
 from app.services.stage_delete_checks import stage_delete_block_reason
 
@@ -145,6 +149,51 @@ def _latest_activity(*dts: datetime | None) -> datetime | None:
     return max(stamps) if stamps else None
 
 
+# Неявка / отмена одной записи. «Другая запись» — ещё booked или completed.
+_LOST_APPOINTMENT_STATUSES = frozenset({"cancelled", "no_show", "lost"})
+_OTHER_APPOINTMENT_STATUSES = frozenset({"booked", "completed"})
+_ACTIVE_COURSE_KINDS = frozenset({"course_15", "main_course", "protocol"})
+_LIVE_STAGE_NAMES = frozenset(
+    {
+        "",
+        "Новый лид",
+        "Новый",
+        "В обработке",
+        "В работе",
+        "Не ответили",
+        "В ожидании",
+        "Удачно",
+    }
+)
+
+
+def visit_loss_is_genuine_refusal(
+    appointment_statuses: set[str],
+    *,
+    has_payment: bool,
+    has_active_course: bool,
+) -> bool:
+    """Отказ по визиту — только если это единственный след и нет оплаты и курса.
+
+    Другая запись (записан / пришёл), любая оплата или активный курс/протокол
+    удерживают лида. Одна неявка или отмена без этого — настоящий отказ.
+    """
+    statuses = {str(s).strip().lower() for s in appointment_statuses if s}
+    if not statuses.intersection(_LOST_APPOINTMENT_STATUSES):
+        return False
+    if statuses.intersection(_OTHER_APPOINTMENT_STATUSES):
+        return False
+    if has_payment or has_active_course:
+        return False
+    return True
+
+
+def _details_move_to_refusal(details: str | None) -> bool:
+    """Последняя ручная смена стадии кнопкой «Статус» в «Отказ»."""
+    text = details or ""
+    return any(mark in text for mark in ("-> Отказ", "→ Отказ", "->Отказ", "→Отказ"))
+
+
 def _is_warehouse_source(source: str | None) -> bool:
     src = (source or "").strip().lower()
     if not src:
@@ -180,12 +229,19 @@ def classify_lead_stage_name(
     appointment_activity_at: datetime | None = None,
     archived_from_stage: str | None = None,
     now: datetime | None = None,
+    has_payment: bool = False,
+    has_active_course: bool = False,
+    refusal_reason: str | None = None,
+    manual_refusal: bool = False,
+    had_visit_refusal: bool = False,
 ) -> str:
     """
     «Удачно» / «Отказ» / «В ожидании» / «В работе» — только вручную (менеджер).
     Запись (booked/completed) НЕ двигает в «Удачно» — иначе тестовые и живые чаты
     сразу уезжают в успех при создании слота.
-    Отмена / неявка → «Отказ».
+    Неявка / отмена → «Отказ» только если нет другой записи, оплаты и активного курса.
+    Автоматический «Отказ» без причины снимается тем же пересчётом, когда визит
+    снова «записан» / «пришёл» или появилась защита. Ручной «Статус» не трогаем.
     Склад Bitrix/WhatsApp/GREEN API без свежей активности → Архив (не удалять).
     «Новый лид» только при свежем входящем (или только что созданном без чата).
     Ручные стадии без активности >45 дней → Архив.
@@ -199,18 +255,23 @@ def classify_lead_stage_name(
     clock = _as_utc(now) or datetime.now(UTC)
     activity = _latest_activity(last_message_at, appointment_activity_at, lead_created_at)
     closed_from = (archived_from_stage or "").strip() in CLOSED_OUTCOME_STAGE_NAMES
+    genuine_refusal = visit_loss_is_genuine_refusal(
+        statuses,
+        has_payment=has_payment,
+        has_active_course=has_active_course,
+    )
+    had_lost = had_visit_refusal or bool(statuses.intersection(_LOST_APPOINTMENT_STATUSES))
+    reasoned_refusal = bool((refusal_reason or "").strip()) or manual_refusal
+    # Автоматический отказ по визиту, который уже не единственный и без причины.
+    release_automatic_refusal = (
+        is_refusal_stage_name(cur)
+        and not reasoned_refusal
+        and had_lost
+        and not genuine_refusal
+    )
 
-    # Отмена / неявка → Отказ (пока лид ещё в «живой» воронке).
-    if statuses.intersection({"cancelled", "no_show", "lost"}) and cur in (
-        "",
-        "Новый лид",
-        "Новый",
-        "В обработке",
-        "В работе",
-        "Не ответили",
-        "В ожидании",
-        "Удачно",
-    ):
+    # Одинокая неявка / отмена → Отказ, пока лид в живой воронке.
+    if genuine_refusal and cur in _LIVE_STAGE_NAMES:
         return "Отказ"
 
     # booked / completed больше не форсят «Удачно» — исход только кнопкой «Статус».
@@ -255,7 +316,9 @@ def classify_lead_stage_name(
 
     # Ручные стадии (в т.ч. «В ожидании»): без активности >45 дней → Архив.
     # Не перетираем автоматом «В работе» → «В ожидании» по входящему.
-    if cur in MANAGER_SETTABLE_STAGE_NAMES:
+    # Автоматический «Отказ» без причины здесь не залипает: визит поправили
+    # или есть другая запись / оплата / курс — стадия считается заново ниже.
+    if cur in MANAGER_SETTABLE_STAGE_NAMES and not release_automatic_refusal:
         if activity is not None and not _is_recent(activity, now=clock):
             return ARCHIVE_STAGE_NAME
         return cur
@@ -446,6 +509,131 @@ async def ensure_sales_pipeline_chat_stages(
     return {str(s.name): int(s.id) for s in fresh if str(s.name) in SALES_STAGE_NAMES}
 
 
+async def _lead_ids_with_payment(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    lead_ids: list[int],
+) -> set[int]:
+    if not lead_ids:
+        return set()
+    found: set[int] = set()
+    queries = (
+        select(BookingAppointment.lead_id).where(
+            BookingAppointment.company_id == company_id,
+            BookingAppointment.lead_id.in_(lead_ids),
+            BookingAppointment.paid_amount > 0,
+        ),
+        select(Deal.lead_id).where(
+            Deal.company_id == company_id,
+            Deal.lead_id.in_(lead_ids),
+            Deal.paid_amount > 0,
+        ),
+        select(SalesKpiManualSale.lead_id).where(
+            SalesKpiManualSale.company_id == company_id,
+            SalesKpiManualSale.lead_id.in_(lead_ids),
+            SalesKpiManualSale.paid_amount > 0,
+        ),
+        select(PatientPurchase.lead_id).where(
+            PatientPurchase.company_id == company_id,
+            PatientPurchase.lead_id.in_(lead_ids),
+            PatientPurchase.paid_amount > 0,
+        ),
+    )
+    for query in queries:
+        rows = (await db.execute(query.distinct())).scalars().all()
+        found.update(int(x) for x in rows if x is not None)
+    return found
+
+
+async def _lead_ids_with_active_course(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    lead_ids: list[int],
+) -> set[int]:
+    if not lead_ids:
+        return set()
+    found: set[int] = set()
+    kpi_rows = (
+        await db.execute(
+            select(SalesKpiManualSale.lead_id)
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.lead_id.in_(lead_ids),
+                SalesKpiManualSale.status == "active",
+            )
+            .distinct(),
+        )
+    ).scalars().all()
+    found.update(int(x) for x in kpi_rows if x is not None)
+    purchase_rows = (
+        await db.execute(
+            select(PatientPurchase.lead_id)
+            .where(
+                PatientPurchase.company_id == company_id,
+                PatientPurchase.lead_id.in_(lead_ids),
+                PatientPurchase.product_kind.in_(tuple(_ACTIVE_COURSE_KINDS)),
+                PatientPurchase.status == "active",
+            )
+            .distinct(),
+        )
+    ).scalars().all()
+    found.update(int(x) for x in purchase_rows if x is not None)
+    return found
+
+
+async def _manual_status_refusal_ids(db: AsyncSession, lead_ids: list[int]) -> set[int]:
+    """Лиды, у которых последняя смена стадии — ручной переход в «Отказ»."""
+    if not lead_ids:
+        return set()
+    rows = (
+        await db.execute(
+            select(
+                LeadAuditEvent.lead_id,
+                LeadAuditEvent.created_at,
+                LeadAuditEvent.id,
+                LeadAuditEvent.details,
+            ).where(
+                LeadAuditEvent.lead_id.in_(lead_ids),
+                LeadAuditEvent.action == "status_changed",
+            ),
+        )
+    ).all()
+    latest: dict[int, tuple] = {}
+    for lid, created_at, event_id, details in rows:
+        if lid is None:
+            continue
+        key = (created_at or datetime.min.replace(tzinfo=UTC), int(event_id or 0))
+        prev = latest.get(int(lid))
+        if prev is None or key > prev[0]:
+            latest[int(lid)] = (key, details)
+    return {lid for lid, (_key, details) in latest.items() if _details_move_to_refusal(details)}
+
+
+async def _historical_visit_refusal_ids(db: AsyncSession, lead_ids: list[int]) -> set[int]:
+    """Запись когда-то отмечали неявкой или отменой, даже если статус потом поправили."""
+    if not lead_ids:
+        return set()
+    rows = (
+        await db.execute(
+            select(BookingAppointment.lead_id)
+            .join(
+                SystemAuditEvent,
+                SystemAuditEvent.entity_id == BookingAppointment.id,
+            )
+            .where(
+                BookingAppointment.lead_id.in_(lead_ids),
+                SystemAuditEvent.entity_type == "booking_appointment",
+                SystemAuditEvent.action == "appointment_status_updated",
+                SystemAuditEvent.details.in_(("status=no_show", "status=cancelled")),
+            )
+            .distinct(),
+        )
+    ).scalars().all()
+    return {int(x) for x in rows if x is not None}
+
+
 async def redistribute_pipeline_leads_by_activity(
     db: AsyncSession,
     *,
@@ -479,6 +667,7 @@ async def redistribute_pipeline_leads_by_activity(
                     Lead.created_at,
                     Lead.reactivated_at,
                     Lead.archived_from_stage,
+                    Lead.refusal_reason,
                 )
                 .where(
                     Lead.company_id == company_id,
@@ -499,6 +688,7 @@ async def redistribute_pipeline_leads_by_activity(
         id_to_created = {int(r[0]): r[3] for r in leads}
         id_to_reactivated = {int(r[0]): r[4] for r in leads}
         id_to_archived_from = {int(r[0]): (r[5] if r[5] is None else str(r[5])) for r in leads}
+        id_to_reason = {int(r[0]): (None if r[6] is None else str(r[6])) for r in leads}
 
         appt_rows = (
             await db.execute(
@@ -595,6 +785,16 @@ async def redistribute_pipeline_leads_by_activity(
         last_dir = {int(lid): str(direction) for lid, direction, _ in last_dir_rows if lid is not None}
         last_at = {int(lid): created for lid, _, created in last_dir_rows if lid is not None}
 
+        pay_ids = await _lead_ids_with_payment(db, company_id=company_id, lead_ids=lead_ids)
+        course_ids = await _lead_ids_with_active_course(db, company_id=company_id, lead_ids=lead_ids)
+        refusal_lids = [
+            lid
+            for lid in lead_ids
+            if is_refusal_stage_name(id_to_name.get(id_to_status[lid]))
+        ]
+        manual_refusal_ids = await _manual_status_refusal_ids(db, refusal_lids)
+        historical_lost_ids = await _historical_visit_refusal_ids(db, refusal_lids)
+
         moves: dict[int, list[int]] = defaultdict(list)
         archive_from: dict[int, str] = {}
         clear_archived_from: list[int] = []
@@ -614,6 +814,11 @@ async def redistribute_pipeline_leads_by_activity(
                 appointment_activity_at=appt_activity.get(lid),
                 archived_from_stage=id_to_archived_from.get(lid),
                 now=clock,
+                has_payment=lid in pay_ids,
+                has_active_course=lid in course_ids,
+                refusal_reason=id_to_reason.get(lid),
+                manual_refusal=lid in manual_refusal_ids,
+                had_visit_refusal=lid in historical_lost_ids,
             )
             target_sid = ids.get(target_name)
             if target_sid is None or target_sid == cur_sid:
@@ -745,6 +950,14 @@ async def reclassify_lead_by_activity(
     last_direction = str(last_msg[0]) if last_msg else None
     last_message_at = last_msg[1] if last_msg else None
 
+    pay_ids = await _lead_ids_with_payment(db, company_id=company_id, lead_ids=[lid])
+    course_ids = await _lead_ids_with_active_course(db, company_id=company_id, lead_ids=[lid])
+    manual_ids: set[int] = set()
+    historical_ids: set[int] = set()
+    if is_refusal_stage_name(cur_name):
+        manual_ids = await _manual_status_refusal_ids(db, [lid])
+        historical_ids = await _historical_visit_refusal_ids(db, [lid])
+
     target_name = classify_lead_stage_name(
         current_name=cur_name,
         appointment_statuses=appt_statuses,
@@ -758,6 +971,11 @@ async def reclassify_lead_by_activity(
         appointment_activity_at=appt_activity,
         archived_from_stage=getattr(lead, "archived_from_stage", None),
         now=clock,
+        has_payment=lid in pay_ids,
+        has_active_course=lid in course_ids,
+        refusal_reason=getattr(lead, "refusal_reason", None),
+        manual_refusal=lid in manual_ids,
+        had_visit_refusal=lid in historical_ids,
     )
     target_sid = ids.get(target_name)
     if target_sid is None or int(target_sid) == cur_sid:

@@ -71,7 +71,6 @@ from app.schemas.booking_upcoming import (
     UpcomingServicesTodayBreakdown,
 )
 from app.schemas.lead import LeadRead
-from app.services.automation import process_lead_automation
 from app.services.audit import write_audit_event
 from app.services.booking_responsible import can_be_booking_responsible
 from app.services import booking_upcoming_services as upcoming_svc
@@ -843,21 +842,6 @@ async def _stage_id_by_name(db: AsyncSession, name: str, pipeline_id: int | None
     return None
 
 
-async def _sync_lead_to_stage_name(db: AsyncSession, lead_id: int, stage_name: str) -> None:
-    lead = await db.get(Lead, lead_id)
-    if lead is None:
-        return
-    # Чтобы не путаться при multi-pipeline, ищем стадию внутри pipeline лида
-    await db.refresh(lead, ["stage"])
-    pipeline_id = lead.stage.pipeline_id if lead.stage else None
-    sid = await _stage_id_by_name(db, stage_name, pipeline_id=pipeline_id)
-    if sid is None:
-        return
-    lead.status_id = sid
-    await db.flush()
-    await process_lead_automation(db, lead_id, sid)
-
-
 async def _sync_lead_after_booking_event(
     db: AsyncSession,
     *,
@@ -865,10 +849,17 @@ async def _sync_lead_after_booking_event(
     lead_id: int,
     event: Literal["booked", "completed", "lost"],
 ) -> None:
-    """Отмена / неявка → Отказ. «Удачно» только вручную (Статус в чате/CRM), не от записи."""
-    if event != "lost":
+    """Тот же пересчёт стадии, что входящий WhatsApp и старт сервера.
+
+    Неявка или отмена не ставят «Отказ», пока есть другая запись, оплата или
+    активный курс. Возврат в «записан» / «пришёл» снимает автоматический отказ
+    без причины. Ручной «Статус → Отказ» эта функция не откатывает.
+    """
+    if event not in ("booked", "completed", "lost"):
         return
-    await _sync_lead_to_stage_name(db, lead_id, "Отказ")
+    from app.services.lead_sales_stages import reclassify_lead_by_activity
+
+    await reclassify_lead_by_activity(db, company_id=company_id, lead_id=lead_id)
 
 
 @router.get("/queue", response_model=list[LeadRead])
@@ -2926,11 +2917,6 @@ async def patch_appointment_status(
     company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
     await _assert_expert_readonly_for_booking(db, current_user)
-    if current_user.role == UserRole.manager and body.status in ("completed", "no_show"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Явку отмечает администратор или владелец",
-        )
     a = await db.get(BookingAppointment, appointment_id)
     if a is None or a.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
