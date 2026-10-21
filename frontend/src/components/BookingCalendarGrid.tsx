@@ -21,6 +21,7 @@ import {
   useState,
   type Dispatch,
   type DragEvent,
+  type ReactNode,
   type SetStateAction,
 } from "react";
 
@@ -34,6 +35,7 @@ import {
   ymdInBookingTz,
   zonedWallTimeToUtcMs,
 } from "@/lib/bookingTz";
+import { bookedCountInClockHour, MAX_BOOKINGS_PER_SPECIALIST_HOUR } from "@/lib/bookingCapacity";
 import { visitDisplayTitle, visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
@@ -409,6 +411,10 @@ function SortableSpecialistColumn({
               top: `${topPct}%`,
               height: `${(SLOT_STEP_MIN / 60 / totalHours) * 100}%`,
             } as const;
+            const hour = Math.floor(minuteOfDay / 60);
+            const hourCount = bookedCountInClockHour(specAppointments, hour);
+            const hourFull = hourCount >= MAX_BOOKINGS_PER_SPECIALIST_HOUR;
+            const minuteLabel = `${hour}:${String(minuteOfDay % 60).padStart(2, "0")}`;
             const dragHandlers =
               onMoveAppointment != null
                 ? {
@@ -424,8 +430,9 @@ function SortableSpecialistColumn({
                     },
                   }
                 : {};
-            if (allowSlotClick && onSlotClick) {
-              return (
+            const nodes: ReactNode[] = [];
+            if (!hourFull && allowSlotClick && onSlotClick) {
+              nodes.push(
                 <button
                   key={`slot-${spec.id}-${minuteOfDay}`}
                   type="button"
@@ -439,22 +446,43 @@ function SortableSpecialistColumn({
                   {...dragHandlers}
                   className="absolute inset-x-1 z-[5] cursor-pointer rounded-md border border-transparent transition-colors hover:border-indigo-500/35 hover:bg-indigo-500/10"
                   style={slotStyle}
-                  aria-label={`Свободный слот ${Math.floor(minuteOfDay / 60)}:${String(minuteOfDay % 60).padStart(2, "0")}, ${spec.full_name}`}
-                />
+                  aria-label={`Свободный слот ${minuteLabel}, ${spec.full_name}`}
+                />,
               );
-            }
-            if (onMoveAppointment) {
-              return (
+              if (hourCount > 0) {
+                nodes.push(
+                  <button
+                    key={`overbook-${spec.id}-${minuteOfDay}`}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSlotClick({
+                        specialistId: spec.id,
+                        directionId: spec.direction_id,
+                        minuteOfDay,
+                      });
+                    }}
+                    className="absolute right-0.5 z-30 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold leading-none text-white shadow"
+                    style={{ top: `calc(${topPct}% + 1px)` }}
+                    title={`Ещё запись в этот час (${hourCount} из ${MAX_BOOKINGS_PER_SPECIALIST_HOUR})`}
+                    aria-label={`Ещё запись ${minuteLabel}, ${spec.full_name}`}
+                  >
+                    +
+                  </button>,
+                );
+              }
+            } else if (onMoveAppointment) {
+              nodes.push(
                 <div
                   key={`slot-drop-${spec.id}-${minuteOfDay}`}
                   {...dragHandlers}
                   className="absolute inset-x-1 z-[5]"
                   style={slotStyle}
                   aria-hidden
-                />
+                />,
               );
             }
-            return null;
+            return nodes;
           })}
 
         {specAppointments.map((a) => {
@@ -687,8 +715,8 @@ export function BookingCalendarGrid({
     return (
       <div className="rounded-2xl border border-dashed border-[var(--mo-border-strong)]/50 bg-white/30 px-6 py-16 text-center lux-caption">
         <p>
-          В сетке пока нет специалистов. Пригласите эксперта в разделе «Сотрудники» — колонка
-          появится здесь автоматически.
+          В сетке пока нет специалистов. Добавьте специалиста кнопкой в расписании — колонка
+          появится здесь.
         </p>
       </div>
     );

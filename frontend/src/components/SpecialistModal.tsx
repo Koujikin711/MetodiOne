@@ -134,6 +134,16 @@ export function SpecialistModal({
       setCourseStreamMinDay(10);
       setCourseStreamGapDays(10);
     }
+    // Направления приходят отдельным запросом: не сбрасывать уже введённое имя.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode, initial?.id]);
+
+  useEffect(() => {
+    if (!open) return;
+    setDirectionIds((prev) => {
+      if (prev.length) return prev;
+      return initialDirectionIds(mode === "edit" ? initial : null, visibleDirections);
+    });
   }, [open, mode, initial, visibleDirections]);
 
   useEffect(() => {
@@ -229,11 +239,12 @@ export function SpecialistModal({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <h2 id="specialist-modal-title" className="lux-subheading">
-          Редактировать специалиста
+          {mode === "add" ? "Добавить специалиста" : "Редактировать специалиста"}
         </h2>
         <p className="mt-1 text-xs mo-muted">
-          График в часовом поясе онлайн-записи. Новых — только через «Сотрудники» (эксперт).
-          Привязанного к сотруднику удаляйте увольнением там же.
+          {mode === "add"
+            ? "Строка сразу появится в расписании. Логин отсюда не создаётся."
+            : "График в часовом поясе онлайн-записи. Привязанного к сотруднику удаляйте увольнением в «Сотрудники»."}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-3">
@@ -470,7 +481,7 @@ export function SpecialistModal({
                 }
                 className="h-11 btn-primary"
               >
-                {isSubmitting ? "Сохранение…" : "Сохранить"}
+                {isSubmitting ? "Сохранение…" : mode === "add" ? "Добавить" : "Сохранить"}
               </button>
             </div>
             {mode === "edit" && onDelete ? (

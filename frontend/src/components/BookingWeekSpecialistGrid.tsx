@@ -28,6 +28,7 @@ import {
   weekdayMon0InBookingTz,
   ymdInBookingTz,
 } from "@/lib/bookingTz";
+import { bookedCountInClockHour, MAX_BOOKINGS_PER_SPECIALIST_HOUR } from "@/lib/bookingCapacity";
 import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 export const MAX_BOOKINGS_PER_SPECIALIST_DAY = 15;
@@ -56,6 +57,7 @@ type Props = {
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: WeekSlotClickPayload) => void;
   onEditSpecialist?: (s: BookingSpecialist) => void;
+  onAddSpecialist?: () => void;
   onReorderSpecialists?: (orderedIds: number[]) => void;
   showSessionInsteadOfTime?: boolean;
   canEditNotes?: boolean;
@@ -142,7 +144,7 @@ function appointmentStartMinute(a: BookingAppointment): number {
 }
 
 type DayRow =
-  | { kind: "slot"; minute: number }
+  | { kind: "slot"; minute: number; closed?: boolean }
   | { kind: "appt"; appointment: BookingAppointment };
 
 function buildDayRows(
@@ -158,16 +160,20 @@ function buildDayRows(
   const rows: DayRow[] = [];
 
   for (const minute of slots) {
-    const match = dayAppts.find((a) => {
+    const matches = dayAppts.filter((a) => {
       if (usedApptIds.has(a.id)) return false;
       const startMin = appointmentStartMinute(a);
       return startMin >= minute && startMin < minute + step;
     });
-    if (match) {
+    for (const match of matches) {
       usedApptIds.add(match.id);
       rows.push({ kind: "appt", appointment: match });
-    } else {
+    }
+    const inHour = bookedCountInClockHour(dayAppts, Math.floor(minute / 60));
+    if (inHour < MAX_BOOKINGS_PER_SPECIALIST_HOUR) {
       rows.push({ kind: "slot", minute });
+    } else if (matches.length === 0) {
+      rows.push({ kind: "slot", minute, closed: true });
     }
   }
 
@@ -433,7 +439,7 @@ function SortableSpecialistRow({
                       );
                     }
 
-                    const slotCanAdd = Boolean(onSlotClick && !full);
+                    const slotCanAdd = Boolean(onSlotClick && !full && !row.closed);
                     return (
                       <button
                         key={`slot-${key}-${row.minute}`}
@@ -455,7 +461,13 @@ function SortableSpecialistRow({
                             ? "cursor-pointer border-[var(--mo-border-strong)]/55 transition hover:border-indigo-500/40 hover:bg-indigo-500/[0.06]"
                             : "cursor-default border-[var(--mo-border)]/40 opacity-60",
                         ].join(" ")}
-                        title={slotCanAdd ? `Записать на ${formatMinuteLabel(row.minute)}` : undefined}
+                        title={
+                          row.closed
+                            ? `В этот час уже ${MAX_BOOKINGS_PER_SPECIALIST_HOUR} записи`
+                            : slotCanAdd
+                              ? `Записать на ${formatMinuteLabel(row.minute)}`
+                              : undefined
+                        }
                       >
                         <span className="text-[9px] font-semibold tabular-nums leading-none mo-muted sm:text-[10px]">
                           {formatMinuteLabel(row.minute)}
@@ -481,6 +493,7 @@ export function BookingWeekSpecialistGrid({
   onAppointmentClick,
   onSlotClick,
   onEditSpecialist,
+  onAddSpecialist,
   onReorderSpecialists,
   showSessionInsteadOfTime,
   canEditNotes,
@@ -540,10 +553,14 @@ export function BookingWeekSpecialistGrid({
   if (sortedSpecs.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-[var(--mo-border-strong)]/50 px-6 py-16 text-center lux-caption">
-        <p>
-          В сетке пока нет специалистов. Пригласите эксперта в разделе «Сотрудники» — строка
-          появится здесь автоматически.
-        </p>
+        <p>В сетке пока нет специалистов.</p>
+        {onAddSpecialist ? (
+          <button type="button" className="btn-primary mt-4 px-4 py-2 text-sm" onClick={onAddSpecialist}>
+            Добавить специалиста
+          </button>
+        ) : (
+          <p className="mt-2">Пригласите эксперта в разделе «Сотрудники» — строка появится здесь автоматически.</p>
+        )}
       </div>
     );
   }
@@ -592,11 +609,20 @@ export function BookingWeekSpecialistGrid({
     <div className="booking-week-grid">
       <div className="booking-week-grid__inner">
         <div className="sticky top-0 z-30 flex w-full border-b border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/98 backdrop-blur-sm">
-          <div className="booking-week-grid__spec-col flex items-end px-2 py-2">
+          <div className="booking-week-grid__spec-col flex items-end justify-between gap-2 px-2 py-2">
             <div>
               <p className="text-xs font-semibold text-[var(--mo-text)]">Специалисты</p>
               <p className="text-[10px] mo-muted">до {MAX_BOOKINGS_PER_SPECIALIST_DAY} / день</p>
             </div>
+            {onAddSpecialist ? (
+              <button
+                type="button"
+                className="mb-0.5 rounded-lg border border-[var(--mo-border-strong)] px-2 py-1 text-[11px] font-semibold text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
+                onClick={onAddSpecialist}
+              >
+                + Добавить
+              </button>
+            ) : null}
           </div>
           <div className="flex min-w-0 flex-1">{headerCells}</div>
         </div>
@@ -610,6 +636,18 @@ export function BookingWeekSpecialistGrid({
         ) : (
           rows
         )}
+        {onAddSpecialist ? (
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 border-t border-dashed border-[var(--mo-border)] px-3 py-3 text-left text-sm font-medium text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
+            onClick={onAddSpecialist}
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
+              +
+            </span>
+            Добавить специалиста
+          </button>
+        ) : null}
       </div>
       <p className="border-t border-[var(--mo-border)] px-3 py-2 text-[11px] mo-muted">
         Клик по ячейке дня — новая запись. Имя специалиста — развернуть или свернуть. На телефоне

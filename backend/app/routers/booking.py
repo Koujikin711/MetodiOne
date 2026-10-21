@@ -112,6 +112,7 @@ router = APIRouter(
 )
 
 MAX_BOOKINGS_PER_SPECIALIST_DAY = 15
+MAX_BOOKINGS_PER_SPECIALIST_HOUR = 4
 
 
 async def resolve_default_booking_direction_id(db: AsyncSession, company_id: int) -> int:
@@ -708,6 +709,16 @@ def _date_ymd_in_booking_tz(dt: datetime) -> str:
     return dt.astimezone(tz).strftime("%Y-%m-%d")
 
 
+def _hour_bounds_utc_for_booking_tz(start_at: datetime) -> tuple[datetime, datetime]:
+    """Час начала записи по часам клиники: 10:15 и 10:45 — один час."""
+    start_at = _ensure_utc(start_at)
+    tz = ZoneInfo(settings.booking_timezone)
+    local = start_at.astimezone(tz)
+    hour_start = local.replace(minute=0, second=0, microsecond=0)
+    hour_end = hour_start + timedelta(hours=1)
+    return hour_start.astimezone(UTC), hour_end.astimezone(UTC)
+
+
 def _add_booking_calendar_days(start_at: datetime, days: int) -> datetime:
     tz = ZoneInfo(settings.booking_timezone)
     local = start_at.astimezone(tz)
@@ -733,32 +744,61 @@ async def _count_booked_appointments_on_day(
     return int(r.scalar_one())
 
 
+async def _count_booked_in_hour(
+    db: AsyncSession,
+    specialist_id: int,
+    start_at: datetime,
+    *,
+    exclude_appointment_id: int | None = None,
+) -> int:
+    hour_start, hour_end = _hour_bounds_utc_for_booking_tz(start_at)
+    filters = [
+        BookingAppointment.specialist_id == specialist_id,
+        BookingAppointment.status == "booked",
+        BookingAppointment.start_at >= hour_start,
+        BookingAppointment.start_at < hour_end,
+    ]
+    if exclude_appointment_id is not None:
+        filters.append(BookingAppointment.id != exclude_appointment_id)
+    r = await db.execute(
+        select(func.count()).select_from(BookingAppointment).where(*filters),
+    )
+    return int(r.scalar_one())
+
+
+async def _assert_hour_has_room(
+    db: AsyncSession,
+    specialist_id: int,
+    start_at: datetime,
+    *,
+    exclude_appointment_id: int | None = None,
+) -> None:
+    booked_in_hour = await _count_booked_in_hour(
+        db,
+        specialist_id,
+        start_at,
+        exclude_appointment_id=exclude_appointment_id,
+    )
+    if booked_in_hour >= MAX_BOOKINGS_PER_SPECIALIST_HOUR:
+        date_ymd = _date_ymd_in_booking_tz(start_at)
+        local = start_at.astimezone(ZoneInfo(settings.booking_timezone))
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"В этот час уже {MAX_BOOKINGS_PER_SPECIALIST_HOUR} записи: "
+                f"{date_ymd} {local.strftime('%H')}:00"
+            ),
+        )
+
+
 async def _assert_slot_available(
     db: AsyncSession,
     specialist: BookingSpecialist,
     specialist_id: int,
     start_at: datetime,
-    duration_min: int,
 ) -> None:
     _assert_slot_in_specialist_schedule(specialist, start_at)
-    end_at = start_at + timedelta(minutes=duration_min)
-    overlap = await db.execute(
-        select(BookingAppointment.id)
-        .where(
-            BookingAppointment.specialist_id == specialist_id,
-            BookingAppointment.status == "booked",
-            BookingAppointment.end_at > start_at,
-            BookingAppointment.start_at < end_at,
-        )
-        .limit(1),
-    )
-    if overlap.scalar_one_or_none() is not None:
-        date_ymd = _date_ymd_in_booking_tz(start_at)
-        local = start_at.astimezone(ZoneInfo(settings.booking_timezone))
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Слот занят: {date_ymd} {local.strftime('%H:%M')}",
-        )
+    await _assert_hour_has_room(db, specialist_id, start_at)
     day_ymd = _date_ymd_in_booking_tz(start_at)
     booked_count = await _count_booked_appointments_on_day(db, specialist_id, day_ymd)
     if booked_count >= MAX_BOOKINGS_PER_SPECIALIST_DAY:
@@ -1239,6 +1279,74 @@ async def list_specialists(
     ]
 
 
+async def create_booking_specialist(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    current_user: User,
+    body: BookingSpecialistCreate,
+) -> BookingSpecialistRead:
+    """Колонка в расписании, без логина. Вход в программу по-прежнему через «Сотрудники»."""
+    await _assert_expert_readonly_for_booking(db, current_user)
+    if body.direction_ids:
+        direction_ids = [int(x) for x in body.direction_ids]
+    elif body.direction_id is not None:
+        direction_ids = [int(body.direction_id)]
+    else:
+        direction_ids = [await resolve_default_booking_direction_id(db, company_id)]
+    dirs = (
+        await db.execute(select(BookingDirection).where(BookingDirection.id.in_(direction_ids)))
+    ).scalars().all()
+    if any(is_admin_only_booking_direction_name(d.name) for d in dirs) and not _can_book_admin_package(
+        current_user.role
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="«Курс» и «Протокол» может назначать только администратор / владелец",
+        )
+    mx = await db.scalar(
+        select(func.coalesce(func.max(BookingSpecialist.sort_order), -1)).where(
+            BookingSpecialist.company_id == company_id,
+        ),
+    )
+    spec = BookingSpecialist(
+        company_id=company_id,
+        full_name=body.full_name.strip(),
+        direction_id=direction_ids[0],
+        phone=(body.phone or "").strip() or None,
+        specialization=(body.specialization or "").strip() or None,
+        is_active=True,
+        sort_order=int(mx if mx is not None else -1) + 1,
+        slot_duration_min=body.slot_duration_min,
+        work_start_hour=body.work_start_hour,
+        work_end_hour=body.work_end_hour,
+        work_weekdays=list(body.work_weekdays),
+        crm_user_id=None,
+    )
+    db.add(spec)
+    await db.flush()
+    _apply_course_stream_fields(spec, body.model_dump())
+    try:
+        saved_ids = await set_specialist_directions(
+            db,
+            specialist=spec,
+            direction_ids=direction_ids,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    await write_audit_event(
+        db,
+        entity_type="specialist",
+        entity_id=spec.id,
+        action="specialist_created",
+        current_user=current_user,
+        details=f"full_name={spec.full_name}, direction_id={spec.direction_id}",
+    )
+    await db.refresh(spec)
+    primary = await db.get(BookingDirection, spec.direction_id)
+    return _specialist_read(spec, primary.name if primary else None, saved_ids or [int(spec.direction_id)])
+
+
 @router.post("/specialists", response_model=BookingSpecialistRead, status_code=status.HTTP_201_CREATED)
 async def create_specialist(
     body: BookingSpecialistCreate,
@@ -1246,13 +1354,11 @@ async def create_specialist(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> BookingSpecialistRead:
-    await _assert_expert_readonly_for_booking(db, current_user)
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail=(
-            "Специалистов нельзя добавлять из онлайн-записи. "
-            "Пригласите эксперта в «Сотрудники» — он появится в сетке автоматически."
-        ),
+    return await create_booking_specialist(
+        db,
+        company_id=company_id,
+        current_user=current_user,
+        body=body,
     )
 
 
@@ -2230,7 +2336,7 @@ async def create_appointment(
     # Без сеансов: пакет — стоимость один раз, доплаты суммируются в первую запись.
     start_times = [_add_booking_calendar_days(start_at, offset) for offset in range(consecutive_days)]
     for slot_start in start_times:
-        await _assert_slot_available(db, specialist, body.specialist_id, slot_start, duration_min)
+        await _assert_slot_available(db, specialist, body.specialist_id, slot_start)
     if (
         current_user.role == UserRole.manager
         and float(body.paid_amount or 0) > 0
@@ -2612,20 +2718,12 @@ async def move_appointment(
     _assert_slot_in_specialist_schedule(specialist, start_at)
     duration_min = _appointment_duration_minutes(specialist, direction)
     end_at = start_at + timedelta(minutes=duration_min)
-
-    overlap = await db.execute(
-        select(BookingAppointment.id)
-        .where(
-            BookingAppointment.id != appt.id,
-            BookingAppointment.specialist_id == specialist.id,
-            BookingAppointment.status == "booked",
-            BookingAppointment.end_at > start_at,
-            BookingAppointment.start_at < end_at,
-        )
-        .limit(1),
+    await _assert_hour_has_room(
+        db,
+        specialist.id,
+        start_at,
+        exclude_appointment_id=appt.id,
     )
-    if overlap.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже занят")
 
     appt.specialist_id = specialist.id
     appt.direction_id = move_direction_id

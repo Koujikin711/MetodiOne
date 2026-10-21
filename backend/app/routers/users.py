@@ -12,6 +12,7 @@ from app.routers.booking import (
     _apply_course_stream_fields,
     _assert_expert_readonly_for_booking,
     _specialist_read,
+    create_booking_specialist,
     remove_booking_specialist,
 )
 from app.schemas.booking import BookingSpecialistRead
@@ -29,12 +30,11 @@ async def create_specialist_user(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> BookingSpecialistRead:
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail=(
-            "Специалистов онлайн-записи нельзя создавать здесь. "
-            "Пригласите эксперта в разделе «Сотрудники» — колонка в сетке появится автоматически."
-        ),
+    return await create_booking_specialist(
+        db,
+        company_id=company_id,
+        current_user=current_user,
+        body=body,
     )
 
 

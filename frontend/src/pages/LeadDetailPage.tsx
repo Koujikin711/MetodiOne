@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import toast from "react-hot-toast";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
+import { bookedCountInClockHour, MAX_BOOKINGS_PER_SPECIALIST_HOUR } from "@/lib/bookingCapacity";
 import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { isReferralService } from "@/lib/referralService";
@@ -155,14 +156,8 @@ export function LeadDetailPage() {
     const busy = appointments.filter((a) => a.status === "booked" && a.id !== ignoreAppointmentId);
     const out: number[] = [];
     for (let m = workStartMin; m + durationMin <= workEndMin; m += SLOT_STEP_MIN) {
-      const startMs = zonedWallTimeToUtcMs(dateYmd, Math.floor(m / 60), m % 60);
-      const endMs = startMs + durationMin * 60_000;
-      const overlapped = busy.some((a) => {
-        const aStart = new Date(a.start_at).getTime();
-        const aEnd = new Date(a.end_at).getTime();
-        return aEnd > startMs && aStart < endMs;
-      });
-      if (!overlapped) out.push(m);
+      const inHour = bookedCountInClockHour(busy, Math.floor(m / 60));
+      if (inHour < MAX_BOOKINGS_PER_SPECIALIST_HOUR) out.push(m);
     }
     return out;
   }
