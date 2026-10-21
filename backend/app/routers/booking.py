@@ -2917,6 +2917,11 @@ async def patch_appointment_status(
     company_id: CurrentCompanyId,
 ) -> BookingAppointmentRead:
     await _assert_expert_readonly_for_booking(db, current_user)
+    if current_user.role == UserRole.manager and body.status in ("completed", "no_show"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Явку отмечает администратор или владелец",
+        )
     a = await db.get(BookingAppointment, appointment_id)
     if a is None or a.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
