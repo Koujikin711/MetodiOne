@@ -9,6 +9,7 @@ from app.services.lead_sales_stages import (
     is_refusal_stage_name,
     resolve_stage_name_aliases,
     sales_stage_name_for_key,
+    visit_loss_is_genuine_refusal,
 )
 
 
@@ -360,4 +361,104 @@ def test_classify_lead_stage_name():
             now=now,
         )
         == "Удачно"
+    )
+
+
+def test_one_missed_visit_does_not_refuse_a_working_client():
+    """Неявка или отмена одной записи не закрывает лида, пока он ещё в работе."""
+    assert visit_loss_is_genuine_refusal({"no_show"}, has_payment=False, has_active_course=False)
+    assert not visit_loss_is_genuine_refusal(
+        {"no_show", "booked"}, has_payment=False, has_active_course=False,
+    )
+    assert not visit_loss_is_genuine_refusal(
+        {"cancelled", "completed"}, has_payment=False, has_active_course=False,
+    )
+    assert not visit_loss_is_genuine_refusal({"no_show"}, has_payment=True, has_active_course=False)
+    assert not visit_loss_is_genuine_refusal({"cancelled"}, has_payment=False, has_active_course=True)
+
+    # Другая запись, оплата или курс — стадия не прыгает в «Отказ».
+    assert (
+        classify_lead_stage_name(
+            current_name="Удачно",
+            appointment_statuses={"no_show", "booked"},
+            has_outbound=True,
+            last_direction="out",
+        )
+        == "Удачно"
+    )
+    assert (
+        classify_lead_stage_name(
+            current_name="В обработке",
+            appointment_statuses={"cancelled"},
+            has_outbound=True,
+            last_direction="out",
+            has_payment=True,
+        )
+        == "В обработке"
+    )
+    assert (
+        classify_lead_stage_name(
+            current_name="В обработке",
+            appointment_statuses={"no_show"},
+            has_outbound=True,
+            last_direction="in",
+            has_active_course=True,
+        )
+        == "В обработке"
+    )
+    # Одинокая неявка без оплаты и курса — по-прежнему отказ.
+    assert (
+        classify_lead_stage_name(
+            current_name="В обработке",
+            appointment_statuses={"no_show"},
+            has_outbound=True,
+            last_direction="out",
+        )
+        == "Отказ"
+    )
+
+    # Визит вернули в «пришёл»: автоматический отказ без причины снимается пересчётом.
+    assert (
+        classify_lead_stage_name(
+            current_name="Отказ",
+            appointment_statuses={"completed"},
+            has_outbound=True,
+            last_direction="out",
+            had_visit_refusal=True,
+        )
+        == "В обработке"
+    )
+    # Ручная кнопка «Статус» и заполненная причина остаются в «Отказ».
+    assert (
+        classify_lead_stage_name(
+            current_name="Отказ",
+            appointment_statuses={"completed", "booked"},
+            has_outbound=True,
+            last_direction="out",
+            had_visit_refusal=True,
+            manual_refusal=True,
+        )
+        == "Отказ"
+    )
+    assert (
+        classify_lead_stage_name(
+            current_name="Отказ",
+            appointment_statuses={"booked"},
+            has_outbound=True,
+            last_direction="in",
+            had_visit_refusal=True,
+            refusal_reason="не смогут оплатить",
+        )
+        == "Отказ"
+    )
+    # Карточка в «Отказ» без следа неявки (её закрыли не визитом) не вытаскивается.
+    assert (
+        classify_lead_stage_name(
+            current_name="Отказ",
+            appointment_statuses={"completed"},
+            has_outbound=True,
+            last_direction="out",
+            has_payment=True,
+        )
+        == "Отказ"
     )
