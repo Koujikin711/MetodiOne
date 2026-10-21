@@ -31,8 +31,6 @@ import {
 import { bookedCountInClockHour, MAX_BOOKINGS_PER_SPECIALIST_HOUR } from "@/lib/bookingCapacity";
 import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
-export const MAX_BOOKINGS_PER_SPECIALIST_DAY = 15;
-
 const DEFAULT_WORK_WEEKDAYS = [0, 1, 2, 3, 4];
 
 const COLLAPSED_ROW_PX = 44;
@@ -126,7 +124,7 @@ function dayTimeSlots(spec: BookingSpecialist, dateYmd: string): number[] {
   const startMin = (spec.work_start_hour ?? 9) * 60;
   const endMin = (spec.work_end_hour ?? 18) * 60;
   const slots: number[] = [];
-  for (let m = startMin; m < endMin && slots.length < MAX_BOOKINGS_PER_SPECIALIST_DAY; m += step) {
+  for (let m = startMin; m < endMin; m += step) {
     slots.push(m);
   }
   return slots;
@@ -321,10 +319,9 @@ function SortableSpecialistRow({
         {weekDays.map((dateYmd) => {
           const key = countsKey(spec.id, dateYmd);
           const count = counts.get(key) ?? 0;
-          const full = count >= MAX_BOOKINGS_PER_SPECIALIST_DAY;
           const isToday = dateYmd === todayYmd;
           const dayAppts = (bySpecDay.get(key) ?? []).slice().sort((a, b) => a.start_at.localeCompare(b.start_at));
-          const canAdd = Boolean(onSlotClick && !full);
+          const canAdd = Boolean(onSlotClick);
 
           if (!expanded) {
             return (
@@ -341,18 +338,12 @@ function SortableSpecialistRow({
                     : "cursor-default",
                 ].join(" ")}
                 style={{ minHeight: COLLAPSED_ROW_PX }}
-                title={
-                  canAdd
-                    ? `Записать на ${dateYmd} (${count} из ${MAX_BOOKINGS_PER_SPECIALIST_DAY})`
-                    : full
-                      ? `Лимит ${MAX_BOOKINGS_PER_SPECIALIST_DAY} записей`
-                      : `Записей: ${count}`
-                }
+                title={canAdd ? `Записать на ${dateYmd}` : `Записей: ${count}`}
               >
                 <span
                   className={[
                     "text-lg font-semibold tabular-nums",
-                    full ? "text-red-600" : count > 0 ? "text-[var(--mo-text)]" : "mo-muted",
+                    count > 0 ? "text-[var(--mo-text)]" : "mo-muted",
                   ].join(" ")}
                 >
                   {count}
@@ -387,20 +378,10 @@ function SortableSpecialistRow({
                   : "",
               ].join(" ")}
               style={{ minHeight: EXPANDED_ROW_MIN_PX }}
-              title={
-                !workingDay
-                  ? "Выходной"
-                  : canAdd
-                    ? `Записать на ${dateYmd}`
-                    : full
-                      ? `Лимит ${MAX_BOOKINGS_PER_SPECIALIST_DAY}`
-                      : undefined
-              }
+              title={!workingDay ? "Выходной" : canAdd ? `Записать на ${dateYmd}` : undefined}
             >
               <div className="flex items-center justify-between gap-1">
-                <span className={`text-[10px] font-semibold tabular-nums ${full ? "text-red-600" : "mo-muted"}`}>
-                  {count}/{MAX_BOOKINGS_PER_SPECIALIST_DAY}
-                </span>
+                <span className="text-[10px] font-semibold tabular-nums mo-muted">{count}</span>
               </div>
               <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-visible">
                 {!workingDay ? (
@@ -439,7 +420,7 @@ function SortableSpecialistRow({
                       );
                     }
 
-                    const slotCanAdd = Boolean(onSlotClick && !full && !row.closed);
+                    const slotCanAdd = Boolean(onSlotClick && !row.closed);
                     return (
                       <button
                         key={`slot-${key}-${row.minute}`}
@@ -477,7 +458,6 @@ function SortableSpecialistRow({
                   })
                 ) : null}
               </div>
-              {full ? <p className="text-center text-[9px] text-red-500">Лимит {MAX_BOOKINGS_PER_SPECIALIST_DAY}</p> : null}
             </div>
           );
         })}
@@ -612,7 +592,6 @@ export function BookingWeekSpecialistGrid({
           <div className="booking-week-grid__spec-col flex items-end justify-between gap-2 px-2 py-2">
             <div>
               <p className="text-xs font-semibold text-[var(--mo-text)]">Специалисты</p>
-              <p className="text-[10px] mo-muted">до {MAX_BOOKINGS_PER_SPECIALIST_DAY} / день</p>
             </div>
             {onAddSpecialist ? (
               <button

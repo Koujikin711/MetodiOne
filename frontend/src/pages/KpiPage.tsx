@@ -87,32 +87,34 @@ function PaymentDecisions({
   canConfirm,
   pending,
   onDecide,
+  dense = false,
 }: {
   sale: SalesKpiManualSale;
   canConfirm: boolean;
   pending: boolean;
   onDecide: (saleId: number, paymentId: number, confirmed: boolean) => void;
+  dense?: boolean;
 }) {
   const rows = (sale.payments ?? []).filter((p) => (p.confirmation ?? "confirmed") !== "confirmed");
   if (!rows.length) return null;
   return (
-    <div className="mt-1 space-y-1">
+    <div className={dense ? "kpi-pay-decisions" : "mt-1 space-y-1"}>
       {rows.map((p) =>
         p.confirmation === "rejected" ? (
           <p key={p.id} className="text-[10px] text-[var(--mo-text-muted)]">
-            Оплаты не было · {formatMoney(num(p.amount))}
+            {dense ? "нет" : `Оплаты не было · ${formatMoney(num(p.amount))}`}
           </p>
         ) : canConfirm ? (
-          <div key={p.id} className="flex flex-col items-start gap-1">
-            <span className="text-[10px] text-amber-200">Ждёт: {formatMoney(num(p.amount))}</span>
-            <span className="flex flex-wrap gap-1">
+          <div key={p.id} className={dense ? "kpi-pay-decisions__row" : "flex flex-col items-start gap-1"}>
+            <span className="text-[10px] text-amber-200">{dense ? formatMoney(num(p.amount), { digits: 0 }) : `Ждёт: ${formatMoney(num(p.amount))}`}</span>
+            <span className="flex flex-nowrap gap-1">
               <button
                 type="button"
                 className="btn-primary px-2 py-1 text-[10px]"
                 disabled={pending}
                 onClick={() => onDecide(sale.id, p.id, true)}
               >
-                Оплата прошла
+                {dense ? "Да" : "Оплата прошла"}
               </button>
               <button
                 type="button"
@@ -120,7 +122,7 @@ function PaymentDecisions({
                 disabled={pending}
                 onClick={() => onDecide(sale.id, p.id, false)}
               >
-                Оплаты не было
+                {dense ? "Нет" : "Оплаты не было"}
               </button>
             </span>
           </div>
@@ -293,10 +295,11 @@ function SaleManagerCell({
   const cardId = sale.lead_manager_user_id ?? null;
   const differs = cardId != null && cardId !== sale.manager_user_id;
   return (
-    <div className="flex min-w-[9.5rem] flex-col gap-1">
+    <div className="kpi-course-manager-cell">
       <select
-        className="mo-input min-w-[9.5rem] py-1 text-xs"
+        className="mo-input kpi-course-manager"
         aria-label={`Менеджер продажи ${sale.client_name}`}
+        title="Прошлые оплаты остаются. Новые пойдут выбранному."
         value={sale.manager_user_id}
         disabled={pending}
         onChange={(e) => {
@@ -312,20 +315,56 @@ function SaleManagerCell({
         ))}
         {!known ? <option value={sale.manager_user_id}>{sale.manager_name}</option> : null}
       </select>
-      <span className="text-[10px] leading-snug mo-muted">Прошлые оплаты остаются. Новые пойдут выбранному.</span>
       {differs ? (
         <button
           type="button"
-          className="text-left text-[10px] leading-snug text-[var(--mo-accent-hover)] underline"
+          className="kpi-course-card-link"
+          title={sale.lead_manager_name || "менеджер лида"}
           disabled={pending}
           onClick={onUseLead}
         >
-          На карточку: {sale.lead_manager_name || "менеджер лида"}
+          карточка
         </button>
-      ) : cardId ? (
-        <span className="text-[10px] leading-snug mo-muted">как у карточки</span>
       ) : null}
     </div>
+  );
+}
+
+function SaleNumberSelect({
+  value,
+  options,
+  label,
+  pending,
+  onPick,
+}: {
+  value: number | null | undefined;
+  options: number[];
+  label: string;
+  pending: boolean;
+  onPick: (next: number) => void;
+}) {
+  const current = value != null && Number(value) > 0 ? Number(value) : "";
+  const known = current !== "" && options.includes(Number(current));
+  return (
+    <select
+      className="mo-input kpi-course-flow"
+      aria-label={label}
+      value={current}
+      disabled={pending}
+      onChange={(e) => {
+        const next = Number(e.target.value);
+        if (!next || next === Number(current)) return;
+        onPick(next);
+      }}
+    >
+      {current === "" ? <option value="">—</option> : null}
+      {options.map((n) => (
+        <option key={n} value={n}>
+          {n}
+        </option>
+      ))}
+      {!known && current !== "" ? <option value={current}>{current}</option> : null}
+    </select>
   );
 }
 
@@ -394,6 +433,24 @@ function matchesKpiListQuery(query: string, parts: Array<string | number | null 
     if (digHay.includes(digQ)) return true;
   }
   return false;
+}
+
+function sheetMoney(value: string | number | null | undefined): string {
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(num(value));
+}
+
+function formatSaleDtCompact(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mi = String(d.getMinutes()).padStart(2, "0");
+    return `${dd}.${mm} ${hh}:${mi}`;
+  } catch {
+    return iso;
+  }
 }
 
 function formatSaleDt(iso: string): string {
@@ -978,6 +1035,24 @@ export function KpiPage() {
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-service-earnings"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const changeSaleFlow = useMutation({
+    mutationFn: async (body: { id: number; groupNo: number; streamNo: number }) => {
+      await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${body.id}/flow`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          group_no: body.groupNo,
+          stream_no: body.streamNo,
+        }),
+      });
+    },
+    onSuccess: () => {
+      toast.success("Поток и этап сохранены");
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["curator-journal"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1723,8 +1798,42 @@ export function KpiPage() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{s.client_name}</p>
                     <p className="truncate text-[11px] text-[var(--mo-text-muted)]">
-                      {s.plan_item_name} · {groupLabel(s.group_no)} · {streamLabel(s.stream_no)}
+                      {s.plan_item_name}
                     </p>
+                    {isAdminOrOwner ? (
+                      <div className="mt-1 flex gap-1">
+                        <SaleNumberSelect
+                          value={s.group_no}
+                          options={KPI_GROUP_OPTIONS}
+                          label={`Поток ${s.client_name}`}
+                          pending={changeSaleFlow.isPending}
+                          onPick={(groupNo) =>
+                            changeSaleFlow.mutate({
+                              id: s.id,
+                              groupNo,
+                              streamNo: Number(s.stream_no) > 0 ? Number(s.stream_no) : 1,
+                            })
+                          }
+                        />
+                        <SaleNumberSelect
+                          value={s.stream_no}
+                          options={KPI_STREAM_OPTIONS}
+                          label={`Этап ${s.client_name}`}
+                          pending={changeSaleFlow.isPending}
+                          onPick={(streamNo) =>
+                            changeSaleFlow.mutate({
+                              id: s.id,
+                              groupNo: Number(s.group_no) > 0 ? Number(s.group_no) : 1,
+                              streamNo,
+                            })
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <p className="truncate text-[11px] text-[var(--mo-text-muted)]">
+                        {groupLabel(s.group_no)} · {streamLabel(s.stream_no)}
+                      </p>
+                    )}
                   </div>
                   <span className="shrink-0 text-[11px] tabular-nums text-[var(--mo-text-muted)]">
                     {s.sold_at
@@ -1822,8 +1931,25 @@ export function KpiPage() {
             {manualQuery.isLoading ? <p className="text-sm lux-caption">Загрузка…</p> : null}
           </ul>
 
-          <div className="hidden overflow-x-auto pt-2 sm:block">
-            <table className="kpi-data-table min-w-[1100px] text-sm">
+          <p className="kpi-course-note hidden sm:block">
+            Прошлые оплаты остаются у прежнего менеджера. Новая доплата идёт выбранному.
+          </p>
+          <div className="kpi-course-scroll hidden sm:block">
+            <table className="kpi-data-table kpi-course-sheet">
+              <colgroup>
+                <col className="kpi-course-col-date" />
+                <col className="kpi-course-col-product" />
+                <col className="kpi-course-col-num" />
+                <col className="kpi-course-col-num" />
+                <col className="kpi-course-col-manager" />
+                <col className="kpi-course-col-client" />
+                <col className="kpi-course-col-phone" />
+                <col className="kpi-course-col-sum" />
+                <col className="kpi-course-col-money" />
+                <col className="kpi-course-col-money" />
+                <col className="kpi-course-col-kpi" />
+                <col className="kpi-course-col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Дата</th>
@@ -1843,12 +1969,48 @@ export function KpiPage() {
               <tbody>
                 {filteredManualSales.map((s) => (
                   <tr key={s.id}>
-                    <td className="whitespace-nowrap tabular-nums">
-                      {s.sold_at ? formatSaleDt(s.sold_at) : "—"}
+                    <td className="tabular-nums">
+                      {s.sold_at ? formatSaleDtCompact(s.sold_at) : "—"}
                     </td>
-                    <td>{s.plan_item_name}</td>
-                    <td className="whitespace-nowrap">{groupLabel(s.group_no)}</td>
-                    <td className="whitespace-nowrap">{streamLabel(s.stream_no)}</td>
+                    <td title={s.plan_item_name}>{s.plan_item_name}</td>
+                    <td>
+                      {isAdminOrOwner ? (
+                        <SaleNumberSelect
+                          value={s.group_no}
+                          options={KPI_GROUP_OPTIONS}
+                          label={`Поток ${s.client_name}`}
+                          pending={changeSaleFlow.isPending}
+                          onPick={(groupNo) =>
+                            changeSaleFlow.mutate({
+                              id: s.id,
+                              groupNo,
+                              streamNo: Number(s.stream_no) > 0 ? Number(s.stream_no) : 1,
+                            })
+                          }
+                        />
+                      ) : (
+                        <span className="tabular-nums">{s.group_no && Number(s.group_no) > 0 ? s.group_no : "—"}</span>
+                      )}
+                    </td>
+                    <td>
+                      {isAdminOrOwner ? (
+                        <SaleNumberSelect
+                          value={s.stream_no}
+                          options={KPI_STREAM_OPTIONS}
+                          label={`Этап ${s.client_name}`}
+                          pending={changeSaleFlow.isPending}
+                          onPick={(streamNo) =>
+                            changeSaleFlow.mutate({
+                              id: s.id,
+                              groupNo: Number(s.group_no) > 0 ? Number(s.group_no) : 1,
+                              streamNo,
+                            })
+                          }
+                        />
+                      ) : (
+                        <span className="tabular-nums">{s.stream_no && Number(s.stream_no) > 0 ? s.stream_no : "—"}</span>
+                      )}
+                    </td>
                     <td>
                       {isAdminOrOwner ? (
                         <SaleManagerCell
@@ -1862,11 +2024,11 @@ export function KpiPage() {
                         s.manager_name
                       )}
                     </td>
-                    <td className="font-medium">{s.client_name}</td>
-                    <td className="tabular-nums">{s.client_phone}</td>
-                    <td className="tabular-nums whitespace-nowrap">
+                    <td className="font-medium" title={s.client_name}>{s.client_name}</td>
+                    <td className="tabular-nums" title={s.client_phone}>{s.client_phone}</td>
+                    <td className="tabular-nums kpi-course-pay">
                       <div className="kpi-sum-pay">
-                        <span className="kpi-pay-pack__sum">{formatMoney(num(s.service_amount))}</span>
+                        <span className="kpi-pay-pack__sum">{sheetMoney(s.service_amount)}</span>
                         {s.status === "active" && num(s.debt_amount) > 0 ? (
                           <ManualPayPack
                             showPaid={false}
@@ -1887,9 +2049,10 @@ export function KpiPage() {
                         ) : null}
                       </div>
                     </td>
-                    <td className="tabular-nums whitespace-nowrap">
-                      {formatMoney(num(s.paid_amount))}
+                    <td className="tabular-nums">
+                      {sheetMoney(s.paid_amount)}
                       <PaymentDecisions
+                        dense
                         sale={s}
                         canConfirm={isAdminOrOwner}
                         pending={confirmPayMutation.isPending}
@@ -1900,7 +2063,7 @@ export function KpiPage() {
                     </td>
                     <td>
                       <span className={["kpi-debt", num(s.debt_amount) <= 0 ? "is-zero" : ""].filter(Boolean).join(" ")}>
-                        {formatMoney(num(s.debt_amount))}
+                        {sheetMoney(s.debt_amount)}
                       </span>
                     </td>
                     <td>
@@ -1918,13 +2081,13 @@ export function KpiPage() {
                       ) : null}
                     </td>
                     <td>
-                      <div className="flex flex-col gap-1">
+                      <div className="kpi-course-actions">
                         {s.lead_id ? (
-                          <span className="text-[10px] tabular-nums mo-muted">Lead #{s.lead_id}</span>
+                          <span className="tabular-nums mo-muted" title={`Lead #${s.lead_id}`}>#{s.lead_id}</span>
                         ) : (role === "owner" || role === "super_owner") ? (
                           <button
                             type="button"
-                            className="text-left text-[11px] text-[var(--mo-accent-hover)] underline"
+                            className="kpi-course-card-link"
                             disabled={linkLeadMutation.isPending}
                             onClick={() => {
                               const raw = window.prompt("Lead ID для явной привязки (без phone-merge):");
@@ -1933,7 +2096,7 @@ export function KpiPage() {
                               linkLeadMutation.mutate({ id: s.id, leadId });
                             }}
                           >
-                            Привязать Lead
+                            Привязать
                           </button>
                         ) : (
                           <span className="text-[10px] mo-muted">без Lead</span>
@@ -2335,7 +2498,7 @@ function SalesReportSection({
       <section className="mo-section px-3 py-2">
         <h2 className="text-[15px] font-semibold text-[var(--mo-text)]">Заработок · {data.year_month}</h2>
         <p className="mt-0.5 text-[11px] lux-caption">
-          Новых — курс открыт один раз. Привёл по курсу — каждый этап в свой месяц. По протоколу — после полной оплаты, и если принёс больше цены, в сумму входит вся оплата. По остальным услугам — полная оплата минус возврат. Итого{" "}
+          Новых — курс открыт один раз тем, кто его привёл. Прошлые оплаты старого менеджера не переходят. Сбор дебиторки считается новому, только если эта оплата подтверждена и записана на него. Привёл по курсу — каждый его этап в свой месяц. По протоколу — после полной оплаты, и если принёс больше цены, в сумму входит вся оплата. По остальным услугам — полная оплата минус возврат. Итого{" "}
           {formatMoney(num(data.total_earning))}
         </p>
       </section>

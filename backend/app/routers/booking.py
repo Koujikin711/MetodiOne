@@ -110,7 +110,6 @@ router = APIRouter(
     tags=["booking"],
 )
 
-MAX_BOOKINGS_PER_SPECIALIST_DAY = 15
 MAX_BOOKINGS_PER_SPECIALIST_HOUR = 4
 
 
@@ -724,25 +723,6 @@ def _add_booking_calendar_days(start_at: datetime, days: int) -> datetime:
     return (local + timedelta(days=days)).astimezone(UTC)
 
 
-async def _count_booked_appointments_on_day(
-    db: AsyncSession,
-    specialist_id: int,
-    date_ymd: str,
-) -> int:
-    day_start, day_end = _day_bounds_utc_for_booking_tz(date_ymd)
-    r = await db.execute(
-        select(func.count())
-        .select_from(BookingAppointment)
-        .where(
-            BookingAppointment.specialist_id == specialist_id,
-            BookingAppointment.status == "booked",
-            BookingAppointment.start_at >= day_start,
-            BookingAppointment.start_at < day_end,
-        ),
-    )
-    return int(r.scalar_one())
-
-
 async def _count_booked_in_hour(
     db: AsyncSession,
     specialist_id: int,
@@ -798,13 +778,6 @@ async def _assert_slot_available(
 ) -> None:
     _assert_slot_in_specialist_schedule(specialist, start_at)
     await _assert_hour_has_room(db, specialist_id, start_at)
-    day_ymd = _date_ymd_in_booking_tz(start_at)
-    booked_count = await _count_booked_appointments_on_day(db, specialist_id, day_ymd)
-    if booked_count >= MAX_BOOKINGS_PER_SPECIALIST_DAY:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Лимит записей на день ({MAX_BOOKINGS_PER_SPECIALIST_DAY}): {day_ymd}",
-        )
 
 
 def _assert_slot_in_specialist_schedule(s: BookingSpecialist, start_at: datetime) -> None:

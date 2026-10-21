@@ -289,6 +289,13 @@ class SalesKpiManualSaleLinkLeadPatch(BaseModel):
     lead_id: int = Field(..., ge=1)
 
 
+class SalesKpiManualSaleFlowPatch(BaseModel):
+    """Поток — group_no (1…20). Этап — stream_no (1…10)."""
+
+    group_no: int = Field(..., ge=1, le=20)
+    stream_no: int = Field(..., ge=1, le=10)
+
+
 class SalesKpiManualSaleManagerPatch(BaseModel):
     """Кому пойдут новые оплаты курса или протокола.
 

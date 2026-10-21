@@ -224,14 +224,17 @@ async def load_brought_paid_detail(
     pipeline_id: int,
     ym: date,
 ) -> tuple[dict[tuple[int, int, int, Decimal], Decimal], dict[tuple[int, int, int, Decimal], int]]:
-    """Полная оплата и число новых визитов месяца.
+    """Оплаты визитов месяца и число новых.
 
-    В сумму входит визит, только когда оплата закрыла цену. Частичная оплата
-    остаётся в числе новых продаж, но не в заработке. Возврат вычитается в своём месяце.
+    Курс и Курс 15: в «Привёл» входит уже внесённая сумма, не только закрытая цена.
+    Остальные услуги — когда оплата закрыла цену. Возврат вычитается в своём месяце.
     Менеджер — ответственный на визите, если это менеджер. Иначе тот, кто создал запись.
     """
     start, end = month_bounds(ym)
     refunds_by_appt = await _booking_refunds_by_appointment(db, company_id=company_id)
+    direction_names = await load_booking_direction_names(db, company_id=company_id)
+    from app.services.patient_ltv import classify_product_kind
+
     creator = aliased(User)
     responsible = aliased(User)
     filters: list[ColumnElement[bool]] = [
@@ -285,7 +288,9 @@ async def load_brought_paid_detail(
             continue
         price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
         key = (int(manager_id), int(specialist_id), int(direction_id), price)
-        if is_full_payment(service_amount, gross):
+        kind = classify_product_kind(direction_names.get(int(direction_id)))
+        # Курс считает каждый внесённый этап. Протокол и остальные услуги — после полной оплаты.
+        if kind in {"course_15", "main_course"} or is_full_payment(service_amount, gross):
             out[key] = (out.get(key, Decimal("0")) + gross).quantize(Decimal("0.01"))
         if (status or "").strip() != "cancelled":
             counts[key] = counts.get(key, 0) + 1
@@ -617,6 +622,8 @@ async def load_manual_brought_by_label(
 
     Протокол: только когда цена закрыта. Если принесли больше цены, в «Привёл»
     входит вся оплата этого месяца, не обрезанная до цены.
+    Прошлые этапы остаются у того, кто их принял. Новому менеджеру считается
+    только подтверждённый сбор дебиторки, который записан на него.
     """
     start, end = month_bounds(ym)
     credited = func.coalesce(
@@ -762,7 +769,7 @@ async def load_manual_refunds_by_label(
     pipeline_id: int,
     ym: date,
 ) -> dict[tuple[int, str], Decimal]:
-    """Возврат курса или протокола в месяц returned_at. Вычитается из вошедшей суммы."""
+    """Возврат курса или протокола в месяц returned_at. Вычитается у того, кто принял этот платёж."""
     start, end = month_bounds(ym)
     refund_manager = func.coalesce(
         SalesKpiManualSalePayment.manager_user_id,

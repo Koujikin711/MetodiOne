@@ -64,6 +64,7 @@ from app.schemas.sales_kpi import (
     SalesKpiDebtorsReport,
     SalesKpiDirectionMeta,
     SalesKpiManualSaleCreate,
+    SalesKpiManualSaleFlowPatch,
     SalesKpiManualSaleLinkLeadPatch,
     SalesKpiManualSaleManagerPatch,
     SalesKpiManualSaleOut,
@@ -1845,6 +1846,97 @@ async def link_manual_sale_lead(
     )
 
 
+async def _retarget_course_flow(db: AsyncSession, *, company_id: int, sale_id: int) -> None:
+    """Старый поток этой продажи закрывается, новый номер сажает курс заново."""
+    from app.models.curator_journal import CuratorFlowMembership
+    from app.services.course_flow_from_kpi import sync_course_flows_from_kpi
+
+    today = datetime.now(UTC).date()
+    members = list(
+        (
+            await db.execute(
+                select(CuratorFlowMembership).where(
+                    CuratorFlowMembership.company_id == company_id,
+                    CuratorFlowMembership.kpi_sale_id == int(sale_id),
+                    CuratorFlowMembership.left_on.is_(None),
+                ),
+            )
+        ).scalars().all(),
+    )
+    for member in members:
+        member.left_on = today
+    if members:
+        await db.flush()
+    await sync_course_flows_from_kpi(db, company_id=company_id, sale_id=int(sale_id))
+
+
+@router.patch("/manual-sales/{sale_id}/flow", response_model=SalesKpiManualSaleOut)
+async def patch_manual_sale_flow(
+    sale_id: int,
+    body: SalesKpiManualSaleFlowPatch,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> SalesKpiManualSaleOut:
+    """Владелец или админ меняет поток и этап уже открытой продажи."""
+    _assert_kpi_access(current_user)
+    _assert_admin_or_owner(current_user)
+    sale = await db.get(SalesKpiManualSale, sale_id)
+    if sale is None or sale.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Продажа не найдена")
+
+    before_group = int(sale.group_no) if sale.group_no is not None else None
+    before_stream = int(sale.stream_no) if sale.stream_no is not None else None
+    next_group = int(body.group_no)
+    next_stream = int(body.stream_no)
+    if before_group != next_group or before_stream != next_stream:
+        from app.services.audit import write_audit_event
+
+        sale.group_no = next_group
+        sale.stream_no = next_stream
+        sale.updated_at = datetime.now(UTC)
+        await write_audit_event(
+            db,
+            entity_type="kpi_manual_sale",
+            entity_id=int(sale.id),
+            action="flow_changed",
+            current_user=current_user,
+            details=(
+                f"group_no: {before_group} → {next_group}; "
+                f"stream_no: {before_stream} → {next_stream}; client={sale.client_name!r}"
+            ),
+        )
+        if before_group != next_group:
+            await _retarget_course_flow(db, company_id=company_id, sale_id=int(sale.id))
+        await db.commit()
+        await db.refresh(sale)
+
+    item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    manager = await db.get(User, sale.manager_user_id)
+    payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
+    lead_mid: int | None = None
+    lead_name: str | None = None
+    if sale.lead_id is not None:
+        lead = await db.get(Lead, int(sale.lead_id))
+        if lead is not None and lead.company_id == company_id and lead.manager_id is not None:
+            card = await db.get(User, int(lead.manager_id))
+            lead_mid = int(lead.manager_id)
+            if card is not None:
+                lead_name = str(card.full_name or card.email or f"#{card.id}")
+    return _manual_sale_out(
+        sale,
+        plan_item_name=item.name if item else "",
+        manager_name=str(
+            (manager.full_name if manager else None)
+            or (manager.email if manager else None)
+            or f"#{sale.manager_user_id}"
+        ),
+        payments=payments,
+        lead_manager_user_id=lead_mid,
+        lead_manager_name=lead_name,
+    )
+
+
 @router.patch("/manual-sales/{sale_id}/manager", response_model=SalesKpiManualSaleOut)
 async def patch_manual_sale_manager(
     sale_id: int,
@@ -1853,7 +1945,7 @@ async def patch_manual_sale_manager(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> SalesKpiManualSaleOut:
-    """Админ меняет, кому пойдут новые оплаты. Уже внесённые остаются у прежнего менеджера."""
+    """Админ меняет менеджера на карточке. Прошлые оплаты не переносятся. Новый сбор дебиторки пишется на него."""
     _assert_kpi_access(current_user)
     _assert_admin_or_owner(current_user)
     sale = await db.get(SalesKpiManualSale, sale_id)
