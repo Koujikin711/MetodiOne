@@ -196,10 +196,16 @@ function sameTimeRows(appointments: BookingAppointment[]): BookingAppointment[][
   return out;
 }
 
-/** Одинаковая минута начала — до двух карточек в ряд. Другая минута — строкой ниже. */
+/** Запись на час — отдельной карточкой на всю ширину, как раньше.
+ *  Короче часа и та же минута — до двух карточек в ряд. Другая минута — строкой ниже. */
 function laneCardRows(lane: HourLane): BookingAppointment[][] {
   const out: BookingAppointment[][] = [];
-  for (const row of lane.rows) out.push(...sameTimeRows(row.appointments));
+  for (const row of lane.rows) {
+    const hourCards = row.appointments.filter((a) => appointmentDurationMin(a) >= 60);
+    const shortCards = row.appointments.filter((a) => appointmentDurationMin(a) < 60);
+    for (const appointment of hourCards) out.push([appointment]);
+    out.push(...sameTimeRows(shortCards));
+  }
   return out;
 }
 
@@ -440,9 +446,7 @@ function SortableSpecialistRow({
                                 const hourLong = appointmentDurationMin(a) >= 60;
                                 const timeLabel = showSessionInsteadOfTime
                                   ? null
-                                  : hourLong
-                                    ? `${formatTimeInBookingTz(a.start_at)}–${formatTimeInBookingTz(a.end_at)}`
-                                    : formatTimeInBookingTz(a.start_at);
+                                  : formatTimeInBookingTz(a.start_at);
                                 return (
                                   <button
                                     key={a.id}
@@ -453,8 +457,10 @@ function SortableSpecialistRow({
                                       onAppointmentClick(a);
                                     }}
                                     className={[
-                                      "booking-appt-bitrix relative min-w-0 overflow-hidden rounded-md px-1 py-0.5 text-left",
-                                      hourLong ? "booking-appt-bitrix--hour" : "",
+                                      "booking-appt-bitrix relative min-w-0 overflow-hidden rounded-md text-left",
+                                      hourLong
+                                        ? "booking-appt-bitrix--full w-full px-1 py-0.5 sm:px-1.5 sm:py-1"
+                                        : "px-1 py-0.5",
                                       appointmentVisualClass(a),
                                     ].join(" ")}
                                   >

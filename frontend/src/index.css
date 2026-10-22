@@ -2463,6 +2463,19 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   min-height: 4.75rem;
 }
 
+.booking-hour__cols > .booking-appt-bitrix.booking-appt-bitrix--full {
+  min-height: 0;
+  height: auto;
+}
+
+.booking-hour__cols .booking-appt-bitrix--full .booking-appt-card-body {
+  display: block;
+}
+
+.booking-hour__cols .booking-appt-bitrix--full .booking-appt-foot {
+  margin-top: 0.15rem;
+}
+
 .booking-hour__cols--single .booking-appt-card-body {
   display: flex;
   align-items: center;
