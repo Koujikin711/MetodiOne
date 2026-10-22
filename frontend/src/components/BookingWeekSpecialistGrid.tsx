@@ -28,7 +28,7 @@ import {
   weekdayMon0InBookingTz,
   ymdInBookingTz,
 } from "@/lib/bookingTz";
-import { bookedCountInClockHour, MAX_BOOKINGS_PER_SPECIALIST_HOUR } from "@/lib/bookingCapacity";
+import { MAX_BOOKINGS_PER_SPECIALIST_HOUR } from "@/lib/bookingCapacity";
 import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const DEFAULT_WORK_WEEKDAYS = [0, 1, 2, 3, 4];
@@ -148,6 +148,14 @@ function appointmentStartMinute(a: BookingAppointment): number {
   return h * 60 + min;
 }
 
+function hourHasVisibleAppointment(dayAppts: BookingAppointment[], hour: number): boolean {
+  for (const appointment of dayAppts) {
+    const { h } = utcMsToHourMinuteInBookingTz(new Date(appointment.start_at).getTime());
+    if (h === hour) return true;
+  }
+  return false;
+}
+
 type FlatDayRow =
   | { kind: "slot"; minute: number; closed?: boolean }
   | { kind: "appt"; appointment: BookingAppointment };
@@ -202,11 +210,10 @@ function buildDayRows(
       usedApptIds.add(match.id);
       rows.push({ kind: "appt", appointment: match });
     }
-    // Пустой :30 не рисуем. Час, где уже есть запись, тоже не помечаем
-    // пунктиром: иначе занятая минута выглядит свободной.
+    // Пустой :30 не рисуем. Час, где уже есть карточка (в том числе «Пришёл»
+    // и «Неявка»), не помечаем пунктиром: иначе занятая минута выглядит свободной.
     if (minute % 60 !== 0) continue;
-    const inHour = bookedCountInClockHour(dayAppts, Math.floor(minute / 60));
-    if (inHour === 0) {
+    if (!hourHasVisibleAppointment(dayAppts, Math.floor(minute / 60))) {
       rows.push({ kind: "slot", minute });
     }
   }

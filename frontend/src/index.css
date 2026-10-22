@@ -1557,18 +1557,6 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   border-width: 1px;
   border-style: solid;
 }
-.booking-appt-bitrix.booking-appt--booked {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    transparent,
-    transparent 5px,
-    rgba(0, 0, 0, 0.045) 5px,
-    rgba(0, 0, 0, 0.045) 10px
-  );
-}
-.booking-appt-bitrix.booking-appt--completed {
-  background-image: none;
-}
 .booking-appt-note-btn.is-filled {
   opacity: 1;
   color: inherit;
@@ -1677,6 +1665,20 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   background: var(--booking-appt-replied-bg);
   border-color: var(--booking-appt-replied-border);
   color: var(--booking-appt-replied-text);
+}
+.booking-appt-bitrix.booking-appt--booked,
+.booking-appt-bitrix.booking-appt--completed,
+.booking-appt-bitrix.booking-appt--no_show,
+.booking-appt-bitrix.booking-appt--cancelled,
+.booking-appt-bitrix.booking-appt--notify,
+.booking-appt-bitrix.booking-appt--replied {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 8px,
+    color-mix(in srgb, currentColor 9%, transparent) 8px,
+    color-mix(in srgb, currentColor 9%, transparent) 9px
+  );
 }
 .booking-appt-meta {
   color: var(--booking-appt-meta);
