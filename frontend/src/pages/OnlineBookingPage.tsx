@@ -1122,10 +1122,16 @@ export function OnlineBookingPage() {
     if (!isReferralService(dir.name, dir.name)) setReferredByUserId("");
   }
 
-  function handleMoveAppointment(payload: { appointmentId: number; specialistId: number; minuteOfDay: number }) {
+  function handleMoveAppointment(payload: {
+    appointmentId: number;
+    specialistId: number;
+    minuteOfDay: number;
+    dateYmd?: string;
+  }) {
     const hh = Math.floor(payload.minuteOfDay / 60);
     const mm = payload.minuteOfDay % 60;
-    const localIso = `${filterDate}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    const dateYmd = payload.dateYmd || filterDate;
+    const localIso = `${dateYmd}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
     let startIso: string;
     try {
       startIso = datetimeLocalBookingToIsoUtc(localIso);
@@ -1371,15 +1377,6 @@ export function OnlineBookingPage() {
                 ›
               </button>
             </div>
-            <BookingSpecialistsFilter
-              specialists={specialistsActive}
-              selectedTypeNames={selectedFilterTypeNames}
-              selectedSpecialistIds={selectedFilterSpecialistIds}
-              onChangeTypes={setSelectedFilterTypeNames}
-              onChangeSpecialists={setSelectedFilterSpecialistIds}
-              onResetAll={resetBookingSpecialistFilter}
-              filterActive={bookingFilterActive}
-            />
           </div>
           <div className="booking-page-shell">
             <div className="min-w-0">
@@ -1389,6 +1386,7 @@ export function OnlineBookingPage() {
                 appointments={gridAppointmentsQuery.data ?? []}
                 onAppointmentClick={onCalendarAppointmentClick}
                 onSlotClick={canEditBooking ? handleSlotClick : undefined}
+                onMoveAppointment={canEditBooking ? handleMoveAppointment : undefined}
                 onEditSpecialist={canEditBooking ? openEditSpecialistModal : undefined}
                 onAddSpecialist={canEditBooking ? openAddSpecialistModal : undefined}
                 onReorderSpecialists={canEditBooking ? (orderedIds) => reorderSpecialistsMutation.mutate(orderedIds) : undefined}
@@ -1397,6 +1395,18 @@ export function OnlineBookingPage() {
                 onAppointmentNoteClick={canEditBooking ? onAppointmentNoteClick : undefined}
                 canToggleComplete={canMarkAttendance}
                 onAppointmentCompleteToggle={canMarkAttendance ? onAppointmentCompleteToggle : undefined}
+                headerAddon={
+                  <BookingSpecialistsFilter
+                    specialists={specialistsActive}
+                    selectedTypeNames={selectedFilterTypeNames}
+                    selectedSpecialistIds={selectedFilterSpecialistIds}
+                    onChangeTypes={setSelectedFilterTypeNames}
+                    onChangeSpecialists={setSelectedFilterSpecialistIds}
+                    onResetAll={resetBookingSpecialistFilter}
+                    filterActive={bookingFilterActive}
+                    iconOnly
+                  />
+                }
               />
               {gridAppointmentsQuery.isLoading && (
                 <p className="mt-3 text-sm lux-caption">Загрузка записей…</p>

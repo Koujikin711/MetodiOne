@@ -22,7 +22,7 @@ export function BookingAppointmentCardBody({
   const note = (a.comment || "").trim();
   const visitLabel = visitDisplayValue(a);
   const showVisitCounter =
-    !compact && Boolean(visitLabel) && a.status !== "no_show" && a.status !== "cancelled";
+    Boolean(visitLabel) && a.status !== "no_show" && a.status !== "cancelled";
 
   const noteTitle = note || "Добавить заметку";
   const noteControl = canEditNotes ? (

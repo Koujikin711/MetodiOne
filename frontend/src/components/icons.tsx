@@ -336,10 +336,7 @@ export function IdCard(props: IconProps) {
 export function Filter(props: IconProps) {
   return (
     <svg {...iconProps(props)}>
-      <path d="M10 20v-6" />
-      <path d="M14 20V10" />
-      <path d="M18 20V4" />
-      <path d="M4 20v-4" />
+      <path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7.382a1 1 0 0 1 .293-.707l6.414-6.414A1 1 0 0 0 20 5H4a1 1 0 0 0-.707 1.707l6.414 6.414a1 1 0 0 1 .293.707V20z" />
     </svg>
   );
 }

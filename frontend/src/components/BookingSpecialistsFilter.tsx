@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { Filter, IdCard, Search } from "@/components/icons";
 import {
@@ -18,6 +19,7 @@ type Props = {
   onChangeSpecialists: (next: Set<number>) => void;
   onResetAll: () => void;
   filterActive: boolean;
+  iconOnly?: boolean;
 };
 
 function toggleInSet<T>(set: Set<T>, value: T): Set<T> {
@@ -35,10 +37,14 @@ export function BookingSpecialistsFilter({
   onChangeSpecialists,
   onResetAll,
   filterActive,
+  iconOnly = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const typeNames = useMemo(() => collectTypeLabels(specialists), [specialists]);
 
@@ -59,7 +65,9 @@ export function BookingSpecialistsFilter({
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+    if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+    setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -71,6 +79,25 @@ export function BookingSpecialistsFilter({
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !iconOnly) return;
+    const place = () => {
+      const rect = btnRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const width = 352;
+      let left = rect.left;
+      if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - width - 8);
+      setPanelPos({ top: rect.bottom + 6, left });
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, iconOnly]);
 
   function selectAllTypes() {
     onChangeTypes(new Set(typeNames));
@@ -109,19 +136,35 @@ export function BookingSpecialistsFilter({
   return (
     <div ref={rootRef} className="booking-filter-root">
       <button
+        ref={btnRef}
         type="button"
-        className={`booking-filter-trigger${filterActive ? " booking-filter-trigger--active" : ""}`}
+        className={`booking-filter-trigger${iconOnly ? " booking-filter-trigger--icon" : ""}${filterActive ? " booking-filter-trigger--active" : ""}`}
         aria-expanded={open}
         aria-haspopup="dialog"
+        aria-label="Фильтр"
+        title="Фильтр"
         onClick={() => setOpen((v) => !v)}
       >
         <Filter className="h-4 w-4 shrink-0" />
-        <span>Фильтр</span>
+        {iconOnly ? null : <span>Фильтр</span>}
         {filterActive ? <span className="booking-filter-trigger-dot" aria-hidden /> : null}
       </button>
 
-      {open ? (
-        <div className="booking-filter-panel" role="dialog" aria-label="Фильтр специалистов">
+      {open
+        ? (iconOnly
+            ? (node: ReactNode) => createPortal(node, document.body)
+            : (node: ReactNode) => node)(
+        <div
+          ref={panelRef}
+          className="booking-filter-panel"
+          role="dialog"
+          aria-label="Фильтр специалистов"
+          style={
+            iconOnly && panelPos
+              ? { position: "fixed", top: panelPos.top, left: panelPos.left, zIndex: 400 }
+              : undefined
+          }
+        >
           <section className="booking-filter-section">
             <div className="booking-filter-section-head">
               <h3 className="booking-filter-section-title">Типы</h3>

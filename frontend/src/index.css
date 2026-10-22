@@ -2434,6 +2434,23 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   overflow: visible;
 }
 
+.booking-week-grid__day-col.booking-week-grid__day-col--open {
+  flex: 1 0 15rem;
+  min-width: 15rem;
+}
+
+.booking-week-grid__pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.25rem;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.booking-week-grid__pair > .booking-appt-bitrix {
+  min-width: 0;
+}
+
 .booking-hour {
   display: grid;
   grid-template-columns: 1.15rem minmax(0, 1fr);
@@ -2570,6 +2587,21 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   border-color: var(--mo-border);
   background: var(--mo-surface-elevated);
   color: var(--mo-text);
+}
+
+.booking-filter-trigger--icon {
+  position: relative;
+  padding: 0.3rem;
+  border-radius: 0.5rem;
+  border-color: transparent;
+  background: transparent;
+  color: var(--mo-accent);
+}
+
+.booking-filter-trigger--icon .booking-filter-trigger-dot {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
 }
 
 .booking-filter-trigger:hover,
