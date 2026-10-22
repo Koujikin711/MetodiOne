@@ -28,7 +28,6 @@ import {
   weekdayMon0InBookingTz,
   ymdInBookingTz,
 } from "@/lib/bookingTz";
-import { bookedCountInClockHour, MAX_BOOKINGS_PER_SPECIALIST_HOUR } from "@/lib/bookingCapacity";
 import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const DEFAULT_WORK_WEEKDAYS = [0, 1, 2, 3, 4];
@@ -37,7 +36,7 @@ const COLLAPSED_ROW_PX = 44;
 const EXPANDED_ROW_MIN_PX = 168;
 
 const DAY_COL_CLASS =
-  "booking-week-grid__day-col flex flex-col gap-1 p-1.5 sm:p-2";
+  "booking-week-grid__day-col flex flex-col gap-0.5 p-1";
 const DAY_COL_COLLAPSED_CLASS =
   "booking-week-grid__day-col flex items-center justify-center";
 
@@ -141,53 +140,67 @@ function appointmentStartMinute(a: BookingAppointment): number {
   return h * 60 + min;
 }
 
-type DayRow =
-  | { kind: "slot"; minute: number; closed?: boolean }
-  | { kind: "appt"; appointment: BookingAppointment };
+function appointmentDurationMin(a: BookingAppointment): number {
+  const start = new Date(a.start_at).getTime();
+  const end = new Date(a.end_at).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+  return Math.round((end - start) / 60000);
+}
 
-function buildDayRows(
+type TimeRow = {
+  minute: number;
+  appointments: BookingAppointment[];
+};
+
+type HourLane = {
+  hour: number;
+  rows: TimeRow[];
+};
+
+function hourLanes(
   spec: BookingSpecialist,
   dateYmd: string,
   dayAppts: BookingAppointment[],
-): DayRow[] | null {
+): HourLane[] | null {
   const slots = dayTimeSlots(spec, dateYmd);
   if (slots.length === 0) return null;
-
-  const step = Math.max(15, spec.slot_duration_min ?? 30);
-  const usedApptIds = new Set<number>();
-  const rows: DayRow[] = [];
-
-  for (const minute of slots) {
-    const matches = dayAppts.filter((a) => {
-      if (usedApptIds.has(a.id)) return false;
-      const startMin = appointmentStartMinute(a);
-      return startMin >= minute && startMin < minute + step;
+  const startHour = Math.floor(slots[0] / 60);
+  const endHour = Math.floor(slots[slots.length - 1] / 60);
+  const lanes: HourLane[] = [];
+  for (let hour = startHour; hour <= endHour; hour++) {
+    const appointments = dayAppts
+      .filter((a) => Math.floor(appointmentStartMinute(a) / 60) === hour)
+      .sort((a, b) => a.start_at.localeCompare(b.start_at) || a.id - b.id);
+    const byMinute = new Map<number, BookingAppointment[]>();
+    const order: number[] = [];
+    for (const appointment of appointments) {
+      const minute = appointmentStartMinute(appointment);
+      const list = byMinute.get(minute);
+      if (list) list.push(appointment);
+      else {
+        byMinute.set(minute, [appointment]);
+        order.push(minute);
+      }
+    }
+    lanes.push({
+      hour,
+      rows: order.map((minute) => ({ minute, appointments: byMinute.get(minute) ?? [] })),
     });
-    for (const match of matches) {
-      usedApptIds.add(match.id);
-      rows.push({ kind: "appt", appointment: match });
-    }
-    const inHour = bookedCountInClockHour(dayAppts, Math.floor(minute / 60));
-    if (inHour < MAX_BOOKINGS_PER_SPECIALIST_HOUR) {
-      rows.push({ kind: "slot", minute });
-    } else if (matches.length === 0) {
-      rows.push({ kind: "slot", minute, closed: true });
-    }
   }
+  return lanes;
+}
 
-  for (const a of dayAppts) {
-    if (!usedApptIds.has(a.id)) {
-      rows.push({ kind: "appt", appointment: a });
-    }
-  }
+function sameTimeRows(appointments: BookingAppointment[]): BookingAppointment[][] {
+  const out: BookingAppointment[][] = [];
+  for (let i = 0; i < appointments.length; i += 2) out.push(appointments.slice(i, i + 2));
+  return out;
+}
 
-  rows.sort((x, y) => {
-    const mx = x.kind === "slot" ? x.minute : appointmentStartMinute(x.appointment);
-    const my = y.kind === "slot" ? y.minute : appointmentStartMinute(y.appointment);
-    return mx - my;
-  });
-
-  return rows;
+/** Одинаковая минута начала — до двух карточек в ряд. Другая минута — строкой ниже. */
+function laneCardRows(lane: HourLane): BookingAppointment[][] {
+  const out: BookingAppointment[][] = [];
+  for (const row of lane.rows) out.push(...sameTimeRows(row.appointments));
+  return out;
 }
 
 function emitSlotClick(
@@ -352,7 +365,7 @@ function SortableSpecialistRow({
             );
           }
 
-          const dayRows = buildDayRows(spec, dateYmd, dayAppts);
+          const lanes = hourLanes(spec, dateYmd, dayAppts);
           const workingDay = isSpecWorkingDay(spec, dateYmd);
 
           return (
@@ -371,6 +384,7 @@ function SortableSpecialistRow({
               }}
               className={[
                 DAY_COL_CLASS,
+                "booking-week-grid__day-col--open",
                 isToday ? "bg-[var(--mo-accent-soft)]/30" : "bg-[var(--mo-surface)]",
                 !workingDay ? "booking-week-grid__day-col--off" : "",
                 canAdd && workingDay
@@ -388,72 +402,78 @@ function SortableSpecialistRow({
                   <div className="booking-week-grid__off-day flex flex-1 items-center justify-center rounded-md px-1 py-2 text-center text-[10px] mo-muted">
                     Выходной
                   </div>
-                ) : dayRows ? (
-                  dayRows.map((row) => {
-                    if (row.kind === "appt") {
-                      const a = row.appointment;
-                      const timeLabel = showSessionInsteadOfTime
-                        ? null
-                        : formatTimeInBookingTz(a.start_at);
-                      return (
-                        <button
-                          key={a.id}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAppointmentClick(a);
-                          }}
-                          className={[
-                            "booking-appt-bitrix relative w-full overflow-visible rounded-md px-1 py-0.5 text-left sm:px-1.5 sm:py-1",
-                            appointmentVisualClass(a),
-                          ].join(" ")}
-                        >
-                          <BookingAppointmentCardBody
-                            appointment={a}
-                            timeLabel={timeLabel}
-                            canEditNotes={canEditNotes}
-                            onNoteClick={onAppointmentNoteClick}
-                            canToggleComplete={canToggleComplete}
-                            onCompleteToggle={onAppointmentCompleteToggle}
-                          />
-                        </button>
-                      );
-                    }
-
-                    const slotCanAdd = Boolean(onSlotClick && !row.closed);
+                ) : lanes ? (
+                  lanes.map((lane) => {
+                    const blank = lane.rows.length === 0;
                     return (
-                      <button
-                        key={`slot-${key}-${row.minute}`}
-                        type="button"
-                        disabled={!slotCanAdd}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!slotCanAdd) return;
-                          onSlotClick?.({
-                            specialistId: spec.id,
-                            directionId: spec.direction_id,
-                            dateYmd,
-                            minuteOfDay: row.minute,
-                          });
-                        }}
-                        className={[
-                          "booking-week-grid__empty-slot w-full rounded-md border border-dashed px-1 py-1 text-left sm:px-1.5",
-                          slotCanAdd
-                            ? "cursor-pointer border-[var(--mo-border-strong)]/55 transition hover:border-indigo-500/40 hover:bg-indigo-500/[0.06]"
-                            : "cursor-default border-[var(--mo-border)]/40 opacity-60",
-                        ].join(" ")}
-                        title={
-                          row.closed
-                            ? `В этот час уже ${MAX_BOOKINGS_PER_SPECIALIST_HOUR} записи`
-                            : slotCanAdd
-                              ? `Записать на ${formatMinuteLabel(row.minute)}`
-                              : undefined
+                    <div
+                      key={`hour-${key}-${lane.hour}`}
+                      className={["booking-hour", blank ? "booking-hour--blank" : ""].filter(Boolean).join(" ")}
+                    >
+                      <span className="booking-hour__label">{lane.hour}</span>
+                      <div
+                        className="booking-hour__times"
+                        onClick={
+                          blank
+                            ? (e) => {
+                                e.stopPropagation();
+                                if (!onSlotClick) return;
+                                onSlotClick({
+                                  specialistId: spec.id,
+                                  directionId: spec.direction_id,
+                                  dateYmd,
+                                  minuteOfDay: lane.hour * 60,
+                                });
+                              }
+                            : undefined
                         }
                       >
-                        <span className="text-[9px] font-semibold tabular-nums leading-none mo-muted sm:text-[10px]">
-                          {formatMinuteLabel(row.minute)}
-                        </span>
-                      </button>
+                        {laneCardRows(lane).map((pair, pairIndex) => (
+                            <div
+                              key={`${lane.hour}-row-${pairIndex}`}
+                              className={[
+                                "booking-hour__cols",
+                                pair.length > 1 ? "booking-hour__cols--pair" : "booking-hour__cols--single",
+                              ].join(" ")}
+                            >
+                              {pair.map((a) => {
+                                const hourLong = appointmentDurationMin(a) >= 60;
+                                const timeLabel = showSessionInsteadOfTime
+                                  ? null
+                                  : hourLong
+                                    ? `${formatTimeInBookingTz(a.start_at)}–${formatTimeInBookingTz(a.end_at)}`
+                                    : formatTimeInBookingTz(a.start_at);
+                                return (
+                                  <button
+                                    key={a.id}
+                                    type="button"
+                                    title={`${a.patient_name} ${timeLabel ?? ""}`.trim()}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onAppointmentClick(a);
+                                    }}
+                                    className={[
+                                      "booking-appt-bitrix relative min-w-0 overflow-hidden rounded-md px-1 py-0.5 text-left",
+                                      hourLong ? "booking-appt-bitrix--hour" : "",
+                                      appointmentVisualClass(a),
+                                    ].join(" ")}
+                                  >
+                                    <BookingAppointmentCardBody
+                                      appointment={a}
+                                      timeLabel={timeLabel}
+                                      compact={appointmentDurationMin(a) <= 30}
+                                      canEditNotes={canEditNotes}
+                                      onNoteClick={onAppointmentNoteClick}
+                                      canToggleComplete={canToggleComplete}
+                                      onCompleteToggle={onAppointmentCompleteToggle}
+                                    />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                        ))}
+                      </div>
+                    </div>
                     );
                   })
                 ) : null}

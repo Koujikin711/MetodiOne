@@ -26,6 +26,7 @@ import toast from "react-hot-toast";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { CrmToolbar } from "@/components/crm/CrmToolbar";
+import { MessageCircle, Phone } from "@/components/icons";
 import { PatientPhone } from "@/components/PatientPhone";
 import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { apiDownloadBlob, apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
@@ -33,6 +34,7 @@ import { isRefusalStageName, leadStageChips } from "@/lib/leadStageChips";
 import { formatCompactCount } from "@/lib/money";
 import { theme } from "@/lib/theme";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { canAccessRop } from "@/lib/clinicRoles";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { isOnboardingDone } from "@/lib/onboarding";
 import type {
@@ -85,27 +87,40 @@ function cloneDefaultStages(sales = false) {
   return src.map((s) => ({ name: s.name, color: s.color }));
 }
 
-/** Возраст на карточке: при раздаче из архива — с даты выдачи, не с created_at. */
-function leadAgeLabel(createdAt?: string | null, reactivatedAt?: string | null): string {
-  const fmt = (iso: string): string | null => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return null;
-    const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
-    if (days === 0) return "сегодня";
-    const mod10 = days % 10;
-    const mod100 = days % 100;
-    let word = "дней";
-    if (mod10 === 1 && mod100 !== 11) word = "день";
-    else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) word = "дня";
-    return `${days} ${word}`;
-  };
-  if (reactivatedAt) {
-    const fresh = fmt(reactivatedAt);
-    if (!fresh) return "—";
-    return fresh === "сегодня" ? "выдан сегодня" : `выдан ${fresh}`;
-  }
-  if (!createdAt) return "—";
-  return fmt(createdAt) ?? "—";
+const LEAD_CARD_TZ = "Asia/Dushanbe";
+
+function ymdInLeadTz(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: LEAD_CARD_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+/** Время на карточке: «Сегодня 12:58». При выдаче из архива — от даты выдачи. */
+function leadWhenLabel(createdAt?: string | null, reactivatedAt?: string | null): string {
+  const iso = reactivatedAt || createdAt;
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const parts = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: LEAD_CARD_TZ,
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(d);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
+  const hm = `${part("hour")}:${part("minute")}`;
+  const dayKey = ymdInLeadTz(d);
+  const todayKey = ymdInLeadTz(new Date());
+  const yesterdayKey = ymdInLeadTz(new Date(Date.now() - 86_400_000));
+  if (dayKey === todayKey) return `Сегодня ${hm}`;
+  if (dayKey === yesterdayKey) return `Вчера ${hm}`;
+  const month = part("month").replace(".", "");
+  return `${part("day")} ${month} ${hm}`;
 }
 
 function resolveTargetStageId(
@@ -121,54 +136,114 @@ function resolveTargetStageId(
   return null;
 }
 
-function LeadCardBody({ lead, stageColor }: { lead: Lead; stageColor?: string }) {
+function LeadCardBody({
+  lead,
+  onOpen,
+  onChat,
+  picking,
+  selected,
+  onToggleSelect,
+}: {
+  lead: Lead;
+  stageColor?: string;
+  onOpen?: () => void;
+  onChat?: () => void;
+  picking?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
+}) {
   const paidNum =
     lead.paid_extras_amount == null ? 0 : typeof lead.paid_extras_amount === "number" ? lead.paid_extras_amount : Number(lead.paid_extras_amount);
-  const dotColor = stageColor ?? "#6366f1";
   const chips = leadStageChips(lead);
+  const phoneDigits = (lead.phone || "").replace(/\D/g, "");
+  const canContact = phoneDigits.length >= 9;
+  const stopDrag = (e: ReactPointerEvent) => e.stopPropagation();
 
   return (
-    <>
-      <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 break-words text-[15px] font-semibold leading-snug text-[var(--mo-text)]">{lead.name}</p>
-        {lead.source ? (
-          <span className="crm-lead-source shrink-0" title="Источник">
-            {lead.source}
-          </span>
+    <div className="flex items-start gap-2">
+      {picking ? (
+        <input
+          type="checkbox"
+          className="crm-lead-check mt-0.5"
+          checked={Boolean(selected)}
+          title="Выбрать"
+          aria-label="Выбрать"
+          onPointerDown={stopDrag}
+          onClick={(e) => e.stopPropagation()}
+          onChange={() => onToggleSelect?.()}
+        />
+      ) : null}
+      <div className="min-w-0 flex-1">
+        {onOpen ? (
+          <button
+            type="button"
+            onPointerDown={stopDrag}
+            onClick={onOpen}
+            className="block min-w-0 break-words text-left text-[15px] font-semibold leading-snug text-[var(--mo-text)] hover:underline"
+          >
+            {lead.name}
+          </button>
+        ) : (
+          <p className="min-w-0 break-words text-[15px] font-semibold leading-snug text-[var(--mo-text)]">{lead.name}</p>
+        )}
+        {lead.manager_name ? (
+          <p className="mt-1 truncate text-xs text-[var(--mo-text-muted)]">{lead.manager_name}</p>
+        ) : (
+          <p className="mt-1 text-xs italic text-[var(--mo-text-muted)]">Без ответственного</p>
+        )}
+        <p className="mt-2 break-all text-sm font-medium text-[var(--mo-text)]">
+          <PatientPhone value={lead} />
+        </p>
+        {chips.secondary ? (
+          <div className="mt-2 flex flex-wrap gap-1">
+            <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600">
+              {chips.primary}
+            </span>
+            <span className="rounded-md bg-[var(--mo-accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--mo-accent-hover)]">
+              {chips.secondary}
+            </span>
+          </div>
         ) : null}
+        <div className="mt-3 border-t border-[var(--mo-border)] pt-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-xs font-medium text-[var(--mo-text-muted)]">
+              {leadWhenLabel(lead.created_at, lead.reactivated_at)}
+            </span>
+            <span className="flex shrink-0 items-center gap-1">
+              {lead.protocol_file_attached && <span className="crm-lead-badge" title="Протокол">📄</span>}
+              {paidNum > 0 && <span className="crm-lead-badge" title="Оплата">💰</span>}
+              {lead.refusal_reason && <span className="crm-lead-badge" title="Отказ">✕</span>}
+            </span>
+          </div>
+          {lead.source ? (
+            <p className="mt-1 truncate text-[11px] text-[var(--mo-text-muted)]" title="Источник">
+              {lead.source}
+            </p>
+          ) : null}
+        </div>
       </div>
-      {lead.manager_name ? (
-        <p className="mt-1 truncate text-xs text-[var(--mo-text-muted)]">{lead.manager_name}</p>
-      ) : (
-        <p className="mt-1 text-xs italic text-[var(--mo-text-muted)]">Без ответственного</p>
-      )}
-      <p className="mt-2 break-all text-sm font-medium text-[var(--mo-text)]">
-        <PatientPhone value={lead} />
-      </p>
-      {chips.secondary ? (
-        <div className="mt-2 flex flex-wrap gap-1">
-          <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600">
-            {chips.primary}
-          </span>
-          <span className="rounded-md bg-[var(--mo-accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--mo-accent-hover)]">
-            {chips.secondary}
-          </span>
+      {canContact ? (
+        <div className="flex shrink-0 flex-col items-center gap-2.5 pt-0.5 text-[var(--mo-text-muted)]">
+          <a
+            href={`tel:+${phoneDigits.startsWith("992") ? phoneDigits : `992${phoneDigits}`}`}
+            title="Позвонить"
+            onPointerDown={stopDrag}
+            className="crm-lead-action"
+          >
+            <Phone className="h-[18px] w-[18px]" />
+          </a>
+          <button
+            type="button"
+            title="Чат WhatsApp"
+            onPointerDown={stopDrag}
+            onClick={onChat}
+            className="crm-lead-action"
+          >
+            <MessageCircle className="h-[18px] w-[18px]" />
+          </button>
         </div>
       ) : null}
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--mo-border)] pt-2.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="crm-stage-gem shrink-0" style={{ backgroundColor: dotColor }} />
-          <span className="truncate text-xs font-semibold text-[var(--mo-text-muted)]">
-            {leadAgeLabel(lead.created_at, lead.reactivated_at)}
-          </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {lead.protocol_file_attached && <span className="crm-lead-badge" title="Протокол">📄</span>}
-          {paidNum > 0 && <span className="crm-lead-badge" title="Оплата">💰</span>}
-          {lead.refusal_reason && <span className="crm-lead-badge" title="Отказ">✕</span>}
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -177,13 +252,20 @@ function LeadCard({
   stageColor,
   currentRole,
   onRefresh,
+  picking,
+  selected,
+  onToggleSelect,
 }: {
   lead: Lead;
   stageColor?: string;
   currentRole: UserRole | null;
   onRefresh: () => void;
+  picking: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
 }) {
   const navigate = useNavigate();
+  const selectPress = useRef<{ x: number; y: number } | null>(null);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: leadDraggableId(lead.id),
     data: { lead },
@@ -351,37 +433,46 @@ function LeadCard({
     }
   }
 
+  const { onPointerDown: onDragPointerDown, ...dragListeners } = listeners ?? {};
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
+      {...dragListeners}
       {...attributes}
-      className={["crm-lead-card min-w-0 max-w-full", isDragging ? "is-dragging" : ""].join(" ")}
+      onPointerDown={(event) => {
+        selectPress.current = { x: event.clientX, y: event.clientY };
+        onDragPointerDown?.(event);
+      }}
+      onClick={(event) => {
+        const start = selectPress.current;
+        if (
+          start &&
+          (Math.abs(event.clientX - start.x) > 5 || Math.abs(event.clientY - start.y) > 5)
+        ) {
+          return;
+        }
+        const target = event.target as HTMLElement | null;
+        if (target?.closest("a, button, input, select, textarea, label")) return;
+        onToggleSelect();
+      }}
+      className={[
+        "crm-lead-card min-w-0 max-w-full",
+        isDragging ? "is-dragging" : "",
+        selected ? "is-selected" : "",
+      ].join(" ")}
     >
       <div className="crm-lead-card-accent" aria-hidden />
-      <div className="relative z-[1] mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <button
-          type="button"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => navigate(`/leads/${lead.id}`)}
-          className="text-[11px] font-semibold text-[var(--mo-accent-hover)] underline-offset-2 hover:text-[var(--mo-accent)] hover:underline"
-        >
-          Открыть карточку
-        </button>
-        {(lead.phone || "").replace(/\D/g, "").length >= 9 ? (
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => navigate(`/chat?lead_id=${lead.id}`)}
-            className="text-[11px] font-semibold text-[var(--mo-accent-hover)] underline-offset-2 hover:text-[var(--mo-accent)] hover:underline"
-            title="Открыть WhatsApp-чат (создаст диалог, если переписки ещё нет)"
-          >
-            Чат WhatsApp
-          </button>
-        ) : null}
-      </div>
-      <LeadCardBody lead={lead} stageColor={stageColor} />
+      <LeadCardBody
+        lead={lead}
+        stageColor={stageColor}
+        picking={picking}
+        selected={selected}
+        onToggleSelect={onToggleSelect}
+        onOpen={() => navigate(`/leads/${lead.id}`)}
+        onChat={() => navigate(`/chat?lead_id=${lead.id}`)}
+      />
 
       {currentRole === "owner" && stage === "Запись" && (
         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -547,6 +638,8 @@ function KanbanColumn({
   currentRole,
   onRefresh,
   onLoadMore,
+  selectedLeadIds,
+  onToggleLead,
   registerScrollContainer,
   onBoardPanPointerDown,
   onBoardPanPointerMove,
@@ -559,6 +652,8 @@ function KanbanColumn({
   currentRole: UserRole | null;
   onRefresh: () => void;
   onLoadMore: (stageId: number) => void;
+  selectedLeadIds: number[];
+  onToggleLead: (leadId: number) => void;
   registerScrollContainer: (stageId: number, el: HTMLDivElement | null) => void;
   onBoardPanPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
   onBoardPanPointerMove: (event: ReactPointerEvent<HTMLElement>) => void;
@@ -681,6 +776,9 @@ function KanbanColumn({
                 stageColor={stage.color}
                 currentRole={currentRole}
                 onRefresh={onRefresh}
+                picking={selectedLeadIds.length > 0}
+                selected={selectedLeadIds.includes(lead.id)}
+                onToggleSelect={() => onToggleLead(lead.id)}
               />
             ))}
             {showSentinel ? (
@@ -1368,6 +1466,8 @@ export function CrmPage() {
   });
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [waitingModalLeadId, setWaitingModalLeadId] = useState<number | null>(null);
   const [kanbanError, setKanbanError] = useState<string | null>(null);
@@ -1376,6 +1476,7 @@ export function CrmPage() {
 
   useEffect(() => {
     setLeads([]);
+    setSelectedLeadIds([]);
     columnLoadingRef.current.clear();
     setColumnLoadingIds([]);
   }, [pipelineId]);
@@ -1613,6 +1714,121 @@ export function CrmPage() {
   const onDragCancel = useCallback(() => {
     setActiveLead(null);
   }, []);
+
+  const toggleLeadSelected = useCallback((leadId: number) => {
+    setSelectedLeadIds((prev) =>
+      prev.includes(leadId) ? prev.filter((id) => id !== leadId) : [...prev, leadId],
+    );
+  }, []);
+
+  const canBulkAssign = canAccessRop(currentRole);
+  const bulkManagersQuery = useQuery({
+    queryKey: ["rop-managers", pipelineId, "kanban-bulk"],
+    enabled: canBulkAssign && pipelineId != null && selectedLeadIds.length > 0,
+    queryFn: () =>
+      apiFetch<{ managers: { user_id: number; full_name: string }[] }>(
+        `/api/rop/managers?pipeline_id=${pipelineId}`,
+      ),
+  });
+
+  const applyBulkStage = useCallback(
+    async (stageId: number) => {
+      if (bulkBusy || selectedLeadIds.length === 0) return;
+      const stageName = sortedStages.find((s) => s.id === stageId)?.name ?? "";
+      if (stageName.trim().toLowerCase().includes("ожид")) {
+        if (selectedLeadIds.length !== 1) {
+          toast.error("«В ожидании» ставится по одной карточке");
+          return;
+        }
+        setWaitingModalLeadId(selectedLeadIds[0]);
+        setSelectedLeadIds([]);
+        return;
+      }
+      let refusalReason: string | undefined;
+      if (isRefusalStageName(stageName)) {
+        const reason = window.prompt("Причина отказа");
+        if (reason === null) return;
+        if (!reason.trim()) {
+          toast.error("Укажите причину отказа");
+          return;
+        }
+        refusalReason = reason.trim();
+      }
+      setBulkBusy(true);
+      let ok = 0;
+      let fail = "";
+      for (const id of selectedLeadIds) {
+        try {
+          await apiFetch(`/api/leads/${id}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              status_id: stageId,
+              ...(refusalReason ? { refusal_reason: refusalReason } : {}),
+            }),
+          });
+          ok += 1;
+        } catch (e) {
+          fail = e instanceof Error ? e.message : "Не удалось сменить стадию";
+        }
+      }
+      setBulkBusy(false);
+      refreshAll();
+      if (ok > 0) setSelectedLeadIds([]);
+      if (fail && ok === 0) toast.error(fail);
+      else if (fail) toast.error(`Сменено ${ok}. ${fail}`);
+      else toast.success(`Стадия обновлена: ${ok}`);
+    },
+    [bulkBusy, refreshAll, selectedLeadIds, sortedStages],
+  );
+
+  const applyBulkManager = useCallback(
+    async (managerId: number) => {
+      if (bulkBusy || selectedLeadIds.length === 0) return;
+      setBulkBusy(true);
+      let ok = 0;
+      let fail = "";
+      for (const id of selectedLeadIds) {
+        try {
+          await apiFetch(`/api/rop/leads/transfer`, {
+            method: "POST",
+            body: JSON.stringify({ lead_id: id, to_manager_id: managerId }),
+          });
+          ok += 1;
+        } catch (e) {
+          fail = e instanceof Error ? e.message : "Не удалось назначить";
+        }
+      }
+      setBulkBusy(false);
+      refreshAll();
+      if (ok > 0) setSelectedLeadIds([]);
+      if (fail && ok === 0) toast.error(fail);
+      else if (fail) toast.error(`Назначено ${ok}. ${fail}`);
+      else toast.success(`Ответственный назначен: ${ok}`);
+    },
+    [bulkBusy, refreshAll, selectedLeadIds],
+  );
+
+  const deleteSelectedLeads = useCallback(async () => {
+    if (bulkBusy || selectedLeadIds.length === 0) return;
+    if (!window.confirm(`Удалить выбранные карточки: ${selectedLeadIds.length}?`)) return;
+    setBulkBusy(true);
+    let ok = 0;
+    let fail = "";
+    for (const id of selectedLeadIds) {
+      try {
+        await apiFetch(`/api/leads/${id}`, { method: "DELETE" });
+        ok += 1;
+      } catch (e) {
+        fail = e instanceof Error ? e.message : "Не удалось удалить";
+      }
+    }
+    setBulkBusy(false);
+    refreshAll();
+    if (ok > 0) setSelectedLeadIds([]);
+    if (fail && ok === 0) toast.error(fail);
+    else if (fail) toast.error(`Удалено ${ok}. ${fail}`);
+    else toast.success(`Удалено: ${ok}`);
+  }, [bulkBusy, refreshAll, selectedLeadIds]);
 
   const registerScrollContainer = useCallback((stageId: number, el: HTMLDivElement | null) => {
     if (el) {
@@ -2794,6 +3010,66 @@ export function CrmPage() {
 
       {crmView === "board" && sortedStages.length > 0 && (
         <>
+          {selectedLeadIds.length > 0 ? (
+            <div className="crm-bulk-bar" aria-label="Действия с выбранными лидами">
+              <span className="crm-bulk-bar__count">Выбрано: {selectedLeadIds.length}</span>
+              <button
+                type="button"
+                className="crm-bulk-bar__clear"
+                aria-label="Снять выбор"
+                disabled={bulkBusy}
+                onClick={() => setSelectedLeadIds([])}
+              >
+                ×
+              </button>
+              <select
+                className="mo-input crm-bulk-bar__select"
+                value=""
+                disabled={bulkBusy}
+                aria-label="Сменить стадию"
+                onChange={(e) => {
+                  const id = Number(e.target.value);
+                  if (id) void applyBulkStage(id);
+                }}
+              >
+                <option value="">Сменить стадию</option>
+                {sortedStages.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name.trim() === "В обработке" ? "В работе" : s.name}
+                  </option>
+                ))}
+              </select>
+              {canBulkAssign ? (
+                <select
+                  className="mo-input crm-bulk-bar__select"
+                  value=""
+                  disabled={bulkBusy || bulkManagersQuery.isLoading}
+                  aria-label="Назначить ответственного"
+                  onChange={(e) => {
+                    const id = Number(e.target.value);
+                    if (id) void applyBulkManager(id);
+                  }}
+                >
+                  <option value="">Назначить ответственного</option>
+                  {(bulkManagersQuery.data?.managers ?? []).map((m) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.full_name}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              {currentRole === "owner" ? (
+                <button
+                  type="button"
+                  className="crm-bulk-bar__danger"
+                  disabled={bulkBusy}
+                  onClick={() => void deleteSelectedLeads()}
+                >
+                  Удалить
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <DndContext
             sensors={sensors}
             collisionDetection={closestCorners}
@@ -2849,6 +3125,8 @@ export function CrmPage() {
                     currentRole={currentRole}
                     onRefresh={refreshAll}
                     onLoadMore={loadMoreForStage}
+                    selectedLeadIds={selectedLeadIds}
+                    onToggleLead={toggleLeadSelected}
                     registerScrollContainer={registerScrollContainer}
                     onBoardPanPointerDown={onBoardPanPointerDown}
                     onBoardPanPointerMove={onBoardPanPointerMove}

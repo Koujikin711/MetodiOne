@@ -2396,7 +2396,103 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-week-grid__day-col {
-  @apply flex min-w-[4.75rem] flex-1 basis-0 flex-col border-r border-[var(--mo-border)] last:border-r-0 sm:min-w-[6.5rem];
+  @apply flex min-w-[5.5rem] flex-1 basis-0 flex-col border-r border-[var(--mo-border)] last:border-r-0 sm:min-w-[7.25rem];
+}
+
+.booking-week-grid__day-col.booking-week-grid__day-col--open {
+  min-width: 15rem;
+}
+
+.booking-hour {
+  display: grid;
+  grid-template-columns: 1.15rem minmax(0, 1fr);
+  gap: 0.12rem;
+  align-items: stretch;
+  min-width: 0;
+  padding-bottom: 0.12rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--mo-border) 70%, transparent);
+}
+
+.booking-hour__label {
+  padding-top: 0.15rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--mo-text-muted);
+}
+
+.booking-hour__times {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.booking-hour__cols {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.booking-hour__cols--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.booking-hour__cols--pair {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.booking-hour--blank .booking-hour__times {
+  min-height: 1.15rem;
+  cursor: pointer;
+}
+
+.booking-hour__cols > .booking-appt-bitrix {
+  min-height: 1.45rem;
+  height: 100%;
+}
+
+.booking-hour__cols--pair > .booking-appt-bitrix {
+  min-height: 1.35rem;
+}
+
+.booking-hour__cols > .booking-appt-bitrix.booking-appt-bitrix--hour {
+  min-height: 4.75rem;
+}
+
+.booking-hour__cols--single .booking-appt-card-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+
+.booking-hour__cols--single .booking-appt-foot {
+  margin-top: 0;
+}
+
+.booking-hour__cols--single .booking-appt-bitrix--hour .booking-appt-card-body,
+.booking-hour__cols--pair .booking-appt-bitrix--hour .booking-appt-card-body {
+  display: block;
+}
+
+.booking-hour__cols .booking-appt-bitrix--hour .booking-appt-foot {
+  margin-top: 0.2rem;
+}
+
+.booking-hour__empty {
+  min-height: 2.45rem;
+  border-radius: 0.35rem;
+  border: 1px dashed color-mix(in srgb, var(--mo-border-strong) 45%, transparent);
+  background: transparent;
+}
+
+.booking-hour__empty:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--mo-accent) 55%, var(--mo-border));
+  background: color-mix(in srgb, var(--mo-accent) 8%, transparent);
 }
 
 .booking-week-grid__spec-col {
@@ -3550,11 +3646,83 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .crm-lead-card.is-dragging {
   opacity: 0.58;
 }
+.crm-lead-card.is-selected {
+  border-color: var(--mo-accent);
+  box-shadow: inset 0 0 0 1px var(--mo-accent);
+}
+.crm-lead-check {
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  border: 1.5px solid var(--mo-text-muted);
+  border-radius: 0.2rem;
+  background: var(--mo-surface);
+  cursor: pointer;
+}
+.crm-lead-check:checked {
+  border-color: var(--mo-accent);
+  background-color: var(--mo-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='white' stroke-width='2.2' d='M3.5 8.5l3 3 6-6.5'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+}
+.crm-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--mo-border);
+  border-radius: 0.85rem;
+  background: var(--mo-surface-elevated);
+}
+.crm-bulk-bar__count {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--mo-text);
+}
+.crm-bulk-bar__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--mo-border);
+  background: transparent;
+  color: var(--mo-text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.crm-bulk-bar__clear:hover {
+  color: var(--mo-text);
+}
+.crm-bulk-bar__select {
+  width: auto;
+  min-width: 11rem;
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+  font-size: 0.85rem;
+}
+.crm-bulk-bar__danger {
+  border: 1px solid color-mix(in srgb, var(--mo-danger) 55%, var(--mo-border));
+  background: transparent;
+  color: var(--mo-danger);
+  border-radius: 0.65rem;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
 
-.crm-lead-source {
-  @apply max-w-[5.5rem] truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold;
-  background: var(--mo-accent-soft);
-  color: var(--mo-accent-hover);
+.crm-lead-action {
+  display: inline-flex;
+  color: var(--mo-text-muted);
+  line-height: 0;
+}
+
+.crm-lead-action:hover {
+  color: var(--mo-text);
 }
 
 .crm-lead-badge {

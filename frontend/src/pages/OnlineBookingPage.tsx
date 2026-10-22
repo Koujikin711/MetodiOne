@@ -28,6 +28,7 @@ import {
 } from "@/lib/bookingDirectionKinds";
 import { formatMoney } from "@/lib/money";
 import { isReferralService } from "@/lib/referralService";
+import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import { BOOKING_TIME_ZONE, addCalendarDaysInBookingTz, datetimeLocalBookingToIsoUtc, formatWeekRangeLabel, weekWorkDayYmds, ymdInBookingTz } from "@/lib/bookingTz";
 import {
   allSpecialistsSelected,
@@ -943,8 +944,11 @@ export function OnlineBookingPage() {
         method: "PATCH",
         body: JSON.stringify({ comment: noteText.trim() || null }),
       }),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       setNoteEditAppt(null);
+      setApptDetail((cur) =>
+        cur && cur.id === saved.id ? { ...cur, comment: saved.comment } : cur,
+      );
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       toast.success("Заметка сохранена");
@@ -2218,6 +2222,27 @@ export function OnlineBookingPage() {
                     Услуга: {(apptDetail.service_title || "").trim()}
                   </span>
                 ) : null}
+              </div>
+              <p className="mt-3 text-sm">
+                <span className="mo-muted">Номер записи: </span>
+                <span className="font-semibold tabular-nums">{visitDisplayValue(apptDetail) ?? "—"}</span>
+              </p>
+              <div className="mt-2 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="mo-muted">Заметка</span>
+                  {canEditBooking ? (
+                    <button
+                      type="button"
+                      className="text-xs underline"
+                      onClick={() => onAppointmentNoteClick(apptDetail)}
+                    >
+                      {(apptDetail.comment || "").trim() ? "Изменить" : "Добавить"}
+                    </button>
+                  ) : null}
+                </div>
+                <p className="mt-1 whitespace-pre-wrap">
+                  {(apptDetail.comment || "").trim() || "Нет заметки"}
+                </p>
               </div>
               <div className="mt-3">
                 <ReferringDoctorField

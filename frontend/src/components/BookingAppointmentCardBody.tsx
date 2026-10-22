@@ -9,6 +9,7 @@ type Props = {
   onNoteClick?: (a: BookingAppointment) => void;
   canToggleComplete?: boolean;
   onCompleteToggle?: (a: BookingAppointment, completed: boolean) => void;
+  compact?: boolean;
 };
 
 export function BookingAppointmentCardBody({
@@ -16,11 +17,12 @@ export function BookingAppointmentCardBody({
   timeLabel,
   canEditNotes,
   onNoteClick,
+  compact,
 }: Props) {
   const note = (a.comment || "").trim();
   const visitLabel = visitDisplayValue(a);
   const showVisitCounter =
-    Boolean(visitLabel) && a.status !== "no_show" && a.status !== "cancelled";
+    !compact && Boolean(visitLabel) && a.status !== "no_show" && a.status !== "cancelled";
 
   const noteControl = canEditNotes ? (
     <button
@@ -68,11 +70,18 @@ export function BookingAppointmentCardBody({
 
   return (
     <div className="booking-appt-card-body relative">
-      {noteWithTooltip ? (
+      {!compact && noteWithTooltip ? (
         <div className="booking-appt-note-corner absolute right-0 top-0 z-[1]">{noteWithTooltip}</div>
       ) : null}
-      <div className={["booking-appt-head min-h-0", noteWithTooltip ? "pr-4" : ""].filter(Boolean).join(" ")}>
-        <span className="line-clamp-2 min-w-0 text-[10px] font-bold leading-tight sm:text-[11px]">
+      <div className={["booking-appt-head min-h-0", !compact && noteWithTooltip ? "pr-4" : ""].filter(Boolean).join(" ")}>
+        <span
+          className={[
+            "min-w-0 font-bold leading-tight",
+            compact
+              ? "block truncate text-[9px]"
+              : "line-clamp-2 text-[10px] sm:text-[11px]",
+          ].join(" ")}
+        >
           {a.patient_name}
         </span>
       </div>
