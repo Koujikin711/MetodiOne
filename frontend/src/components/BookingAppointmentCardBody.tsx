@@ -24,6 +24,7 @@ export function BookingAppointmentCardBody({
   const showVisitCounter =
     !compact && Boolean(visitLabel) && a.status !== "no_show" && a.status !== "cancelled";
 
+  const noteTitle = note || "Добавить заметку";
   const noteControl = canEditNotes ? (
     <button
       type="button"
@@ -31,7 +32,8 @@ export function BookingAppointmentCardBody({
         "booking-appt-note-btn shrink-0 rounded p-0.5 transition hover:bg-black/10",
         note ? "is-filled" : "is-empty",
       ].join(" ")}
-      aria-label={note ? "Редактировать заметку" : "Добавить заметку"}
+      aria-label={noteTitle}
+      title={noteTitle}
       onClick={(e) => {
         e.stopPropagation();
         onNoteClick?.(a);
@@ -40,29 +42,17 @@ export function BookingAppointmentCardBody({
       <FileText className="h-3 w-3" />
     </button>
   ) : note ? (
-    <span className="booking-appt-note-btn is-filled shrink-0 rounded p-0.5" aria-hidden>
+    <span className="booking-appt-note-btn is-filled shrink-0 rounded p-0.5" title={note} aria-label={note}>
       <FileText className="h-3 w-3" />
     </span>
   ) : null;
 
   const noteWithTooltip = noteControl ? (
-    <div className="group/note relative shrink-0">
+    <div className="booking-appt-note-wrap">
       {noteControl}
-      {note ? (
-        <div
-          role="tooltip"
-          className="booking-appt-note-tooltip pointer-events-none absolute bottom-full right-0 z-[90] mb-1 hidden w-max max-w-[min(220px,70vw)] rounded-md border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-2 py-1 text-[10px] leading-snug text-[var(--mo-text)] shadow-lg group-hover/note:block group-focus-within/note:block"
-        >
-          {note}
-        </div>
-      ) : (
-        <div
-          role="tooltip"
-          className="booking-appt-note-tooltip pointer-events-none absolute bottom-full right-0 z-[90] mb-1 hidden w-max rounded-md border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] px-2 py-1 text-[10px] mo-muted shadow-lg group-hover/note:block group-focus-within/note:block"
-        >
-          Добавить заметку
-        </div>
-      )}
+      <div role="tooltip" className="booking-appt-note-tooltip">
+        {noteTitle}
+      </div>
     </div>
   ) : null;
 

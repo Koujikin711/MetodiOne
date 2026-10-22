@@ -1600,9 +1600,40 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 .booking-appt-foot {
   min-height: 0.75rem;
 }
+.booking-appt-note-wrap {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 5;
+}
 .booking-appt-note-tooltip {
+  display: none;
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  right: 0;
+  width: max-content;
+  max-width: 220px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--mo-border-strong);
+  border-radius: 0.4rem;
+  background: var(--mo-surface-elevated);
+  color: var(--mo-text);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
   white-space: pre-wrap;
   word-break: break-word;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+.booking-appt-note-wrap:hover .booking-appt-note-tooltip,
+.booking-appt-note-wrap:focus-within .booking-appt-note-tooltip {
+  display: block;
+}
+.booking-appt-bitrix:has(.booking-appt-note-wrap:hover),
+.booking-appt-bitrix:has(.booking-appt-note-wrap:focus-within) {
+  z-index: 30;
 }
 .booking-appt-card-body {
   min-width: 0;
@@ -2399,8 +2430,8 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   @apply flex min-w-[5.5rem] flex-1 basis-0 flex-col border-r border-[var(--mo-border)] last:border-r-0 sm:min-w-[7.25rem];
 }
 
-.booking-week-grid__day-col.booking-week-grid__day-col--open {
-  min-width: 15rem;
+.booking-week-grid__day-col {
+  overflow: visible;
 }
 
 .booking-hour {

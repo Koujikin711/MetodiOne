@@ -117,29 +117,6 @@ function isSpecWorkingDay(spec: BookingSpecialist, dateYmd: string): boolean {
   return specWorkWeekdays(spec).includes(weekdayMon0InBookingTz(dateYmd));
 }
 
-function dayTimeSlots(spec: BookingSpecialist, dateYmd: string): number[] {
-  if (!isSpecWorkingDay(spec, dateYmd)) return [];
-  const step = Math.max(15, spec.slot_duration_min ?? 30);
-  const startMin = (spec.work_start_hour ?? 9) * 60;
-  const endMin = (spec.work_end_hour ?? 18) * 60;
-  const slots: number[] = [];
-  for (let m = startMin; m < endMin; m += step) {
-    slots.push(m);
-  }
-  return slots;
-}
-
-function formatMinuteLabel(minuteOfDay: number): string {
-  const h = Math.floor(minuteOfDay / 60);
-  const m = minuteOfDay % 60;
-  return `${h}:${String(m).padStart(2, "0")}`;
-}
-
-function appointmentStartMinute(a: BookingAppointment): number {
-  const { h, min } = utcMsToHourMinuteInBookingTz(new Date(a.start_at).getTime());
-  return h * 60 + min;
-}
-
 function appointmentDurationMin(a: BookingAppointment): number {
   const start = new Date(a.start_at).getTime();
   const end = new Date(a.end_at).getTime();
@@ -147,66 +124,10 @@ function appointmentDurationMin(a: BookingAppointment): number {
   return Math.round((end - start) / 60000);
 }
 
-type TimeRow = {
-  minute: number;
-  appointments: BookingAppointment[];
-};
-
-type HourLane = {
-  hour: number;
-  rows: TimeRow[];
-};
-
-function hourLanes(
-  spec: BookingSpecialist,
-  dateYmd: string,
-  dayAppts: BookingAppointment[],
-): HourLane[] | null {
-  const slots = dayTimeSlots(spec, dateYmd);
-  if (slots.length === 0) return null;
-  const startHour = Math.floor(slots[0] / 60);
-  const endHour = Math.floor(slots[slots.length - 1] / 60);
-  const lanes: HourLane[] = [];
-  for (let hour = startHour; hour <= endHour; hour++) {
-    const appointments = dayAppts
-      .filter((a) => Math.floor(appointmentStartMinute(a) / 60) === hour)
-      .sort((a, b) => a.start_at.localeCompare(b.start_at) || a.id - b.id);
-    const byMinute = new Map<number, BookingAppointment[]>();
-    const order: number[] = [];
-    for (const appointment of appointments) {
-      const minute = appointmentStartMinute(appointment);
-      const list = byMinute.get(minute);
-      if (list) list.push(appointment);
-      else {
-        byMinute.set(minute, [appointment]);
-        order.push(minute);
-      }
-    }
-    lanes.push({
-      hour,
-      rows: order.map((minute) => ({ minute, appointments: byMinute.get(minute) ?? [] })),
-    });
-  }
-  return lanes;
-}
-
-function sameTimeRows(appointments: BookingAppointment[]): BookingAppointment[][] {
-  const out: BookingAppointment[][] = [];
-  for (let i = 0; i < appointments.length; i += 2) out.push(appointments.slice(i, i + 2));
-  return out;
-}
-
-/** Запись на час — отдельной карточкой на всю ширину, как раньше.
- *  Короче часа и та же минута — до двух карточек в ряд. Другая минута — строкой ниже. */
-function laneCardRows(lane: HourLane): BookingAppointment[][] {
-  const out: BookingAppointment[][] = [];
-  for (const row of lane.rows) {
-    const hourCards = row.appointments.filter((a) => appointmentDurationMin(a) >= 60);
-    const shortCards = row.appointments.filter((a) => appointmentDurationMin(a) < 60);
-    for (const appointment of hourCards) out.push([appointment]);
-    out.push(...sameTimeRows(shortCards));
-  }
-  return out;
+function appointmentTimeLabel(a: BookingAppointment): string {
+  const start = formatTimeInBookingTz(a.start_at);
+  if (appointmentDurationMin(a) >= 60) return `${start}–${formatTimeInBookingTz(a.end_at)}`;
+  return start;
 }
 
 function emitSlotClick(
@@ -371,7 +292,6 @@ function SortableSpecialistRow({
             );
           }
 
-          const lanes = hourLanes(spec, dateYmd, dayAppts);
           const workingDay = isSpecWorkingDay(spec, dateYmd);
 
           return (
@@ -390,7 +310,6 @@ function SortableSpecialistRow({
               }}
               className={[
                 DAY_COL_CLASS,
-                "booking-week-grid__day-col--open",
                 isToday ? "bg-[var(--mo-accent-soft)]/30" : "bg-[var(--mo-surface)]",
                 !workingDay ? "booking-week-grid__day-col--off" : "",
                 canAdd && workingDay
@@ -398,91 +317,51 @@ function SortableSpecialistRow({
                   : "",
               ].join(" ")}
               style={{ minHeight: EXPANDED_ROW_MIN_PX }}
-              title={!workingDay ? "Выходной" : canAdd ? `Записать на ${dateYmd}` : undefined}
             >
               <div className="flex items-center justify-between gap-1">
                 <span className="text-[10px] font-semibold tabular-nums mo-muted">{count}</span>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-visible">
+              <div className="flex min-h-0 flex-1 flex-col gap-1">
                 {!workingDay ? (
                   <div className="booking-week-grid__off-day flex flex-1 items-center justify-center rounded-md px-1 py-2 text-center text-[10px] mo-muted">
                     Выходной
                   </div>
-                ) : lanes ? (
-                  lanes.map((lane) => {
-                    const blank = lane.rows.length === 0;
+                ) : (
+                  dayAppts.map((a) => {
+                    const timeLabel = showSessionInsteadOfTime ? null : appointmentTimeLabel(a);
                     return (
-                    <div
-                      key={`hour-${key}-${lane.hour}`}
-                      className={["booking-hour", blank ? "booking-hour--blank" : ""].filter(Boolean).join(" ")}
-                    >
-                      <span className="booking-hour__label">{lane.hour}</span>
                       <div
-                        className="booking-hour__times"
-                        onClick={
-                          blank
-                            ? (e) => {
-                                e.stopPropagation();
-                                if (!onSlotClick) return;
-                                onSlotClick({
-                                  specialistId: spec.id,
-                                  directionId: spec.direction_id,
-                                  dateYmd,
-                                  minuteOfDay: lane.hour * 60,
-                                });
-                              }
-                            : undefined
-                        }
+                        key={a.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAppointmentClick(a);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter" && e.key !== " ") return;
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onAppointmentClick(a);
+                        }}
+                        className={[
+                          "booking-appt-bitrix relative w-full overflow-visible rounded-md px-1.5 py-1 text-left",
+                          appointmentVisualClass(a),
+                        ].join(" ")}
                       >
-                        {laneCardRows(lane).map((pair, pairIndex) => (
-                            <div
-                              key={`${lane.hour}-row-${pairIndex}`}
-                              className={[
-                                "booking-hour__cols",
-                                pair.length > 1 ? "booking-hour__cols--pair" : "booking-hour__cols--single",
-                              ].join(" ")}
-                            >
-                              {pair.map((a) => {
-                                const hourLong = appointmentDurationMin(a) >= 60;
-                                const timeLabel = showSessionInsteadOfTime
-                                  ? null
-                                  : formatTimeInBookingTz(a.start_at);
-                                return (
-                                  <button
-                                    key={a.id}
-                                    type="button"
-                                    title={`${a.patient_name} ${timeLabel ?? ""}`.trim()}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onAppointmentClick(a);
-                                    }}
-                                    className={[
-                                      "booking-appt-bitrix relative min-w-0 overflow-hidden rounded-md text-left",
-                                      hourLong
-                                        ? "booking-appt-bitrix--full w-full px-1 py-0.5 sm:px-1.5 sm:py-1"
-                                        : "px-1 py-0.5",
-                                      appointmentVisualClass(a),
-                                    ].join(" ")}
-                                  >
-                                    <BookingAppointmentCardBody
-                                      appointment={a}
-                                      timeLabel={timeLabel}
-                                      compact={appointmentDurationMin(a) <= 30}
-                                      canEditNotes={canEditNotes}
-                                      onNoteClick={onAppointmentNoteClick}
-                                      canToggleComplete={canToggleComplete}
-                                      onCompleteToggle={onAppointmentCompleteToggle}
-                                    />
-                                  </button>
-                                );
-                              })}
-                            </div>
-                        ))}
+                        <BookingAppointmentCardBody
+                          appointment={a}
+                          timeLabel={timeLabel}
+                          compact={appointmentDurationMin(a) <= 30}
+                          canEditNotes={canEditNotes}
+                          onNoteClick={onAppointmentNoteClick}
+                          canToggleComplete={canToggleComplete}
+                          onCompleteToggle={onAppointmentCompleteToggle}
+                        />
                       </div>
-                    </div>
                     );
                   })
-                ) : null}
+                )}
               </div>
             </div>
           );
