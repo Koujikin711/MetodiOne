@@ -2422,6 +2422,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 .booking-week-grid {
   @apply w-full overflow-x-auto rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)];
   -webkit-overflow-scrolling: touch;
+  --booking-grid-line: color-mix(in srgb, var(--mo-text-muted) 26%, transparent);
 }
 
 .booking-week-grid__inner {
@@ -2429,16 +2430,19 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .booking-week-grid__day-col {
-  @apply flex min-w-[5.5rem] flex-1 basis-0 flex-col border-r border-[var(--mo-border)] last:border-r-0 sm:min-w-[7.25rem];
-}
-
-.booking-week-grid__day-col {
+  @apply flex min-w-[5.5rem] flex-1 basis-0 flex-col sm:min-w-[7.25rem];
   overflow: visible;
+  border-right: 1px solid var(--booking-grid-line);
 }
 
 .booking-week-grid__day-col.booking-week-grid__day-col--open {
   flex: 1 0 15rem;
   min-width: 15rem;
+}
+
+.booking-week-grid__day-col,
+.booking-week-grid__spec-col {
+  border-bottom: 1px solid var(--booking-grid-line);
 }
 
 .booking-week-grid__pair {

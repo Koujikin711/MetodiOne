@@ -33,7 +33,6 @@ export function BookingAppointmentCardBody({
         note ? "is-filled" : "is-empty",
       ].join(" ")}
       aria-label={noteTitle}
-      title={noteTitle}
       onClick={(e) => {
         e.stopPropagation();
         onNoteClick?.(a);
@@ -42,7 +41,7 @@ export function BookingAppointmentCardBody({
       <FileText className="h-3 w-3" />
     </button>
   ) : note ? (
-    <span className="booking-appt-note-btn is-filled shrink-0 rounded p-0.5" title={note} aria-label={note}>
+    <span className="booking-appt-note-btn is-filled shrink-0 rounded p-0.5" aria-label={note}>
       <FileText className="h-3 w-3" />
     </span>
   ) : null;
@@ -76,7 +75,14 @@ export function BookingAppointmentCardBody({
         </span>
       </div>
       {showFoot ? (
-        <div className="booking-appt-foot mt-0.5 flex items-center justify-between gap-1">
+        <div
+          className={[
+            "booking-appt-foot mt-0.5 flex items-center justify-between gap-1",
+            !compact && noteWithTooltip ? "pr-4" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
           {timeLabel ? (
             <span className="text-[9px] font-semibold tabular-nums leading-none opacity-90 sm:text-[10px]">
               {timeLabel}

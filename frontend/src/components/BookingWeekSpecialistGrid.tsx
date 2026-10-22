@@ -300,7 +300,7 @@ function SortableSpecialistRow({
       ref={setNodeRef}
       style={style}
       className={[
-        "flex border-b border-[var(--mo-border)] last:border-b-0",
+        "flex",
         isDragging ? "opacity-90 ring-2 ring-indigo-500/35" : "",
       ].join(" ")}
     >
@@ -364,6 +364,7 @@ function SortableSpecialistRow({
           const isToday = dateYmd === todayYmd;
           const dayAppts = (bySpecDay.get(key) ?? []).slice().sort((a, b) => a.start_at.localeCompare(b.start_at));
           const canAdd = Boolean(onSlotClick);
+          const dayLabel = formatWeekdayHeader(dateYmd);
 
           if (!expanded) {
             return (
@@ -381,7 +382,7 @@ function SortableSpecialistRow({
                     : "cursor-default",
                 ].join(" ")}
                 style={{ minHeight: COLLAPSED_ROW_PX }}
-                title={canAdd ? `Записать на ${dateYmd}` : `Записей: ${count}`}
+                title={canAdd ? `Записать на ${dayLabel.weekday} ${dayLabel.dayMonth}` : `Записей: ${count}`}
               >
                 <span
                   className={[
@@ -691,7 +692,7 @@ export function BookingWeekSpecialistGrid({
   return (
     <div className="booking-week-grid">
       <div className="booking-week-grid__inner">
-        <div className="sticky top-0 z-30 flex w-full border-b border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/98 backdrop-blur-sm">
+        <div className="booking-week-grid__head sticky top-0 z-30 flex w-full bg-[var(--mo-surface-elevated)]/98 backdrop-blur-sm">
           <div className="booking-week-grid__spec-col flex items-center justify-between gap-1 px-2 py-2">
             <p className="min-w-0 truncate text-xs font-semibold text-[var(--mo-text)]">Специалисты</p>
             {headerAddon}
