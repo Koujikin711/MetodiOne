@@ -1675,9 +1675,9 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   background-image: repeating-linear-gradient(
     -45deg,
     transparent,
-    transparent 8px,
-    color-mix(in srgb, currentColor 9%, transparent) 8px,
-    color-mix(in srgb, currentColor 9%, transparent) 9px
+    transparent 12px,
+    color-mix(in srgb, currentColor 5%, transparent) 12px,
+    color-mix(in srgb, currentColor 5%, transparent) 13px
   );
 }
 .booking-appt-meta {
@@ -6798,16 +6798,14 @@ li.is-overdue {
   font-size: 0.68rem;
 }
 
-.kpi-course-col-date { width: 7%; }
-.kpi-course-col-product { width: 6%; }
-.kpi-course-col-num { width: 5%; }
-.kpi-course-col-manager { width: 13%; }
-.kpi-course-col-client { width: 10%; }
-.kpi-course-col-phone { width: 8%; }
-.kpi-course-col-sum { width: 22%; }
-.kpi-course-col-money { width: 6%; }
-.kpi-course-col-kpi { width: 4%; }
-.kpi-course-col-actions { width: 8%; }
+.kpi-course-col-date { width: 8%; }
+.kpi-course-col-product { width: 7%; }
+.kpi-course-col-num { width: 4.5%; }
+.kpi-course-col-manager { width: 15%; }
+.kpi-course-col-client { width: 16%; }
+.kpi-course-col-phone { width: 14%; }
+.kpi-course-col-sum { width: 14%; }
+.kpi-course-col-money { width: 8.5%; }
 
 .kpi-course-sheet thead th,
 .kpi-course-sheet tbody td {
@@ -6821,8 +6819,15 @@ li.is-overdue {
 }
 
 .kpi-course-sheet td.kpi-course-pay,
+.kpi-course-sheet td.kpi-course-pay + td {
+  overflow: hidden;
+  white-space: normal;
+  vertical-align: top;
+  padding-right: 0.12rem;
+}
+
 .kpi-course-sheet .kpi-course-actions {
-  overflow: visible;
+  overflow: hidden;
 }
 
 .kpi-course-manager-cell {
@@ -6896,10 +6901,19 @@ li.is-overdue {
   background: transparent;
 }
 
-.kpi-course-sheet .kpi-sum-pay,
+.kpi-course-sheet .kpi-sum-pay {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  max-width: 100%;
+}
+
 .kpi-course-sheet .kpi-pay-pack {
-  flex-wrap: nowrap;
-  gap: 0.18rem;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  width: 100%;
+  max-width: 100%;
 }
 
 .kpi-course-sheet .kpi-pay-pack__input {
@@ -10887,4 +10901,73 @@ html:has(.studio-root) {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--mo-text-muted);
+}
+
+@media print {
+  @page { margin: 10mm; }
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #111827 !important;
+  }
+  :root {
+    --mo-text: #111827;
+    --mo-text-muted: #374151;
+    --mo-surface: #fff;
+    --mo-surface-elevated: #fff;
+    --mo-bg: #fff;
+    --mo-border: #d1d5db;
+  }
+  .shell-sidebar,
+  nav[aria-label="Основная навигация"],
+  .print-hide,
+  .kpi-pay-pack,
+  .kpi-actions-menu {
+    display: none !important;
+  }
+  .shell-main,
+  .shell-main * {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  .shell-main {
+    position: static !important;
+    height: auto !important;
+    padding: 0 !important;
+  }
+  .kpi-data-table,
+  .kpi-course-sheet {
+    width: 100% !important;
+    color: #111827 !important;
+  }
+  .kpi-data-table th,
+  .kpi-data-table td {
+    border-color: #d1d5db !important;
+  }
+  tr { break-inside: avoid; }
+  body:has(.print-sheet) .shell-sidebar,
+  body:has(.print-sheet) .shell-main,
+  body:has(.print-sheet) nav[aria-label="Основная навигация"] {
+    display: none !important;
+  }
+  .print-sheet-backdrop {
+    position: static !important;
+    inset: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #fff !important;
+    padding: 0 !important;
+  }
+  .print-sheet {
+    position: static !important;
+    max-height: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #111827 !important;
+  }
 }

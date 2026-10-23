@@ -9,6 +9,7 @@ import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { BookingDirectionsPanel } from "@/components/BookingDirectionsPanel";
 import { BookingWeekSpecialistGrid } from "@/components/BookingWeekSpecialistGrid";
 import { BookingUpcomingServicesReport } from "@/components/BookingUpcomingServicesReport";
+import { PrintButton } from "@/components/PrintButton";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
 import { DateTimeField } from "@/components/DateTimeField";
 import { DateField } from "@/components/DateField";
@@ -1342,6 +1343,7 @@ export function OnlineBookingPage() {
             {tabBtn("online", "Расписание")}
             {tabBtn("journal", "Журнал")}
             {tabBtn("upcoming", "Отчёт по услугам")}
+            {tab === "journal" || tab === "upcoming" ? <PrintButton /> : null}
             {canEditBooking ? (
               <button
                 type="button"

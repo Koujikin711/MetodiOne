@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { DateTimeField } from "@/components/DateTimeField";
+import { PrintButton } from "@/components/PrintButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
@@ -245,6 +246,7 @@ export function TasksPage() {
           className="mb-0"
           title="Задачи"
           description="Быстро создавайте и отмечайте выполненные"
+          actions={view === "done" ? <PrintButton /> : undefined}
         />
       </div>
 

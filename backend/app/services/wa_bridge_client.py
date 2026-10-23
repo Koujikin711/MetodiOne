@@ -152,7 +152,10 @@ def send_file(
         logger.warning("wa outgoing file not saved: %s", exc)
         return False, "Недостаточно места на диске для файла", None, False
     kind = "image" if (mime or "").startswith("image/") else "file"
-    if (mime or "").startswith("audio/"):
+    low_name = (filename or "").lower()
+    if (mime or "").startswith("audio/") and (low_name.startswith("voice") or low_name.endswith(".ogg")):
+        kind = "voice"
+    elif (mime or "").startswith("audio/"):
         kind = "audio"
     return _post(
         "/send",

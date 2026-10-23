@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { DateField } from "@/components/DateField";
+import { PrintButton } from "@/components/PrintButton";
 import { useRopContext } from "@/pages/rop/RopLayout";
 
 type Analytics = {
@@ -76,7 +77,8 @@ export function RopAnalyticsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <PrintButton />
         <label className="text-sm mo-muted">
           С
           <DateField value={from} onChange={setFrom} className="mo-input mt-1" />

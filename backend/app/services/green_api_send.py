@@ -83,28 +83,44 @@ async def send_green_text_async(config: dict | None, chat_id: str, text: str) ->
         return _via_qr_text(chat_id, text, str(e))
 
 
+def _upload_mime(filename: str, mime: str | None) -> str | None:
+    low = (filename or "").lower()
+    if low.endswith(".ogg") or low.endswith(".opus"):
+        return "audio/ogg"
+    if mime:
+        return mime.split(";")[0].strip() or None
+    return None
+
+
 async def send_green_file_upload(
     config: dict | None,
     chat_id: str,
     file_bytes: bytes,
     filename: str,
     caption: str,
+    mime: str | None = None,
 ) -> tuple[bool, str | None, str | None]:
     cfg = config or {}
     instance_id = cfg.get("instance_id") or cfg.get("instanceId")
     api_token = cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance")
+    upload_name = filename or "file"
+    upload_mime = _upload_mime(upload_name, mime)
     if not instance_id or not api_token:
-        return _via_qr_file(chat_id, file_bytes, filename, caption, None, "Нет instance_id/api_token в интеграции")
+        return _via_qr_file(
+            chat_id, file_bytes, upload_name, caption, upload_mime, "Нет instance_id/api_token в интеграции"
+        )
     media_base = green_media_base_from_config(cfg)
     url = f"{media_base}/waInstance{instance_id}/sendFileByUpload/{api_token}"
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
-            files = {"file": (filename, file_bytes)}
-            data: dict[str, Any] = {"chatId": chat_id, "caption": caption or ""}
-            r = await client.post(url, data=data, files=files)
+            file_part = (upload_name, file_bytes, upload_mime) if upload_mime else (upload_name, file_bytes)
+            data: dict[str, Any] = {"chatId": chat_id, "fileName": upload_name}
+            if caption:
+                data["caption"] = caption
+            r = await client.post(url, data=data, files={"file": file_part})
             if r.status_code >= 400:
-                return _via_qr_file(chat_id, file_bytes, filename, caption, None, (r.text or "")[:400])
+                return _via_qr_file(chat_id, file_bytes, upload_name, caption, upload_mime, (r.text or "")[:400])
             j = r.json()
             return True, None, str(j.get("idMessage") or "")
     except Exception as e:
-        return _via_qr_file(chat_id, file_bytes, filename, caption, None, str(e))
+        return _via_qr_file(chat_id, file_bytes, upload_name, caption, upload_mime, str(e))

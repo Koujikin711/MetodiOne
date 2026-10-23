@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
+import { PrintButton } from "@/components/PrintButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch } from "@/lib/api";
 import {
@@ -43,6 +44,7 @@ export function AuditPage() {
           className="mb-0"
           title="Системный аудит"
           description="Кто куда заходил и что нажал: клиенты, онлайн-запись, сотрудники, воронки."
+          actions={<PrintButton />}
         />
       </div>
 

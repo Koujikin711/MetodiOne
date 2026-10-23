@@ -15,7 +15,16 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useMemo, useState, type DragEvent as ReactDragEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 
 import { GripVertical, Pencil } from "@/components/icons";
 import { BookingAppointmentCardBody } from "@/components/BookingAppointmentCardBody";
@@ -615,6 +624,77 @@ export function BookingWeekSpecialistGrid({
 
   const showSpecEdit = Boolean(onEditSpecialist);
   const dragEnabled = Boolean(onReorderSpecialists && sortedSpecs.length > 1);
+  const weekScrollRef = useRef<HTMLDivElement>(null);
+  const panDragRef = useRef<{ pointerId: number; startX: number; startScroll: number } | null>(null);
+  const [canPanLeft, setCanPanLeft] = useState(false);
+  const [canPanRight, setCanPanRight] = useState(false);
+
+  const syncPanEdges = useCallback(() => {
+    const el = weekScrollRef.current;
+    if (!el) {
+      setCanPanLeft(false);
+      setCanPanRight(false);
+      return;
+    }
+    const max = Math.max(0, el.scrollWidth - el.clientWidth);
+    setCanPanLeft(el.scrollLeft > 2);
+    setCanPanRight(el.scrollLeft < max - 2);
+  }, []);
+
+  useEffect(() => {
+    syncPanEdges();
+    const el = weekScrollRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(syncPanEdges);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [syncPanEdges, expandedSpecId, sortedSpecs.length]);
+
+  const scrollWeekBy = useCallback(
+    (delta: number) => {
+      const el = weekScrollRef.current;
+      if (!el) return;
+      el.scrollBy({ left: delta, behavior: "smooth" });
+      window.setTimeout(syncPanEdges, 280);
+    },
+    [syncPanEdges],
+  );
+
+  const onWeekPanPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    const el = weekScrollRef.current;
+    if (!el) return;
+    panDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startScroll: el.scrollLeft,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }, []);
+
+  const onWeekPanPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      const drag = panDragRef.current;
+      const el = weekScrollRef.current;
+      if (!drag || !el || drag.pointerId !== event.pointerId) return;
+      el.scrollLeft = drag.startScroll - (event.clientX - drag.startX);
+      syncPanEdges();
+    },
+    [syncPanEdges],
+  );
+
+  const onWeekPanPointerUp = useCallback((event: ReactPointerEvent<HTMLElement>) => {
+    const drag = panDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    panDragRef.current = null;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* already released */
+    }
+    syncPanEdges();
+  }, [syncPanEdges]);
 
   function handleToggleExpand(specId: number) {
     setExpandedSpecId((cur) => (cur === specId ? null : specId));
@@ -690,7 +770,38 @@ export function BookingWeekSpecialistGrid({
   ));
 
   return (
-    <div className="booking-week-grid">
+    <div>
+      <div className="crm-board-pan-bar" aria-label="Прокрутка дней недели">
+        <button
+          type="button"
+          className="crm-board-pan-btn"
+          disabled={!canPanLeft}
+          aria-label="Прокрутить дни влево"
+          onClick={() => scrollWeekBy(-280)}
+        >
+          ‹
+        </button>
+        <div
+          className="crm-board-pan-track"
+          title="Перетащите влево или вправо, чтобы увидеть все дни недели"
+          onPointerDown={onWeekPanPointerDown}
+          onPointerMove={onWeekPanPointerMove}
+          onPointerUp={onWeekPanPointerUp}
+          onPointerCancel={onWeekPanPointerUp}
+        >
+          <span className="crm-board-pan-hint">← перетащите, чтобы увидеть все дни →</span>
+        </div>
+        <button
+          type="button"
+          className="crm-board-pan-btn"
+          disabled={!canPanRight}
+          aria-label="Прокрутить дни вправо"
+          onClick={() => scrollWeekBy(280)}
+        >
+          ›
+        </button>
+      </div>
+      <div ref={weekScrollRef} className="booking-week-grid" onScroll={syncPanEdges}>
       <div className="booking-week-grid__inner">
         <div className="booking-week-grid__head sticky top-0 z-30 flex w-full bg-[var(--mo-surface-elevated)]/98 backdrop-blur-sm">
           <div className="booking-week-grid__spec-col flex items-center justify-between gap-1 px-2 py-2">
@@ -726,6 +837,7 @@ export function BookingWeekSpecialistGrid({
         Клик по времени — новая запись. Карточку можно перетащить на другое время или день. Имя
         специалиста — развернуть или свернуть. Часовой пояс: {BOOKING_TIME_ZONE}.
       </p>
+      </div>
     </div>
   );
 }

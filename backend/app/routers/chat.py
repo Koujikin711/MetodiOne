@@ -54,7 +54,7 @@ from app.services.patient_phone_visibility import (
     resolve_phone_fields,
 )
 from app.services.phone_match import parse_allowed_phones_json, phone_digits, whatsapp_e164_digits
-from app.services.lead_extra_phones import norm_phone
+from app.services.lead_extra_phones import list_extra_phones, norm_phone
 from app.services.integration_inbound import upsert_thread
 from app.services.lead_sales_stages import (
     SALES_STAGE_KEYS,
@@ -460,7 +460,7 @@ async def _resolve_green_outbound(
     chat_id, _used_extra = await resolve_outbound_green_chat_id(db, thread=thread)
     if not chat_id and lead is not None:
         await db.refresh(lead, ["extra_phones", "stage"])
-        digits = _lead_whatsapp_digits(lead)
+        digits = await _lead_whatsapp_digits(db, lead)
         if len(digits) >= 9:
             chat_id = f"{digits}@c.us"
     if not chat_id:
@@ -555,7 +555,7 @@ async def _resolve_outbound_send(
         # Lead Ads / без Direct — если есть телефон, шлём в WhatsApp.
         if lead is not None:
             await db.refresh(lead, ["extra_phones"])
-            if len(_lead_whatsapp_digits(lead)) >= 9:
+            if len(await _lead_whatsapp_digits(db, lead)) >= 9:
                 return await _resolve_green_outbound(db, thread=thread, company_id=company_id, lead=lead)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -568,7 +568,7 @@ async def _resolve_outbound_send(
     # Пустой / неизвестный provider: ручной лид с номером → WhatsApp.
     if lead is not None:
         await db.refresh(lead, ["extra_phones"])
-        if len(_lead_whatsapp_digits(lead)) >= 9:
+        if len(await _lead_whatsapp_digits(db, lead)) >= 9:
             return await _resolve_green_outbound(db, thread=thread, company_id=company_id, lead=lead)
 
     raise HTTPException(
@@ -624,6 +624,8 @@ async def _send_green_file_message(
             filename or "file",
             file_content_type,
         )
+        if (filename or "").lower().endswith(".ogg"):
+            file_content_type = "audio/ogg"
     except RuntimeError as e:
         d = str(e)
         logger.warning("chat voice prepare failed thread=%s detail=%s", thread.id, d[:500])
@@ -634,6 +636,7 @@ async def _send_green_file_message(
         file_bytes,
         filename or "file",
         caption or "",
+        mime=file_content_type,
     )
     if not ok:
         msg = ChatMessage(
@@ -1308,15 +1311,16 @@ async def list_threads(
     return out
 
 
-def _lead_whatsapp_digits(lead: Lead) -> str:
+async def _lead_whatsapp_digits(db: AsyncSession, lead: Lead) -> str:
+    """Номер для WhatsApp. Доп. телефоны читаем запросом: ленивая связь в async роняет greenlet_spawn."""
     digits = whatsapp_e164_digits(norm_phone(lead.phone) or lead.phone)
     if len(digits) >= 11:
         return digits
-    for ep in getattr(lead, "extra_phones", None) or []:
-        d = whatsapp_e164_digits(norm_phone(getattr(ep, "phone", None)) or getattr(ep, "phone", None))
-        if len(d) >= 11:
-            return d
-    return digits if len(digits) >= 11 else ""
+    for raw in await list_extra_phones(db, int(lead.id)):
+        extra = whatsapp_e164_digits(norm_phone(raw) or raw)
+        if len(extra) >= 11:
+            return extra
+    return ""
 
 
 async def _ensure_whatsapp_thread_for_lead(
@@ -1327,7 +1331,7 @@ async def _ensure_whatsapp_thread_for_lead(
 ) -> ChatThread | None:
     """Создаёт исходящий WhatsApp-тред (GREEN API) по телефону лида, если переписки ещё нет."""
     await db.refresh(lead, ["stage", "extra_phones"])
-    digits = _lead_whatsapp_digits(lead)
+    digits = await _lead_whatsapp_digits(db, lead)
     if len(digits) < 9:
         return None
 
@@ -1396,7 +1400,7 @@ async def _resolve_whatsapp_thread_for_lead(
         )
     ).scalars().first()
 
-    digits = _lead_whatsapp_digits(lead)
+    digits = await _lead_whatsapp_digits(db, lead)
     want_chat = f"{digits}@c.us" if len(digits) >= 9 else None
 
     if green is not None:
@@ -1444,7 +1448,7 @@ async def get_thread_by_lead(
 
     thread = await _resolve_whatsapp_thread_for_lead(db, company_id=company_id, lead=lead)
     if thread is None:
-        digits = _lead_whatsapp_digits(lead)
+        digits = await _lead_whatsapp_digits(db, lead)
         if len(digits) < 9:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

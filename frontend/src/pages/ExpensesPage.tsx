@@ -25,6 +25,7 @@ import { decodeRoleFromToken } from "@/lib/auth";
 import { EXPENSE_CATALOG } from "@/lib/expenseCatalog";
 import { APP_CURRENCY } from "@/lib/money";
 import { DateField } from "@/components/DateField";
+import { PrintButton } from "@/components/PrintButton";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 
 type StaffCard = {
@@ -832,7 +833,10 @@ export function ExpensesPage() {
             Банк, статья, товар. «Кому» — получатель (ЗП), «Через кого» — кто передал; это разные роли.
           </p>
         </div>
-        <MonthYearPicker className="expenses-month-picker" value={yearMonth} onChange={setYearMonth} />
+        <div className="flex flex-wrap items-center gap-2">
+          <PrintButton />
+          <MonthYearPicker className="expenses-month-picker" value={yearMonth} onChange={setYearMonth} />
+        </div>
       </div>
 
       <div className="mo-fill-page-scroll expenses-page__body">

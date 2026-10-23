@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { Link, Navigate } from "react-router-dom";
 
 import { DateField } from "@/components/DateField";
+import { PrintButton } from "@/components/PrintButton";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { Settings } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
@@ -329,6 +330,7 @@ export function ExtraServicesPage() {
           </Link>
         </div>
         <div className="extra-services-head-actions">
+          {tab === "report" || tab === "journal" ? <PrintButton /> : null}
           <button
             type="button"
             className={["extra-services-settings-btn", tab === "settings" ? "is-active" : ""].join(" ")}

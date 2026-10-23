@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { AccessDenied } from "@/components/AccessDenied";
 import { DateField } from "@/components/DateField";
 import { ProtocolQueuePanel } from "@/components/ProtocolQueuePanel";
+import { PrintButton } from "@/components/PrintButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
@@ -222,6 +223,7 @@ export function SalesControlPage() {
             ? "Протоколы — все пациенты. Курсы — продажи всех менеджеров и их оплаты."
             : "Протоколы — ваши пациенты из журнала куратора. Курсы — продажи, где вы менеджер, и их оплаты."
         }
+        actions={<PrintButton />}
       />
       <div className="mb-4 flex flex-wrap gap-1.5">
         {(

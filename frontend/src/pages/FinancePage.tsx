@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import { PrintButton } from "@/components/PrintButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
@@ -137,6 +138,7 @@ function FinancePageInner() {
           description="Оплаты визитов, курсов и расходы из CRM сами дописываются в Google-таблицу ОСВ. Строки, которые уже набраны в таблице, не затираются. ДДС и ОПиУ строятся по этим данным."
           actions={
             <div className="flex flex-wrap items-center gap-2">
+              <PrintButton />
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}

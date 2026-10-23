@@ -18,6 +18,7 @@ import { canAccessCuratorJournal } from "@/lib/clinicRoles";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { readJournalSection, rememberJournalSection, type JournalSection } from "@/lib/leadReturn";
 import { Course15QueuePanel } from "@/components/Course15QueuePanel";
+import { PrintButton } from "@/components/PrintButton";
 import { DateField } from "@/components/DateField";
 import { Pencil, Search, Trash2 } from "@/components/icons";
 
@@ -519,6 +520,7 @@ export function CuratorJournalPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <PrintButton />
           {section === "course" && canManageFlows ? (
             <button type="button" className="btn-secondary text-sm" onClick={() => setShowCreate(true)}>
               Новый поток
@@ -1919,7 +1921,7 @@ function ReportModal({
   const r = reportQuery.data;
 
   return (
-    <Modal title="Отчёт по жалобам" onClose={onClose} wide>
+    <Modal title="Отчёт по жалобам" onClose={onClose} wide printable>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => preset("today")}>
           Сегодня
@@ -1979,26 +1981,38 @@ function Modal({
   onClose,
   children,
   wide,
+  printable,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  printable?: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-3 backdrop-blur-[2px] sm:items-center" onClick={onClose}>
+    <div
+      className={[
+        "fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-3 backdrop-blur-[2px] sm:items-center",
+        printable ? "print-sheet-backdrop" : "",
+      ].join(" ")}
+      onClick={onClose}
+    >
       <div
         className={[
           "mo-modal-panel max-h-[90vh] w-full overflow-y-auto rounded-2xl p-4 shadow-xl",
           wide ? "max-w-2xl" : "max-w-md",
+          printable ? "print-sheet" : "",
         ].join(" ")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">{title}</h2>
-          <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={onClose}>
-            Закрыть
-          </button>
+          <div className="flex items-center gap-2 print-hide">
+            {printable ? <PrintButton /> : null}
+            <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={onClose}>
+              Закрыть
+            </button>
+          </div>
         </div>
         {children}
       </div>

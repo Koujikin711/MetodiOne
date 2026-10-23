@@ -10,6 +10,7 @@ import { DateField } from "@/components/DateField";
 import { KpiLeadPicker, type KpiLeadPick } from "@/components/KpiLeadPicker";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { ServiceRevenueCharts } from "@/components/ServiceRevenueCharts";
+import { PrintButton } from "@/components/PrintButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { apiFetch, getStoredToken } from "@/lib/api";
@@ -1005,21 +1006,6 @@ export function KpiPage() {
     }));
   }
 
-  const linkLeadMutation = useMutation({
-    mutationFn: async ({ id, leadId }: { id: number; leadId: number }) => {
-      await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${id}/link-lead`, {
-        method: "PATCH",
-        body: JSON.stringify({ lead_id: leadId }),
-      });
-    },
-    onSuccess: () => {
-      toast.success("Lead привязан");
-      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
-      void queryClient.invalidateQueries({ queryKey: ["analytics-ltv-cohort"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const changeSaleManager = useMutation({
     mutationFn: async (body: { id: number; managerId?: number; useLead?: boolean }) => {
       await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${body.id}/manager`, {
@@ -1258,6 +1244,7 @@ export function KpiPage() {
           className="mb-0"
           title="KPI продаж"
           description="У каждой услуги свой процент. Заработок — этот процент от суммы, которую менеджер привёл по ней."
+          actions={tab === "plan" ? undefined : <PrintButton />}
         />
       </header>
 
@@ -1674,11 +1661,11 @@ export function KpiPage() {
           {journalOpen && typeof document !== "undefined"
             ? createPortal(
                 <div
-                  className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
+                  className="print-sheet-backdrop fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
                   onClick={() => setJournalOpen(false)}
                 >
                   <div
-                    className="flex max-h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] shadow-2xl sm:rounded-2xl"
+                    className="print-sheet flex max-h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] shadow-2xl sm:rounded-2xl"
                     role="dialog"
                     aria-modal
                     aria-label="Журнал платежей"
@@ -1689,13 +1676,16 @@ export function KpiPage() {
                         <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Журнал платежей</h2>
                         <p className="mt-0.5 text-xs mo-muted">Когда, кто внёс и сколько.</p>
                       </div>
-                      <button
-                        type="button"
-                        className="btn-secondary min-h-11 px-3 text-sm"
-                        onClick={() => setJournalOpen(false)}
-                      >
-                        Закрыть
-                      </button>
+                      <div className="flex items-center gap-2 print-hide">
+                        <PrintButton />
+                        <button
+                          type="button"
+                          className="btn-secondary min-h-11 px-3 text-sm"
+                          onClick={() => setJournalOpen(false)}
+                        >
+                          Закрыть
+                        </button>
+                      </div>
                     </header>
                     <div className="border-b border-[var(--mo-border)] px-4 py-3">
                       <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
@@ -1947,8 +1937,6 @@ export function KpiPage() {
                 <col className="kpi-course-col-sum" />
                 <col className="kpi-course-col-money" />
                 <col className="kpi-course-col-money" />
-                <col className="kpi-course-col-kpi" />
-                <col className="kpi-course-col-actions" />
               </colgroup>
               <thead>
                 <tr>
@@ -1962,8 +1950,6 @@ export function KpiPage() {
                   <th>Сумма</th>
                   <th>Оплачено</th>
                   <th>Долг</th>
-                  <th>KPI</th>
-                  <th>Действия</th>
                 </tr>
               </thead>
               <tbody>
@@ -2065,56 +2051,6 @@ export function KpiPage() {
                       <span className={["kpi-debt", num(s.debt_amount) <= 0 ? "is-zero" : ""].filter(Boolean).join(" ")}>
                         {sheetMoney(s.debt_amount)}
                       </span>
-                    </td>
-                    <td>
-                      {s.status === "returned" ? (
-                        <span className="kpi-chip kpi-chip--return">возврат</span>
-                      ) : s.status === "refused" ? (
-                        <span className="kpi-chip kpi-chip--refuse">отказ</span>
-                      ) : s.status === "completed" ? (
-                        <span className="kpi-chip kpi-chip--done">завершён</span>
-                      ) : null}
-                      {s.status_reason ? (
-                        <div className="mt-0.5 max-w-[10rem] truncate text-[10px] text-[var(--mo-text-muted)]" title={s.status_reason}>
-                          {s.status_reason}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td>
-                      <div className="kpi-course-actions">
-                        {s.lead_id ? (
-                          <span className="tabular-nums mo-muted" title={`Lead #${s.lead_id}`}>#{s.lead_id}</span>
-                        ) : (role === "owner" || role === "super_owner") ? (
-                          <button
-                            type="button"
-                            className="kpi-course-card-link"
-                            disabled={linkLeadMutation.isPending}
-                            onClick={() => {
-                              const raw = window.prompt("Lead ID для явной привязки (без phone-merge):");
-                              const leadId = Number(raw || 0);
-                              if (!leadId) return;
-                              linkLeadMutation.mutate({ id: s.id, leadId });
-                            }}
-                          >
-                            Привязать
-                          </button>
-                        ) : (
-                          <span className="text-[10px] mo-muted">без Lead</span>
-                        )}
-                        {s.status === "active" && isAdminOrOwner ? (
-                          <SaleRowActionsMenu
-                            onReturn={() => {
-                              if (window.confirm("Отметить возврат и снять с KPI?")) {
-                                returnMutation.mutate(s.id);
-                              }
-                            }}
-                            onRefuse={() => askCloseSale(s.id, "refused")}
-                            onComplete={() => askCloseSale(s.id, "completed")}
-                          />
-                        ) : (
-                          <span className="text-[var(--mo-text-muted)]">—</span>
-                        )}
-                      </div>
                     </td>
                   </tr>
                 ))}

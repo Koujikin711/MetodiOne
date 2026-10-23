@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { DateField } from "@/components/DateField";
+import { PrintButton } from "@/components/PrintButton";
 import { apiFetch } from "@/lib/api";
 import type { ExpertReportsResponse } from "@/lib/types";
 
@@ -27,11 +28,14 @@ export function ExpertReportsPage() {
 
   return (
     <div className="relative mx-auto max-w-6xl space-y-6 pb-8">
-      <header className="space-y-2">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Отчёты</h1>
         <p className="text-sm lux-caption">
           Лиды и онлайн-запись за период. Админ с доступом эксперта видит воронки своей клиники.
         </p>
+        </div>
+        <PrintButton />
       </header>
 
       <section className="mo-section p-4">
