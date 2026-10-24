@@ -1986,7 +1986,7 @@ export function KpiPage() {
             Прошлые оплаты остаются у прежнего менеджера. Новая доплата идёт выбранному.
           </p>
           <div className="mo-table-scroll hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] sm:block">
-            <table className="w-full min-w-[1100px] text-left text-sm">
+            <table className="sold-course-sheet w-full min-w-[1100px] text-left">
               <thead>
                 <tr className="border-b border-[var(--mo-border)] text-[11px] uppercase tracking-wide mo-muted">
                   <th className="px-3 py-2 font-medium">Дата</th>
